@@ -47,7 +47,8 @@ public final class TemplateExpander {
                 .ref(node.ref)
                 .layout(node.layout)
                 .effects(node.effects)
-                .props(overlayProps(node.props, activeProps));
+                .props(overlayProps(node.props, activeProps))
+                .signals(node.signals);
 
         List<UiNode> expandedChildren = new ArrayList<UiNode>();
         for (UiNode child : node.children) {
@@ -121,6 +122,15 @@ public final class TemplateExpander {
         }
         if (refNode.layout != LayoutSpec.EMPTY) {
             out.layout(mergeLayout(body.layout, refNode.layout));
+        }
+        if (!refNode.signals.isEmpty()) {
+            List<String> merged = new ArrayList<String>(body.signals);
+            for (String s : refNode.signals) {
+                if (!merged.contains(s)) {
+                    merged.add(s);
+                }
+            }
+            out.signals(merged);
         }
         return out.build();
     }

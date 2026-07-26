@@ -3,8 +3,10 @@ package artframework.component;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Immutable composition AST node. Stage / GL are separate.
@@ -20,6 +22,8 @@ public final class UiNode {
     public final List<EffectDecl> effects;
     public final List<UiNode> children;
     public final Map<String, List<UiNode>> slots;
+    /** Declared signal names (order preserved, unique). */
+    public final List<String> signals;
 
     private UiNode(
             String type,
@@ -29,7 +33,9 @@ public final class UiNode {
             LayoutSpec layout,
             List<EffectDecl> effects,
             List<UiNode> children,
-            Map<String, List<UiNode>> slots) {
+            Map<String, List<UiNode>> slots,
+            List<String> signals,
+            boolean signalsExplicit) {
         if (type == null || type.isEmpty()) {
             throw new IllegalArgumentException("type required");
         }
@@ -41,6 +47,11 @@ public final class UiNode {
         this.effects = freezeEffects(effects);
         this.children = freezeChildren(children);
         this.slots = freezeSlots(slots);
+        this.signals = freezeSignals(type, signals, signalsExplicit);
+    }
+
+    public boolean declaresSignal(String signal) {
+        return signal != null && signals.contains(signal);
     }
 
     private static Map<String, Object> freezeProps(Map<String, Object> props) {
@@ -76,6 +87,37 @@ public final class UiNode {
             out.put(e.getKey(), list);
         }
         return Collections.unmodifiableMap(out);
+    }
+
+    private static List<String> freezeSignals(
+            String type, List<String> signals, boolean signalsExplicit) {
+        List<String> ordered = new ArrayList<String>();
+        Set<String> seen = new LinkedHashSet<String>();
+        if (signals != null) {
+            for (String s : signals) {
+                if (s == null) {
+                    throw new IllegalArgumentException("signal required");
+                }
+                String name = s.trim();
+                if (name.isEmpty()) {
+                    throw new IllegalArgumentException("signal required");
+                }
+                if (seen.add(name)) {
+                    ordered.add(name);
+                }
+            }
+        }
+        if (!signalsExplicit && ordered.isEmpty()) {
+            for (String d : UiTypes.defaultSignals(type)) {
+                if (seen.add(d)) {
+                    ordered.add(d);
+                }
+            }
+        }
+        if (ordered.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Collections.unmodifiableList(ordered);
     }
 
     public String propString(String key, String defaultValue) {
@@ -125,6 +167,8 @@ public final class UiNode {
         private final List<EffectDecl> effects = new ArrayList<EffectDecl>();
         private final List<UiNode> children = new ArrayList<UiNode>();
         private final Map<String, List<UiNode>> slots = new LinkedHashMap<String, List<UiNode>>();
+        private final List<String> signals = new ArrayList<String>();
+        private boolean signalsExplicit;
 
         public Builder(String type) {
             this.type = type;
@@ -141,6 +185,8 @@ public final class UiNode {
             for (Map.Entry<String, List<UiNode>> e : src.slots.entrySet()) {
                 this.slots.put(e.getKey(), new ArrayList<UiNode>(e.getValue()));
             }
+            this.signals.addAll(src.signals);
+            this.signalsExplicit = true;
         }
 
         public Builder id(String id) {
@@ -235,8 +281,31 @@ public final class UiNode {
             return this;
         }
 
+        public Builder signal(String signal) {
+            signalsExplicit = true;
+            if (signal == null || signal.trim().isEmpty()) {
+                throw new IllegalArgumentException("signal required");
+            }
+            signals.add(signal.trim());
+            return this;
+        }
+
+        public Builder signals(List<String> list) {
+            signalsExplicit = true;
+            if (list != null) {
+                for (String s : list) {
+                    if (s == null || s.trim().isEmpty()) {
+                        throw new IllegalArgumentException("signal required");
+                    }
+                    signals.add(s.trim());
+                }
+            }
+            return this;
+        }
+
         public UiNode build() {
-            return new UiNode(type, id, ref, props, layout, effects, children, slots);
+            return new UiNode(
+                    type, id, ref, props, layout, effects, children, slots, signals, signalsExplicit);
         }
     }
 }

@@ -102,6 +102,7 @@ public final class UiTree {
     }
 
     public void connect(String instanceId, String signal, SignalHandler handler) {
+        requireDeclaredSignal(instanceId, signal);
         signalHub.connect(instanceId, signal, handler);
     }
 
@@ -110,7 +111,29 @@ public final class UiTree {
     }
 
     public void emit(String instanceId, String signal, Object... args) {
+        requireDeclaredSignal(instanceId, signal);
         signalHub.emit(instanceId, signal, args);
+    }
+
+    /**
+     * When {@code instanceId} maps to a mounted instance, signal must be declared on its
+     * {@link UiNode}. Unknown ids skip the check (legacy hub-only listeners).
+     */
+    private void requireDeclaredSignal(String instanceId, String signal) {
+        if (instanceId == null || instanceId.isEmpty()) {
+            return;
+        }
+        UiInstance inst = byId.get(instanceId);
+        if (inst == null) {
+            return;
+        }
+        if (signal == null || signal.isEmpty()) {
+            throw new IllegalArgumentException("signal required");
+        }
+        if (!inst.declaresSignal(signal)) {
+            throw new IllegalArgumentException(
+                    "undeclared signal \"" + signal + "\" on instance \"" + instanceId + "\"");
+        }
     }
 
     public void unmount() {

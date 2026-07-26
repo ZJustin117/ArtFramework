@@ -1,5 +1,11 @@
 package artframework.component;
 
+import artframework.core.SignalNames;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Built-in composition node type names.
  */
@@ -53,5 +59,26 @@ public final class UiTypes {
 
     public static boolean isExpandable(String type) {
         return REF.equals(type) || SLOT.equals(type);
+    }
+
+    /**
+     * Built-in default signal names when declaration omits {@code signals}.
+     * Explicit empty list on the node means "no signals" (no defaults).
+     */
+    public static List<String> defaultSignals(String type) {
+        if (BUTTON.equals(type) || HITAREA.equals(type)) {
+            return Collections.unmodifiableList(Arrays.asList(SignalNames.PRESSED));
+        }
+        if (SLIDER.equals(type) || PROGRESS.equals(type)) {
+            return Collections.unmodifiableList(Arrays.asList(SignalNames.VALUE_CHANGED));
+        }
+        if (TEXTFIELD.equals(type)) {
+            return Collections.unmodifiableList(
+                    Arrays.asList(SignalNames.TEXT_CHANGED, SignalNames.TEXT_SUBMITTED));
+        }
+        if (CHECKBOX.equals(type)) {
+            return Collections.unmodifiableList(Arrays.asList(SignalNames.TOGGLED));
+        }
+        return Collections.emptyList();
     }
 }

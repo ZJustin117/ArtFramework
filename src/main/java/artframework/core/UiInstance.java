@@ -175,16 +175,24 @@ public final class UiInstance {
         return 0;
     }
 
+    public List<String> signals() {
+        return decl.signals;
+    }
+
+    public boolean declaresSignal(String signal) {
+        return decl.declaresSignal(signal);
+    }
+
     public void connect(String signal, SignalHandler handler) {
-        tree.signalHub().connect(resolveEmitId(), signal, handler);
+        tree.connect(resolveEmitId(), signal, handler);
     }
 
     public void disconnect(String signal, SignalHandler handler) {
-        tree.signalHub().disconnect(resolveEmitId(), signal, handler);
+        tree.disconnect(resolveEmitId(), signal, handler);
     }
 
     public void emit(String signal, Object... args) {
-        tree.signalHub().emit(resolveEmitId(), signal, args);
+        tree.emit(resolveEmitId(), signal, args);
     }
 
     void addChild(UiInstance child) {

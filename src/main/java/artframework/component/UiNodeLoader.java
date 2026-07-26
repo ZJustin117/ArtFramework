@@ -128,9 +128,48 @@ public final class UiNodeLoader {
             effects.add(new EffectDecl("glass", gp));
         }
         b.effects(effects);
+        if (map.containsKey("signals")) {
+            b.signals(parseSignals(map.get("signals")));
+        }
         b.children(childrenOf(map));
         b.slots(slotsOf(map));
         return b.build();
+    }
+
+    private static List<String> parseSignals(Object raw) {
+        if (raw == null) {
+            return new ArrayList<String>();
+        }
+        if (raw instanceof String) {
+            String s = ((String) raw).trim();
+            List<String> one = new ArrayList<String>();
+            if (!s.isEmpty()) {
+                String[] parts = s.split(",");
+                for (String p : parts) {
+                    String t = p.trim();
+                    if (!t.isEmpty()) {
+                        one.add(t);
+                    }
+                }
+            }
+            return one;
+        }
+        if (!(raw instanceof List)) {
+            throw new IllegalArgumentException("signals must be array or string");
+        }
+        List<?> list = (List<?>) raw;
+        List<String> out = new ArrayList<String>(list.size());
+        for (Object item : list) {
+            if (item == null) {
+                throw new IllegalArgumentException("signal required");
+            }
+            String name = String.valueOf(item).trim();
+            if (name.isEmpty()) {
+                throw new IllegalArgumentException("signal required");
+            }
+            out.add(name);
+        }
+        return out;
     }
 
     private static boolean isKnownType(String type) {

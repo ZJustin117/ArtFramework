@@ -88,7 +88,7 @@ Design: [`docs/design/godot-aligned-ui.md`](design/godot-aligned-ui.md).
 Design: [`docs/design/art-framework.md`](design/art-framework.md). Breaking identity rename done in phase 12.0 prep.
 
 - [x] 12.0 Identity rename (`artframework` package/mod/jar/console/probe/env) + `art-framework.md` + task links
-- [ ] 12.1 Declared signals on AST + connect/emit validation + JUnit
+- [x] 12.1 Declared signals on AST + connect/emit validation + JUnit
 - [ ] 12.2 `NodeRegistry` / type SPI; loaders resolve registered types; namespaced third-party types
 - [ ] 12.3 LML → AST loader + resource dispatch (`.json` / `.lml`) + art-verify sample
 - [ ] 12.4 C1 node factory SPI; migrate `ComponentActors` built-ins

@@ -15,16 +15,19 @@ import com.megacrit.cardcrawl.helpers.input.InputHelper;
 import spireui.api.SpireUI;
 import spireui.c1.StageBackend;
 import spireui.c1.SyntheticRuntime;
+import spireui.c1.layout.ComponentActors;
 import spireui.c1.layout.LayoutActors;
 import spireui.c1.layout.LayoutNode;
 import spireui.c1.skin.StsSkin;
+import spireui.component.UiNode;
+import spireui.render.RenderHosts;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * BaseMod-driven scene2d host: PostInitialize builds Stage+StsSkin; PostUpdate act;
- * PostRender draw. Modal input capture while any synthetic window is attached.
+ * PostRender draw + effect frame. Modal input while any synthetic window is attached.
  * No SpirePatch — uses BaseMod publish hooks only.
  */
 public final class StageHost
@@ -72,7 +75,14 @@ public final class StageHost
             stage = new Stage(new ScreenViewport());
             ready = true;
             SyntheticRuntime.installStageBackend(this);
-            BaseMod.logger.info("SpireUI StageHost ready (StsSkin + Stage)");
+            int shaders = 0;
+            try {
+                shaders = RenderHosts.get().compileShaders();
+            } catch (Throwable t) {
+                BaseMod.logger.warn("SpireUI shader compile skipped: " + t.getMessage());
+            }
+            BaseMod.logger.info(
+                    "SpireUI StageHost ready (StsSkin + Stage; shadersCompiled=" + shaders + ")");
         } catch (RuntimeException e) {
             ready = false;
             BaseMod.logger.error("SpireUI StageHost init failed", e);
@@ -81,21 +91,61 @@ public final class StageHost
 
     @Override
     public void receivePostUpdate() {
-        if (!ready || stage == null || actors.isEmpty()) {
+        if (!ready || stage == null) {
+            return;
+        }
+        float dt = Gdx.graphics != null ? Gdx.graphics.getDeltaTime() : 0f;
+        RenderHosts.get().tick(dt);
+        if (Gdx.graphics != null) {
+            // Always track screen size for capture UV mapping
+            RenderHosts.get()
+                    .syncScreenBounds(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        }
+        if (actors.isEmpty()) {
             return;
         }
         stage.getViewport().update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
-        stage.act(Gdx.graphics.getDeltaTime());
+        stage.act(dt);
     }
 
     @Override
     public void receivePostRender(SpriteBatch sb) {
-        if (!ready || stage == null || actors.isEmpty()) {
+        if (!ready) {
             return;
         }
+        boolean hasStage = stage != null && !actors.isEmpty();
+        boolean hasFx = RenderHosts.get().bindingCount() > 0 || RenderHosts.get().targetCount() > 0;
+        if (!hasStage && !hasFx) {
+            return;
+        }
+        // End batch so default FB is complete, then copy screen for glass/blur, then draw FX.
         sb.end();
-        stage.draw();
+        if (hasStage) {
+            // Stage draws after capture so glass samples the *game* scene, not our UI chrome.
+            // Capture first while only game content is on screen.
+            if (RenderHosts.get().needsCapture()) {
+                try {
+                    RenderHosts.get()
+                            .frameCapture()
+                            .captureScreen(
+                                    (int) RenderHosts.get().screenWidth(),
+                                    (int) RenderHosts.get().screenHeight());
+                } catch (Throwable ignored) {
+                }
+            }
+            stage.draw();
+        } else if (RenderHosts.get().needsCapture()) {
+            try {
+                RenderHosts.get()
+                        .frameCapture()
+                        .captureScreen(
+                                (int) RenderHosts.get().screenWidth(),
+                                (int) RenderHosts.get().screenHeight());
+            } catch (Throwable ignored) {
+            }
+        }
         sb.begin();
+        RenderHosts.get().drawFrame(sb, true);
     }
 
     @Override
@@ -114,6 +164,27 @@ public final class StageHost
         detach(id);
         final String windowId = id;
         Actor actor = LayoutActors.toActor(root, skin, new Runnable() {
+            @Override
+            public void run() {
+                SpireUI.close(windowId);
+            }
+        });
+        actors.put(id, actor);
+        stage.addActor(actor);
+        captureInput();
+    }
+
+    @Override
+    public void attachComposition(String id, UiNode root) {
+        if (!ready || stage == null || skin == null) {
+            return;
+        }
+        if (id == null || root == null) {
+            throw new IllegalArgumentException("id and root required");
+        }
+        detach(id);
+        final String windowId = id;
+        Actor actor = ComponentActors.toActor(windowId, root, skin, new Runnable() {
             @Override
             public void run() {
                 SpireUI.close(windowId);

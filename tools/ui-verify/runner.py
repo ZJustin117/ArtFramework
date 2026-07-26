@@ -1,4 +1,4 @@
-"""Run one UI-verify scenario (fixture or device stub)."""
+"""Run one UI-verify scenario (fixture or device)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,6 @@ def _load_fixture(scenario_path: Path, fixture_rel: Optional[str]) -> Any:
     if not fixture_rel:
         raise ValueError("fixture mode requires fixture: path")
     base = scenario_path.parent
-    # allow tests/ui-scenarios relative to repo
     candidates = [
         base / fixture_rel,
         _repo_root() / "tests" / "ui-scenarios" / fixture_rel,
@@ -36,13 +35,21 @@ def _load_fixture(scenario_path: Path, fixture_rel: Optional[str]) -> Any:
     for c in candidates:
         if c.is_file():
             return json.loads(c.read_text(encoding="utf-8"))
-    raise FileNotFoundError(f"fixture not found: {fixture_rel} (searched {[str(x) for x in candidates]})")
+    raise FileNotFoundError(
+        f"fixture not found: {fixture_rel} (searched {[str(x) for x in candidates]})"
+    )
 
 
 def _check_require(require: Dict[str, Any], *, device: bool) -> Optional[str]:
     env_keys = list((require.get("env") or []) if isinstance(require, dict) else [])
-    if device and "SPIREUI_D1_SERIAL" not in env_keys:
-        env_keys.append("SPIREUI_D1_SERIAL")
+    if device:
+        for k in (
+            "SPIREUI_D1_SERIAL",
+            "STS_CONNECTOR_PORT",
+            "SLAY_THE_AMETHYST_ROOT",
+        ):
+            if k not in env_keys:
+                env_keys.append(k)
     missing = []
     for k in env_keys:
         if not os.environ.get(str(k), "").strip():
@@ -77,12 +84,25 @@ def run_scenario(
 
     last_probe: Any = None
     vars_map: Dict[str, Any] = {}
+    client = None
+    close_fn = None
+
     if mode == "fixture":
         try:
             last_probe = _load_fixture(path, sc.get("fixture"))
         except Exception as e:
             result["status"] = "fail"
             result["error"] = str(e)
+            _write_result(result, out_dir)
+            return result
+    else:
+        try:
+            from device_console import connect_console
+
+            client, close_fn = connect_console()
+        except Exception as e:
+            result["status"] = "fail"
+            result["error"] = f"device console connect: {type(e).__name__}: {e}"
             _write_result(result, out_dir)
             return result
 
@@ -95,6 +115,7 @@ def run_scenario(
                 mode=mode,
                 last_probe=last_probe,
                 vars_map=vars_map,
+                client=client,
             )
             result["steps"].append(rec)
             if rec.get("probe") is not None:
@@ -104,7 +125,6 @@ def run_scenario(
                 result["error"] = rec.get("error")
                 break
             if rec.get("status") == "skip":
-                # Stop remaining steps (e.g. device probe not ready)
                 result["status"] = "skip"
                 result["error"] = rec.get("error")
                 break
@@ -114,6 +134,12 @@ def run_scenario(
     except Exception as e:
         result["status"] = "fail"
         result["error"] = f"{type(e).__name__}: {e}"
+    finally:
+        if close_fn is not None:
+            try:
+                close_fn()
+            except Exception:
+                pass
 
     _write_result(result, out_dir)
     return result
@@ -126,6 +152,7 @@ def _run_step(
     mode: str,
     last_probe: Any,
     vars_map: Dict[str, Any],
+    client: Any,
 ) -> Dict[str, Any]:
     rec: Dict[str, Any] = {"index": index, "status": "pass", "step": step}
     if "wait_ms" in step:
@@ -141,23 +168,40 @@ def _run_step(
 
     if "probe" in step:
         if mode == "fixture":
-            # fixture already loaded; optional re-load path
             rec["probe"] = last_probe
             return rec
-        # device: skip until spireui probe console exists (task 6.6)
-        rec["status"] = "skip"
-        rec["error"] = (
-            "device probe not implemented yet (need SpireUI console SPIREUI_PROBE)"
-        )
+        from device_console import probe_after_console
+
+        rec["probe"] = probe_after_console(client)
         return rec
 
-    if "op" in step or "console" in step:
+    if "console" in step or "op" in step:
         if mode == "fixture":
             rec["status"] = "skip"
             rec["error"] = "op/console ignored in fixture mode"
             return rec
-        rec["status"] = "skip"
-        rec["error"] = "device op/console not implemented yet"
+        from device_console import console_exec, console_output_text
+
+        if "console" in step:
+            cmd = str(step["console"])
+        else:
+            # op: short form → spireui op …
+            op = step["op"]
+            if isinstance(op, str):
+                cmd = "spireui op " + op
+            elif isinstance(op, list):
+                cmd = "spireui op " + " ".join(str(x) for x in op)
+            else:
+                cmd = "spireui op " + str(op)
+        raw = console_exec(client, cmd)
+        rec["console"] = cmd
+        rec["console_raw"] = {
+            k: raw.get(k) for k in ("executed", "command", "output", "error") if k in raw
+        }
+        # game-probe often returns output "ok" without raising; only fail hard errors
+        if raw.get("executed") is False and raw.get("error"):
+            rec["status"] = "fail"
+            rec["error"] = str(raw.get("error"))
         return rec
 
     if "set" in step and isinstance(step["set"], dict):
@@ -174,7 +218,9 @@ def _write_result(result: Dict[str, Any], out_dir: Optional[Path]) -> None:
     name = result.get("name") or "scenario"
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in str(name))
     path = dest / f"{safe}.json"
-    path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # drop huge raw if present
+    slim = dict(result)
+    path.write_text(json.dumps(slim, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
     result["out_file"] = str(path)
 
 

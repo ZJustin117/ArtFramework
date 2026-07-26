@@ -3,6 +3,13 @@ package spireui.api;
 import spireui.c1.layout.LayoutNode;
 import spireui.c2.MapPin;
 import spireui.c2.NativeTemplateRuntime;
+import spireui.component.WidgetSession;
+import spireui.component.WidgetSessions;
+import spireui.c2.NativeComponents;
+import spireui.core.Themes;
+import spireui.core.UiTree;
+import spireui.core.UiTrees;
+import spireui.render.RenderHosts;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -29,6 +36,9 @@ public final class UiProbe {
         root.put("map", mapMap());
         root.put("endTurn", endTurnMap());
         root.put("entities", entitiesMap());
+        root.put("render", RenderHosts.get().probeMap());
+        root.put("theme", Themes.getDefault().probeSummary());
+        root.put("components", NativeComponents.probeAll());
         return root;
     }
 
@@ -55,6 +65,26 @@ public final class UiProbe {
                 List<String> buttons = new ArrayList<String>();
                 collectButtons(root, buttons);
                 one.put("buttonIds", buttons);
+            }
+            WidgetSession session = WidgetSessions.get(id);
+            if (session != null) {
+                Map<String, Object> controls = session.probeControls();
+                one.put("controls", controls);
+                @SuppressWarnings("unchecked")
+                List<String> fromSession = (List<String>) controls.get("buttonIds");
+                if (fromSession != null && !fromSession.isEmpty()) {
+                    one.put("buttonIds", fromSession);
+                }
+                if (session.root() != null) {
+                    String title = session.root().propString("title", null);
+                    if (title != null && !title.isEmpty()) {
+                        one.put("title", title);
+                    }
+                }
+            }
+            UiTree tree = UiTrees.get(id);
+            if (tree != null && tree.theme() != null) {
+                one.put("theme", tree.theme().probeSummary());
             }
             byId.put(id, one);
         }

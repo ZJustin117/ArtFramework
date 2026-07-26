@@ -1,0 +1,37 @@
+# Device: lab gate BLOCK → map/endturn ops report BLOCKED (intercept path).
+# Requires SpireUI loaded + game READY (android-device-lab.md).
+name: d1_gate_block_ops
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - SPIREUI_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "spireui gate all clear"
+  - wait_ms: 200
+  - console: "spireui gate map block"
+  - wait_ms: 200
+  - console: "spireui op map 1 0 monster"
+  - wait_ms: 300
+  - console: "spireui gate endturn block"
+  - wait_ms: 200
+  - console: "spireui op endturn"
+  - wait_ms: 300
+  - console: "spireui gate all clear"
+  - wait_ms: 200
+  - probe: all
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: modId
+      eq: spireui
+  - assert:
+      path: templates.mapBound
+      eq: true
+  - assert:
+      path: templates.endTurnBound
+      eq: true

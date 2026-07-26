@@ -77,12 +77,27 @@ Consumers register interceptors for policy. Dual-call migration then delete cons
 | P4 | Console `spireui probe` / `spireui op` + fixture ui-verify | done; device log scrape optional |
 | P5 | CrossSpire consumer migration (other repo) | open |
 
+## Forward compatibility (Godot-aligned)
+
+See [`godot-aligned-ui.md`](./godot-aligned-ui.md). Existing methods stay stable; evolution is additive:
+
+| Direction | Notes |
+|-----------|--------|
+| `component(id).action(name, …)` / `ops().invoke` | C2 (and later C1) route through `UiComponent`; named methods remain sugar |
+| Probe `components[]` | Self-describing slices for synthetic trees + native hosts; bump `schemaVersion` when required |
+| Signals | Leaf/native events via `connect`; `onButton` / interceptors unchanged in role |
+| `open` / `bind` | Compatibility aliases for mount / activate native |
+
+P0–P5 status above is **done** and not reopened by this section.
+
 ### Known limits (honest)
 
 - Hand select card pick / full hand-play pipeline: gate + partial UI only; not full STS useCard.
 - Map programmatic travel: gate + ok message; consumer still owns pin protocol / enter room.
 - Event option invoke uses reflection (`buttonEffect` protected).
+- Event **patch**: instrument `AbstractEvent.update` call sites — Prefix on protected abstract `buttonEffect` NPEs MTS ParamInfo.
 - Dual-mod with CrossSpire map/end-turn patches: both may run — consumer should migrate interceptors to SpireUI and slim own patches.
+- Amethyst: jar in `mods_library` requires `enabled_mods.txt` entry.
 
 ## Related
 

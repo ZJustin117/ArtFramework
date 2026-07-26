@@ -1,0 +1,29 @@
+{
+  "type": "window",
+  "id": "endturn_chrome_pilot",
+  "title": "End Turn Chrome (C1 pilot)",
+  "width": 220,
+  "height": 80,
+  "pad": 8,
+  "children": [
+    {
+      "type": "row",
+      "id": "row",
+      "gap": 8,
+      "grow": true,
+      "children": [
+        {
+          "type": "label",
+          "id": "hint",
+          "text": "End turn (synthetic chrome)"
+        },
+        {
+          "type": "button",
+          "id": "end_turn",
+          "text": "End Turn",
+          "grow": true
+        }
+      ]
+    }
+  ]
+}

@@ -108,6 +108,17 @@ adb -s "$SERIAL" shell ls -l "$REMOTE"
 
 Compare remote byte size from `ls -l` with local size. On failure for a device, stop immediately; do not force-stop the failed device. Report `PARTIAL` if an earlier target succeeded.
 
+### 3b. Ensure Amethyst loads SpireUI (enabled_mods.txt)
+
+Jar in `mods_library` alone does **not** enable the mod. After successful push on each target:
+
+```bash
+./scripts/ensure-enabled-mods.sh
+# dual: SPIREUI_ENSURE_DUAL=1 ./scripts/ensure-enabled-mods.sh
+```
+
+Or manually write `sts/enabled_mods.txt` with absolute paths, SpireUI before CrossSpire. See `docs/development/android-device-lab.md`.
+
 ### 4. Force-stop verified devices (default on)
 
 ```bash

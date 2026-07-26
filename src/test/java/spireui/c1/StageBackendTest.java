@@ -11,6 +11,7 @@ import spireui.c1.layout.LayoutNode;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class StageBackendTest {
@@ -70,5 +71,18 @@ public class StageBackendTest {
         SpireUI.open("demo");
         assertEquals(1, fake.attachedCount());
         assertTrue(fake.isAttached("demo"));
+    }
+
+    @Test
+    public void compositionOpenAttachesCompositionTree() {
+        FakeStageBackend fake = new FakeStageBackend();
+        SyntheticRuntime.installStageBackend(fake);
+        SpireUI.register(
+                new WindowDef("comp", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));
+        SpireUI.open("comp");
+        assertTrue(fake.isAttached("comp"));
+        assertNotNull(fake.getAttachedComposition("comp"));
+        assertEquals("Composition Sample", fake.getAttachedComposition("comp").propString("title", ""));
+        assertNull(fake.getAttached("comp"));
     }
 }

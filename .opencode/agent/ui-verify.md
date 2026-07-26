@@ -31,8 +31,8 @@ You are the SpireUI **UI-verify** subagent. You run `tools/ui-verify` (offline f
 
 1. Prefer process env / "Local machine config" from `local-env` plugin.
 2. Offline fixture: no device keys required.
-3. Device mode (`--device` or `mode: device`): `SPIREUI_D1_SERIAL` required (same physical device as CrossSpire D1 when mirrored).
-4. Do not invent absolute paths.
+3. Device mode: require `SPIREUI_D1_SERIAL`, `STS_CONNECTOR_PORT`, `SLAY_THE_AMETHYST_ROOT` (see `docs/development/android-device-lab.md`). Connector daemon must already be running; parent brings up lab.
+4. Do not invent absolute paths. Do not start connector/harness unless parent explicitly asks.
 
 ## How to run
 
@@ -49,14 +49,14 @@ python3 tools/ui-verify/run.py tests/ui-scenarios/fixtures/
 python3 tools/ui-verify/run.py tests/ui-scenarios/fixtures/f1_probe_shape.yaml
 ```
 
-Device (only if parent asks and jar/console ready):
+Device (only if parent asks and lab ready — connector + game READY + SpireUI.jar):
 
 ```bash
-# Needs SPIREUI_D1_SERIAL; probe console may still be unimplemented → fail/skip is OK to report
-python3 tools/ui-verify/run.py tests/ui-scenarios/smoke/ --device
+set -a && source .env.local && set +a
+python3 tools/ui-verify/run.py tests/ui-scenarios/device/ --device
 ```
 
-If parent says UI source changed and jar not pushed, **stop** and ask for `@android-deploy-jar` first.
+If jar not pushed / game not cold-started after deploy, **stop** and ask parent for `@android-deploy-jar` + lab bring-up (`android-device-lab.md`).
 
 ## Output format
 

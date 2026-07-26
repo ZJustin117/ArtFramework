@@ -1,0 +1,23 @@
+# Open C1 demo window and assert probe lists it.
+name: d1_c1_open_probe
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - SPIREUI_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "spireui open demo"
+  - wait_ms: 500
+  - probe: all
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: windows.openIds
+      contains: demo
+  - assert:
+      path: windows.byId.demo.windowClass
+      eq: SYNTHETIC

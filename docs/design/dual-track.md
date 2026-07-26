@@ -7,6 +7,8 @@
 
 Both share one facade (`spireui.api.SpireUI`) and registration format; runtimes differ.
 
+**API target (next):** one consumer surface (mount / tree / signals / ops / probe); C2 becomes encapsulated **NativeControl** components; host remains dual. See [`godot-aligned-ui.md`](./godot-aligned-ui.md).
+
 ```
 Caller
   → SpireUI.register / open / bind / close
@@ -76,7 +78,7 @@ Prefer `FontHelper`, `ImageMaster`, `ScrollBar`, `AbstractCard.render*` via adap
 
 Synthetic windows use a **minimal JSON layout** (not gdx-lml / VisUI). `WindowDef.resource` is a classpath path (e.g. `layouts/demo.json`).
 
-Supported node `type` values (v1):
+Supported node `type` values (v1 production open path):
 
 | type | Fields |
 |------|--------|
@@ -89,6 +91,10 @@ Supported node `type` values (v1):
 - Stage: `StageHost` (BaseMod PostInitialize / PostUpdate / PostRender; modal input like ModPanel). No SpirePatch.
 - Skin: `StsSkin` from `FontHelper` / `ImageMaster` / `Settings`; actors via `LayoutActors`.
 - Unit tests: parse + open/close + `FakeStageBackend`; no GL for default gate.
+
+### Composition framework (extensible tree)
+
+Composable Nest / Slot / Attach / Bind model lives in `spireui.component` (`UiNode`, `LayoutEngine`, `ComponentRegistry`). See [`component-composition.md`](./component-composition.md). Production Stage inflates composition via `ComponentActors` / `attachComposition`; legacy v1 `LayoutNode` bridge remains for simple window/label/button trees. Runtime instance tree + signals: [`godot-aligned-ui.md`](./godot-aligned-ui.md).
 
 ## Roadmap (high level)
 
@@ -107,7 +113,13 @@ Supported node `type` values (v1):
 
 7. C2 SpirePatch thin hooks call `dispatch*` only; consumers attach interceptors  
 
-8. UI-layer verification — pure JUnit + `tools/ui-verify` (fixture offline; optional D1 device)  
+8. UI-layer verification — pure JUnit + `tools/ui-verify` (fixture offline; optional D1 device)
+
+9. Lab intercept + GateLab + deploy hardening — done (see task.md)
+
+10. Component composition + RenderHost / glass FX — done (see task.md)
+
+11. **Godot-aligned UI core** — UiTree/signals, Theme, C1 widgets, C2 as NativeControl, host SPI ([`godot-aligned-ui.md`](./godot-aligned-ui.md), task 11.x)
 
 ## Unified ops / probe (track-agnostic)
 

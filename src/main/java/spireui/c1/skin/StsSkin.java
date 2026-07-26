@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
@@ -67,6 +68,14 @@ public final class StsSkin {
         buttonStyle.downFontColor = gold().cpy();
         buttonStyle.overFontColor = gold().cpy();
         skin.add("default", buttonStyle);
+
+        Slider.SliderStyle sliderStyle = new Slider.SliderStyle();
+        sliderStyle.background = white.tint(new Color(0.15f, 0.14f, 0.12f, 0.95f));
+        sliderStyle.knob = white.tint(gold().cpy());
+        sliderStyle.knobOver = white.tint(cream().cpy());
+        sliderStyle.knobDown = white.tint(new Color(0.9f, 0.75f, 0.2f, 1f));
+        skin.add("default-horizontal", sliderStyle);
+        skin.add("default-vertical", sliderStyle);
 
         return skin;
     }

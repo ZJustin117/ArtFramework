@@ -43,5 +43,42 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 ### 8. UI-layer verification
 
 - [x] 8.0 Fixture YAML + assert runner offline
-- [ ] 8.1 Device mode wired to real log scrape of `SPIREUI_PROBE` (optional; console prints line now)
+- [x] 8.1 Device mode: Amethyst connector console + `SPIREUI_PROBE` log scrape (`device_console.py`)
 - [x] 8.2 Fixture smoke: probe shape + C1 window + intercept-related template flags (JUnit owns BLOCK/ALLOW)
+- [x] 8.3 Lab doc: `android-device-lab.md` (CrossSpire/Amethyst parity, D1 UI only)
+- [x] 8.4 On-device pass of `tests/ui-scenarios/device/*` (D1 READY; enabled_mods + cold start)
+
+### 9. Lab intercept + deploy hardening
+
+- [x] 9.1 `GateLab` + console `spireui gate … block|clear` + JUnit
+- [x] 9.2 Device scenario `d1_gate_block_ops` (ops under lab gate)
+- [x] 9.3 `scripts/ensure-enabled-mods.sh` + deploy agent note
+- [x] 9.4 Remove empty select update stub patches
+
+### 10. Component composition framework
+
+- [x] 10.1 Design: `component-composition.md` + `component-layout-fx.md`
+- [x] 10.2 Pure `UiNode` AST + Nest containers (`row`/`col`/`stack`/`panel`/`fragment`)
+- [x] 10.3 `LayoutEngine` bounds + id index (JUnit)
+- [x] 10.4 `ComponentRegistry` + `ref` / `slot` expand (JUnit)
+- [x] 10.5 `UiNodeLoader` JSON + shorthand props; legacy `LayoutLoader` still works
+- [x] 10.6 Scenario fixtures / offline ui-verify coverage for composition samples
+- [x] 10.7 Leaf runtime (`WidgetSession`) + UiOps slider/hitarea/click + probe controls
+- [x] 10.8 RenderHost + Effect/Shader registry + glow GLSL assets + entity Attach + probe `render`
+- [x] 10.9 Composition Stage inflate (`ComponentActors` + `attachComposition`) + effect SpriteBatch draw
+- [x] 10.10 ShaderRuntime compile path + glow ShaderProgram draw fallback + probe shader status
+- [x] 10.11 FULL_FRAME enable/sync/bind + console `spireui fx` + StageHost screen bounds
+- [x] 10.12 FrameCapture + blur/glass post-process + `glass` component + glass_demo layout
+
+### 11. Godot-aligned UI core
+
+Design: [`docs/design/godot-aligned-ui.md`](design/godot-aligned-ui.md).
+
+- [x] 11.0 Design: `godot-aligned-ui.md` + dual-track / composition / layout-fx / ui-ops-probe / AGENTS links
+- [x] 11.1 `UiInstance` + `UiTree` + `SignalHub` (C1) + JUnit
+- [x] 11.2 `LayoutSpec` size flags + minSize + `LayoutEngine`
+- [x] 11.3 Theme MVP + `StsTheme`
+- [x] 11.4 C1 widgets: textfield / checkbox / progress / scroll (priority order)
+- [x] 11.5 C2 NativeControl (`sts.*`) + UiOps invoke + probe `components`
+- [x] 11.6 API mount/unmount + `HostBackend` SPI + consumer.md
+- [x] 11.7 Optional: C1 end-turn chrome pilot (`endturn_chrome_pilot` layout + JUnit)

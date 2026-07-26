@@ -10,6 +10,10 @@ const ALLOWED_KEYS = new Set([
   "SPIREUI_D1_SERIAL",
   "SPIREUI_D2_SERIAL",
   "SPIREUI_UI_VERIFY_OUT_DIR",
+  "STS_CONNECTOR_PORT",
+  "SPIREUI_AMETHYST_TOOLS_DIR",
+  "SPIREUI_HARNESS_OUT_DIR",
+  "SPIREUI_GAME_PROBE_PORT",
 ])
 
 const TEST_AGENTS = new Set([
@@ -74,6 +78,12 @@ function applyDerivedJars(merged: Record<string, string>): void {
       root,
       "app/src/main/assets/components/mods/ModTheSpire.jar",
     )
+  }
+  if (!merged.SPIREUI_AMETHYST_TOOLS_DIR) {
+    merged.SPIREUI_AMETHYST_TOOLS_DIR = join(root, "scripts/tools")
+  }
+  if (!merged.SPIREUI_GAME_PROBE_PORT) {
+    merged.SPIREUI_GAME_PROBE_PORT = "9099"
   }
 }
 

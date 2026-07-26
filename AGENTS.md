@@ -4,7 +4,8 @@
 
 - **This repo is UI toolkit only.** Do not depend on CrossSpire packages, protocol schema, or party/combat authority.
 - Dual track: **C1** = scene2d synthetic windows; **C2** = native STS templates + entity presenters. See [`docs/design/dual-track.md`](docs/design/dual-track.md).
-- Unified UI surface (roadmap): **UiOps** / **UiProbe** — [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md).
+- Godot-aligned API target (UiTree / signals / C2 as components / host SPI): [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md).
+- Unified UI surface: **UiOps** / **UiProbe** — [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md).
 - Temporary files → `agent-tmp/` (gitignored). Debug dumps → `debug-artifacts/` (gitignored).
 
 ## Document map
@@ -12,6 +13,7 @@
 | File | Role |
 |------|------|
 | [`docs/design/dual-track.md`](docs/design/dual-track.md) | C1/C2 design + roadmap |
+| [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md) | Godot-aligned core API + C2 components + host SPI |
 | [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md) | UiOps / UiProbe contract |
 | [`docs/task.md`](docs/task.md) | Open implementation tasks |
 | [`docs/development/logic-layer-testing.md`](docs/development/logic-layer-testing.md) | Test pyramid + pure API rules |
@@ -23,7 +25,8 @@
 ## Build / test
 
 - Env keys: `SPIREUI_STS_JAR`, `SPIREUI_BASEMOD_JAR`, `SPIREUI_MODTHESPIRE_JAR` (paths may match CrossSpire machine setup; **key names** stay `SPIREUI_*`).
-- Optional deploy / UI device: `SPIREUI_D1_SERIAL` (default single device; mirror CrossSpire D1 value), `SPIREUI_D2_SERIAL` (only if dual deploy requested).
+- Optional deploy / UI device: `SPIREUI_D1_SERIAL` (mirror CrossSpire D1), `SPIREUI_D2_SERIAL` (dual only if requested).
+- Device lab (Amethyst, same pattern as CrossSpire): `STS_CONNECTOR_PORT`, `SLAY_THE_AMETHYST_ROOT`, `SPIREUI_AMETHYST_TOOLS_DIR`, `SPIREUI_HARNESS_OUT_DIR`, `SPIREUI_GAME_PROBE_PORT` — see [`docs/development/android-device-lab.md`](docs/development/android-device-lab.md).
 - Optional: `SPIREUI_UI_VERIFY_OUT_DIR` for `tools/ui-verify` JSON output.
 - Default gate: `./scripts/with-env.sh test` (or `./gradlew test` with `-PstsJar` / `-PbaseModJar` / `-PmodTheSpireJar`).
 - UI tooling offline: `cd tools/ui-verify && python3 -m unittest discover -s tests -v`.
@@ -45,7 +48,7 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 ### Delegation rules
 
 1. One Task = one narrow goal (full `./scripts/with-env.sh test`, deploy jar, or ui-verify). Do not bundle refactor + test + fix in one subagent.
-2. Order: code change → **`@junit-test`** → offline **`@ui-verify`** if runner/YAML touched → **`@android-deploy-jar`** only if devices need a new jar → optional device **`@ui-verify`**.
+2. Order: code change → **`@junit-test`** → offline **`@ui-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → connector + harness cold start ([`android-device-lab.md`](docs/development/android-device-lab.md)) → device **`@ui-verify`**.
 3. Subagents **report summaries only** (`edit: deny`). Parent fixes source, then re-delegates.
 4. Prefer not running full suites in the parent session when subagents are available.
 5. Task resume: `task_id` only from a real `ses…` id; **omit `task_id` on new tasks** (do not invent UUIDs). Plugin strips non-`ses` ids.

@@ -1,0 +1,35 @@
+name: f4_composition_tree
+schemaVersion: 1
+mode: fixture
+fixture: fixtures/composition_sample_tree.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: kind
+      eq: composition
+  - assert:
+      path: rootType
+      eq: window
+  - assert:
+      path: rootId
+      eq: comp_sample
+  - assert:
+      path: types.ok
+      eq: button
+  - assert:
+      path: types.intensity
+      eq: slider
+  - assert:
+      path: types.card_zone
+      eq: hitarea
+  - assert:
+      path: types.main_col
+      eq: col
+  - assert:
+      path: layout.rootWidth
+      eq: 400
+  - assert:
+      path: layout.rootHeight
+      eq: 280

@@ -44,7 +44,9 @@ Prefer OpenCode `@android-deploy-jar` so size verification and failure modes sta
 
 ## After deploy
 
-Optional UI-layer checks (not co-op life): see [`ui-layer-verification.md`](./ui-layer-verification.md) and `@ui-verify`. Device probe requires future `spireui probe` console.
+1. Ensure `sts/enabled_mods.txt` includes `…/mods_library/SpireUI.jar` (Amethyst will not load optional jars otherwise). Prefer SpireUI **before** CrossSpire when both present.
+2. Cold start via harness (`-DebugMode`), not only SkipInstall — see [`android-device-lab.md`](./android-device-lab.md).
+3. UI-layer checks: [`ui-layer-verification.md`](./ui-layer-verification.md) / `@ui-verify` device YAML.
 
 ## Out of scope
 

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "kind": "composition",
+  "resource": "layouts/composition_sample.json",
+  "rootType": "window",
+  "rootId": "comp_sample",
+  "ids": [
+    "comp_sample",
+    "main_col",
+    "hello",
+    "actions",
+    "ok",
+    "cancel",
+    "intensity",
+    "card_zone"
+  ],
+  "types": {
+    "ok": "button",
+    "cancel": "button",
+    "intensity": "slider",
+    "card_zone": "hitarea",
+    "main_col": "col",
+    "actions": "row"
+  },
+  "effects": {
+    "intensity": ["glow"]
+  },
+  "layout": {
+    "rootWidth": 400,
+    "rootHeight": 280
+  }
+}

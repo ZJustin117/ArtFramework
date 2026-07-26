@@ -2,6 +2,7 @@ package spireui.c2;
 
 import spireui.api.WindowClass;
 import spireui.api.WindowDef;
+import spireui.render.RenderHosts;
 
 /**
  * C2: native STS UI templates. Logic registry for bind/unbind; hooks live on per-template
@@ -23,12 +24,41 @@ public final class NativeTemplateRuntime {
             new SelectTemplate(SelectKind.HAND, NativeTemplateIds.SELECT_HAND);
     private static final EndTurnTemplate END_TURN_TEMPLATE = new EndTurnTemplate();
     private static final DefaultEntityPresent ENTITY_PRESENT = new DefaultEntityPresent();
+    private static boolean renderBridgeInstalled;
 
     private NativeTemplateRuntime() {}
 
     /** Logic path is available (bind/unbind + template hooks + entity present). */
     public static boolean isAvailable() {
         return true;
+    }
+
+    private static void ensureRenderBridge() {
+        if (renderBridgeInstalled) {
+            return;
+        }
+        renderBridgeInstalled = true;
+        ENTITY_PRESENT.addListener(new EntityPresentListener() {
+            @Override
+            public void onAttached(EntitySlot slot) {
+                RenderHosts.get().syncEntitySlot(slot);
+            }
+
+            @Override
+            public void onSynced(EntitySlot slot) {
+                RenderHosts.get().syncEntitySlot(slot);
+            }
+
+            @Override
+            public void onLaidOut(EntitySlot slot) {
+                RenderHosts.get().syncEntitySlot(slot);
+            }
+
+            @Override
+            public void onDetached(String slotId) {
+                RenderHosts.get().detachEntitySlot(slotId);
+            }
+        });
     }
 
     public static MapTemplate map() {
@@ -53,6 +83,7 @@ public final class NativeTemplateRuntime {
 
     /** Shared entity presenter registry (players/cards/relics/monsters). */
     public static DefaultEntityPresent entities() {
+        ensureRenderBridge();
         return ENTITY_PRESENT;
     }
 
@@ -72,6 +103,7 @@ public final class NativeTemplateRuntime {
             throw new IllegalArgumentException("unknown native template: " + key);
         }
         slot.activate();
+        NativeComponents.syncMountFromRuntime();
     }
 
     public static void unbind(WindowDef def) {
@@ -82,6 +114,7 @@ public final class NativeTemplateRuntime {
         if (slot != null) {
             slot.deactivate();
         }
+        NativeComponents.syncMountFromRuntime();
     }
 
     public static boolean isMapBound() {
@@ -116,6 +149,8 @@ public final class NativeTemplateRuntime {
         HAND_SELECT.resetForTests();
         END_TURN_TEMPLATE.resetForTests();
         ENTITY_PRESENT.resetForTests();
+        renderBridgeInstalled = false;
+        NativeComponents.resetForTests();
     }
 
     private static String resolveKey(WindowDef def) {

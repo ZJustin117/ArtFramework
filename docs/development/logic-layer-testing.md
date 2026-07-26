@@ -24,6 +24,8 @@ Dual-device life suites and multiplayer protocol assertions are **out of scope**
 - C2: `EntityPresent` / `DefaultEntityPresent` attach-sync-layout-detach (no GL)
 - Pure `UiOps` / `UiProbe` / `UiOpResult` + `FakeNativeOps` (`UiOpsProbeTest`)
 - Pure `NativeUiHooks` gate entry (`NativeUiHooksTest`)
+- Composition: `UiNodeLoader` / `LayoutEngine` / `TemplateExpander` / `ComponentRegistry` / `Composition` (no GL)
+- Render: `RenderHost` bind/sync/probe; `ShaderRuntime` failure paths without GL (no live ShaderProgram in default gate)
 
 ## What not to test in unit suite
 

@@ -1,0 +1,53 @@
+{
+  "type": "window",
+  "id": "widgets_sample",
+  "title": "Widgets Sample",
+  "width": 420,
+  "height": 360,
+  "pad": 8,
+  "gap": 6,
+  "children": [
+    {
+      "type": "scroll",
+      "id": "body_scroll",
+      "height": 300,
+      "grow": true,
+      "children": [
+        {
+          "type": "col",
+          "id": "body",
+          "gap": 8,
+          "children": [
+            {
+              "type": "textfield",
+              "id": "name",
+              "text": "",
+              "placeholder": "Name"
+            },
+            {
+              "type": "checkbox",
+              "id": "agree",
+              "text": "Agree",
+              "checked": false
+            },
+            {
+              "type": "progress",
+              "id": "load",
+              "min": 0,
+              "max": 1,
+              "value": 0.25
+            },
+            {
+              "type": "center",
+              "id": "center_box",
+              "height": 40,
+              "children": [
+                { "type": "button", "id": "submit", "text": "Submit" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

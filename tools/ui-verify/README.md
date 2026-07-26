@@ -13,4 +13,5 @@ python3 run.py ../../tests/ui-scenarios/fixtures/f1_probe_shape.yaml
 
 See [`docs/development/ui-layer-verification.md`](../../docs/development/ui-layer-verification.md).
 
-Device mode (`--device`) needs `SPIREUI_D1_SERIAL` and a future `spireui probe` console; until then use fixture + JUnit.
+Device mode (`--device`): see `docs/development/android-device-lab.md`  
+(connector + `enabled_mods.txt` + harness READY + `spireui probe` / log scrape).

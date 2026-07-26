@@ -1,0 +1,41 @@
+{
+  "type": "window",
+  "id": "glass_demo",
+  "title": "Glass Demo",
+  "width": 420,
+  "height": 300,
+  "pad": 10,
+  "gap": 8,
+  "children": [
+    {
+      "type": "glass",
+      "id": "panel",
+      "width": 380,
+      "height": 220,
+      "pad": 12,
+      "gap": 8,
+      "radius": 3,
+      "tint": 0.5,
+      "alpha": 0.9,
+      "children": [
+        { "type": "label", "id": "hint", "text": "Frosted glass (screen capture)" },
+        {
+          "type": "row",
+          "id": "actions",
+          "gap": 8,
+          "children": [
+            { "type": "button", "id": "ok", "text": "OK", "grow": true },
+            { "type": "button", "id": "close", "text": "Close", "grow": true }
+          ]
+        },
+        {
+          "type": "slider",
+          "id": "wet",
+          "min": 0,
+          "max": 1,
+          "value": 0.6
+        }
+      ]
+    }
+  ]
+}

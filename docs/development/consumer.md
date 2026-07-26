@@ -43,15 +43,24 @@ Deploy **both** `SpireUI.jar` and `Consumer.jar` into the mods library. Load ord
 
 | Entry | Role |
 |-------|------|
-| `spireui.api.SpireUI` | `register` / `open` / `bind` / `close` / `entities()` / `ops()` / `probe()` |
-| `spireui.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot |
+| `spireui.api.SpireUI` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` |
+| `spireui.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl |
 | `spireui.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
+| `spireui.core.*` | `UiTree` / `UiInstance` / `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
 | `spireui.c1.SyntheticRuntime` | C1 layout open; Stage via `StageHost` |
 | `spireui.c2.NativeTemplateRuntime` | `map` / `event` / `selectGrid` / `selectHand` / `endTurn` / `entities` |
-| `spireui.c2.NativeTemplateIds` | `sts.map`, `sts.event`, `sts.select.*`, `sts.endturn` |
+| `spireui.c2.NativeComponents` / `NativeTemplateIds` | C2 as `UiComponent`; `sts.map`, `sts.event`, `sts.select.*`, `sts.endturn` |
 | `spireui.c2.EntityPresent` | attach / sync / layout / detach |
 | `spireui.c2.hooks.NativeUiHooks` | Pure patch entry (dispatch gates) |
 | `spireui.ops.NativeOpsBackend` / `StsNativeOps` | Engine gestures after ALLOW |
+| `spireui.component.*` | Composition AST + `WidgetSession` / layout size flags |
+| `SpireUI.uiRoot` / `widgets` / `tree` | Expanded tree + control state + instance tree |
+| `UiOps` C1 | `clickButton` / `setSlider` / `clickHitArea` / `setText` / `setChecked` / `setProgress` / … |
+| `SpireUI.render()` / `spireui.render.*` | Effects + full-frame + blur/glass |
+| Layout types | `window`/`row`/`col`/… + `textfield`/`checkbox`/`progress`/`scroll`/`center`/`margin`/`glass` |
+
+Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md).  
+`open`/`bind` remain aliases of `mount` paths (compatibility).
 
 Console (in-game): `spireui probe` | `spireui op select|confirm|map|event|endturn|play|button …`
 

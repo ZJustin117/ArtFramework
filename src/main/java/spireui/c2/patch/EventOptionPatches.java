@@ -1,27 +1,46 @@
 package spireui.c2.patch;
 
+import com.evacipated.cardcrawl.modthespire.lib.SpireInstrumentPatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
-import com.evacipated.cardcrawl.modthespire.lib.SpirePrefixPatch;
-import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import com.megacrit.cardcrawl.events.AbstractEvent;
+import javassist.CannotCompileException;
+import javassist.expr.ExprEditor;
+import javassist.expr.MethodCall;
 import spireui.c2.GateResult;
 import spireui.c2.hooks.NativeUiHooks;
 
-/** Gates {@code AbstractEvent.buttonEffect} when {@code sts.event} is bound. */
+/**
+ * Gates native {@code buttonEffect} calls from {@code AbstractEvent.update}.
+ * Direct Prefix on protected abstract {@code buttonEffect} crashes MTS ParamInfo — use instrument.
+ */
 @SuppressWarnings("unused")
 public final class EventOptionPatches {
 
     private EventOptionPatches() {}
 
-    @SpirePatch(clz = AbstractEvent.class, method = "buttonEffect", paramtypez = {int.class})
-    public static class GateButtonEffect {
-        @SpirePrefixPatch
-        public static SpireReturn<Void> Prefix(AbstractEvent __instance, int buttonPressed) {
-            GateResult r = NativeUiHooks.onEventOption(buttonPressed, "");
-            if (r == GateResult.BLOCK) {
-                return SpireReturn.Return(null);
-            }
-            return SpireReturn.Continue();
+    /** Package-visible for instrument-generated call sites. */
+    public static boolean allowOption(int index) {
+        return NativeUiHooks.onEventOption(index, "") != GateResult.BLOCK;
+    }
+
+    @SpirePatch(clz = AbstractEvent.class, method = "update", paramtypez = {})
+    public static class GateButtonEffectCalls {
+        @SpireInstrumentPatch
+        public static ExprEditor Instrument() {
+            return new ExprEditor() {
+                @Override
+                public void edit(MethodCall call) throws CannotCompileException {
+                    if (!"buttonEffect".equals(call.getMethodName())) {
+                        return;
+                    }
+                    call.replace(
+                            "{"
+                                    + "if (spireui.c2.patch.EventOptionPatches.allowOption($1)) {"
+                                    + "  $_ = $proceed($$);"
+                                    + "}"
+                                    + "}");
+                }
+            };
         }
     }
 }

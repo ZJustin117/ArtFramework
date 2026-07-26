@@ -5,8 +5,22 @@ import spireui.c1.layout.LayoutNode;
 import spireui.c2.DefaultEntityPresent;
 import spireui.c2.EntityPresent;
 import spireui.c2.NativeTemplateRuntime;
+import spireui.component.UiNode;
+import spireui.component.WidgetSession;
+import spireui.component.WidgetSessions;
+import spireui.c2.NativeComponents;
+import spireui.core.HostBackend;
+import spireui.core.HostBackends;
+import spireui.core.Theme;
+import spireui.core.Themes;
+import spireui.core.UiComponent;
+import spireui.core.UiTree;
+import spireui.core.UiTrees;
+import spireui.ops.GateLab;
 import spireui.ops.NativeOpsBackend;
 import spireui.ops.NoOpNativeOps;
+import spireui.render.RenderHost;
+import spireui.render.RenderHosts;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,8 +29,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Facade for dual-track windows. C1 SYNTHETIC → SyntheticRuntime; C2 NATIVE_TEMPLATE →
- * NativeTemplateRuntime (map/event/select/end-turn bind + hooks). UiOps/UiProbe for commands/query.
+ * Facade for dual-track windows. Prefer {@link #mount} / {@link #unmount}; {@link #open} /
+ * {@link #bind} remain compatibility aliases. C1 SYNTHETIC → SyntheticRuntime; C2 NATIVE_TEMPLATE
+ * → NativeTemplateRuntime + {@link UiComponent}. UiOps/UiProbe for commands/query.
  */
 public final class SpireUI {
 
@@ -39,6 +54,25 @@ public final class SpireUI {
         return DEFS.containsKey(id);
     }
 
+    /**
+     * Mount a registered window (synthetic open or native bind). Preferred Godot-aligned entry.
+     */
+    public static WindowHandle mount(String id) {
+        WindowDef def = DEFS.get(id);
+        if (def == null) {
+            throw new IllegalArgumentException("not registered: " + id);
+        }
+        if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
+            return bind(id);
+        }
+        return openSynthetic(def);
+    }
+
+    /** Unmount / close an open window or native template. */
+    public static void unmount(String id) {
+        close(id);
+    }
+
     public static WindowHandle open(String id) {
         WindowDef def = DEFS.get(id);
         if (def == null) {
@@ -47,13 +81,21 @@ public final class SpireUI {
         if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
             return bind(id);
         }
-        WindowHandle previous = OPEN.get(id);
+        return openSynthetic(def);
+    }
+
+    private static WindowHandle openSynthetic(WindowDef def) {
+        WindowHandle previous = OPEN.get(def.id);
         if (previous != null && previous.isOpen()) {
             previous.close();
         }
         LayoutNode root = SyntheticRuntime.open(def);
         WindowHandle handle = new TrackedHandle(def, root);
-        OPEN.put(id, handle);
+        OPEN.put(def.id, handle);
+        UiTree tree = UiTrees.get(def.id);
+        if (tree != null) {
+            HostBackends.get().attach(tree);
+        }
         return handle;
     }
 
@@ -94,12 +136,33 @@ public final class SpireUI {
     }
 
     public static void resetForTests() {
+        GateLab.resetForTests();
         OPEN.clear();
         DEFS.clear();
         OPS.resetForTests();
         nativeOpsBackend = NoOpNativeOps.INSTANCE;
         SyntheticRuntime.resetForTests();
         NativeTemplateRuntime.resetForTests();
+        RenderHosts.resetForTests();
+        Themes.resetForTests();
+        HostBackends.resetForTests();
+    }
+
+    public static HostBackend host() {
+        return HostBackends.get();
+    }
+
+    public static void setHostBackend(HostBackend backend) {
+        HostBackends.set(backend);
+    }
+
+    /** Process default theme for new synthetic trees. */
+    public static Theme theme() {
+        return Themes.getDefault();
+    }
+
+    public static void setTheme(Theme theme) {
+        Themes.setDefault(theme);
     }
 
     /** Imperative UI commands (C1 + C2). */
@@ -129,6 +192,34 @@ public final class SpireUI {
             return ((TrackedHandle) h).root;
         }
         return null;
+    }
+
+    /**
+     * Composition tree for an open synthetic window (expanded), or null.
+     */
+    public static UiNode uiRoot(String id) {
+        WidgetSession s = WidgetSessions.get(id);
+        return s != null ? s.root() : null;
+    }
+
+    /** Widget session (sliders / control index) for an open synthetic window. */
+    public static WidgetSession widgets(String id) {
+        return WidgetSessions.get(id);
+    }
+
+    /** Mounted instance tree for an open synthetic window, or null. */
+    public static UiTree tree(String id) {
+        return UiTrees.get(id);
+    }
+
+    /** C2 (or future) component by canonical id, e.g. {@code sts.map}. */
+    public static UiComponent component(String componentId) {
+        return NativeComponents.get(componentId);
+    }
+
+    /** Track-agnostic render attach (effects / targets). */
+    public static RenderHost render() {
+        return RenderHosts.get();
     }
 
     /** C2 entity presenter slots (attach/sync/layout/detach). */
@@ -174,6 +265,10 @@ public final class SpireUI {
             open = false;
             OPEN.remove(def.id);
             if (def.windowClass == WindowClass.SYNTHETIC) {
+                UiTree tree = UiTrees.get(def.id);
+                if (tree != null) {
+                    HostBackends.get().detach(tree);
+                }
                 SyntheticRuntime.onClosed(def.id);
             } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
                 NativeTemplateRuntime.unbind(def);

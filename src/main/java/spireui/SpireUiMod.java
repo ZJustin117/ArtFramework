@@ -41,6 +41,10 @@ public class SpireUiMod implements PostInitializeSubscriber {
     public void receivePostInitialize() {
         SpireUI.setNativeOpsBackend(StsNativeOps.INSTANCE);
         SpireUI.register(new WindowDef(DEMO_ID, WindowClass.SYNTHETIC, "layouts/demo.json"));
+        SpireUI.register(
+                new WindowDef("comp_sample", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));
+        SpireUI.register(
+                new WindowDef("glass_demo", WindowClass.SYNTHETIC, "layouts/glass_demo.json"));
         registerNative(NativeTemplateIds.MAP);
         registerNative(NativeTemplateIds.EVENT);
         registerNative(NativeTemplateIds.SELECT_GRID);

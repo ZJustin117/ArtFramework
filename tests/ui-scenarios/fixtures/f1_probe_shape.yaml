@@ -9,7 +9,7 @@ steps:
       eq: 1
   - assert:
       path: modId
-      eq: spireui
+      eq: artframework
   - assert:
       path: templates.mapBound
       eq: true

@@ -1,6 +1,6 @@
-# SpireUI
+# ArtFramework
 
-BaseMod-oriented **UI toolkit** for Slay the Spire 1 (Desktop ModTheSpire + Amethyst-compatible jars).
+**ART Framework** — presentation layer for Slay the Spire 1 (Desktop ModTheSpire + Amethyst-compatible jars). Synthetic scene2d UI, native presenters, effects/shaders, host SPI.
 
 - **Separate repository** from multiplayer logic (e.g. CrossSpire) — no protocol/party types here.
 - **Dual track** (see [`docs/design/dual-track.md`](docs/design/dual-track.md)):
@@ -15,43 +15,43 @@ UiOps/probe design: [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md)
 - JDK 8+ (bytecode target 1.8)
 - Absolute paths to:
 
-  | Env (SpireUI) | Typical source |
+  | Env (ArtFramework) | Typical source |
   |---------------|----------------|
-  | `SPIREUI_STS_JAR` | STS `desktop-1.0.jar` |
-  | `SPIREUI_BASEMOD_JAR` | BaseMod.jar |
-  | `SPIREUI_MODTHESPIRE_JAR` | ModTheSpire.jar |
+  | `ART_STS_JAR` | STS `desktop-1.0.jar` |
+  | `ART_BASEMOD_JAR` | BaseMod.jar |
+  | `ART_MODTHESPIRE_JAR` | ModTheSpire.jar |
 
-Copy [`.env.example`](.env.example) → `.env.local`. **Reuse the same file paths as CrossSpire**, but use the **`SPIREUI_*` key names** (not `CROSSSPIRE_*`).
+Copy [`.env.example`](.env.example) → `.env.local`. **Reuse the same file paths as CrossSpire**, but use the **`ART_*` key names** (not `CROSSSPIRE_*`).
 
-Optional: `SPIREUI_D1_SERIAL` / `SPIREUI_D2_SERIAL` (device jar push); `SPIREUI_INSTALL_DIR` / `SPIREUI_CONSUMER_JAR` (publish-local).
+Optional: `ART_D1_SERIAL` / `ART_D2_SERIAL` (device jar push); `ART_INSTALL_DIR` / `ART_CONSUMER_JAR` (publish-art-local).
 
 ## Build & test
 
 ```bash
-./scripts/with-env.sh test
-./scripts/with-env.sh jar
-./scripts/publish-local.sh          # jar + optional install via env
+./scripts/with-art-env.sh test
+./scripts/with-art-env.sh jar
+./scripts/publish-art-local.sh          # jar + optional install via env
 ```
 
-Artifact: `build/libs/SpireUI.jar` (version from `gradle.properties` → `spireui.version`).
+Artifact: `build/libs/ArtFramework.jar` (version from `gradle.properties` → `artframework.version`).
 
 **Default gate is JUnit.** OpenCode: `@junit-test`. Optional on-device: `@android-deploy-jar`.  
-UI tooling (fixture): `cd tools/ui-verify && python3 -m unittest discover -s tests -v` or `@ui-verify`.
+UI tooling (fixture): `cd tools/art-verify && python3 -m unittest discover -s tests -v` or `@art-verify`.
 
 ## ModTheSpire
 
-- `modid`: `spireui`
+- `modid`: `artframework`
 - Depends on: `basemod`
-- Consumers: `"dependencies": ["basemod", "spireui"]` and ship **both** jars (do not fat-jar SpireUI into the consumer).
+- Consumers: `"dependencies": ["basemod", "artframework"]` and ship **both** jars (do not fat-jar ArtFramework into the consumer).
 
 ## Package layout
 
 | Package | Role |
 |---------|------|
-| `spireui.api` | Facade, window defs/handles, `entities()` |
-| `spireui.c1` | Synthetic runtime, StageHost, layout DSL, StsSkin |
-| `spireui.c2` | Native templates + EntityPresent |
-| `spireui.SpireUiMod` | MTS entry |
+| `artframework.api` | Facade, window defs/handles, `entities()` |
+| `artframework.c1` | Synthetic runtime, StageHost, layout DSL, StsSkin |
+| `artframework.c2` | Native templates + EntityPresent |
+| `artframework.ArtFrameworkMod` | MTS entry |
 
 ## License
 

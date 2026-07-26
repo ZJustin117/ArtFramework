@@ -1,9 +1,9 @@
 {
-  "modid": "spireui",
-  "name": "SpireUI",
-  "author_list": ["SpireUI Contributors"],
-  "description": "BaseMod-oriented UI toolkit for Slay the Spire: synthetic scene2d windows and native UI templates (map/event/select/entity present). No multiplayer protocol.",
-  "version": "@SPIREUI_VERSION@",
+  "modid": "artframework",
+  "name": "ArtFramework",
+  "author_list": ["ArtFramework Contributors"],
+  "description": "ART Framework presentation layer for Slay the Spire: synthetic scene2d UI, native presenters, effects/shaders, host SPI. No multiplayer protocol.",
+  "version": "@ART_VERSION@",
   "mts_version": "3.30.0",
   "sts_version": "12-18-2022",
   "dependencies": ["basemod"]

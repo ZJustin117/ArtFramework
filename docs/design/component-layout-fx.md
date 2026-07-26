@@ -17,11 +17,11 @@ Builds on [`component-composition.md`](./component-composition.md).
 
 ## Public surface
 
-- `spireui.component.*` — composition AST + WidgetSession
-- `spireui.render.*` — `RenderHost`, targets, `tint` / `glow`, `ShaderRegistry`
-- `SpireUI.render()` — global host; `UiProbe` field `render`
+- `artframework.component.*` — composition AST + WidgetSession
+- `artframework.render.*` — `RenderHost`, targets, `tint` / `glow`, `ShaderRegistry`
+- `ArtFramework.render()` — global host; `UiProbe` field `render`
 
-## Not in SpireUI
+## Not in ArtFramework
 
 - CrossSpire protocol / combat authority
 - Replacing STS hand-play pipeline with scene2d

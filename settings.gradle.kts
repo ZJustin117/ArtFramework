@@ -1,1 +1,1 @@
-rootProject.name = "spire-ui"
+rootProject.name = "art-framework"

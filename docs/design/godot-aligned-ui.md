@@ -1,4 +1,4 @@
-# Godot-aligned UI core (SpireUI)
+# Godot-aligned UI core (ArtFramework)
 
 Design contract for a **Godot-shaped** public API: one consumer surface, full C1 synthetic UI, C2 native STS screens as **encapsulated components**, shared structure for STS1 / future STS2 hosts.
 
@@ -30,9 +30,9 @@ Complements [`dual-track.md`](./dual-track.md), [`component-composition.md`](./c
 | GUI skinning | https://docs.godotengine.org/en/stable/tutorials/ui/gui_skinning.html |
 | Custom GUI controls | https://docs.godotengine.org/en/stable/tutorials/ui/custom_gui_controls.html |
 
-## Term map (Godot → SpireUI)
+## Term map (Godot → ArtFramework)
 
-| Godot | SpireUI target | Notes |
+| Godot | ArtFramework target | Notes |
 |-------|----------------|-------|
 | Node / SceneTree | `UiInstance` + `UiTree` (per mount) | No global engine tree; one tree per open/mounted root |
 | Control | Control contract on `UiInstance` (bounds, minSize, focus, signals) | |
@@ -45,17 +45,17 @@ Complements [`dual-track.md`](./dual-track.md), [`component-composition.md`](./c
 | `_get_minimum_size` | leaf/container preferred min size | Feeds pure `LayoutEngine` |
 | `_gui_input` | host input → signals / native actions | Pure tests own state machines without GL |
 | Custom Control | `LeafFactory` / registered leaf types | |
-| *(SpireUI-only)* | **NativeControl** | C2 STS screens as `UiComponent` |
-| *(SpireUI-only)* | **HostBackend** | STS1 Stage/patches; future STS2 |
-| *(SpireUI-only)* | **UiOps / UiProbe** | Imperative commands + JSON snapshot |
+| *(ArtFramework-only)* | **NativeControl** | C2 STS screens as `UiComponent` |
+| *(ArtFramework-only)* | **HostBackend** | STS1 Stage/patches; future STS2 |
+| *(ArtFramework-only)* | **UiOps / UiProbe** | Imperative commands + JSON snapshot |
 
 ## Architecture target
 
 ```
 Caller
-  → spireui.api.SpireUI
+  → artframework.api.ArtFramework
        register | mount | unmount | tree | ops | probe | theme | render
-  → spireui.core (suggested package)
+  → artframework.core (suggested package)
        UiNode (decl) → UiInstance (live)
        LayoutEngine · SignalHub · Theme · ComponentRegistry
   → host (implementation)
@@ -94,7 +94,7 @@ Existing immutable AST stays the declaration source (JSON layout). Evolve:
 | `find(path)` | Simplified NodePath (`"panel/ok"`) |
 | Lifecycle | `onMount` → `onReady` (children first) → `onUnmount` |
 
-| Godot | SpireUI |
+| Godot | ArtFramework |
 |-------|---------|
 | enter_tree | onMount |
 | ready | onReady |
@@ -169,7 +169,7 @@ Rules from [`ui-ops-probe.md`](./ui-ops-probe.md) still hold: first BLOCK wins; 
 
 Godot: complex UIs use **Containers**; anchors alone get hard for game tools UIs.
 
-SpireUI:
+ArtFramework:
 
 1. Default path: pure `LayoutEngine` on nested containers (JUnit).  
 2. Root `window`: optional center / edge presets (not full four-float anchors).  
@@ -180,7 +180,7 @@ SpireUI:
 
 ### Containers
 
-| Godot | SpireUI type | Priority |
+| Godot | ArtFramework type | Priority |
 |-------|--------------|----------|
 | HBox / VBox | `row` / `col` (+ size flags) | enhance existing |
 | PanelContainer | `panel` | existing |
@@ -193,7 +193,7 @@ SpireUI:
 
 ### Content
 
-| Godot | SpireUI | Priority |
+| Godot | ArtFramework | Priority |
 |-------|---------|----------|
 | Label / Button / Slider | existing | — |
 | custom hit | `hitarea` | — |
@@ -219,7 +219,7 @@ sts.map  → NativeControl("sts.map")  → Sts1MapHost (patch + gesture)
 
 | Surface | Policy |
 |---------|--------|
-| `SpireUI.open` / `bind` / `close` | Keep; document as mount aliases |
+| `ArtFramework.open` / `bind` / `close` | Keep; document as mount aliases |
 | `UiOps` named C2 methods | Keep ≥1 version; implement via component.action |
 | Probe fields | Additive + schemaVersion; do not break fixture keys without migration note |
 | `WindowClass` | Keep; may mirror `ComponentKind` |
@@ -238,7 +238,7 @@ sts.map  → NativeControl("sts.map")  → Sts1MapHost (patch + gesture)
 | **11.6** | API mount/unmount, host.sts1 boundary, consumer.md | 11.5 |
 | **11.7** | Optional one-surface C1 rewrite pilot | 11.6 |
 
-Default gate remains `./scripts/with-env.sh test` (pure logic; no device required).
+Default gate remains `./scripts/with-art-env.sh test` (pure logic; no device required).
 
 ## Related
 

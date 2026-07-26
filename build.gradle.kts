@@ -2,12 +2,12 @@ plugins {
     java
 }
 
-val spireUiVersion: String =
-    providers.gradleProperty("spireui.version").orNull
-        ?: throw GradleException("Missing spireui.version in gradle.properties")
+val artVersion: String =
+    providers.gradleProperty("artframework.version").orNull
+        ?: throw GradleException("Missing artframework.version in gradle.properties")
 
-version = spireUiVersion
-group = "spireui"
+version = artVersion
+group = "artframework"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_1_8
@@ -38,26 +38,26 @@ dependencies {
 }
 
 tasks.processResources {
-    inputs.property("spireui.version", spireUiVersion)
+    inputs.property("artframework.version", artVersion)
     filesMatching("ModTheSpire.json") {
         filter { line: String ->
-            line.replace("@SPIREUI_VERSION@", spireUiVersion)
+            line.replace("@ART_VERSION@", artVersion)
         }
     }
 }
 
 tasks.jar {
-    archiveFileName = "SpireUI.jar"
+    archiveFileName = "ArtFramework.jar"
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
-    // compileOnly STS/BaseMod/MTS — do not fat-jar game deps into SpireUI.jar
+    // compileOnly STS/BaseMod/MTS — do not fat-jar game deps into ArtFramework.jar
     manifest {
         attributes(
             mapOf(
-                "Implementation-Title" to "SpireUI",
-                "Implementation-Version" to spireUiVersion,
-                "Implementation-Vendor" to "SpireUI",
-                "ModTheSpire-ModId" to "spireui",
+                "Implementation-Title" to "ArtFramework",
+                "Implementation-Version" to artVersion,
+                "Implementation-Vendor" to "ArtFramework",
+                "ModTheSpire-ModId" to "artframework",
             ),
         )
     }
@@ -65,7 +65,7 @@ tasks.jar {
 
 tasks.register("installDistJar") {
     group = "distribution"
-    description = "Copy SpireUI.jar to -PinstallDir=... (consumer mods folder or build cache)"
+    description = "Copy ArtFramework.jar to -PinstallDir=... (consumer mods folder or build cache)"
     dependsOn(tasks.jar)
     doLast {
         val installDirPath =

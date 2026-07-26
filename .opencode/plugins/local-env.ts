@@ -1,25 +1,25 @@
 import { readFileSync, existsSync } from "node:fs"
 import { join } from "node:path"
 
-/** Whitelist only SpireUI / Amethyst build+deploy keys — never secrets/API keys. */
+/** Whitelist only ArtFramework / Amethyst build+deploy keys — never secrets/API keys. */
 const ALLOWED_KEYS = new Set([
   "SLAY_THE_AMETHYST_ROOT",
-  "SPIREUI_STS_JAR",
-  "SPIREUI_BASEMOD_JAR",
-  "SPIREUI_MODTHESPIRE_JAR",
-  "SPIREUI_D1_SERIAL",
-  "SPIREUI_D2_SERIAL",
-  "SPIREUI_UI_VERIFY_OUT_DIR",
+  "ART_STS_JAR",
+  "ART_BASEMOD_JAR",
+  "ART_MODTHESPIRE_JAR",
+  "ART_D1_SERIAL",
+  "ART_D2_SERIAL",
+  "ART_UI_VERIFY_OUT_DIR",
   "STS_CONNECTOR_PORT",
-  "SPIREUI_AMETHYST_TOOLS_DIR",
-  "SPIREUI_HARNESS_OUT_DIR",
-  "SPIREUI_GAME_PROBE_PORT",
+  "ART_AMETHYST_TOOLS_DIR",
+  "ART_HARNESS_OUT_DIR",
+  "ART_GAME_PROBE_PORT",
 ])
 
 const TEST_AGENTS = new Set([
   "junit-test",
   "android-deploy-jar",
-  "ui-verify",
+  "art-verify",
 ])
 
 function parseDotEnv(content: string): Record<string, string> {
@@ -67,23 +67,23 @@ function loadLocalEnv(directory: string): {
 function applyDerivedJars(merged: Record<string, string>): void {
   const root = merged.SLAY_THE_AMETHYST_ROOT
   if (!root) return
-  if (!merged.SPIREUI_BASEMOD_JAR) {
-    merged.SPIREUI_BASEMOD_JAR = join(
+  if (!merged.ART_BASEMOD_JAR) {
+    merged.ART_BASEMOD_JAR = join(
       root,
       "app/src/main/assets/components/mods/BaseMod.jar",
     )
   }
-  if (!merged.SPIREUI_MODTHESPIRE_JAR) {
-    merged.SPIREUI_MODTHESPIRE_JAR = join(
+  if (!merged.ART_MODTHESPIRE_JAR) {
+    merged.ART_MODTHESPIRE_JAR = join(
       root,
       "app/src/main/assets/components/mods/ModTheSpire.jar",
     )
   }
-  if (!merged.SPIREUI_AMETHYST_TOOLS_DIR) {
-    merged.SPIREUI_AMETHYST_TOOLS_DIR = join(root, "scripts/tools")
+  if (!merged.ART_AMETHYST_TOOLS_DIR) {
+    merged.ART_AMETHYST_TOOLS_DIR = join(root, "scripts/tools")
   }
-  if (!merged.SPIREUI_GAME_PROBE_PORT) {
-    merged.SPIREUI_GAME_PROBE_PORT = "9099"
+  if (!merged.ART_GAME_PROBE_PORT) {
+    merged.ART_GAME_PROBE_PORT = "9099"
   }
 }
 
@@ -93,7 +93,7 @@ function formatSystemBlock(
   filePath: string,
 ): string {
   const lines = [
-    "## Local machine config (SpireUI)",
+    "## Local machine config (ArtFramework)",
     "Source: process env overrides, then repo `.env.local` (gitignored).",
     "Only use these names in gradle/adb commands. Do not write absolute paths into shared docs or production code.",
   ]

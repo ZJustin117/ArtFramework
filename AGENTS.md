@@ -1,8 +1,8 @@
-# SpireUI — agent / contributor rules
+# ArtFramework — agent / contributor rules
 
 ## Boundary
 
-- **This repo is UI toolkit only.** Do not depend on CrossSpire packages, protocol schema, or party/combat authority.
+- **This repo is a presentation framework (ART).** Do not depend on CrossSpire packages, protocol schema, or party/combat authority.
 - Dual track: **C1** = scene2d synthetic windows; **C2** = native STS templates + entity presenters. See [`docs/design/dual-track.md`](docs/design/dual-track.md).
 - Godot-aligned API target (UiTree / signals / C2 as components / host SPI): [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md).
 - Unified UI surface: **UiOps** / **UiProbe** — [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md).
@@ -17,20 +17,20 @@
 | [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md) | UiOps / UiProbe contract |
 | [`docs/task.md`](docs/task.md) | Open implementation tasks |
 | [`docs/development/logic-layer-testing.md`](docs/development/logic-layer-testing.md) | Test pyramid + pure API rules |
-| [`docs/development/ui-layer-verification.md`](docs/development/ui-layer-verification.md) | UI intercept/trigger/C1 verify + tools/ui-verify |
+| [`docs/development/ui-layer-verification.md`](docs/development/ui-layer-verification.md) | UI intercept/trigger/C1 verify + tools/art-verify |
 | [`docs/development/android-deploy.md`](docs/development/android-deploy.md) | Optional device jar push |
 | [`docs/development/README.md`](docs/development/README.md) | Infra index |
 | `AGENTS.md` | This file — agent / contributor rules |
 
 ## Build / test
 
-- Env keys: `SPIREUI_STS_JAR`, `SPIREUI_BASEMOD_JAR`, `SPIREUI_MODTHESPIRE_JAR` (paths may match CrossSpire machine setup; **key names** stay `SPIREUI_*`).
-- Optional deploy / UI device: `SPIREUI_D1_SERIAL` (mirror CrossSpire D1), `SPIREUI_D2_SERIAL` (dual only if requested).
-- Device lab (Amethyst, same pattern as CrossSpire): `STS_CONNECTOR_PORT`, `SLAY_THE_AMETHYST_ROOT`, `SPIREUI_AMETHYST_TOOLS_DIR`, `SPIREUI_HARNESS_OUT_DIR`, `SPIREUI_GAME_PROBE_PORT` — see [`docs/development/android-device-lab.md`](docs/development/android-device-lab.md).
-- Optional: `SPIREUI_UI_VERIFY_OUT_DIR` for `tools/ui-verify` JSON output.
-- Default gate: `./scripts/with-env.sh test` (or `./gradlew test` with `-PstsJar` / `-PbaseModJar` / `-PmodTheSpireJar`).
-- UI tooling offline: `cd tools/ui-verify && python3 -m unittest discover -s tests -v`.
-- Java 8 bytecode; JUnit 4. **No device harness required** for SpireUI unit work.
+- Env keys: `ART_STS_JAR`, `ART_BASEMOD_JAR`, `ART_MODTHESPIRE_JAR` (paths may match CrossSpire machine setup; **key names** stay `ART_*`).
+- Optional deploy / UI device: `ART_D1_SERIAL` (mirror CrossSpire D1), `ART_D2_SERIAL` (dual only if requested).
+- Device lab (Amethyst, same pattern as CrossSpire): `STS_CONNECTOR_PORT`, `SLAY_THE_AMETHYST_ROOT`, `ART_AMETHYST_TOOLS_DIR`, `ART_HARNESS_OUT_DIR`, `ART_GAME_PROBE_PORT` — see [`docs/development/android-device-lab.md`](docs/development/android-device-lab.md).
+- Optional: `ART_UI_VERIFY_OUT_DIR` for `tools/art-verify` JSON output.
+- Default gate: `./scripts/with-art-env.sh test` (or `./gradlew test` with `-PstsJar` / `-PbaseModJar` / `-PmodTheSpireJar`).
+- UI tooling offline: `cd tools/art-verify && python3 -m unittest discover -s tests -v`.
+- Java 8 bytecode; JUnit 4. **No device harness required** for ArtFramework unit work.
 - OpenCode plugin [`.opencode/plugins/local-env.ts`](.opencode/plugins/local-env.ts) loads allowlisted `.env.local` keys into shell env and test-agent context. Restart opencode after changing agents/plugins.
 
 ## OpenCode subagents
@@ -40,15 +40,15 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 | Agent | When to use | When not to |
 |-------|-------------|-------------|
 | `junit-test` | **Default semantic gate** after API/registry/runtime pure-logic changes; user asks for JUnit | Docs-only; code will not compile; device-only ops |
-| `android-deploy-jar` | Need fresh `SpireUI.jar` on device after UI source changes; before manual/on-device UI checks | Semantic regression (use junit); no device / unset serial; jar unchanged |
-| `ui-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist | Pure API rules (junit); CrossSpire life/co-op |
+| `android-deploy-jar` | Need fresh `ArtFramework.jar` on device after UI source changes; before manual/on-device UI checks | Semantic regression (use junit); no device / unset serial; jar unchanged |
+| `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist | Pure API rules (junit); CrossSpire life/co-op |
 
-**Do not add** CrossSpire-style dual-device **life** suites, connector, or Arthas as default SpireUI gates. Protocol and dual-device life stay in CrossSpire. SpireUI may run **single-device UI** smoke via `@ui-verify` only.
+**Do not add** CrossSpire-style dual-device **life** suites, connector, or Arthas as default ArtFramework gates. Protocol and dual-device life stay in CrossSpire. ArtFramework may run **single-device UI** smoke via `@art-verify` only.
 
 ### Delegation rules
 
-1. One Task = one narrow goal (full `./scripts/with-env.sh test`, deploy jar, or ui-verify). Do not bundle refactor + test + fix in one subagent.
-2. Order: code change → **`@junit-test`** → offline **`@ui-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → connector + harness cold start ([`android-device-lab.md`](docs/development/android-device-lab.md)) → device **`@ui-verify`**.
+1. One Task = one narrow goal (full `./scripts/with-art-env.sh test`, deploy jar, or art-verify). Do not bundle refactor + test + fix in one subagent.
+2. Order: code change → **`@junit-test`** → offline **`@art-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → connector + harness cold start ([`android-device-lab.md`](docs/development/android-device-lab.md)) → device **`@art-verify`**.
 3. Subagents **report summaries only** (`edit: deny`). Parent fixes source, then re-delegates.
 4. Prefer not running full suites in the parent session when subagents are available.
 5. Task resume: `task_id` only from a real `ses…` id; **omit `task_id` on new tasks** (do not invent UUIDs). Plugin strips non-`ses` ids.
@@ -56,7 +56,7 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 
 ## Code
 
-- Package root: `spireui`.
+- Package root: `artframework`.
 - Prefer pure API tests for registry/gates; native patches need **explicit design** before adding `@SpirePatch`.
 - Do not commit secrets or `.env.local`.
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "modId": "spireui",
+  "modId": "artframework",
   "windows": {
     "openIds": ["demo"],
     "byId": {

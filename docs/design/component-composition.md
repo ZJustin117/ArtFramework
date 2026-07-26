@@ -1,4 +1,4 @@
-# Component composition (SpireUI)
+# Component composition (ArtFramework)
 
 Composable, extensible UI declaration for C1 (and render attach for C2). Complements [`dual-track.md`](./dual-track.md). Implementation is phased; this doc is the contract.
 
@@ -6,7 +6,7 @@ Composable, extensible UI declaration for C1 (and render attach for C2). Complem
 
 1. **Composable** — nest containers, named slots, registered templates (`ref`).
 2. **Extensible** — register new template ids and (later) leaf types without rewriting the host.
-3. **Testable** — pure Java expand + layout bounds; default JUnit gate; optional ui-verify fixtures.
+3. **Testable** — pure Java expand + layout bounds; default JUnit gate; optional art-verify fixtures.
 4. **Compatible** — existing `window` / `label` / `button` JSON still loads.
 
 ## Four composition primitives
@@ -75,7 +75,7 @@ Rules: pure, no GL; window-local `id` uniqueness recommended for interactive lea
 | Layer | What |
 |-------|------|
 | JUnit | parse, expand, layout bounds, registry, id index |
-| ui-verify fixture | offline assert on composition scenario JSON / probe fields when wired |
+| art-verify fixture | offline assert on composition scenario JSON / probe fields when wired |
 | Device | optional after Stage inflate |
 
 ## Related

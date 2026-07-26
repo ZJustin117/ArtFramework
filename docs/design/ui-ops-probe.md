@@ -6,26 +6,26 @@ Complements [`dual-track.md`](./dual-track.md). Implementation is phased; this d
 ## Why
 
 CrossSpire today drives native UI via console (`select` / `confirm` / map patches) and probes co-op state via `crossspire probe`.  
-SpireUI should own **UI-layer** instructions and snapshots so:
+ArtFramework should own **UI-layer** instructions and snapshots so:
 
 - interceptors (BLOCK/ALLOW) and imperative ops share one path;
 - consumers (CrossSpire, tests) do not re-implement grid/map/event gestures;
-- SpireUI can verify **intercept / trigger / C1 panel** without multiplayer protocol.
+- ArtFramework can verify **intercept / trigger / C1 panel** without multiplayer protocol.
 
 ## Facades (target API)
 
 | Entry | Role |
 |-------|------|
-| `SpireUI.ops()` → `UiOps` | Imperative UI commands |
-| `SpireUI.probe()` → `UiProbe` | Read-only UI snapshot (JSON-friendly) |
+| `ArtFramework.ops()` → `UiOps` | Imperative UI commands |
+| `ArtFramework.probe()` → `UiProbe` | Read-only UI snapshot (JSON-friendly) |
 | Existing | `register` / `open` / `bind` / `close` / `entities()` |
 
 Package sketch (Java 8):
 
-- `spireui.api.UiOps`
-- `spireui.api.UiProbe`
-- `spireui.ops.UiOpResult` (`ok` \| `blocked` \| `unavailable` \| `notBound` + message)
-- `spireui.ops.NativeOpsBackend` (STS impl + `FakeNativeOps` for JUnit)
+- `artframework.api.UiOps`
+- `artframework.api.UiProbe`
+- `artframework.ops.UiOpResult` (`ok` \| `blocked` \| `unavailable` \| `notBound` + message)
+- `artframework.ops.NativeOpsBackend` (STS impl + `FakeNativeOps` for JUnit)
 
 ## UiOps (first wave)
 
@@ -47,7 +47,7 @@ Rules:
 
 ## UiProbe (first wave)
 
-Machine-oriented snapshot (future console: `spireui probe` → one line `SPIREUI_PROBE` + JSON):
+Machine-oriented snapshot (future console: `art probe` → one line `ART_PROBE` + JSON):
 
 | Field group | Examples |
 |-------------|----------|
@@ -63,7 +63,7 @@ Machine-oriented snapshot (future console: `spireui probe` → one line `SPIREUI
 
 ## SpirePatch boundary
 
-Patches live in SpireUI and only call `NativeTemplateRuntime` / active templates.  
+Patches live in ArtFramework and only call `NativeTemplateRuntime` / active templates.  
 Consumers register interceptors for policy. Dual-call migration then delete consumer duplicates.
 
 ## Phasing
@@ -74,7 +74,7 @@ Consumers register interceptors for policy. Dual-call migration then delete cons
 | P1 | Pure `UiOps`/`UiProbe` + Fake + JUnit | done |
 | P2 | STS `NativeOpsBackend` (`StsNativeOps`) | done (best-effort gestures) |
 | P3 | `@SpirePatch` thin hooks + `NativeUiHooks` | done |
-| P4 | Console `spireui probe` / `spireui op` + fixture ui-verify | done; device log scrape optional |
+| P4 | Console `art probe` / `art op` + fixture art-verify | done; device log scrape optional |
 | P5 | CrossSpire consumer migration (other repo) | open |
 
 ## Forward compatibility (Godot-aligned)
@@ -96,7 +96,7 @@ P0–P5 status above is **done** and not reopened by this section.
 - Map programmatic travel: gate + ok message; consumer still owns pin protocol / enter room.
 - Event option invoke uses reflection (`buttonEffect` protected).
 - Event **patch**: instrument `AbstractEvent.update` call sites — Prefix on protected abstract `buttonEffect` NPEs MTS ParamInfo.
-- Dual-mod with CrossSpire map/end-turn patches: both may run — consumer should migrate interceptors to SpireUI and slim own patches.
+- Dual-mod with CrossSpire map/end-turn patches: both may run — consumer should migrate interceptors to ArtFramework and slim own patches.
 - Amethyst: jar in `mods_library` requires `enabled_mods.txt` entry.
 
 ## Related

@@ -5,11 +5,11 @@ mode: device
 device: d1
 require:
   env:
-    - SPIREUI_D1_SERIAL
+    - ART_D1_SERIAL
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
-  - console: "spireui open demo"
+  - console: "art open demo"
   - wait_ms: 500
   - probe: all
   - assert:

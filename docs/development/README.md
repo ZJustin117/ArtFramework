@@ -34,7 +34,7 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 | [`android-deploy.md`](./android-deploy.md) | Device jar push paths and force-stop |
 | [`android-device-lab.md`](./android-device-lab.md) | Amethyst connector / harness / UI smoke (D1) |
 | [`consumer.md`](./consumer.md) | How CrossSpire (or others) depend on `ArtFramework.jar` |
-
+| [`../design/art-framework.md`](../design/art-framework.md) | ART presentation graph + Host SPI + milestone 12 |
 ## Boundary
 
 - Default verification is **JUnit**. Device deploy is optional and does not replace API tests.

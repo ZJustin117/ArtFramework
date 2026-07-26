@@ -4,7 +4,8 @@
 
 - **This repo is a presentation framework (ART).** Do not depend on CrossSpire packages, protocol schema, or party/combat authority.
 - Dual track: **C1** = scene2d synthetic windows; **C2** = native STS templates + entity presenters. See [`docs/design/dual-track.md`](docs/design/dual-track.md).
-- Godot-aligned API target (UiTree / signals / C2 as components / host SPI): [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md).
+- Presentation graph + Host SPI roadmap: [`docs/design/art-framework.md`](docs/design/art-framework.md).
+- Godot-aligned API (UiTree / signals / C2 as components / host SPI): [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md).
 - Unified UI surface: **UiOps** / **UiProbe** — [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md).
 - Temporary files → `agent-tmp/` (gitignored). Debug dumps → `debug-artifacts/` (gitignored).
 
@@ -12,6 +13,7 @@
 
 | File | Role |
 |------|------|
+| [`docs/design/art-framework.md`](docs/design/art-framework.md) | ART presentation graph, LML, Host SPI, milestone 12 |
 | [`docs/design/dual-track.md`](docs/design/dual-track.md) | C1/C2 design + roadmap |
 | [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md) | Godot-aligned core API + C2 components + host SPI |
 | [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md) | UiOps / UiProbe contract |

@@ -2,7 +2,7 @@
 
 Design contract for a **Godot-shaped** public API: one consumer surface, full C1 synthetic UI, C2 native STS screens as **encapsulated components**, shared structure for STS1 / future STS2 hosts.
 
-Complements [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md). Implementation is phased (see [`docs/task.md`](../task.md) milestone 11).
+Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host SPI / LML roadmap), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md). Milestone 11 is complete; further work is milestone 12 in [`docs/task.md`](../task.md).
 
 ## Purpose
 

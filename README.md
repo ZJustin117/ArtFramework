@@ -7,8 +7,9 @@
   1. **C1 Synthetic** — scene2d.ui windows (layout DSL + StageHost + StsSkin)
   2. **C2 Native templates** — map/event/select/end-turn hooks + `EntityPresent`
 
-Open work: [`docs/task.md`](docs/task.md). Consumer integration: [`docs/development/consumer.md`](docs/development/consumer.md).  
-UiOps/probe design: [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md). UI verify: [`docs/development/ui-layer-verification.md`](docs/development/ui-layer-verification.md).
+Open work: [`docs/task.md`](docs/task.md). Framework design: [`docs/design/art-framework.md`](docs/design/art-framework.md).  
+Consumer: [`docs/development/consumer.md`](docs/development/consumer.md). UiOps/probe: [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md).  
+Verify: [`docs/development/ui-layer-verification.md`](docs/development/ui-layer-verification.md).
 
 ## Requirements
 

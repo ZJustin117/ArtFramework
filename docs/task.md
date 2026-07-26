@@ -82,3 +82,17 @@ Design: [`docs/design/godot-aligned-ui.md`](design/godot-aligned-ui.md).
 - [x] 11.5 C2 NativeControl (`sts.*`) + UiOps invoke + probe `components`
 - [x] 11.6 API mount/unmount + `HostBackend` SPI + consumer.md
 - [x] 11.7 Optional: C1 end-turn chrome pilot (`endturn_chrome_pilot` layout + JUnit)
+
+### 12. ART Framework (presentation graph)
+
+Design: [`docs/design/art-framework.md`](design/art-framework.md). Breaking identity rename done in phase 12.0 prep.
+
+- [x] 12.0 Identity rename (`artframework` package/mod/jar/console/probe/env) + `art-framework.md` + task links
+- [ ] 12.1 Declared signals on AST + connect/emit validation + JUnit
+- [ ] 12.2 `NodeRegistry` / type SPI; loaders resolve registered types; namespaced third-party types
+- [ ] 12.3 LML → AST loader + resource dispatch (`.json` / `.lml`) + art-verify sample
+- [ ] 12.4 C1 node factory SPI; migrate `ComponentActors` built-ins
+- [ ] 12.5 RenderGraph / host render backend boundary (behavior-preserving)
+- [ ] 12.6 Built-in `animation_player` + `shader_effect` nodes
+- [ ] 12.7 Skeleton provider SPI + fake provider JUnit
+- [ ] 12.8 Native id namespace `sts1.*` + presenter bridge naming (consumer-visible)

@@ -4,6 +4,7 @@ import artframework.api.WindowClass;
 import artframework.api.WindowDef;
 import artframework.c1.layout.LayoutNode;
 import artframework.c1.layout.LayoutNodeBridge;
+import artframework.component.LmlUiNodeLoader;
 import artframework.component.TemplateExpander;
 import artframework.component.UiNode;
 import artframework.component.UiNodeLoader;
@@ -51,7 +52,7 @@ public final class SyntheticRuntime {
             throw new IllegalArgumentException("expected SYNTHETIC: " + def.id);
         }
 
-        UiNode uiRoot = UiNodeLoader.loadClasspath(def.resource);
+        UiNode uiRoot = loadLayout(def.resource);
         if (!UiTypes.WINDOW.equals(uiRoot.type)) {
             throw new IllegalArgumentException("layout root must be window: " + def.resource);
         }
@@ -119,5 +120,19 @@ public final class SyntheticRuntime {
         WidgetSessions.resetForTests();
         UiTrees.resetForTests();
         RenderHosts.resetForTests();
+    }
+
+    static UiNode loadLayout(String resource) {
+        if (resource == null || resource.isEmpty()) {
+            throw new IllegalArgumentException("layout resource required");
+        }
+        String lower = resource.toLowerCase();
+        if (lower.endsWith(".lml") || lower.endsWith(".xml")) {
+            return LmlUiNodeLoader.loadClasspath(resource);
+        }
+        if (lower.endsWith(".json") || !resource.contains(".")) {
+            return UiNodeLoader.loadClasspath(resource);
+        }
+        throw new IllegalArgumentException("unsupported layout format: " + resource);
     }
 }

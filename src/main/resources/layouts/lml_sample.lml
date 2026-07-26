@@ -1,0 +1,6 @@
+<window id="lml_sample" title="LML Sample" width="360" height="200" pad="10">
+  <col id="main" gap="8">
+    <label id="hello" text="Hello LML"/>
+    <button id="ok" text="OK" signals="pressed"/>
+  </col>
+</window>

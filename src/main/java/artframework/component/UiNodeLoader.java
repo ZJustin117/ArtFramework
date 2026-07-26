@@ -70,7 +70,7 @@ public final class UiNodeLoader {
         if (type == null || type.isEmpty()) {
             throw new IllegalArgumentException("layout type required");
         }
-        if (!isKnownType(type)) {
+        if (!UiNodeRegistry.global().contains(type)) {
             throw new IllegalArgumentException("unknown layout type: " + type);
         }
         if (UiTypes.WINDOW.equals(type)) {
@@ -170,13 +170,6 @@ public final class UiNodeLoader {
             out.add(name);
         }
         return out;
-    }
-
-    private static boolean isKnownType(String type) {
-        return UiTypes.isContainer(type)
-                || UiTypes.isLeaf(type)
-                || UiTypes.REF.equals(type)
-                || UiTypes.SLOT.equals(type);
     }
 
     private static LayoutSpec parseLayout(Map<String, Object> map) {

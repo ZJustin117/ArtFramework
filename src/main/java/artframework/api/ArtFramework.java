@@ -6,6 +6,7 @@ import artframework.c2.DefaultEntityPresent;
 import artframework.c2.EntityPresent;
 import artframework.c2.NativeTemplateRuntime;
 import artframework.component.UiNode;
+import artframework.component.UiNodeRegistry;
 import artframework.component.WidgetSession;
 import artframework.component.WidgetSessions;
 import artframework.c2.NativeComponents;
@@ -146,6 +147,7 @@ public final class ArtFramework {
         RenderHosts.resetForTests();
         Themes.resetForTests();
         HostBackends.resetForTests();
+        UiNodeRegistry.global().resetBuiltinsForTests();
     }
 
     public static HostBackend host() {
@@ -220,6 +222,11 @@ public final class ArtFramework {
     /** Track-agnostic render attach (effects / targets). */
     public static RenderHost render() {
         return RenderHosts.get();
+    }
+
+    /** Registered presentation node types (builtins + third-party). */
+    public static UiNodeRegistry nodes() {
+        return UiNodeRegistry.global();
     }
 
     /** C2 entity presenter slots (attach/sync/layout/detach). */

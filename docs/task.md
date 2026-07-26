@@ -91,7 +91,7 @@ Design: [`docs/design/art-framework.md`](design/art-framework.md). Breaking iden
 - [x] 12.1 Declared signals on AST + connect/emit validation + JUnit
 - [x] 12.2 `NodeRegistry` / type SPI; loaders resolve registered types; namespaced third-party types
 - [x] 12.3 LML → AST loader + resource dispatch (`.json` / `.lml`) + art-verify sample
-- [ ] 12.4 C1 node factory SPI; migrate `ComponentActors` built-ins
+- [x] 12.4 C1 node factory SPI; migrate `ComponentActors` built-ins
 - [ ] 12.5 RenderGraph / host render backend boundary (behavior-preserving)
 - [ ] 12.6 Built-in `animation_player` + `shader_effect` nodes
 - [ ] 12.7 Skeleton provider SPI + fake provider JUnit

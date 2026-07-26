@@ -1,5 +1,6 @@
 package artframework.api;
 
+import artframework.c1.C1NodeFactories;
 import artframework.c1.SyntheticRuntime;
 import artframework.c1.layout.LayoutNode;
 import artframework.c2.DefaultEntityPresent;
@@ -148,6 +149,7 @@ public final class ArtFramework {
         Themes.resetForTests();
         HostBackends.resetForTests();
         UiNodeRegistry.global().resetBuiltinsForTests();
+        C1NodeFactories.global().resetBuiltinsForTests();
     }
 
     public static HostBackend host() {
@@ -227,6 +229,11 @@ public final class ArtFramework {
     /** Registered presentation node types (builtins + third-party). */
     public static UiNodeRegistry nodes() {
         return UiNodeRegistry.global();
+    }
+
+    /** C1 scene2d node factories (builtins + third-party). */
+    public static C1NodeFactories c1Nodes() {
+        return C1NodeFactories.global();
     }
 
     /** C2 entity presenter slots (attach/sync/layout/detach). */

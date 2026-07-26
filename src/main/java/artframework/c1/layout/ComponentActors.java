@@ -14,6 +14,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.megacrit.cardcrawl.core.Settings;
 import artframework.api.ArtFramework;
 import artframework.api.UiOps;
+import artframework.c1.C1NodeContext;
+import artframework.c1.C1NodeFactories;
+import artframework.c1.C1NodeFactory;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.component.WidgetSession;
@@ -22,6 +25,7 @@ import artframework.component.WidgetSessions;
 /**
  * Builds scene2d actors from a composition {@link UiNode} tree (Nest containers + leaves).
  * Uses scene2d Table layout (not absolute LayoutEngine coords). Call only with a live Skin.
+ * Child types are resolved via {@link artframework.c1.C1NodeFactories}.
  */
 public final class ComponentActors {
 
@@ -54,7 +58,7 @@ public final class ComponentActors {
         window.defaults().pad(pad);
 
         for (UiNode child : root.children) {
-            Actor a = build(windowId, child, skin, onClose, scale);
+            Actor a = buildNode(windowId, child, skin, onClose, scale);
             if (a != null) {
                 window.add(a).growX().padBottom(6f * scale).row();
             }
@@ -66,15 +70,37 @@ public final class ComponentActors {
         return window;
     }
 
-    private static Actor build(
-            final String windowId, UiNode node, Skin skin, final Runnable onClose, float scale) {
+    /**
+     * Resolve type via {@link artframework.c1.C1NodeFactories} and inflate.
+     */
+    public static Actor buildNode(
+            String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
         if (node == null) {
             return null;
         }
+        C1NodeFactory factory = C1NodeFactories.global().get(node.type);
+        if (factory == null) {
+            throw new IllegalArgumentException(
+                    "no C1 factory for type: " + node.type + " id=" + node.id);
+        }
+        return factory.create(node, new C1NodeContext(windowId, skin, onClose, scale));
+    }
+
+    /**
+     * Built-in inflate path used by registered builtin factories.
+     */
+    public static Actor inflateBuiltin(UiNode node, C1NodeContext context) {
+        if (node == null || context == null) {
+            return null;
+        }
+        String windowId = context.windowId;
+        Skin skin = context.skin;
+        Runnable onClose = context.onClose;
+        float scale = context.scale;
         if (UiTypes.FRAGMENT.equals(node.type)) {
             Table t = new Table(skin);
             for (UiNode c : node.children) {
-                Actor a = build(windowId, c, skin, onClose, scale);
+                Actor a = buildNode(windowId, c, skin, onClose, scale);
                 if (a != null) {
                     t.add(a).growX().row();
                 }
@@ -95,7 +121,7 @@ public final class ComponentActors {
         if (UiTypes.STACK.equals(node.type)) {
             Stack stack = new Stack();
             for (UiNode c : node.children) {
-                Actor a = build(windowId, c, skin, onClose, scale);
+                Actor a = buildNode(windowId, c, skin, onClose, scale);
                 if (a != null) {
                     stack.add(a);
                 }
@@ -135,7 +161,7 @@ public final class ComponentActors {
             }
             return new Label(String.format("%.0f%%", Float.valueOf(v * 100f)), skin);
         }
-        return null;
+        throw new IllegalArgumentException("unhandled builtin type: " + node.type);
     }
 
     private static Actor buildCheckbox(
@@ -171,7 +197,7 @@ public final class ComponentActors {
             t.pad(pad);
         }
         for (int i = 0; i < node.children.size(); i++) {
-            Actor a = build(windowId, node.children.get(i), skin, onClose, scale);
+            Actor a = buildNode(windowId, node.children.get(i), skin, onClose, scale);
             if (a == null) {
                 continue;
             }
@@ -194,7 +220,7 @@ public final class ComponentActors {
         }
         for (int i = 0; i < node.children.size(); i++) {
             UiNode c = node.children.get(i);
-            Actor a = build(windowId, c, skin, onClose, scale);
+            Actor a = buildNode(windowId, c, skin, onClose, scale);
             if (a == null) {
                 continue;
             }

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "modId": "spireui",
+  "windows": {
+    "openIds": ["demo"],
+    "byId": {
+      "demo": {
+        "windowClass": "SYNTHETIC",
+        "title": "Demo"
+      }
+    }
+  },
+  "templates": {
+    "mapBound": true,
+    "eventBound": false,
+    "selectGridBound": false,
+    "selectHandBound": false,
+    "endTurnBound": true
+  },
+  "map": {
+    "pins": [
+      { "pinId": "p1", "nodeId": "0_1" }
+    ]
+  },
+  "endTurn": {
+    "buttonEnabled": true
+  },
+  "entities": {
+    "slotCount": 0
+  }
+}

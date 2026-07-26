@@ -1,0 +1,11 @@
+{
+  "type": "window",
+  "id": "demo",
+  "title": "SpireUI Demo",
+  "width": 400,
+  "height": 240,
+  "children": [
+    { "type": "label", "text": "Hello" },
+    { "type": "button", "id": "close", "text": "Close" }
+  ]
+}

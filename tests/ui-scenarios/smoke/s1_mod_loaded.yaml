@@ -1,0 +1,16 @@
+# Device smoke placeholder: requires SPIREUI_D1_SERIAL + future spireui probe.
+# Offline runs skip when env missing; do not use as default gate.
+name: s1_mod_loaded
+schemaVersion: 1
+mode: device
+require:
+  env:
+    - SPIREUI_D1_SERIAL
+steps:
+  - probe: all
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: modId
+      eq: spireui

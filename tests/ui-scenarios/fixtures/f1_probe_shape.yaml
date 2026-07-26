@@ -1,0 +1,27 @@
+# Offline fixture: assert UiProbe-shaped JSON (no device).
+name: f1_probe_shape
+schemaVersion: 1
+mode: fixture
+fixture: sample_probe.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: modId
+      eq: spireui
+  - assert:
+      path: templates.mapBound
+      eq: true
+  - assert:
+      path: templates.endTurnBound
+      eq: true
+  - assert:
+      path: windows.openIds
+      contains: demo
+  - assert:
+      path: map.pins[0].nodeId
+      eq: "0_1"
+  - assert:
+      path: endTurn.buttonEnabled
+      eq: true

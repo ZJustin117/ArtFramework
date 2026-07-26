@@ -1,0 +1,55 @@
+# Java / Gradle
+.gradle/
+.kotlin/
+build/
+*.iml
+.idea/
+local.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+_tmp*
+.tmp*
+tmp/
+agent-tmp/
+__pycache__/
+*.py[cod]
+
+# Debug / runtime
+*.log
+hs_err_pid*.log
+logs/
+debug-artifacts/
+
+# Secrets
+*.jks
+*.keystore
+*.p12
+*.pfx
+.env
+.env.local
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local tool state
+/.codex/
+/.codex_tmp/
+/.codenomad/
+
+# OpenCode: ignore caches/deps; keep shared agents + plugins
+/.opencode/*
+!/.opencode/agent/
+!/.opencode/agent/**
+!/.opencode/plugins/
+!/.opencode/plugins/**
+!/.opencode/package.json
+/.opencode/node_modules/
+/.opencode/bun.lock
+/.opencode/bun.lockb

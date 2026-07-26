@@ -1,0 +1,15 @@
+# Fixture: C1 synthetic window visible in probe.
+name: f3_c1_window
+schemaVersion: 1
+mode: fixture
+fixture: sample_probe.json
+steps:
+  - assert:
+      path: windows.openIds
+      contains: demo
+  - assert:
+      path: windows.byId.demo.windowClass
+      eq: SYNTHETIC
+  - assert:
+      path: windows.byId.demo.title
+      eq: Demo

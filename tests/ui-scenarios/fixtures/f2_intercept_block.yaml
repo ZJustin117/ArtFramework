@@ -1,0 +1,15 @@
+# Fixture: probe shape when map bound but ops would be blocked (static snapshot contract).
+name: f2_intercept_block
+schemaVersion: 1
+mode: fixture
+fixture: sample_probe.json
+steps:
+  - assert:
+      path: templates.mapBound
+      eq: true
+  - assert:
+      path: templates.endTurnBound
+      eq: true
+  - assert:
+      path: map.pins[0].pinId
+      eq: p1

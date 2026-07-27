@@ -39,7 +39,7 @@ public final class NativeComponents {
         if (id == null) {
             return null;
         }
-        return BY_ID.get(id);
+        return BY_ID.get(NativeTemplateIds.canonicalize(id));
     }
 
     public static List<String> ids() {

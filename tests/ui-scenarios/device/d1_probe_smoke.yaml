@@ -10,9 +10,9 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
-  - console: "art bind sts.map"
+  - console: "art bind sts1.map"
   - wait_ms: 300
-  - console: "art bind sts.endturn"
+  - console: "art bind sts1.endturn"
   - wait_ms: 300
   - probe: all
   - assert:

@@ -11,6 +11,8 @@ import artframework.component.UiNodeRegistry;
 import artframework.component.WidgetSession;
 import artframework.component.WidgetSessions;
 import artframework.c2.NativeComponents;
+import artframework.core.AnimationPlayer;
+import artframework.core.AnimationPlayers;
 import artframework.core.HostBackend;
 import artframework.core.HostBackends;
 import artframework.core.Theme;
@@ -50,17 +52,31 @@ public final class ArtFramework {
             throw new IllegalArgumentException("def required");
         }
         DEFS.put(def.id, def);
+        if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
+            String canon = artframework.c2.NativeTemplateIds.canonicalize(def.id);
+            if (canon != null && !canon.equals(def.id)) {
+                DEFS.put(canon, def);
+            }
+            String resCanon = artframework.c2.NativeTemplateIds.canonicalize(def.resource);
+            if (resCanon != null && !resCanon.isEmpty() && !resCanon.equals(def.id) && !resCanon.equals(canon)) {
+                DEFS.put(resCanon, def);
+            }
+        }
     }
 
     public static boolean isRegistered(String id) {
-        return DEFS.containsKey(id);
+        if (DEFS.containsKey(id)) {
+            return true;
+        }
+        String canon = artframework.c2.NativeTemplateIds.canonicalize(id);
+        return canon != null && DEFS.containsKey(canon);
     }
 
     /**
      * Mount a registered window (synthetic open or native bind). Preferred Godot-aligned entry.
      */
     public static WindowHandle mount(String id) {
-        WindowDef def = DEFS.get(id);
+        WindowDef def = defOf(id);
         if (def == null) {
             throw new IllegalArgumentException("not registered: " + id);
         }
@@ -76,7 +92,7 @@ public final class ArtFramework {
     }
 
     public static WindowHandle open(String id) {
-        WindowDef def = DEFS.get(id);
+        WindowDef def = defOf(id);
         if (def == null) {
             throw new IllegalArgumentException("not registered: " + id);
         }
@@ -104,26 +120,52 @@ public final class ArtFramework {
     /**
      * Attach to an engine-owned native screen (C2). For SYNTHETIC, delegates to {@link #open}.
      */
-    public static WindowHandle bind(String id) {
+    private static WindowDef defOf(String id) {
+        if (id == null) {
+            return null;
+        }
         WindowDef def = DEFS.get(id);
+        if (def != null) {
+            return def;
+        }
+        return DEFS.get(artframework.c2.NativeTemplateIds.canonicalize(id));
+    }
+
+    public static WindowHandle bind(String id) {
+        WindowDef def = defOf(id);
         if (def == null) {
             throw new IllegalArgumentException("not registered: " + id);
         }
         if (def.windowClass == WindowClass.SYNTHETIC) {
             return open(id);
         }
-        WindowHandle previous = OPEN.get(id);
+        String openId = artframework.c2.NativeTemplateIds.canonicalize(def.id);
+        if (openId == null || openId.isEmpty()) {
+            openId = def.id;
+        }
+        WindowHandle previous = OPEN.get(openId);
+        if (previous != null && previous.isOpen()) {
+            previous.close();
+        }
+        previous = OPEN.get(id);
         if (previous != null && previous.isOpen()) {
             previous.close();
         }
         NativeTemplateRuntime.bind(def);
         WindowHandle handle = new TrackedHandle(def, null);
-        OPEN.put(id, handle);
+        OPEN.put(openId, handle);
+        if (!openId.equals(id)) {
+            OPEN.put(id, handle);
+        }
         return handle;
     }
 
     public static WindowHandle find(String id) {
-        return OPEN.get(id);
+        WindowHandle h = OPEN.get(id);
+        if (h != null) {
+            return h;
+        }
+        return OPEN.get(artframework.c2.NativeTemplateIds.canonicalize(id));
     }
 
     public static List<String> listOpenIds() {
@@ -150,6 +192,8 @@ public final class ArtFramework {
         HostBackends.resetForTests();
         UiNodeRegistry.global().resetBuiltinsForTests();
         C1NodeFactories.global().resetBuiltinsForTests();
+        AnimationPlayers.resetForTests();
+        artframework.skeleton.SkeletonProviders.global().resetForTests();
     }
 
     public static HostBackend host() {
@@ -234,6 +278,16 @@ public final class ArtFramework {
     /** C1 scene2d node factories (builtins + third-party). */
     public static C1NodeFactories c1Nodes() {
         return C1NodeFactories.global();
+    }
+
+    /** Animation player for a mounted {@code art.animation_player} node, or null. */
+    public static AnimationPlayer animation(String windowId, String nodeId) {
+        return AnimationPlayers.get(windowId, nodeId);
+    }
+
+    /** Skeleton provider registry. */
+    public static artframework.skeleton.SkeletonProviders skeletons() {
+        return artframework.skeleton.SkeletonProviders.global();
     }
 
     /** C2 entity presenter slots (attach/sync/layout/detach). */

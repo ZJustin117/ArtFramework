@@ -1,5 +1,6 @@
 package artframework.c1;
 
+import artframework.component.ArtNodeTypes;
 import artframework.component.UiTypes;
 
 import java.util.Collections;
@@ -67,6 +68,9 @@ public final class C1NodeFactories {
     private static boolean isBuiltinType(String type) {
         return UiTypes.isContainer(type)
                 || UiTypes.isLeaf(type)
-                || UiTypes.WINDOW.equals(type);
+                || UiTypes.WINDOW.equals(type)
+                || ArtNodeTypes.ANIMATION_PLAYER.equals(type)
+                || ArtNodeTypes.SHADER_EFFECT.equals(type)
+                || ArtNodeTypes.SKELETON.equals(type);
     }
 }

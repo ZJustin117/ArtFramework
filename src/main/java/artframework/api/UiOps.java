@@ -71,7 +71,7 @@ public final class UiOps {
             return UiOpResult.unavailable("node required");
         }
         if (!NativeTemplateRuntime.isMapBound()) {
-            return UiOpResult.notBound("sts.map not bound");
+            return UiOpResult.notBound("sts1.map not bound");
         }
         MapNodeInterceptor.Result r = NativeTemplateRuntime.map().dispatchNodeClick(node);
         if (r == MapNodeInterceptor.Result.BLOCK) {
@@ -82,7 +82,7 @@ public final class UiOps {
 
     public UiOpResult chooseEventOption(int index, String label) {
         if (!NativeTemplateRuntime.isEventBound()) {
-            return UiOpResult.notBound("sts.event not bound");
+            return UiOpResult.notBound("sts1.event not bound");
         }
         GateResult gate =
                 NativeTemplateRuntime.event().dispatchOption(new EventOptionRef(index, label));
@@ -94,7 +94,7 @@ public final class UiOps {
 
     public UiOpResult pressEndTurn() {
         if (!NativeTemplateRuntime.isEndTurnBound()) {
-            return UiOpResult.notBound("sts.endturn not bound");
+            return UiOpResult.notBound("sts1.endturn not bound");
         }
         GateResult gate = NativeTemplateRuntime.endTurn().dispatchPress();
         if (gate == GateResult.BLOCK) {

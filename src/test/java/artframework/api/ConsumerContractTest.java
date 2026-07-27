@@ -26,10 +26,10 @@ public class ConsumerContractTest {
         assertTrue(NativeTemplateRuntime.isAvailable());
         EntityPresent entities = ArtFramework.entities();
         assertNotNull(entities);
-        assertEquals("sts.map", NativeTemplateIds.MAP);
-        assertEquals("sts.event", NativeTemplateIds.EVENT);
-        assertEquals("sts.select.grid", NativeTemplateIds.SELECT_GRID);
-        assertEquals("sts.select.hand", NativeTemplateIds.SELECT_HAND);
-        assertEquals("sts.endturn", NativeTemplateIds.END_TURN);
+        assertEquals("sts1.map", NativeTemplateIds.MAP);
+        assertEquals("sts1.event", NativeTemplateIds.EVENT);
+        assertEquals("sts1.select.grid", NativeTemplateIds.SELECT_GRID);
+        assertEquals("sts1.select.hand", NativeTemplateIds.SELECT_HAND);
+        assertEquals("sts1.endturn", NativeTemplateIds.END_TURN);
     }
 }

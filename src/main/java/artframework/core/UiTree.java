@@ -41,6 +41,7 @@ public final class UiTree {
         tree.root = tree.build(expandedRoot, null);
         tree.fireMount(tree.root, lifecycle);
         tree.fireReady(tree.root, lifecycle);
+        AnimationPlayers.syncTree(tree);
         return tree;
     }
 
@@ -140,10 +141,19 @@ public final class UiTree {
         if (!alive) {
             return;
         }
+        AnimationPlayers.clearWindow(windowId);
         fireUnmount(root, lifecycle);
         signalHub.clear();
         byId.clear();
         alive = false;
+    }
+
+    /** Advance animation players for this tree. */
+    public void tick(float deltaSeconds) {
+        if (!alive) {
+            return;
+        }
+        AnimationPlayers.tick(windowId, deltaSeconds);
     }
 
     private UiInstance build(UiNode node, UiInstance parent) {

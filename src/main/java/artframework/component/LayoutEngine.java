@@ -50,7 +50,8 @@ public final class LayoutEngine {
                 || UiTypes.PANEL.equals(node.type)
                 || UiTypes.GLASS.equals(node.type)
                 || UiTypes.SCROLL.equals(node.type)
-                || UiTypes.MARGIN.equals(node.type)) {
+                || UiTypes.MARGIN.equals(node.type)
+                || ArtNodeTypes.SHADER_EFFECT.equals(node.type)) {
             placeCol(node, bounds, byId);
             return;
         }
@@ -236,7 +237,8 @@ public final class LayoutEngine {
                 || UiTypes.STACK.equals(node.type)
                 || UiTypes.SCROLL.equals(node.type)
                 || UiTypes.MARGIN.equals(node.type)
-                || UiTypes.CENTER.equals(node.type)) {
+                || UiTypes.CENTER.equals(node.type)
+                || ArtNodeTypes.SHADER_EFFECT.equals(node.type)) {
             float pad = node.layout.pad;
             float max = 0f;
             for (UiNode c : visibleChildren(node)) {
@@ -275,7 +277,8 @@ public final class LayoutEngine {
                 || UiTypes.PANEL.equals(node.type)
                 || UiTypes.GLASS.equals(node.type)
                 || UiTypes.SCROLL.equals(node.type)
-                || UiTypes.MARGIN.equals(node.type)) {
+                || UiTypes.MARGIN.equals(node.type)
+                || ArtNodeTypes.SHADER_EFFECT.equals(node.type)) {
             float pad = node.layout.pad;
             float gap = node.layout.gap;
             float sum = 0f;

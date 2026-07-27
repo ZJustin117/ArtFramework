@@ -54,6 +54,37 @@ public final class UiNodeRegistry {
                         .allowsChildren(true)
                         .builtin(true)
                         .build());
+        registerBuiltin(
+                UiNodeType.builder(ArtNodeTypes.ANIMATION_PLAYER)
+                        .kind(NodeKind.BEHAVIOR)
+                        .allowsChildren(false)
+                        .builtin(true)
+                        .defaultSignals(
+                                java.util.Arrays.asList(
+                                        artframework.core.AnimationPlayer.SIGNAL_STARTED,
+                                        artframework.core.AnimationPlayer.SIGNAL_FINISHED,
+                                        artframework.core.AnimationPlayer.SIGNAL_CANCELLED))
+                        .build());
+        registerBuiltin(
+                UiNodeType.builder(ArtNodeTypes.SHADER_EFFECT)
+                        .kind(NodeKind.VISUAL)
+                        .allowsChildren(true)
+                        .builtin(true)
+                        .defaultSignals(
+                                java.util.Arrays.asList(
+                                        artframework.core.SignalNames.EFFECT_READY,
+                                        artframework.core.SignalNames.EFFECT_FAILED))
+                        .build());
+        registerBuiltin(
+                UiNodeType.builder(ArtNodeTypes.SKELETON)
+                        .kind(NodeKind.VISUAL)
+                        .allowsChildren(false)
+                        .builtin(true)
+                        .defaultSignals(
+                                java.util.Arrays.asList(
+                                        artframework.core.SignalNames.SKELETON_EVENT,
+                                        artframework.core.SignalNames.ASSET_FAILED))
+                        .build());
     }
 
     private static UiNodeType container(String type) {

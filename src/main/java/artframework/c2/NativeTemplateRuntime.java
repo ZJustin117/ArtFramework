@@ -154,16 +154,20 @@ public final class NativeTemplateRuntime {
     }
 
     private static String resolveKey(WindowDef def) {
+        String key;
         if (def.resource != null && !def.resource.isEmpty()) {
-            return def.resource;
+            key = def.resource;
+        } else {
+            key = def.id;
         }
-        return def.id;
+        return NativeTemplateIds.canonicalize(key);
     }
 
     private static TemplateSlot slotFor(String key) {
         if (key == null) {
             return null;
         }
+        key = NativeTemplateIds.canonicalize(key);
         if (NativeTemplateIds.MAP.equals(key)) {
             return new TemplateSlot() {
                 @Override

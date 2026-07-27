@@ -24,9 +24,9 @@ public class MapTemplateTest {
 
     @Test
     public void bindActivatesMapTemplate() {
-        ArtFramework.register(new WindowDef("sts.map", WindowClass.NATIVE_TEMPLATE, "sts.map"));
+        ArtFramework.register(new WindowDef("sts1.map", WindowClass.NATIVE_TEMPLATE, "sts1.map"));
         assertFalse(NativeTemplateRuntime.isMapBound());
-        WindowHandle h = ArtFramework.bind("sts.map");
+        WindowHandle h = ArtFramework.bind("sts1.map");
         assertTrue(h.isOpen());
         assertTrue(NativeTemplateRuntime.isMapBound());
         h.close();
@@ -35,17 +35,17 @@ public class MapTemplateTest {
 
     @Test
     public void openNativeAlsoBinds() {
-        ArtFramework.register(new WindowDef("sts.map", WindowClass.NATIVE_TEMPLATE, "sts.map"));
-        ArtFramework.open("sts.map");
+        ArtFramework.register(new WindowDef("sts1.map", WindowClass.NATIVE_TEMPLATE, "sts1.map"));
+        ArtFramework.open("sts1.map");
         assertTrue(NativeTemplateRuntime.isMapBound());
-        ArtFramework.close("sts.map");
+        ArtFramework.close("sts1.map");
         assertFalse(NativeTemplateRuntime.isMapBound());
     }
 
     @Test
     public void interceptorBlockWins() {
-        ArtFramework.register(new WindowDef("sts.map", WindowClass.NATIVE_TEMPLATE, "sts.map"));
-        ArtFramework.bind("sts.map");
+        ArtFramework.register(new WindowDef("sts1.map", WindowClass.NATIVE_TEMPLATE, "sts1.map"));
+        ArtFramework.bind("sts1.map");
         MapTemplate map = NativeTemplateRuntime.map();
         final AtomicInteger seen = new AtomicInteger();
         map.addInterceptor(new MapNodeInterceptor() {
@@ -90,8 +90,8 @@ public class MapTemplateTest {
 
     @Test
     public void pinsNotifyDecorators() {
-        ArtFramework.register(new WindowDef("sts.map", WindowClass.NATIVE_TEMPLATE, "sts.map"));
-        ArtFramework.bind("sts.map");
+        ArtFramework.register(new WindowDef("sts1.map", WindowClass.NATIVE_TEMPLATE, "sts1.map"));
+        ArtFramework.bind("sts1.map");
         final List<Integer> sizes = new ArrayList<Integer>();
         NativeTemplateRuntime.map().addPinDecorator(new MapPinDecorator() {
             @Override
@@ -126,12 +126,12 @@ public class MapTemplateTest {
 
     @Test
     public void deactivateClearsPins() {
-        ArtFramework.register(new WindowDef("sts.map", WindowClass.NATIVE_TEMPLATE, "sts.map"));
-        ArtFramework.bind("sts.map");
+        ArtFramework.register(new WindowDef("sts1.map", WindowClass.NATIVE_TEMPLATE, "sts1.map"));
+        ArtFramework.bind("sts1.map");
         NativeTemplateRuntime.map().putPin(
                 new MapPin("p1", new MapNodeRef(3, 2, "elite"), "B"));
         assertEquals(1, NativeTemplateRuntime.map().listPins().size());
-        ArtFramework.close("sts.map");
+        ArtFramework.close("sts1.map");
         assertTrue(NativeTemplateRuntime.map().listPins().isEmpty());
     }
 

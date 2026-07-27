@@ -2,6 +2,7 @@ package artframework.c1;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import artframework.c1.layout.ComponentActors;
+import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
 
@@ -29,6 +30,9 @@ final class BuiltinC1Factories {
         reg.register(delegate(UiTypes.TEXTFIELD));
         reg.register(delegate(UiTypes.CHECKBOX));
         reg.register(delegate(UiTypes.PROGRESS));
+        reg.register(delegate(ArtNodeTypes.ANIMATION_PLAYER));
+        reg.register(delegate(ArtNodeTypes.SHADER_EFFECT));
+        reg.register(delegate(ArtNodeTypes.SKELETON));
     }
 
     private static C1NodeFactory delegate(final String type) {

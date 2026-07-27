@@ -1,5 +1,6 @@
 package artframework.render;
 
+import artframework.component.ArtNodeTypes;
 import artframework.component.EffectDecl;
 import artframework.component.LayoutEngine;
 import artframework.component.LayoutResult;
@@ -28,6 +29,7 @@ public final class RenderHost {
     private final FrameCapture frameCapture = new FrameCapture();
     private final Map<String, RenderTarget> targets = new LinkedHashMap<String, RenderTarget>();
     private final Map<String, List<EffectBinding>> bindings = new LinkedHashMap<String, List<EffectBinding>>();
+    private HostRenderBackend hostBackend = DirectHostRenderBackend.INSTANCE;
     private boolean fullFrameEnabled;
     private boolean captureEnabled;
     private boolean shadersReady;
@@ -37,6 +39,14 @@ public final class RenderHost {
 
     public RenderHost() {
         installBuiltins();
+    }
+
+    public HostRenderBackend hostBackend() {
+        return hostBackend;
+    }
+
+    public void setHostBackend(HostRenderBackend backend) {
+        this.hostBackend = backend != null ? backend : DirectHostRenderBackend.INSTANCE;
     }
 
     private void installBuiltins() {
@@ -325,9 +335,11 @@ public final class RenderHost {
     }
 
     private void syncNodeTargets(UiNode node, String windowId, LayoutResult layout, float zBase) {
+        boolean shaderNode = ArtNodeTypes.SHADER_EFFECT.equals(node.type);
         boolean track = !node.id.isEmpty()
                 && (UiTypes.isLeaf(node.type)
                         || !node.effects.isEmpty()
+                        || shaderNode
                         || UiTypes.GLASS.equals(node.type)
                         || UiTypes.PANEL.equals(node.type));
         if (track) {
@@ -340,6 +352,9 @@ public final class RenderHost {
             t.setZ(zBase);
             clearEffects(tid);
             applyNodeEffects(tid, node);
+            if (shaderNode) {
+                applyShaderEffectNode(tid, node);
+            }
         }
         for (UiNode c : node.children) {
             syncNodeTargets(c, windowId, layout, zBase + 0.01f);
@@ -363,6 +378,33 @@ public final class RenderHost {
             }
             bindEffect(targetId, decl.id, params);
         }
+    }
+
+    /**
+     * {@code art.shader_effect} uses prop {@code effect} (+ other props as params).
+     */
+    private void applyShaderEffectNode(String targetId, UiNode node) {
+        String effectId = node.propString("effect", "");
+        if (effectId.isEmpty()) {
+            return;
+        }
+        if (!effects.contains(effectId)) {
+            return;
+        }
+        Map<String, Object> params = new LinkedHashMap<String, Object>();
+        for (Map.Entry<String, Object> e : node.props.entrySet()) {
+            if ("effect".equals(e.getKey())) {
+                continue;
+            }
+            params.put(e.getKey(), e.getValue());
+        }
+        if (!params.containsKey("screenW")) {
+            params.put("screenW", Float.valueOf(screenW));
+        }
+        if (!params.containsKey("screenH")) {
+            params.put("screenH", Float.valueOf(screenH));
+        }
+        bindEffect(targetId, effectId, params);
     }
 
     public void detachWidgetSession(String windowId) {
@@ -417,11 +459,8 @@ public final class RenderHost {
      * @param alreadyCaptured if true, skip {@link FrameCapture#captureScreen}
      */
     public void drawFrame(Object spriteBatch, boolean alreadyCaptured) {
-        if (!alreadyCaptured && needsCapture()) {
-            try {
-                frameCapture.captureScreen((int) screenW, (int) screenH);
-            } catch (Throwable ignored) {
-            }
+        if (!alreadyCaptured && needsCapture() && hostBackend.supportsCapture()) {
+            hostBackend.captureScreen(frameCapture, (int) screenW, (int) screenH);
         }
         RenderContext ctx = new RenderContext(
                 spriteBatch,
@@ -451,7 +490,7 @@ public final class RenderHost {
                 }
                 Effect effect = effects.get(binding.effectId);
                 if (effect != null) {
-                    effect.draw(target, binding, ctx);
+                    hostBackend.drawEffect(effect, target, binding, ctx);
                 }
             }
         }
@@ -461,11 +500,8 @@ public final class RenderHost {
      * Capture then draw. Prefer when batch is ended (GL copy from default FB).
      */
     public void captureAndDraw(Object spriteBatch) {
-        if (needsCapture()) {
-            try {
-                frameCapture.captureScreen((int) screenW, (int) screenH);
-            } catch (Throwable ignored) {
-            }
+        if (needsCapture() && hostBackend.supportsCapture()) {
+            hostBackend.captureScreen(frameCapture, (int) screenW, (int) screenH);
         }
         drawFrame(spriteBatch, true);
     }
@@ -477,6 +513,8 @@ public final class RenderHost {
         out.put("fullFrameEnabled", Boolean.valueOf(fullFrameEnabled));
         out.put("captureEnabled", Boolean.valueOf(captureEnabled));
         out.put("needsCapture", Boolean.valueOf(needsCapture()));
+        out.put("hostSupportsCapture", Boolean.valueOf(hostBackend.supportsCapture()));
+        out.put("hostSupportsShaders", Boolean.valueOf(hostBackend.supportsShaders()));
         out.put("shadersReady", Boolean.valueOf(shadersReady));
         out.put("shaderProgramCount", Integer.valueOf(shaderRuntime.programCount()));
         out.put("effectIds", new ArrayList<String>(effects.ids()));
@@ -523,6 +561,7 @@ public final class RenderHost {
         frameCapture.dispose();
         effects.clear();
         shaders.clear();
+        hostBackend = DirectHostRenderBackend.INSTANCE;
         fullFrameEnabled = false;
         captureEnabled = false;
         shadersReady = false;

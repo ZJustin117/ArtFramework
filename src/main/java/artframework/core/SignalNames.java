@@ -14,6 +14,10 @@ public final class SignalNames {
     public static final String OPTION_CHOSEN = "option_chosen";
     public static final String CARD_SELECTED = "card_selected";
     public static final String CONFIRMED = "confirmed";
+    public static final String EFFECT_READY = "effect_ready";
+    public static final String EFFECT_FAILED = "effect_failed";
+    public static final String SKELETON_EVENT = "skeleton_event";
+    public static final String ASSET_FAILED = "asset_failed";
 
     private SignalNames() {}
 }

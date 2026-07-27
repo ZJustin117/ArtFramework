@@ -34,8 +34,8 @@ public class ArtFrameworkTest {
 
     @Test
     public void bindNativeTemplate() {
-        ArtFramework.register(new WindowDef("sts.map", WindowClass.NATIVE_TEMPLATE, "sts.map"));
-        WindowHandle h = ArtFramework.bind("sts.map");
+        ArtFramework.register(new WindowDef("sts1.map", WindowClass.NATIVE_TEMPLATE, "sts1.map"));
+        WindowHandle h = ArtFramework.bind("sts1.map");
         assertEquals(WindowClass.NATIVE_TEMPLATE, h.windowClass());
         h.close();
         assertFalse(h.isOpen());
@@ -54,7 +54,7 @@ public class ArtFrameworkTest {
     @Test
     public void reRegisterOverwritesDef() {
         ArtFramework.register(new WindowDef("w", WindowClass.SYNTHETIC, "layouts/demo.json"));
-        ArtFramework.register(new WindowDef("w", WindowClass.NATIVE_TEMPLATE, "sts.map"));
+        ArtFramework.register(new WindowDef("w", WindowClass.NATIVE_TEMPLATE, "sts1.map"));
         WindowHandle h = ArtFramework.open("w");
         assertEquals(WindowClass.NATIVE_TEMPLATE, h.windowClass());
     }

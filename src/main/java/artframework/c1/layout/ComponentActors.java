@@ -17,6 +17,7 @@ import artframework.api.UiOps;
 import artframework.c1.C1NodeContext;
 import artframework.c1.C1NodeFactories;
 import artframework.c1.C1NodeFactory;
+import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.component.WidgetSession;
@@ -160,6 +161,21 @@ public final class ComponentActors {
                 v = session.getProgress(node.id);
             }
             return new Label(String.format("%.0f%%", Float.valueOf(v * 100f)), skin);
+        }
+        if (ArtNodeTypes.ANIMATION_PLAYER.equals(node.type)
+                || ArtNodeTypes.SKELETON.equals(node.type)) {
+            // Behavior / non-layout visual: invisible placeholder for scene2d tree integrity.
+            return new Actor();
+        }
+        if (ArtNodeTypes.SHADER_EFFECT.equals(node.type)) {
+            Table wrap = new Table(skin);
+            for (UiNode c : node.children) {
+                Actor a = buildNode(windowId, c, skin, onClose, scale);
+                if (a != null) {
+                    wrap.add(a).grow();
+                }
+            }
+            return wrap;
         }
         throw new IllegalArgumentException("unhandled builtin type: " + node.type);
     }

@@ -36,6 +36,20 @@ public class NativeComponentTest {
     }
 
     @Test
+    public void repeatedBindAndUnbindKeepsNativeComponentStateInSync() {
+        registerBind(NativeTemplateIds.MAP);
+        assertTrue(NativeComponents.get(NativeTemplateIds.MAP).isMounted());
+
+        registerBind(NativeTemplateIds.MAP);
+        assertTrue(NativeTemplateRuntime.isMapBound());
+        assertTrue(NativeComponents.get(NativeTemplateIds.MAP).isMounted());
+
+        ArtFramework.unmount(NativeTemplateIds.MAP);
+        assertFalse(NativeTemplateRuntime.isMapBound());
+        assertFalse(NativeComponents.get(NativeTemplateIds.MAP).isMounted());
+    }
+
+    @Test
     public void bindMountsComponent() {
         ArtFramework.register(
                 new WindowDef(NativeTemplateIds.MAP, WindowClass.NATIVE_TEMPLATE, NativeTemplateIds.MAP));
@@ -118,5 +132,10 @@ public class NativeComponentTest {
             @Override
             public void handle(Object... args) {}
         });
+    }
+
+    private static void registerBind(String id) {
+        ArtFramework.register(new WindowDef(id, WindowClass.NATIVE_TEMPLATE, id));
+        ArtFramework.bind(id);
     }
 }

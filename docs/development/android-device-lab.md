@@ -65,7 +65,7 @@ python3 -m scripts.tools.connector status --port "$STS_CONNECTOR_PORT"
 5. **Enable the mod** on Amethyst (jar in `mods_library` alone is not enough):
 
 ```bash
-./scripts/ensure-enabled-mods.sh
+./scripts/ensure-art-enabled-mods.sh
 ```
 
    Writes `sts/enabled_mods.txt` with ArtFramework before CrossSpire when both jars exist.  

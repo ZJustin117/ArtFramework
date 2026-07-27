@@ -58,41 +58,34 @@ public final class SyntheticRuntime {
         }
         uiRoot = new TemplateExpander().expand(uiRoot);
 
-        WidgetSession session = WidgetSessions.openTree(def.id, uiRoot);
-        UiTrees.open(def.id, session.root());
-        LayoutNode legacy = LayoutNodeBridge.toLegacyOrNull(session.root());
-        if (legacy == null) {
-            legacy = LayoutNode.window(
-                    session.root().id,
-                    session.root().propString("title", def.id),
-                    session.root().layout.width,
-                    session.root().layout.height,
-                    java.util.Collections.<LayoutNode>emptyList());
-        }
-
-        WindowManager.put(def.id, legacy);
         try {
-            RenderHosts.get().syncWidgetSession(session);
-        } catch (RuntimeException ignored) {
-        }
+            WidgetSession session = WidgetSessions.openTree(def.id, uiRoot);
+            UiTrees.open(def.id, session.root());
+            SyntheticComponents.mount(def.id);
+            LayoutNode legacy = LayoutNodeBridge.toLegacyOrNull(session.root());
+            if (legacy == null) {
+                legacy = LayoutNode.window(
+                        session.root().id,
+                        session.root().propString("title", def.id),
+                        session.root().layout.width,
+                        session.root().layout.height,
+                        java.util.Collections.<LayoutNode>emptyList());
+            }
 
-        if (stageBackend != null && stageBackend.isReady()) {
-            try {
+            WindowManager.put(def.id, legacy);
+            RenderHosts.get().syncWidgetSession(session);
+            if (stageBackend != null && stageBackend.isReady()) {
                 if (LayoutNodeBridge.isLegacyTree(session.root())) {
                     stageBackend.attach(def.id, legacy);
                 } else {
                     stageBackend.attachComposition(def.id, session.root());
                 }
-            } catch (RuntimeException e) {
-                WindowManager.remove(def.id);
-                WidgetSessions.close(def.id);
-                UiTrees.close(def.id);
-                RenderHosts.get().detachWidgetSession(def.id);
-                stageBackend.detach(def.id);
-                throw e;
             }
+            return legacy;
+        } catch (RuntimeException e) {
+            cleanupFailedOpen(def.id);
+            throw e;
         }
-        return legacy;
     }
 
     public static WidgetSession openComposition(WindowDef def) {
@@ -111,6 +104,21 @@ public final class SyntheticRuntime {
         WindowManager.remove(id);
         WidgetSessions.close(id);
         UiTrees.close(id);
+        SyntheticComponents.unmount(id);
+        RenderHosts.get().detachWidgetSession(id);
+    }
+
+    private static void cleanupFailedOpen(String id) {
+        if (stageBackend != null) {
+            try {
+                stageBackend.detach(id);
+            } catch (RuntimeException ignored) {
+            }
+        }
+        WindowManager.remove(id);
+        WidgetSessions.close(id);
+        UiTrees.close(id);
+        SyntheticComponents.unmount(id);
         RenderHosts.get().detachWidgetSession(id);
     }
 
@@ -119,6 +127,7 @@ public final class SyntheticRuntime {
         WindowManager.resetForTests();
         WidgetSessions.resetForTests();
         UiTrees.resetForTests();
+        SyntheticComponents.resetForTests();
         RenderHosts.resetForTests();
     }
 

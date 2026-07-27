@@ -156,7 +156,10 @@ public final class ArtFramework {
         if (def.windowClass == WindowClass.SYNTHETIC) {
             return open(id);
         }
-        String openId = artframework.c2.NativeTemplateIds.canonicalize(def.id);
+        String openId = artframework.c2.NativeTemplateIds.canonicalize(def.resource);
+        if (openId == null || openId.isEmpty()) {
+            openId = artframework.c2.NativeTemplateIds.canonicalize(def.id);
+        }
         if (openId == null || openId.isEmpty()) {
             openId = def.id;
         }
@@ -186,7 +189,20 @@ public final class ArtFramework {
     }
 
     public static List<String> listOpenIds() {
-        return Collections.unmodifiableList(new ArrayList<String>(OPEN.keySet()));
+        List<String> ids = new ArrayList<String>();
+        List<WindowHandle> handles = new ArrayList<WindowHandle>();
+        for (WindowHandle handle : OPEN.values()) {
+            if (handles.contains(handle)) {
+                continue;
+            }
+            handles.add(handle);
+            if (handle instanceof TrackedHandle) {
+                ids.add(((TrackedHandle) handle).openId);
+            } else {
+                ids.add(handle.id());
+            }
+        }
+        return Collections.unmodifiableList(ids);
     }
 
     public static void close(String id) {
@@ -277,9 +293,21 @@ public final class ArtFramework {
         return UiTrees.get(id);
     }
 
+    /** Advance all mounted synthetic trees and the configured host. */
+    public static void tick(float deltaSeconds) {
+        if (deltaSeconds < 0f) {
+            throw new IllegalArgumentException("deltaSeconds must be non-negative");
+        }
+        for (UiTree tree : UiTrees.listOpen()) {
+            tree.tick(deltaSeconds);
+        }
+        HostBackends.get().tick(deltaSeconds);
+    }
+
     /** C2 (or future) component by canonical id, e.g. {@code sts.map}. */
     public static UiComponent component(String componentId) {
-        return NativeComponents.get(componentId);
+        UiComponent synthetic = artframework.c1.SyntheticComponents.get(componentId);
+        return synthetic != null ? synthetic : NativeComponents.get(componentId);
     }
 
     /** Track-agnostic render attach (effects / targets). */
@@ -320,11 +348,20 @@ public final class ArtFramework {
     private static final class TrackedHandle implements WindowHandle {
         private final WindowDef def;
         private final LayoutNode root;
+        private final String openId;
         private boolean open = true;
 
         TrackedHandle(WindowDef def, LayoutNode root) {
             this.def = def;
             this.root = root;
+            String id = def.id;
+            if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
+                String nativeId = artframework.c2.NativeTemplateIds.canonicalize(def.resource);
+                if (nativeId != null && !nativeId.isEmpty()) {
+                    id = nativeId;
+                }
+            }
+            this.openId = id;
         }
 
         @Override
@@ -348,7 +385,7 @@ public final class ArtFramework {
                 return;
             }
             open = false;
-            OPEN.remove(def.id);
+            removeHandleAliases(this);
             if (def.windowClass == WindowClass.SYNTHETIC) {
                 UiTree tree = UiTrees.get(def.id);
                 if (tree != null) {
@@ -357,6 +394,18 @@ public final class ArtFramework {
                 SyntheticRuntime.onClosed(def.id);
             } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
                 NativeTemplateRuntime.unbind(def);
+            }
+        }
+
+        private void removeHandleAliases(WindowHandle handle) {
+            List<String> aliases = new ArrayList<String>();
+            for (Map.Entry<String, WindowHandle> entry : OPEN.entrySet()) {
+                if (entry.getValue() == handle) {
+                    aliases.add(entry.getKey());
+                }
+            }
+            for (String alias : aliases) {
+                OPEN.remove(alias);
             }
         }
     }

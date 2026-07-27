@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -148,7 +149,22 @@ public final class ComponentActors {
                 text = session.getText(node.id);
             }
             String ph = node.propString("placeholder", "");
-            Label field = new Label(text.isEmpty() ? ph : text, skin);
+            TextField field = new TextField(text, skin);
+            if (!ph.isEmpty()) {
+                field.setMessageText(ph);
+            }
+            final String fieldId = node.id;
+            field.addListener(new ChangeListener() {
+                @Override
+                public void changed(ChangeEvent event, Actor actor) {
+                    TextField input = (TextField) actor;
+                    WidgetSession current = WidgetSessions.get(windowId);
+                    if (current != null && current.hasTextField(fieldId)) {
+                        current.setText(fieldId, input.getText());
+                    }
+                    ArtFramework.ops().setText(windowId, fieldId, input.getText());
+                }
+            });
             return field;
         }
         if (UiTypes.CHECKBOX.equals(node.type)) {

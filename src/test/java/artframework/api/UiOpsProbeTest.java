@@ -153,6 +153,36 @@ public class UiOpsProbeTest {
     }
 
     @Test
+    public void invokeSyntheticComponentAction() {
+        final AtomicInteger hits = new AtomicInteger();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.mount("demo");
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override
+            public void run() {
+                hits.incrementAndGet();
+            }
+        });
+
+        assertEquals(
+                UiOpResult.Status.OK,
+                ArtFramework.ops().invoke("demo", "click_button", "close").status);
+        assertEquals(1, hits.get());
+        assertEquals(artframework.core.ComponentKind.SYNTHETIC, ArtFramework.component("demo").kind());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> components =
+                (List<Map<String, Object>>) ArtFramework.probe().asMap().get("components");
+        boolean found = false;
+        for (Map<String, Object> component : components) {
+            if ("demo".equals(component.get("id"))) {
+                assertEquals("SYNTHETIC", component.get("kind"));
+                found = true;
+            }
+        }
+        assertTrue(found);
+    }
+
+    @Test
     public void probeShape() {
         ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
         ArtFramework.open("demo");

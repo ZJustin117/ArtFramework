@@ -69,3 +69,12 @@ Console (in-game): `art probe` | `art op select|confirm|map|event|endturn|play|b
 ## Smoke
 
 After wiring, consumer JUnit should still pass with `compileOnly` ArtFramework on the test classpath (same `-PartFrameworkJar`). Device deploy must push **both** jars.
+
+This repository also ships a minimal compile-only consumer gate:
+
+```bash
+./scripts/verify-consumer-fixture.sh
+```
+
+It compiles `tools/consumer-fixture/src/ConsumerFixture.java` against the freshly built
+`ArtFramework.jar`, ensuring the documented stable API remains linkable by an external consumer.

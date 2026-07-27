@@ -98,3 +98,19 @@ Design: [`docs/design/art-framework.md`](design/art-framework.md). Breaking iden
 - [x] 12.8 Native id namespace `sts1.*` + presenter bridge naming (consumer-visible)
 - [x] 12.9 Signal completion: C2 native emit/validation, C1 interceptors, SignalHub sugar,
   registry defaults, stable anonymous keys, and legacy actor routing
+
+### 13. Runtime hardening
+
+- [x] 13.0 Freeze public IDs/API; canonical native aliases, handle lifecycle, and probe contract
+- [x] 13.1 Unify UiTree / WidgetSession / Host lifecycle and cleanup guarantees
+- [x] 13.2 Complete Host SPI capabilities, input, and unified tick
+- [x] 13.3 Converge UiOps delegation and versioned UiProbe results
+- [x] 13.4 Verify the C1 real input and signal loop on Stage/D1
+- [x] 13.5 Harden C2 NativeControl lifecycle, payloads, and screen recreation
+- [x] 13.6 Capability-aware render fallback and D1 effects verification
+- [x] 13.7 Consumer fixture, API stability checklist, and release versioning
+
+### 14. Component action convergence
+
+- [x] 14.1 Route legacy C2 UiOps sugar through `UiComponent.action`; keep gate/gesture dispatch internal
+- [x] 14.2 Expose mounted C1 windows as `UiComponent` actions and probe slices

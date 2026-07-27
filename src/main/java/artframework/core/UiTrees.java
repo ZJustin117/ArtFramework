@@ -53,6 +53,10 @@ public final class UiTrees {
         return Collections.unmodifiableList(new ArrayList<String>(TREES.keySet()));
     }
 
+    public static List<UiTree> listOpen() {
+        return Collections.unmodifiableList(new ArrayList<UiTree>(TREES.values()));
+    }
+
     public static void resetForTests() {
         List<String> ids = new ArrayList<String>(TREES.keySet());
         for (String id : ids) {

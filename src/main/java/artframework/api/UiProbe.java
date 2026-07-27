@@ -7,6 +7,7 @@ import artframework.component.WidgetSession;
 import artframework.component.WidgetSessions;
 import artframework.c2.NativeComponents;
 import artframework.core.Themes;
+import artframework.core.HostBackend;
 import artframework.core.UiTree;
 import artframework.core.UiTrees;
 import artframework.render.RenderHosts;
@@ -38,8 +39,20 @@ public final class UiProbe {
         root.put("entities", entitiesMap());
         root.put("render", RenderHosts.get().probeMap());
         root.put("theme", Themes.getDefault().probeSummary());
-        root.put("components", NativeComponents.probeAll());
+        List<Map<String, Object>> components = new ArrayList<Map<String, Object>>();
+        components.addAll(artframework.c1.SyntheticComponents.probeAll());
+        components.addAll(NativeComponents.probeAll());
+        root.put("components", components);
+        root.put("host", hostMap());
         return root;
+    }
+
+    private static Map<String, Object> hostMap() {
+        HostBackend host = ArtFramework.host();
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("ready", Boolean.valueOf(host.isReady()));
+        out.put("capabilities", new ArrayList<String>(host.capabilities().values()));
+        return out;
     }
 
     /** Single log/console line: prefix + compact JSON. */

@@ -17,4 +17,12 @@ public interface HostBackend {
      * Optional: push pure layout rects into host actors. Default no-op.
      */
     void applyLayout(UiTree tree);
+
+    /** Capabilities available from this host. */
+    default HostCapabilities capabilities() {
+        return HostCapabilities.none();
+    }
+
+    /** Host-side frame tick. Default is a no-op for headless implementations. */
+    default void tick(float deltaSeconds) {}
 }

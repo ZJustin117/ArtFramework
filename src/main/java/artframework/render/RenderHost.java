@@ -516,6 +516,8 @@ public final class RenderHost {
         out.put("hostSupportsCapture", Boolean.valueOf(hostBackend.supportsCapture()));
         out.put("hostSupportsShaders", Boolean.valueOf(hostBackend.supportsShaders()));
         out.put("shadersReady", Boolean.valueOf(shadersReady));
+        out.put("captureStatus", captureStatus());
+        out.put("shaderStatus", shaderStatus());
         out.put("shaderProgramCount", Integer.valueOf(shaderRuntime.programCount()));
         out.put("effectIds", new ArrayList<String>(effects.ids()));
         out.put("shaderIds", new ArrayList<String>(shaders.ids()));
@@ -553,6 +555,39 @@ public final class RenderHost {
         }
         out.put("targets", tlist);
         return out;
+    }
+
+    private String captureStatus() {
+        if (!needsCapture()) {
+            return "disabled";
+        }
+        if (!hostBackend.supportsCapture()) {
+            return "unsupported";
+        }
+        FrameCapture.MapProbe probe = frameCapture.probe();
+        if (probe.lastOk) {
+            return "ready";
+        }
+        return probe.lastError != null ? "failed" : "pending";
+    }
+
+    private String shaderStatus() {
+        if (!hostBackend.supportsShaders()) {
+            return "unsupported";
+        }
+        if (shaders.ids().isEmpty()) {
+            return "none";
+        }
+        if (shadersReady) {
+            return "ready";
+        }
+        for (String id : shaders.ids()) {
+            ShaderRegistry.ShaderDef def = shaders.get(id);
+            if (def != null && def.isCompileFailed()) {
+                return "failed";
+            }
+        }
+        return "pending";
     }
 
     public void resetForTests() {

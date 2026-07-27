@@ -70,4 +70,50 @@ public class SyntheticRuntimeTest {
         assertTrue(second.isOpen());
         assertTrue(WindowManager.contains("demo"));
     }
+
+    @Test
+    public void failedStageAttachRollsBackAllSyntheticState() {
+        SyntheticRuntime.installStageBackend(new StageBackend() {
+            @Override
+            public boolean isReady() {
+                return true;
+            }
+
+            @Override
+            public void attach(String id, LayoutNode root) {
+                throw new IllegalStateException("attach failed");
+            }
+
+            @Override
+            public void attachComposition(String id, artframework.component.UiNode root) {
+                throw new IllegalStateException("attach failed");
+            }
+
+            @Override
+            public void detach(String id) {}
+
+            @Override
+            public boolean isAttached(String id) {
+                return false;
+            }
+
+            @Override
+            public int attachedCount() {
+                return 0;
+            }
+        });
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+
+        try {
+            ArtFramework.open("demo");
+        } catch (IllegalStateException expected) {
+            assertFalse(WindowManager.contains("demo"));
+            assertFalse(artframework.component.WidgetSessions.isOpen("demo"));
+            assertFalse(artframework.core.UiTrees.isOpen("demo"));
+            assertNull(ArtFramework.layoutRoot("demo"));
+            assertEquals(0, artframework.render.RenderHosts.get().targetCount());
+            return;
+        }
+        throw new AssertionError("expected attach failure");
+    }
 }

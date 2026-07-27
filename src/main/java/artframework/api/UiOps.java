@@ -34,10 +34,20 @@ public final class UiOps {
 
     private final Map<String, SignalHandler> signalHandlers =
             new LinkedHashMap<String, SignalHandler>();
+    private final Map<String, UiOpResult> lastResults = new LinkedHashMap<String, UiOpResult>();
 
     UiOps() {}
 
     public UiOpResult selectCard(SelectKind kind, String cardId, int index) {
+        String componentId = kind == SelectKind.GRID
+                ? NativeTemplateIds.SELECT_GRID : kind == SelectKind.HAND ? NativeTemplateIds.SELECT_HAND : null;
+        return componentId == null
+                ? UiOpResult.unavailable("kind required")
+                : invoke(componentId, "select_card", cardId, Integer.valueOf(index));
+    }
+
+    /** Internal C2 dispatch called exclusively by the native component action path. */
+    public UiOpResult dispatchSelectCard(SelectKind kind, String cardId, int index) {
         if (kind == null) {
             return UiOpResult.unavailable("kind required");
         }
@@ -57,6 +67,15 @@ public final class UiOps {
     }
 
     public UiOpResult confirmSelect(SelectKind kind) {
+        String componentId = kind == SelectKind.GRID
+                ? NativeTemplateIds.SELECT_GRID : kind == SelectKind.HAND ? NativeTemplateIds.SELECT_HAND : null;
+        return componentId == null
+                ? UiOpResult.unavailable("kind required")
+                : invoke(componentId, "confirm");
+    }
+
+    /** Internal C2 dispatch called exclusively by the native component action path. */
+    public UiOpResult dispatchConfirmSelect(SelectKind kind) {
         if (kind == null) {
             return UiOpResult.unavailable("kind required");
         }
@@ -76,6 +95,11 @@ public final class UiOps {
     }
 
     public UiOpResult clickMapNode(MapNodeRef node) {
+        return invoke(NativeTemplateIds.MAP, "click_node", node);
+    }
+
+    /** Internal C2 dispatch called exclusively by the native component action path. */
+    public UiOpResult dispatchMapNode(MapNodeRef node) {
         if (node == null) {
             return UiOpResult.unavailable("node required");
         }
@@ -91,6 +115,11 @@ public final class UiOps {
     }
 
     public UiOpResult chooseEventOption(int index, String label) {
+        return invoke(NativeTemplateIds.EVENT, "choose_option", Integer.valueOf(index), label);
+    }
+
+    /** Internal C2 dispatch called exclusively by the native component action path. */
+    public UiOpResult dispatchEventOption(int index, String label) {
         if (!NativeTemplateRuntime.isEventBound()) {
             return UiOpResult.notBound("sts1.event not bound");
         }
@@ -108,6 +137,11 @@ public final class UiOps {
     }
 
     public UiOpResult pressEndTurn() {
+        return invoke(NativeTemplateIds.END_TURN, "press");
+    }
+
+    /** Internal C2 dispatch called exclusively by the native component action path. */
+    public UiOpResult dispatchEndTurn() {
         if (!NativeTemplateRuntime.isEndTurnBound()) {
             return UiOpResult.notBound("sts1.endturn not bound");
         }
@@ -393,16 +427,20 @@ public final class UiOps {
      */
     public UiOpResult invoke(String componentId, String action, Object... args) {
         if (componentId == null || componentId.isEmpty()) {
-            return UiOpResult.unavailable("componentId required");
+            return remember(componentId, UiOpResult.unavailable("componentId required"));
         }
         if (action == null || action.isEmpty()) {
-            return UiOpResult.unavailable("action required");
+            return remember(componentId, UiOpResult.unavailable("action required"));
         }
-        UiComponent c = NativeComponents.get(componentId);
+        UiComponent c = ArtFramework.component(componentId);
         if (c == null) {
-            return UiOpResult.unavailable("unknown component: " + componentId);
+            return remember(componentId, UiOpResult.unavailable("unknown component: " + componentId));
         }
-        return c.action(action, args != null ? args : new Object[0]);
+        return remember(componentId, c.action(action, args != null ? args : new Object[0]));
+    }
+
+    public UiOpResult lastResult(String componentId) {
+        return lastResults.get(componentId);
     }
 
     public UiComponent component(String componentId) {
@@ -411,6 +449,14 @@ public final class UiOps {
 
     void resetForTests() {
         signalHandlers.clear();
+        lastResults.clear();
+    }
+
+    private UiOpResult remember(String componentId, UiOpResult result) {
+        if (componentId != null && result != null) {
+            lastResults.put(componentId, result);
+        }
+        return result;
     }
 
     void onTreeMounted(String windowId) {

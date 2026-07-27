@@ -52,7 +52,13 @@ public final class NativeComponents {
     public static List<Map<String, Object>> probeAll() {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
         for (UiComponent c : BY_ID.values()) {
-            out.add(c.probeSlice());
+            Map<String, Object> slice = c.probeSlice();
+            artframework.api.UiOpResult last = artframework.api.ArtFramework.ops().lastResult(c.id());
+            if (last != null) {
+                slice.put("lastResult", last.status.name());
+                slice.put("lastMessage", last.message);
+            }
+            out.add(slice);
         }
         return out;
     }
@@ -188,6 +194,27 @@ public final class NativeComponents {
             m.put("bound", Boolean.valueOf(bound));
             return m;
         }
+
+        void addContract(Map<String, Object> target, String action, String signal) {
+            List<String> actions = new ArrayList<String>();
+            actions.add(action);
+            target.put("actions", actions);
+            addSignal(target, signal);
+        }
+
+        void addSignal(Map<String, Object> target, String signal) {
+            List<String> signals = new ArrayList<String>();
+            Object existing = target.get("signals");
+            if (existing instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<String> old = (List<String>) existing;
+                signals.addAll(old);
+            }
+            if (!signals.contains(signal)) {
+                signals.add(signal);
+            }
+            target.put("signals", signals);
+        }
     }
 
     static final class MapNativeComponent extends BaseNative {
@@ -203,12 +230,13 @@ public final class NativeComponents {
             if (args == null || args.length < 1 || !(args[0] instanceof MapNodeRef)) {
                 return UiOpResult.unavailable("MapNodeRef required");
             }
-            return artframework.api.ArtFramework.ops().clickMapNode((MapNodeRef) args[0]);
+            return artframework.api.ArtFramework.ops().dispatchMapNode((MapNodeRef) args[0]);
         }
 
         @Override
         public Map<String, Object> probeSlice() {
             Map<String, Object> m = baseProbe(NativeTemplateRuntime.isMapBound());
+            addContract(m, "click_node", SignalNames.NODE_CLICKED);
             if (NativeTemplateRuntime.isMapBound()) {
                 m.put("pinCount", Integer.valueOf(NativeTemplateRuntime.map().listPins().size()));
             }
@@ -234,12 +262,14 @@ public final class NativeComponents {
             if (args != null && args.length > 1 && args[1] != null) {
                 label = String.valueOf(args[1]);
             }
-            return artframework.api.ArtFramework.ops().chooseEventOption(index, label);
+            return artframework.api.ArtFramework.ops().dispatchEventOption(index, label);
         }
 
         @Override
         public Map<String, Object> probeSlice() {
-            return baseProbe(NativeTemplateRuntime.isEventBound());
+            Map<String, Object> m = baseProbe(NativeTemplateRuntime.isEventBound());
+            addContract(m, "choose_option", SignalNames.OPTION_CHOSEN);
+            return m;
         }
     }
 
@@ -262,10 +292,10 @@ public final class NativeComponents {
                 if (args != null && args.length > 1 && args[1] instanceof Number) {
                     index = ((Number) args[1]).intValue();
                 }
-                return artframework.api.ArtFramework.ops().selectCard(kind, cardId, index);
+                return artframework.api.ArtFramework.ops().dispatchSelectCard(kind, cardId, index);
             }
             if ("confirm".equals(name) || "confirmSelect".equals(name)) {
-                return artframework.api.ArtFramework.ops().confirmSelect(kind);
+                return artframework.api.ArtFramework.ops().dispatchConfirmSelect(kind);
             }
             return UiOpResult.unavailable("unknown action: " + name);
         }
@@ -278,6 +308,8 @@ public final class NativeComponents {
                                     ? NativeTemplateRuntime.isSelectGridBound()
                                     : NativeTemplateRuntime.isSelectHandBound());
             m.put("selectKind", kind.name());
+            addContract(m, "select_card", SignalNames.CARD_SELECTED);
+            addSignal(m, SignalNames.CONFIRMED);
             return m;
         }
     }
@@ -292,16 +324,18 @@ public final class NativeComponents {
             if (!"press".equals(name) && !"pressEndTurn".equals(name)) {
                 return UiOpResult.unavailable("unknown action: " + name);
             }
-            return artframework.api.ArtFramework.ops().pressEndTurn();
+            return artframework.api.ArtFramework.ops().dispatchEndTurn();
         }
 
         @Override
         public Map<String, Object> probeSlice() {
             Map<String, Object> m = baseProbe(NativeTemplateRuntime.isEndTurnBound());
+            addContract(m, "press", SignalNames.PRESSED);
             if (NativeTemplateRuntime.isEndTurnBound()) {
                 m.put("buttonEnabled", Boolean.valueOf(NativeTemplateRuntime.endTurn().isButtonEnabled()));
             }
             return m;
         }
+
     }
 }

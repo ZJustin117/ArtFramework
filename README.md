@@ -10,6 +10,7 @@
 Open work: [`docs/task.md`](docs/task.md). Framework design: [`docs/design/art-framework.md`](docs/design/art-framework.md).  
 Consumer: [`docs/development/consumer.md`](docs/development/consumer.md). UiOps/probe: [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md).  
 Verify: [`docs/development/ui-layer-verification.md`](docs/development/ui-layer-verification.md).
+API stability: [`docs/development/api-stability.md`](docs/development/api-stability.md).
 
 ## Requirements
 

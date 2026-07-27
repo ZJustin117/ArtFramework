@@ -8,6 +8,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent;
 import com.megacrit.cardcrawl.core.Settings;
+import artframework.api.ArtFramework;
+import artframework.api.UiOpResult;
 
 /**
  * Builds scene2d actors from a {@link LayoutNode} tree using {@link Skin} (typically StsSkin).
@@ -16,7 +18,11 @@ public final class LayoutActors {
 
     private LayoutActors() {}
 
-    public static Actor toActor(LayoutNode root, Skin skin, final Runnable onClose) {
+    public static Actor toActor(
+            final String windowId, LayoutNode root, Skin skin, final Runnable onClose) {
+        if (windowId == null || windowId.isEmpty()) {
+            throw new IllegalArgumentException("windowId required");
+        }
         if (root == null) {
             throw new IllegalArgumentException("root required");
         }
@@ -42,11 +48,22 @@ public final class LayoutActors {
                 window.add(new Label(child.text, skin)).growX().padBottom(6f * scale).row();
             } else if (child.type == LayoutNode.Type.BUTTON) {
                 TextButton button = new TextButton(child.text, skin);
+                final String buttonId = child.id;
                 if ("close".equals(child.id) && onClose != null) {
                     button.addListener(new ChangeListener() {
                         @Override
                         public void changed(ChangeEvent event, Actor actor) {
-                            onClose.run();
+                            UiOpResult result = ArtFramework.ops().clickButton(windowId, buttonId);
+                            if (result.status != UiOpResult.Status.BLOCKED) {
+                                onClose.run();
+                            }
+                        }
+                    });
+                } else if (child.id != null && !child.id.isEmpty()) {
+                    button.addListener(new ChangeListener() {
+                        @Override
+                        public void changed(ChangeEvent event, Actor actor) {
+                            ArtFramework.ops().clickButton(windowId, buttonId);
                         }
                     });
                 }

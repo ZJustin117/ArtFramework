@@ -201,6 +201,61 @@ public class UiTreeSignalTest {
     }
 
     @Test
+    public void signalInterceptorBlocksBeforeEmit() {
+        ArtFramework.register(
+                new WindowDef("comp", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));
+        ArtFramework.open("comp");
+        AtomicInteger emitted = new AtomicInteger();
+        ArtFramework.tree("comp")
+                .connect(
+                        "ok",
+                        SignalNames.PRESSED,
+                        new SignalHandler() {
+                            @Override
+                            public void handle(Object... args) {
+                                emitted.incrementAndGet();
+                            }
+                        });
+        ArtFramework.addSignalInterceptor(
+                "comp",
+                new UiSignalInterceptor() {
+                    @Override
+                    public Result intercept(
+                            String windowId, String controlId, String signal, Object... args) {
+                        return Result.BLOCK;
+                    }
+                });
+
+        UiOpResult result = ArtFramework.ops().clickButton("comp", "ok");
+
+        assertEquals(UiOpResult.Status.BLOCKED, result.status);
+        assertEquals(0, emitted.get());
+    }
+
+    @Test
+    public void anonymousInstanceUsesStableSignalKey() {
+        UiNode root =
+                UiNode.of(UiTypes.WINDOW)
+                        .child(UiNode.of(UiTypes.BUTTON).signal(SignalNames.PRESSED).build())
+                        .build();
+        UiTree tree = UiTree.mount("anon", root);
+        UiInstance button = tree.root().children().get(0);
+        AtomicInteger emitted = new AtomicInteger();
+        button.connect(
+                SignalNames.PRESSED,
+                new SignalHandler() {
+                    @Override
+                    public void handle(Object... args) {
+                        emitted.incrementAndGet();
+                    }
+                });
+
+        button.emit(SignalNames.PRESSED);
+
+        assertEquals(1, emitted.get());
+    }
+
+    @Test
     public void setSliderEmitsValueChanged() {
         ArtFramework.register(
                 new WindowDef("comp", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));

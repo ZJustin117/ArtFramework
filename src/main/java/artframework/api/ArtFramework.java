@@ -20,6 +20,7 @@ import artframework.core.Themes;
 import artframework.core.UiComponent;
 import artframework.core.UiTree;
 import artframework.core.UiTrees;
+import artframework.core.UiSignalInterceptor;
 import artframework.ops.GateLab;
 import artframework.ops.NativeOpsBackend;
 import artframework.ops.NoOpNativeOps;
@@ -91,6 +92,21 @@ public final class ArtFramework {
         close(id);
     }
 
+    public static void addSignalInterceptor(String windowId, UiSignalInterceptor interceptor) {
+        UiTree tree = UiTrees.get(windowId);
+        if (tree == null) {
+            throw new IllegalArgumentException("synthetic window not open: " + windowId);
+        }
+        tree.addSignalInterceptor(interceptor);
+    }
+
+    public static void removeSignalInterceptor(String windowId, UiSignalInterceptor interceptor) {
+        UiTree tree = UiTrees.get(windowId);
+        if (tree != null) {
+            tree.removeSignalInterceptor(interceptor);
+        }
+    }
+
     public static WindowHandle open(String id) {
         WindowDef def = defOf(id);
         if (def == null) {
@@ -112,6 +128,7 @@ public final class ArtFramework {
         OPEN.put(def.id, handle);
         UiTree tree = UiTrees.get(def.id);
         if (tree != null) {
+            OPS.onTreeMounted(def.id);
             HostBackends.get().attach(tree);
         }
         return handle;

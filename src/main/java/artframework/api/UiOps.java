@@ -6,6 +6,7 @@ import artframework.c2.GateResult;
 import artframework.c2.MapNodeInterceptor;
 import artframework.c2.MapNodeRef;
 import artframework.c2.NativeTemplateRuntime;
+import artframework.c2.NativeTemplateIds;
 import artframework.c2.SelectCardRef;
 import artframework.c2.SelectKind;
 import artframework.c2.SelectTemplate;
@@ -18,6 +19,7 @@ import artframework.core.SignalNames;
 import artframework.core.UiComponent;
 import artframework.core.UiTree;
 import artframework.core.UiTrees;
+import artframework.core.SignalHandler;
 import artframework.ops.NativeOpsBackend;
 import artframework.ops.NoOpNativeOps;
 
@@ -30,9 +32,8 @@ import java.util.Map;
  */
 public final class UiOps {
 
-    private final Map<String, Runnable> buttonHandlers = new LinkedHashMap<String, Runnable>();
-    private final Map<String, SliderHandler> sliderHandlers = new LinkedHashMap<String, SliderHandler>();
-    private final Map<String, Runnable> hitAreaHandlers = new LinkedHashMap<String, Runnable>();
+    private final Map<String, SignalHandler> signalHandlers =
+            new LinkedHashMap<String, SignalHandler>();
 
     UiOps() {}
 
@@ -48,6 +49,10 @@ public final class UiOps {
         if (gate == GateResult.BLOCK) {
             return UiOpResult.blocked("select card blocked");
         }
+        NativeComponents.emit(
+                kind == SelectKind.GRID ? NativeTemplateIds.SELECT_GRID : NativeTemplateIds.SELECT_HAND,
+                SignalNames.CARD_SELECTED,
+                new SelectCardRef(cardId, index));
         return backend().selectCard(kind, cardId != null ? cardId : "", index);
     }
 
@@ -63,6 +68,10 @@ public final class UiOps {
         if (gate == GateResult.BLOCK) {
             return UiOpResult.blocked("confirm blocked");
         }
+        NativeComponents.emit(
+                kind == SelectKind.GRID ? NativeTemplateIds.SELECT_GRID : NativeTemplateIds.SELECT_HAND,
+                SignalNames.CONFIRMED,
+                kind);
         return backend().confirmSelect(kind);
     }
 
@@ -77,6 +86,7 @@ public final class UiOps {
         if (r == MapNodeInterceptor.Result.BLOCK) {
             return UiOpResult.blocked("map node blocked");
         }
+        NativeComponents.emit(NativeTemplateIds.MAP, SignalNames.NODE_CLICKED, node);
         return backend().clickMapNode(node);
     }
 
@@ -89,6 +99,11 @@ public final class UiOps {
         if (gate == GateResult.BLOCK) {
             return UiOpResult.blocked("event option blocked");
         }
+        NativeComponents.emit(
+                NativeTemplateIds.EVENT,
+                SignalNames.OPTION_CHOSEN,
+                Integer.valueOf(index),
+                label != null ? label : "");
         return backend().chooseEventOption(index, label != null ? label : "");
     }
 
@@ -100,6 +115,7 @@ public final class UiOps {
         if (gate == GateResult.BLOCK) {
             return UiOpResult.blocked("end turn blocked");
         }
+        NativeComponents.emit(NativeTemplateIds.END_TURN, SignalNames.PRESSED);
         return backend().pressEndTurn();
     }
 
@@ -119,42 +135,59 @@ public final class UiOps {
         if (windowId == null || buttonId == null || handler == null) {
             throw new IllegalArgumentException("windowId, buttonId, handler required");
         }
-        buttonHandlers.put(key(windowId, buttonId), handler);
+        connectSugar(windowId, buttonId, SignalNames.PRESSED, new SignalHandler() {
+            @Override
+            public void handle(Object... args) {
+                handler.run();
+            }
+        });
     }
 
     public void removeButtonHandler(String windowId, String buttonId) {
         if (windowId == null || buttonId == null) {
             return;
         }
-        buttonHandlers.remove(key(windowId, buttonId));
+        disconnectSugar(windowId, buttonId, SignalNames.PRESSED);
     }
 
     public void onSlider(String windowId, String sliderId, SliderHandler handler) {
         if (windowId == null || sliderId == null || handler == null) {
             throw new IllegalArgumentException("windowId, sliderId, handler required");
         }
-        sliderHandlers.put(key(windowId, sliderId), handler);
+        connectSugar(windowId, sliderId, SignalNames.VALUE_CHANGED, new SignalHandler() {
+            @Override
+            public void handle(Object... args) {
+                if (args != null && args.length > 0 && args[0] instanceof Number) {
+                    handler.onChange(((Number) args[0]).floatValue());
+                }
+            }
+        });
     }
 
     public void removeSliderHandler(String windowId, String sliderId) {
         if (windowId == null || sliderId == null) {
             return;
         }
-        sliderHandlers.remove(key(windowId, sliderId));
+        disconnectSugar(windowId, sliderId, SignalNames.VALUE_CHANGED);
     }
 
     public void onHitArea(String windowId, String hitAreaId, Runnable handler) {
         if (windowId == null || hitAreaId == null || handler == null) {
             throw new IllegalArgumentException("windowId, hitAreaId, handler required");
         }
-        hitAreaHandlers.put(key(windowId, hitAreaId), handler);
+        connectSugar(windowId, hitAreaId, SignalNames.PRESSED, new SignalHandler() {
+            @Override
+            public void handle(Object... args) {
+                handler.run();
+            }
+        });
     }
 
     public void removeHitAreaHandler(String windowId, String hitAreaId) {
         if (windowId == null || hitAreaId == null) {
             return;
         }
-        hitAreaHandlers.remove(key(windowId, hitAreaId));
+        disconnectSugar(windowId, hitAreaId, SignalNames.PRESSED);
     }
 
     public UiOpResult clickButton(String windowId, String buttonId) {
@@ -168,17 +201,14 @@ public final class UiOps {
         if (!controlExists(windowId, buttonId, UiTypes.BUTTON)) {
             return UiOpResult.unavailable("button not in layout: " + buttonId);
         }
-        Runnable run = buttonHandlers.get(key(windowId, buttonId));
-        emitSignal(windowId, buttonId, SignalNames.PRESSED);
-        if (run == null) {
-            UiTree tree = UiTrees.get(windowId);
-            if (tree == null || tree.signalHub().handlerCount(buttonId, SignalNames.PRESSED) == 0) {
-                return UiOpResult.unavailable("no handler for " + windowId + "/" + buttonId);
-            }
-            return UiOpResult.ok();
+        if (!allowSignal(windowId, buttonId, SignalNames.PRESSED)) {
+            return UiOpResult.blocked("button blocked: " + windowId + "/" + buttonId);
         }
-        run.run();
-        return UiOpResult.ok();
+        emitSignal(windowId, buttonId, SignalNames.PRESSED);
+        UiTree tree = UiTrees.get(windowId);
+        return tree != null && tree.signalHub().handlerCount(buttonId, SignalNames.PRESSED) > 0
+                ? UiOpResult.ok()
+                : UiOpResult.unavailable("no handler for " + windowId + "/" + buttonId);
     }
 
     /**
@@ -196,12 +226,14 @@ public final class UiOps {
         if (session == null || !session.hasSlider(sliderId)) {
             return UiOpResult.unavailable("slider not in layout: " + sliderId);
         }
+        float previous = session.getSlider(sliderId);
         float clamped = session.setSlider(sliderId, value);
-        emitSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
-        SliderHandler handler = sliderHandlers.get(key(windowId, sliderId));
-        if (handler != null) {
-            handler.onChange(clamped);
+        session.setSlider(sliderId, previous);
+        if (!allowSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped))) {
+            return UiOpResult.blocked("slider blocked: " + windowId + "/" + sliderId);
         }
+        session.setSlider(sliderId, value);
+        emitSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
         return UiOpResult.ok();
     }
 
@@ -216,17 +248,14 @@ public final class UiOps {
         if (!controlExists(windowId, hitAreaId, UiTypes.HITAREA)) {
             return UiOpResult.unavailable("hitarea not in layout: " + hitAreaId);
         }
-        Runnable run = hitAreaHandlers.get(key(windowId, hitAreaId));
-        emitSignal(windowId, hitAreaId, SignalNames.PRESSED);
-        if (run == null) {
-            UiTree tree = UiTrees.get(windowId);
-            if (tree == null || tree.signalHub().handlerCount(hitAreaId, SignalNames.PRESSED) == 0) {
-                return UiOpResult.unavailable("no handler for " + windowId + "/" + hitAreaId);
-            }
-            return UiOpResult.ok();
+        if (!allowSignal(windowId, hitAreaId, SignalNames.PRESSED)) {
+            return UiOpResult.blocked("hitarea blocked: " + windowId + "/" + hitAreaId);
         }
-        run.run();
-        return UiOpResult.ok();
+        emitSignal(windowId, hitAreaId, SignalNames.PRESSED);
+        UiTree tree = UiTrees.get(windowId);
+        return tree != null && tree.signalHub().handlerCount(hitAreaId, SignalNames.PRESSED) > 0
+                ? UiOpResult.ok()
+                : UiOpResult.unavailable("no handler for " + windowId + "/" + hitAreaId);
     }
 
     /**
@@ -263,7 +292,11 @@ public final class UiOps {
         if (session == null || !session.hasTextField(fieldId)) {
             return UiOpResult.unavailable("textfield not in layout: " + fieldId);
         }
-        String t = session.setText(fieldId, text);
+        String t = text != null ? text : "";
+        if (!allowSignal(windowId, fieldId, SignalNames.TEXT_CHANGED, t)) {
+            return UiOpResult.blocked("textfield blocked: " + windowId + "/" + fieldId);
+        }
+        t = session.setText(fieldId, t);
         emitSignal(windowId, fieldId, SignalNames.TEXT_CHANGED, t);
         return UiOpResult.ok();
     }
@@ -279,7 +312,11 @@ public final class UiOps {
         if (session == null || !session.hasTextField(fieldId)) {
             return UiOpResult.unavailable("textfield not in layout: " + fieldId);
         }
-        emitSignal(windowId, fieldId, SignalNames.TEXT_SUBMITTED, session.getText(fieldId));
+        String text = session.getText(fieldId);
+        if (!allowSignal(windowId, fieldId, SignalNames.TEXT_SUBMITTED, text)) {
+            return UiOpResult.blocked("textfield blocked: " + windowId + "/" + fieldId);
+        }
+        emitSignal(windowId, fieldId, SignalNames.TEXT_SUBMITTED, text);
         return UiOpResult.ok();
     }
 
@@ -294,7 +331,11 @@ public final class UiOps {
         if (session == null || !session.hasCheckbox(checkboxId)) {
             return UiOpResult.unavailable("checkbox not in layout: " + checkboxId);
         }
-        boolean v = session.setChecked(checkboxId, checked);
+        boolean v = checked;
+        if (!allowSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v))) {
+            return UiOpResult.blocked("checkbox blocked: " + windowId + "/" + checkboxId);
+        }
+        v = session.setChecked(checkboxId, checked);
         emitSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v));
         return UiOpResult.ok();
     }
@@ -310,7 +351,11 @@ public final class UiOps {
         if (session == null || !session.hasCheckbox(checkboxId)) {
             return UiOpResult.unavailable("checkbox not in layout: " + checkboxId);
         }
-        boolean v = session.toggleCheckbox(checkboxId);
+        boolean v = !session.getChecked(checkboxId);
+        if (!allowSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v))) {
+            return UiOpResult.blocked("checkbox blocked: " + windowId + "/" + checkboxId);
+        }
+        v = session.setChecked(checkboxId, v);
         emitSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v));
         return UiOpResult.ok();
     }
@@ -326,7 +371,13 @@ public final class UiOps {
         if (session == null || !session.hasProgress(progressId)) {
             return UiOpResult.unavailable("progress not in layout: " + progressId);
         }
+        float previous = session.getProgress(progressId);
         float clamped = session.setProgress(progressId, value);
+        session.setProgress(progressId, previous);
+        if (!allowSignal(windowId, progressId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped))) {
+            return UiOpResult.blocked("progress blocked: " + windowId + "/" + progressId);
+        }
+        session.setProgress(progressId, value);
         emitSignal(windowId, progressId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
         return UiOpResult.ok();
     }
@@ -359,9 +410,22 @@ public final class UiOps {
     }
 
     void resetForTests() {
-        buttonHandlers.clear();
-        sliderHandlers.clear();
-        hitAreaHandlers.clear();
+        signalHandlers.clear();
+    }
+
+    void onTreeMounted(String windowId) {
+        for (Map.Entry<String, SignalHandler> e : signalHandlers.entrySet()) {
+            if (e.getKey().startsWith(windowId + "\0")) {
+                String controlId = e.getKey().substring(windowId.length() + 1);
+                String signal = signalForKey(e.getKey());
+                if (signal != null) {
+                    UiTree tree = UiTrees.get(windowId);
+                    if (tree != null) {
+                        tree.connect(controlId, signal, e.getValue());
+                    }
+                }
+            }
+        }
     }
 
     private static void emitSignal(String windowId, String controlId, String signal, Object... args) {
@@ -369,6 +433,39 @@ public final class UiOps {
         if (tree != null) {
             tree.emit(controlId, signal, args);
         }
+    }
+
+    private static boolean allowSignal(String windowId, String controlId, String signal, Object... args) {
+        UiTree tree = UiTrees.get(windowId);
+        return tree == null
+                || tree.dispatchSignal(controlId, signal, args)
+                        == artframework.core.UiSignalInterceptor.Result.ALLOW;
+    }
+
+    private void connectSugar(String windowId, String controlId, String signal, SignalHandler handler) {
+        String k = key(windowId, controlId) + "\0" + signal;
+        SignalHandler old = signalHandlers.put(k, handler);
+        UiTree tree = UiTrees.get(windowId);
+        if (tree != null) {
+            if (old != null) {
+                tree.disconnect(controlId, signal, old);
+            }
+            tree.connect(controlId, signal, handler);
+        }
+    }
+
+    private void disconnectSugar(String windowId, String controlId, String signal) {
+        String k = key(windowId, controlId) + "\0" + signal;
+        SignalHandler old = signalHandlers.remove(k);
+        UiTree tree = UiTrees.get(windowId);
+        if (tree != null && old != null) {
+            tree.disconnect(controlId, signal, old);
+        }
+    }
+
+    private static String signalForKey(String key) {
+        int split = key.lastIndexOf('\0');
+        return split < 0 ? null : key.substring(split + 1);
     }
 
     private static boolean controlExists(String windowId, String controlId, String type) {

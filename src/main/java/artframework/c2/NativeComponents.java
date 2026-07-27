@@ -12,6 +12,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Registry of C2 native host components ({@code sts.*}).
@@ -56,6 +59,13 @@ public final class NativeComponents {
 
     public static SignalHub hub() {
         return HUB;
+    }
+
+    public static void emit(String id, String signal, Object... args) {
+        UiComponent c = get(id);
+        if (c != null) {
+            c.emit(signal, args);
+        }
     }
 
     public static void resetForTests() {
@@ -133,6 +143,7 @@ public final class NativeComponents {
 
         @Override
         public void connect(String signal, SignalHandler handler) {
+            requireSignal(signal);
             HUB.connect(id, signal, handler);
         }
 
@@ -143,7 +154,30 @@ public final class NativeComponents {
 
         @Override
         public void emit(String signal, Object... args) {
+            requireSignal(signal);
             HUB.emit(id, signal, args);
+        }
+
+        private void requireSignal(String signal) {
+            if (signal == null || !declaredSignals().contains(signal)) {
+                throw new IllegalArgumentException(
+                        "undeclared signal \"" + signal + "\" on component \"" + id + "\"");
+            }
+        }
+
+        private Set<String> declaredSignals() {
+            if (NativeTemplateIds.MAP.equals(id)) {
+                return new HashSet<String>(Arrays.asList(SignalNames.NODE_CLICKED));
+            }
+            if (NativeTemplateIds.EVENT.equals(id)) {
+                return new HashSet<String>(Arrays.asList(SignalNames.OPTION_CHOSEN));
+            }
+            if (NativeTemplateIds.SELECT_GRID.equals(id)
+                    || NativeTemplateIds.SELECT_HAND.equals(id)) {
+                return new HashSet<String>(
+                        Arrays.asList(SignalNames.CARD_SELECTED, SignalNames.CONFIRMED));
+            }
+            return new HashSet<String>(Arrays.asList(SignalNames.PRESSED));
         }
 
         Map<String, Object> baseProbe(boolean bound) {

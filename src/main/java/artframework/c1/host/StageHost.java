@@ -163,7 +163,7 @@ public final class StageHost
         }
         detach(id);
         final String windowId = id;
-        Actor actor = LayoutActors.toActor(root, skin, new Runnable() {
+        Actor actor = LayoutActors.toActor(windowId, root, skin, new Runnable() {
             @Override
             public void run() {
                 ArtFramework.close(windowId);

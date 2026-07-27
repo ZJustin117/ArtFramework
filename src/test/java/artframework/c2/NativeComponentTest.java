@@ -111,4 +111,12 @@ public class NativeComponentTest {
         map.emit(SignalNames.NODE_CLICKED, new MapNodeRef(0, 0, "a"));
         assertEquals(1, n.get());
     }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void nativeSignalConnectRejectsUndeclaredSignal() {
+        ArtFramework.component(NativeTemplateIds.MAP).connect("custom", new SignalHandler() {
+            @Override
+            public void handle(Object... args) {}
+        });
+    }
 }

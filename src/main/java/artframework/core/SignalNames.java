@@ -18,6 +18,9 @@ public final class SignalNames {
     public static final String EFFECT_FAILED = "effect_failed";
     public static final String SKELETON_EVENT = "skeleton_event";
     public static final String ASSET_FAILED = "asset_failed";
+    public static final String STARTED = "started";
+    public static final String FINISHED = "finished";
+    public static final String CANCELLED = "cancelled";
 
     private SignalNames() {}
 }

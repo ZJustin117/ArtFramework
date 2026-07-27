@@ -5,6 +5,8 @@ import artframework.c2.GateResult;
 import artframework.c2.MapNodeInterceptor;
 import artframework.c2.MapNodeRef;
 import artframework.c2.NativeTemplateRuntime;
+import artframework.c2.NativeComponents;
+import artframework.c2.NativeTemplateIds;
 import artframework.c2.SelectCardRef;
 import artframework.c2.SelectKind;
 
@@ -20,14 +22,28 @@ public final class NativeUiHooks {
         if (!NativeTemplateRuntime.isMapBound()) {
             return MapNodeInterceptor.Result.ALLOW;
         }
-        return NativeTemplateRuntime.map().dispatchNodeClick(new MapNodeRef(row, col, roomType));
+        MapNodeRef node = new MapNodeRef(row, col, roomType);
+        MapNodeInterceptor.Result result = NativeTemplateRuntime.map().dispatchNodeClick(node);
+        if (result == MapNodeInterceptor.Result.ALLOW) {
+            NativeComponents.emit(NativeTemplateIds.MAP, artframework.core.SignalNames.NODE_CLICKED, node);
+        }
+        return result;
     }
 
     public static GateResult onEventOption(int index, String label) {
         if (!NativeTemplateRuntime.isEventBound()) {
             return GateResult.ALLOW;
         }
-        return NativeTemplateRuntime.event().dispatchOption(new EventOptionRef(index, label));
+        EventOptionRef option = new EventOptionRef(index, label);
+        GateResult result = NativeTemplateRuntime.event().dispatchOption(option);
+        if (result == GateResult.ALLOW) {
+            NativeComponents.emit(
+                    NativeTemplateIds.EVENT,
+                    artframework.core.SignalNames.OPTION_CHOSEN,
+                    Integer.valueOf(index),
+                    label != null ? label : "");
+        }
+        return result;
     }
 
     public static GateResult onSelectCard(SelectKind kind, String cardId, int index) {
@@ -38,12 +54,26 @@ public final class NativeUiHooks {
             return GateResult.ALLOW;
         }
         if (kind == SelectKind.GRID) {
-            return NativeTemplateRuntime.selectGrid()
-                    .dispatchCard(new SelectCardRef(cardId, index));
+            SelectCardRef card = new SelectCardRef(cardId, index);
+            GateResult result = NativeTemplateRuntime.selectGrid().dispatchCard(card);
+            if (result == GateResult.ALLOW) {
+                NativeComponents.emit(
+                        NativeTemplateIds.SELECT_GRID,
+                        artframework.core.SignalNames.CARD_SELECTED,
+                        card);
+            }
+            return result;
         }
         if (kind == SelectKind.HAND) {
-            return NativeTemplateRuntime.selectHand()
-                    .dispatchCard(new SelectCardRef(cardId, index));
+            SelectCardRef card = new SelectCardRef(cardId, index);
+            GateResult result = NativeTemplateRuntime.selectHand().dispatchCard(card);
+            if (result == GateResult.ALLOW) {
+                NativeComponents.emit(
+                        NativeTemplateIds.SELECT_HAND,
+                        artframework.core.SignalNames.CARD_SELECTED,
+                        card);
+            }
+            return result;
         }
         return GateResult.ALLOW;
     }
@@ -56,10 +86,24 @@ public final class NativeUiHooks {
             return GateResult.ALLOW;
         }
         if (kind == SelectKind.GRID) {
-            return NativeTemplateRuntime.selectGrid().dispatchConfirm();
+            GateResult result = NativeTemplateRuntime.selectGrid().dispatchConfirm();
+            if (result == GateResult.ALLOW) {
+                NativeComponents.emit(
+                        NativeTemplateIds.SELECT_GRID,
+                        artframework.core.SignalNames.CONFIRMED,
+                        kind);
+            }
+            return result;
         }
         if (kind == SelectKind.HAND) {
-            return NativeTemplateRuntime.selectHand().dispatchConfirm();
+            GateResult result = NativeTemplateRuntime.selectHand().dispatchConfirm();
+            if (result == GateResult.ALLOW) {
+                NativeComponents.emit(
+                        NativeTemplateIds.SELECT_HAND,
+                        artframework.core.SignalNames.CONFIRMED,
+                        kind);
+            }
+            return result;
         }
         return GateResult.ALLOW;
     }
@@ -68,7 +112,11 @@ public final class NativeUiHooks {
         if (!NativeTemplateRuntime.isEndTurnBound()) {
             return GateResult.ALLOW;
         }
-        return NativeTemplateRuntime.endTurn().dispatchPress();
+        GateResult result = NativeTemplateRuntime.endTurn().dispatchPress();
+        if (result == GateResult.ALLOW) {
+            NativeComponents.emit(NativeTemplateIds.END_TURN, artframework.core.SignalNames.PRESSED);
+        }
+        return result;
     }
 
     /** Whether end-turn UI should be allowed to enable (presentation hint). */

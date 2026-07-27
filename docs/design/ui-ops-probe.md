@@ -45,6 +45,10 @@ Rules:
 2. First interceptor `BLOCK` → return `blocked`; no engine side effect.
 3. Never import CrossSpire protocol / party / combat phase types.
 
+C1 signal-producing operations apply the same first-`BLOCK` rule through
+`UiTree.addSignalInterceptor`. `UiOps.onButton`, `onSlider`, and `onHitArea` register
+handlers on the tree `SignalHub`; they do not form a second dispatch path.
+
 ## UiProbe (first wave)
 
 Machine-oriented snapshot (future console: `art probe` → one line `ART_PROBE` + JSON):

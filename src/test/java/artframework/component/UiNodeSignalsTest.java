@@ -136,4 +136,13 @@ public class UiNodeSignalsTest {
         assertEquals(SignalNames.PRESSED, d.get(0));
         assertTrue(UiTypes.defaultSignals(UiTypes.PANEL).isEmpty());
     }
+
+    @Test
+    public void registryDefaultsApplyToBehaviorNodes() {
+        UiNode n = UiNode.of(ArtNodeTypes.ANIMATION_PLAYER).build();
+
+        assertTrue(n.declaresSignal(SignalNames.STARTED));
+        assertTrue(n.declaresSignal(SignalNames.FINISHED));
+        assertTrue(n.declaresSignal(SignalNames.CANCELLED));
+    }
 }

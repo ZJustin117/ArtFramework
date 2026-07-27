@@ -117,6 +117,10 @@ Existing immutable AST stays the declaration source (JSON layout). Evolve:
 
 Connect/disconnect/emit are pure and testable. Existing `UiOps.onButton` / `onSlider` / `onHitArea` remain compatibility sugar.
 
+C1 `UiTree` also exposes signal interceptors. They run in registration order before the
+state change and emission; the first `BLOCK` prevents both. C2 native signals are emitted
+after native interceptors allow the action and before the native backend gesture.
+
 ### Theme
 
 Item kinds (Godot-aligned): **COLOR**, **CONSTANT**, **FONT**, **FONT_SIZE**, **ICON**, **STYLEBOX**.

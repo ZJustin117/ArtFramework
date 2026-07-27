@@ -17,6 +17,7 @@ public final class UiInstance {
     private final UiTree tree;
     private final UiNode decl;
     private final String id;
+    private final String emitId;
     private final String type;
     private final UiInstance parent;
     private final List<UiInstance> children = new ArrayList<UiInstance>();
@@ -29,10 +30,11 @@ public final class UiInstance {
     private float minH;
     private boolean mounted;
 
-    UiInstance(UiTree tree, UiNode decl, UiInstance parent) {
+    UiInstance(UiTree tree, UiNode decl, UiInstance parent, int anonymousSequence) {
         this.tree = tree;
         this.decl = decl;
         this.id = decl.id != null ? decl.id : "";
+        this.emitId = this.id.isEmpty() ? "@anon:" + anonymousSequence : this.id;
         this.type = decl.type;
         this.parent = parent;
         this.props.putAll(decl.props);
@@ -204,9 +206,6 @@ public final class UiInstance {
     }
 
     private String resolveEmitId() {
-        if (!id.isEmpty()) {
-            return id;
-        }
-        return System.identityHashCode(this) + "";
+        return emitId;
     }
 }

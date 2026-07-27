@@ -76,6 +76,8 @@ Third-party types: **namespaced** (`my_mod.ripple_effect`). Registration via exp
 - Declaration lists allowed signal names on the node (LML requires explicit `signals="…"`; JSON may auto-fill built-in control defaults during migration).
 - Payload contracts documented per type (e.g. `pressed`, `value_changed(float)`).
 - No business methods in declaration; handlers stay in Java.
+- C1 signal interceptors run before state mutation and emission; C2 native signals emit after
+  the native gate allows the action and before the backend gesture.
 
 ## LML (planned)
 

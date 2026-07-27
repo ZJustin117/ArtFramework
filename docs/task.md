@@ -96,3 +96,5 @@ Design: [`docs/design/art-framework.md`](design/art-framework.md). Breaking iden
 - [x] 12.6 Built-in `animation_player` + `shader_effect` nodes
 - [x] 12.7 Skeleton provider SPI + fake provider JUnit
 - [x] 12.8 Native id namespace `sts1.*` + presenter bridge naming (consumer-visible)
+- [x] 12.9 Signal completion: C2 native emit/validation, C1 interceptors, SignalHub sugar,
+  registry defaults, stable anonymous keys, and legacy actor routing

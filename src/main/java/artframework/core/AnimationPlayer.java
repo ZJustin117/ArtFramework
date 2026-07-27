@@ -11,9 +11,9 @@ import java.util.Map;
  */
 public final class AnimationPlayer {
 
-    public static final String SIGNAL_STARTED = "started";
-    public static final String SIGNAL_FINISHED = "finished";
-    public static final String SIGNAL_CANCELLED = "cancelled";
+    public static final String SIGNAL_STARTED = SignalNames.STARTED;
+    public static final String SIGNAL_FINISHED = SignalNames.FINISHED;
+    public static final String SIGNAL_CANCELLED = SignalNames.CANCELLED;
 
     public static final class Track {
         public final String property;

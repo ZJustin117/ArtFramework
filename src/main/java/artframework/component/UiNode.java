@@ -108,7 +108,12 @@ public final class UiNode {
             }
         }
         if (!signalsExplicit && ordered.isEmpty()) {
-            for (String d : UiTypes.defaultSignals(type)) {
+            List<String> defaults = UiTypes.defaultSignals(type);
+            UiNodeType registered = UiNodeRegistry.global().get(type);
+            if (registered != null && !registered.defaultSignals().isEmpty()) {
+                defaults = registered.defaultSignals();
+            }
+            for (String d : defaults) {
                 if (seen.add(d)) {
                     ordered.add(d);
                 }

@@ -152,7 +152,7 @@ coverage.
   `PresentLevel` OFF|OBSERVE|FULL + `FullPresentMode` probe; JUnit + f5 fixture
 - [x] 16.1 `Sts1PresentationBackend` strong-typed snapshot + intent gate by present level
   (D1 probe optional; still READ_ONLY until 16.5 executor)
-- [ ] 16.1b D1 probe smoke: combat / map / controls after `art lab start-run` (optional)
+- [x] 16.1b D1 probe smoke: `d1_full_present_observe` / `d1_full_present_combat_on` (D1 PASS)
 - [x] 16.2 STS1 HostAssets vanilla catalog (`Sts1VanillaCatalog` / `Sts1HostAssets`) + JUnit
   (texture handle materialization deferred to 16.3/16.4 draw path)
 - [x] 16.3 C2 render plan: layers, BatchStateGuard, clip, overlay observe + JUnit

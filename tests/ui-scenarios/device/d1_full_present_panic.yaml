@@ -1,0 +1,36 @@
+# Device: FULL combat then panic → levels OFF, no suppress.
+name: d1_full_present_panic
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art present combat on"
+  - wait_ms: 600
+  - console: "art present panic lab"
+  - wait_ms: 500
+  - console: "art present status"
+  - wait_ms: 400
+  - probe: all
+  - assert:
+      path: backend.safety.panic
+      eq: true
+  - assert:
+      path: backend.fullPresent.panic
+      eq: true
+  - assert:
+      path: backend.fullPresent.combatHand
+      eq: OFF
+  - assert:
+      path: backend.fullPresent.maySuppressNativeHand
+      eq: false
+  - console: "art present clear-panic"
+  - wait_ms: 400
+  - probe: all
+  - assert:
+      path: backend.safety.panic
+      eq: false

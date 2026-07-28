@@ -76,6 +76,10 @@ public final class UiProbe {
         m.put("handDraw", artframework.sts1.render.HandDrawPath.probeSlice());
         m.put("input", artframework.sts1.input.CombatInputRouter.probeSlice());
         m.put("controlsDraw", artframework.sts1.render.ControlsDrawPath.probeSlice());
+        m.put("mapDraw", artframework.sts1.render.MapDrawPath.probeSlice());
+        m.put("audio", artframework.sts1.audio.ArtAudioBridge.probeSlice());
+        m.put("skeleton", artframework.sts1.skeleton.Sts1SkeletonBridge.probeSlice());
+        m.put("safety", artframework.sts1.PresentSafety.probeSlice());
         return m;
     }
 

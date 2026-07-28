@@ -227,7 +227,8 @@ public class ArtCommand extends ConsoleCommand {
 
     private void cmdPresent(String[] tokens, int depth) {
         if (tokens.length <= depth) {
-            DevConsole.log("Usage: art present status|combat on|off|observe|status");
+            DevConsole.log(
+                    "Usage: art present status|panic [reason]|clear-panic|combat|map|skeleton on|off|observe|status");
             return;
         }
         String target = tokens[depth].toLowerCase();
@@ -235,12 +236,26 @@ public class ArtCommand extends ConsoleCommand {
             logPresentStatus();
             return;
         }
-        if (!"combat".equals(target)) {
-            DevConsole.log("Usage: art present status|combat on|off|observe|status");
+        if ("panic".equals(target)) {
+            String reason = tokens.length > depth + 1 ? tokens[depth + 1] : "console";
+            artframework.sts1.PresentSafety.panic(reason);
+            DevConsole.log("ART_PRESENT panic reason=" + reason);
+            BaseMod.logger.info("ART_PRESENT panic reason=" + reason);
+            return;
+        }
+        if ("clear-panic".equals(target) || "clearpanic".equals(target)) {
+            artframework.sts1.PresentSafety.clearPanic();
+            DevConsole.log("ART_PRESENT panic cleared");
+            BaseMod.logger.info("ART_PRESENT panic cleared");
+            return;
+        }
+        if (!"combat".equals(target) && !"map".equals(target) && !"skeleton".equals(target)) {
+            DevConsole.log(
+                    "Usage: art present status|panic|clear-panic|combat|map|skeleton on|off|observe|status");
             return;
         }
         if (tokens.length < depth + 2) {
-            DevConsole.log("Usage: art present combat on|off|observe|status");
+            DevConsole.log("Usage: art present " + target + " on|off|observe|status");
             return;
         }
         String action = tokens[depth + 1].toLowerCase();
@@ -256,24 +271,58 @@ public class ArtCommand extends ConsoleCommand {
         } else if ("observe".equals(action)) {
             level = artframework.sts1.PresentLevel.OBSERVE;
         } else {
-            DevConsole.log("Usage: art present combat on|off|observe|status");
+            DevConsole.log("Usage: art present " + target + " on|off|observe|status");
             return;
         }
-        artframework.sts1.FullPresentMode.setCombatHandLevel(level);
-        // Controls follow combat hand level for the first vertical slice (16.6).
-        artframework.sts1.FullPresentMode.setCombatControlsLevel(level);
-        if (level.allowsFullPresent() || level.allowsObserve()) {
-            ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE).action("mount_combat");
+        if (artframework.sts1.PresentSafety.isPanic() && level != artframework.sts1.PresentLevel.OFF) {
+            DevConsole.log("ART_PRESENT blocked: panic active — art present clear-panic first");
+            return;
+        }
+        if ("combat".equals(target)) {
+            artframework.sts1.FullPresentMode.setCombatHandLevel(level);
+            artframework.sts1.FullPresentMode.setCombatControlsLevel(level);
+            if (level.allowsFullPresent() || level.allowsObserve()) {
+                ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE)
+                        .action("mount_combat");
+            } else {
+                unmountCombatSurfaces();
+            }
+        } else if ("map".equals(target)) {
+            artframework.sts1.FullPresentMode.setMapLevel(level);
+            artframework.core.UiComponent map =
+                    ArtFramework.component(artframework.context.SurfaceIds.MAP);
+            if (map != null) {
+                if (level.allowsFullPresent() || level.allowsObserve()) {
+                    if (!map.isMounted()) {
+                        map.mount();
+                    }
+                } else if (map.isMounted()) {
+                    map.unmount();
+                }
+            }
         } else {
-            unmountCombatSurfaces();
+            artframework.sts1.FullPresentMode.setSkeletonLevel(level);
+            artframework.core.UiComponent sk =
+                    ArtFramework.component(artframework.context.SurfaceIds.SKELETON);
+            if (sk != null) {
+                if (level.allowsFullPresent() || level.allowsObserve()) {
+                    if (!sk.isMounted()) {
+                        sk.mount();
+                    }
+                } else if (sk.isMounted()) {
+                    sk.unmount();
+                }
+            }
         }
         String line =
-                "ART_PRESENT combat level="
+                "ART_PRESENT "
+                        + target
+                        + " level="
                         + level.name()
                         + " full-present="
                         + level.allowsFullPresent()
-                        + " suppressHand="
-                        + artframework.sts1.render.Sts1SurfaceRenderer.shouldSuppressNativeHand();
+                        + " panic="
+                        + artframework.sts1.PresentSafety.isPanic();
         DevConsole.log(line);
         BaseMod.logger.info(line);
     }
@@ -281,12 +330,20 @@ public class ArtCommand extends ConsoleCommand {
     private void logPresentStatus() {
         java.util.Map<String, Object> policy = artframework.sts1.FullPresentMode.probeSlice();
         String line =
-                "ART_PRESENT combat level="
+                "ART_PRESENT combat="
                         + policy.get("combatHand")
-                        + " full-present="
-                        + policy.get("combatHandFull")
+                        + " controls="
+                        + policy.get("combatControls")
+                        + " map="
+                        + policy.get("map")
+                        + " skeleton="
+                        + policy.get("skeleton")
+                        + " panic="
+                        + policy.get("panic")
                         + " suppressHand="
                         + artframework.sts1.render.Sts1SurfaceRenderer.shouldSuppressNativeHand()
+                        + " suppressMap="
+                        + artframework.sts1.render.MapDrawPath.shouldSuppressNativeMap()
                         + " scene="
                         + ArtFramework.projection().scene()
                         + " epoch="

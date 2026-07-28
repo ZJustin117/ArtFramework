@@ -1,0 +1,20 @@
+name: f10_map_draw
+schemaVersion: 1
+mode: fixture
+fixture: sample_map_draw_probe.json
+steps:
+  - assert:
+      path: backend.mapDraw.count
+      eq: 2
+  - assert:
+      path: backend.mapDraw.presentLevel
+      eq: FULL
+  - assert:
+      path: backend.mapDraw.suppressNativeMap
+      eq: true
+  - assert:
+      path: backend.mapDraw.panZoom.zoom
+      eq: 1.0
+  - assert:
+      path: backend.mapDraw.items[0].roomKind
+      eq: monster

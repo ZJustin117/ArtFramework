@@ -11,6 +11,8 @@ STS1_ASSETS = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f6_sts1_assets_cat
 HAND_DRAW = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f7_hand_draw_geometry.yaml"
 COMBAT_INPUT = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f8_combat_input_router.yaml"
 CONTROLS_DRAW = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f9_controls_draw.yaml"
+MAP_DRAW = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f10_map_draw.yaml"
+PRESENT_SAFETY = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f11_present_safety.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
 
 
@@ -41,6 +43,14 @@ class RunnerOfflineTest(unittest.TestCase):
 
     def test_controls_draw_fixture_pass(self):
         r = run_scenario(CONTROLS_DRAW)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_map_draw_fixture_pass(self):
+        r = run_scenario(MAP_DRAW)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_present_safety_fixture_pass(self):
+        r = run_scenario(PRESENT_SAFETY)
         self.assertEqual(r["status"], "pass", r.get("error"))
 
     def test_device_skips_without_serial(self):

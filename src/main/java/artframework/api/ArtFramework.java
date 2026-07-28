@@ -245,7 +245,11 @@ public final class ArtFramework {
         artframework.sts1.FullPresentMode.resetForTests();
         artframework.sts1.assets.Sts1HostAssets.resetForTests();
         artframework.sts1.render.Sts1RenderPipeline.resetForTests();
+        artframework.sts1.render.MapDrawPath.resetForTests();
         artframework.sts1.input.CombatInputRouter.resetForTests();
+        artframework.sts1.audio.ArtAudioBridge.resetForTests();
+        artframework.sts1.skeleton.Sts1SkeletonBridge.resetForTests();
+        artframework.sts1.PresentSafety.resetForTests();
         artframework.inspect.UiLabListeners.resetForTests();
     }
 

@@ -67,7 +67,7 @@ Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md),
 [`docs/design/host-assets.md`](../design/host-assets.md).  
 `open`/`bind` remain aliases of `mount` paths (compatibility).
 
-### Milestone 15 consumer notes (intents + full present)
+### Milestone 15–16 consumer notes (intents + full present)
 
 - Prefer **Primary Backend** frames (`applyFrame` / `frames().syncFromBackend()`) over scraping STS UI fields.
 - Prefer **intents** (`submitIntent` / surface `action`) over native hitbox callbacks for policy; signals observe/gate only.
@@ -76,7 +76,23 @@ Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md),
 - Card identity: use **`CardRef.instanceId`** (multi-instance safe); `playHandCard(cardId)` still resolves first hand match when hand surface is mounted.
 - Assets: register packs on `ArtFramework.assets()`; Theme icons/style resolve via HostAssets.
 
-Console (in-game): full reference [`console-commands.md`](./console-commands.md) — `art probe` | `art ui …` | `art frame` | `art assets …` | `art op …` | `art gate …`
+### Milestone 16 freeze (STS1 host full-present)
+
+**Stable for consumers (do not break without major version):**
+
+| Surface | API |
+|---------|-----|
+| Policy | `PresentLevel` OFF\|OBSERVE\|FULL; mount alone never suppresses native |
+| Frames | `ContextFrame` + `ControlsView` / `MapView` / `CardRef` / `sceneEpoch` |
+| Ops | `UiOps.invoke` / `submitIntent` / `playHandCardRef` |
+| Probe | `backend.fullPresent`, `renderPlan`, `handDraw`, `controlsDraw`, `mapDraw`, `input`, `safety` |
+| Console lab | `art present combat\|map\|skeleton on\|off\|observe`, `art present panic\|clear-panic` |
+
+**Host-only (may evolve):** `Sts1IntentExecutor` gesture bodies, SpriteBatch label fallbacks, SpirePatch suppress points, pan/zoom defaults.
+
+**Panic:** `PresentSafety.panic` forces all levels OFF and unmounts present surfaces — consumers should treat as “native UI restored”.
+
+Console (in-game): full reference [`console-commands.md`](./console-commands.md) — `art probe` | `art ui …` | `art frame` | `art present …` | `art assets …` | `art op …` | `art gate …` | `art lab …`
 
 **Out of ArtFramework:** multiplayer protocol, party election, combat authority (consumer owns these).
 

@@ -32,13 +32,17 @@ public final class Sts1SurfaceRenderer {
         }
         guard.beginCapture(drawing);
         try {
+            if (artframework.sts1.PresentSafety.isPanic()) {
+                return;
+            }
             for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
                 if (SurfaceIds.COMBAT_HAND.equals(e.surfaceId)) {
                     renderHand(sb);
                 } else if (SurfaceIds.COMBAT_CONTROLS.equals(e.surfaceId)) {
                     renderControls(sb);
+                } else if (SurfaceIds.MAP.equals(e.surfaceId)) {
+                    renderMap(sb);
                 }
-                // slots / map draw paths land in later 16.x slices
             }
         } finally {
             guard.endCapture();
@@ -100,6 +104,31 @@ public final class Sts1SurfaceRenderer {
 
     private static boolean ControlsViewIdEndTurn(String id) {
         return artframework.context.ControlsView.END_TURN_ID.equals(id) || "end_turn".equals(id);
+    }
+
+    /** Map nodes as text symbols when native map is suppressed (atlas path later). */
+    private static void renderMap(SpriteBatch sb) {
+        if (!MapDrawPath.shouldSuppressNativeMap()) {
+            return;
+        }
+        try {
+            for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
+                String label = item.symbol != null && !item.symbol.isEmpty() ? item.symbol : "?";
+                if (item.highlighted) {
+                    label = "[" + label + "]";
+                }
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        label,
+                        item.screenX,
+                        item.screenY,
+                        item.taken
+                                ? com.badlogic.gdx.graphics.Color.DARK_GRAY
+                                : com.badlogic.gdx.graphics.Color.WHITE);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private static AbstractCard find(String instanceId) {

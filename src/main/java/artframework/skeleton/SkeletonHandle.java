@@ -20,7 +20,7 @@ public final class SkeletonHandle {
         return alive;
     }
 
-    void markDisposed() {
+    public void markDisposed() {
         alive = false;
     }
 }

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "backend": {
+    "mapDraw": {
+      "count": 2,
+      "suppressNativeMap": true,
+      "presentLevel": "FULL",
+      "scene": "map",
+      "missingArt": 0,
+      "truncated": false,
+      "panZoom": {
+        "panX": 0.0,
+        "panY": 0.0,
+        "zoom": 1.0,
+        "minZoom": 0.5,
+        "maxZoom": 2.5
+      },
+      "items": [
+        {
+          "row": 0,
+          "col": 1,
+          "screenX": 10.0,
+          "screenY": 20.0,
+          "roomKind": "monster",
+          "artFound": true
+        },
+        {
+          "row": 1,
+          "col": 0,
+          "roomKind": "rest",
+          "artFound": true
+        }
+      ]
+    }
+  }
+}

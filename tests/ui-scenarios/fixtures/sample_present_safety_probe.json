@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "backend": {
+    "fullPresent": {
+      "combatHand": "OFF",
+      "combatControls": "OFF",
+      "map": "OFF",
+      "skeleton": "OFF",
+      "combatHandFull": false,
+      "maySuppressNativeHand": false,
+      "panic": true
+    },
+    "safety": {
+      "panic": true,
+      "panicReason": "lab",
+      "recreationCount": 0
+    },
+    "audio": {
+      "muted": false,
+      "logSize": 0,
+      "recent": []
+    },
+    "skeleton": {
+      "providerId": "fake",
+      "liveCount": 0,
+      "shouldDraw": false,
+      "presentLevel": "OFF",
+      "events": [],
+      "liveIds": []
+    }
+  }
+}

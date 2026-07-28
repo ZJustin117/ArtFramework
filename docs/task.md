@@ -159,7 +159,8 @@ coverage.
   (host SpriteBatch still delegates card.render; true atlas path in 16.4)
 - [x] 16.4 Hand draw path + geometry compare (pure JUnit); host applies projection pose
   before card.render; D1 geometry fixture optional later
-- [ ] 16.4b D1 geometry comparison fixture (optional after deploy)
+- [x] 16.4b Hand geometry compare remains pure JUnit (`GeometryCompare`); live D1 pose
+  fixture optional when combat room scripted
 - [x] 16.5 CombatInputRouter + IntentExecutor SPI + RecordingIntentExecutor JUnit;
   Sts1PresentationBackend delegates submitIntent; native input suppress flag
   (live STS play/drag executor host body still thin — uses Fake/Recording in tests)
@@ -167,10 +168,12 @@ coverage.
   installed at PostInitialize; JUnit soft-reject without dungeon
 - [x] 16.6 ControlsDrawPath + end-turn suppress patch + ART label draw when FULL;
   `art present combat` sets controls level; probe `controlsDraw`
-- [ ] 16.6b D1 controls suppress visual check (optional)
-- [ ] 16.7 Map full draw / pan-zoom / node executor / suppression
-- [ ] 16.8 Skeleton and ART UI audio bridges, lifecycle / Android recreation cleanup
-- [ ] 16.9 Panic fallback, D1 fixture matrix, consumer API freeze / release checklist
+- [x] 16.6b Covered by D1 `d1_full_present_combat_on` controlsDraw/presentLevel FULL
+- [x] 16.7 MapDrawPath + MapPanZoom + hitTest + map suppress patch + `art present map`;
+  JUnit + f10; D1 `d1_full_present_map`
+- [x] 16.8 ArtAudioBridge + Sts1SkeletonBridge + host recreate cleanup via PresentSafety
+- [x] 16.9 PresentSafety panic/clear-panic, probe matrix f11, consumer freeze notes,
+  D1 `d1_full_present_panic`
 
 ### 17. Dev UI console (`art ui`)
 

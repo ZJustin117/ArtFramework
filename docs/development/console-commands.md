@@ -194,13 +194,14 @@ Path form also works: `art ui emit demo/close pressed`.
 |---------|-------------|
 | `art frame` / `art sync` | `frames().syncFromBackend()`; logs applied/added/removed/updated |
 | `art present status` | `ART_PRESENT` policy + scene/epoch/hand/map/endTurn |
-| `art present combat on` | FULL level + mount combat surfaces (may suppress when mounted) |
-| `art present combat observe` | OBSERVE level + mount (no native suppress) |
-| `art present combat off` | OFF + unmount combat surfaces |
-| `art present combat status` | Same as `art present status` |
+| `art present combat on\|off\|observe` | Hand+controls level + mount/unmount |
+| `art present map on\|off\|observe` | Map surface level + mount |
+| `art present skeleton on\|off\|observe` | Skeleton surface level + mount |
+| `art present panic [reason]` | Force all OFF + unmount (native safe) |
+| `art present clear-panic` | Clear panic flag (re-enable present) |
 
-Probe extras (via `art probe`): `backend.fullPresent`, `backend.renderPlan`, `backend.handDraw`,
-`backend.controls`, `backend.mapView`.
+Probe extras (via `art probe`): `backend.fullPresent`, `renderPlan`, `handDraw`, `controlsDraw`,
+`mapDraw`, `input`, `audio`, `skeleton`, `safety`, `controls`, `mapView`.
 
 ---
 

@@ -106,10 +106,16 @@ public final class FullPresentMode {
      * never suppresses.
      */
     public static boolean maySuppressNative(String surfaceId) {
+        if (PresentSafety.isPanic()) {
+            return false;
+        }
         return levelOf(surfaceId).allowsFullPresent();
     }
 
     public static boolean mayOwnInput(String surfaceId) {
+        if (PresentSafety.isPanic()) {
+            return false;
+        }
         return levelOf(surfaceId).allowsFullPresent();
     }
 
@@ -119,8 +125,9 @@ public final class FullPresentMode {
         m.put("combatControls", combatControls.name());
         m.put("map", map.name());
         m.put("skeleton", skeleton.name());
-        m.put("combatHandFull", Boolean.valueOf(combatHand.allowsFullPresent()));
+        m.put("combatHandFull", Boolean.valueOf(combatHand.allowsFullPresent() && !PresentSafety.isPanic()));
         m.put("maySuppressNativeHand", Boolean.valueOf(maySuppressNative(SurfaceIds.COMBAT_HAND)));
+        m.put("panic", Boolean.valueOf(PresentSafety.isPanic()));
         return m;
     }
 

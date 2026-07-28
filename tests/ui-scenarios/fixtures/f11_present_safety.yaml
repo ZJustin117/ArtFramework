@@ -1,0 +1,23 @@
+name: f11_present_safety
+schemaVersion: 1
+mode: fixture
+fixture: sample_present_safety_probe.json
+steps:
+  - assert:
+      path: backend.safety.panic
+      eq: true
+  - assert:
+      path: backend.safety.panicReason
+      eq: lab
+  - assert:
+      path: backend.fullPresent.panic
+      eq: true
+  - assert:
+      path: backend.fullPresent.maySuppressNativeHand
+      eq: false
+  - assert:
+      path: backend.audio.muted
+      eq: false
+  - assert:
+      path: backend.skeleton.liveCount
+      eq: 0

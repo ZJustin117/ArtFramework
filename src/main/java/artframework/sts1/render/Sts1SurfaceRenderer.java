@@ -35,8 +35,10 @@ public final class Sts1SurfaceRenderer {
             for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
                 if (SurfaceIds.COMBAT_HAND.equals(e.surfaceId)) {
                     renderHand(sb);
+                } else if (SurfaceIds.COMBAT_CONTROLS.equals(e.surfaceId)) {
+                    renderControls(sb);
                 }
-                // slots / controls / map draw paths land in later 16.x slices
+                // slots / map draw paths land in later 16.x slices
             }
         } finally {
             guard.endCapture();
@@ -62,6 +64,42 @@ public final class Sts1SurfaceRenderer {
             card.drawScale = item.scale;
             card.render(sb);
         }
+    }
+
+    /**
+     * Controls chrome: when native end-turn is suppressed, draw a minimal label via FontHelper so
+     * the button is not invisible. Full atlas chrome is HostAssets-driven later.
+     */
+    private static void renderControls(SpriteBatch sb) {
+        if (!ControlsDrawPath.shouldSuppressNativeEndTurn()) {
+            return;
+        }
+        try {
+            for (ControlsDrawPath.DrawItem item : ControlsDrawPath.buildFromProjection()) {
+                if (!item.visible || !ControlsViewIdEndTurn(item.id)) {
+                    continue;
+                }
+                // EndTurnButton.hb is private — use fixed present-space anchor (refine via
+                // reflection later if needed for pixel-perfect D1).
+                float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.85f;
+                float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.12f;
+                String label = item.enabled ? item.text : (item.text + " (disabled)");
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        label,
+                        x,
+                        y,
+                        item.enabled
+                                ? com.badlogic.gdx.graphics.Color.WHITE
+                                : com.badlogic.gdx.graphics.Color.GRAY);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static boolean ControlsViewIdEndTurn(String id) {
+        return artframework.context.ControlsView.END_TURN_ID.equals(id) || "end_turn".equals(id);
     }
 
     private static AbstractCard find(String instanceId) {

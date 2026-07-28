@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "backend": {
+    "controlsDraw": {
+      "count": 1,
+      "endTurnEnabled": true,
+      "endTurnVisible": true,
+      "energy": 3,
+      "suppressNativeEndTurn": true,
+      "presentLevel": "FULL",
+      "items": [
+        {
+          "id": "end_turn",
+          "text": "End Turn",
+          "visible": true,
+          "enabled": true,
+          "iconFound": true
+        }
+      ]
+    }
+  }
+}

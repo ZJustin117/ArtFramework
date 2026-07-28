@@ -260,6 +260,8 @@ public class ArtCommand extends ConsoleCommand {
             return;
         }
         artframework.sts1.FullPresentMode.setCombatHandLevel(level);
+        // Controls follow combat hand level for the first vertical slice (16.6).
+        artframework.sts1.FullPresentMode.setCombatControlsLevel(level);
         if (level.allowsFullPresent() || level.allowsObserve()) {
             ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE).action("mount_combat");
         } else {

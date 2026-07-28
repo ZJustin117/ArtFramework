@@ -163,8 +163,11 @@ coverage.
 - [x] 16.5 CombatInputRouter + IntentExecutor SPI + RecordingIntentExecutor JUnit;
   Sts1PresentationBackend delegates submitIntent; native input suppress flag
   (live STS play/drag executor host body still thin — uses Fake/Recording in tests)
-- [ ] 16.5b Live STS1 IntentExecutor (useCard / drag host) + input suppress patches
-- [ ] 16.6 Controls full draw / end-turn executor / suppression
+- [x] 16.5b `Sts1IntentExecutor` (drag/play/end-turn/map ack) + hand input suppress patch;
+  installed at PostInitialize; JUnit soft-reject without dungeon
+- [x] 16.6 ControlsDrawPath + end-turn suppress patch + ART label draw when FULL;
+  `art present combat` sets controls level; probe `controlsDraw`
+- [ ] 16.6b D1 controls suppress visual check (optional)
 - [ ] 16.7 Map full draw / pan-zoom / node executor / suppression
 - [ ] 16.8 Skeleton and ART UI audio bridges, lifecycle / Android recreation cleanup
 - [ ] 16.9 Panic fallback, D1 fixture matrix, consumer API freeze / release checklist

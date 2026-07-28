@@ -47,6 +47,14 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
         } catch (Throwable t) {
             BaseMod.logger.warn("ArtFramework: STS1 HostAssets install skipped: " + t.getMessage());
         }
+        try {
+            // Executor handles programmatic intents; native input suppress stays off until
+            // ART owns a real touch path (flag via CombatInputRouter / future console).
+            artframework.sts1.input.CombatInputRouter.setExecutor(
+                    artframework.sts1.input.Sts1IntentExecutor.INSTANCE);
+        } catch (Throwable t) {
+            BaseMod.logger.warn("ArtFramework: STS1 intent executor install skipped: " + t.getMessage());
+        }
         ArtFramework.register(new WindowDef(DEMO_ID, WindowClass.SYNTHETIC, "layouts/demo.json"));
         ArtFramework.register(
                 new WindowDef("comp_sample", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));

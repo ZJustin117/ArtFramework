@@ -75,6 +75,7 @@ public final class UiProbe {
         m.put("renderPlan", artframework.sts1.render.Sts1RenderPipeline.probeSlice());
         m.put("handDraw", artframework.sts1.render.HandDrawPath.probeSlice());
         m.put("input", artframework.sts1.input.CombatInputRouter.probeSlice());
+        m.put("controlsDraw", artframework.sts1.render.ControlsDrawPath.probeSlice());
         return m;
     }
 

@@ -1,0 +1,17 @@
+name: f9_controls_draw
+schemaVersion: 1
+mode: fixture
+fixture: sample_controls_draw_probe.json
+steps:
+  - assert:
+      path: backend.controlsDraw.count
+      eq: 1
+  - assert:
+      path: backend.controlsDraw.endTurnEnabled
+      eq: true
+  - assert:
+      path: backend.controlsDraw.items[0].id
+      eq: end_turn
+  - assert:
+      path: backend.controlsDraw.suppressNativeEndTurn
+      eq: true

@@ -1,0 +1,50 @@
+# Device: FULL combat present + probe renderPlan / input / controlsDraw.
+# Best run after reaching combat; start-run alone may leave map/neow — asserts stay soft on scene.
+name: d1_full_present_combat_on
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab start-run IRONCLAD"
+  - wait_ms: 25000
+  - console: "art present combat on"
+  - wait_ms: 1000
+  - console: "art frame"
+  - wait_ms: 600
+  - console: "art present status"
+  - wait_ms: 400
+  - probe: all
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: modId
+      eq: artframework
+  - assert:
+      path: backend.id
+      eq: sts1
+  - assert:
+      path: backend.fullPresent.combatHand
+      eq: FULL
+  - assert:
+      path: backend.fullPresent.combatHandFull
+      eq: true
+  - assert:
+      path: backend.fullPresent.maySuppressNativeHand
+      eq: true
+  - assert:
+      path: backend.input.handOwnsInput
+      eq: true
+  - assert:
+      path: backend.renderPlan
+      exists: true
+  - assert:
+      path: backend.controlsDraw
+      exists: true

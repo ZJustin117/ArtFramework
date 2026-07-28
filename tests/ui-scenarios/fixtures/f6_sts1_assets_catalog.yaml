@@ -1,0 +1,21 @@
+# Offline fixture: STS1 vanilla HostAssets sources (milestone 16.2).
+name: f6_sts1_assets_catalog
+schemaVersion: 1
+mode: fixture
+fixture: sample_sts1_assets_probe.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: assets.uiButton.found
+      eq: true
+  - assert:
+      path: assets.uiButton.source
+      contains: "sts1:"
+  - assert:
+      path: assets.mapMonster.source
+      contains: map
+  - assert:
+      path: assets.cardStrike.packId
+      eq: vanilla

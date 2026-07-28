@@ -1,0 +1,21 @@
+# Offline fixture: hand draw path probe shape (milestone 16.4).
+name: f7_hand_draw_geometry
+schemaVersion: 1
+mode: fixture
+fixture: sample_hand_draw_probe.json
+steps:
+  - assert:
+      path: backend.handDraw.count
+      eq: 2
+  - assert:
+      path: backend.handDraw.missingArt
+      eq: 0
+  - assert:
+      path: backend.handDraw.items[0].instanceId
+      eq: a
+  - assert:
+      path: backend.handDraw.items[0].artFound
+      eq: true
+  - assert:
+      path: backend.handDraw.items[1].cardId
+      eq: Defend_R

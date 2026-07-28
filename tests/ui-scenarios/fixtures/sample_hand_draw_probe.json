@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "backend": {
+    "handDraw": {
+      "count": 2,
+      "missingArt": 0,
+      "items": [
+        {
+          "instanceId": "a",
+          "cardId": "Strike_R",
+          "x": 100.0,
+          "y": 200.0,
+          "visible": true,
+          "artFound": true
+        },
+        {
+          "instanceId": "b",
+          "cardId": "Defend_R",
+          "x": 150.0,
+          "y": 200.0,
+          "visible": true,
+          "artFound": true
+        }
+      ]
+    }
+  }
+}

@@ -153,9 +153,13 @@ coverage.
 - [x] 16.1 `Sts1PresentationBackend` strong-typed snapshot + intent gate by present level
   (D1 probe optional; still READ_ONLY until 16.5 executor)
 - [ ] 16.1b D1 probe smoke: combat / map / controls after `art lab start-run` (optional)
-- [ ] 16.2 STS1 HostAssets resolver + real vanilla card / map / UI catalog
-- [ ] 16.3 C2 SpriteBatch renderer, layers, clip/state restoration, overlay observe mode
-- [ ] 16.4 Combat hand / slots full draw + geometry comparison D1
+- [x] 16.2 STS1 HostAssets vanilla catalog (`Sts1VanillaCatalog` / `Sts1HostAssets`) + JUnit
+  (texture handle materialization deferred to 16.3/16.4 draw path)
+- [x] 16.3 C2 render plan: layers, BatchStateGuard, clip, overlay observe + JUnit
+  (host SpriteBatch still delegates card.render; true atlas path in 16.4)
+- [x] 16.4 Hand draw path + geometry compare (pure JUnit); host applies projection pose
+  before card.render; D1 geometry fixture optional later
+- [ ] 16.4b D1 geometry comparison fixture (optional after deploy)
 - [ ] 16.5 Combat input router, drag / target / play executor, native input/display suppression
 - [ ] 16.6 Controls full draw / end-turn executor / suppression
 - [ ] 16.7 Map full draw / pan-zoom / node executor / suppression

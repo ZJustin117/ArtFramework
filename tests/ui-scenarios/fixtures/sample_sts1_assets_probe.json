@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "assets": {
+    "vanillaCount": 40,
+    "packIds": [],
+    "uiButton": {
+      "found": true,
+      "packId": "vanilla",
+      "source": "sts1:images/ui/topPanel/buttonBlue.png"
+    },
+    "mapMonster": {
+      "found": true,
+      "packId": "vanilla",
+      "source": "sts1:images/ui/map/monster.png"
+    },
+    "cardStrike": {
+      "found": true,
+      "packId": "vanilla",
+      "source": "sts1:card/art/Strike_R"
+    }
+  }
+}

@@ -42,6 +42,11 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
     public void receivePostInitialize() {
         ArtFramework.setNativeOpsBackend(StsNativeOps.INSTANCE);
         ArtFramework.bindPresentationBackend(Sts1PresentationBackend.INSTANCE);
+        try {
+            artframework.sts1.assets.Sts1HostAssets.install();
+        } catch (Throwable t) {
+            BaseMod.logger.warn("ArtFramework: STS1 HostAssets install skipped: " + t.getMessage());
+        }
         ArtFramework.register(new WindowDef(DEMO_ID, WindowClass.SYNTHETIC, "layouts/demo.json"));
         ArtFramework.register(
                 new WindowDef("comp_sample", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));

@@ -4,7 +4,14 @@ Design for a **host-managed asset library**: vanilla catalog keys, replaceable *
 unified config, and **ART-only resolve-and-render** consumption. Complements
 [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md),
 [`art-framework.md`](./art-framework.md) (Host SPI `assets()`).
-Roadmap: [`docs/task.md`](../task.md) milestone **15**.
+Roadmap: [`docs/task.md`](../task.md) milestones **15** (contract) and **16.2** (STS1 catalog).
+
+## STS1 vanilla catalog (16.2)
+
+`artframework.sts1.assets.Sts1VanillaCatalog` maps ResourceIds to logical `sts1:` sources
+(UI / card frames / map nodes / common card art / audio). `Sts1HostAssets.install()` replaces
+the minimal vanilla catalog at mod init. Texture handle materialization remains host-side for
+16.3+ draw; resolve stays pure (no GL in JUnit).
 
 ## Purpose
 

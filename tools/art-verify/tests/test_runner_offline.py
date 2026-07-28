@@ -7,6 +7,8 @@ ROOT = Path(__file__).resolve().parents[3]
 FIXTURE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f1_probe_shape.yaml"
 COMPOSITION = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f4_composition_tree.yaml"
 FULL_PRESENT = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f5_full_present_policy.yaml"
+STS1_ASSETS = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f6_sts1_assets_catalog.yaml"
+HAND_DRAW = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f7_hand_draw_geometry.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
 
 
@@ -21,6 +23,14 @@ class RunnerOfflineTest(unittest.TestCase):
 
     def test_full_present_policy_fixture_pass(self):
         r = run_scenario(FULL_PRESENT)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_sts1_assets_catalog_fixture_pass(self):
+        r = run_scenario(STS1_ASSETS)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_hand_draw_geometry_fixture_pass(self):
+        r = run_scenario(HAND_DRAW)
         self.assertEqual(r["status"], "pass", r.get("error"))
 
     def test_device_skips_without_serial(self):

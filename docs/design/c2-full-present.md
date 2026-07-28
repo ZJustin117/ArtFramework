@@ -50,6 +50,13 @@ Console: `art present combat on|off|observe|status` (on ≡ FULL).
 `ContextFrame` carries `ControlsView` + `MapView` (+ `ViewportView`). Legacy
 `Map<String,Object> controls/map` fields remain probe bridges derived from the strong views.
 
+### Render plan (16.3)
+
+`SurfaceDrawPlan` / `Sts1RenderPipeline` decide per surface `SKIP|OBSERVE|DRAW` from
+`PresentLevel` + mount + scene. Overlay-observe mode downgrades FULL→OBSERVE (native stays
+visible). `BatchStateGuard` + `ClipRect` bookkeep host SpriteBatch restore without leaking GL
+into pure tests. Probe: `backend.renderPlan`.
+
 ## Purpose
 
 1. Treat game-coupled frontends (hand, drag/play, slots, buttons, skeleton, map) as

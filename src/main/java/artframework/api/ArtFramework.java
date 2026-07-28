@@ -243,6 +243,8 @@ public final class ArtFramework {
         FrameRuntimes.resetForTests();
         HostAssetsHolder.resetForTests();
         artframework.sts1.FullPresentMode.resetForTests();
+        artframework.sts1.assets.Sts1HostAssets.resetForTests();
+        artframework.sts1.render.Sts1RenderPipeline.resetForTests();
         artframework.inspect.UiLabListeners.resetForTests();
     }
 

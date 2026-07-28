@@ -1,0 +1,135 @@
+package artframework.sts1.render;
+
+import artframework.api.ArtFramework;
+import artframework.assets.AssetResolveResult;
+import artframework.context.CardEntity;
+import artframework.context.CardZone;
+import artframework.sts1.assets.Sts1HostAssets;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Pure hand full-present draw path description (16.4). Host SpriteBatch still paints via card
+ * renderer; this module orders entities, resolves art keys, and exposes geometry for compare.
+ */
+public final class HandDrawPath {
+
+    public static final class DrawItem {
+        public final String instanceId;
+        public final String cardId;
+        public final float x;
+        public final float y;
+        public final float rotation;
+        public final float scale;
+        public final boolean visible;
+        public final String artSource;
+        public final String frameSource;
+        public final boolean artFound;
+
+        public DrawItem(
+                String instanceId,
+                String cardId,
+                float x,
+                float y,
+                float rotation,
+                float scale,
+                boolean visible,
+                String artSource,
+                String frameSource,
+                boolean artFound) {
+            this.instanceId = instanceId;
+            this.cardId = cardId;
+            this.x = x;
+            this.y = y;
+            this.rotation = rotation;
+            this.scale = scale;
+            this.visible = visible;
+            this.artSource = artSource;
+            this.frameSource = frameSource;
+            this.artFound = artFound;
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("instanceId", instanceId);
+            m.put("cardId", cardId);
+            m.put("x", Float.valueOf(x));
+            m.put("y", Float.valueOf(y));
+            m.put("rotation", Float.valueOf(rotation));
+            m.put("scale", Float.valueOf(scale));
+            m.put("visible", Boolean.valueOf(visible));
+            m.put("artSource", artSource);
+            m.put("frameSource", frameSource);
+            m.put("artFound", Boolean.valueOf(artFound));
+            return m;
+        }
+    }
+
+    private HandDrawPath() {}
+
+    /** Build draw list from current projection HAND zone + HostAssets resolve. */
+    public static List<DrawItem> buildFromProjection() {
+        List<DrawItem> out = new ArrayList<DrawItem>();
+        for (CardEntity e : ArtFramework.projection().listZone(CardZone.HAND)) {
+            out.add(fromEntity(e));
+        }
+        return out;
+    }
+
+    public static DrawItem fromEntity(CardEntity e) {
+        if (e == null) {
+            return new DrawItem("", "", 0, 0, 0, 1, false, "", "", false);
+        }
+        float x = e.pose != null ? e.pose.x : 0f;
+        float y = e.pose != null ? e.pose.y : 0f;
+        float rot = e.pose != null ? e.pose.rotation : 0f;
+        float scale = e.pose != null ? e.pose.scale : 1f;
+        boolean vis = e.pose == null || e.pose.visible;
+        AssetResolveResult art =
+                e.artResourceId != null && !e.artResourceId.isEmpty()
+                        ? ArtFramework.assets().resolve(e.artResourceId)
+                        : Sts1HostAssets.resolveCardArt(e.cardId);
+        AssetResolveResult frame =
+                e.frameResourceId != null && !e.frameResourceId.isEmpty()
+                        ? ArtFramework.assets().resolve(e.frameResourceId)
+                        : AssetResolveResult.missing("", "no frame");
+        return new DrawItem(
+                e.instanceId,
+                e.cardId != null ? e.cardId : "",
+                x,
+                y,
+                rot,
+                scale,
+                vis,
+                art.found || art.fallback ? art.source : "",
+                frame.found ? frame.source : "",
+                art.found);
+    }
+
+    public static Map<String, Object> probeSlice() {
+        List<DrawItem> items = buildFromProjection();
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("count", Integer.valueOf(items.size()));
+        List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
+        int missingArt = 0;
+        for (DrawItem d : items) {
+            list.add(d.toMap());
+            if (!d.artFound) {
+                missingArt++;
+            }
+        }
+        m.put("items", list);
+        m.put("missingArt", Integer.valueOf(missingArt));
+        return m;
+    }
+
+    /**
+     * Compare projection hand poses to host samples (tolerance in present-space units).
+     */
+    public static GeometryCompare.Report compareToHost(List<GeometryCompare.Sample> host, float tolerance) {
+        return GeometryCompare.compare(ArtFramework.projection().listZone(CardZone.HAND), host, tolerance);
+    }
+}

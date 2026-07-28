@@ -3,38 +3,64 @@ package artframework.sts1.render;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
-import artframework.api.ArtFramework;
-import artframework.context.CardEntity;
-import artframework.context.CardZone;
 import artframework.context.SurfaceIds;
-import artframework.sts1.FullPresentMode;
+
 
 /**
- * STS1 adapter renderer. The first vertical slice delegates card visual details to the live
- * card renderer, but ART owns when and in which render phase those instances are drawn.
+ * STS1 adapter renderer. Draw plan from {@link Sts1RenderPipeline}; card pixels still delegate to
+ * live {@link AbstractCard#render} until 16.4 HostAssets path. ART owns phase and suppression.
  */
 public final class Sts1SurfaceRenderer {
 
     private Sts1SurfaceRenderer() {}
 
     public static boolean shouldSuppressNativeHand() {
-        return FullPresentMode.maySuppressNative(SurfaceIds.COMBAT_HAND)
-                && ArtFramework.component(SurfaceIds.COMBAT_HAND) != null
-                && ArtFramework.component(SurfaceIds.COMBAT_HAND).isMounted()
-                && "combat".equals(ArtFramework.projection().scene());
+        return Sts1RenderPipeline.shouldSuppressNativeHand();
     }
 
-    /** Draw the hard-synced hand after the STS world render. */
+    /** Draw full-present surfaces after the STS world render (PostRender). */
     public static void render(SpriteBatch sb) {
-        if (sb == null || !shouldSuppressNativeHand() || AbstractDungeon.player == null
-                || AbstractDungeon.player.hand == null) {
+        if (sb == null) {
             return;
         }
-        for (CardEntity entity : ArtFramework.projection().listZone(CardZone.HAND)) {
-            AbstractCard card = find(entity.instanceId);
-            if (card != null) {
-                card.render(sb);
+        SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
+        BatchStateGuard guard = Sts1RenderPipeline.batchGuard();
+        boolean drawing = false;
+        try {
+            drawing = sb.isDrawing();
+        } catch (Throwable ignored) {
+        }
+        guard.beginCapture(drawing);
+        try {
+            for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
+                if (SurfaceIds.COMBAT_HAND.equals(e.surfaceId)) {
+                    renderHand(sb);
+                }
+                // slots / controls / map draw paths land in later 16.x slices
             }
+        } finally {
+            guard.endCapture();
+        }
+    }
+
+    private static void renderHand(SpriteBatch sb) {
+        if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+            return;
+        }
+        // Draw in projection order; hard-sync pose onto live card before render (16.4).
+        for (HandDrawPath.DrawItem item : HandDrawPath.buildFromProjection()) {
+            if (!item.visible) {
+                continue;
+            }
+            AbstractCard card = find(item.instanceId);
+            if (card == null) {
+                continue;
+            }
+            card.current_x = item.x;
+            card.current_y = item.y;
+            card.angle = item.rotation;
+            card.drawScale = item.scale;
+            card.render(sb);
         }
     }
 

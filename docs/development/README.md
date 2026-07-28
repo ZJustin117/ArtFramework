@@ -31,7 +31,8 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 |------|---------|
 | [`logic-layer-testing.md`](./logic-layer-testing.md) | Test pyramid, pure API rules, anti-patterns |
 | [`ui-layer-verification.md`](./ui-layer-verification.md) | Intercept/trigger/C1 verify; tools/art-verify |
-| [`console-commands.md`](./console-commands.md) | BaseMod `art` console reference (probe / op / ui / gate / …) |
+| [`console-commands.md`](./console-commands.md) | BaseMod `art` console reference (probe / op / ui / lab / gate / …) |
+| [`../design/lab-run-nav.md`](../design/lab-run-nav.md) | Lab run navigation (`art lab`) for D1 |
 | [`android-deploy.md`](./android-deploy.md) | Device jar push paths and force-stop |
 | [`android-device-lab.md`](./android-device-lab.md) | Amethyst connector / harness / UI smoke (D1) |
 | [`consumer.md`](./consumer.md) | How CrossSpire (or others) depend on `ArtFramework.jar` |

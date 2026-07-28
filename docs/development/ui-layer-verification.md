@@ -65,6 +65,9 @@ Dev UI inspect (device): `art open demo` then `art ui list` / `art ui tree demo`
 Log prefix `ART_UI` (and `ART_UI_SIGNAL` for `art ui listen`).  
 Commands: [`console-commands.md`](./console-commands.md). Design: [`dev-ui-console.md`](../design/dev-ui-console.md).
 
+Lab run nav (device): `art lab dump` / `art lab ensure-fresh-menu` / `art lab start-run IRONCLAD`.  
+Log prefix `ART_LAB`. Design: [`lab-run-nav.md`](../design/lab-run-nav.md). YAML: `d1_lab_*.yaml`.
+
 OpenCode: `@art-verify` after deploy when validating on-device UI; **not** a substitute for `@junit-test`.
 
 ## YAML v1 (UI)

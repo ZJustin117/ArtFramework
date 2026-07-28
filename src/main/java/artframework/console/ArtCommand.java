@@ -14,6 +14,9 @@ import artframework.inspect.UiInspect;
 import artframework.inspect.UiLabListeners;
 import artframework.ops.GateLab;
 import artframework.sts1.inspect.StsUiReflect;
+import artframework.sts1.lab.LabStateSnapshot;
+import artframework.sts1.lab.StsLabNav;
+import artframework.sts1.lab.StsLabRecipes;
 
 import java.util.List;
 
@@ -109,7 +112,117 @@ public class ArtCommand extends ConsoleCommand {
             cmdPresent(tokens, depth + 1);
             return;
         }
+        if ("lab".equals(sub)) {
+            cmdLab(tokens, depth + 1);
+            return;
+        }
         errorMsg();
+    }
+
+    private void cmdLab(String[] tokens, int depth) {
+        if (tokens.length <= depth) {
+            DevConsole.log(
+                    "Usage: art lab dump|clear-saves|strip-resume|open-char-select|char <id>|embark|"
+                            + "seed [text]|menu-click <R>|abandon|abandon-confirm|return-menu|proceed|"
+                            + "ensure-menu|ensure-fresh-menu|start-run [char] [seed=…]|reset|tick");
+            return;
+        }
+        String action = tokens[depth].toLowerCase();
+        if ("dump".equals(action)) {
+            LabStateSnapshot snap = StsLabNav.dump();
+            java.util.Map<String, Object> map = snap.toMap();
+            map.put("recipe", artframework.sts1.lab.LabRecipeRunner.statusMap());
+            String line = StsLabRecipes.LOG_PREFIX + "dump " + UiInspect.toJson(map);
+            DevConsole.log(line);
+            BaseMod.logger.info(line);
+            return;
+        }
+        if ("status".equals(action)) {
+            String line =
+                    StsLabRecipes.LOG_PREFIX
+                            + "status "
+                            + UiInspect.toJson(artframework.sts1.lab.LabRecipeRunner.statusMap());
+            DevConsole.log(line);
+            BaseMod.logger.info(line);
+            return;
+        }
+        UiOpResult r;
+        if ("clear-saves".equals(action) || "clear_saves".equals(action)) {
+            r = StsLabNav.clearSaves();
+        } else if ("strip-resume".equals(action) || "strip_resume".equals(action)) {
+            r = StsLabNav.stripResume();
+        } else if ("open-char-select".equals(action) || "open_char_select".equals(action)) {
+            r = StsLabNav.openCharSelect();
+        } else if ("char".equals(action) || "character".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art lab char <id>");
+                return;
+            }
+            r = StsLabNav.selectCharacter(tokens[depth + 1]);
+        } else if ("embark".equals(action)) {
+            r = StsLabNav.embark();
+        } else if ("seed".equals(action)) {
+            String seed = tokens.length > depth + 1 ? tokens[depth + 1] : "";
+            if (seed.regionMatches(true, 0, "seed=", 0, 5)) {
+                seed = seed.substring(5);
+            }
+            r = StsLabNav.setSeed(seed);
+        } else if ("menu-click".equals(action) || "menu_click".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art lab menu-click <ClickResult>");
+                return;
+            }
+            r = StsLabNav.menuClick(tokens[depth + 1]);
+        } else if ("abandon".equals(action)) {
+            r = StsLabNav.abandon();
+        } else if ("abandon-confirm".equals(action) || "abandon_confirm".equals(action)) {
+            r = StsLabNav.abandonConfirm();
+        } else if ("return-menu".equals(action) || "return_menu".equals(action)) {
+            r = StsLabNav.returnMenu();
+        } else if ("proceed".equals(action)) {
+            r = StsLabNav.proceed();
+        } else if ("ensure-menu".equals(action) || "ensure_menu".equals(action)) {
+            // Async: advanced each postUpdate so hitbox clicks can apply.
+            r = StsLabNav.armEnsureMenu();
+        } else if ("ensure-fresh-menu".equals(action)
+                || "ensure_fresh_menu".equals(action)
+                || "reset".equals(action)) {
+            r = StsLabNav.armEnsureFreshMenu();
+        } else if ("start-run".equals(action) || "start_run".equals(action)) {
+            String character = "IRONCLAD";
+            String seed = null;
+            for (int i = depth + 1; i < tokens.length; i++) {
+                String t = tokens[i];
+                if (t.regionMatches(true, 0, "seed=", 0, 5)) {
+                    seed = t.substring(5);
+                } else if (t.regionMatches(true, 0, "char=", 0, 5)) {
+                    character = t.substring(5);
+                } else if (!t.isEmpty()) {
+                    character = t;
+                }
+            }
+            r = StsLabNav.armStartRun(character, seed);
+        } else if ("tick".equals(action)) {
+            artframework.sts1.lab.LabRecipeRunner.tick();
+            r =
+                    UiOpResult.ok(
+                            "tick "
+                                    + artframework.sts1.lab.LabRecipeRunner.statusMap().get("status")
+                                    + " "
+                                    + artframework.sts1.lab.LabRecipeRunner.statusMap()
+                                            .get("message"));
+        } else {
+            DevConsole.log("Unknown lab action: " + action);
+            return;
+        }
+        String line =
+                StsLabRecipes.LOG_PREFIX
+                        + action
+                        + " "
+                        + r.status
+                        + (r.message.isEmpty() ? "" : " " + r.message);
+        DevConsole.log(line);
+        BaseMod.logger.info(line);
     }
 
     private void cmdPresent(String[] tokens, int depth) {
@@ -686,6 +799,6 @@ public class ArtCommand extends ConsoleCommand {
     @Override
     public void errorMsg() {
         DevConsole.log(
-                "art: probe | open|bind|close <id> | gate … | ui … | fx … | assets … | frame | present combat on|off | op …");
+                "art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | assets … | frame | present combat on|off | op …");
     }
 }

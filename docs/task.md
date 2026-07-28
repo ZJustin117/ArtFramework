@@ -171,3 +171,17 @@ Does not block 16.x full-present host work.
 - [x] 17.2 Console `art ui list|tree|node|emit|invoke|listen`
 - [x] 17.3 `StsUiReflect` native dump/click whitelist
 - [x] 17.4 Device scenario + D1 smoke (optional after deploy)
+
+### 18. Lab run navigation (`art lab`)
+
+Design: [`docs/design/lab-run-nav.md`](design/lab-run-nav.md).
+
+Atomic + composite console commands to reach main menu / fresh run / embark for D1
+full-present scenarios. Lab-only (not consumer API).
+
+- [x] 18.0 Design: `lab-run-nav.md` + task / console / device-lab links
+- [x] 18.1 `LabStateSnapshot` / `LabHost` / `FakeLabHost` + `art lab dump` + JUnit
+- [x] 18.2 L1: clear-saves / strip-resume / open-char-select / char / embark / seed
+- [x] 18.3 L1: menu-click / abandon / abandon-confirm / return-menu / proceed
+- [x] 18.4 L2: ensure-menu / ensure-fresh-menu / start-run + D1 YAML (`d1_lab_*`)
+- [x] 18.5 Console `art lab …` + docs (`console-commands`, device-lab, ui-layer-verify)

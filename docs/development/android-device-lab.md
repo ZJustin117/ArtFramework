@@ -97,16 +97,22 @@ python3 "${ART_AMETHYST_TOOLS_DIR:-$SLAY_THE_AMETHYST_ROOT/scripts/tools}/main.p
   -OutDir "$ART_HARNESS_OUT_DIR" \
   -ConsoleCommand "art probe"
 # also: art ui list | art ui tree demo | art open demo …
+# lab run nav (fresh menu / embark): art lab dump | ensure-fresh-menu | start-run IRONCLAD
 ```
 
-game-probe often returns only `ok`; scrape device log for `ART_PROBE` / `ART_UI`  
+game-probe often returns only `ok`; scrape device log for `ART_PROBE` / `ART_UI` / `ART_LAB`  
 (`/sdcard/Android/data/io.stamethyst/files/sts/latest.log`) — `tools/art-verify` does this automatically.  
-Command reference: [`console-commands.md`](./console-commands.md).
+Command reference: [`console-commands.md`](./console-commands.md).  
+Lab nav design: [`lab-run-nav.md`](../design/lab-run-nav.md).
 
 8. YAML:
 
 ```bash
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_probe_smoke.yaml --device
+# lab navigation:
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_dump.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_ensure_fresh_menu.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_start_run.yaml --device
 ```
 
 ## Coexistence with CrossSpire

@@ -105,6 +105,10 @@ public final class StageHost
             } catch (Throwable ignored) {
             }
         }
+        try {
+            artframework.sts1.lab.LabRecipeRunner.tick();
+        } catch (Throwable ignored) {
+        }
         RenderHosts.get().tick(dt);
         if (Gdx.graphics != null) {
             // Always track screen size for capture UV mapping

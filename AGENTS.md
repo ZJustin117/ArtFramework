@@ -19,6 +19,7 @@
 | [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md) | Godot-aligned core API + C2 components + host SPI |
 | [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md) | UiOps / UiProbe contract |
 | [`docs/design/dev-ui-console.md`](docs/design/dev-ui-console.md) | `art ui` inspect / emit / invoke (lab) |
+| [`docs/design/lab-run-nav.md`](docs/design/lab-run-nav.md) | `art lab` menu / fresh run / embark (D1) |
 | [`docs/design/backend-context.md`](docs/design/backend-context.md) | Pluggable Backend, three faces, context frames, intents (15) |
 | [`docs/design/c2-full-present.md`](docs/design/c2-full-present.md) | C2 full present / hard-sync / surfaces (15) |
 | [`docs/design/host-assets.md`](docs/design/host-assets.md) | HostAssets ResourceId / packs / resolve (15) |

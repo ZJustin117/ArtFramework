@@ -20,13 +20,14 @@ Lab bring-up: [`android-device-lab.md`](./android-device-lab.md).
 | `art gate …` | Lab intercept BLOCK/CLEAR |
 | `art op …` | UiOps gestures (C1 + C2 sugar) |
 | `art ui …` | Inspect tree, emit signals, invoke, native dump/click |
+| `art lab …` | Lab run nav: menu / fresh / start-run (D1) |
 | `art fx …` | Full-frame effects |
 | `art assets …` | HostAssets packs / resolve |
 | `art frame` | Sync context frame from backend |
 | `art present combat …` | Combat full-present toggle |
 
 ```
-art: probe | open|bind|close <id> | gate … | ui … | fx … | assets … | frame | present combat on|off | op …
+art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | assets … | frame | present combat on|off | op …
 ```
 
 ---
@@ -198,6 +199,59 @@ Path form also works: `art ui emit demo/close pressed`.
 
 ---
 
+## Lab run navigation (`art lab`)
+
+Design: [`docs/design/lab-run-nav.md`](../design/lab-run-nav.md). Lab-only; not consumer API.
+
+Log prefix **`ART_LAB`**.
+
+### L1 atomic
+
+| Command | Description |
+|---------|-------------|
+| `art lab dump` | Mode / menuScreen / buttons / inGame / inCombat JSON |
+| `art lab clear-saves` | Delete per-class SaveAndContinue + `.backUp` |
+| `art lab strip-resume` | Remove RESUME/ABANDON menu buttons; ensure PLAY |
+| `art lab open-char-select` | `charSelectScreen.open(false)` (skips Play panel) |
+| `art lab char <id>` | Select character (class name / label; paging) |
+| `art lab embark` | Character select confirm |
+| `art lab seed [text]` | Optional seed; bare `seed` skips |
+| `art lab menu-click <RESULT>` | MenuButton by ClickResult (`PLAY`, `ABANDON_RUN`, …) |
+| `art lab abandon` | Best-effort leave run / abandon |
+| `art lab abandon-confirm` | Confirm abandon popup |
+| `art lab return-menu` | Death/victory return-to-menu |
+| `art lab proceed` | Overlay proceed hitbox |
+| `art lab tick` | One debug step toward run |
+
+### L2 recipes
+
+| Command | Description |
+|---------|-------------|
+| `art lab ensure-menu` | Arm async → main menu (postUpdate ticks) |
+| `art lab ensure-fresh-menu` / `reset` | Arm async fresh menu |
+| `art lab start-run [char] [seed=…]` | Arm async embark path |
+| `art lab status` | Recipe runner busy/status/message JSON |
+
+L2 **arms** a job and returns `OK … armed`. Wait wall-clock (YAML `wait_ms`) then
+`art lab status` / `dump` until `recipe.busy=false` and `recipe.status=ok`.
+
+Examples:
+
+```
+art lab dump
+art lab ensure-fresh-menu
+# wait ~ few seconds
+art lab status
+art lab start-run IRONCLAD
+# wait ~ 15–20s for char select + embark
+art lab status
+art lab start-run char=THE_SILENT seed=ABC12
+```
+
+Device YAML: `tests/ui-scenarios/device/d1_lab_*.yaml`.
+
+---
+
 ## Log prefixes (machine scrape)
 
 | Prefix | Source |
@@ -205,6 +259,7 @@ Path form also works: `art ui emit demo/close pressed`.
 | `ART_PROBE ` | `art probe` / assets probe JSON |
 | `ART_UI ` | `art ui` list/tree/node/emit/invoke/listen/native |
 | `ART_UI_SIGNAL ` | Lab `art ui listen` firings |
+| `ART_LAB ` | `art lab` dump / step results |
 | `ART_PRESENT ` | `art present combat …` |
 
 ---

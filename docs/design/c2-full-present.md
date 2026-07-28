@@ -34,6 +34,22 @@ separately in milestone **16**:
 
 No C2 surface is called full-present on device until its complete D1 acceptance row is green.
 
+### PresentLevel policy (16.0)
+
+| Level | Snapshot / probe | Suppress native | ART owns input |
+|-------|------------------|-----------------|----------------|
+| `OFF` | optional observe via backend bind | no | no |
+| `OBSERVE` | yes | no | no |
+| `FULL` | yes | yes when surface mounted | yes when surface mounted + executor ready |
+
+Mount alone never hides native UI. `FullPresentMode` defaults all surfaces to `OFF`.
+Console: `art present combat on|off|observe|status` (on ≡ FULL).
+
+### Strong frame views (16.0)
+
+`ContextFrame` carries `ControlsView` + `MapView` (+ `ViewportView`). Legacy
+`Map<String,Object> controls/map` fields remain probe bridges derived from the strong views.
+
 ## Purpose
 
 1. Treat game-coupled frontends (hand, drag/play, slots, buttons, skeleton, map) as

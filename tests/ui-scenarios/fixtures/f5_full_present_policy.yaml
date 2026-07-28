@@ -1,0 +1,54 @@
+# Offline fixture: full-present policy + strong frame views in probe (milestone 16.0).
+name: f5_full_present_policy
+schemaVersion: 1
+mode: fixture
+fixture: sample_full_present_probe.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: modId
+      eq: artframework
+  - assert:
+      path: projection.scene
+      eq: combat
+  - assert:
+      path: projection.sceneEpoch
+      eq: 2
+  - assert:
+      path: projection.endTurnEnabled
+      eq: true
+  - assert:
+      path: projection.handCount
+      eq: 2
+  - assert:
+      path: backend.fullPresent.combatHand
+      eq: OBSERVE
+  - assert:
+      path: backend.fullPresent.combatHandFull
+      eq: false
+  - assert:
+      path: backend.fullPresent.maySuppressNativeHand
+      eq: false
+  - assert:
+      path: backend.controls.energy
+      eq: 3
+  - assert:
+      path: backend.controls.endTurnEnabled
+      eq: true
+  - assert:
+      path: backend.controls.controls[0].id
+      eq: end_turn
+  - assert:
+      path: backend.mapView.nodeCount
+      eq: 0
+  - assert:
+      path: present[0].presentLevel
+      eq: OBSERVE
+  - assert:
+      path: present[0].fullPresent
+      eq: false
+  - assert:
+      path: present[0].maySuppressNative
+      eq: false

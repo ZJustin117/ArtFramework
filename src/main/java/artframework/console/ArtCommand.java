@@ -226,62 +226,100 @@ public class ArtCommand extends ConsoleCommand {
     }
 
     private void cmdPresent(String[] tokens, int depth) {
-        if (tokens.length < depth + 2 || !"combat".equalsIgnoreCase(tokens[depth])) {
-            DevConsole.log("Usage: art present combat on|off|status");
+        if (tokens.length <= depth) {
+            DevConsole.log("Usage: art present status|combat on|off|observe|status");
+            return;
+        }
+        String target = tokens[depth].toLowerCase();
+        if ("status".equals(target)) {
+            logPresentStatus();
+            return;
+        }
+        if (!"combat".equals(target)) {
+            DevConsole.log("Usage: art present status|combat on|off|observe|status");
+            return;
+        }
+        if (tokens.length < depth + 2) {
+            DevConsole.log("Usage: art present combat on|off|observe|status");
             return;
         }
         String action = tokens[depth + 1].toLowerCase();
         if ("status".equals(action)) {
-            String line =
-                    "ART_PRESENT combat full-present="
-                            + artframework.sts1.FullPresentMode.isCombatHandEnabled()
-                            + " suppressHand="
-                            + artframework.sts1.render.Sts1SurfaceRenderer.shouldSuppressNativeHand()
-                            + " scene="
-                            + ArtFramework.projection().scene()
-                            + " handCount="
-                            + ArtFramework.projection().listZone(artframework.context.CardZone.HAND).size();
-            DevConsole.log(line);
-            BaseMod.logger.info(line);
+            logPresentStatus();
             return;
         }
-        boolean enabled;
-        if ("on".equals(action)) {
-            enabled = true;
+        artframework.sts1.PresentLevel level;
+        if ("on".equals(action) || "full".equals(action)) {
+            level = artframework.sts1.PresentLevel.FULL;
         } else if ("off".equals(action)) {
-            enabled = false;
+            level = artframework.sts1.PresentLevel.OFF;
+        } else if ("observe".equals(action)) {
+            level = artframework.sts1.PresentLevel.OBSERVE;
         } else {
-            DevConsole.log("Usage: art present combat on|off|status");
+            DevConsole.log("Usage: art present combat on|off|observe|status");
             return;
         }
-        artframework.sts1.FullPresentMode.setCombatHandEnabled(enabled);
-        if (enabled) {
+        artframework.sts1.FullPresentMode.setCombatHandLevel(level);
+        if (level.allowsFullPresent() || level.allowsObserve()) {
             ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE).action("mount_combat");
         } else {
-            artframework.core.UiComponent hand =
-                    ArtFramework.component(artframework.context.SurfaceIds.COMBAT_HAND);
-            if (hand != null && hand.isMounted()) {
-                hand.unmount();
-            }
-            artframework.core.UiComponent slots =
-                    ArtFramework.component(artframework.context.SurfaceIds.COMBAT_CARD_SLOTS);
-            if (slots != null && slots.isMounted()) {
-                slots.unmount();
-            }
-            artframework.core.UiComponent controls =
-                    ArtFramework.component(artframework.context.SurfaceIds.COMBAT_CONTROLS);
-            if (controls != null && controls.isMounted()) {
-                controls.unmount();
-            }
-            artframework.core.UiComponent root =
-                    ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE);
-            if (root != null && root.isMounted()) {
-                root.unmount();
-            }
+            unmountCombatSurfaces();
         }
-        String line = "ART_PRESENT combat full-present=" + enabled;
+        String line =
+                "ART_PRESENT combat level="
+                        + level.name()
+                        + " full-present="
+                        + level.allowsFullPresent()
+                        + " suppressHand="
+                        + artframework.sts1.render.Sts1SurfaceRenderer.shouldSuppressNativeHand();
         DevConsole.log(line);
         BaseMod.logger.info(line);
+    }
+
+    private void logPresentStatus() {
+        java.util.Map<String, Object> policy = artframework.sts1.FullPresentMode.probeSlice();
+        String line =
+                "ART_PRESENT combat level="
+                        + policy.get("combatHand")
+                        + " full-present="
+                        + policy.get("combatHandFull")
+                        + " suppressHand="
+                        + artframework.sts1.render.Sts1SurfaceRenderer.shouldSuppressNativeHand()
+                        + " scene="
+                        + ArtFramework.projection().scene()
+                        + " epoch="
+                        + ArtFramework.projection().sceneEpoch()
+                        + " handCount="
+                        + ArtFramework.projection().listZone(artframework.context.CardZone.HAND).size()
+                        + " mapNodes="
+                        + ArtFramework.projection().map().nodeCount()
+                        + " endTurn="
+                        + ArtFramework.projection().controls().endTurnEnabled;
+        DevConsole.log(line);
+        BaseMod.logger.info(line);
+    }
+
+    private void unmountCombatSurfaces() {
+        artframework.core.UiComponent hand =
+                ArtFramework.component(artframework.context.SurfaceIds.COMBAT_HAND);
+        if (hand != null && hand.isMounted()) {
+            hand.unmount();
+        }
+        artframework.core.UiComponent slots =
+                ArtFramework.component(artframework.context.SurfaceIds.COMBAT_CARD_SLOTS);
+        if (slots != null && slots.isMounted()) {
+            slots.unmount();
+        }
+        artframework.core.UiComponent controls =
+                ArtFramework.component(artframework.context.SurfaceIds.COMBAT_CONTROLS);
+        if (controls != null && controls.isMounted()) {
+            controls.unmount();
+        }
+        artframework.core.UiComponent root =
+                ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE);
+        if (root != null && root.isMounted()) {
+            root.unmount();
+        }
     }
 
     private void cmdAssets(String[] tokens, int depth) {

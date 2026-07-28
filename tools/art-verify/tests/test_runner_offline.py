@@ -6,6 +6,7 @@ from runner import run_scenario
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f1_probe_shape.yaml"
 COMPOSITION = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f4_composition_tree.yaml"
+FULL_PRESENT = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f5_full_present_policy.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
 
 
@@ -16,6 +17,10 @@ class RunnerOfflineTest(unittest.TestCase):
 
     def test_composition_fixture_pass(self):
         r = run_scenario(COMPOSITION)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_full_present_policy_fixture_pass(self):
+        r = run_scenario(FULL_PRESENT)
         self.assertEqual(r["status"], "pass", r.get("error"))
 
     def test_device_skips_without_serial(self):

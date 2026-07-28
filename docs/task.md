@@ -148,8 +148,11 @@ Design: [`docs/design/backend-context.md`](design/backend-context.md),
 STS1 host/render/input implementation required before a surface may claim full-present D1
 coverage.
 
-- [ ] 16.0 Strong typed frame views, scene epoch, full-present capability / fallback policy
-- [ ] 16.1 `Sts1PresentationBackend` snapshot lifecycle + D1 probe (combat / map / controls)
+- [x] 16.0 Strong typed frame views (`ControlsView` / `MapView`), scene epoch policy,
+  `PresentLevel` OFF|OBSERVE|FULL + `FullPresentMode` probe; JUnit + f5 fixture
+- [x] 16.1 `Sts1PresentationBackend` strong-typed snapshot + intent gate by present level
+  (D1 probe optional; still READ_ONLY until 16.5 executor)
+- [ ] 16.1b D1 probe smoke: combat / map / controls after `art lab start-run` (optional)
 - [ ] 16.2 STS1 HostAssets resolver + real vanilla card / map / UI catalog
 - [ ] 16.3 C2 SpriteBatch renderer, layers, clip/state restoration, overlay observe mode
 - [ ] 16.4 Combat hand / slots full draw + geometry comparison D1

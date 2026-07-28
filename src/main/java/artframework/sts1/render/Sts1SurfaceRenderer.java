@@ -18,7 +18,7 @@ public final class Sts1SurfaceRenderer {
     private Sts1SurfaceRenderer() {}
 
     public static boolean shouldSuppressNativeHand() {
-        return FullPresentMode.isCombatHandEnabled()
+        return FullPresentMode.maySuppressNative(SurfaceIds.COMBAT_HAND)
                 && ArtFramework.component(SurfaceIds.COMBAT_HAND) != null
                 && ArtFramework.component(SurfaceIds.COMBAT_HAND).isMounted()
                 && "combat".equals(ArtFramework.projection().scene());

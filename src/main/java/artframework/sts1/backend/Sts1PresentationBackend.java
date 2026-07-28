@@ -7,9 +7,14 @@ import artframework.context.CardRef;
 import artframework.context.CardView;
 import artframework.context.CardZone;
 import artframework.context.ContextFrame;
+import artframework.context.ControlsView;
 import artframework.context.IntentResult;
+import artframework.context.MapNodeView;
+import artframework.context.MapView;
 import artframework.context.PresentationBackend;
 import artframework.context.UiIntent;
+import artframework.context.ViewportView;
+import artframework.sts1.FullPresentMode;
 
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.cards.CardGroup;
@@ -19,13 +24,11 @@ import com.megacrit.cardcrawl.map.MapRoomNode;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
- * STS1 read-only authority adapter. It is deliberately observation-only until the matching
- * full-present surface owns native input and has a tested intent executor.
+ * STS1 read-only authority adapter. Observation-only until the matching full-present surface owns
+ * native input and has a tested intent executor ({@link FullPresentMode#mayOwnInput}).
  */
 public final class Sts1PresentationBackend implements PresentationBackend {
 
@@ -55,7 +58,10 @@ public final class Sts1PresentationBackend implements PresentationBackend {
             String nextScene = scene();
             if (!nextScene.equals(scene)) {
                 scene = nextScene;
-                sceneEpoch++;
+                // Unavailable / empty scene must not bump epoch (16.0 policy).
+                if (!nextScene.isEmpty()) {
+                    sceneEpoch++;
+                }
             }
             frameId++;
             if ("combat".equals(scene)) {
@@ -73,7 +79,13 @@ public final class Sts1PresentationBackend implements PresentationBackend {
 
     @Override
     public IntentResult submitIntent(UiIntent intent) {
-        return IntentResult.rejected("sts1 full-present input is not enabled");
+        if (intent == null) {
+            return IntentResult.rejected("intent required");
+        }
+        if (!FullPresentMode.mayOwnInput(intent.surfaceId)) {
+            return IntentResult.rejected("sts1 full-present input is not enabled for " + intent.surfaceId);
+        }
+        return IntentResult.rejected("sts1 intent executor not implemented: " + intent.name);
     }
 
     public long sceneEpoch() {
@@ -91,40 +103,32 @@ public final class Sts1PresentationBackend implements PresentationBackend {
         append(cards, player.discardPile, CardZone.DISCARD);
         append(cards, player.exhaustPile, CardZone.EXHAUST);
 
-        Map<String, Object> controls = new LinkedHashMap<String, Object>();
-        controls.put("sceneEpoch", Long.valueOf(sceneEpoch));
-        controls.put("energy", Integer.valueOf(player.energy != null ? player.energy.energy : 0));
-        controls.put("handSize", Integer.valueOf(player.hand != null ? player.hand.size() : 0));
-        controls.put("drawSize", Integer.valueOf(player.drawPile != null ? player.drawPile.size() : 0));
-        controls.put("discardSize", Integer.valueOf(player.discardPile != null ? player.discardPile.size() : 0));
-        controls.put("exhaustSize", Integer.valueOf(player.exhaustPile != null ? player.exhaustPile.size() : 0));
         boolean endTurnEnabled = AbstractDungeon.overlayMenu != null
                 && AbstractDungeon.overlayMenu.endTurnButton != null
                 && AbstractDungeon.overlayMenu.endTurnButton.enabled;
-        controls.put("endTurnEnabled", Boolean.valueOf(endTurnEnabled));
-        controls.put("viewportWidth", Integer.valueOf(com.megacrit.cardcrawl.core.Settings.WIDTH));
-        controls.put("viewportHeight", Integer.valueOf(com.megacrit.cardcrawl.core.Settings.HEIGHT));
-        return new ContextFrame(
-                frameId,
-                sceneEpoch,
-                "combat",
-                cards,
-                controls,
-                null,
-                true,
-                new artframework.context.ViewportView(
+        boolean endTurnVisible = AbstractDungeon.overlayMenu != null
+                && AbstractDungeon.overlayMenu.endTurnButton != null;
+        ControlsView controls =
+                ControlsView.combat(
+                        player.energy != null ? player.energy.energy : 0,
+                        player.hand != null ? player.hand.size() : 0,
+                        player.drawPile != null ? player.drawPile.size() : 0,
+                        player.discardPile != null ? player.discardPile.size() : 0,
+                        player.exhaustPile != null ? player.exhaustPile.size() : 0,
+                        endTurnEnabled,
+                        endTurnVisible);
+        ViewportView viewport =
+                new ViewportView(
                         com.megacrit.cardcrawl.core.Settings.WIDTH,
                         com.megacrit.cardcrawl.core.Settings.HEIGHT,
                         com.megacrit.cardcrawl.core.Settings.WIDTH,
-                        com.megacrit.cardcrawl.core.Settings.HEIGHT));
+                        com.megacrit.cardcrawl.core.Settings.HEIGHT);
+        return new ContextFrame(
+                frameId, sceneEpoch, "combat", cards, controls, MapView.empty(), true, viewport);
     }
 
     private ContextFrame mapFrame() {
-        Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("sceneEpoch", Long.valueOf(sceneEpoch));
-        map.put("viewportWidth", Integer.valueOf(com.megacrit.cardcrawl.core.Settings.WIDTH));
-        map.put("viewportHeight", Integer.valueOf(com.megacrit.cardcrawl.core.Settings.HEIGHT));
-        List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
+        List<MapNodeView> nodes = new ArrayList<MapNodeView>();
         if (AbstractDungeon.map != null) {
             for (List<MapRoomNode> row : AbstractDungeon.map) {
                 if (row == null) {
@@ -134,33 +138,27 @@ public final class Sts1PresentationBackend implements PresentationBackend {
                     if (node == null) {
                         continue;
                     }
-                    Map<String, Object> view = new LinkedHashMap<String, Object>();
-                    view.put("row", Integer.valueOf(node.y));
-                    view.put("col", Integer.valueOf(node.x));
-                    view.put("x", Float.valueOf(node.offsetX));
-                    view.put("y", Float.valueOf(node.offsetY));
-                    view.put("taken", Boolean.valueOf(node.taken));
-                    view.put("highlighted", Boolean.valueOf(node.highlighted));
-                    view.put("symbol", node.getRoomSymbol(Boolean.FALSE));
-                    view.put("resourceId", ResourceIds.mapNode(roomKind(node)));
-                    nodes.add(view);
+                    String kind = roomKind(node);
+                    nodes.add(
+                            new MapNodeView(
+                                    node.y,
+                                    node.x,
+                                    node.offsetX,
+                                    node.offsetY,
+                                    node.taken,
+                                    node.highlighted,
+                                    node.getRoomSymbol(Boolean.FALSE),
+                                    kind,
+                                    ResourceIds.mapNode(kind)));
                 }
             }
         }
-        map.put("nodes", nodes);
+        int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        MapView map = new MapView(nodes, w, h);
+        ViewportView viewport = new ViewportView(w, h, w, h);
         return new ContextFrame(
-                frameId,
-                sceneEpoch,
-                "map",
-                null,
-                null,
-                map,
-                true,
-                new artframework.context.ViewportView(
-                        com.megacrit.cardcrawl.core.Settings.WIDTH,
-                        com.megacrit.cardcrawl.core.Settings.HEIGHT,
-                        com.megacrit.cardcrawl.core.Settings.WIDTH,
-                        com.megacrit.cardcrawl.core.Settings.HEIGHT));
+                frameId, sceneEpoch, "map", null, ControlsView.empty(), map, true, viewport);
     }
 
     private static void append(List<CardView> out, CardGroup group, CardZone zone) {

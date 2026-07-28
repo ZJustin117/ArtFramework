@@ -149,7 +149,11 @@ public final class PresentSurfaces {
             m.put("id", id);
             m.put("kind", kind().name());
             m.put("mounted", Boolean.valueOf(mounted));
-            m.put("fullPresent", Boolean.TRUE);
+            artframework.sts1.PresentLevel level = artframework.sts1.FullPresentMode.levelOf(id);
+            m.put("presentLevel", level.name());
+            m.put("fullPresent", Boolean.valueOf(level.allowsFullPresent()));
+            m.put("observe", Boolean.valueOf(level.allowsObserve()));
+            m.put("maySuppressNative", Boolean.valueOf(artframework.sts1.FullPresentMode.maySuppressNative(id)));
             m.put("actions", actions);
             m.put("signals", new ArrayList<String>(signals));
             m.putAll(FrameRuntimes.get().projection().probeSlice());
@@ -384,9 +388,11 @@ public final class PresentSurfaces {
         @Override
         public Map<String, Object> probeSlice() {
             Map<String, Object> m = baseProbe(Arrays.asList("press", "press_end_turn"));
-            Object enabled =
-                    FrameRuntimes.get().projection().lastFrame().controls.get("endTurnEnabled");
-            m.put("endTurnEnabled", enabled != null ? enabled : Boolean.TRUE);
+            ControlsView cv = FrameRuntimes.get().projection().controls();
+            m.put("endTurnEnabled", Boolean.valueOf(cv.endTurnEnabled));
+            m.put("endTurnVisible", Boolean.valueOf(cv.endTurnVisible));
+            m.put("energy", Integer.valueOf(cv.energy));
+            m.put("controls", cv.toMap().get("controls"));
             return m;
         }
     }
@@ -420,7 +426,9 @@ public final class PresentSurfaces {
         @Override
         public Map<String, Object> probeSlice() {
             Map<String, Object> m = baseProbe(Arrays.asList("click_node", "set_pins"));
-            m.put("map", FrameRuntimes.get().projection().lastFrame().map);
+            MapView mv = FrameRuntimes.get().projection().map();
+            m.put("map", mv.toMap());
+            m.put("nodeCount", Integer.valueOf(mv.nodeCount()));
             return m;
         }
     }

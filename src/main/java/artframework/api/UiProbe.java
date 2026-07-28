@@ -69,6 +69,9 @@ public final class UiProbe {
                 "suppressNativeHand",
                 Boolean.valueOf(
                         artframework.sts1.render.Sts1SurfaceRenderer.shouldSuppressNativeHand()));
+        m.put("fullPresent", artframework.sts1.FullPresentMode.probeSlice());
+        m.put("controls", ArtFramework.projection().controls().toMap());
+        m.put("mapView", ArtFramework.projection().map().toMap());
         return m;
     }
 

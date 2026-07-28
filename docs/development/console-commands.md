@@ -193,9 +193,11 @@ Path form also works: `art ui emit demo/close pressed`.
 | Command | Description |
 |---------|-------------|
 | `art frame` / `art sync` | `frames().syncFromBackend()`; logs applied/added/removed/updated |
-| `art present combat on` | Enable combat hand full-present + mount combat surface |
-| `art present combat off` | Disable + unmount combat surfaces |
-| `art present combat status` | `ART_PRESENT` line (full-present, suppressHand, scene, handCount) |
+| `art present status` | `ART_PRESENT` policy + scene/epoch/hand/map/endTurn |
+| `art present combat on` | FULL level + mount combat surfaces (may suppress when mounted) |
+| `art present combat observe` | OBSERVE level + mount (no native suppress) |
+| `art present combat off` | OFF + unmount combat surfaces |
+| `art present combat status` | Same as `art present status` |
 
 ---
 

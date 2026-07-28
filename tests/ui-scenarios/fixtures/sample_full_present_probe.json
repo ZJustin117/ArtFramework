@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "windows": {
+    "openIds": [],
+    "byId": {}
+  },
+  "templates": {
+    "mapBound": false,
+    "eventBound": false,
+    "selectGridBound": false,
+    "selectHandBound": false,
+    "endTurnBound": false
+  },
+  "map": {
+    "pins": []
+  },
+  "endTurn": {
+    "buttonEnabled": true
+  },
+  "entities": {
+    "slotCount": 0
+  },
+  "projection": {
+    "frameId": 12,
+    "sceneEpoch": 2,
+    "scene": "combat",
+    "available": true,
+    "stale": false,
+    "cardCount": 2,
+    "handCount": 2,
+    "dragInstanceId": "",
+    "endTurnEnabled": true,
+    "mapNodeCount": 0,
+    "viewportWidth": 1920,
+    "viewportHeight": 1080
+  },
+  "backend": {
+    "id": "fake",
+    "mode": "FULL_CONTROL",
+    "frameId": 12,
+    "sceneEpoch": 2,
+    "available": true,
+    "scene": "combat",
+    "combatHandPresent": false,
+    "suppressNativeHand": false,
+    "fullPresent": {
+      "combatHand": "OBSERVE",
+      "combatControls": "OFF",
+      "map": "OFF",
+      "skeleton": "OFF",
+      "combatHandFull": false,
+      "maySuppressNativeHand": false
+    },
+    "controls": {
+      "energy": 3,
+      "handSize": 2,
+      "drawSize": 10,
+      "discardSize": 0,
+      "exhaustSize": 0,
+      "endTurnEnabled": true,
+      "endTurnVisible": true,
+      "controls": [
+        {
+          "id": "end_turn",
+          "text": "End Turn",
+          "iconResourceId": "",
+          "visible": true,
+          "enabled": true
+        }
+      ]
+    },
+    "mapView": {
+      "viewportWidth": 0,
+      "viewportHeight": 0,
+      "nodeCount": 0,
+      "nodes": []
+    }
+  },
+  "present": [
+    {
+      "id": "sts1.combat.hand",
+      "kind": "NATIVE_HOST",
+      "mounted": true,
+      "presentLevel": "OBSERVE",
+      "fullPresent": false,
+      "observe": true,
+      "maySuppressNative": false,
+      "handCount": 2
+    }
+  ]
+}

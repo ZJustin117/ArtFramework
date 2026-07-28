@@ -157,27 +157,26 @@ public class BackendContextTest {
     @Test
     public void sceneEpochClearsPreviousCardsAndDrag() {
         ArtFramework.applyFrame(
-                new ContextFrame(
+                ContextFrame.of(
                         5L,
                         1L,
                         "combat",
                         Arrays.asList(CardView.builder(new CardRef("combat-card", "Strike_R")).build()),
-                        null,
-                        null,
-                        true,
+                        ControlsView.empty(),
+                        MapView.empty(),
                         new ViewportView(1920, 1080, 1920, 1080)));
         ArtFramework.projection().setDragInstanceId("combat-card");
 
-        FrameDiff diff = ArtFramework.applyFrame(
-                new ContextFrame(
-                        1L,
-                        2L,
-                        "map",
-                        Arrays.<CardView>asList(),
-                        null,
-                        null,
-                        true,
-                        new ViewportView(1920, 1080, 1920, 1080)));
+        FrameDiff diff =
+                ArtFramework.applyFrame(
+                        ContextFrame.of(
+                                1L,
+                                2L,
+                                "map",
+                                Arrays.<CardView>asList(),
+                                ControlsView.empty(),
+                                MapView.empty(),
+                                new ViewportView(1920, 1080, 1920, 1080)));
         assertTrue(diff.applied);
         assertEquals(0, ArtFramework.projection().size());
         assertNull(ArtFramework.projection().dragInstanceId());

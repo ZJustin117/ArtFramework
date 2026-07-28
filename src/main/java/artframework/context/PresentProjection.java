@@ -155,6 +155,18 @@ public final class PresentProjection {
         lastFrame = ContextFrame.unavailable(0L);
     }
 
+    public ControlsView controls() {
+        return lastFrame.controlsView;
+    }
+
+    public MapView map() {
+        return lastFrame.mapView;
+    }
+
+    public ViewportView viewport() {
+        return lastFrame.viewport;
+    }
+
     public Map<String, Object> probeSlice() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("frameId", Long.valueOf(lastFrameId));
@@ -165,6 +177,10 @@ public final class PresentProjection {
         m.put("cardCount", Integer.valueOf(byInstance.size()));
         m.put("handCount", Integer.valueOf(listZone(CardZone.HAND).size()));
         m.put("dragInstanceId", dragInstanceId != null ? dragInstanceId : "");
+        m.put("endTurnEnabled", Boolean.valueOf(lastFrame.controlsView.endTurnEnabled));
+        m.put("mapNodeCount", Integer.valueOf(lastFrame.mapView.nodeCount()));
+        m.put("viewportWidth", Integer.valueOf(lastFrame.viewport.logicalWidth));
+        m.put("viewportHeight", Integer.valueOf(lastFrame.viewport.logicalHeight));
         return m;
     }
 }

@@ -61,8 +61,64 @@ public class PresentSurfacesTest {
         assertEquals(1f, ArtFramework.projection().get("h1").pose.x, 0.01f);
 
         java.util.Map<String, Object> slice = hand.probeSlice();
-        assertEquals(Boolean.TRUE, slice.get("fullPresent"));
+        // Default policy is OFF — mount alone is not full-present (16.0).
+        assertEquals(Boolean.FALSE, slice.get("fullPresent"));
+        assertEquals("OFF", slice.get("presentLevel"));
         assertNotNull(slice.get("hand"));
+    }
+
+    @Test
+    public void fullPresentLevelReflectedInProbe() {
+        FakeBackend backend = new FakeBackend();
+        mountCombatWithTwoStrikes(backend);
+        artframework.sts1.FullPresentMode.setCombatHandLevel(artframework.sts1.PresentLevel.FULL);
+        java.util.Map<String, Object> slice =
+                ArtFramework.component(SurfaceIds.COMBAT_HAND).probeSlice();
+        assertEquals("FULL", slice.get("presentLevel"));
+        assertEquals(Boolean.TRUE, slice.get("fullPresent"));
+        assertEquals(Boolean.TRUE, slice.get("maySuppressNative"));
+    }
+
+    @Test
+    public void controlsAndMapStrongViewsInProbe() {
+        FakeBackend backend = new FakeBackend();
+        ArtFramework.bindPresentationBackend(backend);
+        ControlsView controls = ControlsView.combat(3, 2, 5, 1, 0, true, true);
+        MapView map =
+                new MapView(
+                        java.util.Collections.singletonList(
+                                new MapNodeView(
+                                        2,
+                                        1,
+                                        5f,
+                                        6f,
+                                        false,
+                                        true,
+                                        "E",
+                                        "elite",
+                                        ResourceIds.mapNode("elite"))),
+                        1280,
+                        720);
+        backend.pushFrame(
+                ContextFrame.of(
+                        1L,
+                        1L,
+                        "map",
+                        java.util.Collections.<CardView>emptyList(),
+                        controls,
+                        map,
+                        new ViewportView(1280, 720, 1280, 720)));
+        ArtFramework.frames().syncFromBackend();
+        ArtFramework.component(SurfaceIds.COMBAT_CONTROLS).mount();
+        ArtFramework.component(SurfaceIds.MAP).mount();
+
+        java.util.Map<String, Object> cProbe =
+                ArtFramework.component(SurfaceIds.COMBAT_CONTROLS).probeSlice();
+        assertEquals(Boolean.TRUE, cProbe.get("endTurnEnabled"));
+        assertEquals(Integer.valueOf(3), cProbe.get("energy"));
+
+        java.util.Map<String, Object> mProbe = ArtFramework.component(SurfaceIds.MAP).probeSlice();
+        assertEquals(Integer.valueOf(1), mProbe.get("nodeCount"));
     }
 
     @Test

@@ -199,6 +199,9 @@ Path form also works: `art ui emit demo/close pressed`.
 | `art present combat off` | OFF + unmount combat surfaces |
 | `art present combat status` | Same as `art present status` |
 
+Probe extras (via `art probe`): `backend.fullPresent`, `backend.renderPlan`, `backend.handDraw`,
+`backend.controls`, `backend.mapView`.
+
 ---
 
 ## Lab run navigation (`art lab`)

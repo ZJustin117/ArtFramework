@@ -24,7 +24,7 @@ steps:
       eq: 2
   - assert:
       path: backend.fullPresent.combatHand
-      eq: OBSERVE
+      eq: "OBSERVE"
   - assert:
       path: backend.fullPresent.combatHandFull
       eq: false
@@ -45,7 +45,7 @@ steps:
       eq: 0
   - assert:
       path: present[0].presentLevel
-      eq: OBSERVE
+      eq: "OBSERVE"
   - assert:
       path: present[0].fullPresent
       eq: false

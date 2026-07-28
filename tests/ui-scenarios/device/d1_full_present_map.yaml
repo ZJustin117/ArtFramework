@@ -28,10 +28,10 @@ steps:
       eq: sts1
   - assert:
       path: backend.fullPresent.map
-      eq: OBSERVE
+      eq: "OBSERVE"
   - assert:
       path: backend.mapDraw
       exists: true
   - assert:
       path: backend.mapDraw.presentLevel
-      eq: OBSERVE
+      eq: "OBSERVE"

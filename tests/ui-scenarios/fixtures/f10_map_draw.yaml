@@ -8,7 +8,7 @@ steps:
       eq: 2
   - assert:
       path: backend.mapDraw.presentLevel
-      eq: FULL
+      eq: "FULL"
   - assert:
       path: backend.mapDraw.suppressNativeMap
       eq: true

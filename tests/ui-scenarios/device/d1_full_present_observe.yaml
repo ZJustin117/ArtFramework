@@ -29,7 +29,7 @@ steps:
       eq: sts1
   - assert:
       path: backend.fullPresent.combatHand
-      eq: OBSERVE
+      eq: "OBSERVE"
   - assert:
       path: backend.fullPresent.combatHandFull
       eq: false

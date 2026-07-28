@@ -32,7 +32,7 @@ steps:
       eq: sts1
   - assert:
       path: backend.fullPresent.combatHand
-      eq: FULL
+      eq: "FULL"
   - assert:
       path: backend.fullPresent.combatHandFull
       eq: true

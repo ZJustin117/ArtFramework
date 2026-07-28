@@ -24,7 +24,7 @@ steps:
       eq: true
   - assert:
       path: backend.fullPresent.combatHand
-      eq: OFF
+      eq: "OFF"
   - assert:
       path: backend.fullPresent.maySuppressNativeHand
       eq: false

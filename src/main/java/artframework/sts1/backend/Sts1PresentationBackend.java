@@ -79,13 +79,7 @@ public final class Sts1PresentationBackend implements PresentationBackend {
 
     @Override
     public IntentResult submitIntent(UiIntent intent) {
-        if (intent == null) {
-            return IntentResult.rejected("intent required");
-        }
-        if (!FullPresentMode.mayOwnInput(intent.surfaceId)) {
-            return IntentResult.rejected("sts1 full-present input is not enabled for " + intent.surfaceId);
-        }
-        return IntentResult.rejected("sts1 intent executor not implemented: " + intent.name);
+        return artframework.sts1.input.CombatInputRouter.executeIfOwned(intent);
     }
 
     public long sceneEpoch() {

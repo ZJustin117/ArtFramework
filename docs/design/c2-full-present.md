@@ -57,6 +57,13 @@ Console: `art present combat on|off|observe|status` (on ≡ FULL).
 visible). `BatchStateGuard` + `ClipRect` bookkeep host SpriteBatch restore without leaking GL
 into pure tests. Probe: `backend.renderPlan`.
 
+### Input router (16.5)
+
+`CombatInputRouter` gates drag/play/end-turn when `PresentLevel.FULL` + mounted; submits
+`UiIntent` through FrameRuntime intercept. `IntentExecutor` SPI + `RecordingIntentExecutor`
+for tests; STS1 backend `submitIntent` → `executeIfOwned`. Live useCard executor is 16.5b.
+Probe: `backend.input`.
+
 ## Purpose
 
 1. Treat game-coupled frontends (hand, drag/play, slots, buttons, skeleton, map) as

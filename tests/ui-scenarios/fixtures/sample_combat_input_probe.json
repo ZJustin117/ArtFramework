@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "backend": {
+    "input": {
+      "suppressNativeInput": true,
+      "handOwnsInput": true,
+      "controlsOwnInput": false,
+      "dragInstanceId": ""
+    }
+  }
+}

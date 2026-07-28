@@ -1,0 +1,15 @@
+# Offline fixture: combat input router probe (milestone 16.5).
+name: f8_combat_input_router
+schemaVersion: 1
+mode: fixture
+fixture: sample_combat_input_probe.json
+steps:
+  - assert:
+      path: backend.input.handOwnsInput
+      eq: true
+  - assert:
+      path: backend.input.suppressNativeInput
+      eq: true
+  - assert:
+      path: backend.input.controlsOwnInput
+      eq: false

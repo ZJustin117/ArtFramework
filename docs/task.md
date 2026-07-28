@@ -160,7 +160,10 @@ coverage.
 - [x] 16.4 Hand draw path + geometry compare (pure JUnit); host applies projection pose
   before card.render; D1 geometry fixture optional later
 - [ ] 16.4b D1 geometry comparison fixture (optional after deploy)
-- [ ] 16.5 Combat input router, drag / target / play executor, native input/display suppression
+- [x] 16.5 CombatInputRouter + IntentExecutor SPI + RecordingIntentExecutor JUnit;
+  Sts1PresentationBackend delegates submitIntent; native input suppress flag
+  (live STS play/drag executor host body still thin — uses Fake/Recording in tests)
+- [ ] 16.5b Live STS1 IntentExecutor (useCard / drag host) + input suppress patches
 - [ ] 16.6 Controls full draw / end-turn executor / suppression
 - [ ] 16.7 Map full draw / pan-zoom / node executor / suppression
 - [ ] 16.8 Skeleton and ART UI audio bridges, lifecycle / Android recreation cleanup

@@ -245,6 +245,7 @@ public final class ArtFramework {
         artframework.sts1.FullPresentMode.resetForTests();
         artframework.sts1.assets.Sts1HostAssets.resetForTests();
         artframework.sts1.render.Sts1RenderPipeline.resetForTests();
+        artframework.sts1.input.CombatInputRouter.resetForTests();
         artframework.inspect.UiLabListeners.resetForTests();
     }
 

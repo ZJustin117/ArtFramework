@@ -9,6 +9,7 @@ COMPOSITION = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f4_composition_tre
 FULL_PRESENT = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f5_full_present_policy.yaml"
 STS1_ASSETS = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f6_sts1_assets_catalog.yaml"
 HAND_DRAW = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f7_hand_draw_geometry.yaml"
+COMBAT_INPUT = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f8_combat_input_router.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
 
 
@@ -31,6 +32,10 @@ class RunnerOfflineTest(unittest.TestCase):
 
     def test_hand_draw_geometry_fixture_pass(self):
         r = run_scenario(HAND_DRAW)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_combat_input_router_fixture_pass(self):
+        r = run_scenario(COMBAT_INPUT)
         self.assertEqual(r["status"], "pass", r.get("error"))
 
     def test_device_skips_without_serial(self):

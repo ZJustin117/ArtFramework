@@ -113,6 +113,9 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_probe_smoke.yaml --
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_dump.yaml --device
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_ensure_fresh_menu.yaml --device
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_start_run.yaml --device
+# full-present policy (after jar deploy + cold start READY):
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_observe.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_combat_on.yaml --device
 ```
 
 ## Coexistence with CrossSpire

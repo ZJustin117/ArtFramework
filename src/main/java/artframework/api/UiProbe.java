@@ -43,8 +43,33 @@ public final class UiProbe {
         components.addAll(artframework.c1.SyntheticComponents.probeAll());
         components.addAll(NativeComponents.probeAll());
         root.put("components", components);
+        root.put("present", artframework.context.PresentSurfaces.probeAll());
+        root.put("projection", ArtFramework.projection().probeSlice());
+        root.put("backend", backendMap());
+        root.put("assets", ArtFramework.assets().probeAssets());
         root.put("host", hostMap());
         return root;
+    }
+
+    private static Map<String, Object> backendMap() {
+        artframework.context.PresentationBackend b = ArtFramework.presentationBackend();
+        Map<String, Object> m = new LinkedHashMap<String, Object>();
+        m.put("id", b.id());
+        m.put("mode", b.mode().name());
+        // Prefer last applied projection frame — do not call snapshot() here (side-effecting).
+        artframework.context.PresentProjection proj = ArtFramework.projection();
+        m.put("frameId", Long.valueOf(proj.lastFrameId()));
+        m.put("sceneEpoch", Long.valueOf(proj.sceneEpoch()));
+        m.put("available", Boolean.valueOf(proj.isAvailable()));
+        m.put("scene", proj.scene());
+        m.put(
+                "combatHandPresent",
+                Boolean.valueOf(artframework.sts1.FullPresentMode.isCombatHandEnabled()));
+        m.put(
+                "suppressNativeHand",
+                Boolean.valueOf(
+                        artframework.sts1.render.Sts1SurfaceRenderer.shouldSuppressNativeHand()));
+        return m;
     }
 
     private static Map<String, Object> hostMap() {

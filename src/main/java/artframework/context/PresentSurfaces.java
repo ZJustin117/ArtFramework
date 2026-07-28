@@ -1,0 +1,512 @@
+package artframework.context;
+
+import artframework.api.UiOpResult;
+import artframework.assets.AssetResolveResult;
+import artframework.assets.HostAssetsHolder;
+import artframework.core.ComponentKind;
+import artframework.core.SignalHandler;
+import artframework.core.SignalHub;
+import artframework.core.SignalNames;
+import artframework.core.UiComponent;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Full-present C2 surfaces driven by {@link FrameRuntime} projection (milestone 15).
+ */
+public final class PresentSurfaces {
+
+    private static final Map<String, UiComponent> BY_ID = new LinkedHashMap<String, UiComponent>();
+    private static final SignalHub HUB = new SignalHub();
+
+    static {
+        register(new HandSurface());
+        register(new CardSlotsSurface());
+        register(new ControlsSurface());
+        register(new MapSurface());
+        register(new SkeletonSurface());
+        register(new CombatRootSurface());
+    }
+
+    private PresentSurfaces() {}
+
+    private static void register(UiComponent c) {
+        BY_ID.put(c.id(), c);
+    }
+
+    public static UiComponent get(String id) {
+        if (id == null) {
+            return null;
+        }
+        String canon = SurfaceIds.canonicalize(id);
+        UiComponent c = BY_ID.get(canon);
+        if (c != null) {
+            return c;
+        }
+        return BY_ID.get(id);
+    }
+
+    public static List<String> ids() {
+        return Collections.unmodifiableList(new ArrayList<String>(BY_ID.keySet()));
+    }
+
+    public static List<Map<String, Object>> probeAll() {
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+        for (UiComponent c : BY_ID.values()) {
+            out.add(c.probeSlice());
+        }
+        return out;
+    }
+
+    public static void resetForTests() {
+        HUB.clear();
+        for (UiComponent c : BY_ID.values()) {
+            if (c.isMounted()) {
+                c.unmount();
+            }
+        }
+    }
+
+    public static void emit(String id, String signal, Object... args) {
+        UiComponent c = get(id);
+        if (c != null) {
+            c.emit(signal, args);
+        }
+    }
+
+    abstract static class BaseSurface implements UiComponent {
+        private final String id;
+        private final Set<String> signals;
+        private boolean mounted;
+
+        BaseSurface(String id, String... signalNames) {
+            this.id = id;
+            this.signals = new HashSet<String>(Arrays.asList(signalNames));
+        }
+
+        @Override
+        public String id() {
+            return id;
+        }
+
+        @Override
+        public ComponentKind kind() {
+            return ComponentKind.NATIVE_HOST;
+        }
+
+        @Override
+        public boolean isMounted() {
+            return mounted;
+        }
+
+        @Override
+        public void mount() {
+            mounted = true;
+        }
+
+        @Override
+        public void unmount() {
+            mounted = false;
+            HUB.clearInstance(id);
+            if (SurfaceIds.COMBAT_HAND.equals(id)) {
+                FrameRuntimes.get().projection().clearDrag();
+            }
+        }
+
+        @Override
+        public void connect(String signal, SignalHandler handler) {
+            requireSignal(signal);
+            HUB.connect(id, signal, handler);
+        }
+
+        @Override
+        public void disconnect(String signal, SignalHandler handler) {
+            HUB.disconnect(id, signal, handler);
+        }
+
+        @Override
+        public void emit(String signal, Object... args) {
+            requireSignal(signal);
+            HUB.emit(id, signal, args);
+        }
+
+        private void requireSignal(String signal) {
+            if (signal == null || !signals.contains(signal)) {
+                throw new IllegalArgumentException(
+                        "undeclared signal \"" + signal + "\" on surface \"" + id + "\"");
+            }
+        }
+
+        Map<String, Object> baseProbe(List<String> actions) {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("id", id);
+            m.put("kind", kind().name());
+            m.put("mounted", Boolean.valueOf(mounted));
+            m.put("fullPresent", Boolean.TRUE);
+            m.put("actions", actions);
+            m.put("signals", new ArrayList<String>(signals));
+            m.putAll(FrameRuntimes.get().projection().probeSlice());
+            return m;
+        }
+
+        protected IntentResult submit(String intentName, Object... args) {
+            return FrameRuntimes.get()
+                    .submitIntent(UiIntent.of(intentName, id, args));
+        }
+
+        protected static UiOpResult toOp(IntentResult r) {
+            if (r == null) {
+                return UiOpResult.unavailable("no result");
+            }
+            if (r.status == IntentResult.Status.ACCEPTED) {
+                return UiOpResult.ok(r.message);
+            }
+            if (r.status == IntentResult.Status.QUEUED) {
+                return UiOpResult.ok("queued:" + r.message);
+            }
+            if (r.message != null && r.message.startsWith("blocked:")) {
+                return UiOpResult.blocked(r.message);
+            }
+            return UiOpResult.unavailable(r.message);
+        }
+    }
+
+    static final class HandSurface extends BaseSurface {
+        HandSurface() {
+            super(
+                    SurfaceIds.COMBAT_HAND,
+                    SignalNames.PRESSED,
+                    SignalNames.CARD_PRESSED,
+                    SignalNames.DRAG_STARTED,
+                    SignalNames.DRAG_MOVED,
+                    SignalNames.DRAG_ENDED,
+                    SignalNames.PLAY_REQUESTED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if (!isMounted()) {
+                return UiOpResult.notBound("hand surface not mounted");
+            }
+            PresentProjection proj = FrameRuntimes.get().projection();
+            if ("begin_drag".equals(name) || IntentNames.BEGIN_DRAG.equals(name)) {
+                String instanceId = argString(args, 0);
+                CardEntity e = proj.get(instanceId);
+                if (e == null) {
+                    return UiOpResult.unavailable("unknown card instance: " + instanceId);
+                }
+                IntentResult r = submit(IntentNames.BEGIN_DRAG, instanceId);
+                if (r.isAccepted()) {
+                    proj.setDragInstanceId(instanceId);
+                    emit(SignalNames.DRAG_STARTED, instanceId);
+                }
+                return toOp(r);
+            }
+            if ("move_drag".equals(name) || IntentNames.MOVE_DRAG.equals(name)) {
+                String instanceId = argString(args, 0);
+                float x = argFloat(args, 1);
+                float y = argFloat(args, 2);
+                IntentResult r = submit(IntentNames.MOVE_DRAG, instanceId, Float.valueOf(x), Float.valueOf(y));
+                if (r.isAccepted()) {
+                    emit(SignalNames.DRAG_MOVED, instanceId, Float.valueOf(x), Float.valueOf(y));
+                }
+                return toOp(r);
+            }
+            if ("drop_card".equals(name) || IntentNames.DROP_CARD.equals(name)) {
+                String instanceId = argString(args, 0);
+                String target = argString(args, 1);
+                IntentResult r = submit(IntentNames.DROP_CARD, instanceId, target);
+                if (r.isAccepted()) {
+                    proj.clearDrag();
+                    emit(SignalNames.DRAG_ENDED, instanceId, target);
+                }
+                return toOp(r);
+            }
+            if ("cancel_drag".equals(name) || IntentNames.CANCEL_DRAG.equals(name)) {
+                String instanceId = argString(args, 0);
+                IntentResult r = submit(IntentNames.CANCEL_DRAG, instanceId);
+                proj.clearDrag();
+                if (r.isAccepted()) {
+                    emit(SignalNames.DRAG_ENDED, instanceId, "cancel");
+                }
+                return toOp(r);
+            }
+            if ("play_card".equals(name) || IntentNames.PLAY_CARD.equals(name)) {
+                Object refOrId = args != null && args.length > 0 ? args[0] : null;
+                String target = argString(args, 1);
+                CardRef ref;
+                if (refOrId instanceof CardRef) {
+                    ref = (CardRef) refOrId;
+                } else {
+                    String instanceId = refOrId != null ? String.valueOf(refOrId) : "";
+                    if (instanceId.isEmpty()) {
+                        return UiOpResult.unavailable("CardRef or instanceId required");
+                    }
+                    CardEntity e = proj.get(instanceId);
+                    String cardId = e != null ? e.cardId : "";
+                    if (e == null) {
+                        // treat as type id lookup in hand
+                        for (CardEntity h : proj.listZone(CardZone.HAND)) {
+                            if (instanceId.equals(h.cardId)) {
+                                e = h;
+                                break;
+                            }
+                        }
+                        if (e != null) {
+                            ref = new CardRef(e.instanceId, e.cardId);
+                        } else {
+                            ref = new CardRef(instanceId, cardId);
+                        }
+                    } else {
+                        ref = new CardRef(e.instanceId, cardId);
+                    }
+                }
+                IntentResult r = submit(IntentNames.PLAY_CARD, ref, target);
+                if (r.isAccepted()) {
+                    emit(SignalNames.PLAY_REQUESTED, ref.instanceId, target);
+                }
+                return toOp(r);
+            }
+            if ("sync_frame".equals(name)) {
+                FrameDiff d = FrameRuntimes.get().syncFromBackend();
+                return d.applied ? UiOpResult.ok("frame " + proj.lastFrameId()) : UiOpResult.unavailable(d.message);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m =
+                    baseProbe(
+                            Arrays.asList(
+                                    "begin_drag",
+                                    "move_drag",
+                                    "drop_card",
+                                    "cancel_drag",
+                                    "play_card",
+                                    "sync_frame"));
+            List<Map<String, Object>> hand = new ArrayList<Map<String, Object>>();
+            for (CardEntity e : FrameRuntimes.get().projection().listZone(CardZone.HAND)) {
+                Map<String, Object> row = new LinkedHashMap<String, Object>();
+                row.put("instanceId", e.instanceId);
+                row.put("cardId", e.cardId);
+                row.put("slot", Integer.valueOf(e.slotIndex));
+                row.put("x", Float.valueOf(e.pose.x));
+                row.put("y", Float.valueOf(e.pose.y));
+                row.put("art", e.artResourceId);
+                AssetResolveResult art =
+                        HostAssetsHolder.get().resolve(e.artResourceId);
+                row.put("artPack", art.packId);
+                row.put("artFound", Boolean.valueOf(art.found));
+                hand.add(row);
+            }
+            m.put("hand", hand);
+            return m;
+        }
+    }
+
+    static final class CardSlotsSurface extends BaseSurface {
+        CardSlotsSurface() {
+            super(SurfaceIds.COMBAT_CARD_SLOTS, SignalNames.CARD_SELECTED, SignalNames.SLOT_CHANGED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if (!isMounted()) {
+                return UiOpResult.notBound("card_slots not mounted");
+            }
+            if ("select_card".equals(name) || IntentNames.SELECT_CARD.equals(name)) {
+                String instanceId = argString(args, 0);
+                IntentResult r = submit(IntentNames.SELECT_CARD, instanceId);
+                if (r.isAccepted()) {
+                    emit(SignalNames.CARD_SELECTED, instanceId);
+                }
+                return toOp(r);
+            }
+            if ("inspect_slot".equals(name)) {
+                String instanceId = argString(args, 0);
+                CardEntity e = FrameRuntimes.get().projection().get(instanceId);
+                return e != null
+                        ? UiOpResult.ok(e.zone + ":" + e.slotIndex)
+                        : UiOpResult.unavailable("no slot for " + instanceId);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("select_card", "inspect_slot"));
+            m.put("zones", zoneCounts());
+            return m;
+        }
+
+        private static Map<String, Object> zoneCounts() {
+            Map<String, Object> z = new LinkedHashMap<String, Object>();
+            PresentProjection p = FrameRuntimes.get().projection();
+            for (CardZone zone : CardZone.values()) {
+                z.put(zone.name(), Integer.valueOf(p.listZone(zone).size()));
+            }
+            return z;
+        }
+    }
+
+    static final class ControlsSurface extends BaseSurface {
+        ControlsSurface() {
+            super(SurfaceIds.COMBAT_CONTROLS, SignalNames.PRESSED, SignalNames.ENABLED_CHANGED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if (!isMounted()) {
+                return UiOpResult.notBound("controls not mounted");
+            }
+            if ("press".equals(name)
+                    || IntentNames.PRESS.equals(name)
+                    || "press_end_turn".equals(name)
+                    || IntentNames.PRESS_END_TURN.equals(name)
+                    || "pressEndTurn".equals(name)) {
+                IntentResult r = submit(IntentNames.PRESS_END_TURN);
+                if (r.isAccepted()) {
+                    emit(SignalNames.PRESSED);
+                }
+                return toOp(r);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("press", "press_end_turn"));
+            Object enabled =
+                    FrameRuntimes.get().projection().lastFrame().controls.get("endTurnEnabled");
+            m.put("endTurnEnabled", enabled != null ? enabled : Boolean.TRUE);
+            return m;
+        }
+    }
+
+    static final class MapSurface extends BaseSurface {
+        MapSurface() {
+            super(SurfaceIds.MAP, SignalNames.NODE_CLICKED, SignalNames.NODE_HOVERED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if (!isMounted()) {
+                return UiOpResult.notBound("map surface not mounted");
+            }
+            if ("click_node".equals(name)
+                    || "clickMapNode".equals(name)
+                    || IntentNames.CLICK_MAP_NODE.equals(name)) {
+                Object node = args != null && args.length > 0 ? args[0] : null;
+                IntentResult r = submit(IntentNames.CLICK_MAP_NODE, node);
+                if (r.isAccepted()) {
+                    emit(SignalNames.NODE_CLICKED, node);
+                }
+                return toOp(r);
+            }
+            if ("set_pins".equals(name)) {
+                return UiOpResult.ok("pins decorative only");
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("click_node", "set_pins"));
+            m.put("map", FrameRuntimes.get().projection().lastFrame().map);
+            return m;
+        }
+    }
+
+    static final class SkeletonSurface extends BaseSurface {
+        SkeletonSurface() {
+            super(SurfaceIds.SKELETON, SignalNames.FINISHED, SignalNames.SKELETON_EVENT);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if (!isMounted()) {
+                return UiOpResult.notBound("skeleton surface not mounted");
+            }
+            if ("play".equals(name) || "stop".equals(name) || "set_transform".equals(name)) {
+                IntentResult r = submit(name, args);
+                if (r.isAccepted() && "play".equals(name)) {
+                    // finished is host-driven later; acknowledge play only
+                }
+                return toOp(r);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            return baseProbe(Arrays.asList("play", "stop", "set_transform"));
+        }
+    }
+
+    static final class CombatRootSurface extends BaseSurface {
+        CombatRootSurface() {
+            super(SurfaceIds.COMBAT_SURFACE, SignalNames.SURFACE_OPENED, SignalNames.SURFACE_CLOSED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("attach_overlay".equals(name)) {
+                if (!isMounted()) {
+                    mount();
+                    emit(SignalNames.SURFACE_OPENED);
+                }
+                return UiOpResult.ok("overlay attached");
+            }
+            if ("detach_overlay".equals(name)) {
+                if (isMounted()) {
+                    unmount();
+                    emit(SignalNames.SURFACE_CLOSED);
+                }
+                return UiOpResult.ok("overlay detached");
+            }
+            if ("mount_combat".equals(name)) {
+                PresentSurfaces.get(SurfaceIds.COMBAT_HAND).mount();
+                PresentSurfaces.get(SurfaceIds.COMBAT_CARD_SLOTS).mount();
+                PresentSurfaces.get(SurfaceIds.COMBAT_CONTROLS).mount();
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("combat surfaces mounted");
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            return baseProbe(Arrays.asList("attach_overlay", "detach_overlay", "mount_combat"));
+        }
+    }
+
+    private static String argString(Object[] args, int i) {
+        if (args == null || i >= args.length || args[i] == null) {
+            return "";
+        }
+        return String.valueOf(args[i]);
+    }
+
+    private static float argFloat(Object[] args, int i) {
+        if (args == null || i >= args.length || args[i] == null) {
+            return 0f;
+        }
+        if (args[i] instanceof Number) {
+            return ((Number) args[i]).floatValue();
+        }
+        try {
+            return Float.parseFloat(String.valueOf(args[i]));
+        } catch (NumberFormatException e) {
+            return 0f;
+        }
+    }
+}

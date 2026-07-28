@@ -11,6 +11,7 @@ import artframework.c1.host.StageHost;
 import artframework.c2.NativeTemplateIds;
 import artframework.console.ArtCommand;
 import artframework.ops.StsNativeOps;
+import artframework.sts1.backend.Sts1PresentationBackend;
 
 /**
  * ModTheSpire entry: registers demo + native templates; installs C1 StageHost, STS ops, console.
@@ -40,6 +41,7 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
     @Override
     public void receivePostInitialize() {
         ArtFramework.setNativeOpsBackend(StsNativeOps.INSTANCE);
+        ArtFramework.bindPresentationBackend(Sts1PresentationBackend.INSTANCE);
         ArtFramework.register(new WindowDef(DEMO_ID, WindowClass.SYNTHETIC, "layouts/demo.json"));
         ArtFramework.register(
                 new WindowDef("comp_sample", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));
@@ -50,7 +52,8 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
         registerNative(NativeTemplateIds.SELECT_GRID);
         registerNative(NativeTemplateIds.SELECT_HAND);
         registerNative(NativeTemplateIds.END_TURN);
-        BaseMod.logger.info("ArtFramework: demo + native templates + StsNativeOps + art console");
+        BaseMod.logger.info(
+                "ArtFramework: demo + native templates + StsNativeOps + STS1 frame backend + art console");
     }
 
     private static void registerNative(String id) {

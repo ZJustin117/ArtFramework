@@ -21,6 +21,16 @@ public final class SignalNames {
     public static final String STARTED = "started";
     public static final String FINISHED = "finished";
     public static final String CANCELLED = "cancelled";
+    public static final String CARD_PRESSED = "card_pressed";
+    public static final String DRAG_STARTED = "drag_started";
+    public static final String DRAG_MOVED = "drag_moved";
+    public static final String DRAG_ENDED = "drag_ended";
+    public static final String PLAY_REQUESTED = "play_requested";
+    public static final String SLOT_CHANGED = "slot_changed";
+    public static final String NODE_HOVERED = "node_hovered";
+    public static final String ENABLED_CHANGED = "enabled_changed";
+    public static final String SURFACE_OPENED = "surface_opened";
+    public static final String SURFACE_CLOSED = "surface_closed";
 
     private SignalNames() {}
 }

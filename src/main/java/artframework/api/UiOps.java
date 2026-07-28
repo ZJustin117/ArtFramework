@@ -154,14 +154,46 @@ public final class UiOps {
     }
 
     /**
-     * Combat hand play <strong>gesture</strong> only — no queue/protocol.
-     * Does not require a template bind (optional consumer intercept later).
+     * Combat hand play: prefers full-present {@code play_card} on hand surface when mounted;
+     * otherwise legacy gesture backend (no queue/protocol).
      */
     public UiOpResult playHandCard(String cardId, String target) {
         if (cardId == null || cardId.isEmpty()) {
             return UiOpResult.unavailable("cardId required");
         }
+        UiComponent hand =
+                ArtFramework.component(artframework.context.SurfaceIds.COMBAT_HAND);
+        if (hand != null && hand.isMounted()) {
+            artframework.context.CardEntity match = null;
+            for (artframework.context.CardEntity e :
+                    artframework.context.FrameRuntimes.get().projection().listZone(
+                            artframework.context.CardZone.HAND)) {
+                if (cardId.equals(e.cardId)) {
+                    match = e;
+                    break;
+                }
+            }
+            if (match != null) {
+                return hand.action(
+                        "play_card",
+                        new artframework.context.CardRef(match.instanceId, match.cardId),
+                        target != null ? target : "");
+            }
+            return hand.action("play_card", cardId, target != null ? target : "");
+        }
         return backend().playHandCard(cardId, target != null ? target : "");
+    }
+
+    /** Full-present play by stable instance id. */
+    public UiOpResult playHandCardRef(artframework.context.CardRef ref, String target) {
+        if (ref == null) {
+            return UiOpResult.unavailable("CardRef required");
+        }
+        return invoke(
+                artframework.context.SurfaceIds.COMBAT_HAND,
+                "play_card",
+                ref,
+                target != null ? target : "");
     }
 
     /** Register a pure handler for {@link #clickButton} (C1). */
@@ -434,9 +466,13 @@ public final class UiOps {
         }
         UiComponent c = ArtFramework.component(componentId);
         if (c == null) {
+            String canon = artframework.context.SurfaceIds.canonicalize(componentId);
+            c = ArtFramework.component(canon);
+        }
+        if (c == null) {
             return remember(componentId, UiOpResult.unavailable("unknown component: " + componentId));
         }
-        return remember(componentId, c.action(action, args != null ? args : new Object[0]));
+        return remember(c.id(), c.action(action, args != null ? args : new Object[0]));
     }
 
     public UiOpResult lastResult(String componentId) {

@@ -61,6 +61,10 @@ Device probe: `art probe` console → scrape `ART_PROBE` from device `sts/latest
 
 Lab intercept (device): `art gate map block` then `art op map …` → ops return BLOCKED; clear with `art gate all clear`. See `d1_gate_block_ops.yaml`.
 
+Dev UI inspect (device): `art open demo` then `art ui list` / `art ui tree demo` / `art ui emit demo/… pressed`.
+Log prefix `ART_UI` (and `ART_UI_SIGNAL` for `art ui listen`).  
+Commands: [`console-commands.md`](./console-commands.md). Design: [`dev-ui-console.md`](../design/dev-ui-console.md).
+
 OpenCode: `@art-verify` after deploy when validating on-device UI; **not** a substitute for `@junit-test`.
 
 ## YAML v1 (UI)
@@ -99,6 +103,7 @@ Device steps (when console exists):
 
 ## Related
 
+- [`console-commands.md`](./console-commands.md)
 - [`ui-ops-probe.md`](../design/ui-ops-probe.md)
 - [`logic-layer-testing.md`](./logic-layer-testing.md)
 - [`android-deploy.md`](./android-deploy.md)

@@ -3,10 +3,11 @@
 ## Boundary
 
 - **This repo is a presentation framework (ART).** Do not depend on CrossSpire packages, protocol schema, or party/combat authority.
-- Dual track: **C1** = scene2d synthetic windows; **C2** = native STS templates + entity presenters. See [`docs/design/dual-track.md`](docs/design/dual-track.md).
+- Dual track: **C1** = scene2d synthetic windows; **C2** = native STS templates + entity presenters (thin intercept shipped; **full present** is milestone 15). See [`docs/design/dual-track.md`](docs/design/dual-track.md).
 - Presentation graph + Host SPI roadmap: [`docs/design/art-framework.md`](docs/design/art-framework.md).
 - Godot-aligned API (UiTree / signals / C2 as components / host SPI): [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md).
 - Unified UI surface: **UiOps** / **UiProbe** — [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md).
+- Milestone 15 target: **Backend/Context**, **C2 full present**, **HostAssets** packs — [`docs/design/backend-context.md`](docs/design/backend-context.md), [`docs/design/c2-full-present.md`](docs/design/c2-full-present.md), [`docs/design/host-assets.md`](docs/design/host-assets.md).
 - Temporary files → `agent-tmp/` (gitignored). Debug dumps → `debug-artifacts/` (gitignored).
 
 ## Document map
@@ -17,9 +18,14 @@
 | [`docs/design/dual-track.md`](docs/design/dual-track.md) | C1/C2 design + roadmap |
 | [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md) | Godot-aligned core API + C2 components + host SPI |
 | [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md) | UiOps / UiProbe contract |
+| [`docs/design/dev-ui-console.md`](docs/design/dev-ui-console.md) | `art ui` inspect / emit / invoke (lab) |
+| [`docs/design/backend-context.md`](docs/design/backend-context.md) | Pluggable Backend, three faces, context frames, intents (15) |
+| [`docs/design/c2-full-present.md`](docs/design/c2-full-present.md) | C2 full present / hard-sync / surfaces (15) |
+| [`docs/design/host-assets.md`](docs/design/host-assets.md) | HostAssets ResourceId / packs / resolve (15) |
 | [`docs/task.md`](docs/task.md) | Open implementation tasks |
 | [`docs/development/logic-layer-testing.md`](docs/development/logic-layer-testing.md) | Test pyramid + pure API rules |
 | [`docs/development/ui-layer-verification.md`](docs/development/ui-layer-verification.md) | UI intercept/trigger/C1 verify + tools/art-verify |
+| [`docs/development/console-commands.md`](docs/development/console-commands.md) | BaseMod `art` console reference |
 | [`docs/development/android-deploy.md`](docs/development/android-deploy.md) | Optional device jar push |
 | [`docs/development/README.md`](docs/development/README.md) | Infra index |
 | `AGENTS.md` | This file — agent / contributor rules |

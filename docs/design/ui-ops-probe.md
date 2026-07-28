@@ -81,9 +81,10 @@ Consumers register interceptors for policy. Dual-call migration then delete cons
 | P4 | Console `art probe` / `art op` + fixture art-verify | done; device log scrape optional |
 | P5 | CrossSpire consumer migration (other repo) | open |
 
-## Forward compatibility (Godot-aligned)
+## Forward compatibility (Godot-aligned + milestone 15)
 
-See [`godot-aligned-ui.md`](./godot-aligned-ui.md). Existing methods stay stable; evolution is additive:
+See [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`backend-context.md`](./backend-context.md),
+[`c2-full-present.md`](./c2-full-present.md). Existing methods stay stable; evolution is additive:
 
 | Direction | Notes |
 |-----------|--------|
@@ -91,6 +92,9 @@ See [`godot-aligned-ui.md`](./godot-aligned-ui.md). Existing methods stay stable
 | Probe `components[]` | Self-describing slices for synthetic trees + native hosts; bump `schemaVersion` when required |
 | Signals | Leaf/native events via `connect`; `onButton` / interceptors unchanged in role |
 | `open` / `bind` | Compatibility aliases for mount / activate native |
+| Intent vs signal (15) | Signals observe/gate; **intents** hit Primary Backend; final pixels from next frame |
+| Full C2 present (15) | Surfaces hard-sync from context; `playHandCard` → `play_card` + `CardRef` |
+| `probeAssets` (15) | HostAssets pack/conflict/missing; not protocol state |
 
 P0–P5 status above is **done** and not reopened by this section.
 
@@ -105,6 +109,11 @@ P0–P5 status above is **done** and not reopened by this section.
 
 ## Related
 
+- [`dev-ui-console.md`](./dev-ui-console.md) — `art ui` inspect / emit / invoke / native dump (lab)
+- [`docs/development/console-commands.md`](../development/console-commands.md) — full BaseMod `art` command reference
+- [`backend-context.md`](./backend-context.md) — Backend / return channel / intents
+- [`c2-full-present.md`](./c2-full-present.md) — full present surfaces
+- [`host-assets.md`](./host-assets.md) — asset resolve / packs
 - [`docs/development/ui-layer-verification.md`](../development/ui-layer-verification.md)
 - [`docs/development/consumer.md`](../development/consumer.md)
-- CrossSpire `docs/console-commands.md` (source of gesture patterns; not protocol migration)
+- CrossSpire `docs/console-commands.md` (co-op gestures; not ArtFramework UI console)

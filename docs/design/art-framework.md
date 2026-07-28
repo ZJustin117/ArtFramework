@@ -16,7 +16,7 @@ Identity (breaking, post-rename):
 | Env prefix | `ART_*` |
 | Verify tooling | `tools/art-verify` |
 
-Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md). Roadmap: [`docs/task.md`](../task.md) milestone **12**.
+Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Roadmap: [`docs/task.md`](../task.md) milestones **12** (done), **15** (Backend / full C2 / HostAssets).
 
 ## Purpose
 
@@ -145,7 +145,10 @@ Default gate: `./scripts/with-art-env.sh test`. Offline: `tools/art-verify`. Dev
 ## Related
 
 - [`godot-aligned-ui.md`](./godot-aligned-ui.md) — Godot term map and milestone 11 (done)
-- [`dual-track.md`](./dual-track.md) — C1/C2 host tracks
+- [`dual-track.md`](./dual-track.md) — C1/C2 host tracks (thin intercept transitional)
+- [`backend-context.md`](./backend-context.md) — pluggable Backend, three faces, intents (15)
+- [`c2-full-present.md`](./c2-full-present.md) — C2 full present / hard-sync (15)
+- [`host-assets.md`](./host-assets.md) — HostAssets packs / ResourceId (15)
 - [`component-composition.md`](./component-composition.md) — Nest / Slot / Bind
 - [`component-layout-fx.md`](./component-layout-fx.md) — layout + FX
 - [`ui-ops-probe.md`](./ui-ops-probe.md) — commands + snapshot

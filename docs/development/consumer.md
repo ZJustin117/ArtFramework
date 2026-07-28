@@ -43,10 +43,12 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 
 | Entry | Role |
 |-------|------|
-| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` |
-| `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl |
+| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`bindPresentationBackend`** / **`applyFrame`** / **`submitIntent`** / **`assets()`** / **`projection()`** |
+| `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
 | `artframework.core.*` | `UiTree` / `UiInstance` / `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
+| `artframework.context.*` | **Milestone 15:** `PresentationBackend` / `FakeBackend` / `ContextFrame` / `CardRef` / `FrameRuntime` / `PresentSurfaces` / intents |
+| `artframework.assets.*` | **HostAssets** ResourceId / packs / resolve / `FakeHostAssets` |
 | `artframework.c1.SyntheticRuntime` | C1 layout open; Stage via `StageHost` |
 | `artframework.c2.NativeTemplateRuntime` | `map` / `event` / `selectGrid` / `selectHand` / `endTurn` / `entities` |
 | `artframework.c2.NativeComponents` / `NativeTemplateIds` | C2 as `UiComponent`; `sts.map`, `sts.event`, `sts.select.*`, `sts.endturn` |
@@ -59,10 +61,22 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 | `ArtFramework.render()` / `artframework.render.*` | Effects + full-frame + blur/glass |
 | Layout types | `window`/`row`/`col`/… + `textfield`/`checkbox`/`progress`/`scroll`/`center`/`margin`/`glass` |
 
-Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md).  
+Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md),
+[`docs/design/backend-context.md`](../design/backend-context.md),
+[`docs/design/c2-full-present.md`](../design/c2-full-present.md),
+[`docs/design/host-assets.md`](../design/host-assets.md).  
 `open`/`bind` remain aliases of `mount` paths (compatibility).
 
-Console (in-game): `art probe` | `art op select|confirm|map|event|endturn|play|button …`
+### Milestone 15 consumer notes (intents + full present)
+
+- Prefer **Primary Backend** frames (`applyFrame` / `frames().syncFromBackend()`) over scraping STS UI fields.
+- Prefer **intents** (`submitIntent` / surface `action`) over native hitbox callbacks for policy; signals observe/gate only.
+- Full-present surfaces: `sts1.combat.hand`, `sts1.combat.card_slots`, `sts1.combat.controls`, `sts1.map`, `sts1.skeleton`, `sts1.combat.surface` (`mount_combat`).
+- Legacy `sts.*` / `sts1.endturn` **NativeComponents** remain; end-turn full-present is `sts1.combat.controls` (not an alias that steals `sts1.endturn`).
+- Card identity: use **`CardRef.instanceId`** (multi-instance safe); `playHandCard(cardId)` still resolves first hand match when hand surface is mounted.
+- Assets: register packs on `ArtFramework.assets()`; Theme icons/style resolve via HostAssets.
+
+Console (in-game): full reference [`console-commands.md`](./console-commands.md) — `art probe` | `art ui …` | `art frame` | `art assets …` | `art op …` | `art gate …`
 
 **Out of ArtFramework:** multiplayer protocol, party election, combat authority (consumer owns these).
 

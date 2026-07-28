@@ -2,7 +2,7 @@
 
 Design contract for a **Godot-shaped** public API: one consumer surface, full C1 synthetic UI, C2 native STS screens as **encapsulated components**, shared structure for STS1 / future STS2 hosts.
 
-Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host SPI / LML roadmap), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md). Milestone 11 is complete; further work is milestone 12 in [`docs/task.md`](../task.md).
+Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host SPI / LML roadmap), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Milestone 11–14 complete; further work is milestone **15** in [`docs/task.md`](../task.md).
 
 ## Purpose
 
@@ -247,8 +247,11 @@ Default gate remains `./scripts/with-art-env.sh test` (pure logic; no device req
 ## Related
 
 - [`dual-track.md`](./dual-track.md) — C1/C2 host tracks  
+- [`backend-context.md`](./backend-context.md) — Backend / context / intents (15)  
+- [`c2-full-present.md`](./c2-full-present.md) — C2 full present (15)  
+- [`host-assets.md`](./host-assets.md) — HostAssets packs (15)  
 - [`component-composition.md`](./component-composition.md) — Nest / Slot / Attach / Bind  
 - [`component-layout-fx.md`](./component-layout-fx.md) — layout + FX phases  
 - [`ui-ops-probe.md`](./ui-ops-probe.md) — commands + snapshot  
-- [`docs/task.md`](../task.md) — checkbox milestone 11  
+- [`docs/task.md`](../task.md) — checkbox milestones 11 / 15  
 - [`docs/development/consumer.md`](../development/consumer.md) — public jar surface  

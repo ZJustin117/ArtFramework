@@ -12,7 +12,7 @@ Shared docs use env **names** only. Values live in gitignored `.env.local`.
 ├── ADB serial $ART_D1_SERIAL → D1
 ├── connector daemon 127.0.0.1:$STS_CONNECTOR_PORT
 └── sts-harness → game-probe :$ART_GAME_PROBE_PORT → BaseMod DevConsole
-         → art probe | art op …
+         → art probe | art op … | art ui …
 
 设备
 └── mods_library/ArtFramework.jar  (+ optional CrossSpire.jar for co-load)
@@ -96,10 +96,12 @@ python3 "${ART_AMETHYST_TOOLS_DIR:-$SLAY_THE_AMETHYST_ROOT/scripts/tools}/main.p
   -ConnectorPort "$STS_CONNECTOR_PORT" \
   -OutDir "$ART_HARNESS_OUT_DIR" \
   -ConsoleCommand "art probe"
+# also: art ui list | art ui tree demo | art open demo …
 ```
 
-game-probe often returns only `ok`; scrape device log for `ART_PROBE`  
-(`/sdcard/Android/data/io.stamethyst/files/sts/latest.log`) — `tools/art-verify` does this automatically.
+game-probe often returns only `ok`; scrape device log for `ART_PROBE` / `ART_UI`  
+(`/sdcard/Android/data/io.stamethyst/files/sts/latest.log`) — `tools/art-verify` does this automatically.  
+Command reference: [`console-commands.md`](./console-commands.md).
 
 8. YAML:
 

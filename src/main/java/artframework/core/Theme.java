@@ -77,6 +77,31 @@ public final class Theme {
         return icons.get(itemKey(type, name));
     }
 
+    /**
+     * Resolve a theme icon id through HostAssets (milestone 15.4). Returns the resource key
+     * when found or fallback; empty when missing under strict mode.
+     */
+    public String resolveIconAsset(String type, String name) {
+        String iconId = getIcon(type, name);
+        if (iconId == null || iconId.isEmpty()) {
+            iconId = artframework.assets.ResourceIds.UI_BUTTON_DEFAULT;
+        }
+        artframework.assets.AssetResolveResult r =
+                artframework.assets.HostAssetsHolder.get().resolve(iconId);
+        if (r.found || r.fallback) {
+            return r.resourceId.isEmpty() ? iconId : r.resourceId;
+        }
+        return "";
+    }
+
+    public artframework.assets.AssetResolveResult resolveStyleAsset(String type, String name) {
+        String styleId = getStyleBox(type, name);
+        if (styleId == null || styleId.isEmpty()) {
+            styleId = artframework.assets.ResourceIds.UI_PANEL_DEFAULT;
+        }
+        return artframework.assets.HostAssetsHolder.get().resolve(styleId);
+    }
+
     public void setStyleBox(String type, String name, String styleId) {
         if (styleId != null) {
             styleBoxes.put(itemKey(type, name), styleId);

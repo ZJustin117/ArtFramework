@@ -95,6 +95,16 @@ public final class StageHost
             return;
         }
         float dt = Gdx.graphics != null ? Gdx.graphics.getDeltaTime() : 0f;
+        // The STS1 backend is observational until an individual full-present surface is enabled.
+        // Snapshot after native update so ART sees a coherent authority frame for this render pass.
+        try {
+            ArtFramework.frames().syncFromBackend();
+        } catch (Throwable t) {
+            try {
+                BaseMod.logger.warn("ArtFramework frame sync skipped: " + t.getMessage());
+            } catch (Throwable ignored) {
+            }
+        }
         RenderHosts.get().tick(dt);
         if (Gdx.graphics != null) {
             // Always track screen size for capture UV mapping
@@ -145,6 +155,9 @@ public final class StageHost
             }
         }
         sb.begin();
+        // C2 full-present surfaces draw after native world/UI rendering. The matching native
+        // render patch suppresses only the enabled surface, so this has a safe native fallback.
+        artframework.sts1.render.Sts1SurfaceRenderer.render(sb);
         RenderHosts.get().drawFrame(sb, true);
     }
 

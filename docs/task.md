@@ -114,3 +114,60 @@ Design: [`docs/design/art-framework.md`](design/art-framework.md). Breaking iden
 
 - [x] 14.1 Route legacy C2 UiOps sugar through `UiComponent.action`; keep gate/gesture dispatch internal
 - [x] 14.2 Expose mounted C1 windows as `UiComponent` actions and probe slices
+
+### 15. Backend / full C2 present / HostAssets
+
+Design: [`docs/design/backend-context.md`](design/backend-context.md),
+[`docs/design/c2-full-present.md`](design/c2-full-present.md),
+[`docs/design/host-assets.md`](design/host-assets.md).
+
+Target (not yet code): pluggable Primary Backend + context frames; C2 **full present**
+(hard-sync draw, signals/intents replace native UI callbacks); HostAssets unified pack
+library for ART resolve-and-render. Thin C2 intercept remains migration bridge.
+
+- [x] 15.0 Design docs + task / AGENTS / design cross-links
+- [x] 15.1 Context / Backend pure interfaces + `FakeBackend` frame/intent JUnit
+- [x] 15.2 HostAssets pure merge/config/`FakeHostAssets` + JUnit (no GL)
+- [x] 15.3 ResourceId conventions + minimal vanilla catalog (card / map / UI)
+- [x] 15.4 ART draw paths through `resolve` (Theme icon/style + present hand art probe)
+- [x] 15.5 Combat hand / card_slots snapshot hard-sync present (projection + probe)
+- [x] 15.6 Drag / play intent + signal intercept chain (`CardRef` multi-instance)
+- [x] 15.7 Map / controls / skeleton surfaces (full-present slices)
+- [x] 15.8 Pack register API for beautify mods + `probeAssets` / console `art assets`
+- [x] 15.9 Consumer notes: intents replace native UI callbacks; `sts.*` aliases
+
+Default gate remains `./scripts/with-art-env.sh test`. Device: optional D1 only.
+
+### 16. STS1 full-present host implementation
+
+Design: [`docs/design/backend-context.md`](design/backend-context.md),
+[`docs/design/c2-full-present.md`](design/c2-full-present.md),
+[`docs/design/host-assets.md`](design/host-assets.md).
+
+15.x completed the host-agnostic contract and pure-logic surfaces. 16.x is the separate
+STS1 host/render/input implementation required before a surface may claim full-present D1
+coverage.
+
+- [ ] 16.0 Strong typed frame views, scene epoch, full-present capability / fallback policy
+- [ ] 16.1 `Sts1PresentationBackend` snapshot lifecycle + D1 probe (combat / map / controls)
+- [ ] 16.2 STS1 HostAssets resolver + real vanilla card / map / UI catalog
+- [ ] 16.3 C2 SpriteBatch renderer, layers, clip/state restoration, overlay observe mode
+- [ ] 16.4 Combat hand / slots full draw + geometry comparison D1
+- [ ] 16.5 Combat input router, drag / target / play executor, native input/display suppression
+- [ ] 16.6 Controls full draw / end-turn executor / suppression
+- [ ] 16.7 Map full draw / pan-zoom / node executor / suppression
+- [ ] 16.8 Skeleton and ART UI audio bridges, lifecycle / Android recreation cleanup
+- [ ] 16.9 Panic fallback, D1 fixture matrix, consumer API freeze / release checklist
+
+### 17. Dev UI console (`art ui`)
+
+Design: [`docs/design/dev-ui-console.md`](design/dev-ui-console.md).
+
+Inspect ART trees, emit signals, invoke actions, limited STS native dump/click for lab/D1.
+Does not block 16.x full-present host work.
+
+- [x] 17.0 Design: `dev-ui-console.md` + task / ui-ops-probe / ui-layer-verification links
+- [x] 17.1 Pure `UiInspect` + `UiLabListeners` + JUnit
+- [x] 17.2 Console `art ui list|tree|node|emit|invoke|listen`
+- [x] 17.3 `StsUiReflect` native dump/click whitelist
+- [x] 17.4 Device scenario + D1 smoke (optional after deploy)

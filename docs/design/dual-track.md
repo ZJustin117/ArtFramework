@@ -7,7 +7,9 @@
 
 Both share one facade (`artframework.api.ArtFramework`) and registration format; runtimes differ.
 
-**API target (next):** one consumer surface (mount / tree / signals / ops / probe); C2 becomes encapsulated **NativeControl** components; host remains dual. See [`godot-aligned-ui.md`](./godot-aligned-ui.md).
+**API target:** one consumer surface (mount / tree / signals / ops / probe); C2 as encapsulated **NativeControl** / **Native Surface** components; host remains dual. See [`godot-aligned-ui.md`](./godot-aligned-ui.md).
+
+**Next evolution (milestone 15):** pluggable Backend + context frames; C2 **full present** (ART draws, hard-sync, intents replace native UI callbacks); HostAssets unified packs. See [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Thin SpirePatch intercept remains a **migration bridge**, not the end state.
 
 ```
 Caller
@@ -119,7 +121,11 @@ Composable Nest / Slot / Attach / Bind model lives in `artframework.component` (
 
 10. Component composition + RenderHost / glass FX — done (see task.md)
 
-11. **Godot-aligned UI core** — UiTree/signals, Theme, C1 widgets, C2 as NativeControl, host SPI ([`godot-aligned-ui.md`](./godot-aligned-ui.md), task 11.x)
+11. **Godot-aligned UI core** — UiTree/signals, Theme, C1 widgets, C2 as NativeControl, host SPI ([`godot-aligned-ui.md`](./godot-aligned-ui.md), task 11.x) — done  
+
+12–14. Presentation graph, runtime hardening, action convergence — done (see task.md)  
+
+15. **Backend / full C2 present / HostAssets** — context frames, full present surfaces, pack library ([`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md), task 15.x)
 
 ## Unified ops / probe (track-agnostic)
 

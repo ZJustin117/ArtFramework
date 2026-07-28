@@ -21,6 +21,18 @@ import artframework.core.UiComponent;
 import artframework.core.UiTree;
 import artframework.core.UiTrees;
 import artframework.core.UiSignalInterceptor;
+import artframework.assets.HostAssets;
+import artframework.assets.HostAssetsHolder;
+import artframework.context.ContextFrame;
+import artframework.context.FrameDiff;
+import artframework.context.FrameRuntime;
+import artframework.context.FrameRuntimes;
+import artframework.context.IntentResult;
+import artframework.context.PresentBackends;
+import artframework.context.PresentProjection;
+import artframework.context.PresentSurfaces;
+import artframework.context.PresentationBackend;
+import artframework.context.UiIntent;
 import artframework.ops.GateLab;
 import artframework.ops.NativeOpsBackend;
 import artframework.ops.NoOpNativeOps;
@@ -227,6 +239,11 @@ public final class ArtFramework {
         C1NodeFactories.global().resetBuiltinsForTests();
         AnimationPlayers.resetForTests();
         artframework.skeleton.SkeletonProviders.global().resetForTests();
+        PresentSurfaces.resetForTests();
+        FrameRuntimes.resetForTests();
+        HostAssetsHolder.resetForTests();
+        artframework.sts1.FullPresentMode.resetForTests();
+        artframework.inspect.UiLabListeners.resetForTests();
     }
 
     public static HostBackend host() {
@@ -304,10 +321,68 @@ public final class ArtFramework {
         HostBackends.get().tick(deltaSeconds);
     }
 
-    /** C2 (or future) component by canonical id, e.g. {@code sts.map}. */
+    /**
+     * C2 / full-present / synthetic component by id.
+     * <ul>
+     *   <li>Mounted full-present wins over native (same id, e.g. map).
+     *   <li>Mounted native wins when present is not mounted (legacy bind path).
+     *   <li>If neither mounted, prefer full-present so {@code component(id).mount()} targets
+     *       PresentSurfaces; legacy code should {@code bind()} which mounts native via runtime.
+     * </ul>
+     */
     public static UiComponent component(String componentId) {
         UiComponent synthetic = artframework.c1.SyntheticComponents.get(componentId);
-        return synthetic != null ? synthetic : NativeComponents.get(componentId);
+        if (synthetic != null) {
+            return synthetic;
+        }
+        UiComponent present = PresentSurfaces.get(componentId);
+        UiComponent nativeC = NativeComponents.get(componentId);
+        if (present != null && present.isMounted()) {
+            return present;
+        }
+        if (nativeC != null && nativeC.isMounted()) {
+            return nativeC;
+        }
+        if (present != null) {
+            return present;
+        }
+        return nativeC;
+    }
+
+    /** Primary presentation backend (context frames + intents). */
+    public static PresentationBackend presentationBackend() {
+        return PresentBackends.get();
+    }
+
+    /**
+     * Bind Primary Backend; resets frame projection. Re-scopes assets view for tests via
+     * caller if needed.
+     */
+    public static void bindPresentationBackend(PresentationBackend backend) {
+        FrameRuntimes.get().projection().reset();
+        PresentBackends.bind(backend);
+    }
+
+    public static FrameRuntime frames() {
+        return FrameRuntimes.get();
+    }
+
+    public static PresentProjection projection() {
+        return FrameRuntimes.get().projection();
+    }
+
+    /** Apply an authority frame (or pull via {@link FrameRuntime#syncFromBackend()}). */
+    public static FrameDiff applyFrame(ContextFrame frame) {
+        return FrameRuntimes.get().applyFrame(frame);
+    }
+
+    public static IntentResult submitIntent(UiIntent intent) {
+        return FrameRuntimes.get().submitIntent(intent);
+    }
+
+    /** Host-managed unified asset library. */
+    public static HostAssets assets() {
+        return HostAssetsHolder.get();
     }
 
     /** Track-agnostic render attach (effects / targets). */

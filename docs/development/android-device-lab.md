@@ -121,6 +121,7 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_map.ya
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_map_ready.yaml --device
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_lifecycle.yaml --device
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_panic.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_event.yaml --device
 ```
 
 ## Coexistence with CrossSpire

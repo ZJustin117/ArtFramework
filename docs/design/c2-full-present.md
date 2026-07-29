@@ -8,12 +8,12 @@ Roadmap: [`docs/task.md`](../task.md) milestone **15**.
 
 ## Status vs shipped code
 
-| | Today (milestones 0–14) | This doc (target) |
-|--|-------------------------|-------------------|
-| Draw | Native STS draws; ART observes / decorates / thin gates | **ART draws** the surface |
-| Input | Prefix/hooks on native hitboxes | **ART captures** input; native callbacks leave the business path |
-| Data | Template bind + partial `StsNativeOps` gestures | Per-frame **Context** hard-sync |
-| Objects | Fixed `sts.*` five-pack | **Native Surface** objects for whole UI regions |
+| | Shipped (0–21) | Remaining host work |
+|--|----------------|---------------------|
+| Draw | Combat hand/controls/map FULL on STS1; event/select **surface API only** (19.5) | **22** event/select draw + suppress |
+| Input | SignalBus + intents; combat/map executor | **22** SELECT_* live executor |
+| Data | Context frames + strong views (controls/map/cards) | **22** EventView / SelectView |
+| Objects | Registerable full-present surfaces | Event/select host paint |
 
 Thin intercept ([`dual-track.md`](./dual-track.md) roadmap 7, patches) remains a **migration
 bridge**, not the end state.

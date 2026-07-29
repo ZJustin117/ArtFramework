@@ -48,8 +48,22 @@ public final class StsNativeOps implements NativeOpsBackend {
             if (hcs == null) {
                 return UiOpResult.unavailable("no hand select");
             }
-            // Best-effort: mark selection if API fields exist; otherwise report ok after gate
-            return UiOpResult.ok("hand select gated; UI apply limited");
+            if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+                return UiOpResult.unavailable("no hand");
+            }
+            AbstractCard chosen = findInGroup(AbstractDungeon.player.hand.group, cardId, index);
+            if (chosen == null) {
+                return UiOpResult.unavailable("card not in hand: " + cardId);
+            }
+            chosen.isSelected = true;
+            try {
+                if (hcs.selectedCards != null && hcs.selectedCards.group != null
+                        && !hcs.selectedCards.group.contains(chosen)) {
+                    hcs.selectedCards.group.add(chosen);
+                }
+            } catch (Throwable ignored) {
+            }
+            return UiOpResult.ok("hand selected " + cardId);
         }
         return UiOpResult.unavailable("unknown select kind");
     }
@@ -67,7 +81,14 @@ public final class StsNativeOps implements NativeOpsBackend {
             return UiOpResult.ok("confirm grid");
         }
         if (kind == SelectKind.HAND) {
-            return UiOpResult.ok("confirm hand (gate only)");
+            HandCardSelectScreen hcs = AbstractDungeon.handCardSelectScreen;
+            if (hcs == null) {
+                return UiOpResult.unavailable("no hand select");
+            }
+            if (hcs.button != null && hcs.button.hb != null) {
+                hcs.button.hb.clicked = true;
+            }
+            return UiOpResult.ok("confirm hand");
         }
         return UiOpResult.unavailable("unknown select kind");
     }

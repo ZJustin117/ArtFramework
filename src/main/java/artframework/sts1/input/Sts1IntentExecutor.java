@@ -53,10 +53,10 @@ public final class Sts1IntentExecutor implements IntentExecutor {
                 return chooseEventOption(intent.args);
             }
             if (IntentNames.SELECT_CARD.equals(intent.name)) {
-                return IntentResult.queued(IntentNames.SELECT_CARD);
+                return selectCard(intent.args);
             }
             if (IntentNames.CONFIRM_SELECT.equals(intent.name)) {
-                return IntentResult.queued(IntentNames.CONFIRM_SELECT);
+                return confirmSelect(intent.args);
             }
             return IntentResult.rejected("sts1 executor unknown intent: " + intent.name);
         } catch (Throwable t) {
@@ -210,6 +210,78 @@ public final class Sts1IntentExecutor implements IntentExecutor {
             return IntentResult.queued(IntentNames.CHOOSE_EVENT_OPTION + " " + index);
         }
         return IntentResult.rejected(op != null ? op.message : "event option failed");
+    }
+
+    private IntentResult selectCard(Object[] args) {
+        artframework.c2.SelectKind kind = artframework.c2.SelectKind.GRID;
+        String cardId = "";
+        int index = 0;
+        if (args != null && args.length > 0) {
+            if (args[0] instanceof artframework.c2.SelectKind) {
+                kind = (artframework.c2.SelectKind) args[0];
+                cardId = args.length > 1 && args[1] != null ? String.valueOf(args[1]) : "";
+                if (args.length > 2 && args[2] instanceof Number) {
+                    index = ((Number) args[2]).intValue();
+                }
+            } else if (args[0] instanceof CardRef) {
+                CardRef ref = (CardRef) args[0];
+                cardId = ref.cardId;
+                kind = resolveSelectKind();
+            } else {
+                cardId = String.valueOf(args[0]);
+                if (args.length > 1 && args[1] instanceof Number) {
+                    index = ((Number) args[1]).intValue();
+                } else if (args.length > 1 && args[1] != null) {
+                    String k = String.valueOf(args[1]).toUpperCase();
+                    if ("HAND".equals(k)) {
+                        kind = artframework.c2.SelectKind.HAND;
+                    }
+                }
+                if (args.length > 2 && args[2] instanceof Number) {
+                    index = ((Number) args[2]).intValue();
+                }
+            }
+        }
+        if (cardId == null || cardId.isEmpty()) {
+            return IntentResult.rejected("select card id required");
+        }
+        artframework.api.UiOpResult op =
+                artframework.ops.StsNativeOps.INSTANCE.selectCard(kind, cardId, index);
+        if (op != null && op.isOk()) {
+            return IntentResult.queued(IntentNames.SELECT_CARD + " " + cardId);
+        }
+        return IntentResult.rejected(op != null ? op.message : "select card failed");
+    }
+
+    private IntentResult confirmSelect(Object[] args) {
+        artframework.c2.SelectKind kind = resolveSelectKind();
+        if (args != null && args.length > 0) {
+            if (args[0] instanceof artframework.c2.SelectKind) {
+                kind = (artframework.c2.SelectKind) args[0];
+            } else if (args[0] != null) {
+                String k = String.valueOf(args[0]).toUpperCase();
+                if ("HAND".equals(k)) {
+                    kind = artframework.c2.SelectKind.HAND;
+                } else if ("GRID".equals(k)) {
+                    kind = artframework.c2.SelectKind.GRID;
+                }
+            }
+        }
+        artframework.api.UiOpResult op = artframework.ops.StsNativeOps.INSTANCE.confirmSelect(kind);
+        if (op != null && op.isOk()) {
+            return IntentResult.queued(IntentNames.CONFIRM_SELECT + " " + kind.name());
+        }
+        return IntentResult.rejected(op != null ? op.message : "confirm select failed");
+    }
+
+    private static artframework.c2.SelectKind resolveSelectKind() {
+        try {
+            if (AbstractDungeon.handCardSelectScreen != null) {
+                return artframework.c2.SelectKind.HAND;
+            }
+        } catch (Throwable ignored) {
+        }
+        return artframework.c2.SelectKind.GRID;
     }
 
     private static void queueUseCard(final AbstractCard card, final AbstractMonster monster) {

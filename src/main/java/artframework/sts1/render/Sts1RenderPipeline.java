@@ -53,6 +53,9 @@ public final class Sts1RenderPipeline {
                         mounted(SurfaceIds.COMBAT_CONTROLS),
                         mounted(SurfaceIds.MAP),
                         mounted(SurfaceIds.SKELETON),
+                        mounted(SurfaceIds.EVENT),
+                        mounted(SurfaceIds.SELECT_GRID),
+                        mounted(SurfaceIds.SELECT_HAND),
                         overlayObserve);
         return lastPlan;
     }

@@ -474,7 +474,7 @@ public final class PresentSurfaces {
         }
     }
 
-    /** Event full-present surface (19.5): option intents; STS1 draw deferred. */
+    /** Event full-present surface (19.5 contract; 22 host draw/executor). */
     static final class EventSurface extends BaseSurface {
         EventSurface() {
             super(SurfaceIds.EVENT, SignalNames.OPTION_CHOSEN, SignalNames.SURFACE_OPENED, SignalNames.SURFACE_CLOSED);

@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
+import artframework.api.ArtFramework;
 import artframework.context.SurfaceIds;
 import artframework.sts1.assets.Sts1AssetMaterializer;
 
@@ -19,6 +20,14 @@ public final class Sts1SurfaceRenderer {
 
     public static boolean shouldSuppressNativeHand() {
         return Sts1RenderPipeline.shouldSuppressNativeHand();
+    }
+
+    public static boolean shouldSuppressNativeEvent() {
+        return EventDrawPath.shouldSuppressNativeEvent();
+    }
+
+    public static boolean shouldSuppressNativeSelect() {
+        return SelectDrawPath.shouldSuppressNativeSelect();
     }
 
     /** Draw full-present surfaces after the STS world render (PostRender). */
@@ -45,6 +54,11 @@ public final class Sts1SurfaceRenderer {
                     renderControls(sb);
                 } else if (SurfaceIds.MAP.equals(e.surfaceId)) {
                     renderMap(sb);
+                } else if (SurfaceIds.EVENT.equals(e.surfaceId)) {
+                    renderEvent(sb);
+                } else if (SurfaceIds.SELECT_GRID.equals(e.surfaceId)
+                        || SurfaceIds.SELECT_HAND.equals(e.surfaceId)) {
+                    renderSelect(sb);
                 }
             }
         } finally {
@@ -135,6 +149,67 @@ public final class Sts1SurfaceRenderer {
                                     ? com.badlogic.gdx.graphics.Color.DARK_GRAY
                                     : com.badlogic.gdx.graphics.Color.WHITE);
                 }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Event option labels when native event chrome is suppressed (22.3). */
+    private static void renderEvent(SpriteBatch sb) {
+        if (!EventDrawPath.shouldSuppressNativeEvent()) {
+            return;
+        }
+        try {
+            String title = ArtFramework.projection().event().title;
+            if (title != null && !title.isEmpty()) {
+                float tx = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+                float ty = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.55f;
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        title,
+                        tx,
+                        ty,
+                        Color.WHITE);
+            }
+            for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
+                if (!item.visible) {
+                    continue;
+                }
+                String label = item.enabled ? item.label : (item.label + " (disabled)");
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        label,
+                        item.x,
+                        item.y,
+                        item.enabled ? Color.WHITE : Color.GRAY);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Select pool + confirm chrome when native select is suppressed (22.3). */
+    private static void renderSelect(SpriteBatch sb) {
+        if (!SelectDrawPath.shouldSuppressNativeSelect()) {
+            return;
+        }
+        try {
+            for (SelectDrawPath.DrawItem item : SelectDrawPath.buildFromProjection()) {
+                if (!item.visible) {
+                    continue;
+                }
+                String label =
+                        item.confirm
+                                ? item.cardId
+                                : (item.selected ? "[" + item.cardId + "]" : item.cardId);
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        label,
+                        item.x,
+                        item.y,
+                        item.selected || item.confirm ? Color.GOLD : Color.WHITE);
             }
         } catch (Throwable ignored) {
         }

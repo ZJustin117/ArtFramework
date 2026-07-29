@@ -25,18 +25,26 @@ public class PresentSafetyTest {
     public void panicClearsLevelsAndSuppress() {
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
         FullPresentMode.setMapLevel(PresentLevel.FULL);
+        FullPresentMode.setEventLevel(PresentLevel.FULL);
+        FullPresentMode.setSelectLevel(PresentLevel.FULL);
         CombatInputRouter.setSuppressNativeInput(true);
         ArtFramework.component(SurfaceIds.COMBAT_HAND).mount();
         ArtFramework.component(SurfaceIds.MAP).mount();
+        ArtFramework.component(SurfaceIds.EVENT).action("mount_event");
+        ArtFramework.component(SurfaceIds.SELECT_GRID).action("mount_select");
 
         PresentSafety.panic("test");
         assertTrue(PresentSafety.isPanic());
         assertEquals("test", PresentSafety.panicReason());
         assertEquals(PresentLevel.OFF, FullPresentMode.combatHandLevel());
         assertEquals(PresentLevel.OFF, FullPresentMode.mapLevel());
+        assertEquals(PresentLevel.OFF, FullPresentMode.eventLevel());
+        assertEquals(PresentLevel.OFF, FullPresentMode.selectLevel());
         assertFalse(FullPresentMode.maySuppressNative(SurfaceIds.COMBAT_HAND));
         assertFalse(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND));
         assertFalse(ArtFramework.component(SurfaceIds.COMBAT_HAND).isMounted());
+        assertFalse(ArtFramework.component(SurfaceIds.EVENT).isMounted());
+        assertFalse(ArtFramework.component(SurfaceIds.SELECT_GRID).isMounted());
         assertFalse(CombatInputRouter.shouldSuppressNativeInput());
     }
 

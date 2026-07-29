@@ -149,6 +149,30 @@ public final class SurfaceDrawPlan {
             boolean mapMounted,
             boolean skeletonMounted,
             boolean overlayObserve) {
+        return build(
+                scene,
+                handMounted,
+                slotsMounted,
+                controlsMounted,
+                mapMounted,
+                skeletonMounted,
+                false,
+                false,
+                false,
+                overlayObserve);
+    }
+
+    public static SurfaceDrawPlan build(
+            String scene,
+            boolean handMounted,
+            boolean slotsMounted,
+            boolean controlsMounted,
+            boolean mapMounted,
+            boolean skeletonMounted,
+            boolean eventMounted,
+            boolean selectGridMounted,
+            boolean selectHandMounted,
+            boolean overlayObserve) {
         List<Entry> list = new ArrayList<Entry>();
         list.add(
                 entry(
@@ -157,6 +181,30 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.mapLevel(),
                         mapMounted,
                         "map".equals(scene),
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.EVENT,
+                        PresentLayer.EVENT,
+                        FullPresentMode.eventLevel(),
+                        eventMounted,
+                        eventMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.SELECT_GRID,
+                        PresentLayer.SELECT,
+                        FullPresentMode.selectLevel(),
+                        selectGridMounted,
+                        selectGridMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.SELECT_HAND,
+                        PresentLayer.SELECT,
+                        FullPresentMode.selectLevel(),
+                        selectHandMounted,
+                        selectHandMounted,
                         overlayObserve));
         list.add(
                 entry(

@@ -1,0 +1,35 @@
+# D1: Neow/event room — ART owns event surface (FULL_READY + eventDraw).
+name: d1_full_present_event
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab start-run IRONCLAD"
+  - wait_ms: 20000
+  # Stay on Neow/event before proceed clears it.
+  - console: "art present event on"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 1000
+      assert:
+        path: backend.input.eventState
+        eq: FULL_READY
+  - assert:
+      path: backend.fullPresent.event
+      eq: FULL
+  - assert:
+      path: backend.eventDraw.suppressNativeEvent
+      eq: true
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.eventDraw.count
+        gte: 1

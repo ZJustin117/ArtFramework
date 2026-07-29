@@ -197,11 +197,13 @@ Path form also works: `art ui emit demo/close pressed`.
 | `art present combat on\|off\|observe` | Hand+controls level + mount/unmount |
 | `art present map on\|off\|observe` | Map surface level + mount |
 | `art present skeleton on\|off\|observe` | Skeleton surface level + mount |
+| `art present event on\|off\|observe` | Event surface level + `mount_event` |
+| `art present select on\|off\|observe` | Select grid+hand level + `mount_select` |
 | `art present panic [reason]` | Force all OFF + unmount (native safe) |
 | `art present clear-panic` | Clear panic flag (re-enable present) |
 
 Probe extras (via `art probe`): `backend.fullPresent`, `renderPlan`, `handDraw`, `controlsDraw`,
-`mapDraw`, `input`, `audio`, `skeleton`, `safety`, `controls`, `mapView`.
+`mapDraw`, `eventDraw`, `selectDraw`, `input`, `audio`, `skeleton`, `safety`, `controls`, `mapView`.
 
 ---
 

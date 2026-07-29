@@ -167,6 +167,14 @@ public final class CombatInputRouter {
         m.put("handReason", hand.reason);
         m.put("controlsState", controls.state.name());
         m.put("controlsReason", controls.reason);
+        FullPresentCapability event = capability(SurfaceIds.EVENT);
+        FullPresentCapability select = capability(SurfaceIds.SELECT_GRID);
+        m.put("eventState", event.state.name());
+        m.put("eventReason", event.reason);
+        m.put("selectState", select.state.name());
+        m.put("selectReason", select.reason);
+        m.put("eventOwnsInput", Boolean.valueOf(event.ownsInput()));
+        m.put("selectOwnsInput", Boolean.valueOf(select.ownsInput()));
         m.put(
                 "dragInstanceId",
                 ArtFramework.projection().dragInstanceId() != null

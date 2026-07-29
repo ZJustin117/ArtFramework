@@ -155,4 +155,19 @@ public class Sts1RenderPipelineTest {
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
         assertFalse(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_HAND));
     }
+
+    @Test
+    public void fullMountedEventDraws() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                ContextFrame.of(1L, 1L, "event", null, ControlsView.empty(), MapView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
+        FullPresentMode.setEventLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.EVENT).action("mount_event");
+        SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, plan.find(SurfaceIds.EVENT).mode);
+        assertTrue(plan.shouldSuppressNative(SurfaceIds.EVENT));
+    }
 }

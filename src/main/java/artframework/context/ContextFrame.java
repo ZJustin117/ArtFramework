@@ -8,8 +8,8 @@ import java.util.Map;
 
 /**
  * Immutable authority snapshot for one present frame. Hard-sync source for ART projection.
- * Milestone 16.0: controls and map are strong-typed views; legacy Map accessors remain as
- * probe bridges.
+ * Milestone 16.0: controls and map are strong-typed views; 22.1 adds event/select views.
+ * Legacy Map accessors remain as probe bridges.
  */
 public final class ContextFrame {
 
@@ -20,6 +20,8 @@ public final class ContextFrame {
     public final List<CardView> cards;
     public final ControlsView controlsView;
     public final MapView mapView;
+    public final EventView eventView;
+    public final SelectView selectView;
     public final boolean available;
     public final ViewportView viewport;
 
@@ -40,6 +42,8 @@ public final class ContextFrame {
             List<CardView> cards,
             ControlsView controlsView,
             MapView mapView,
+            EventView eventView,
+            SelectView selectView,
             boolean available,
             ViewportView viewport) {
         this.frameId = frameId;
@@ -52,10 +56,36 @@ public final class ContextFrame {
         }
         this.controlsView = controlsView != null ? controlsView : ControlsView.empty();
         this.mapView = mapView != null ? mapView : MapView.empty();
+        this.eventView = eventView != null ? eventView : EventView.empty();
+        this.selectView = selectView != null ? selectView : SelectView.empty();
         this.available = available;
         this.viewport = viewport != null ? viewport : ViewportView.unavailable();
-        this.controls = Collections.unmodifiableMap(new LinkedHashMap<String, Object>(this.controlsView.toMap()));
+        this.controls =
+                Collections.unmodifiableMap(new LinkedHashMap<String, Object>(this.controlsView.toMap()));
         this.map = Collections.unmodifiableMap(new LinkedHashMap<String, Object>(this.mapView.toMap()));
+    }
+
+    /** Strong controls/map without event/select (defaults empty). */
+    public ContextFrame(
+            long frameId,
+            long sceneEpoch,
+            String scene,
+            List<CardView> cards,
+            ControlsView controlsView,
+            MapView mapView,
+            boolean available,
+            ViewportView viewport) {
+        this(
+                frameId,
+                sceneEpoch,
+                scene,
+                cards,
+                controlsView,
+                mapView,
+                EventView.empty(),
+                SelectView.empty(),
+                available,
+                viewport);
     }
 
     /** Compatibility: map-shaped controls/map (coerced into strong views). */
@@ -75,6 +105,8 @@ public final class ContextFrame {
                 cards,
                 coerceControls(controls),
                 coerceMap(map),
+                EventView.empty(),
+                SelectView.empty(),
                 available,
                 viewport);
     }
@@ -92,12 +124,30 @@ public final class ContextFrame {
 
     public static ContextFrame unavailable(long frameId) {
         return new ContextFrame(
-                frameId, 0L, "", null, ControlsView.empty(), MapView.empty(), false, null);
+                frameId,
+                0L,
+                "",
+                null,
+                ControlsView.empty(),
+                MapView.empty(),
+                EventView.empty(),
+                SelectView.empty(),
+                false,
+                null);
     }
 
     public static ContextFrame of(long frameId, String scene, List<CardView> cards) {
         return new ContextFrame(
-                frameId, 0L, scene, cards, ControlsView.empty(), MapView.empty(), true, null);
+                frameId,
+                0L,
+                scene,
+                cards,
+                ControlsView.empty(),
+                MapView.empty(),
+                EventView.empty(),
+                SelectView.empty(),
+                true,
+                null);
     }
 
     public static ContextFrame of(
@@ -108,7 +158,31 @@ public final class ContextFrame {
             ControlsView controls,
             MapView map,
             ViewportView viewport) {
-        return new ContextFrame(frameId, sceneEpoch, scene, cards, controls, map, true, viewport);
+        return new ContextFrame(
+                frameId,
+                sceneEpoch,
+                scene,
+                cards,
+                controls,
+                map,
+                EventView.empty(),
+                SelectView.empty(),
+                true,
+                viewport);
+    }
+
+    public static ContextFrame of(
+            long frameId,
+            long sceneEpoch,
+            String scene,
+            List<CardView> cards,
+            ControlsView controls,
+            MapView map,
+            EventView event,
+            SelectView select,
+            ViewportView viewport) {
+        return new ContextFrame(
+                frameId, sceneEpoch, scene, cards, controls, map, event, select, true, viewport);
     }
 
     public List<CardView> cardsIn(CardZone zone) {

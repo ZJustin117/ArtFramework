@@ -218,7 +218,7 @@ public class ArtCommand extends ConsoleCommand {
     private void cmdPresent(String[] tokens, int depth) {
         if (tokens.length <= depth) {
             DevConsole.log(
-                    "Usage: art present status|panic [reason]|clear-panic|combat|map|skeleton on|off|observe|status");
+                    "Usage: art present status|panic [reason]|clear-panic|combat|map|skeleton|event|select on|off|observe|status");
             return;
         }
         String target = tokens[depth].toLowerCase();
@@ -239,9 +239,13 @@ public class ArtCommand extends ConsoleCommand {
             BaseMod.logger.info("ART_PRESENT panic cleared");
             return;
         }
-        if (!"combat".equals(target) && !"map".equals(target) && !"skeleton".equals(target)) {
+        if (!"combat".equals(target)
+                && !"map".equals(target)
+                && !"skeleton".equals(target)
+                && !"event".equals(target)
+                && !"select".equals(target)) {
             DevConsole.log(
-                    "Usage: art present status|panic|clear-panic|combat|map|skeleton on|off|observe|status");
+                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select on|off|observe|status");
             return;
         }
         if (tokens.length < depth + 2) {
@@ -290,6 +294,38 @@ public class ArtCommand extends ConsoleCommand {
                     map.unmount();
                 }
             }
+        } else if ("event".equals(target)) {
+            artframework.sts1.FullPresentMode.setEventLevel(level);
+            artframework.core.UiComponent event =
+                    ArtFramework.component(artframework.context.SurfaceIds.EVENT);
+            if (event != null) {
+                if (level.allowsFullPresent() || level.allowsObserve()) {
+                    event.action("mount_event");
+                } else if (event.isMounted()) {
+                    event.unmount();
+                }
+            }
+        } else if ("select".equals(target)) {
+            artframework.sts1.FullPresentMode.setSelectLevel(level);
+            artframework.core.UiComponent grid =
+                    ArtFramework.component(artframework.context.SurfaceIds.SELECT_GRID);
+            artframework.core.UiComponent hand =
+                    ArtFramework.component(artframework.context.SurfaceIds.SELECT_HAND);
+            if (level.allowsFullPresent() || level.allowsObserve()) {
+                if (grid != null) {
+                    grid.action("mount_select");
+                }
+                if (hand != null) {
+                    hand.action("mount_select");
+                }
+            } else {
+                if (grid != null && grid.isMounted()) {
+                    grid.unmount();
+                }
+                if (hand != null && hand.isMounted()) {
+                    hand.unmount();
+                }
+            }
         } else {
             artframework.sts1.FullPresentMode.setSkeletonLevel(level);
             artframework.core.UiComponent sk =
@@ -326,6 +362,10 @@ public class ArtCommand extends ConsoleCommand {
                         + policy.get("combatControls")
                         + " map="
                         + policy.get("map")
+                        + " event="
+                        + policy.get("event")
+                        + " select="
+                        + policy.get("select")
                         + " skeleton="
                         + policy.get("skeleton")
                         + " panic="
@@ -334,6 +374,10 @@ public class ArtCommand extends ConsoleCommand {
                         + artframework.sts1.render.Sts1SurfaceRenderer.shouldSuppressNativeHand()
                         + " suppressMap="
                         + artframework.sts1.render.MapDrawPath.shouldSuppressNativeMap()
+                        + " suppressEvent="
+                        + artframework.sts1.render.EventDrawPath.shouldSuppressNativeEvent()
+                        + " suppressSelect="
+                        + artframework.sts1.render.SelectDrawPath.shouldSuppressNativeSelect()
                         + " scene="
                         + ArtFramework.projection().scene()
                         + " epoch="

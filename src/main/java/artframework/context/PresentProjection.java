@@ -163,6 +163,14 @@ public final class PresentProjection {
         return lastFrame.mapView;
     }
 
+    public EventView event() {
+        return lastFrame.eventView;
+    }
+
+    public SelectView select() {
+        return lastFrame.selectView;
+    }
+
     public ViewportView viewport() {
         return lastFrame.viewport;
     }
@@ -179,6 +187,9 @@ public final class PresentProjection {
         m.put("dragInstanceId", dragInstanceId != null ? dragInstanceId : "");
         m.put("endTurnEnabled", Boolean.valueOf(lastFrame.controlsView.endTurnEnabled));
         m.put("mapNodeCount", Integer.valueOf(lastFrame.mapView.nodeCount()));
+        m.put("eventOptionCount", Integer.valueOf(lastFrame.eventView.optionCount()));
+        m.put("selectPoolCount", Integer.valueOf(lastFrame.selectView.poolCount()));
+        m.put("selectKind", lastFrame.selectView.kind);
         m.put("viewportWidth", Integer.valueOf(lastFrame.viewport.logicalWidth));
         m.put("viewportHeight", Integer.valueOf(lastFrame.viewport.logicalHeight));
         return m;

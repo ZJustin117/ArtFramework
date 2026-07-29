@@ -121,9 +121,9 @@ Design: [`docs/design/backend-context.md`](design/backend-context.md),
 [`docs/design/c2-full-present.md`](design/c2-full-present.md),
 [`docs/design/host-assets.md`](design/host-assets.md).
 
-Target (not yet code): pluggable Primary Backend + context frames; C2 **full present**
-(hard-sync draw, signals/intents replace native UI callbacks); HostAssets unified pack
-library for ART resolve-and-render. Thin C2 intercept remains migration bridge.
+**Done (contract):** pluggable Primary Backend + context frames; C2 full-present surfaces;
+HostAssets packs. Thin C2 intercept remains migration bridge. STS1 host draw for combat/map
+is milestone 16/19; event/select host draw is milestone **22**.
 
 - [x] 15.0 Design docs + task / AGENTS / design cross-links
 - [x] 15.1 Context / Backend pure interfaces + `FakeBackend` frame/intent JUnit
@@ -228,3 +228,16 @@ Design: [`backend-context.md`](design/backend-context.md).
 - [x] 21.3 C2 imperative actions, native hooks, GateLab, full-present actions, and frame publish use bus delivery
 - [x] 21.4 Remove FrameEndpoint transaction API and migrate fixtures to `FakeSignalBackend`
 - [x] 21.5 `HostPatchResults` + hooks return `SignalDispatchResult`; patches use single adapter
+
+### 22. STS1 event / select full-present host
+
+19.5 delivered pure surfaces + FakeBackend JUnit (draw deferred). 22.x is the STS1 host
+draw / executor / suppress / D1 path for `sts1.event` and `sts1.select.grid|hand`.
+
+- [x] 22.0 Design/task links + c2-full-present status note
+- [x] 22.1 `EventView` / `SelectView` + `ContextFrame` + projection + JUnit
+- [x] 22.2 `SurfaceDrawPlan` event/select + PresentSafety unmount + pipeline
+- [x] 22.3 `EventDrawPath` / `SelectDrawPath` + renderer + backend snapshot + suppress patches
+- [x] 22.4 `Sts1IntentExecutor` SELECT_* + `StsNativeOps` hand select
+- [x] 22.5 Console `art present event|select` + probe `eventDraw` / `selectDraw`
+- [x] 22.6 D1 YAML + consumer freeze notes

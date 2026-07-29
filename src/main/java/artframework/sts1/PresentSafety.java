@@ -87,7 +87,10 @@ public final class PresentSafety {
                     SurfaceIds.COMBAT_CONTROLS,
                     SurfaceIds.COMBAT_SURFACE,
                     SurfaceIds.MAP,
-                    SurfaceIds.SKELETON
+                    SurfaceIds.SKELETON,
+                    SurfaceIds.EVENT,
+                    SurfaceIds.SELECT_GRID,
+                    SurfaceIds.SELECT_HAND
                 };
         for (String id : ids) {
             try {

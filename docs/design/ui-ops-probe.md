@@ -100,10 +100,11 @@ P0–P5 status above is **done** and not reopened by this section.
 
 ### Known limits (honest)
 
-- Hand select card pick / full hand-play pipeline: gate + partial UI only; not full STS useCard.
-- Map programmatic travel: gate + ok message; consumer still owns pin protocol / enter room.
-- Event option invoke uses reflection (`buttonEffect` protected).
-- Event **patch**: instrument `AbstractEvent.update` call sites — Prefix on protected abstract `buttonEffect` NPEs MTS ParamInfo.
+- Combat hand FULL uses ART draw + live executor; not a full reimplementation of every STS card chrome edge case.
+- Map programmatic travel: ART map intent when FULL; consumer still owns pin protocol / enter-room policy.
+- Event option invoke uses reflection (`buttonEffect` protected); FULL event suppresses `GenericEventDialog.render`.
+- Event **gate patch**: instrument `AbstractEvent.update` call sites — Prefix on protected abstract `buttonEffect` NPEs MTS ParamInfo.
+- Select FULL: grid select is primary; hand select is best-effort via `HandCardSelectScreen` fields.
 - Dual-mod with CrossSpire map/end-turn patches: both may run — consumer should migrate interceptors to ArtFramework and slim own patches.
 - Amethyst: jar in `mods_library` requires `enabled_mods.txt` entry.
 

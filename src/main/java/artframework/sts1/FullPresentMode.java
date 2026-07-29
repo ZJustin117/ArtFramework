@@ -156,6 +156,8 @@ public final class FullPresentMode {
         m.put("select", select.name());
         m.put("combatHandFull", Boolean.valueOf(combatHand.allowsFullPresent() && !PresentSafety.isPanic()));
         m.put("maySuppressNativeHand", Boolean.valueOf(maySuppressNative(SurfaceIds.COMBAT_HAND)));
+        m.put("maySuppressNativeEvent", Boolean.valueOf(maySuppressNative(SurfaceIds.EVENT)));
+        m.put("maySuppressNativeSelect", Boolean.valueOf(maySuppressNative(SurfaceIds.SELECT_GRID)));
         m.put("panic", Boolean.valueOf(PresentSafety.isPanic()));
         return m;
     }

@@ -29,6 +29,10 @@ public final class UiTypes {
     public static final String SCROLL = "scroll";
     public static final String CENTER = "center";
     public static final String MARGIN = "margin";
+    /** Uniform grid of children; props {@code columns} (default 2). */
+    public static final String GRID = "grid";
+    /** Tabbed stack; props {@code active} index (default 0); only active child laid out. */
+    public static final String TABS = "tabs";
     public static final String REF = "ref";
     public static final String SLOT = "slot";
 
@@ -44,7 +48,9 @@ public final class UiTypes {
                 || FRAGMENT.equals(type)
                 || SCROLL.equals(type)
                 || CENTER.equals(type)
-                || MARGIN.equals(type);
+                || MARGIN.equals(type)
+                || GRID.equals(type)
+                || TABS.equals(type);
     }
 
     public static boolean isLeaf(String type) {

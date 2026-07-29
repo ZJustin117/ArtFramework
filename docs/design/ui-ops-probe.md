@@ -107,6 +107,8 @@ P0–P5 status above is **done** and not reopened by this section.
 - Select FULL: grid select is primary; hand select is best-effort via `HandCardSelectScreen` fields.
 - Dual-mod with CrossSpire map/end-turn patches: both may run — consumer should migrate interceptors to ArtFramework and slim own patches.
 - Amethyst: jar in `mods_library` requires `enabled_mods.txt` entry.
+- Room FULL_READY requires matching `projection.scene` (`reward`/`rest`/`shop`/`treasure`); mount alone falls back to native.
+- Shop/rest/treasure ART paint is chrome/labels; native atlas fidelity is not a 26 goal.
 
 ## Related
 

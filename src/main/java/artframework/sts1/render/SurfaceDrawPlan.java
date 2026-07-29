@@ -233,7 +233,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.ROOM,
                         FullPresentMode.rewardLevel(),
                         rewardMounted,
-                        "reward".equals(scene) || rewardMounted,
+                        "reward".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -241,7 +241,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.ROOM,
                         FullPresentMode.rewardLevel(),
                         rewardMounted,
-                        "reward".equals(scene) || rewardMounted,
+                        "reward".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -249,7 +249,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.ROOM,
                         FullPresentMode.rewardLevel(),
                         rewardMounted,
-                        "reward".equals(scene) || rewardMounted,
+                        "reward".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -257,7 +257,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.ROOM,
                         FullPresentMode.restLevel(),
                         restMounted,
-                        "rest".equals(scene) || restMounted,
+                        "rest".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -265,7 +265,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.ROOM,
                         FullPresentMode.treasureLevel(),
                         treasureMounted,
-                        "treasure".equals(scene) || treasureMounted,
+                        "treasure".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -273,7 +273,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.ROOM,
                         FullPresentMode.shopLevel(),
                         shopMounted,
-                        "shop".equals(scene) || shopMounted,
+                        "shop".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -329,7 +329,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.COMBAT_CONTROLS,
                         FullPresentMode.proceedLevel(),
                         proceedMounted,
-                        "combat".equals(scene) || proceedMounted,
+                        "combat".equals(scene) || "reward".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -337,7 +337,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.COMBAT_CONTROLS,
                         FullPresentMode.energyLevel(),
                         energyMounted,
-                        "combat".equals(scene) || energyMounted,
+                        "combat".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -345,7 +345,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.COMBAT_INTENTS,
                         FullPresentMode.intentsLevel(),
                         intentsMounted,
-                        "combat".equals(scene) || intentsMounted,
+                        "combat".equals(scene),
                         overlayObserve));
         list.add(
                 entry(

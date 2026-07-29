@@ -1,0 +1,33 @@
+# Offline fixture: room FULL_READY probe shape (milestone 26).
+name: f13_room_full_ready
+schemaVersion: 1
+mode: fixture
+fixture: sample_room_full_ready_probe.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: modId
+      eq: artframework
+  - assert:
+      path: projection.scene
+      eq: reward
+  - assert:
+      path: backend.fullPresent.reward
+      eq: FULL
+  - assert:
+      path: backend.rewardDraw.capability
+      eq: FULL_READY
+  - assert:
+      path: backend.rewardDraw.suppressNativeReward
+      eq: true
+  - assert:
+      path: backend.input.rewardState
+      eq: FULL_READY
+  - assert:
+      path: backend.input.rewardOwnsInput
+      eq: true
+  - assert:
+      path: backend.rewardDraw.drawCount
+      gte: 1

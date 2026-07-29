@@ -81,7 +81,7 @@ Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md),
 - Assets: register packs on `ArtFramework.assets()`; Theme icons/style resolve via HostAssets.
 - Pack release gate: `./scripts/verify-consumer-fixture.sh` / `./scripts/release-gate.sh`.
 
-### Milestone 16–25 freeze (STS1 host full-present)
+### Milestone 16–28 freeze (STS1 host full-present)
 
 **Stable for consumers (do not break without major version):**
 

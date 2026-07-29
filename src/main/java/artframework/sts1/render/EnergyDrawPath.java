@@ -23,6 +23,10 @@ public final class EnergyDrawPath {
         m.put("label", String.valueOf(energy));
         m.put("suppressNativeEnergy", Boolean.valueOf(shouldSuppressNativeEnergy()));
         m.put("presentLevel", FullPresentMode.energyLevel().name());
+        artframework.sts1.FullPresentCapability cap =
+                artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.COMBAT_ENERGY);
+        m.put("capability", cap.state.name());
+        m.put("capabilityReason", cap.reason);
         return m;
     }
 }

@@ -295,3 +295,26 @@ Reuse 16/22 pipeline. Meta menus stay C1 + `art lab`.
 - [x] 25.10 `sts1.combat.intents` observe-first path
 - [x] 25.11 Console `art present …` + probe fields for new surfaces
 - [x] 25.12 D1 YAML smoke for reward/rest (lab-reachable) + offline fixtures
+
+### 26. Room FULL production readiness
+
+Raise 25 room/chrome surfaces to combat/map-class FULL_READY (scene match + suppress +
+executor + host paint).
+
+- [x] 26.0 Design/task matrix + c2-full-present / CHANGELOG status
+- [x] 26.1 Capability / sceneReady for room surfaces (not mount-only) + JUnit
+- [x] 26.2 Real room IntentExecutor gestures + soft-reject without dungeon + JUnit
+- [x] 26.3 Suppress patches (reward/rest/shop/treasure) + shop/treasure/proceed render
+- [x] 26.4 Probe capability fields + offline fixture `f13_room_full_ready`
+- [x] 26.5 D1: reward capability fields + `d1_full_present_combat_chrome`
+
+### 27. C1 / beautify components
+
+- [x] 27.1 `grid` / `tabs` containers (LayoutEngine + Stage + sample layout)
+- [x] 27.2 HostAssets beautify pack sample JUnit
+- [x] 27.3 Register `grid_tabs_demo` window
+
+### 28. Release hardening (alpha.4)
+
+- [x] 28.1 Known-limits / consumer freeze notes refresh
+- [x] 28.2 Version bump `1.0.0-alpha.4` + CHANGELOG

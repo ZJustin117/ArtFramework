@@ -114,11 +114,18 @@ public final class ComponentActors {
                 || UiTypes.GLASS.equals(node.type)
                 || UiTypes.SCROLL.equals(node.type)
                 || UiTypes.MARGIN.equals(node.type)
-                || UiTypes.CENTER.equals(node.type)) {
+                || UiTypes.CENTER.equals(node.type)
+                || UiTypes.TABS.equals(node.type)) {
+            if (UiTypes.TABS.equals(node.type)) {
+                return buildTabs(windowId, node, skin, onClose, scale);
+            }
             return buildCol(windowId, node, skin, onClose, scale);
         }
         if (UiTypes.ROW.equals(node.type)) {
             return buildRow(windowId, node, skin, onClose, scale);
+        }
+        if (UiTypes.GRID.equals(node.type)) {
+            return buildGrid(windowId, node, skin, onClose, scale);
         }
         if (UiTypes.STACK.equals(node.type)) {
             Stack stack = new Stack();
@@ -263,6 +270,47 @@ public final class ComponentActors {
             }
         }
         return t;
+    }
+
+    private static Table buildGrid(
+            String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
+        Table t = new Table(skin);
+        float pad = node.layout.pad * scale;
+        float gap = node.layout.gap * scale;
+        int columns = Math.max(1, node.propInt("columns", 2));
+        if (pad > 0f) {
+            t.pad(pad);
+        }
+        int col = 0;
+        for (int i = 0; i < node.children.size(); i++) {
+            Actor a = buildNode(windowId, node.children.get(i), skin, onClose, scale);
+            if (a == null) {
+                continue;
+            }
+            if (node.children.get(i).layout.grow) {
+                t.add(a).grow().pad(gap);
+            } else {
+                t.add(a).pad(gap);
+            }
+            col++;
+            if (col >= columns) {
+                t.row();
+                col = 0;
+            }
+        }
+        return t;
+    }
+
+    private static Actor buildTabs(
+            String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
+        int active = Math.max(0, node.propInt("active", 0));
+        if (node.children.isEmpty()) {
+            return new Table(skin);
+        }
+        if (active >= node.children.size()) {
+            active = node.children.size() - 1;
+        }
+        return buildNode(windowId, node.children.get(active), skin, onClose, scale);
     }
 
     private static TextButton buildButton(

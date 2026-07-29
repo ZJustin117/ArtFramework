@@ -69,6 +69,11 @@ public final class ProceedDrawPath {
         m.put("cancelVisible", Boolean.valueOf(cv.cancelVisible));
         m.put("suppressNativeProceed", Boolean.valueOf(shouldSuppressNativeProceed()));
         m.put("presentLevel", FullPresentMode.proceedLevel().name());
+        artframework.sts1.FullPresentCapability cap =
+                artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.COMBAT_PROCEED);
+        m.put("capability", cap.state.name());
+        m.put("capabilityReason", cap.reason);
+        m.put("drawCount", Integer.valueOf(items.size()));
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (DrawItem d : items) {
             list.add(d.toMap());

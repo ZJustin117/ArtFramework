@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "windows": { "openIds": [] },
+  "templates": {},
+  "map": {},
+  "endTurn": {},
+  "entities": { "slotCount": 0, "slots": [] },
+  "projection": {
+    "scene": "reward",
+    "frameId": 1,
+    "available": true
+  },
+  "backend": {
+    "id": "signals",
+    "mode": "LISTENER",
+    "scene": "reward",
+    "fullPresent": {
+      "reward": "FULL",
+      "rest": "OFF",
+      "shop": "OFF",
+      "treasure": "OFF",
+      "energy": "OFF",
+      "intents": "OFF",
+      "proceed": "OFF"
+    },
+    "rewardDraw": {
+      "count": 2,
+      "kind": "combat",
+      "available": true,
+      "suppressNativeReward": true,
+      "presentLevel": "FULL",
+      "capability": "FULL_READY",
+      "capabilityReason": "ready",
+      "drawCount": 2
+    },
+    "restDraw": {
+      "count": 0,
+      "suppressNativeRest": false,
+      "presentLevel": "OFF",
+      "capability": "OFF",
+      "capabilityReason": "off"
+    },
+    "shopDraw": {
+      "count": 0,
+      "suppressNativeShop": false,
+      "presentLevel": "OFF",
+      "capability": "OFF",
+      "capabilityReason": "off"
+    },
+    "treasureDraw": {
+      "available": false,
+      "suppressNativeTreasure": false,
+      "presentLevel": "OFF",
+      "capability": "OFF",
+      "capabilityReason": "off"
+    },
+    "energyDraw": {
+      "energy": 0,
+      "suppressNativeEnergy": false,
+      "presentLevel": "OFF",
+      "capability": "OFF",
+      "capabilityReason": "off"
+    },
+    "intentDraw": {
+      "count": 0,
+      "suppressNativeIntents": false,
+      "presentLevel": "OFF",
+      "capability": "OFF",
+      "capabilityReason": "off"
+    },
+    "proceedDraw": {
+      "count": 0,
+      "suppressNativeProceed": false,
+      "presentLevel": "OFF",
+      "capability": "OFF",
+      "capabilityReason": "off"
+    },
+    "input": {
+      "rewardState": "FULL_READY",
+      "rewardReason": "ready",
+      "rewardOwnsInput": true,
+      "restState": "OFF",
+      "shopState": "OFF",
+      "treasureState": "OFF",
+      "energyState": "OFF",
+      "intentsState": "OFF",
+      "proceedState": "OFF",
+      "handState": "OFF",
+      "handOwnsInput": false
+    }
+  },
+  "present": [],
+  "assets": {}
+}

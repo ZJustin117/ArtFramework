@@ -57,6 +57,11 @@ public final class RestDrawPath {
         m.put("available", Boolean.valueOf(ArtFramework.projection().rest().available));
         m.put("suppressNativeRest", Boolean.valueOf(shouldSuppressNativeRest()));
         m.put("presentLevel", FullPresentMode.restLevel().name());
+        artframework.sts1.FullPresentCapability cap =
+                artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.REST);
+        m.put("capability", cap.state.name());
+        m.put("capabilityReason", cap.reason);
+        m.put("drawCount", Integer.valueOf(items.size()));
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (DrawItem d : items) {
             list.add(d.toMap());

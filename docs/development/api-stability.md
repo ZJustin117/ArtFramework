@@ -70,7 +70,7 @@ There is **no** `UiOps.submitIntent`. Consumers:
 | `entities` | `slotCount` + `slots[]` |
 | `components` / `present` | UiComponent slices |
 | `projection` | frame/scene/card counts + event/select/reward fields |
-| `backend` | `fullPresent`, `renderPlan`, `*Draw`, `input`, `safety`, … |
+| `backend` | `fullPresent`, `renderPlan`, `*Draw` (+ `capability`), `input` (+ room states), `safety`, … |
 | `assets` / `host` / `render` / `theme` | HostAssets + host SPI |
 
 YAML art-verify `schemaVersion` is a **scenario** contract (also currently `1`), separate from

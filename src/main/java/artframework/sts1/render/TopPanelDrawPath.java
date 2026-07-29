@@ -29,6 +29,10 @@ public final class TopPanelDrawPath {
         m.put("available", Boolean.valueOf(tv.available));
         m.put("suppressNativeTopPanel", Boolean.valueOf(shouldSuppressNativeTopPanel()));
         m.put("presentLevel", FullPresentMode.topPanelLevel().name());
+        artframework.sts1.FullPresentCapability cap =
+                artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.TOP_PANEL);
+        m.put("capability", cap.state.name());
+        m.put("capabilityReason", cap.reason);
         return m;
     }
 }

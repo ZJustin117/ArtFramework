@@ -189,4 +189,57 @@ public class LayoutEngineTest {
         assertTrue(n.layout.expandsH());
         assertEquals(2f, n.layout.stretchRatio, 0.001f);
     }
+
+    @Test
+    public void gridPlacesTwoColumns() {
+        UiNode root =
+                UiNode.of(UiTypes.GRID)
+                        .id("g")
+                        .prop("columns", Integer.valueOf(2))
+                        .layout(new LayoutSpec(220f, 100f, 0f, 10f, false))
+                        .child(
+                                UiNode.of(UiTypes.LABEL)
+                                        .id("a")
+                                        .layout(new LayoutSpec(0f, 20f, 0f, 0f, false))
+                                        .build())
+                        .child(
+                                UiNode.of(UiTypes.LABEL)
+                                        .id("b")
+                                        .layout(new LayoutSpec(0f, 20f, 0f, 0f, false))
+                                        .build())
+                        .child(
+                                UiNode.of(UiTypes.LABEL)
+                                        .id("c")
+                                        .layout(new LayoutSpec(0f, 20f, 0f, 0f, false))
+                                        .build())
+                        .build();
+        LayoutResult r = LayoutEngine.layout(root);
+        assertEquals(0f, r.boundsOf("a").x, 0.001f);
+        assertEquals(115f, r.boundsOf("b").x, 0.001f);
+        assertEquals(0f, r.boundsOf("c").x, 0.001f);
+        assertEquals(30f, r.boundsOf("c").y, 0.001f);
+    }
+
+    @Test
+    public void tabsLaysOutOnlyActiveChild() {
+        UiNode root =
+                UiNode.of(UiTypes.TABS)
+                        .id("t")
+                        .prop("active", Integer.valueOf(1))
+                        .layout(new LayoutSpec(200f, 80f, 0f, 0f, false))
+                        .child(
+                                UiNode.of(UiTypes.LABEL)
+                                        .id("tab0")
+                                        .layout(new LayoutSpec(100f, 40f, 0f, 0f, false))
+                                        .build())
+                        .child(
+                                UiNode.of(UiTypes.LABEL)
+                                        .id("tab1")
+                                        .layout(new LayoutSpec(100f, 40f, 0f, 0f, false))
+                                        .build())
+                        .build();
+        LayoutResult r = LayoutEngine.layout(root);
+        assertNotNull(r.boundsOf("tab1"));
+        assertEquals(null, r.boundsOf("tab0"));
+    }
 }

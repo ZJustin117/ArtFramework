@@ -63,7 +63,65 @@ public final class LayoutEngine {
             placeStack(node, bounds, byId);
             return;
         }
+        if (UiTypes.GRID.equals(node.type)) {
+            placeGrid(node, bounds, byId);
+            return;
+        }
+        if (UiTypes.TABS.equals(node.type)) {
+            placeTabs(node, bounds, byId);
+            return;
+        }
         // leaves: no children placement
+    }
+
+    private static void placeGrid(UiNode node, Rect bounds, Map<String, Rect> byId) {
+        float pad = node.layout.pad;
+        float gap = node.layout.gap;
+        int columns = Math.max(1, node.propInt("columns", 2));
+        List<UiNode> kids = visibleChildren(node);
+        float innerW = Math.max(0f, bounds.width - 2f * pad);
+        float cellW = columns > 0 ? (innerW - gap * Math.max(0, columns - 1)) / columns : innerW;
+        float x0 = bounds.x + pad;
+        float y = bounds.y + pad;
+        float rowH = 0f;
+        int col = 0;
+        for (int i = 0; i < kids.size(); i++) {
+            UiNode c = kids.get(i);
+            float ch = preferredHeight(c);
+            ch = Math.max(ch, minHeightOf(c));
+            float cw = cellW;
+            if (c.layout.hasWidth() && c.layout.width < cellW) {
+                cw = Math.max(c.layout.width, minWidthOf(c));
+            }
+            float x = x0 + col * (cellW + gap);
+            place(c, new Rect(x, y, cw, ch), byId);
+            rowH = Math.max(rowH, ch);
+            col++;
+            if (col >= columns) {
+                col = 0;
+                y += rowH + gap;
+                rowH = 0f;
+            }
+        }
+    }
+
+    private static void placeTabs(UiNode node, Rect bounds, Map<String, Rect> byId) {
+        float pad = node.layout.pad;
+        int active = Math.max(0, node.propInt("active", 0));
+        List<UiNode> kids = visibleChildren(node);
+        if (kids.isEmpty()) {
+            return;
+        }
+        if (active >= kids.size()) {
+            active = kids.size() - 1;
+        }
+        Rect inner =
+                new Rect(
+                        bounds.x + pad,
+                        bounds.y + pad,
+                        Math.max(0f, bounds.width - 2f * pad),
+                        Math.max(0f, bounds.height - 2f * pad));
+        place(kids.get(active), inner, byId);
     }
 
     private static void placeCenter(UiNode node, Rect bounds, Map<String, Rect> byId) {
@@ -231,6 +289,23 @@ public final class LayoutEngine {
                 }
             }
             raw = sum + 2f * pad;
+        } else if (UiTypes.GRID.equals(node.type)) {
+            float pad = node.layout.pad;
+            float gap = node.layout.gap;
+            int columns = Math.max(1, node.propInt("columns", 2));
+            List<UiNode> kids = visibleChildren(node);
+            float maxCell = 0f;
+            for (UiNode c : kids) {
+                maxCell = Math.max(maxCell, preferredWidth(c));
+            }
+            raw = columns * maxCell + gap * Math.max(0, columns - 1) + 2f * pad;
+        } else if (UiTypes.TABS.equals(node.type)) {
+            float pad = node.layout.pad;
+            float max = 0f;
+            for (UiNode c : visibleChildren(node)) {
+                max = Math.max(max, preferredWidth(c));
+            }
+            raw = max + 2f * pad;
         } else if (UiTypes.COL.equals(node.type)
                 || UiTypes.PANEL.equals(node.type)
                 || UiTypes.GLASS.equals(node.type)
@@ -273,6 +348,24 @@ public final class LayoutEngine {
                 }
                 raw = sum;
             }
+        } else if (UiTypes.GRID.equals(node.type)) {
+            float pad = node.layout.pad;
+            float gap = node.layout.gap;
+            int columns = Math.max(1, node.propInt("columns", 2));
+            List<UiNode> kids = visibleChildren(node);
+            int rows = kids.isEmpty() ? 0 : (kids.size() + columns - 1) / columns;
+            float maxCell = 0f;
+            for (UiNode c : kids) {
+                maxCell = Math.max(maxCell, preferredHeight(c));
+            }
+            raw = rows * maxCell + gap * Math.max(0, rows - 1) + 2f * pad;
+        } else if (UiTypes.TABS.equals(node.type)) {
+            float pad = node.layout.pad;
+            float max = 0f;
+            for (UiNode c : visibleChildren(node)) {
+                max = Math.max(max, preferredHeight(c));
+            }
+            raw = max + 2f * pad;
         } else if (UiTypes.COL.equals(node.type)
                 || UiTypes.PANEL.equals(node.type)
                 || UiTypes.GLASS.equals(node.type)

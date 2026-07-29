@@ -26,7 +26,9 @@ public final class UiNodeLoader {
         "enabled",
         "checked",
         "placeholder",
-        "progress"
+        "progress",
+        "columns",
+        "active"
     };
 
     private UiNodeLoader() {}

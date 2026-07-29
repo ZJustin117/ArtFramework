@@ -2,6 +2,7 @@
 name: f12_entity_and_room_present
 schemaVersion: 1
 mode: fixture
+fixture: sample_probe.json
 steps:
   - assert:
       path: schemaVersion
@@ -9,3 +10,6 @@ steps:
   - assert:
       path: modId
       eq: artframework
+  - assert:
+      path: entities.slotCount
+      exists: true

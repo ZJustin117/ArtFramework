@@ -144,6 +144,21 @@ public final class UiNode {
         throw new IllegalArgumentException("prop " + key + " must be number");
     }
 
+    public int propInt(String key, int defaultValue) {
+        Object v = props.get(key);
+        if (v instanceof Number) {
+            return ((Number) v).intValue();
+        }
+        if (v instanceof String) {
+            try {
+                return Integer.parseInt((String) v);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+
     public boolean propBool(String key, boolean defaultValue) {
         Object v = props.get(key);
         if (v == null) {

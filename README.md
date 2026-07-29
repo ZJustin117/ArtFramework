@@ -2,14 +2,14 @@
 
 **ART Framework** — presentation layer for Slay the Spire 1 (Desktop ModTheSpire + Amethyst-compatible jars).
 
-Version: see `gradle.properties` → `artframework.version` (currently **1.0.0-alpha.3**).
+Version: see `gradle.properties` → `artframework.version` (currently **1.0.0-alpha.4**).
 
 - **Separate repository** from multiplayer logic (e.g. CrossSpire) — no protocol/party types here.
 - **Dual track** ([`docs/design/dual-track.md`](docs/design/dual-track.md)):
   1. **C1 Synthetic** — scene2d.ui windows (layout DSL / LML + StageHost + StsSkin)
   2. **C2 Native** — thin templates + **full-present** surfaces (hand/map/event/select/reward/…)
 - **SignalBus** + **HostAssets** + **EntityPresent** co-op chrome slots
-- Shipped milestones **0–25** (release hardening + entity draw + extra full-present faces)
+- Shipped milestones **0–28** (room FULL production + C1 grid/tabs + alpha.4)
 
 Open work: [`docs/task.md`](docs/task.md). Design hub: [`docs/design/art-framework.md`](docs/design/art-framework.md).  
 Consumer: [`docs/development/consumer.md`](docs/development/consumer.md).  

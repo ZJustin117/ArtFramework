@@ -4,15 +4,15 @@ Target design for **C2 as full display takeover**: ART draws the surface, hard-s
 Backend frames, and replaces native UI callbacks with **signals + intents**.
 Complements [`backend-context.md`](./backend-context.md), [`host-assets.md`](./host-assets.md),
 [`dual-track.md`](./dual-track.md), [`godot-aligned-ui.md`](./godot-aligned-ui.md).
-Roadmap: [`docs/task.md`](../task.md) milestones **15–22** (shipped), **24–25** (entity + more
-surfaces).
+Roadmap: [`docs/task.md`](../task.md) milestones **15–22** (shipped), **24–26** (entity + room
+FULL production).
 
 ## Status vs shipped code
 
-| | Shipped (0–25) | Notes |
+| | Shipped (0–26) | Notes |
 |--|----------------|-------|
-| Draw | Combat hand/controls/map/event/select FULL; reward/rest/treasure/shop/top/intents paths | Device FULL_READY still per-surface |
-| Input | SignalBus + intents; combat/map/event/select (+ room intents) | Host executor best-effort |
+| Draw | Combat/map/event/select FULL; room/chrome FULL_READY when scene matches | Suppress patches for reward/rest/shop/treasure |
+| Input | SignalBus + intents including room CLAIM/REST/SHOP/CHEST | Soft-reject without dungeon |
 | Data | Context frames + strong views including event/select/reward/rest/shop | |
 | Objects | Registerable full-present surfaces + EntityPresent draw path | Thin intercept remains migration bridge |
 

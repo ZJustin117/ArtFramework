@@ -35,6 +35,8 @@ public final class UiNodeRegistry {
         registerBuiltin(container(UiTypes.SCROLL));
         registerBuiltin(container(UiTypes.CENTER));
         registerBuiltin(container(UiTypes.MARGIN));
+        registerBuiltin(container(UiTypes.GRID));
+        registerBuiltin(container(UiTypes.TABS));
         registerBuiltin(leaf(UiTypes.LABEL));
         registerBuiltin(leaf(UiTypes.BUTTON));
         registerBuiltin(leaf(UiTypes.SLIDER));

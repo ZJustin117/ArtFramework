@@ -27,6 +27,10 @@ public final class TreasureDrawPath {
         m.put("available", Boolean.valueOf(tv.available));
         m.put("suppressNativeTreasure", Boolean.valueOf(shouldSuppressNativeTreasure()));
         m.put("presentLevel", FullPresentMode.treasureLevel().name());
+        artframework.sts1.FullPresentCapability cap =
+                artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.TREASURE);
+        m.put("capability", cap.state.name());
+        m.put("capabilityReason", cap.reason);
         return m;
     }
 }

@@ -1,0 +1,45 @@
+{
+  "type": "window",
+  "id": "grid_tabs_demo",
+  "title": "Grid / Tabs",
+  "width": 420,
+  "height": 280,
+  "children": [
+    {
+      "type": "tabs",
+      "id": "main_tabs",
+      "active": 0,
+      "children": [
+        {
+          "type": "col",
+          "id": "tab_grid",
+          "pad": 8,
+          "gap": 6,
+          "children": [
+            { "type": "label", "id": "grid_title", "text": "Grid (2 columns)" },
+            {
+              "type": "grid",
+              "id": "demo_grid",
+              "columns": 2,
+              "gap": 8,
+              "children": [
+                { "type": "button", "id": "g1", "text": "A" },
+                { "type": "button", "id": "g2", "text": "B" },
+                { "type": "button", "id": "g3", "text": "C" },
+                { "type": "button", "id": "g4", "text": "D" }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "col",
+          "id": "tab_info",
+          "pad": 8,
+          "children": [
+            { "type": "label", "id": "info", "text": "Second tab content" }
+          ]
+        }
+      ]
+    }
+  ]
+}

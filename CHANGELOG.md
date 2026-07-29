@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.0.0-alpha.4
+
+### Added
+
+- Milestone **26** room FULL production: scene-matched `FULL_READY` for reward/rest/shop/treasure
+  and combat energy/intents/proceed; real room IntentExecutor gestures; suppress patches for
+  CombatRewardScreen / CampfireUI / ShopScreen / TreasureRoom; shop/treasure/proceed host paint
+- Probe: `capability` / `capabilityReason` on room draw slices; `backend.input.rewardState` etc.
+- Offline fixture `f13_room_full_ready`; D1 `d1_full_present_combat_chrome`
+- Milestone **27**: C1 `grid` / `tabs` containers + `layouts/grid_tabs_sample.json`; beautify pack
+  sample JUnit
+
+### Changed
+
+- Room surfaces no longer treat mount-alone as scene-ready (aligned with map/combat policy)
+- Version **1.0.0-alpha.4**
+
+### Known limits
+
+- Shop/rest/treasure host paint remains label/chrome level (not full STS atlas fidelity)
+- Boss relic / shop D1 still lab-hard; JUnit + offline fixtures are primary
+- Hand select / dual-mod CrossSpire patch coexistence: see `ui-ops-probe.md` Known limits
+- EntityPresent CARD never replaces combat hand FULL hard-sync
+
 ## 1.0.0-alpha.3
 
 ### Added

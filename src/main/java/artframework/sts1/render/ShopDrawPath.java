@@ -64,6 +64,11 @@ public final class ShopDrawPath {
         m.put("available", Boolean.valueOf(sv.available));
         m.put("suppressNativeShop", Boolean.valueOf(shouldSuppressNativeShop()));
         m.put("presentLevel", FullPresentMode.shopLevel().name());
+        artframework.sts1.FullPresentCapability cap =
+                artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.SHOP);
+        m.put("capability", cap.state.name());
+        m.put("capabilityReason", cap.reason);
+        m.put("drawCount", Integer.valueOf(items.size()));
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (DrawItem d : items) {
             list.add(d.toMap());

@@ -81,6 +81,11 @@ public final class IntentDrawPath {
         m.put("available", Boolean.valueOf(ArtFramework.projection().intents().available));
         m.put("suppressNativeIntents", Boolean.valueOf(shouldSuppressNativeIntents()));
         m.put("presentLevel", FullPresentMode.intentsLevel().name());
+        artframework.sts1.FullPresentCapability cap =
+                artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.COMBAT_INTENTS);
+        m.put("capability", cap.state.name());
+        m.put("capabilityReason", cap.reason);
+        m.put("drawCount", Integer.valueOf(items.size()));
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (DrawItem d : items) {
             list.add(d.toMap());

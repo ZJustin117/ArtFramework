@@ -60,6 +60,8 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
                 new WindowDef("comp_sample", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));
         ArtFramework.register(
                 new WindowDef("glass_demo", WindowClass.SYNTHETIC, "layouts/glass_demo.json"));
+        ArtFramework.register(
+                new WindowDef("grid_tabs_demo", WindowClass.SYNTHETIC, "layouts/grid_tabs_sample.json"));
         registerNative(NativeTemplateIds.MAP);
         registerNative(NativeTemplateIds.EVENT);
         registerNative(NativeTemplateIds.SELECT_GRID);

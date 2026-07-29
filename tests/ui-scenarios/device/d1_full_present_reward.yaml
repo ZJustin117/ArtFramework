@@ -1,5 +1,5 @@
-# D1: after Neow proceed into first combat is hard; smoke reward policy + mount via present.
-# Primary acceptance remains JUnit RewardDrawPath; this checks console present reward on menu/run.
+# D1: reward FULL policy + mount; capability field always present (26).
+# FULL_READY only when projection.scene is reward (JUnit owns that matrix).
 name: d1_full_present_reward
 schemaVersion: 1
 mode: device
@@ -24,3 +24,12 @@ steps:
   - assert:
       path: backend.rewardDraw.presentLevel
       eq: FULL
+  - assert:
+      path: backend.rewardDraw.capability
+      exists: true
+  - assert:
+      path: backend.input.rewardState
+      exists: true
+  - assert:
+      path: backend.rewardDraw.suppressNativeReward
+      exists: true

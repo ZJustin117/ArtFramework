@@ -65,6 +65,10 @@ public final class Sts1SurfaceRenderer {
                     renderReward(sb);
                 } else if (SurfaceIds.REST.equals(e.surfaceId)) {
                     renderRest(sb);
+                } else if (SurfaceIds.SHOP.equals(e.surfaceId)) {
+                    renderShop(sb);
+                } else if (SurfaceIds.TREASURE.equals(e.surfaceId)) {
+                    renderTreasure(sb);
                 } else if (SurfaceIds.SKELETON.equals(e.surfaceId)) {
                     renderSkeleton(sb);
                 } else if (SurfaceIds.TOP_PANEL.equals(e.surfaceId)) {
@@ -73,6 +77,8 @@ public final class Sts1SurfaceRenderer {
                     renderEnergy(sb);
                 } else if (SurfaceIds.COMBAT_INTENTS.equals(e.surfaceId)) {
                     renderIntents(sb);
+                } else if (SurfaceIds.COMBAT_PROCEED.equals(e.surfaceId)) {
+                    renderProceed(sb);
                 }
             }
             renderEntityChrome(sb);
@@ -283,7 +289,95 @@ public final class Sts1SurfaceRenderer {
         // Host Spine draw is provider-owned; bridge records live handles for probe.
     }
 
+    private static void renderShop(SpriteBatch sb) {
+        if (!ShopDrawPath.shouldSuppressNativeShop()) {
+            return;
+        }
+        try {
+            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.55f;
+            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+            int gold = ArtFramework.projection().shop().gold;
+            com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                    sb,
+                    com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                    "Gold " + gold,
+                    x,
+                    y + 64f,
+                    Color.GOLD);
+            int i = 0;
+            for (ShopDrawPath.DrawItem item : ShopDrawPath.buildFromProjection()) {
+                String label =
+                        item.label
+                                + " ("
+                                + item.cost
+                                + "g)"
+                                + (item.soldOut ? " SOLD" : "");
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.cardDescFont_N,
+                        label,
+                        x,
+                        y - i * 40f,
+                        item.soldOut ? Color.GRAY : Color.WHITE);
+                i++;
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void renderTreasure(SpriteBatch sb) {
+        if (!TreasureDrawPath.shouldSuppressNativeTreasure()) {
+            return;
+        }
+        try {
+            artframework.context.TreasureView tv = ArtFramework.projection().treasure();
+            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.5f;
+            String label =
+                    tv.chestOpen
+                            ? (tv.relicLabel.isEmpty() ? "Chest open" : tv.relicLabel)
+                            : (tv.canOpen ? "Open chest" : "Chest");
+            com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                    sb,
+                    com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                    label,
+                    x,
+                    y,
+                    Color.WHITE);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void renderProceed(SpriteBatch sb) {
+        if (!ProceedDrawPath.shouldSuppressNativeProceed()) {
+            return;
+        }
+        try {
+            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.2f;
+            int i = 0;
+            for (ProceedDrawPath.DrawItem item : ProceedDrawPath.buildFromProjection()) {
+                if (!item.visible) {
+                    continue;
+                }
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        item.text,
+                        x,
+                        y - i * 40f,
+                        item.enabled ? Color.WHITE : Color.GRAY);
+                i++;
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
     private static void renderTopPanel(SpriteBatch sb) {
+        if (!TopPanelDrawPath.shouldSuppressNativeTopPanel()
+                && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.TOP_PANEL)) {
+            return;
+        }
         try {
             artframework.context.TopPanelView tv = ArtFramework.projection().topPanel();
             if (!tv.available) {
@@ -311,6 +405,10 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void renderEnergy(SpriteBatch sb) {
+        if (!EnergyDrawPath.shouldSuppressNativeEnergy()
+                && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_ENERGY)) {
+            return;
+        }
         try {
             int energy = ArtFramework.projection().controls().energy;
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.12f;
@@ -327,6 +425,10 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void renderIntents(SpriteBatch sb) {
+        if (!IntentDrawPath.shouldSuppressNativeIntents()
+                && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_INTENTS)) {
+            return;
+        }
         try {
             for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(

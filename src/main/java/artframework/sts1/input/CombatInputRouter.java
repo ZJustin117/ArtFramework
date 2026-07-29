@@ -43,28 +43,7 @@ public final class CombatInputRouter {
         String id = SurfaceIds.canonicalize(surfaceId);
         boolean mounted = ArtFramework.component(id) != null && ArtFramework.component(id).isMounted();
         String scene = ArtFramework.projection().scene();
-        boolean sceneReady;
-        if (SurfaceIds.MAP.equals(id)) {
-            sceneReady = "map".equals(scene);
-        } else if (SurfaceIds.EVENT.equals(id)
-                || SurfaceIds.SELECT_GRID.equals(id)
-                || SurfaceIds.SELECT_HAND.equals(id)
-                || SurfaceIds.REWARD_COMBAT.equals(id)
-                || SurfaceIds.REWARD_CARD.equals(id)
-                || SurfaceIds.REWARD_BOSS_RELIC.equals(id)
-                || SurfaceIds.REST.equals(id)
-                || SurfaceIds.TREASURE.equals(id)
-                || SurfaceIds.SHOP.equals(id)
-                || SurfaceIds.TOP_PANEL.equals(id)
-                || SurfaceIds.COMBAT_PROCEED.equals(id)
-                || SurfaceIds.COMBAT_ENERGY.equals(id)
-                || SurfaceIds.COMBAT_INTENTS.equals(id)
-                || SurfaceIds.SKELETON.equals(id)) {
-            // Room/host-owned surfaces: mount is enough for capability (scene optional).
-            sceneReady = mounted;
-        } else {
-            sceneReady = "combat".equals(scene);
-        }
+        boolean sceneReady = sceneReadyFor(id, scene, mounted);
         return FullPresentCapability.resolve(
                 FullPresentMode.levelOf(id),
                 mounted,
@@ -72,6 +51,52 @@ public final class CombatInputRouter {
                 isExecutorReady(id),
                 false,
                 artframework.sts1.PresentSafety.isPanic());
+    }
+
+    /**
+     * Scene match for FULL_READY. Room surfaces require matching backend scene (not mount-only).
+     * Select/event stay mount-driven (host screens may not rewrite projection scene).
+     */
+    static boolean sceneReadyFor(String id, String scene, boolean mounted) {
+        if (SurfaceIds.MAP.equals(id)) {
+            return "map".equals(scene);
+        }
+        if (SurfaceIds.REWARD_COMBAT.equals(id)
+                || SurfaceIds.REWARD_CARD.equals(id)
+                || SurfaceIds.REWARD_BOSS_RELIC.equals(id)) {
+            return "reward".equals(scene);
+        }
+        if (SurfaceIds.REST.equals(id)) {
+            return "rest".equals(scene);
+        }
+        if (SurfaceIds.TREASURE.equals(id)) {
+            return "treasure".equals(scene);
+        }
+        if (SurfaceIds.SHOP.equals(id)) {
+            return "shop".equals(scene);
+        }
+        if (SurfaceIds.COMBAT_ENERGY.equals(id) || SurfaceIds.COMBAT_INTENTS.equals(id)) {
+            return "combat".equals(scene);
+        }
+        if (SurfaceIds.COMBAT_PROCEED.equals(id)) {
+            return "combat".equals(scene) || "reward".equals(scene);
+        }
+        if (SurfaceIds.TOP_PANEL.equals(id)) {
+            return "combat".equals(scene)
+                    || "map".equals(scene)
+                    || "reward".equals(scene)
+                    || "rest".equals(scene)
+                    || "treasure".equals(scene)
+                    || "shop".equals(scene)
+                    || "event".equals(scene);
+        }
+        if (SurfaceIds.EVENT.equals(id)
+                || SurfaceIds.SELECT_GRID.equals(id)
+                || SurfaceIds.SELECT_HAND.equals(id)
+                || SurfaceIds.SKELETON.equals(id)) {
+            return mounted;
+        }
+        return "combat".equals(scene);
     }
 
     public static void setSuppressNativeInput(boolean suppress) {
@@ -186,6 +211,28 @@ public final class CombatInputRouter {
         m.put("selectReason", select.reason);
         m.put("eventOwnsInput", Boolean.valueOf(event.ownsInput()));
         m.put("selectOwnsInput", Boolean.valueOf(select.ownsInput()));
+        FullPresentCapability reward = capability(SurfaceIds.REWARD_COMBAT);
+        FullPresentCapability rest = capability(SurfaceIds.REST);
+        FullPresentCapability shop = capability(SurfaceIds.SHOP);
+        FullPresentCapability treasure = capability(SurfaceIds.TREASURE);
+        FullPresentCapability proceed = capability(SurfaceIds.COMBAT_PROCEED);
+        FullPresentCapability energy = capability(SurfaceIds.COMBAT_ENERGY);
+        FullPresentCapability intents = capability(SurfaceIds.COMBAT_INTENTS);
+        m.put("rewardState", reward.state.name());
+        m.put("rewardReason", reward.reason);
+        m.put("rewardOwnsInput", Boolean.valueOf(reward.ownsInput()));
+        m.put("restState", rest.state.name());
+        m.put("restReason", rest.reason);
+        m.put("shopState", shop.state.name());
+        m.put("shopReason", shop.reason);
+        m.put("treasureState", treasure.state.name());
+        m.put("treasureReason", treasure.reason);
+        m.put("proceedState", proceed.state.name());
+        m.put("proceedReason", proceed.reason);
+        m.put("energyState", energy.state.name());
+        m.put("energyReason", energy.reason);
+        m.put("intentsState", intents.state.name());
+        m.put("intentsReason", intents.reason);
         m.put(
                 "dragInstanceId",
                 ArtFramework.projection().dragInstanceId() != null

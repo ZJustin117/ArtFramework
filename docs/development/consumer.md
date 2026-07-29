@@ -71,24 +71,27 @@ Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md),
 
 - Backend installs ordinary signal listeners; publish authority frames as `context/frame/updated` and use `ArtFramework.emit(...)` for all interactions.
 - Prefer `ACTION` signals or surface `action` over native hitbox callbacks. An interceptor may transform or reject a signal, but only an endpoint committed frame is authoritative.
-- Full-present surfaces: `sts1.combat.hand`, `sts1.combat.card_slots`, `sts1.combat.controls`, `sts1.map`, `sts1.skeleton`, `sts1.combat.surface` (`mount_combat`), `sts1.event`, `sts1.select.grid`, `sts1.select.hand`.
+- Full-present surfaces: `sts1.combat.hand`, `sts1.combat.card_slots`, `sts1.combat.controls`,
+  `sts1.combat.proceed`, `sts1.combat.energy`, `sts1.combat.intents`, `sts1.map`, `sts1.skeleton`,
+  `sts1.combat.surface` (`mount_combat`), `sts1.event`, `sts1.select.grid`, `sts1.select.hand`,
+  `sts1.reward.combat|card|boss_relic`, `sts1.rest`, `sts1.treasure`, `sts1.shop`, `sts1.top_panel`.
 - Legacy `sts.*` / `sts1.endturn` **NativeComponents** remain; end-turn full-present is `sts1.combat.controls` (not an alias that steals `sts1.endturn`).
 - Card identity: use **`CardRef.instanceId`** (multi-instance safe); `playHandCard(cardId)` still resolves first hand match when hand surface is mounted.
+- EntityPresent co-op chrome: `ArtFramework.entities()` + `EntitySnapshot` / `EntityDrawPath`; combat HAND FULL owns in-combat cards.
 - Assets: register packs on `ArtFramework.assets()`; Theme icons/style resolve via HostAssets.
-- Pack release gate: `./scripts/verify-consumer-fixture.sh` compiles `tools/consumer-fixture`
-  which registers a CARD pack and asserts resolve winner `packId` (milestone 19.6).
+- Pack release gate: `./scripts/verify-consumer-fixture.sh` / `./scripts/release-gate.sh`.
 
-### Milestone 16 freeze (STS1 host full-present)
+### Milestone 16–25 freeze (STS1 host full-present)
 
 **Stable for consumers (do not break without major version):**
 
 | Surface | API |
 |---------|-----|
 | Policy | `PresentLevel` OFF\|OBSERVE\|FULL; mount alone never suppresses native |
-| Frames | `ContextFrame` + `ControlsView` / `MapView` / `EventView` / `SelectView` / `CardRef` / `sceneEpoch` |
-| Ops | `UiOps.invoke` / `submitIntent` / `playHandCardRef` |
-| Probe | `backend.fullPresent`, `renderPlan`, `handDraw`, `controlsDraw`, `mapDraw`, `eventDraw`, `selectDraw`, `input`, `safety` |
-| Console lab | `art present combat\|map\|skeleton\|event\|select on\|off\|observe`, `art present panic\|clear-panic` |
+| Frames | `ContextFrame` + controls/map/event/select/reward/rest/treasure/shop/top/intents views + `CardRef` / `sceneEpoch` |
+| Ops | `UiOps.invoke` / surface `action` / `playHandCardRef` / `ArtFramework.emit` (no `UiOps.submitIntent`) |
+| Probe | `backend.fullPresent`, `renderPlan`, `*Draw`, `entityDraw`, `input`, `safety` |
+| Console lab | `art present combat\|map\|skeleton\|event\|select\|reward\|rest\|treasure\|shop\|top\|intents\|proceed\|energy …`, panic/clear-panic |
 
 **Host-only (may evolve):** `Sts1IntentExecutor` gesture bodies, SpriteBatch label fallbacks, SpirePatch suppress points, pan/zoom defaults.
 

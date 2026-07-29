@@ -173,6 +173,46 @@ public final class SurfaceDrawPlan {
             boolean selectGridMounted,
             boolean selectHandMounted,
             boolean overlayObserve) {
+        return build(
+                scene,
+                handMounted,
+                slotsMounted,
+                controlsMounted,
+                mapMounted,
+                skeletonMounted,
+                eventMounted,
+                selectGridMounted,
+                selectHandMounted,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                overlayObserve);
+    }
+
+    public static SurfaceDrawPlan build(
+            String scene,
+            boolean handMounted,
+            boolean slotsMounted,
+            boolean controlsMounted,
+            boolean mapMounted,
+            boolean skeletonMounted,
+            boolean eventMounted,
+            boolean selectGridMounted,
+            boolean selectHandMounted,
+            boolean rewardMounted,
+            boolean restMounted,
+            boolean treasureMounted,
+            boolean shopMounted,
+            boolean topPanelMounted,
+            boolean intentsMounted,
+            boolean proceedMounted,
+            boolean energyMounted,
+            boolean overlayObserve) {
         List<Entry> list = new ArrayList<Entry>();
         list.add(
                 entry(
@@ -181,6 +221,59 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.mapLevel(),
                         mapMounted,
                         "map".equals(scene),
+                        overlayObserve));
+        boolean roomScene =
+                "reward".equals(scene)
+                        || "rest".equals(scene)
+                        || "treasure".equals(scene)
+                        || "shop".equals(scene);
+        list.add(
+                entry(
+                        SurfaceIds.REWARD_COMBAT,
+                        PresentLayer.ROOM,
+                        FullPresentMode.rewardLevel(),
+                        rewardMounted,
+                        "reward".equals(scene) || rewardMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.REWARD_CARD,
+                        PresentLayer.ROOM,
+                        FullPresentMode.rewardLevel(),
+                        rewardMounted,
+                        "reward".equals(scene) || rewardMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.REWARD_BOSS_RELIC,
+                        PresentLayer.ROOM,
+                        FullPresentMode.rewardLevel(),
+                        rewardMounted,
+                        "reward".equals(scene) || rewardMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.REST,
+                        PresentLayer.ROOM,
+                        FullPresentMode.restLevel(),
+                        restMounted,
+                        "rest".equals(scene) || restMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.TREASURE,
+                        PresentLayer.ROOM,
+                        FullPresentMode.treasureLevel(),
+                        treasureMounted,
+                        "treasure".equals(scene) || treasureMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.SHOP,
+                        PresentLayer.ROOM,
+                        FullPresentMode.shopLevel(),
+                        shopMounted,
+                        "shop".equals(scene) || shopMounted,
                         overlayObserve));
         list.add(
                 entry(
@@ -232,11 +325,43 @@ public final class SurfaceDrawPlan {
                         overlayObserve));
         list.add(
                 entry(
+                        SurfaceIds.COMBAT_PROCEED,
+                        PresentLayer.COMBAT_CONTROLS,
+                        FullPresentMode.proceedLevel(),
+                        proceedMounted,
+                        "combat".equals(scene) || proceedMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.COMBAT_ENERGY,
+                        PresentLayer.COMBAT_CONTROLS,
+                        FullPresentMode.energyLevel(),
+                        energyMounted,
+                        "combat".equals(scene) || energyMounted,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.COMBAT_INTENTS,
+                        PresentLayer.COMBAT_INTENTS,
+                        FullPresentMode.intentsLevel(),
+                        intentsMounted,
+                        "combat".equals(scene) || intentsMounted,
+                        overlayObserve));
+        list.add(
+                entry(
                         SurfaceIds.SKELETON,
                         PresentLayer.SKELETON,
                         FullPresentMode.skeletonLevel(),
                         skeletonMounted,
                         true,
+                        overlayObserve));
+        list.add(
+                entry(
+                        SurfaceIds.TOP_PANEL,
+                        PresentLayer.TOP_PANEL,
+                        FullPresentMode.topPanelLevel(),
+                        topPanelMounted,
+                        topPanelMounted || roomScene || "combat".equals(scene) || "map".equals(scene),
                         overlayObserve));
         return new SurfaceDrawPlan(scene, overlayObserve, list);
     }

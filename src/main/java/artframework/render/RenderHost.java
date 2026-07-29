@@ -416,7 +416,7 @@ public final class RenderHost {
     }
 
     /**
-     * Sync C2 entity slot as overlay target (default 64x64 around layout point).
+     * Sync C2 entity slot as overlay target (kind-aware default bounds, milestone 24).
      */
     public void syncEntitySlot(EntitySlot slot) {
         if (slot == null) {
@@ -425,8 +425,10 @@ public final class RenderHost {
         String tid = "c2:entity:" + slot.slotId;
         RenderTarget t = ensureTarget(tid, RenderTargetKind.ENTITY_SLOT);
         float scale = slot.scale() > 0f ? slot.scale() : 1f;
-        float size = 64f * scale;
-        t.setBounds(slot.x() - size * 0.5f, slot.y() - size * 0.5f, size, size);
+        float[] size = artframework.c2.EntityDrawPath.defaultSize(slot.kind, scale);
+        float w = size[0];
+        float h = size[1];
+        t.setBounds(slot.x() - w * 0.5f, slot.y() - h * 0.5f, w, h);
         t.setZ(10f);
         t.setEnabled(slot.isLaidOut());
     }

@@ -218,7 +218,7 @@ public class ArtCommand extends ConsoleCommand {
     private void cmdPresent(String[] tokens, int depth) {
         if (tokens.length <= depth) {
             DevConsole.log(
-                    "Usage: art present status|panic [reason]|clear-panic|combat|map|skeleton|event|select on|off|observe|status");
+                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|proceed|energy on|off|observe|status");
             return;
         }
         String target = tokens[depth].toLowerCase();
@@ -243,9 +243,18 @@ public class ArtCommand extends ConsoleCommand {
                 && !"map".equals(target)
                 && !"skeleton".equals(target)
                 && !"event".equals(target)
-                && !"select".equals(target)) {
+                && !"select".equals(target)
+                && !"reward".equals(target)
+                && !"rest".equals(target)
+                && !"treasure".equals(target)
+                && !"shop".equals(target)
+                && !"top".equals(target)
+                && !"toppanel".equals(target)
+                && !"intents".equals(target)
+                && !"proceed".equals(target)
+                && !"energy".equals(target)) {
             DevConsole.log(
-                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select on|off|observe|status");
+                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|proceed|energy on|off|observe|status");
             return;
         }
         if (tokens.length < depth + 2) {
@@ -326,6 +335,34 @@ public class ArtCommand extends ConsoleCommand {
                     hand.unmount();
                 }
             }
+        } else if ("reward".equals(target)) {
+            artframework.sts1.FullPresentMode.setRewardLevel(level);
+            mountPresentAction(
+                    artframework.context.SurfaceIds.REWARD_COMBAT, "mount_reward", level);
+            mountPresentAction(artframework.context.SurfaceIds.REWARD_CARD, "mount_reward", level);
+            mountPresentAction(
+                    artframework.context.SurfaceIds.REWARD_BOSS_RELIC, "mount_reward", level);
+        } else if ("rest".equals(target)) {
+            artframework.sts1.FullPresentMode.setRestLevel(level);
+            mountPresentAction(artframework.context.SurfaceIds.REST, "mount_rest", level);
+        } else if ("treasure".equals(target)) {
+            artframework.sts1.FullPresentMode.setTreasureLevel(level);
+            mountPresentAction(artframework.context.SurfaceIds.TREASURE, "mount_treasure", level);
+        } else if ("shop".equals(target)) {
+            artframework.sts1.FullPresentMode.setShopLevel(level);
+            mountPresentAction(artframework.context.SurfaceIds.SHOP, "mount_shop", level);
+        } else if ("top".equals(target) || "toppanel".equals(target)) {
+            artframework.sts1.FullPresentMode.setTopPanelLevel(level);
+            mountPresentAction(artframework.context.SurfaceIds.TOP_PANEL, "mount_top_panel", level);
+        } else if ("intents".equals(target)) {
+            artframework.sts1.FullPresentMode.setIntentsLevel(level);
+            mountPresentAction(artframework.context.SurfaceIds.COMBAT_INTENTS, "mount_intents", level);
+        } else if ("proceed".equals(target)) {
+            artframework.sts1.FullPresentMode.setProceedLevel(level);
+            mountPresentAction(artframework.context.SurfaceIds.COMBAT_PROCEED, "mount_proceed", level);
+        } else if ("energy".equals(target)) {
+            artframework.sts1.FullPresentMode.setEnergyLevel(level);
+            mountPresentAction(artframework.context.SurfaceIds.COMBAT_ENERGY, "mount_energy", level);
         } else {
             artframework.sts1.FullPresentMode.setSkeletonLevel(level);
             artframework.core.UiComponent sk =
@@ -353,6 +390,18 @@ public class ArtCommand extends ConsoleCommand {
         BaseMod.logger.info(line);
     }
 
+    private void mountPresentAction(String surfaceId, String mountAction, artframework.sts1.PresentLevel level) {
+        artframework.core.UiComponent c = ArtFramework.component(surfaceId);
+        if (c == null) {
+            return;
+        }
+        if (level.allowsFullPresent() || level.allowsObserve()) {
+            c.action(mountAction);
+        } else if (c.isMounted()) {
+            c.unmount();
+        }
+    }
+
     private void logPresentStatus() {
         java.util.Map<String, Object> policy = artframework.sts1.FullPresentMode.probeSlice();
         String line =
@@ -366,6 +415,12 @@ public class ArtCommand extends ConsoleCommand {
                         + policy.get("event")
                         + " select="
                         + policy.get("select")
+                        + " reward="
+                        + policy.get("reward")
+                        + " rest="
+                        + policy.get("rest")
+                        + " shop="
+                        + policy.get("shop")
                         + " skeleton="
                         + policy.get("skeleton")
                         + " panic="

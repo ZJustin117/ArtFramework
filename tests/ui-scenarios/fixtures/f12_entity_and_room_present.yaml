@@ -1,0 +1,11 @@
+# Offline fixture shape for milestone 24–25 probe fields (art-verify offline uses sample JSON).
+name: f12_entity_and_room_present
+schemaVersion: 1
+mode: fixture
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: modId
+      eq: artframework

@@ -9,7 +9,7 @@ Both share one facade (`artframework.api.ArtFramework`) and registration format;
 
 **API target:** one consumer surface (mount / tree / signals / ops / probe); C2 as encapsulated **NativeControl** / **Native Surface** components; host remains dual. See [`godot-aligned-ui.md`](./godot-aligned-ui.md).
 
-**Next evolution (milestone 15):** pluggable Backend + context frames; C2 **full present** (ART draws, hard-sync, intents replace native UI callbacks); HostAssets unified packs. See [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Thin SpirePatch intercept remains a **migration bridge**, not the end state.
+**Shipped (milestones 15–22):** pluggable Backend + context frames; C2 **full present** for combat/map/event/select; HostAssets packs; SignalBus. **24–25:** EntityPresent host draw + extra room surfaces (reward/rest/shop/…). See [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md), [`entity-present.md`](./entity-present.md). Thin SpirePatch intercept remains a **migration bridge**, not the end state.
 
 ```
 Caller

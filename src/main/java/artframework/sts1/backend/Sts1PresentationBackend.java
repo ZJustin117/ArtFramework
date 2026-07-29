@@ -13,8 +13,15 @@ import artframework.context.EventView;
 import artframework.context.IntentResult;
 import artframework.context.MapNodeView;
 import artframework.context.MapView;
+import artframework.context.MonsterIntentView;
+import artframework.context.RestView;
+import artframework.context.RewardItemView;
+import artframework.context.RewardView;
 import artframework.context.SelectView;
+import artframework.context.ShopView;
 import artframework.context.SignalBackend;
+import artframework.context.TopPanelView;
+import artframework.context.TreasureView;
 import artframework.context.UiIntent;
 import artframework.context.ViewportView;
 
@@ -74,6 +81,18 @@ public final class Sts1PresentationBackend implements SignalBackend {
             if ("select".equals(scene)) {
                 return enrich(selectOnlyFrame());
             }
+            if ("reward".equals(scene)) {
+                return enrich(rewardFrame());
+            }
+            if ("rest".equals(scene)) {
+                return enrich(restFrame());
+            }
+            if ("treasure".equals(scene)) {
+                return enrich(treasureFrame());
+            }
+            if ("shop".equals(scene)) {
+                return enrich(shopFrame());
+            }
             return ContextFrame.unavailable(frameId);
         } catch (Throwable t) {
             frameId++;
@@ -128,22 +147,36 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 && AbstractDungeon.overlayMenu.endTurnButton.enabled;
         boolean endTurnVisible = AbstractDungeon.overlayMenu != null
                 && AbstractDungeon.overlayMenu.endTurnButton != null;
+        boolean proceedVisible = false;
+        boolean proceedEnabled = false;
+        try {
+            AbstractRoom curr = safeCurrRoom();
+            if (curr != null && curr.isBattleOver) {
+                proceedVisible = true;
+                proceedEnabled = true;
+            }
+        } catch (Throwable ignored) {
+        }
         ControlsView controls =
-                ControlsView.combat(
+                ControlsView.combatWithProceed(
                         player.energy != null ? player.energy.energy : 0,
                         player.hand != null ? player.hand.size() : 0,
                         player.drawPile != null ? player.drawPile.size() : 0,
                         player.discardPile != null ? player.discardPile.size() : 0,
                         player.exhaustPile != null ? player.exhaustPile.size() : 0,
                         endTurnEnabled,
-                        endTurnVisible);
+                        endTurnVisible,
+                        proceedEnabled,
+                        proceedVisible,
+                        false,
+                        false);
         ViewportView viewport =
                 new ViewportView(
                         com.megacrit.cardcrawl.core.Settings.WIDTH,
                         com.megacrit.cardcrawl.core.Settings.HEIGHT,
                         com.megacrit.cardcrawl.core.Settings.WIDTH,
                         com.megacrit.cardcrawl.core.Settings.HEIGHT);
-        return new ContextFrame(
+        return ContextFrame.ofFull(
                 frameId,
                 sceneEpoch,
                 "combat",
@@ -152,7 +185,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 MapView.empty(),
                 EventView.empty(),
                 SelectView.empty(),
-                true,
+                RewardView.empty(),
+                RestView.empty(),
+                TreasureView.empty(),
+                ShopView.empty(),
+                readTopPanelView(),
+                readIntentsView(),
                 viewport);
     }
 
@@ -235,21 +273,43 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 viewport);
     }
 
-    /** Attach live event/select views onto any available frame without changing scene. */
+    /** Attach live event/select/room views onto any available frame without changing scene. */
     private ContextFrame enrich(ContextFrame base) {
         if (base == null || !base.available) {
             return base;
         }
         EventView event = readEventView();
         SelectView select = readSelectView();
-        if (!event.available && !select.available) {
-            return base;
-        }
+        RewardView reward = readRewardView();
+        RestView rest = readRestView();
+        TreasureView treasure = readTreasureView();
+        ShopView shop = readShopView();
+        TopPanelView top = readTopPanelView();
+        MonsterIntentView intents =
+                "combat".equals(base.scene) ? readIntentsView() : base.intentsView;
         if (!event.available) {
             event = base.eventView;
         }
         if (!select.available) {
             select = base.selectView;
+        }
+        if (!reward.available) {
+            reward = base.rewardView;
+        }
+        if (!rest.available) {
+            rest = base.restView;
+        }
+        if (!treasure.available) {
+            treasure = base.treasureView;
+        }
+        if (!shop.available) {
+            shop = base.shopView;
+        }
+        if (!top.available) {
+            top = base.topPanelView;
+        }
+        if (!intents.available) {
+            intents = base.intentsView;
         }
         return new ContextFrame(
                 base.frameId,
@@ -260,8 +320,230 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 base.mapView,
                 event,
                 select,
+                reward,
+                rest,
+                treasure,
+                shop,
+                top,
+                intents,
                 true,
                 base.viewport);
+    }
+
+    private ContextFrame rewardFrame() {
+        int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        return ContextFrame.ofFull(
+                frameId,
+                sceneEpoch,
+                "reward",
+                null,
+                ControlsView.empty(),
+                MapView.empty(),
+                EventView.empty(),
+                SelectView.empty(),
+                readRewardView(),
+                RestView.empty(),
+                TreasureView.empty(),
+                ShopView.empty(),
+                readTopPanelView(),
+                MonsterIntentView.empty(),
+                new ViewportView(w, h, w, h));
+    }
+
+    private ContextFrame restFrame() {
+        int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        return ContextFrame.ofFull(
+                frameId,
+                sceneEpoch,
+                "rest",
+                null,
+                ControlsView.empty(),
+                MapView.empty(),
+                EventView.empty(),
+                SelectView.empty(),
+                RewardView.empty(),
+                readRestView(),
+                TreasureView.empty(),
+                ShopView.empty(),
+                readTopPanelView(),
+                MonsterIntentView.empty(),
+                new ViewportView(w, h, w, h));
+    }
+
+    private ContextFrame treasureFrame() {
+        int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        return ContextFrame.ofFull(
+                frameId,
+                sceneEpoch,
+                "treasure",
+                null,
+                ControlsView.empty(),
+                MapView.empty(),
+                EventView.empty(),
+                SelectView.empty(),
+                RewardView.empty(),
+                RestView.empty(),
+                readTreasureView(),
+                ShopView.empty(),
+                readTopPanelView(),
+                MonsterIntentView.empty(),
+                new ViewportView(w, h, w, h));
+    }
+
+    private ContextFrame shopFrame() {
+        int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        return ContextFrame.ofFull(
+                frameId,
+                sceneEpoch,
+                "shop",
+                null,
+                ControlsView.empty(),
+                MapView.empty(),
+                EventView.empty(),
+                SelectView.empty(),
+                RewardView.empty(),
+                RestView.empty(),
+                TreasureView.empty(),
+                readShopView(),
+                readTopPanelView(),
+                MonsterIntentView.empty(),
+                new ViewportView(w, h, w, h));
+    }
+
+    private static RewardView readRewardView() {
+        try {
+            if (AbstractDungeon.combatRewardScreen == null
+                    || AbstractDungeon.combatRewardScreen.rewards == null
+                    || AbstractDungeon.combatRewardScreen.rewards.isEmpty()) {
+                return RewardView.empty();
+            }
+            List<RewardItemView> items = new ArrayList<RewardItemView>();
+            int i = 0;
+            for (Object raw : AbstractDungeon.combatRewardScreen.rewards) {
+                String kind = "reward";
+                String label = "Reward " + i;
+                try {
+                    kind = raw.getClass().getSimpleName();
+                    java.lang.reflect.Field text = raw.getClass().getField("text");
+                    Object t = text.get(raw);
+                    if (t != null) {
+                        label = String.valueOf(t);
+                    }
+                } catch (Throwable ignored) {
+                }
+                items.add(RewardItemView.of(i, kind, label));
+                i++;
+            }
+            String kind = "combat";
+            try {
+                if (AbstractDungeon.cardRewardScreen != null
+                        && AbstractDungeon.cardRewardScreen.rewardGroup != null
+                        && !AbstractDungeon.cardRewardScreen.rewardGroup.isEmpty()) {
+                    kind = "card";
+                }
+            } catch (Throwable ignored) {
+            }
+            return RewardView.of(kind, "Rewards", items);
+        } catch (Throwable t) {
+            return RewardView.empty();
+        }
+    }
+
+    private static RestView readRestView() {
+        try {
+            AbstractRoom room = safeCurrRoom();
+            if (room == null || !(room instanceof com.megacrit.cardcrawl.rooms.RestRoom)) {
+                return RestView.empty();
+            }
+            List<RestView.RestOptionView> options = new ArrayList<RestView.RestOptionView>();
+            options.add(RestView.RestOptionView.of("rest", "Rest"));
+            options.add(RestView.RestOptionView.of("smith", "Smith"));
+            options.add(RestView.RestOptionView.of("recall", "Recall"));
+            return RestView.of(options);
+        } catch (Throwable t) {
+            return RestView.empty();
+        }
+    }
+
+    private static TreasureView readTreasureView() {
+        try {
+            AbstractRoom room = safeCurrRoom();
+            if (room == null || !(room instanceof com.megacrit.cardcrawl.rooms.TreasureRoom)) {
+                return TreasureView.empty();
+            }
+            return TreasureView.closed();
+        } catch (Throwable t) {
+            return TreasureView.empty();
+        }
+    }
+
+    private static ShopView readShopView() {
+        try {
+            AbstractRoom room = safeCurrRoom();
+            if (room == null || !(room instanceof com.megacrit.cardcrawl.rooms.ShopRoom)) {
+                return ShopView.empty();
+            }
+            int gold = AbstractDungeon.player != null ? AbstractDungeon.player.gold : 0;
+            List<ShopView.ShopEntryView> entries = new ArrayList<ShopView.ShopEntryView>();
+            entries.add(ShopView.ShopEntryView.of(0, "card", "Card", 50));
+            entries.add(ShopView.ShopEntryView.of(1, "relic", "Relic", 150));
+            return ShopView.of(gold, entries, true, 75);
+        } catch (Throwable t) {
+            return ShopView.empty();
+        }
+    }
+
+    private static TopPanelView readTopPanelView() {
+        try {
+            if (AbstractDungeon.player == null) {
+                return TopPanelView.empty();
+            }
+            AbstractPlayer p = AbstractDungeon.player;
+            return TopPanelView.of(
+                    p.currentHealth,
+                    p.maxHealth,
+                    p.gold,
+                    AbstractDungeon.floorNum,
+                    AbstractDungeon.ascensionLevel,
+                    p.name != null ? p.name : p.getClass().getSimpleName());
+        } catch (Throwable t) {
+            return TopPanelView.empty();
+        }
+    }
+
+    private static MonsterIntentView readIntentsView() {
+        try {
+            if (AbstractDungeon.getMonsters() == null
+                    || AbstractDungeon.getMonsters().monsters == null) {
+                return MonsterIntentView.empty();
+            }
+            List<MonsterIntentView.IntentEntry> entries = new ArrayList<MonsterIntentView.IntentEntry>();
+            for (com.megacrit.cardcrawl.monsters.AbstractMonster m :
+                    AbstractDungeon.getMonsters().monsters) {
+                if (m == null || m.isDeadOrEscaped()) {
+                    continue;
+                }
+                String intent = m.intent != null ? m.intent.name() : "";
+                float x = m.hb != null ? m.hb.cX : m.drawX;
+                float y = m.hb != null ? m.hb.cY + 80f : m.drawY + 80f;
+                entries.add(
+                        new MonsterIntentView.IntentEntry(
+                                m.id != null ? m.id : m.name,
+                                m.name != null ? m.name : "",
+                                intent,
+                                "",
+                                0,
+                                x,
+                                y));
+            }
+            return MonsterIntentView.of(entries);
+        } catch (Throwable t) {
+            return MonsterIntentView.empty();
+        }
     }
 
     private static EventView readEventView() {
@@ -496,11 +778,6 @@ public final class Sts1PresentationBackend implements SignalBackend {
         if (AbstractDungeon.screen != null && "MAP".equals(AbstractDungeon.screen.name())) {
             return "map";
         }
-        // Event room with live event (e.g. Neow) before map/combat.
-        if (room != null && room.event != null
-                && room.phase != AbstractRoom.RoomPhase.COMBAT) {
-            return "event";
-        }
         try {
             if (AbstractDungeon.gridSelectScreen != null
                     && isSelectVisible(AbstractDungeon.gridSelectScreen)) {
@@ -511,6 +788,43 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 return "select";
             }
         } catch (Throwable ignored) {
+        }
+        try {
+            if (AbstractDungeon.screen != null) {
+                String sn = AbstractDungeon.screen.name();
+                if ("COMBAT_REWARD".equals(sn) || "CARD_REWARD".equals(sn) || "BOSS_REWARD".equals(sn)) {
+                    return "reward";
+                }
+                if ("SHOP".equals(sn)) {
+                    return "shop";
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        if (room instanceof com.megacrit.cardcrawl.rooms.RestRoom) {
+            return "rest";
+        }
+        if (room instanceof com.megacrit.cardcrawl.rooms.TreasureRoom
+                || room instanceof com.megacrit.cardcrawl.rooms.TreasureRoomBoss) {
+            return "treasure";
+        }
+        if (room instanceof com.megacrit.cardcrawl.rooms.ShopRoom) {
+            return "shop";
+        }
+        try {
+            if (AbstractDungeon.combatRewardScreen != null
+                    && AbstractDungeon.combatRewardScreen.rewards != null
+                    && !AbstractDungeon.combatRewardScreen.rewards.isEmpty()
+                    && room != null
+                    && room.isBattleOver) {
+                return "reward";
+            }
+        } catch (Throwable ignored) {
+        }
+        // Event room with live event (e.g. Neow) before map/combat.
+        if (room != null && room.event != null
+                && room.phase != AbstractRoom.RoomPhase.COMBAT) {
+            return "event";
         }
         return "";
     }

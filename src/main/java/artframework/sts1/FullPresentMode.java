@@ -19,6 +19,14 @@ public final class FullPresentMode {
     private static PresentLevel skeleton = PresentLevel.OFF;
     private static PresentLevel event = PresentLevel.OFF;
     private static PresentLevel select = PresentLevel.OFF;
+    private static PresentLevel reward = PresentLevel.OFF;
+    private static PresentLevel rest = PresentLevel.OFF;
+    private static PresentLevel treasure = PresentLevel.OFF;
+    private static PresentLevel shop = PresentLevel.OFF;
+    private static PresentLevel topPanel = PresentLevel.OFF;
+    private static PresentLevel intents = PresentLevel.OFF;
+    private static PresentLevel proceed = PresentLevel.OFF;
+    private static PresentLevel energy = PresentLevel.OFF;
 
     private FullPresentMode() {}
 
@@ -60,6 +68,32 @@ public final class FullPresentMode {
         if (SurfaceIds.SELECT_GRID.equals(id) || SurfaceIds.SELECT_HAND.equals(id)) {
             return select;
         }
+        if (SurfaceIds.REWARD_COMBAT.equals(id)
+                || SurfaceIds.REWARD_CARD.equals(id)
+                || SurfaceIds.REWARD_BOSS_RELIC.equals(id)) {
+            return reward;
+        }
+        if (SurfaceIds.REST.equals(id)) {
+            return rest;
+        }
+        if (SurfaceIds.TREASURE.equals(id)) {
+            return treasure;
+        }
+        if (SurfaceIds.SHOP.equals(id)) {
+            return shop;
+        }
+        if (SurfaceIds.TOP_PANEL.equals(id)) {
+            return topPanel;
+        }
+        if (SurfaceIds.COMBAT_INTENTS.equals(id)) {
+            return intents;
+        }
+        if (SurfaceIds.COMBAT_PROCEED.equals(id)) {
+            return proceed;
+        }
+        if (SurfaceIds.COMBAT_ENERGY.equals(id)) {
+            return energy;
+        }
         return PresentLevel.OFF;
     }
 
@@ -96,12 +130,76 @@ public final class FullPresentMode {
         select = level != null ? level : PresentLevel.OFF;
     }
 
+    public static void setRewardLevel(PresentLevel level) {
+        reward = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static void setRestLevel(PresentLevel level) {
+        rest = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static void setTreasureLevel(PresentLevel level) {
+        treasure = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static void setShopLevel(PresentLevel level) {
+        shop = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static void setTopPanelLevel(PresentLevel level) {
+        topPanel = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static void setIntentsLevel(PresentLevel level) {
+        intents = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static void setProceedLevel(PresentLevel level) {
+        proceed = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static void setEnergyLevel(PresentLevel level) {
+        energy = level != null ? level : PresentLevel.OFF;
+    }
+
     public static PresentLevel eventLevel() {
         return event;
     }
 
     public static PresentLevel selectLevel() {
         return select;
+    }
+
+    public static PresentLevel rewardLevel() {
+        return reward;
+    }
+
+    public static PresentLevel restLevel() {
+        return rest;
+    }
+
+    public static PresentLevel treasureLevel() {
+        return treasure;
+    }
+
+    public static PresentLevel shopLevel() {
+        return shop;
+    }
+
+    public static PresentLevel topPanelLevel() {
+        return topPanel;
+    }
+
+    public static PresentLevel intentsLevel() {
+        return intents;
+    }
+
+    public static PresentLevel proceedLevel() {
+        return proceed;
+    }
+
+    public static PresentLevel energyLevel() {
+        return energy;
     }
 
     public static void setLevel(String surfaceId, PresentLevel level) {
@@ -131,6 +229,40 @@ public final class FullPresentMode {
         }
         if (SurfaceIds.SELECT_GRID.equals(id) || SurfaceIds.SELECT_HAND.equals(id)) {
             select = v;
+            return;
+        }
+        if (SurfaceIds.REWARD_COMBAT.equals(id)
+                || SurfaceIds.REWARD_CARD.equals(id)
+                || SurfaceIds.REWARD_BOSS_RELIC.equals(id)) {
+            reward = v;
+            return;
+        }
+        if (SurfaceIds.REST.equals(id)) {
+            rest = v;
+            return;
+        }
+        if (SurfaceIds.TREASURE.equals(id)) {
+            treasure = v;
+            return;
+        }
+        if (SurfaceIds.SHOP.equals(id)) {
+            shop = v;
+            return;
+        }
+        if (SurfaceIds.TOP_PANEL.equals(id)) {
+            topPanel = v;
+            return;
+        }
+        if (SurfaceIds.COMBAT_INTENTS.equals(id)) {
+            intents = v;
+            return;
+        }
+        if (SurfaceIds.COMBAT_PROCEED.equals(id)) {
+            proceed = v;
+            return;
+        }
+        if (SurfaceIds.COMBAT_ENERGY.equals(id)) {
+            energy = v;
         }
     }
 
@@ -154,6 +286,14 @@ public final class FullPresentMode {
         m.put("skeleton", skeleton.name());
         m.put("event", event.name());
         m.put("select", select.name());
+        m.put("reward", reward.name());
+        m.put("rest", rest.name());
+        m.put("treasure", treasure.name());
+        m.put("shop", shop.name());
+        m.put("topPanel", topPanel.name());
+        m.put("intents", intents.name());
+        m.put("proceed", proceed.name());
+        m.put("energy", energy.name());
         m.put("combatHandFull", Boolean.valueOf(combatHand.allowsFullPresent() && !PresentSafety.isPanic()));
         m.put("maySuppressNativeHand", Boolean.valueOf(maySuppressNative(SurfaceIds.COMBAT_HAND)));
         m.put("maySuppressNativeEvent", Boolean.valueOf(maySuppressNative(SurfaceIds.EVENT)));
@@ -169,5 +309,13 @@ public final class FullPresentMode {
         skeleton = PresentLevel.OFF;
         event = PresentLevel.OFF;
         select = PresentLevel.OFF;
+        reward = PresentLevel.OFF;
+        rest = PresentLevel.OFF;
+        treasure = PresentLevel.OFF;
+        shop = PresentLevel.OFF;
+        topPanel = PresentLevel.OFF;
+        intents = PresentLevel.OFF;
+        proceed = PresentLevel.OFF;
+        energy = PresentLevel.OFF;
     }
 }

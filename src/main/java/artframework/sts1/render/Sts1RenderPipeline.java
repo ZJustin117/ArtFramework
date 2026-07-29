@@ -56,6 +56,16 @@ public final class Sts1RenderPipeline {
                         mounted(SurfaceIds.EVENT),
                         mounted(SurfaceIds.SELECT_GRID),
                         mounted(SurfaceIds.SELECT_HAND),
+                        mounted(SurfaceIds.REWARD_COMBAT)
+                                || mounted(SurfaceIds.REWARD_CARD)
+                                || mounted(SurfaceIds.REWARD_BOSS_RELIC),
+                        mounted(SurfaceIds.REST),
+                        mounted(SurfaceIds.TREASURE),
+                        mounted(SurfaceIds.SHOP),
+                        mounted(SurfaceIds.TOP_PANEL),
+                        mounted(SurfaceIds.COMBAT_INTENTS),
+                        mounted(SurfaceIds.COMBAT_PROCEED),
+                        mounted(SurfaceIds.COMBAT_ENERGY),
                         overlayObserve);
         return lastPlan;
     }

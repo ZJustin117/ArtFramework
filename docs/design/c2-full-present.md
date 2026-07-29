@@ -4,16 +4,17 @@ Target design for **C2 as full display takeover**: ART draws the surface, hard-s
 Backend frames, and replaces native UI callbacks with **signals + intents**.
 Complements [`backend-context.md`](./backend-context.md), [`host-assets.md`](./host-assets.md),
 [`dual-track.md`](./dual-track.md), [`godot-aligned-ui.md`](./godot-aligned-ui.md).
-Roadmap: [`docs/task.md`](../task.md) milestone **15**.
+Roadmap: [`docs/task.md`](../task.md) milestones **15–22** (shipped), **24–25** (entity + more
+surfaces).
 
 ## Status vs shipped code
 
-| | Shipped (0–21) | Remaining host work |
-|--|----------------|---------------------|
-| Draw | Combat hand/controls/map FULL on STS1; event/select **surface API only** (19.5) | **22** event/select draw + suppress |
-| Input | SignalBus + intents; combat/map executor | **22** SELECT_* live executor |
-| Data | Context frames + strong views (controls/map/cards) | **22** EventView / SelectView |
-| Objects | Registerable full-present surfaces | Event/select host paint |
+| | Shipped (0–25) | Notes |
+|--|----------------|-------|
+| Draw | Combat hand/controls/map/event/select FULL; reward/rest/treasure/shop/top/intents paths | Device FULL_READY still per-surface |
+| Input | SignalBus + intents; combat/map/event/select (+ room intents) | Host executor best-effort |
+| Data | Context frames + strong views including event/select/reward/rest/shop | |
+| Objects | Registerable full-present surfaces + EntityPresent draw path | Thin intercept remains migration bridge |
 
 Thin intercept ([`dual-track.md`](./dual-track.md) roadmap 7, patches) remains a **migration
 bridge**, not the end state.

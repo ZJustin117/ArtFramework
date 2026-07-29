@@ -7,12 +7,15 @@ package artframework.sts1.render;
 public enum PresentLayer {
     WORLD_UNDERLAY,
     MAP,
+    ROOM,
     EVENT,
     SELECT,
     COMBAT_SLOTS,
     COMBAT_HAND,
     COMBAT_CONTROLS,
+    COMBAT_INTENTS,
     SKELETON,
+    TOP_PANEL,
     OVERLAY_FX,
     C1_STAGE
 }

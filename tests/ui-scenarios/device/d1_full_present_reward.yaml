@@ -1,0 +1,26 @@
+# D1: after Neow proceed into first combat is hard; smoke reward policy + mount via present.
+# Primary acceptance remains JUnit RewardDrawPath; this checks console present reward on menu/run.
+name: d1_full_present_reward
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab start-run IRONCLAD"
+  - wait_ms: 20000
+  - console: "art present reward on"
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 1000
+      assert:
+        path: backend.fullPresent.reward
+        eq: FULL
+  - assert:
+      path: backend.rewardDraw.presentLevel
+      eq: FULL

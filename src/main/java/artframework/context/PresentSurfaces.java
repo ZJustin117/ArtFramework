@@ -36,6 +36,16 @@ public final class PresentSurfaces {
         register(new EventSurface());
         register(new SelectSurface(SurfaceIds.SELECT_GRID));
         register(new SelectSurface(SurfaceIds.SELECT_HAND));
+        register(new ProceedSurface());
+        register(new EnergySurface());
+        register(new RewardSurface(SurfaceIds.REWARD_COMBAT));
+        register(new RewardSurface(SurfaceIds.REWARD_CARD));
+        register(new RewardSurface(SurfaceIds.REWARD_BOSS_RELIC));
+        register(new RestSurface());
+        register(new TreasureSurface());
+        register(new ShopSurface());
+        register(new TopPanelSurface());
+        register(new IntentsSurface());
     }
 
     private PresentSurfaces() {}
@@ -407,7 +417,270 @@ public final class PresentSurfaces {
             m.put("endTurnEnabled", Boolean.valueOf(cv.endTurnEnabled));
             m.put("endTurnVisible", Boolean.valueOf(cv.endTurnVisible));
             m.put("energy", Integer.valueOf(cv.energy));
+            m.put("proceedEnabled", Boolean.valueOf(cv.proceedEnabled));
+            m.put("proceedVisible", Boolean.valueOf(cv.proceedVisible));
             m.put("controls", cv.toMap().get("controls"));
+            return m;
+        }
+    }
+
+    static final class ProceedSurface extends BaseSurface {
+        ProceedSurface() {
+            super(SurfaceIds.COMBAT_PROCEED, SignalNames.PRESSED, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_proceed".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("proceed mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("proceed not mounted");
+            }
+            if ("press_proceed".equals(name) || IntentNames.PRESS_PROCEED.equals(name)) {
+                IntentResult r = submit(IntentNames.PRESS_PROCEED);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.PRESSED, ControlsView.PROCEED_ID);
+                }
+                return toOp(r);
+            }
+            if ("press_cancel".equals(name) || IntentNames.PRESS_CANCEL.equals(name)) {
+                IntentResult r = submit(IntentNames.PRESS_CANCEL);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.PRESSED, ControlsView.CANCEL_ID);
+                }
+                return toOp(r);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m =
+                    baseProbe(Arrays.asList("press_proceed", "press_cancel", "mount_proceed"));
+            ControlsView cv = PresentProjections.get().controls();
+            m.put("proceedEnabled", Boolean.valueOf(cv.proceedEnabled));
+            m.put("cancelEnabled", Boolean.valueOf(cv.cancelEnabled));
+            return m;
+        }
+    }
+
+    static final class EnergySurface extends BaseSurface {
+        EnergySurface() {
+            super(SurfaceIds.COMBAT_ENERGY, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_energy".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("energy mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("energy not mounted");
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("mount_energy"));
+            m.put("energy", Integer.valueOf(PresentProjections.get().controls().energy));
+            return m;
+        }
+    }
+
+    static final class RewardSurface extends BaseSurface {
+        RewardSurface(String id) {
+            super(id, SignalNames.PRESSED, SignalNames.SURFACE_OPENED, SignalNames.SURFACE_CLOSED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_reward".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok(id() + " mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound(id() + " not mounted");
+            }
+            if ("claim".equals(name) || IntentNames.CLAIM_REWARD.equals(name)) {
+                IntentResult r = submit(IntentNames.CLAIM_REWARD, args);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.PRESSED, args);
+                }
+                return toOp(r);
+            }
+            if ("skip".equals(name) || IntentNames.SKIP_REWARD.equals(name)) {
+                IntentResult r = submit(IntentNames.SKIP_REWARD, args);
+                return toOp(r);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m =
+                    baseProbe(Arrays.asList("claim", "skip", "mount_reward", IntentNames.CLAIM_REWARD));
+            m.put("reward", PresentProjections.get().reward().toMap());
+            return m;
+        }
+    }
+
+    static final class RestSurface extends BaseSurface {
+        RestSurface() {
+            super(SurfaceIds.REST, SignalNames.PRESSED, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_rest".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("rest mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("rest not mounted");
+            }
+            if ("choose".equals(name) || IntentNames.CHOOSE_REST_OPTION.equals(name)) {
+                IntentResult r = submit(IntentNames.CHOOSE_REST_OPTION, args);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.PRESSED, args);
+                }
+                return toOp(r);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("choose", "mount_rest"));
+            m.put("rest", PresentProjections.get().rest().toMap());
+            return m;
+        }
+    }
+
+    static final class TreasureSurface extends BaseSurface {
+        TreasureSurface() {
+            super(SurfaceIds.TREASURE, SignalNames.PRESSED, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_treasure".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("treasure mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("treasure not mounted");
+            }
+            if ("open".equals(name) || IntentNames.OPEN_CHEST.equals(name)) {
+                IntentResult r = submit(IntentNames.OPEN_CHEST, args);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.PRESSED);
+                }
+                return toOp(r);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("open", "mount_treasure"));
+            m.put("treasure", PresentProjections.get().treasure().toMap());
+            return m;
+        }
+    }
+
+    static final class ShopSurface extends BaseSurface {
+        ShopSurface() {
+            super(SurfaceIds.SHOP, SignalNames.PRESSED, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_shop".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("shop mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("shop not mounted");
+            }
+            if ("buy".equals(name) || IntentNames.BUY_SHOP_ENTRY.equals(name)) {
+                IntentResult r = submit(IntentNames.BUY_SHOP_ENTRY, args);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.PRESSED, args);
+                }
+                return toOp(r);
+            }
+            if ("purge".equals(name) || IntentNames.PURGE_CARD.equals(name)) {
+                return toOp(submit(IntentNames.PURGE_CARD, args));
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("buy", "purge", "mount_shop"));
+            m.put("shop", PresentProjections.get().shop().toMap());
+            return m;
+        }
+    }
+
+    static final class TopPanelSurface extends BaseSurface {
+        TopPanelSurface() {
+            super(SurfaceIds.TOP_PANEL, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_top_panel".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("top panel mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("top panel not mounted");
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("mount_top_panel"));
+            m.put("topPanel", PresentProjections.get().topPanel().toMap());
+            return m;
+        }
+    }
+
+    static final class IntentsSurface extends BaseSurface {
+        IntentsSurface() {
+            super(SurfaceIds.COMBAT_INTENTS, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_intents".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("intents mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("intents not mounted");
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("mount_intents"));
+            m.put("intents", PresentProjections.get().intents().toMap());
             return m;
         }
     }

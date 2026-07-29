@@ -14,6 +14,14 @@ public final class IntentNames {
     public static final String CHOOSE_EVENT_OPTION = "choose_event_option";
     public static final String PRESS_END_TURN = "press_end_turn";
     public static final String PRESS = "press";
+    public static final String PRESS_PROCEED = "press_proceed";
+    public static final String PRESS_CANCEL = "press_cancel";
+    public static final String CLAIM_REWARD = "claim_reward";
+    public static final String SKIP_REWARD = "skip_reward";
+    public static final String CHOOSE_REST_OPTION = "choose_rest_option";
+    public static final String OPEN_CHEST = "open_chest";
+    public static final String BUY_SHOP_ENTRY = "buy_shop_entry";
+    public static final String PURGE_CARD = "purge_card";
     public static final String SELECT_SKIN_PROFILE = "select_skin_profile";
     public static final String ENABLE_PACK = "enable_pack";
 

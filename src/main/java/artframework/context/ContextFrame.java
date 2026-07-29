@@ -22,6 +22,12 @@ public final class ContextFrame {
     public final MapView mapView;
     public final EventView eventView;
     public final SelectView selectView;
+    public final RewardView rewardView;
+    public final RestView restView;
+    public final TreasureView treasureView;
+    public final ShopView shopView;
+    public final TopPanelView topPanelView;
+    public final MonsterIntentView intentsView;
     public final boolean available;
     public final ViewportView viewport;
 
@@ -46,6 +52,42 @@ public final class ContextFrame {
             SelectView selectView,
             boolean available,
             ViewportView viewport) {
+        this(
+                frameId,
+                sceneEpoch,
+                scene,
+                cards,
+                controlsView,
+                mapView,
+                eventView,
+                selectView,
+                RewardView.empty(),
+                RestView.empty(),
+                TreasureView.empty(),
+                ShopView.empty(),
+                TopPanelView.empty(),
+                MonsterIntentView.empty(),
+                available,
+                viewport);
+    }
+
+    public ContextFrame(
+            long frameId,
+            long sceneEpoch,
+            String scene,
+            List<CardView> cards,
+            ControlsView controlsView,
+            MapView mapView,
+            EventView eventView,
+            SelectView selectView,
+            RewardView rewardView,
+            RestView restView,
+            TreasureView treasureView,
+            ShopView shopView,
+            TopPanelView topPanelView,
+            MonsterIntentView intentsView,
+            boolean available,
+            ViewportView viewport) {
         this.frameId = frameId;
         this.sceneEpoch = sceneEpoch;
         this.scene = scene != null ? scene : "";
@@ -58,6 +100,12 @@ public final class ContextFrame {
         this.mapView = mapView != null ? mapView : MapView.empty();
         this.eventView = eventView != null ? eventView : EventView.empty();
         this.selectView = selectView != null ? selectView : SelectView.empty();
+        this.rewardView = rewardView != null ? rewardView : RewardView.empty();
+        this.restView = restView != null ? restView : RestView.empty();
+        this.treasureView = treasureView != null ? treasureView : TreasureView.empty();
+        this.shopView = shopView != null ? shopView : ShopView.empty();
+        this.topPanelView = topPanelView != null ? topPanelView : TopPanelView.empty();
+        this.intentsView = intentsView != null ? intentsView : MonsterIntentView.empty();
         this.available = available;
         this.viewport = viewport != null ? viewport : ViewportView.unavailable();
         this.controls =
@@ -183,6 +231,41 @@ public final class ContextFrame {
             ViewportView viewport) {
         return new ContextFrame(
                 frameId, sceneEpoch, scene, cards, controls, map, event, select, true, viewport);
+    }
+
+    public static ContextFrame ofFull(
+            long frameId,
+            long sceneEpoch,
+            String scene,
+            List<CardView> cards,
+            ControlsView controls,
+            MapView map,
+            EventView event,
+            SelectView select,
+            RewardView reward,
+            RestView rest,
+            TreasureView treasure,
+            ShopView shop,
+            TopPanelView topPanel,
+            MonsterIntentView intents,
+            ViewportView viewport) {
+        return new ContextFrame(
+                frameId,
+                sceneEpoch,
+                scene,
+                cards,
+                controls,
+                map,
+                event,
+                select,
+                reward,
+                rest,
+                treasure,
+                shop,
+                topPanel,
+                intents,
+                true,
+                viewport);
     }
 
     public List<CardView> cardsIn(CardZone zone) {

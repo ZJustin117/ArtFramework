@@ -171,6 +171,30 @@ public final class PresentProjection {
         return lastFrame.selectView;
     }
 
+    public RewardView reward() {
+        return lastFrame.rewardView;
+    }
+
+    public RestView rest() {
+        return lastFrame.restView;
+    }
+
+    public TreasureView treasure() {
+        return lastFrame.treasureView;
+    }
+
+    public ShopView shop() {
+        return lastFrame.shopView;
+    }
+
+    public TopPanelView topPanel() {
+        return lastFrame.topPanelView;
+    }
+
+    public MonsterIntentView intents() {
+        return lastFrame.intentsView;
+    }
+
     public ViewportView viewport() {
         return lastFrame.viewport;
     }
@@ -190,6 +214,13 @@ public final class PresentProjection {
         m.put("eventOptionCount", Integer.valueOf(lastFrame.eventView.optionCount()));
         m.put("selectPoolCount", Integer.valueOf(lastFrame.selectView.poolCount()));
         m.put("selectKind", lastFrame.selectView.kind);
+        m.put("rewardItemCount", Integer.valueOf(lastFrame.rewardView.itemCount()));
+        m.put("rewardKind", lastFrame.rewardView.kind);
+        m.put("restOptionCount", Integer.valueOf(lastFrame.restView.optionCount()));
+        m.put("treasureAvailable", Boolean.valueOf(lastFrame.treasureView.available));
+        m.put("shopEntryCount", Integer.valueOf(lastFrame.shopView.entryCount()));
+        m.put("topPanelAvailable", Boolean.valueOf(lastFrame.topPanelView.available));
+        m.put("intentCount", Integer.valueOf(lastFrame.intentsView.entryCount()));
         m.put("viewportWidth", Integer.valueOf(lastFrame.viewport.logicalWidth));
         m.put("viewportHeight", Integer.valueOf(lastFrame.viewport.logicalHeight));
         return m;

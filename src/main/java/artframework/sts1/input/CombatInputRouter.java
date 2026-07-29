@@ -48,8 +48,19 @@ public final class CombatInputRouter {
             sceneReady = "map".equals(scene);
         } else if (SurfaceIds.EVENT.equals(id)
                 || SurfaceIds.SELECT_GRID.equals(id)
-                || SurfaceIds.SELECT_HAND.equals(id)) {
-            // Event/select screens are host-owned; scene string is not combat/map.
+                || SurfaceIds.SELECT_HAND.equals(id)
+                || SurfaceIds.REWARD_COMBAT.equals(id)
+                || SurfaceIds.REWARD_CARD.equals(id)
+                || SurfaceIds.REWARD_BOSS_RELIC.equals(id)
+                || SurfaceIds.REST.equals(id)
+                || SurfaceIds.TREASURE.equals(id)
+                || SurfaceIds.SHOP.equals(id)
+                || SurfaceIds.TOP_PANEL.equals(id)
+                || SurfaceIds.COMBAT_PROCEED.equals(id)
+                || SurfaceIds.COMBAT_ENERGY.equals(id)
+                || SurfaceIds.COMBAT_INTENTS.equals(id)
+                || SurfaceIds.SKELETON.equals(id)) {
+            // Room/host-owned surfaces: mount is enough for capability (scene optional).
             sceneReady = mounted;
         } else {
             sceneReady = "combat".equals(scene);

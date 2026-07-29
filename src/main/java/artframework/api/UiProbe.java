@@ -78,6 +78,15 @@ public final class UiProbe {
         m.put("mapDraw", artframework.sts1.render.MapDrawPath.probeSlice());
         m.put("eventDraw", artframework.sts1.render.EventDrawPath.probeSlice());
         m.put("selectDraw", artframework.sts1.render.SelectDrawPath.probeSlice());
+        m.put("rewardDraw", artframework.sts1.render.RewardDrawPath.probeSlice());
+        m.put("restDraw", artframework.sts1.render.RestDrawPath.probeSlice());
+        m.put("treasureDraw", artframework.sts1.render.TreasureDrawPath.probeSlice());
+        m.put("shopDraw", artframework.sts1.render.ShopDrawPath.probeSlice());
+        m.put("topPanelDraw", artframework.sts1.render.TopPanelDrawPath.probeSlice());
+        m.put("intentDraw", artframework.sts1.render.IntentDrawPath.probeSlice());
+        m.put("energyDraw", artframework.sts1.render.EnergyDrawPath.probeSlice());
+        m.put("proceedDraw", artframework.sts1.render.ProceedDrawPath.probeSlice());
+        m.put("entityDraw", artframework.c2.EntityDrawPath.probeSlice());
         m.put("audio", artframework.sts1.audio.ArtAudioBridge.probeSlice());
         m.put("skeleton", artframework.sts1.skeleton.Sts1SkeletonBridge.probeSlice());
         m.put("safety", artframework.sts1.PresentSafety.probeSlice());
@@ -192,7 +201,29 @@ public final class UiProbe {
 
     private static Map<String, Object> entitiesMap() {
         Map<String, Object> e = new LinkedHashMap<String, Object>();
-        e.put("slotCount", Integer.valueOf(NativeTemplateRuntime.entities().listSlotIds().size()));
+        artframework.c2.EntityPresent present = NativeTemplateRuntime.entities();
+        List<String> ids = present.listSlotIds();
+        e.put("slotCount", Integer.valueOf(ids.size()));
+        List<Map<String, Object>> slots = new ArrayList<Map<String, Object>>();
+        for (String id : ids) {
+            artframework.c2.EntitySlot slot = present.get(id);
+            if (slot == null) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<String, Object>();
+            row.put("slotId", slot.slotId);
+            row.put("kind", slot.kind.name());
+            row.put("refId", slot.refId);
+            row.put("laidOut", Boolean.valueOf(slot.isLaidOut()));
+            row.put("x", Float.valueOf(slot.x()));
+            row.put("y", Float.valueOf(slot.y()));
+            row.put("scale", Float.valueOf(slot.scale()));
+            artframework.c2.EntitySnapshot snap = artframework.c2.EntitySnapshot.from(slot.snapshot());
+            row.put("snapshot", snap.toMap());
+            slots.add(row);
+        }
+        e.put("slots", slots);
+        e.put("cardOverlayOnly", Boolean.valueOf(artframework.c2.EntityDrawPath.cardOverlayOnly()));
         return e;
     }
 

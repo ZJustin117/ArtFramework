@@ -59,8 +59,23 @@ public final class Sts1SurfaceRenderer {
                 } else if (SurfaceIds.SELECT_GRID.equals(e.surfaceId)
                         || SurfaceIds.SELECT_HAND.equals(e.surfaceId)) {
                     renderSelect(sb);
+                } else if (SurfaceIds.REWARD_COMBAT.equals(e.surfaceId)
+                        || SurfaceIds.REWARD_CARD.equals(e.surfaceId)
+                        || SurfaceIds.REWARD_BOSS_RELIC.equals(e.surfaceId)) {
+                    renderReward(sb);
+                } else if (SurfaceIds.REST.equals(e.surfaceId)) {
+                    renderRest(sb);
+                } else if (SurfaceIds.SKELETON.equals(e.surfaceId)) {
+                    renderSkeleton(sb);
+                } else if (SurfaceIds.TOP_PANEL.equals(e.surfaceId)) {
+                    renderTopPanel(sb);
+                } else if (SurfaceIds.COMBAT_ENERGY.equals(e.surfaceId)) {
+                    renderEnergy(sb);
+                } else if (SurfaceIds.COMBAT_INTENTS.equals(e.surfaceId)) {
+                    renderIntents(sb);
                 }
             }
+            renderEntityChrome(sb);
         } finally {
             guard.endCapture();
         }
@@ -210,6 +225,143 @@ public final class Sts1SurfaceRenderer {
                         item.x,
                         item.y,
                         item.selected || item.confirm ? Color.GOLD : Color.WHITE);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void renderReward(SpriteBatch sb) {
+        if (!RewardDrawPath.shouldSuppressNativeReward()) {
+            return;
+        }
+        try {
+            for (RewardDrawPath.DrawItem item : RewardDrawPath.buildFromProjection()) {
+                if (!item.visible) {
+                    continue;
+                }
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        item.label,
+                        item.x,
+                        item.y,
+                        item.enabled ? Color.WHITE : Color.GRAY);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void renderRest(SpriteBatch sb) {
+        if (!RestDrawPath.shouldSuppressNativeRest()) {
+            return;
+        }
+        try {
+            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.5f;
+            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+            int i = 0;
+            for (RestDrawPath.DrawItem item : RestDrawPath.buildFromProjection()) {
+                if (!item.visible) {
+                    continue;
+                }
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        item.label,
+                        x,
+                        y - i * 48f,
+                        item.enabled ? Color.WHITE : Color.GRAY);
+                i++;
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void renderSkeleton(SpriteBatch sb) {
+        if (!artframework.sts1.skeleton.Sts1SkeletonBridge.shouldDraw()) {
+            return;
+        }
+        // Host Spine draw is provider-owned; bridge records live handles for probe.
+    }
+
+    private static void renderTopPanel(SpriteBatch sb) {
+        try {
+            artframework.context.TopPanelView tv = ArtFramework.projection().topPanel();
+            if (!tv.available) {
+                return;
+            }
+            String line =
+                    tv.characterName
+                            + "  HP "
+                            + tv.hp
+                            + "/"
+                            + tv.maxHp
+                            + "  Gold "
+                            + tv.gold
+                            + "  Floor "
+                            + tv.floor;
+            com.megacrit.cardcrawl.helpers.FontHelper.renderFontLeftTopAligned(
+                    sb,
+                    com.megacrit.cardcrawl.helpers.FontHelper.topPanelInfoFont,
+                    line,
+                    40f,
+                    com.megacrit.cardcrawl.core.Settings.HEIGHT - 40f,
+                    Color.WHITE);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void renderEnergy(SpriteBatch sb) {
+        try {
+            int energy = ArtFramework.projection().controls().energy;
+            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.12f;
+            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.18f;
+            com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                    sb,
+                    com.megacrit.cardcrawl.helpers.FontHelper.energyNumFontRed,
+                    String.valueOf(energy),
+                    x,
+                    y,
+                    Color.CYAN);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void renderIntents(SpriteBatch sb) {
+        try {
+            for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.cardDescFont_N,
+                        item.monsterName + ":" + item.intentType,
+                        item.x,
+                        item.y,
+                        Color.ORANGE);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void renderEntityChrome(SpriteBatch sb) {
+        try {
+            for (artframework.c2.EntityDrawPath.DrawItem item :
+                    artframework.c2.EntityDrawPath.buildFromPresent()) {
+                if (!item.visible || item.overlayOnly) {
+                    continue;
+                }
+                String label =
+                        item.label.isEmpty()
+                                ? (item.kind + ":" + item.refId)
+                                : item.label;
+                if (item.hp > 0 || item.maxHp > 0) {
+                    label = label + " " + item.hp + "/" + item.maxHp;
+                }
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.cardDescFont_N,
+                        label,
+                        item.x,
+                        item.y,
+                        Color.LIGHT_GRAY);
             }
         } catch (Throwable ignored) {
         }

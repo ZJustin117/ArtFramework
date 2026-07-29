@@ -86,11 +86,21 @@ public final class PresentSafety {
                     SurfaceIds.COMBAT_CARD_SLOTS,
                     SurfaceIds.COMBAT_CONTROLS,
                     SurfaceIds.COMBAT_SURFACE,
+                    SurfaceIds.COMBAT_PROCEED,
+                    SurfaceIds.COMBAT_ENERGY,
+                    SurfaceIds.COMBAT_INTENTS,
                     SurfaceIds.MAP,
                     SurfaceIds.SKELETON,
                     SurfaceIds.EVENT,
                     SurfaceIds.SELECT_GRID,
-                    SurfaceIds.SELECT_HAND
+                    SurfaceIds.SELECT_HAND,
+                    SurfaceIds.REWARD_COMBAT,
+                    SurfaceIds.REWARD_CARD,
+                    SurfaceIds.REWARD_BOSS_RELIC,
+                    SurfaceIds.REST,
+                    SurfaceIds.TREASURE,
+                    SurfaceIds.SHOP,
+                    SurfaceIds.TOP_PANEL
                 };
         for (String id : ids) {
             try {

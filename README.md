@@ -1,17 +1,21 @@
 # ArtFramework
 
-**ART Framework** — presentation layer for Slay the Spire 1 (Desktop ModTheSpire + Amethyst-compatible jars). Synthetic scene2d UI, native presenters, effects/shaders, host SPI.
+**ART Framework** — presentation layer for Slay the Spire 1 (Desktop ModTheSpire + Amethyst-compatible jars).
+
+Version: see `gradle.properties` → `artframework.version` (currently **1.0.0-alpha.3**).
 
 - **Separate repository** from multiplayer logic (e.g. CrossSpire) — no protocol/party types here.
-- **Dual track** (see [`docs/design/dual-track.md`](docs/design/dual-track.md)):
-  1. **C1 Synthetic** — scene2d.ui windows (layout DSL + StageHost + StsSkin)
-  2. **C2 Native templates** — map/event/select/end-turn hooks + `EntityPresent`
+- **Dual track** ([`docs/design/dual-track.md`](docs/design/dual-track.md)):
+  1. **C1 Synthetic** — scene2d.ui windows (layout DSL / LML + StageHost + StsSkin)
+  2. **C2 Native** — thin templates + **full-present** surfaces (hand/map/event/select/reward/…)
+- **SignalBus** + **HostAssets** + **EntityPresent** co-op chrome slots
+- Shipped milestones **0–25** (release hardening + entity draw + extra full-present faces)
 
-Open work: [`docs/task.md`](docs/task.md). Framework design: [`docs/design/art-framework.md`](docs/design/art-framework.md).  
-Consumer: [`docs/development/consumer.md`](docs/development/consumer.md). UiOps/probe: [`docs/design/ui-ops-probe.md`](docs/design/ui-ops-probe.md).  
-Console: [`docs/development/console-commands.md`](docs/development/console-commands.md).  
-Verify: [`docs/development/ui-layer-verification.md`](docs/development/ui-layer-verification.md).  
-API stability: [`docs/development/api-stability.md`](docs/development/api-stability.md).
+Open work: [`docs/task.md`](docs/task.md). Design hub: [`docs/design/art-framework.md`](docs/design/art-framework.md).  
+Consumer: [`docs/development/consumer.md`](docs/development/consumer.md).  
+API stability: [`docs/development/api-stability.md`](docs/development/api-stability.md).  
+Changelog: [`CHANGELOG.md`](CHANGELOG.md).  
+Release gate: `./scripts/release-gate.sh`.
 
 ## Requirements
 
@@ -33,13 +37,14 @@ Optional: `ART_D1_SERIAL` / `ART_D2_SERIAL` (device jar push); `ART_INSTALL_DIR`
 ```bash
 ./scripts/with-art-env.sh test
 ./scripts/with-art-env.sh jar
-./scripts/publish-art-local.sh          # jar + optional install via env
+./scripts/release-gate.sh           # JUnit + art-verify + version + consumer fixture
+./scripts/publish-art-local.sh      # jar + optional install via env
 ```
 
-Artifact: `build/libs/ArtFramework.jar` (version from `gradle.properties` → `artframework.version`).
+Artifact: `build/libs/ArtFramework.jar`.
 
 **Default gate is JUnit.** OpenCode: `@junit-test`. Optional on-device: `@android-deploy-jar`.  
-UI tooling (fixture): `cd tools/art-verify && python3 -m unittest discover -s tests -v` or `@art-verify`.
+UI tooling: `cd tools/art-verify && python3 -m unittest discover -s tests -v` or `@art-verify`.
 
 ## ModTheSpire
 
@@ -51,9 +56,14 @@ UI tooling (fixture): `cd tools/art-verify && python3 -m unittest discover -s te
 
 | Package | Role |
 |---------|------|
-| `artframework.api` | Facade, window defs/handles, `entities()` |
-| `artframework.c1` | Synthetic runtime, StageHost, layout DSL, StsSkin |
+| `artframework.api` | Facade, UiOps/UiProbe, window defs |
+| `artframework.core` | UiTree, signals, Theme, HostBackend |
+| `artframework.context` | ContextFrame, present surfaces, intents |
+| `artframework.assets` | HostAssets packs / ResourceId |
+| `artframework.c1` | Synthetic runtime, StageHost, layout/LML |
 | `artframework.c2` | Native templates + EntityPresent |
+| `artframework.sts1` | STS1 host backend, draw paths, patches, lab |
+| `artframework.component` / `render` | Composition AST + effects |
 | `artframework.ArtFrameworkMod` | MTS entry |
 
 ## License

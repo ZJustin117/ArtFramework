@@ -241,3 +241,57 @@ draw / executor / suppress / D1 path for `sts1.event` and `sts1.select.grid|hand
 - [x] 22.4 `Sts1IntentExecutor` SELECT_* + `StsNativeOps` hand select
 - [x] 22.5 Console `art present event|select` + probe `eventDraw` / `selectDraw`
 - [x] 22.6 D1 YAML + consumer freeze notes
+
+### 23. Release hardening
+
+Post-22 product freeze for consumers. No new full-present surfaces in this milestone.
+
+- [x] 23.0 Design/task status pass (c2-full-present / dual-track / AGENTS / README)
+- [x] 23.1 API stability ↔ consumer freeze alignment
+- [x] 23.2 Probe schema contract (v1 field groups)
+- [x] 23.3 Consumer fixture expansion (frames / present / CardRef)
+- [x] 23.4 Release gate script (`scripts/release-gate.sh`)
+- [x] 23.5 CHANGELOG + versioning notes
+- [x] 23.6 Version bump `1.0.0-alpha.3`
+
+### 24. EntityPresent host draw
+
+Co-op chrome slots: typed snapshot → EntityDrawPath → probe → optional host paint.
+Combat HAND full-present remains authoritative for in-combat cards.
+
+- [x] 24.0 Design note + task links (`entity-present.md`)
+- [x] 24.1 Typed `EntitySnapshot` + parse helpers (JUnit)
+- [x] 24.2 `EntityDrawPath` pure projection (JUnit)
+- [x] 24.3 Probe `entities.slots` + RenderHost bounds by kind
+- [x] 24.4 Policy: combat HAND FULL wins over EntityPresent CARD
+- [x] 24.5 CARD host paint path (reuse hand renderer pattern; flag)
+- [x] 24.6 RELIC icon path
+- [x] 24.7 PLAYER / MONSTER minimal chrome path
+- [x] 24.8 Skeleton PostRender draw when `shouldDraw`
+- [x] 24.9 Offline fixture + optional D1 entity smoke
+
+### 25. More STS1 full-present surfaces
+
+Extend Backend `scene()` + View → DrawPath → suppress → executor → D1.
+Reuse 16/22 pipeline. Meta menus stay C1 + `art lab`.
+
+#### Wave A — combat chrome
+
+- [x] 25.1 `sts1.combat.proceed` (+ cancel) controls extension
+- [x] 25.2 `sts1.combat.energy` orb present from ControlsView.energy
+
+#### Wave B — run decisions
+
+- [x] 25.3 `sts1.reward.combat` View / DrawPath / host / D1
+- [x] 25.4 `sts1.reward.card` View / DrawPath / host / JUnit
+- [x] 25.5 `sts1.rest` View / DrawPath / host / JUnit
+- [x] 25.6 `sts1.treasure` View / DrawPath / host / JUnit
+- [x] 25.7 `sts1.shop` View / DrawPath / host / JUnit
+- [x] 25.8 `sts1.reward.boss_relic` View / path / JUnit
+
+#### Wave C — HUD + combat clarity
+
+- [x] 25.9 `sts1.top_panel` View / DrawPath / probe
+- [x] 25.10 `sts1.combat.intents` observe-first path
+- [x] 25.11 Console `art present …` + probe fields for new surfaces
+- [x] 25.12 D1 YAML smoke for reward/rest (lab-reachable) + offline fixtures

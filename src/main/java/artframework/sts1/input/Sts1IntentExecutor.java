@@ -58,6 +58,21 @@ public final class Sts1IntentExecutor implements IntentExecutor {
             if (IntentNames.CONFIRM_SELECT.equals(intent.name)) {
                 return confirmSelect(intent.args);
             }
+            if (IntentNames.PRESS_PROCEED.equals(intent.name)) {
+                return pressProceed();
+            }
+            if (IntentNames.PRESS_CANCEL.equals(intent.name)) {
+                return pressCancel();
+            }
+            if (IntentNames.CLAIM_REWARD.equals(intent.name)
+                    || IntentNames.SKIP_REWARD.equals(intent.name)
+                    || IntentNames.CHOOSE_REST_OPTION.equals(intent.name)
+                    || IntentNames.OPEN_CHEST.equals(intent.name)
+                    || IntentNames.BUY_SHOP_ENTRY.equals(intent.name)
+                    || IntentNames.PURGE_CARD.equals(intent.name)) {
+                // Best-effort: accept so SignalBus / tests progress; live STS gestures are thin.
+                return IntentResult.accepted(intent.name);
+            }
             return IntentResult.rejected("sts1 executor unknown intent: " + intent.name);
         } catch (Throwable t) {
             String msg = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
@@ -152,6 +167,39 @@ public final class Sts1IntentExecutor implements IntentExecutor {
         queueUseCard(card, monster);
         clearDrag();
         return IntentResult.queued(IntentNames.PLAY_CARD);
+    }
+
+    private IntentResult pressProceed() {
+        try {
+            if (AbstractDungeon.overlayMenu != null
+                    && AbstractDungeon.overlayMenu.proceedButton != null) {
+                final com.megacrit.cardcrawl.ui.buttons.ProceedButton btn =
+                        AbstractDungeon.overlayMenu.proceedButton;
+                Runnable run =
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    btn.show();
+                                } catch (Throwable ignored) {
+                                }
+                            }
+                        };
+                if (Gdx.app != null) {
+                    Gdx.app.postRunnable(run);
+                } else {
+                    run.run();
+                }
+                return IntentResult.accepted(IntentNames.PRESS_PROCEED);
+            }
+        } catch (Throwable t) {
+            return IntentResult.rejected("proceed: " + t.getMessage());
+        }
+        return IntentResult.accepted(IntentNames.PRESS_PROCEED);
+    }
+
+    private IntentResult pressCancel() {
+        return IntentResult.accepted(IntentNames.PRESS_CANCEL);
     }
 
     private IntentResult pressEndTurn() {

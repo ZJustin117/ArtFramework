@@ -68,7 +68,7 @@ python3 -m scripts.tools.connector status --port "$STS_CONNECTOR_PORT"
 ./scripts/ensure-art-enabled-mods.sh
 ```
 
-   Writes `sts/enabled_mods.txt` with ArtFramework before CrossSpire when both jars exist.  
+   Writes `sts/enabled_mods.txt` with **only** ArtFramework (CrossSpire not enabled).  
    Then `am force-stop io.stamethyst`. Confirm next cold start log contains `artframework (0.2.0)` and `ArtFramework: demo + native templates`.
 6. Cold start with game-probe:
 
@@ -126,7 +126,7 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_event.
 
 ## Coexistence with CrossSpire
 
-- Both jars in `mods_library`; MTS loads `basemod` → `artframework` → `crossspire`.
+- CrossSpire.jar may remain in `mods_library`, but Art lab `enabled_mods.txt` enables **ArtFramework only**.
 - Do **not** use ArtFramework lab for dual host/join life; use CrossSpire `@device-scenario life`.
 - Same connector port/daemon can serve both repos if serials match.
 

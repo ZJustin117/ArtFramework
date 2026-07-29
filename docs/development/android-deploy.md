@@ -44,7 +44,7 @@ Prefer OpenCode `@android-deploy-jar` so size verification and failure modes sta
 
 ## After deploy
 
-1. Ensure `sts/enabled_mods.txt` includes `…/mods_library/ArtFramework.jar` (Amethyst will not load optional jars otherwise). Prefer ArtFramework **before** CrossSpire when both present.
+1. Ensure `sts/enabled_mods.txt` includes `…/mods_library/ArtFramework.jar` only (Amethyst will not load optional jars otherwise). Art lab does **not** enable CrossSpire.
 2. Cold start via harness (`-DebugMode`), not only SkipInstall — see [`android-device-lab.md`](./android-device-lab.md).
 3. UI-layer checks: [`ui-layer-verification.md`](./ui-layer-verification.md) / `@art-verify` device YAML.
 

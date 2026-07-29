@@ -117,7 +117,7 @@ Jar in `mods_library` alone does **not** enable the mod. After successful push o
 # dual: ART_ENSURE_DUAL=1 ./scripts/ensure-enabled-mods.sh
 ```
 
-Or manually write `sts/enabled_mods.txt` with absolute paths, ArtFramework before CrossSpire. See `docs/development/android-device-lab.md`.
+Or manually write `sts/enabled_mods.txt` with ArtFramework only (no CrossSpire). See `docs/development/android-device-lab.md`.
 
 ### 4. Force-stop verified devices (default on)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Ensure Amethyst enabled_mods.txt lists ArtFramework.jar (before CrossSpire if present).
-# Usage: ART_D1_SERIAL=... ./scripts/ensure-enabled-mods.sh
-# Optional: ART_D2_SERIAL for dual.
+# Ensure Amethyst enabled_mods.txt lists only ArtFramework.jar (no CrossSpire).
+# Usage: ART_D1_SERIAL=... ./scripts/ensure-art-enabled-mods.sh
+# Optional: ART_D2_SERIAL for dual (set ART_ENSURE_DUAL=1).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,7 +17,6 @@ fi
 REMOTE_DIR="/sdcard/Android/data/io.stamethyst/files/sts"
 ENABLED="$REMOTE_DIR/enabled_mods.txt"
 ART_PATH="/storage/emulated/0/Android/data/io.stamethyst/files/sts/mods_library/ArtFramework.jar"
-CROSS_PATH="/storage/emulated/0/Android/data/io.stamethyst/files/sts/mods_library/CrossSpire.jar"
 
 ensure_one() {
   local serial="$1"
@@ -25,16 +24,7 @@ ensure_one() {
   adb -s "$serial" shell "test -f $REMOTE_DIR/mods_library/ArtFramework.jar" \
     || { echo "missing mods_library/ArtFramework.jar — push jar first"; return 1; }
 
-  local has_cross=0
-  if adb -s "$serial" shell "test -f $REMOTE_DIR/mods_library/CrossSpire.jar" 2>/dev/null; then
-    has_cross=1
-  fi
-
-  if [[ "$has_cross" -eq 1 ]]; then
-    adb -s "$serial" shell "printf '%s\n' '$ART_PATH' '$CROSS_PATH' > $ENABLED"
-  else
-    adb -s "$serial" shell "printf '%s\n' '$ART_PATH' > $ENABLED"
-  fi
+  adb -s "$serial" shell "printf '%s\n' '$ART_PATH' > $ENABLED"
   echo "enabled_mods.txt:"
   adb -s "$serial" shell "cat $ENABLED"
 }

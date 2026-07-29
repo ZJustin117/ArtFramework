@@ -81,12 +81,7 @@ public final class MapDrawPath {
     }
 
     public static boolean shouldSuppressNativeMap() {
-        return FullPresentMode.maySuppressNative(SurfaceIds.MAP)
-                && ArtFramework.component(SurfaceIds.MAP) != null
-                && ArtFramework.component(SurfaceIds.MAP).isMounted()
-                && "map".equals(ArtFramework.projection().scene())
-                && !Sts1RenderPipeline.isOverlayObserve()
-                && !artframework.sts1.PresentSafety.isPanic();
+        return Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.MAP);
     }
 
     public static List<DrawItem> buildFromProjection() {

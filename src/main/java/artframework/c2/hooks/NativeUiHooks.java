@@ -1,122 +1,86 @@
 package artframework.c2.hooks;
 
 import artframework.c2.EventOptionRef;
-import artframework.c2.GateResult;
-import artframework.c2.MapNodeInterceptor;
 import artframework.c2.MapNodeRef;
 import artframework.c2.NativeTemplateRuntime;
-import artframework.c2.NativeComponents;
 import artframework.c2.NativeTemplateIds;
 import artframework.c2.SelectCardRef;
 import artframework.c2.SelectKind;
+import artframework.core.SignalBuses;
+import artframework.core.SignalDispatchResult;
+import artframework.core.SignalNames;
+import artframework.core.UiSignal;
 
 /**
- * Pure entry points for {@code @SpirePatch} classes. No protocol. Inactive template → ALLOW
- * (vanilla STS continues) so consumers must bind + intercept to gate.
+ * Pure entry points for {@code @SpirePatch} classes. Returns bus delivery results; host patches use
+ * {@link HostPatchResults} for SpireReturn / continue decisions (milestone 21.5).
  */
 public final class NativeUiHooks {
 
     private NativeUiHooks() {}
 
-    public static MapNodeInterceptor.Result onMapNodeClick(int row, int col, String roomType) {
+    public static SignalDispatchResult onMapNodeClick(int row, int col, String roomType) {
         if (!NativeTemplateRuntime.isMapBound()) {
-            return MapNodeInterceptor.Result.ALLOW;
+            return SignalDispatchResult.continueEmpty("map unbound");
         }
         MapNodeRef node = new MapNodeRef(row, col, roomType);
-        MapNodeInterceptor.Result result = NativeTemplateRuntime.map().dispatchNodeClick(node);
-        if (result == MapNodeInterceptor.Result.ALLOW) {
-            NativeComponents.emit(NativeTemplateIds.MAP, artframework.core.SignalNames.NODE_CLICKED, node);
-        }
-        return result;
+        return emit(NativeTemplateIds.MAP, SignalNames.NODE_CLICKED, node);
     }
 
-    public static GateResult onEventOption(int index, String label) {
+    public static SignalDispatchResult onEventOption(int index, String label) {
         if (!NativeTemplateRuntime.isEventBound()) {
-            return GateResult.ALLOW;
+            return SignalDispatchResult.continueEmpty("event unbound");
         }
         EventOptionRef option = new EventOptionRef(index, label);
-        GateResult result = NativeTemplateRuntime.event().dispatchOption(option);
-        if (result == GateResult.ALLOW) {
-            NativeComponents.emit(
-                    NativeTemplateIds.EVENT,
-                    artframework.core.SignalNames.OPTION_CHOSEN,
-                    Integer.valueOf(index),
-                    label != null ? label : "");
-        }
-        return result;
+        return emit(NativeTemplateIds.EVENT, SignalNames.OPTION_CHOSEN, option);
     }
 
-    public static GateResult onSelectCard(SelectKind kind, String cardId, int index) {
+    public static SignalDispatchResult onSelectCard(SelectKind kind, String cardId, int index) {
         if (kind == SelectKind.GRID && !NativeTemplateRuntime.isSelectGridBound()) {
-            return GateResult.ALLOW;
+            return SignalDispatchResult.continueEmpty("select grid unbound");
         }
         if (kind == SelectKind.HAND && !NativeTemplateRuntime.isSelectHandBound()) {
-            return GateResult.ALLOW;
+            return SignalDispatchResult.continueEmpty("select hand unbound");
         }
         if (kind == SelectKind.GRID) {
-            SelectCardRef card = new SelectCardRef(cardId, index);
-            GateResult result = NativeTemplateRuntime.selectGrid().dispatchCard(card);
-            if (result == GateResult.ALLOW) {
-                NativeComponents.emit(
-                        NativeTemplateIds.SELECT_GRID,
-                        artframework.core.SignalNames.CARD_SELECTED,
-                        card);
-            }
-            return result;
+            return emit(
+                    NativeTemplateIds.SELECT_GRID,
+                    SignalNames.CARD_SELECTED,
+                    new SelectCardRef(cardId, index));
         }
         if (kind == SelectKind.HAND) {
-            SelectCardRef card = new SelectCardRef(cardId, index);
-            GateResult result = NativeTemplateRuntime.selectHand().dispatchCard(card);
-            if (result == GateResult.ALLOW) {
-                NativeComponents.emit(
-                        NativeTemplateIds.SELECT_HAND,
-                        artframework.core.SignalNames.CARD_SELECTED,
-                        card);
-            }
-            return result;
+            return emit(
+                    NativeTemplateIds.SELECT_HAND,
+                    SignalNames.CARD_SELECTED,
+                    new SelectCardRef(cardId, index));
         }
-        return GateResult.ALLOW;
+        return SignalDispatchResult.continueEmpty("unknown select kind");
     }
 
-    public static GateResult onSelectConfirm(SelectKind kind) {
+    public static SignalDispatchResult onSelectConfirm(SelectKind kind) {
         if (kind == SelectKind.GRID && !NativeTemplateRuntime.isSelectGridBound()) {
-            return GateResult.ALLOW;
+            return SignalDispatchResult.continueEmpty("select grid unbound");
         }
         if (kind == SelectKind.HAND && !NativeTemplateRuntime.isSelectHandBound()) {
-            return GateResult.ALLOW;
+            return SignalDispatchResult.continueEmpty("select hand unbound");
         }
         if (kind == SelectKind.GRID) {
-            GateResult result = NativeTemplateRuntime.selectGrid().dispatchConfirm();
-            if (result == GateResult.ALLOW) {
-                NativeComponents.emit(
-                        NativeTemplateIds.SELECT_GRID,
-                        artframework.core.SignalNames.CONFIRMED,
-                        kind);
-            }
-            return result;
+            return emit(NativeTemplateIds.SELECT_GRID, SignalNames.CONFIRMED, kind);
         }
         if (kind == SelectKind.HAND) {
-            GateResult result = NativeTemplateRuntime.selectHand().dispatchConfirm();
-            if (result == GateResult.ALLOW) {
-                NativeComponents.emit(
-                        NativeTemplateIds.SELECT_HAND,
-                        artframework.core.SignalNames.CONFIRMED,
-                        kind);
-            }
-            return result;
+            return emit(NativeTemplateIds.SELECT_HAND, SignalNames.CONFIRMED, kind);
         }
-        return GateResult.ALLOW;
+        return SignalDispatchResult.continueEmpty("unknown select kind");
     }
 
-    public static GateResult onEndTurnPress() {
+    public static SignalDispatchResult onEndTurnPress() {
         if (!NativeTemplateRuntime.isEndTurnBound()) {
-            return GateResult.ALLOW;
+            return SignalDispatchResult.continueEmpty("endturn unbound");
         }
-        GateResult result = NativeTemplateRuntime.endTurn().dispatchPress();
-        if (result == GateResult.ALLOW) {
-            NativeComponents.emit(NativeTemplateIds.END_TURN, artframework.core.SignalNames.PRESSED);
+        if (!NativeTemplateRuntime.endTurn().isButtonEnabled()) {
+            return SignalDispatchResult.rejected("endturn disabled");
         }
-        return result;
+        return emit(NativeTemplateIds.END_TURN, SignalNames.PRESSED, null);
     }
 
     /** Whether end-turn UI should be allowed to enable (presentation hint). */
@@ -125,5 +89,14 @@ public final class NativeUiHooks {
             return true;
         }
         return NativeTemplateRuntime.endTurn().isButtonEnabled();
+    }
+
+    private static SignalDispatchResult emit(String componentId, String signal, Object payload) {
+        return SignalBuses.get()
+                .emit(new UiSignal(signalName(componentId, signal), componentId, payload));
+    }
+
+    private static String signalName(String componentId, String signal) {
+        return "ui/" + componentId + "/" + signal;
     }
 }

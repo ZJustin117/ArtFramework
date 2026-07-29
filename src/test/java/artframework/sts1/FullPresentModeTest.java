@@ -36,12 +36,12 @@ public class FullPresentModeTest {
     }
 
     @Test
-    public void fullAllowsSuppressAndInput() {
+    public void fullIsOnlyARequestedLevelUntilCapabilityIsReady() {
         FullPresentMode.setCombatHandEnabled(true);
         assertEquals(PresentLevel.FULL, FullPresentMode.combatHandLevel());
-        assertTrue(FullPresentMode.maySuppressNative(SurfaceIds.COMBAT_HAND));
-        assertTrue(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND));
-        assertTrue(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_CARD_SLOTS));
+        assertFalse(FullPresentMode.maySuppressNative(SurfaceIds.COMBAT_HAND));
+        assertFalse(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND));
+        assertFalse(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_CARD_SLOTS));
     }
 
     @Test
@@ -51,7 +51,7 @@ public class FullPresentModeTest {
         assertEquals(PresentLevel.FULL, FullPresentMode.levelOf(SurfaceIds.MAP));
         assertEquals(PresentLevel.OBSERVE, FullPresentMode.levelOf(SurfaceIds.COMBAT_CONTROLS));
         assertEquals(PresentLevel.OFF, FullPresentMode.levelOf(SurfaceIds.COMBAT_HAND));
-        assertTrue(FullPresentMode.maySuppressNative(SurfaceIds.MAP));
+        assertFalse(FullPresentMode.maySuppressNative(SurfaceIds.MAP));
         assertFalse(FullPresentMode.maySuppressNative(SurfaceIds.COMBAT_CONTROLS));
     }
 

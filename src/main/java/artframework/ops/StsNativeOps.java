@@ -11,6 +11,8 @@ import com.megacrit.cardcrawl.screens.select.HandCardSelectScreen;
 import artframework.api.UiOpResult;
 import artframework.c2.MapNodeRef;
 import artframework.c2.SelectKind;
+import artframework.context.IntentResult;
+import artframework.sts1.input.Sts1MapIntentBridge;
 
 /**
  * STS engine gestures for UiOps. Install at runtime via
@@ -72,8 +74,13 @@ public final class StsNativeOps implements NativeOpsBackend {
 
     @Override
     public UiOpResult clickMapNode(MapNodeRef node) {
-        // Programmatic map travel is consumer-specific; gate already ran.
-        return UiOpResult.ok("map click allowed at " + node.row + "," + node.col);
+        IntentResult result = Sts1MapIntentBridge.click(node);
+        if (result != null
+                && (result.status == IntentResult.Status.ACCEPTED
+                        || result.status == IntentResult.Status.QUEUED)) {
+            return UiOpResult.ok(result.message);
+        }
+        return UiOpResult.unavailable(result != null ? result.message : "map click failed");
     }
 
     @Override

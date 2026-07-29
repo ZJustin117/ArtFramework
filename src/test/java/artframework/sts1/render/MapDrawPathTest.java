@@ -4,13 +4,15 @@ import artframework.api.ArtFramework;
 import artframework.assets.ResourceIds;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
-import artframework.context.FakeBackend;
+import artframework.context.FakeSignalBackend;
 import artframework.context.MapNodeView;
 import artframework.context.MapView;
 import artframework.context.SurfaceIds;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.assets.Sts1HostAssets;
+import artframework.sts1.input.CombatInputRouter;
+import artframework.sts1.input.RecordingIntentExecutor;
 import org.junit.After;
 import org.junit.Test;
 
@@ -34,12 +36,12 @@ public class MapDrawPathTest {
 
     private void mapFrame() {
         Sts1HostAssets.install();
-        FakeBackend backend = new FakeBackend();
-        ArtFramework.bindPresentationBackend(backend);
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
         MapNodeView n =
                 new MapNodeView(
                         1, 2, 100f, 200f, false, true, "M", "monster", ResourceIds.MAP_NODE_MONSTER);
-        backend.pushFrame(
+        backend.publish(
                 ContextFrame.of(
                         1L,
                         1L,
@@ -48,7 +50,7 @@ public class MapDrawPathTest {
                         ControlsView.empty(),
                         new MapView(Collections.singletonList(n), 1920, 1080),
                         null));
-        ArtFramework.frames().syncFromBackend();
+        ArtFramework.publishFrame(backend.currentFrame());
         ArtFramework.component(SurfaceIds.MAP).mount();
     }
 
@@ -64,6 +66,7 @@ public class MapDrawPathTest {
         assertEquals(100f * 2f + 10f, items.get(0).screenX, 0.01f);
         assertEquals(200f * 2f + 20f, items.get(0).screenY, 0.01f);
         assertTrue(items.get(0).artFound);
+        assertTrue(items.get(0).artSource.startsWith("sts1:images/"));
     }
 
     @Test
@@ -80,6 +83,8 @@ public class MapDrawPathTest {
         mapFrame();
         assertFalse(MapDrawPath.shouldSuppressNativeMap());
         FullPresentMode.setMapLevel(PresentLevel.FULL);
+        assertFalse(MapDrawPath.shouldSuppressNativeMap());
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         assertTrue(MapDrawPath.shouldSuppressNativeMap());
         FullPresentMode.setMapLevel(PresentLevel.OBSERVE);
         assertFalse(MapDrawPath.shouldSuppressNativeMap());

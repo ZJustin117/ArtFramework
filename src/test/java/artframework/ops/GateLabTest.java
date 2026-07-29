@@ -13,7 +13,6 @@ import artframework.c2.hooks.NativeUiHooks;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static artframework.c2.MapNodeInterceptor.Result;
 
 public class GateLabTest {
 
@@ -36,7 +35,9 @@ public class GateLabTest {
                 UiOpResult.Status.BLOCKED,
                 ArtFramework.ops().clickMapNode(new MapNodeRef(1, 0, "m")).status);
         assertEquals(0, fake.mapClickCount);
-        assertEquals(Result.BLOCK, NativeUiHooks.onMapNodeClick(1, 0, "m"));
+        assertTrue(
+                !artframework.c2.hooks.HostPatchResults.allowsNative(
+                        NativeUiHooks.onMapNodeClick(1, 0, "m")));
 
         GateLab.apply("map", "clear");
         assertEquals(

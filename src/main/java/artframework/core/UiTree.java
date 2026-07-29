@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * One mounted synthetic composition tree (Godot SceneTree local to a window).
@@ -16,8 +15,6 @@ public final class UiTree {
     private final String windowId;
     private final SignalHub signalHub = new SignalHub();
     private final Map<String, UiInstance> byId = new LinkedHashMap<String, UiInstance>();
-    private final CopyOnWriteArrayList<UiSignalInterceptor> interceptors =
-            new CopyOnWriteArrayList<UiSignalInterceptor>();
     private final TreeLifecycle lifecycle;
     private Theme theme;
     private UiInstance root;
@@ -67,29 +64,6 @@ public final class UiTree {
 
     public SignalHub signalHub() {
         return signalHub;
-    }
-
-    public void addSignalInterceptor(UiSignalInterceptor interceptor) {
-        if (interceptor == null) {
-            throw new IllegalArgumentException("interceptor required");
-        }
-        interceptors.add(interceptor);
-    }
-
-    public void removeSignalInterceptor(UiSignalInterceptor interceptor) {
-        interceptors.remove(interceptor);
-    }
-
-    public UiSignalInterceptor.Result dispatchSignal(
-            String controlId, String signal, Object... args) {
-        for (UiSignalInterceptor interceptor : interceptors) {
-            UiSignalInterceptor.Result result =
-                    interceptor.intercept(windowId, controlId, signal, args);
-            if (result == UiSignalInterceptor.Result.BLOCK) {
-                return result;
-            }
-        }
-        return UiSignalInterceptor.Result.ALLOW;
     }
 
     public boolean isAlive() {
@@ -171,7 +145,6 @@ public final class UiTree {
         AnimationPlayers.clearWindow(windowId);
         fireUnmount(root, lifecycle);
         signalHub.clear();
-        interceptors.clear();
         byId.clear();
         alive = false;
     }

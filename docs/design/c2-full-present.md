@@ -60,7 +60,7 @@ into pure tests. Probe: `backend.renderPlan`.
 ### Input router (16.5)
 
 `CombatInputRouter` gates drag/play/end-turn when `PresentLevel.FULL` + mounted; submits
-`UiIntent` through FrameRuntime intercept. `IntentExecutor` SPI + `RecordingIntentExecutor`
+`UiIntent` through the unified signal bus. `IntentExecutor` SPI + `RecordingIntentExecutor`
 for tests; STS1 backend `submitIntent` → `executeIfOwned`. Live useCard executor is 16.5b.
 Probe: `backend.input`.
 

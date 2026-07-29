@@ -3,18 +3,12 @@ package artframework.api;
 import org.junit.After;
 import org.junit.Test;
 import artframework.c1.layout.LayoutNode;
-import artframework.c2.EndTurnInterceptor;
-import artframework.c2.EventOptionInterceptor;
 import artframework.c2.EventOptionRef;
-import artframework.c2.GateResult;
-import artframework.c2.MapNodeInterceptor;
 import artframework.c2.MapNodeRef;
 import artframework.c2.MapPin;
 import artframework.c2.NativeTemplateIds;
 import artframework.c2.NativeTemplateRuntime;
-import artframework.c2.SelectCardInterceptor;
 import artframework.c2.SelectCardRef;
-import artframework.c2.SelectConfirmInterceptor;
 import artframework.c2.SelectKind;
 import artframework.ops.FakeNativeOps;
 import artframework.ops.NativeOpsBackend;
@@ -47,10 +41,10 @@ public class UiOpsProbeTest {
     public void selectCardBlockedDoesNotCallBackend() {
         FakeNativeOps fake = installFake();
         registerBind(NativeTemplateIds.SELECT_GRID);
-        NativeTemplateRuntime.selectGrid().addCardInterceptor(new SelectCardInterceptor() {
-            @Override
-            public GateResult intercept(SelectKind kind, SelectCardRef card) {
-                return GateResult.BLOCK;
+        ArtFramework.connect("ui/" + NativeTemplateIds.SELECT_GRID + "/card_selected",
+                new artframework.core.SignalListener() {
+            @Override public artframework.core.SignalDecision onSignal(artframework.core.UiSignal signal) {
+                return artframework.core.SignalDecision.stopRejected("blocked");
             }
         });
         UiOpResult r = ArtFramework.ops().selectCard(SelectKind.GRID, "Strike", 0);
@@ -82,10 +76,10 @@ public class UiOpsProbeTest {
     public void mapClickBlocked() {
         FakeNativeOps fake = installFake();
         registerBind(NativeTemplateIds.MAP);
-        NativeTemplateRuntime.map().addInterceptor(new MapNodeInterceptor() {
-            @Override
-            public MapNodeInterceptor.Result intercept(MapNodeRef node) {
-                return MapNodeInterceptor.Result.BLOCK;
+        ArtFramework.connect("ui/" + NativeTemplateIds.MAP + "/node_clicked",
+                new artframework.core.SignalListener() {
+            @Override public artframework.core.SignalDecision onSignal(artframework.core.UiSignal signal) {
+                return artframework.core.SignalDecision.stopRejected("blocked");
             }
         });
         UiOpResult r = ArtFramework.ops().clickMapNode(new MapNodeRef(1, 2, "monster"));
@@ -117,10 +111,10 @@ public class UiOpsProbeTest {
         NativeTemplateRuntime.endTurn().setButtonEnabled(false);
         assertEquals(UiOpResult.Status.BLOCKED, ArtFramework.ops().pressEndTurn().status);
         NativeTemplateRuntime.endTurn().setButtonEnabled(true);
-        NativeTemplateRuntime.endTurn().addInterceptor(new EndTurnInterceptor() {
-            @Override
-            public GateResult intercept() {
-                return GateResult.BLOCK;
+        ArtFramework.connect("ui/" + NativeTemplateIds.END_TURN + "/pressed",
+                new artframework.core.SignalListener() {
+            @Override public artframework.core.SignalDecision onSignal(artframework.core.UiSignal signal) {
+                return artframework.core.SignalDecision.stopRejected("blocked");
             }
         });
         assertEquals(UiOpResult.Status.BLOCKED, ArtFramework.ops().pressEndTurn().status);

@@ -9,7 +9,9 @@ import artframework.context.IntentResult;
 import artframework.context.PresentProjection;
 import artframework.context.SurfaceIds;
 import artframework.context.UiIntent;
+import artframework.context.ContextSignals;
 import artframework.sts1.FullPresentMode;
+import artframework.sts1.FullPresentCapability;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -33,16 +35,40 @@ public final class CombatInputRouter {
         return executor;
     }
 
+    public static boolean isExecutorReady(String surfaceId) {
+        return executor.isReady(surfaceId);
+    }
+
+    public static FullPresentCapability capability(String surfaceId) {
+        String id = SurfaceIds.canonicalize(surfaceId);
+        boolean mounted = ArtFramework.component(id) != null && ArtFramework.component(id).isMounted();
+        String scene = ArtFramework.projection().scene();
+        boolean sceneReady;
+        if (SurfaceIds.MAP.equals(id)) {
+            sceneReady = "map".equals(scene);
+        } else if (SurfaceIds.EVENT.equals(id)
+                || SurfaceIds.SELECT_GRID.equals(id)
+                || SurfaceIds.SELECT_HAND.equals(id)) {
+            // Event/select screens are host-owned; scene string is not combat/map.
+            sceneReady = mounted;
+        } else {
+            sceneReady = "combat".equals(scene);
+        }
+        return FullPresentCapability.resolve(
+                FullPresentMode.levelOf(id),
+                mounted,
+                sceneReady,
+                isExecutorReady(id),
+                false,
+                artframework.sts1.PresentSafety.isPanic());
+    }
+
     public static void setSuppressNativeInput(boolean suppress) {
         suppressNativeInput = suppress;
     }
 
     public static boolean shouldSuppressNativeInput() {
-        return suppressNativeInput
-                && FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND)
-                && ArtFramework.component(SurfaceIds.COMBAT_HAND) != null
-                && ArtFramework.component(SurfaceIds.COMBAT_HAND).isMounted()
-                && "combat".equals(ArtFramework.projection().scene());
+        return suppressNativeInput && capability(SurfaceIds.COMBAT_HAND).ownsInput();
     }
 
     public static IntentResult beginDrag(String instanceId) {
@@ -69,15 +95,17 @@ public final class CombatInputRouter {
     }
 
     public static IntentResult pressEndTurn() {
-        if (!FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_CONTROLS)) {
+        if (!capability(SurfaceIds.COMBAT_CONTROLS).ownsInput()) {
             return IntentResult.rejected("controls full-present input not enabled");
         }
         UiIntent intent = UiIntent.of(IntentNames.PRESS_END_TURN, SurfaceIds.COMBAT_CONTROLS);
-        return ArtFramework.submitIntent(intent);
+        return toIntentResult(artframework.core.SignalBuses.get().emit(
+                new artframework.core.UiSignal(ContextSignals.action(SurfaceIds.COMBAT_CONTROLS, intent.name),
+                        SurfaceIds.COMBAT_CONTROLS, intent)));
     }
 
     public static IntentResult route(String intentName, Object... args) {
-        if (!FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND)) {
+        if (!capability(SurfaceIds.COMBAT_HAND).ownsInput()) {
             return IntentResult.rejected("hand full-present input not enabled");
         }
         if (ArtFramework.component(SurfaceIds.COMBAT_HAND) == null
@@ -105,7 +133,9 @@ public final class CombatInputRouter {
             }
         }
         UiIntent intent = UiIntent.of(intentName, SurfaceIds.COMBAT_HAND, args);
-        return ArtFramework.submitIntent(intent);
+        return toIntentResult(artframework.core.SignalBuses.get().emit(
+                new artframework.core.UiSignal(ContextSignals.action(SurfaceIds.COMBAT_HAND, intent.name),
+                        SurfaceIds.COMBAT_HAND, intent)));
     }
 
     /**
@@ -115,7 +145,7 @@ public final class CombatInputRouter {
         if (intent == null) {
             return IntentResult.rejected("intent required");
         }
-        if (!FullPresentMode.mayOwnInput(intent.surfaceId)) {
+        if (!capability(intent.surfaceId).ownsInput()) {
             return IntentResult.rejected("sts1 full-present input is not enabled for " + intent.surfaceId);
         }
         IntentResult r = executor.execute(intent);
@@ -128,8 +158,15 @@ public final class CombatInputRouter {
     public static Map<String, Object> probeSlice() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("suppressNativeInput", Boolean.valueOf(shouldSuppressNativeInput()));
-        m.put("handOwnsInput", Boolean.valueOf(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND)));
-        m.put("controlsOwnInput", Boolean.valueOf(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_CONTROLS)));
+        FullPresentCapability hand = capability(SurfaceIds.COMBAT_HAND);
+        FullPresentCapability controls = capability(SurfaceIds.COMBAT_CONTROLS);
+        m.put("executorReady", Boolean.valueOf(isExecutorReady(SurfaceIds.COMBAT_HAND)));
+        m.put("handOwnsInput", Boolean.valueOf(hand.ownsInput()));
+        m.put("controlsOwnInput", Boolean.valueOf(controls.ownsInput()));
+        m.put("handState", hand.state.name());
+        m.put("handReason", hand.reason);
+        m.put("controlsState", controls.state.name());
+        m.put("controlsReason", controls.reason);
         m.put(
                 "dragInstanceId",
                 ArtFramework.projection().dragInstanceId() != null
@@ -153,11 +190,26 @@ public final class CombatInputRouter {
         return String.valueOf(args[0]);
     }
 
+    private static IntentResult toIntentResult(artframework.core.SignalDispatchResult result) {
+        if (result == null) {
+            return IntentResult.rejected("no result");
+        }
+        if (result.isRejected()) {
+            return IntentResult.rejected(result.message);
+        }
+        return IntentResult.accepted(result.message);
+    }
+
     private static final class RejectingExecutor implements IntentExecutor {
         @Override
         public IntentResult execute(UiIntent intent) {
             return IntentResult.rejected(
                     "sts1 intent executor not installed: " + (intent != null ? intent.name : ""));
+        }
+
+        @Override
+        public boolean isReady(String surfaceId) {
+            return false;
         }
     }
 }

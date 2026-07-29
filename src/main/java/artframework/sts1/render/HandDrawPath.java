@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Pure hand full-present draw path description (16.4). Host SpriteBatch still paints via card
- * renderer; this module orders entities, resolves art keys, and exposes geometry for compare.
+ * Pure hand full-present draw path description. It retains logical resource ids for the STS1 host
+ * renderer while keeping texture materialization outside the pure projection path.
  */
 public final class HandDrawPath {
 
@@ -28,6 +28,8 @@ public final class HandDrawPath {
         public final String artSource;
         public final String frameSource;
         public final boolean artFound;
+        public final String artResourceId;
+        public final String frameResourceId;
 
         public DrawItem(
                 String instanceId,
@@ -39,7 +41,9 @@ public final class HandDrawPath {
                 boolean visible,
                 String artSource,
                 String frameSource,
-                boolean artFound) {
+                boolean artFound,
+                String artResourceId,
+                String frameResourceId) {
             this.instanceId = instanceId;
             this.cardId = cardId;
             this.x = x;
@@ -50,6 +54,8 @@ public final class HandDrawPath {
             this.artSource = artSource;
             this.frameSource = frameSource;
             this.artFound = artFound;
+            this.artResourceId = artResourceId;
+            this.frameResourceId = frameResourceId;
         }
 
         public Map<String, Object> toMap() {
@@ -64,6 +70,8 @@ public final class HandDrawPath {
             m.put("artSource", artSource);
             m.put("frameSource", frameSource);
             m.put("artFound", Boolean.valueOf(artFound));
+            m.put("artResourceId", artResourceId);
+            m.put("frameResourceId", frameResourceId);
             return m;
         }
     }
@@ -81,7 +89,7 @@ public final class HandDrawPath {
 
     public static DrawItem fromEntity(CardEntity e) {
         if (e == null) {
-            return new DrawItem("", "", 0, 0, 0, 1, false, "", "", false);
+            return new DrawItem("", "", 0, 0, 0, 1, false, "", "", false, "", "");
         }
         float x = e.pose != null ? e.pose.x : 0f;
         float y = e.pose != null ? e.pose.y : 0f;
@@ -106,7 +114,9 @@ public final class HandDrawPath {
                 vis,
                 art.found || art.fallback ? art.source : "",
                 frame.found ? frame.source : "",
-                art.found);
+                art.found,
+                e.artResourceId != null ? e.artResourceId : "",
+                e.frameResourceId != null ? e.frameResourceId : "");
     }
 
     public static Map<String, Object> probeSlice() {

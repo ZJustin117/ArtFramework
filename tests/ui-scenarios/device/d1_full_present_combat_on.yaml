@@ -1,5 +1,5 @@
-# Device: FULL combat present + probe renderPlan / input / controlsDraw.
-# Best run after reaching combat; start-run alone may leave map/neow — asserts stay soft on scene.
+# Device: FULL combat request safely falls back while start-run has not reached combat.
+# A later combat-room scenario validates the FULL_READY branch.
 name: d1_full_present_combat_on
 schemaVersion: 1
 mode: device
@@ -38,10 +38,13 @@ steps:
       eq: true
   - assert:
       path: backend.fullPresent.maySuppressNativeHand
-      eq: true
+      eq: false
   - assert:
       path: backend.input.handOwnsInput
-      eq: true
+      eq: false
+  - assert:
+      path: backend.input.handState
+      eq: "FULL_FALLBACK_NATIVE"
   - assert:
       path: backend.renderPlan
       exists: true

@@ -1,16 +1,12 @@
 package artframework.ops;
 
-import artframework.c2.EndTurnInterceptor;
-import artframework.c2.EventOptionInterceptor;
-import artframework.c2.EventOptionRef;
-import artframework.c2.GateResult;
-import artframework.c2.MapNodeInterceptor;
-import artframework.c2.MapNodeRef;
-import artframework.c2.NativeTemplateRuntime;
-import artframework.c2.SelectCardInterceptor;
-import artframework.c2.SelectCardRef;
-import artframework.c2.SelectConfirmInterceptor;
+import artframework.c2.NativeTemplateIds;
 import artframework.c2.SelectKind;
+import artframework.core.SignalBuses;
+import artframework.core.SignalDecision;
+import artframework.core.SignalListener;
+import artframework.core.SignalSubscription;
+import artframework.core.UiSignal;
 
 /**
  * Temporary BLOCK interceptors for lab/device verification (not multiplayer policy).
@@ -18,41 +14,13 @@ import artframework.c2.SelectKind;
  */
 public final class GateLab {
 
-    private static final MapNodeInterceptor MAP_BLOCK =
-            new MapNodeInterceptor() {
-                @Override
-                public Result intercept(MapNodeRef node) {
-                    return Result.BLOCK;
-                }
-            };
-    private static final EventOptionInterceptor EVENT_BLOCK =
-            new EventOptionInterceptor() {
-                @Override
-                public GateResult intercept(EventOptionRef option) {
-                    return GateResult.BLOCK;
-                }
-            };
-    private static final EndTurnInterceptor END_TURN_BLOCK =
-            new EndTurnInterceptor() {
-                @Override
-                public GateResult intercept() {
-                    return GateResult.BLOCK;
-                }
-            };
-    private static final SelectCardInterceptor SELECT_CARD_BLOCK =
-            new SelectCardInterceptor() {
-                @Override
-                public GateResult intercept(SelectKind kind, SelectCardRef card) {
-                    return GateResult.BLOCK;
-                }
-            };
-    private static final SelectConfirmInterceptor SELECT_CONFIRM_BLOCK =
-            new SelectConfirmInterceptor() {
-                @Override
-                public GateResult intercept(SelectKind kind) {
-                    return GateResult.BLOCK;
-                }
-            };
+    private static SignalSubscription mapSubscription;
+    private static SignalSubscription eventSubscription;
+    private static SignalSubscription endTurnSubscription;
+    private static SignalSubscription selectGridCardSubscription;
+    private static SignalSubscription selectGridConfirmSubscription;
+    private static SignalSubscription selectHandCardSubscription;
+    private static SignalSubscription selectHandConfirmSubscription;
 
     private static boolean mapOn;
     private static boolean eventOn;
@@ -133,30 +101,30 @@ public final class GateLab {
 
     private static void setMap(boolean block) {
         if (block && !mapOn) {
-            NativeTemplateRuntime.map().addInterceptor(MAP_BLOCK);
+            mapSubscription = block("ui/" + NativeTemplateIds.MAP + "/node_clicked");
             mapOn = true;
         } else if (!block && mapOn) {
-            NativeTemplateRuntime.map().removeInterceptor(MAP_BLOCK);
+            mapSubscription.disconnect();
             mapOn = false;
         }
     }
 
     private static void setEvent(boolean block) {
         if (block && !eventOn) {
-            NativeTemplateRuntime.event().addInterceptor(EVENT_BLOCK);
+            eventSubscription = block("ui/" + NativeTemplateIds.EVENT + "/option_chosen");
             eventOn = true;
         } else if (!block && eventOn) {
-            NativeTemplateRuntime.event().removeInterceptor(EVENT_BLOCK);
+            eventSubscription.disconnect();
             eventOn = false;
         }
     }
 
     private static void setEndTurn(boolean block) {
         if (block && !endTurnOn) {
-            NativeTemplateRuntime.endTurn().addInterceptor(END_TURN_BLOCK);
+            endTurnSubscription = block("ui/" + NativeTemplateIds.END_TURN + "/pressed");
             endTurnOn = true;
         } else if (!block && endTurnOn) {
-            NativeTemplateRuntime.endTurn().removeInterceptor(END_TURN_BLOCK);
+            endTurnSubscription.disconnect();
             endTurnOn = false;
         }
     }
@@ -164,24 +132,32 @@ public final class GateLab {
     private static void setSelect(SelectKind kind, boolean block) {
         if (kind == SelectKind.GRID) {
             if (block && !selectGridOn) {
-                NativeTemplateRuntime.selectGrid().addCardInterceptor(SELECT_CARD_BLOCK);
-                NativeTemplateRuntime.selectGrid().addConfirmInterceptor(SELECT_CONFIRM_BLOCK);
+                selectGridCardSubscription = block("ui/" + NativeTemplateIds.SELECT_GRID + "/card_selected");
+                selectGridConfirmSubscription = block("ui/" + NativeTemplateIds.SELECT_GRID + "/confirmed");
                 selectGridOn = true;
             } else if (!block && selectGridOn) {
-                NativeTemplateRuntime.selectGrid().removeCardInterceptor(SELECT_CARD_BLOCK);
-                NativeTemplateRuntime.selectGrid().removeConfirmInterceptor(SELECT_CONFIRM_BLOCK);
+                selectGridCardSubscription.disconnect();
+                selectGridConfirmSubscription.disconnect();
                 selectGridOn = false;
             }
         } else if (kind == SelectKind.HAND) {
             if (block && !selectHandOn) {
-                NativeTemplateRuntime.selectHand().addCardInterceptor(SELECT_CARD_BLOCK);
-                NativeTemplateRuntime.selectHand().addConfirmInterceptor(SELECT_CONFIRM_BLOCK);
+                selectHandCardSubscription = block("ui/" + NativeTemplateIds.SELECT_HAND + "/card_selected");
+                selectHandConfirmSubscription = block("ui/" + NativeTemplateIds.SELECT_HAND + "/confirmed");
                 selectHandOn = true;
             } else if (!block && selectHandOn) {
-                NativeTemplateRuntime.selectHand().removeCardInterceptor(SELECT_CARD_BLOCK);
-                NativeTemplateRuntime.selectHand().removeConfirmInterceptor(SELECT_CONFIRM_BLOCK);
+                selectHandCardSubscription.disconnect();
+                selectHandConfirmSubscription.disconnect();
                 selectHandOn = false;
             }
         }
+    }
+
+    private static SignalSubscription block(String name) {
+        return SignalBuses.get().connect(name, new SignalListener() {
+            @Override public SignalDecision onSignal(UiSignal signal) {
+                return SignalDecision.stopRejected("blocked by gate lab");
+            }
+        });
     }
 }

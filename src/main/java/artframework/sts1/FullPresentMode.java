@@ -1,6 +1,7 @@
 package artframework.sts1;
 
 import artframework.context.SurfaceIds;
+import artframework.sts1.input.CombatInputRouter;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -16,6 +17,8 @@ public final class FullPresentMode {
     private static PresentLevel combatControls = PresentLevel.OFF;
     private static PresentLevel map = PresentLevel.OFF;
     private static PresentLevel skeleton = PresentLevel.OFF;
+    private static PresentLevel event = PresentLevel.OFF;
+    private static PresentLevel select = PresentLevel.OFF;
 
     private FullPresentMode() {}
 
@@ -51,6 +54,12 @@ public final class FullPresentMode {
         if (SurfaceIds.SKELETON.equals(id)) {
             return skeleton;
         }
+        if (SurfaceIds.EVENT.equals(id)) {
+            return event;
+        }
+        if (SurfaceIds.SELECT_GRID.equals(id) || SurfaceIds.SELECT_HAND.equals(id)) {
+            return select;
+        }
         return PresentLevel.OFF;
     }
 
@@ -79,6 +88,22 @@ public final class FullPresentMode {
         skeleton = level != null ? level : PresentLevel.OFF;
     }
 
+    public static void setEventLevel(PresentLevel level) {
+        event = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static void setSelectLevel(PresentLevel level) {
+        select = level != null ? level : PresentLevel.OFF;
+    }
+
+    public static PresentLevel eventLevel() {
+        return event;
+    }
+
+    public static PresentLevel selectLevel() {
+        return select;
+    }
+
     public static void setLevel(String surfaceId, PresentLevel level) {
         String id = SurfaceIds.canonicalize(surfaceId);
         PresentLevel v = level != null ? level : PresentLevel.OFF;
@@ -98,25 +123,27 @@ public final class FullPresentMode {
         }
         if (SurfaceIds.SKELETON.equals(id)) {
             skeleton = v;
+            return;
+        }
+        if (SurfaceIds.EVENT.equals(id)) {
+            event = v;
+            return;
+        }
+        if (SurfaceIds.SELECT_GRID.equals(id) || SurfaceIds.SELECT_HAND.equals(id)) {
+            select = v;
         }
     }
 
     /**
-     * FULL + explicit enable is required before ART may suppress native UI for a surface. OBSERVE
-     * never suppresses.
+     * Effective suppression requires a ready mounted surface; this is distinct from a requested
+     * {@link PresentLevel#FULL} policy.
      */
     public static boolean maySuppressNative(String surfaceId) {
-        if (PresentSafety.isPanic()) {
-            return false;
-        }
-        return levelOf(surfaceId).allowsFullPresent();
+        return CombatInputRouter.capability(surfaceId).shouldSuppressNative();
     }
 
     public static boolean mayOwnInput(String surfaceId) {
-        if (PresentSafety.isPanic()) {
-            return false;
-        }
-        return levelOf(surfaceId).allowsFullPresent();
+        return CombatInputRouter.capability(surfaceId).ownsInput();
     }
 
     public static Map<String, Object> probeSlice() {
@@ -125,6 +152,8 @@ public final class FullPresentMode {
         m.put("combatControls", combatControls.name());
         m.put("map", map.name());
         m.put("skeleton", skeleton.name());
+        m.put("event", event.name());
+        m.put("select", select.name());
         m.put("combatHandFull", Boolean.valueOf(combatHand.allowsFullPresent() && !PresentSafety.isPanic()));
         m.put("maySuppressNativeHand", Boolean.valueOf(maySuppressNative(SurfaceIds.COMBAT_HAND)));
         m.put("panic", Boolean.valueOf(PresentSafety.isPanic()));
@@ -136,5 +165,7 @@ public final class FullPresentMode {
         combatControls = PresentLevel.OFF;
         map = PresentLevel.OFF;
         skeleton = PresentLevel.OFF;
+        event = PresentLevel.OFF;
+        select = PresentLevel.OFF;
     }
 }

@@ -11,7 +11,8 @@ import artframework.context.ControlsView;
 import artframework.context.IntentResult;
 import artframework.context.MapNodeView;
 import artframework.context.MapView;
-import artframework.context.PresentationBackend;
+import artframework.context.SignalBackend;
+import artframework.context.ContextSignals;
 import artframework.context.UiIntent;
 import artframework.context.ViewportView;
 import artframework.sts1.FullPresentMode;
@@ -30,28 +31,21 @@ import java.util.List;
  * STS1 read-only authority adapter. Observation-only until the matching full-present surface owns
  * native input and has a tested intent executor ({@link FullPresentMode#mayOwnInput}).
  */
-public final class Sts1PresentationBackend implements PresentationBackend {
+public final class Sts1PresentationBackend implements SignalBackend {
 
     public static final Sts1PresentationBackend INSTANCE = new Sts1PresentationBackend();
 
     private long frameId;
     private String scene = "";
     private long sceneEpoch;
+    private artframework.core.SignalSubscription actionSubscription;
 
     private Sts1PresentationBackend() {}
 
-    @Override
-    public String id() {
-        return "sts1";
-    }
+    public String id() { return "sts1"; }
+    public BackendMode mode() { return BackendMode.READ_ONLY; }
 
-    @Override
-    public BackendMode mode() {
-        return BackendMode.READ_ONLY;
-    }
-
-    @Override
-    public ContextFrame snapshot() {
+    public ContextFrame publishFrame() {
         // Never throw from the host post-update path; embark / room transitions can leave
         // player non-null while currMapNode/room is still null.
         try {
@@ -78,8 +72,30 @@ public final class Sts1PresentationBackend implements PresentationBackend {
     }
 
     @Override
-    public IntentResult submitIntent(UiIntent intent) {
-        return artframework.sts1.input.CombatInputRouter.executeIfOwned(intent);
+    public void installSignals() {
+        if (actionSubscription != null && actionSubscription.isConnected()) return;
+        actionSubscription = artframework.core.SignalBuses.get().connect(
+                java.util.regex.Pattern.compile("^ui/.+/.+$"),
+                new artframework.core.SignalListener() {
+                    @Override public artframework.core.SignalDecision onSignal(artframework.core.UiSignal signal) {
+                        if (!(signal.payload instanceof UiIntent)) {
+                            return artframework.core.SignalDecision.continueSignal();
+                        }
+                        IntentResult result = artframework.sts1.input.CombatInputRouter
+                                .executeIfOwned((UiIntent) signal.payload);
+                        // ACCEPTED and QUEUED both leave the action chain open; only REJECTED stops.
+                        if (result != null && result.status == IntentResult.Status.REJECTED) {
+                            return artframework.core.SignalDecision.stopRejected(result.message);
+                        }
+                        return artframework.core.SignalDecision.continueSignal();
+                    }
+                });
+    }
+
+    @Override
+    public void uninstallSignals() {
+        if (actionSubscription != null) actionSubscription.disconnect();
+        actionSubscription = null;
     }
 
     public long sceneEpoch() {
@@ -129,16 +145,18 @@ public final class Sts1PresentationBackend implements PresentationBackend {
                     continue;
                 }
                 for (MapRoomNode node : row) {
-                    if (node == null) {
+                    if (node == null || !isPresentableMapNode(node)) {
                         continue;
                     }
                     String kind = roomKind(node);
+                    float x = node.hb != null ? node.hb.cX : node.offsetX;
+                    float y = node.hb != null ? node.hb.cY : node.offsetY;
                     nodes.add(
                             new MapNodeView(
                                     node.y,
                                     node.x,
-                                    node.offsetX,
-                                    node.offsetY,
+                                    x,
+                                    y,
                                     node.taken,
                                     node.highlighted,
                                     node.getRoomSymbol(Boolean.FALSE),
@@ -218,6 +236,19 @@ public final class Sts1PresentationBackend implements PresentationBackend {
         } catch (Throwable t) {
             return null;
         }
+    }
+
+    /** Skip empty-grid placeholders whose hitboxes never leave the offscreen sentinel. */
+    private static boolean isPresentableMapNode(MapRoomNode node) {
+        if (node.hb != null) {
+            float cx = node.hb.cX;
+            float cy = node.hb.cY;
+            // STS uses large negative sentinels for unused column slots.
+            if (cx < -500f || cy < -500f) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String roomKind(MapRoomNode node) {

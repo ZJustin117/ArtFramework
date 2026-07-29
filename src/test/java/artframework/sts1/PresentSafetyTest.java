@@ -46,7 +46,7 @@ public class PresentSafetyTest {
         PresentSafety.clearPanic();
         assertFalse(PresentSafety.isPanic());
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
-        assertTrue(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND));
+        assertFalse(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND));
     }
 
     @Test
@@ -58,6 +58,26 @@ public class PresentSafetyTest {
         assertEquals(before + 1, PresentSafety.recreationCount());
         assertFalse(Sts1RenderPipeline.isOverlayObserve());
         assertEquals(0f, MapDrawPath.panZoom().panX(), 0.01f);
+    }
+
+    @Test
+    public void lifecycleMatrixPanicClearAndCapabilityFallback() {
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new artframework.sts1.input.RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.COMBAT_HAND).mount();
+        // Without combat scene, FULL stays fallback-native (19.1/19.4).
+        assertFalse(FullPresentMode.mayOwnInput(SurfaceIds.COMBAT_HAND));
+        PresentSafety.panic("lifecycle");
+        assertTrue(PresentSafety.isPanic());
+        assertEquals(PresentLevel.OFF, FullPresentMode.combatHandLevel());
+        assertFalse(ArtFramework.component(SurfaceIds.COMBAT_HAND).isMounted());
+        PresentSafety.clearPanic();
+        assertFalse(PresentSafety.isPanic());
+        // clear-panic alone does not re-arm FULL.
+        assertEquals(PresentLevel.OFF, FullPresentMode.combatHandLevel());
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        ArtFramework.component(SurfaceIds.COMBAT_HAND).mount();
+        assertFalse(FullPresentMode.maySuppressNative(SurfaceIds.COMBAT_HAND));
     }
 
     @Test

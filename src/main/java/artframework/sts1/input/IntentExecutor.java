@@ -11,4 +11,9 @@ public interface IntentExecutor {
 
     /** @return null to decline handling (caller may fall through); non-null is final. */
     IntentResult execute(UiIntent intent);
+
+    /** Whether this executor can safely take ownership of a full-present surface. */
+    default boolean isReady(String surfaceId) {
+        return true;
+    }
 }

@@ -1,0 +1,84 @@
+# D1: scene lifecycle — FULL combat ready → off → re-arm → panic/clear → re-arm.
+# Note: while combat room is active, backend scene stays "combat" even if map UI opens
+# (Sts1PresentationBackend prioritizes combat phase over MAP screen).
+name: d1_full_present_lifecycle
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab start-run IRONCLAD"
+  - wait_ms: 25000
+  - console: "art present combat on"
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: projection.scene
+        eq: combat
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.input.handState
+        eq: FULL_READY
+  - assert:
+      path: backend.fullPresent.maySuppressNativeHand
+      eq: true
+  # Explicit OFF: requested level drops; native UI restored.
+  - console: "art present combat off"
+  - wait_ms: 600
+  - probe: all
+  - assert:
+      path: backend.fullPresent.combatHand
+      eq: "OFF"
+  - assert:
+      path: backend.fullPresent.maySuppressNativeHand
+      eq: false
+  - assert:
+      path: backend.input.handState
+      eq: "OFF"
+  # Re-arm FULL while still in combat.
+  - console: "art present combat on"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.input.handState
+        eq: FULL_READY
+  - assert:
+      path: backend.fullPresent.maySuppressNativeHand
+      eq: true
+  # Panic recovery: clear-panic alone does not re-arm FULL.
+  - console: "art present panic lifecycle"
+  - wait_ms: 500
+  - probe: all
+  - assert:
+      path: backend.safety.panic
+      eq: true
+  - assert:
+      path: backend.fullPresent.combatHand
+      eq: "OFF"
+  - console: "art present clear-panic"
+  - wait_ms: 400
+  - probe: all
+  - assert:
+      path: backend.safety.panic
+      eq: false
+  - assert:
+      path: backend.fullPresent.combatHand
+      eq: "OFF"
+  - console: "art present combat on"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.input.handState
+        eq: FULL_READY

@@ -4,7 +4,7 @@ import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePrefixPatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import com.megacrit.cardcrawl.ui.buttons.EndTurnButton;
-import artframework.c2.GateResult;
+import artframework.c2.hooks.HostPatchResults;
 import artframework.c2.hooks.NativeUiHooks;
 
 /**
@@ -33,11 +33,7 @@ public final class EndTurnButtonPatches {
             if (!isEnemyTurn) {
                 return SpireReturn.Continue();
             }
-            GateResult r = NativeUiHooks.onEndTurnPress();
-            if (r == GateResult.BLOCK) {
-                return SpireReturn.Return(null);
-            }
-            return SpireReturn.Continue();
+            return HostPatchResults.voidPrefix(NativeUiHooks.onEndTurnPress());
         }
     }
 }

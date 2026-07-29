@@ -1,6 +1,8 @@
 package artframework.sts1.render;
 
 import artframework.sts1.FullPresentMode;
+import artframework.sts1.FullPresentCapability;
+import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.PresentLevel;
 import artframework.context.SurfaceIds;
 
@@ -30,6 +32,8 @@ public final class SurfaceDrawPlan {
         public final PresentLevel level;
         public final boolean mounted;
         public final boolean suppressNative;
+        public final FullPresentCapability.State effectiveState;
+        public final String reason;
 
         public Entry(
                 String surfaceId,
@@ -37,13 +41,17 @@ public final class SurfaceDrawPlan {
                 DrawMode mode,
                 PresentLevel level,
                 boolean mounted,
-                boolean suppressNative) {
+                boolean suppressNative,
+                FullPresentCapability.State effectiveState,
+                String reason) {
             this.surfaceId = surfaceId;
             this.layer = layer;
             this.mode = mode;
             this.level = level;
             this.mounted = mounted;
             this.suppressNative = suppressNative;
+            this.effectiveState = effectiveState;
+            this.reason = reason;
         }
 
         public Map<String, Object> toMap() {
@@ -54,6 +62,8 @@ public final class SurfaceDrawPlan {
             m.put("level", level.name());
             m.put("mounted", Boolean.valueOf(mounted));
             m.put("suppressNative", Boolean.valueOf(suppressNative));
+            m.put("effectiveState", effectiveState.name());
+            m.put("reason", reason);
             return m;
         }
     }
@@ -190,18 +200,15 @@ public final class SurfaceDrawPlan {
             boolean mounted,
             boolean sceneOk,
             boolean overlayObserve) {
-        DrawMode mode = DrawMode.SKIP;
-        boolean suppress = false;
-        if (level == PresentLevel.OBSERVE) {
-            mode = DrawMode.OBSERVE;
-        } else if (level == PresentLevel.FULL && mounted && sceneOk) {
-            if (overlayObserve) {
-                mode = DrawMode.OBSERVE;
-            } else {
-                mode = DrawMode.DRAW;
-                suppress = true;
-            }
-        }
-        return new Entry(surfaceId, layer, mode, level, mounted, suppress);
+        FullPresentCapability capability = FullPresentCapability.resolve(
+                level,
+                mounted,
+                sceneOk,
+                CombatInputRouter.isExecutorReady(surfaceId),
+                overlayObserve,
+                artframework.sts1.PresentSafety.isPanic());
+        DrawMode mode = capability.shouldDraw() ? DrawMode.DRAW
+                : capability.state == FullPresentCapability.State.OBSERVING ? DrawMode.OBSERVE : DrawMode.SKIP;
+        return new Entry(surfaceId, layer, mode, level, mounted, capability.shouldSuppressNative(), capability.state, capability.reason);
     }
 }

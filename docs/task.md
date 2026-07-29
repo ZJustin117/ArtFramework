@@ -201,3 +201,30 @@ full-present scenarios. Lab-only (not consumer API).
 - [x] 18.3 L1: menu-click / abandon / abandon-confirm / return-menu / proceed
 - [x] 18.4 L2: ensure-menu / ensure-fresh-menu / start-run + D1 YAML (`d1_lab_*`)
 - [x] 18.5 Console `art lab …` + docs (`console-commands`, device-lab, ui-layer-verify)
+
+### 19. STS1 full-present production readiness
+
+- [x] 19.1 Effective capability state: FULL requires mounted scene + ready executor before ART
+  suppresses native UI or owns input; probe state/reason + JUnit
+- [x] 19.2 HostAssets-native hand/card draw path (no `AbstractCard.render` delegation); D1
+  `fight Cultist` combat-ready scenario confirms FULL_READY, native suppression, and ART hand draw
+- [x] 19.3 HostAssets controls/map draw path + real STS1 map intent execution;
+  D1 `d1_full_present_map_ready` (FULL_READY, texture nodes, `art op map first` leaves map)
+- [x] 19.4 Scene lifecycle/recovery: PresentSafety matrix JUnit + D1
+  `d1_full_present_lifecycle` (combat FULL → map fallback → re-arm → panic/clear)
+- [x] 19.5 Event/select full-present surfaces (`sts1.event`, `sts1.select.grid|hand`) + JUnit
+- [x] 19.6 HostAssets consumer pack/release validation (`ConsumerFixture` + verify script)
+
+### 20. Historical FrameSignal authority boundary
+
+Design: [`backend-context.md`](design/backend-context.md).
+
+- [x] Superseded by milestone 21; endpoint categories and transaction types were removed.
+
+### 21. Unified SignalBus
+
+- [x] 21.1 One ordered bus for C1, C2, frame, backend, and host signals; exact and regex subscriptions
+- [x] 21.2 Generic `continue` / `replace` / `stopHandled` / `stopRejected` delivery decisions
+- [x] 21.3 C2 imperative actions, native hooks, GateLab, full-present actions, and frame publish use bus delivery
+- [x] 21.4 Remove FrameEndpoint transaction API and migrate fixtures to `FakeSignalBackend`
+- [x] 21.5 `HostPatchResults` + hooks return `SignalDispatchResult`; patches use single adapter

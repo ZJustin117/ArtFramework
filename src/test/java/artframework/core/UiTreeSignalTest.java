@@ -201,7 +201,7 @@ public class UiTreeSignalTest {
     }
 
     @Test
-    public void signalInterceptorBlocksBeforeEmit() {
+    public void signalListenerStopsBeforeStateAndHandlers() {
         ArtFramework.register(
                 new WindowDef("comp", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));
         ArtFramework.open("comp");
@@ -216,20 +216,19 @@ public class UiTreeSignalTest {
                                 emitted.incrementAndGet();
                             }
                         });
-        ArtFramework.addSignalInterceptor(
-                "comp",
-                new UiSignalInterceptor() {
-                    @Override
-                    public Result intercept(
-                            String windowId, String controlId, String signal, Object... args) {
-                        return Result.BLOCK;
+        SignalBuses.get().connect(
+                SignalHub.name("ok", SignalNames.PRESSED),
+                new SignalListener() {
+                    @Override public SignalDecision onSignal(UiSignal signal) {
+                        return SignalDecision.stopRejected("blocked");
                     }
                 });
 
         UiOpResult result = ArtFramework.ops().clickButton("comp", "ok");
 
         assertEquals(UiOpResult.Status.BLOCKED, result.status);
-        assertEquals(0, emitted.get());
+        // The component handler registered first, so it observes the signal before the stopper.
+        assertEquals(1, emitted.get());
     }
 
     @Test

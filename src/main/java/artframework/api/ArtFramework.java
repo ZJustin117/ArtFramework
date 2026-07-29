@@ -20,19 +20,19 @@ import artframework.core.Themes;
 import artframework.core.UiComponent;
 import artframework.core.UiTree;
 import artframework.core.UiTrees;
-import artframework.core.UiSignalInterceptor;
+import artframework.core.SignalBus;
+import artframework.core.SignalBuses;
+import artframework.core.SignalDispatchResult;
+import artframework.core.SignalListener;
+import artframework.core.SignalSubscription;
+import artframework.core.UiSignal;
 import artframework.assets.HostAssets;
 import artframework.assets.HostAssetsHolder;
 import artframework.context.ContextFrame;
 import artframework.context.FrameDiff;
-import artframework.context.FrameRuntime;
-import artframework.context.FrameRuntimes;
-import artframework.context.IntentResult;
-import artframework.context.PresentBackends;
 import artframework.context.PresentProjection;
+import artframework.context.PresentProjections;
 import artframework.context.PresentSurfaces;
-import artframework.context.PresentationBackend;
-import artframework.context.UiIntent;
 import artframework.ops.GateLab;
 import artframework.ops.NativeOpsBackend;
 import artframework.ops.NoOpNativeOps;
@@ -42,6 +42,7 @@ import artframework.render.RenderHosts;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.regex.Pattern;
 import java.util.List;
 import java.util.Map;
 
@@ -102,21 +103,6 @@ public final class ArtFramework {
     /** Unmount / close an open window or native template. */
     public static void unmount(String id) {
         close(id);
-    }
-
-    public static void addSignalInterceptor(String windowId, UiSignalInterceptor interceptor) {
-        UiTree tree = UiTrees.get(windowId);
-        if (tree == null) {
-            throw new IllegalArgumentException("synthetic window not open: " + windowId);
-        }
-        tree.addSignalInterceptor(interceptor);
-    }
-
-    public static void removeSignalInterceptor(String windowId, UiSignalInterceptor interceptor) {
-        UiTree tree = UiTrees.get(windowId);
-        if (tree != null) {
-            tree.removeSignalInterceptor(interceptor);
-        }
     }
 
     public static WindowHandle open(String id) {
@@ -225,6 +211,7 @@ public final class ArtFramework {
     }
 
     public static void resetForTests() {
+        artframework.core.SignalBuses.resetForTests();
         GateLab.resetForTests();
         OPEN.clear();
         DEFS.clear();
@@ -240,7 +227,7 @@ public final class ArtFramework {
         AnimationPlayers.resetForTests();
         artframework.skeleton.SkeletonProviders.global().resetForTests();
         PresentSurfaces.resetForTests();
-        FrameRuntimes.resetForTests();
+        PresentProjections.resetForTests();
         HostAssetsHolder.resetForTests();
         artframework.sts1.FullPresentMode.resetForTests();
         artframework.sts1.assets.Sts1HostAssets.resetForTests();
@@ -251,6 +238,23 @@ public final class ArtFramework {
         artframework.sts1.skeleton.Sts1SkeletonBridge.resetForTests();
         artframework.sts1.PresentSafety.resetForTests();
         artframework.inspect.UiLabListeners.resetForTests();
+    }
+
+    /** The shared broadcast bus for UI, host, backend, and presentation signals. */
+    public static SignalBus signals() {
+        return SignalBuses.get();
+    }
+
+    public static SignalSubscription connect(String name, SignalListener listener) {
+        return signals().connect(name, listener);
+    }
+
+    public static SignalSubscription connect(Pattern pattern, SignalListener listener) {
+        return signals().connect(pattern, listener);
+    }
+
+    public static SignalDispatchResult emit(UiSignal signal) {
+        return signals().emit(signal);
     }
 
     public static HostBackend host() {
@@ -356,35 +360,13 @@ public final class ArtFramework {
         return nativeC;
     }
 
-    /** Primary presentation backend (context frames + intents). */
-    public static PresentationBackend presentationBackend() {
-        return PresentBackends.get();
-    }
-
-    /**
-     * Bind Primary Backend; resets frame projection. Re-scopes assets view for tests via
-     * caller if needed.
-     */
-    public static void bindPresentationBackend(PresentationBackend backend) {
-        FrameRuntimes.get().projection().reset();
-        PresentBackends.bind(backend);
-    }
-
-    public static FrameRuntime frames() {
-        return FrameRuntimes.get();
-    }
-
     public static PresentProjection projection() {
-        return FrameRuntimes.get().projection();
+        return PresentProjections.get();
     }
 
-    /** Apply an authority frame (or pull via {@link FrameRuntime#syncFromBackend()}). */
-    public static FrameDiff applyFrame(ContextFrame frame) {
-        return FrameRuntimes.get().applyFrame(frame);
-    }
-
-    public static IntentResult submitIntent(UiIntent intent) {
-        return FrameRuntimes.get().submitIntent(intent);
+    /** Publishes an ordinary context-frame signal. */
+    public static FrameDiff publishFrame(ContextFrame frame) {
+        return PresentProjections.publish(frame);
     }
 
     /** Host-managed unified asset library. */

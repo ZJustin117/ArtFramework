@@ -1,13 +1,16 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
-import artframework.context.FakeBackend;
+import artframework.context.FakeSignalBackend;
 import artframework.context.MapView;
 import artframework.context.SurfaceIds;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
+import artframework.sts1.input.CombatInputRouter;
+import artframework.sts1.input.RecordingIntentExecutor;
 import artframework.sts1.assets.Sts1HostAssets;
 import org.junit.After;
 import org.junit.Test;
@@ -30,9 +33,9 @@ public class ControlsDrawPathTest {
 
     private void combatControlsFrame() {
         Sts1HostAssets.install();
-        FakeBackend backend = new FakeBackend();
-        ArtFramework.bindPresentationBackend(backend);
-        backend.pushFrame(
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
                 ContextFrame.of(
                         1L,
                         1L,
@@ -41,7 +44,7 @@ public class ControlsDrawPathTest {
                         ControlsView.combat(3, 5, 10, 0, 0, true, true),
                         MapView.empty(),
                         null));
-        ArtFramework.frames().syncFromBackend();
+        ArtFramework.publishFrame(backend.currentFrame());
         ArtFramework.component(SurfaceIds.COMBAT_CONTROLS).mount();
     }
 
@@ -53,6 +56,8 @@ public class ControlsDrawPathTest {
         assertEquals(ControlsView.END_TURN_ID, items.get(0).id);
         assertTrue(items.get(0).enabled);
         assertTrue(items.get(0).visible);
+        assertTrue(items.get(0).iconFound);
+        assertTrue(items.get(0).iconSource.startsWith("sts1:images/"));
     }
 
     @Test
@@ -60,6 +65,8 @@ public class ControlsDrawPathTest {
         combatControlsFrame();
         assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
         FullPresentMode.setCombatControlsLevel(PresentLevel.FULL);
+        assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         assertTrue(ControlsDrawPath.shouldSuppressNativeEndTurn());
         Sts1RenderPipeline.setOverlayObserve(true);
         assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());

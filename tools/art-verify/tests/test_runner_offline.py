@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from runner import run_scenario
+from runner import _run_step, run_scenario
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f1_probe_shape.yaml"
@@ -64,6 +64,19 @@ class RunnerOfflineTest(unittest.TestCase):
         finally:
             if old is not None:
                 os.environ["ART_D1_SERIAL"] = old
+
+    def test_wait_probe_checks_fixture_without_sleep(self):
+        probe = {"projection": {"scene": "combat"}}
+        rec = _run_step(
+            {"wait_probe": {"assert": {"path": "projection.scene", "eq": "combat"}}},
+            0,
+            mode="fixture",
+            last_probe=probe,
+            vars_map={},
+            client=None,
+        )
+        self.assertEqual("pass", rec["status"])
+        self.assertEqual(1, rec["attempts"])
 
 
 if __name__ == "__main__":

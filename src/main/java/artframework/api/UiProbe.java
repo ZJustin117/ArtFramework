@@ -52,11 +52,10 @@ public final class UiProbe {
     }
 
     private static Map<String, Object> backendMap() {
-        artframework.context.PresentationBackend b = ArtFramework.presentationBackend();
         Map<String, Object> m = new LinkedHashMap<String, Object>();
-        m.put("id", b.id());
-        m.put("mode", b.mode().name());
-        // Prefer last applied projection frame — do not call snapshot() here (side-effecting).
+        m.put("id", "signals");
+        m.put("mode", "LISTENER");
+        // Prefer last applied projection frame — endpoint dispatch is transactional.
         artframework.context.PresentProjection proj = ArtFramework.projection();
         m.put("frameId", Long.valueOf(proj.lastFrameId()));
         m.put("sceneEpoch", Long.valueOf(proj.sceneEpoch()));

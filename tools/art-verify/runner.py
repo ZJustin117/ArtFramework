@@ -166,6 +166,39 @@ def _run_step(
         run_assert(last_probe, step["assert"], vars=vars_map)
         return rec
 
+    if "wait_probe" in step:
+        spec = step["wait_probe"]
+        if not isinstance(spec, dict) or not isinstance(spec.get("assert"), dict):
+            raise ValueError("wait_probe requires assert: mapping")
+        timeout_ms = int(spec.get("timeout_ms", 30000))
+        interval_ms = int(spec.get("interval_ms", 500))
+        deadline = time.monotonic() + timeout_ms / 1000.0
+        attempts = 0
+        last_error = ""
+        while True:
+            attempts += 1
+            if mode == "fixture":
+                probe = last_probe
+            else:
+                from device_console import probe_after_console
+
+                probe = probe_after_console(client)
+            try:
+                run_assert(probe, spec["assert"], vars=vars_map)
+                rec["probe"] = probe
+                rec["attempts"] = attempts
+                return rec
+            except AssertError as e:
+                last_error = str(e)
+            if time.monotonic() >= deadline:
+                rec["status"] = "fail"
+                rec["error"] = f"wait_probe timeout after {timeout_ms}ms: {last_error}"
+                rec["probe"] = probe
+                rec["attempts"] = attempts
+                return rec
+            if mode == "device":
+                time.sleep(max(0, interval_ms) / 1000.0)
+
     if "probe" in step:
         if mode == "fixture":
             rec["probe"] = last_probe

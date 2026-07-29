@@ -57,11 +57,7 @@ public final class ControlsDrawPath {
     private ControlsDrawPath() {}
 
     public static boolean shouldSuppressNativeEndTurn() {
-        return FullPresentMode.maySuppressNative(SurfaceIds.COMBAT_CONTROLS)
-                && ArtFramework.component(SurfaceIds.COMBAT_CONTROLS) != null
-                && ArtFramework.component(SurfaceIds.COMBAT_CONTROLS).isMounted()
-                && "combat".equals(ArtFramework.projection().scene())
-                && !Sts1RenderPipeline.isOverlayObserve();
+        return Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_CONTROLS);
     }
 
     public static List<DrawItem> buildFromProjection() {

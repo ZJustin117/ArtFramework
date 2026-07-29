@@ -34,23 +34,22 @@ Logic API (no SpirePatch in v1 unit gate):
 
 | Type | Role |
 |------|------|
-| `MapTemplate` | Active session: interceptors + pins |
-| `MapNodeInterceptor` | `ALLOW` / `BLOCK` on node click (chain, first BLOCK wins) |
+| `MapTemplate` | Active session + pins; click policy is on the shared SignalBus |
 | `MapPin` / `MapPinDecorator` | Decorative markers; decorators notified on change |
 | `NativeTemplateRuntime.bind` | Activates map when `WindowDef.resource` is `sts.map` |
 
-Engine integration (future): patch `DungeonMapScreen` / `MapRoomNode` to call `MapTemplate.dispatchNodeClick` and draw pins — design before adding `@SpirePatch`.
+Engine integration: patch `DungeonMapScreen` / `MapRoomNode` emits `ui/sts1.map/node_clicked`; listeners may stopRejected and pins draw separately.
 
 ## C2 event / select / end-turn
 
 | Resource | Session | Hooks |
 |----------|---------|-------|
-| `sts.event` | `EventTemplate` | `EventOptionInterceptor` on option index |
-| `sts.select.grid` | `SelectTemplate` (GRID) | card pick + confirm intercept |
-| `sts.select.hand` | `SelectTemplate` (HAND) | card pick + confirm intercept |
-| `sts.endturn` | `EndTurnTemplate` | press intercept + `setButtonEnabled` hint |
+| `sts.event` | `EventTemplate` | emits `ui/sts1.event/option_chosen` |
+| `sts.select.grid` | `SelectTemplate` (GRID) | emits card-pick + confirm signals |
+| `sts.select.hand` | `SelectTemplate` (HAND) | emits card-pick + confirm signals |
+| `sts.endturn` | `EndTurnTemplate` | emits press signal + `setButtonEnabled` hint |
 
-Shared: `GateResult.ALLOW|BLOCK`. Bind via `ArtFramework.bind(id)` / `NativeTemplateRuntime`. STS patches later (`AbstractEvent`, `GridCardSelectScreen`, `HandCardSelectScreen`, `EndTurnButton`).
+Shared: all policy uses SignalBus `continue` / `replace` / `stopHandled` / `stopRejected`. Bind via `ArtFramework.bind(id)` / `NativeTemplateRuntime`.
 
 ## C2 EntityPresent
 

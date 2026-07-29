@@ -94,7 +94,13 @@ Device steps (when console exists):
 | `op` | `art op …` (future) |
 | `console` | Raw BaseMod console string |
 | `wait_ms` | Sleep |
+| `wait_probe` | Poll `art probe` until its nested `assert` succeeds; supports `timeout_ms` / `interval_ms` |
 | `assert` | Same path operators as fixture mode |
+
+Combat-ready device validation may use BaseMod's `fight Cultist` after `art lab start-run` has
+initialized a run. It requires a current map node, so it cannot run from the title menu. See
+`d1_full_present_combat_ready.yaml`; it arms ART FULL before the room transition and waits for the
+actual `FULL_READY` probe state rather than relying on a fixed combat delay.
 
 ## Delegation order
 

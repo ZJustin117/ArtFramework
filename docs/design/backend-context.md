@@ -1,15 +1,15 @@
 # Backend / Context — engine · UI · return
 
-Contract for **pluggable presentation backends**, read-only **context snapshots**, and the
-**three-face API** (engine down-call, UI runtime, return channel). Complements
+Contract for the unified **SignalBus**. Backend, UI, projection, host patches, and tests are
+ordinary signal emitters/listeners; no backend-specific signal transport exists. Complements
 [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md),
 [`art-framework.md`](./art-framework.md), [`ui-ops-probe.md`](./ui-ops-probe.md).
 Roadmap: [`docs/task.md`](../task.md) milestone **15**.
 
 ## Purpose
 
-1. Split **game authority** from **display orchestration**: Backend owns world state and
-   intent execution; ART owns presentation projection, signals, intercept, and render.
+1. Split **game authority** from **display orchestration**: Endpoint owns committed world
+   state; ART owns projection, signal dispatch, intercept, and render.
 2. Make the hard-sync source a **Primary Backend**, not “must be the live STS process”.
 3. Define a stable **down / up** contract so tests, replay, spectate, and future hosts share
    one ART surface.
@@ -21,50 +21,54 @@ Roadmap: [`docs/task.md`](../task.md) milestone **15**.
 - Multiple Primary backends writing the same display domain in one frame.
 - Leaking STS concrete types (`AbstractCard`, `Hitbox`, …) into core or consumer public API.
 
-## Three faces
+## Signal bus
 
 ```text
-Engine / Backend                    ART Framework                     UI Runtime
-─────────────────                   ─────────────                     ──────────
-down: snapshot + present cmds  →    applyFrame / mount surface   →    hard-sync draw
-                                    signal + intercept
-up: intent receiver            ←    return channel               ←    input / ops
+Backend / UI / host                 SignalBus                         listeners
+─────────────────                   ─────────                         ─────────
+emit named signal              →     ordered broadcast          →    observe/replace/stop
 ```
 
 | Face | Who implements | Who calls | Role |
 |------|----------------|-----------|------|
-| **Engine API (down)** | ART provides; Backend calls | Backend → ART | Push authority frames and present commands |
-| **UI Runtime** | ART internal | Driven only via ART API | Projection, hard-sync render, input capture |
-| **Return channel (up)** | Backend implements receiver; ART calls | ART → Backend | Finite intents + accept/reject/queued |
+| **SignalBus** | ART provides | All participants | One ordered exact/regex broadcast bus |
+| **Backend** | consumer-defined | Listener/emitter | Listens only to signals it handles; emits state updates |
+| **Projection** | ART internal | Listener | Applies `context/frame/updated` payloads |
 
-### Engine face (down)
+### Broadcast semantics
 
 Backend replaces native display APIs with ART calls:
 
-- Push **immutable frame snapshots** (cards, slots, layout, controls, map, anchors, resource ids).
-- Issue present commands (open/close surface, bind scene, set control hints).
-- Does **not** mutate ART internal tables directly.
-- Does **not** rely on native hitbox/UI callbacks as the main business path (target C2).
+- Every event is an immutable `UiSignal(name, source, payload, metadata)`.
+- Exact-name and regex subscriptions share one global registration sequence.
+- Matching listeners are selected at emit start and run in registration order.
+- A listener returns `continue`, `replace`, `stopHandled`, or `stopRejected`; later listeners
+  receive replacements, while either stop ends propagation.
+- Signal replacement preserves name and ID, so the listener set remains deterministic.
+- `context/frame/updated` carries an immutable `ContextFrame`; projection is only another
+  listener, with no privileged backend protocol.
 
-### UI face
+### UI runtime
 
 - Consume down-calls → normalize → identity-align → diff → update **ART projection**.
 - Hard-sync draw from projection + [`host-assets.md`](./host-assets.md) resolve.
-- Capture input → **signals** → interceptors (first `BLOCK` wins) → **intents**.
+- Capture input → `ACTION` signal → interceptors → endpoint receipt.
 - Owns derived state only: component tree, drag session, effect binds, probe — **not** game authority.
 
-### Return face (up)
+### Backend participation
 
-Split **signal** from **intent**:
+Backend is not a special endpoint. It subscribes to ordinary named signals and emits ordinary
+signals after it changes its own state. If it has no listener for a signal, that signal is simply
+unhandled rather than automatically rejected.
 
 | Layer | Audience | Role |
 |-------|----------|------|
-| **Signal** | ART, tests, policy interceptors | UI facts: `pressed`, `drag_started`, `drop`, … |
-| **Intent** | Backend only | Requests: `play_card`, `end_turn`, `click_map_node`, … |
-| **Immediate result** | Both | `accepted` \| `rejected` \| `queued` |
-| **Final pixels** | UI | **Only** next down-frame hard-sync — never “paint success” inside the return callback |
+| `ui/<surface>/<event>` | UI, C2 hooks, full-present | Button, drag, selection, control activity |
+| `context/frame/updated` | Backend | `ContextFrame` state update |
+| `ui/<component>/<event>` | Native host patch | C2-native callback activity |
 
-Return channel is **not** a free callback bus and **not** a rule engine.
+Authority remains a backend/domain concern, not a transport category: a backend's subsequent
+frame signal is its declaration of current state.
 
 ## Frame path vs input path
 

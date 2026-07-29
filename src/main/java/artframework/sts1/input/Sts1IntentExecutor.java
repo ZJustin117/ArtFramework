@@ -49,6 +49,15 @@ public final class Sts1IntentExecutor implements IntentExecutor {
             if (IntentNames.CLICK_MAP_NODE.equals(intent.name)) {
                 return clickMapNode(intent.args);
             }
+            if (IntentNames.CHOOSE_EVENT_OPTION.equals(intent.name)) {
+                return chooseEventOption(intent.args);
+            }
+            if (IntentNames.SELECT_CARD.equals(intent.name)) {
+                return IntentResult.queued(IntentNames.SELECT_CARD);
+            }
+            if (IntentNames.CONFIRM_SELECT.equals(intent.name)) {
+                return IntentResult.queued(IntentNames.CONFIRM_SELECT);
+            }
             return IntentResult.rejected("sts1 executor unknown intent: " + intent.name);
         } catch (Throwable t) {
             String msg = t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
@@ -180,9 +189,27 @@ public final class Sts1IntentExecutor implements IntentExecutor {
             return IntentResult.rejected("MapNodeRef required");
         }
         MapNodeRef node = (MapNodeRef) args[0];
-        // Travel authority stays engine/consumer; acknowledge for full-present chain.
-        return IntentResult.accepted(
-                IntentNames.CLICK_MAP_NODE + " " + node.row + "," + node.col);
+        return Sts1MapIntentBridge.click(node);
+    }
+
+    private IntentResult chooseEventOption(Object[] args) {
+        int index = 0;
+        if (args != null && args.length > 0 && args[0] instanceof Number) {
+            index = ((Number) args[0]).intValue();
+        } else if (args != null && args.length > 0 && args[0] != null) {
+            try {
+                index = Integer.parseInt(String.valueOf(args[0]));
+            } catch (NumberFormatException e) {
+                return IntentResult.rejected("event option index required");
+            }
+        }
+        String label = args != null && args.length > 1 && args[1] != null ? String.valueOf(args[1]) : "";
+        artframework.api.UiOpResult op =
+                artframework.ops.StsNativeOps.INSTANCE.chooseEventOption(index, label);
+        if (op != null && op.isOk()) {
+            return IntentResult.queued(IntentNames.CHOOSE_EVENT_OPTION + " " + index);
+        }
+        return IntentResult.rejected(op != null ? op.message : "event option failed");
     }
 
     private static void queueUseCard(final AbstractCard card, final AbstractMonster monster) {

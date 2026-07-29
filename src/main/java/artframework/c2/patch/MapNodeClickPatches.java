@@ -5,12 +5,12 @@ import com.evacipated.cardcrawl.modthespire.lib.SpirePrefixPatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.map.MapRoomNode;
-import artframework.c2.MapNodeInterceptor;
+import artframework.c2.hooks.HostPatchResults;
 import artframework.c2.hooks.NativeUiHooks;
+import artframework.core.SignalDispatchResult;
 
 /**
- * Thin map click gate: when {@code sts.map} is bound and interceptors BLOCK, cancel travel.
- * No party/protocol logic.
+ * Thin map click gate: when {@code sts.map} is bound and bus rejects, cancel travel.
  */
 @SuppressWarnings("unused")
 public final class MapNodeClickPatches {
@@ -26,9 +26,8 @@ public final class MapNodeClickPatches {
                 return SpireReturn.Continue();
             }
             String roomType = next.room != null ? next.room.getClass().getSimpleName() : "";
-            MapNodeInterceptor.Result r =
-                    NativeUiHooks.onMapNodeClick(next.y, next.x, roomType);
-            if (r == MapNodeInterceptor.Result.BLOCK) {
+            SignalDispatchResult result = NativeUiHooks.onMapNodeClick(next.y, next.x, roomType);
+            if (!HostPatchResults.allowsNative(result)) {
                 AbstractDungeon.nextRoom = null;
                 return SpireReturn.Return(null);
             }
@@ -45,9 +44,8 @@ public final class MapNodeClickPatches {
                 return SpireReturn.Continue();
             }
             String roomType = next.room != null ? next.room.getClass().getSimpleName() : "";
-            MapNodeInterceptor.Result r =
-                    NativeUiHooks.onMapNodeClick(next.y, next.x, roomType);
-            if (r == MapNodeInterceptor.Result.BLOCK) {
+            SignalDispatchResult result = NativeUiHooks.onMapNodeClick(next.y, next.x, roomType);
+            if (!HostPatchResults.allowsNative(result)) {
                 AbstractDungeon.nextRoom = null;
                 return SpireReturn.Return(null);
             }

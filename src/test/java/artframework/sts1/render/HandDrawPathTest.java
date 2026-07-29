@@ -8,7 +8,7 @@ import artframework.context.CardView;
 import artframework.context.CardZone;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
-import artframework.context.FakeBackend;
+import artframework.context.FakeSignalBackend;
 import artframework.context.MapView;
 import artframework.sts1.assets.Sts1HostAssets;
 import org.junit.After;
@@ -34,9 +34,9 @@ public class HandDrawPathTest {
 
     private void pushHand() {
         Sts1HostAssets.install();
-        FakeBackend backend = new FakeBackend();
-        ArtFramework.bindPresentationBackend(backend);
-        backend.pushFrame(
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
                 ContextFrame.of(
                         1L,
                         1L,
@@ -58,7 +58,7 @@ public class HandDrawPathTest {
                         ControlsView.empty(),
                         MapView.empty(),
                         null));
-        ArtFramework.frames().syncFromBackend();
+        ArtFramework.publishFrame(backend.currentFrame());
     }
 
     @Test
@@ -72,6 +72,8 @@ public class HandDrawPathTest {
         assertTrue(items.get(0).artFound);
         assertTrue(items.get(0).artSource.contains("Strike_R") || items.get(0).artSource.startsWith("sts1:"));
         assertTrue(items.get(0).frameSource.length() > 0);
+        assertEquals(ResourceIds.cardArt("Strike_R"), items.get(0).artResourceId);
+        assertEquals(ResourceIds.CARD_FRAME_RED, items.get(0).frameResourceId);
     }
 
     @Test

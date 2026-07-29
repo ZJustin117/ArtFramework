@@ -95,17 +95,7 @@ public class ArtCommand extends ConsoleCommand {
             return;
         }
         if ("frame".equals(sub) || "sync".equals(sub)) {
-            artframework.context.FrameDiff d = ArtFramework.frames().syncFromBackend();
-            DevConsole.log(
-                    "frame applied="
-                            + d.applied
-                            + " +"
-                            + d.added.size()
-                            + " -"
-                            + d.removed.size()
-                            + " ~"
-                            + d.updated.size()
-                            + (d.message.isEmpty() ? "" : " " + d.message));
+            DevConsole.log("frames are published by the authority endpoint");
             return;
         }
         if ("present".equals(sub)) {
@@ -798,14 +788,23 @@ public class ArtCommand extends ConsoleCommand {
                     : SelectKind.GRID;
             r = ArtFramework.ops().confirmSelect(sk);
         } else if ("map".equals(kind)) {
-            if (tokens.length < depth + 3) {
-                DevConsole.log("Usage: art op map <row> <col> [roomType]");
+            if (tokens.length >= depth + 2 && "first".equalsIgnoreCase(tokens[depth + 1])) {
+                artframework.context.IntentResult ir =
+                        artframework.sts1.input.Sts1MapIntentBridge.clickFirstPresentable();
+                if (ir == null || ir.status == artframework.context.IntentResult.Status.REJECTED) {
+                    r = UiOpResult.unavailable(ir != null ? ir.message : "map first failed");
+                } else {
+                    r = UiOpResult.ok(ir.message);
+                }
+            } else if (tokens.length < depth + 3) {
+                DevConsole.log("Usage: art op map <row> <col> [roomType] | art op map first");
                 return;
+            } else {
+                int row = parseInt(tokens[depth + 1], 0);
+                int col = parseInt(tokens[depth + 2], 0);
+                String room = tokens.length > depth + 3 ? tokens[depth + 3] : "";
+                r = ArtFramework.ops().clickMapNode(new MapNodeRef(row, col, room));
             }
-            int row = parseInt(tokens[depth + 1], 0);
-            int col = parseInt(tokens[depth + 2], 0);
-            String room = tokens.length > depth + 3 ? tokens[depth + 3] : "";
-            r = ArtFramework.ops().clickMapNode(new MapNodeRef(row, col, room));
         } else if ("event".equals(kind)) {
             if (tokens.length < depth + 2) {
                 DevConsole.log("Usage: art op event <index> [label...]");

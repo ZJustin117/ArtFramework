@@ -116,7 +116,10 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_start_run.yaml 
 # full-present policy (after jar deploy + cold start READY):
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_observe.yaml --device
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_combat_on.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_combat_ready.yaml --device
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_map.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_map_ready.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_lifecycle.yaml --device
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_panic.yaml --device
 ```
 

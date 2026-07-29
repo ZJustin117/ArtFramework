@@ -98,7 +98,8 @@ public final class StageHost
         // The STS1 backend is observational until an individual full-present surface is enabled.
         // Snapshot after native update so ART sees a coherent authority frame for this render pass.
         try {
-            ArtFramework.frames().syncFromBackend();
+            ArtFramework.publishFrame(
+                    artframework.sts1.backend.Sts1PresentationBackend.INSTANCE.publishFrame());
         } catch (Throwable t) {
             try {
                 BaseMod.logger.warn("ArtFramework frame sync skipped: " + t.getMessage());
@@ -129,7 +130,8 @@ public final class StageHost
         }
         boolean hasStage = stage != null && !actors.isEmpty();
         boolean hasFx = RenderHosts.get().bindingCount() > 0 || RenderHosts.get().targetCount() > 0;
-        if (!hasStage && !hasFx) {
+        boolean hasPresentDraw = !artframework.sts1.render.Sts1RenderPipeline.plan().drawOrder().isEmpty();
+        if (!hasStage && !hasFx && !hasPresentDraw) {
             return;
         }
         // End batch so default FB is complete, then copy screen for glass/blur, then draw FX.

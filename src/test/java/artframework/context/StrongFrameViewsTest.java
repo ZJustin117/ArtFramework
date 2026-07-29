@@ -45,7 +45,7 @@ public class StrongFrameViewsTest {
                         map,
                         new ViewportView(1920, 1080, 1920, 1080));
 
-        FrameDiff diff = ArtFramework.applyFrame(frame);
+        FrameDiff diff = ArtFramework.publishFrame(frame);
         assertTrue(diff.applied);
         assertEquals(3, ArtFramework.projection().controls().energy);
         assertTrue(ArtFramework.projection().controls().endTurnEnabled);
@@ -88,7 +88,7 @@ public class StrongFrameViewsTest {
 
     @Test
     public void unavailableDoesNotClearCardsOrChangeEpoch() {
-        ArtFramework.applyFrame(
+        ArtFramework.publishFrame(
                 ContextFrame.of(
                         1L,
                         5L,
@@ -100,7 +100,7 @@ public class StrongFrameViewsTest {
         assertEquals(5L, ArtFramework.projection().sceneEpoch());
         assertEquals(1, ArtFramework.projection().size());
 
-        FrameDiff d = ArtFramework.applyFrame(ContextFrame.unavailable(2L));
+        FrameDiff d = ArtFramework.publishFrame(ContextFrame.unavailable(2L));
         assertFalse(d.applied);
         assertTrue(ArtFramework.projection().isStale());
         assertEquals(1, ArtFramework.projection().size());
@@ -110,7 +110,7 @@ public class StrongFrameViewsTest {
 
     @Test
     public void sceneEpochClearsDragAndCards() {
-        ArtFramework.applyFrame(
+        ArtFramework.publishFrame(
                 ContextFrame.of(
                         1L,
                         1L,
@@ -122,7 +122,7 @@ public class StrongFrameViewsTest {
         ArtFramework.projection().setDragInstanceId("old");
 
         FrameDiff diff =
-                ArtFramework.applyFrame(
+                ArtFramework.publishFrame(
                         ContextFrame.of(
                                 1L,
                                 2L,
@@ -145,10 +145,10 @@ public class StrongFrameViewsTest {
 
     @Test
     public void sameEpochFrameIdMonotonic() {
-        ArtFramework.applyFrame(
+        ArtFramework.publishFrame(
                 ContextFrame.of(5L, 1L, "combat", Arrays.<CardView>asList(), ControlsView.empty(), MapView.empty(), null));
         FrameDiff stale =
-                ArtFramework.applyFrame(
+                ArtFramework.publishFrame(
                         ContextFrame.of(
                                 3L, 1L, "combat", Arrays.<CardView>asList(), ControlsView.empty(), MapView.empty(), null));
         assertFalse(stale.applied);

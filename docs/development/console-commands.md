@@ -192,7 +192,7 @@ Path form also works: `art ui emit demo/close pressed`.
 
 | Command | Description |
 |---------|-------------|
-| `art frame` / `art sync` | `frames().syncFromBackend()`; logs applied/added/removed/updated |
+| `art frame` / `art sync` | Reports that frames are published by the authority endpoint; no pull operation exists |
 | `art present status` | `ART_PRESENT` policy + scene/epoch/hand/map/endTurn |
 | `art present combat on\|off\|observe` | Hand+controls level + mount/unmount |
 | `art present map on\|off\|observe` | Map surface level + mount |

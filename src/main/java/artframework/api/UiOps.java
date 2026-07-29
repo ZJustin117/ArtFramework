@@ -2,8 +2,6 @@ package artframework.api;
 
 import artframework.c1.layout.LayoutNode;
 import artframework.c2.EventOptionRef;
-import artframework.c2.GateResult;
-import artframework.c2.MapNodeInterceptor;
 import artframework.c2.MapNodeRef;
 import artframework.c2.NativeTemplateRuntime;
 import artframework.c2.NativeTemplateIds;
@@ -20,6 +18,9 @@ import artframework.core.UiComponent;
 import artframework.core.UiTree;
 import artframework.core.UiTrees;
 import artframework.core.SignalHandler;
+import artframework.core.SignalBuses;
+import artframework.core.SignalDispatchResult;
+import artframework.core.UiSignal;
 import artframework.ops.NativeOpsBackend;
 import artframework.ops.NoOpNativeOps;
 
@@ -51,18 +52,12 @@ public final class UiOps {
         if (kind == null) {
             return UiOpResult.unavailable("kind required");
         }
-        SelectTemplate t = selectTemplate(kind);
-        if (t == null || !t.isActive()) {
+        if (selectTemplate(kind) == null || !selectTemplate(kind).isActive()) {
             return UiOpResult.notBound("select " + kind + " not bound");
         }
-        GateResult gate = t.dispatchCard(new SelectCardRef(cardId, index));
-        if (gate == GateResult.BLOCK) {
+        if (rejected(selectName(kind), SignalNames.CARD_SELECTED, new SelectCardRef(cardId, index))) {
             return UiOpResult.blocked("select card blocked");
         }
-        NativeComponents.emit(
-                kind == SelectKind.GRID ? NativeTemplateIds.SELECT_GRID : NativeTemplateIds.SELECT_HAND,
-                SignalNames.CARD_SELECTED,
-                new SelectCardRef(cardId, index));
         return backend().selectCard(kind, cardId != null ? cardId : "", index);
     }
 
@@ -83,18 +78,20 @@ public final class UiOps {
         if (t == null || !t.isActive()) {
             return UiOpResult.notBound("select " + kind + " not bound");
         }
-        GateResult gate = t.dispatchConfirm();
-        if (gate == GateResult.BLOCK) {
+        if (rejected(selectName(kind), SignalNames.CONFIRMED, kind)) {
             return UiOpResult.blocked("confirm blocked");
         }
-        NativeComponents.emit(
-                kind == SelectKind.GRID ? NativeTemplateIds.SELECT_GRID : NativeTemplateIds.SELECT_HAND,
-                SignalNames.CONFIRMED,
-                kind);
         return backend().confirmSelect(kind);
     }
 
     public UiOpResult clickMapNode(MapNodeRef node) {
+        artframework.core.UiComponent surface =
+                ArtFramework.component(artframework.context.SurfaceIds.MAP);
+        // Prefer full-present map surface when mounted and legacy template is not the active bind.
+        if (surface != null && surface.isMounted() && !NativeTemplateRuntime.isMapBound()) {
+            return surface.action(
+                    artframework.context.IntentNames.CLICK_MAP_NODE, node);
+        }
         return invoke(NativeTemplateIds.MAP, "click_node", node);
     }
 
@@ -106,11 +103,9 @@ public final class UiOps {
         if (!NativeTemplateRuntime.isMapBound()) {
             return UiOpResult.notBound("sts1.map not bound");
         }
-        MapNodeInterceptor.Result r = NativeTemplateRuntime.map().dispatchNodeClick(node);
-        if (r == MapNodeInterceptor.Result.BLOCK) {
+        if (rejected(NativeTemplateIds.MAP, SignalNames.NODE_CLICKED, node)) {
             return UiOpResult.blocked("map node blocked");
         }
-        NativeComponents.emit(NativeTemplateIds.MAP, SignalNames.NODE_CLICKED, node);
         return backend().clickMapNode(node);
     }
 
@@ -123,16 +118,10 @@ public final class UiOps {
         if (!NativeTemplateRuntime.isEventBound()) {
             return UiOpResult.notBound("sts1.event not bound");
         }
-        GateResult gate =
-                NativeTemplateRuntime.event().dispatchOption(new EventOptionRef(index, label));
-        if (gate == GateResult.BLOCK) {
+        if (rejected(NativeTemplateIds.EVENT, SignalNames.OPTION_CHOSEN,
+                new EventOptionRef(index, label))) {
             return UiOpResult.blocked("event option blocked");
         }
-        NativeComponents.emit(
-                NativeTemplateIds.EVENT,
-                SignalNames.OPTION_CHOSEN,
-                Integer.valueOf(index),
-                label != null ? label : "");
         return backend().chooseEventOption(index, label != null ? label : "");
     }
 
@@ -145,11 +134,10 @@ public final class UiOps {
         if (!NativeTemplateRuntime.isEndTurnBound()) {
             return UiOpResult.notBound("sts1.endturn not bound");
         }
-        GateResult gate = NativeTemplateRuntime.endTurn().dispatchPress();
-        if (gate == GateResult.BLOCK) {
+        if (!NativeTemplateRuntime.endTurn().isButtonEnabled()
+                || rejected(NativeTemplateIds.END_TURN, SignalNames.PRESSED, null)) {
             return UiOpResult.blocked("end turn blocked");
         }
-        NativeComponents.emit(NativeTemplateIds.END_TURN, SignalNames.PRESSED);
         return backend().pressEndTurn();
     }
 
@@ -166,7 +154,7 @@ public final class UiOps {
         if (hand != null && hand.isMounted()) {
             artframework.context.CardEntity match = null;
             for (artframework.context.CardEntity e :
-                    artframework.context.FrameRuntimes.get().projection().listZone(
+                    ArtFramework.projection().listZone(
                             artframework.context.CardZone.HAND)) {
                 if (cardId.equals(e.cardId)) {
                     match = e;
@@ -511,17 +499,15 @@ public final class UiOps {
     }
 
     private static void emitSignal(String windowId, String controlId, String signal, Object... args) {
-        UiTree tree = UiTrees.get(windowId);
-        if (tree != null) {
-            tree.emit(controlId, signal, args);
-        }
+        // Delivery already occurred during allowSignal so state mutation can be cancelled first.
     }
 
     private static boolean allowSignal(String windowId, String controlId, String signal, Object... args) {
-        UiTree tree = UiTrees.get(windowId);
-        return tree == null
-                || tree.dispatchSignal(controlId, signal, args)
-                        == artframework.core.UiSignalInterceptor.Result.ALLOW;
+        artframework.core.SignalDispatchResult result = artframework.core.SignalBuses.get().emit(
+                new artframework.core.UiSignal(
+                        artframework.core.SignalHub.name(controlId, signal), controlId,
+                        args != null ? args : new Object[0]));
+        return !result.isRejected();
     }
 
     private void connectSugar(String windowId, String controlId, String signal, SignalHandler handler) {
@@ -570,6 +556,16 @@ public final class UiOps {
             return NativeTemplateRuntime.selectHand();
         }
         return null;
+    }
+
+    private static String selectName(SelectKind kind) {
+        return kind == SelectKind.GRID ? NativeTemplateIds.SELECT_GRID : NativeTemplateIds.SELECT_HAND;
+    }
+
+    private static boolean rejected(String componentId, String signal, Object payload) {
+        SignalDispatchResult result = SignalBuses.get().emit(
+                new UiSignal("ui/" + componentId + "/" + signal, componentId, payload));
+        return result.isRejected();
     }
 
     private static NativeOpsBackend backend() {

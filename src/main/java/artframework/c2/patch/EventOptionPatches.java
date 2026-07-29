@@ -6,7 +6,7 @@ import com.megacrit.cardcrawl.events.AbstractEvent;
 import javassist.CannotCompileException;
 import javassist.expr.ExprEditor;
 import javassist.expr.MethodCall;
-import artframework.c2.GateResult;
+import artframework.c2.hooks.HostPatchResults;
 import artframework.c2.hooks.NativeUiHooks;
 
 /**
@@ -20,7 +20,7 @@ public final class EventOptionPatches {
 
     /** Package-visible for instrument-generated call sites. */
     public static boolean allowOption(int index) {
-        return NativeUiHooks.onEventOption(index, "") != GateResult.BLOCK;
+        return HostPatchResults.allowsNative(NativeUiHooks.onEventOption(index, ""));
     }
 
     @SpirePatch(clz = AbstractEvent.class, method = "update", paramtypez = {})

@@ -6,6 +6,7 @@ import artframework.context.IntentNames;
 import artframework.context.IntentResult;
 import artframework.context.SurfaceIds;
 import artframework.context.UiIntent;
+import artframework.c2.MapNodeRef;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import org.junit.After;
@@ -69,5 +70,13 @@ public class Sts1IntentExecutorRoutingTest {
                         || r.message.contains("executor")
                         || r.message.contains("no player")
                         || r.message.length() > 0);
+    }
+
+    @Test
+    public void mapClickWithoutLiveMapRejectsSoft() {
+        IntentResult r = Sts1IntentExecutor.INSTANCE.execute(
+                UiIntent.of(IntentNames.CLICK_MAP_NODE, SurfaceIds.MAP, new MapNodeRef(0, 0, "monster")));
+        assertEquals(IntentResult.Status.REJECTED, r.status);
+        assertTrue(r.message.contains("map node unavailable"));
     }
 }

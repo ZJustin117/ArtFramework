@@ -43,11 +43,11 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 
 | Entry | Role |
 |-------|------|
-| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`bindPresentationBackend`** / **`applyFrame`** / **`submitIntent`** / **`assets()`** / **`projection()`** |
+| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** |
 | `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
 | `artframework.core.*` | `UiTree` / `UiInstance` / `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
-| `artframework.context.*` | **Milestone 15:** `PresentationBackend` / `FakeBackend` / `ContextFrame` / `CardRef` / `FrameRuntime` / `PresentSurfaces` / intents |
+| `artframework.context.*` | **Signal model:** `ContextSignals` / `ContextFrame` / `PresentProjections` / `FakeSignalBackend` / `SignalBackend` / `CardRef` / `PresentSurfaces` |
 | `artframework.assets.*` | **HostAssets** ResourceId / packs / resolve / `FakeHostAssets` |
 | `artframework.c1.SyntheticRuntime` | C1 layout open; Stage via `StageHost` |
 | `artframework.c2.NativeTemplateRuntime` | `map` / `event` / `selectGrid` / `selectHand` / `endTurn` / `entities` |
@@ -67,14 +67,16 @@ Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md),
 [`docs/design/host-assets.md`](../design/host-assets.md).  
 `open`/`bind` remain aliases of `mount` paths (compatibility).
 
-### Milestone 15–16 consumer notes (intents + full present)
+### Milestone 15–20 consumer notes (signals + full present)
 
-- Prefer **Primary Backend** frames (`applyFrame` / `frames().syncFromBackend()`) over scraping STS UI fields.
-- Prefer **intents** (`submitIntent` / surface `action`) over native hitbox callbacks for policy; signals observe/gate only.
+- Backend installs ordinary signal listeners; publish authority frames as `context/frame/updated` and use `ArtFramework.emit(...)` for all interactions.
+- Prefer `ACTION` signals or surface `action` over native hitbox callbacks. An interceptor may transform or reject a signal, but only an endpoint committed frame is authoritative.
 - Full-present surfaces: `sts1.combat.hand`, `sts1.combat.card_slots`, `sts1.combat.controls`, `sts1.map`, `sts1.skeleton`, `sts1.combat.surface` (`mount_combat`).
 - Legacy `sts.*` / `sts1.endturn` **NativeComponents** remain; end-turn full-present is `sts1.combat.controls` (not an alias that steals `sts1.endturn`).
 - Card identity: use **`CardRef.instanceId`** (multi-instance safe); `playHandCard(cardId)` still resolves first hand match when hand surface is mounted.
 - Assets: register packs on `ArtFramework.assets()`; Theme icons/style resolve via HostAssets.
+- Pack release gate: `./scripts/verify-consumer-fixture.sh` compiles `tools/consumer-fixture`
+  which registers a CARD pack and asserts resolve winner `packId` (milestone 19.6).
 
 ### Milestone 16 freeze (STS1 host full-present)
 

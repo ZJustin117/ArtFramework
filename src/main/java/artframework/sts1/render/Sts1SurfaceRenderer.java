@@ -1,14 +1,17 @@
 package artframework.sts1.render;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import artframework.context.SurfaceIds;
+import artframework.sts1.assets.Sts1AssetMaterializer;
 
 
 /**
- * STS1 adapter renderer. Draw plan from {@link Sts1RenderPipeline}; card pixels still delegate to
- * live {@link AbstractCard#render} until 16.4 HostAssets path. ART owns phase and suppression.
+ * STS1 adapter renderer. ART owns the full-present card pixels and uses live cards only as a
+ * read-only portrait/text bridge while the public projection remains host-agnostic.
  */
 public final class Sts1SurfaceRenderer {
 
@@ -58,15 +61,7 @@ public final class Sts1SurfaceRenderer {
             if (!item.visible) {
                 continue;
             }
-            AbstractCard card = find(item.instanceId);
-            if (card == null) {
-                continue;
-            }
-            card.current_x = item.x;
-            card.current_y = item.y;
-            card.angle = item.rotation;
-            card.drawScale = item.scale;
-            card.render(sb);
+            Sts1HandCardRenderer.render(sb, item, find(item.instanceId));
         }
     }
 
@@ -83,10 +78,16 @@ public final class Sts1SurfaceRenderer {
                 if (!item.visible || !ControlsViewIdEndTurn(item.id)) {
                     continue;
                 }
-                // EndTurnButton.hb is private — use fixed present-space anchor (refine via
-                // reflection later if needed for pixel-perfect D1).
                 float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.85f;
                 float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.12f;
+                Texture icon = Sts1AssetMaterializer.resolveTexture(item.iconSource);
+                if (icon != null) {
+                    float w = icon.getWidth() * 0.75f;
+                    float h = icon.getHeight() * 0.75f;
+                    sb.setColor(item.enabled ? Color.WHITE : Color.GRAY);
+                    sb.draw(icon, x - w / 2f, y - h / 2f, w, h);
+                    sb.setColor(Color.WHITE);
+                }
                 String label = item.enabled ? item.text : (item.text + " (disabled)");
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
@@ -114,18 +115,26 @@ public final class Sts1SurfaceRenderer {
         try {
             for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
                 String label = item.symbol != null && !item.symbol.isEmpty() ? item.symbol : "?";
-                if (item.highlighted) {
-                    label = "[" + label + "]";
+                Texture art = Sts1AssetMaterializer.resolveTexture(item.artSource);
+                if (art != null) {
+                    float size = item.highlighted ? 80f : 64f;
+                    sb.setColor(item.taken ? Color.DARK_GRAY : Color.WHITE);
+                    sb.draw(art, item.screenX - size / 2f, item.screenY - size / 2f, size, size);
+                    sb.setColor(Color.WHITE);
+                } else {
+                    if (item.highlighted) {
+                        label = "[" + label + "]";
+                    }
+                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                            sb,
+                            com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                            label,
+                            item.screenX,
+                            item.screenY,
+                            item.taken
+                                    ? com.badlogic.gdx.graphics.Color.DARK_GRAY
+                                    : com.badlogic.gdx.graphics.Color.WHITE);
                 }
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        label,
-                        item.screenX,
-                        item.screenY,
-                        item.taken
-                                ? com.badlogic.gdx.graphics.Color.DARK_GRAY
-                                : com.badlogic.gdx.graphics.Color.WHITE);
             }
         } catch (Throwable ignored) {
         }

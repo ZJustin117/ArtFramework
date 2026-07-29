@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Full-present C2 surfaces driven by {@link FrameRuntime} projection (milestone 15).
+ * Full-present C2 surfaces driven by the shared signal projection (milestone 15).
  */
 public final class PresentSurfaces {
 
@@ -33,6 +33,9 @@ public final class PresentSurfaces {
         register(new MapSurface());
         register(new SkeletonSurface());
         register(new CombatRootSurface());
+        register(new EventSurface());
+        register(new SelectSurface(SurfaceIds.SELECT_GRID));
+        register(new SelectSurface(SurfaceIds.SELECT_HAND));
     }
 
     private PresentSurfaces() {}
@@ -116,7 +119,7 @@ public final class PresentSurfaces {
             mounted = false;
             HUB.clearInstance(id);
             if (SurfaceIds.COMBAT_HAND.equals(id)) {
-                FrameRuntimes.get().projection().clearDrag();
+                PresentProjections.get().clearDrag();
             }
         }
 
@@ -156,13 +159,26 @@ public final class PresentSurfaces {
             m.put("maySuppressNative", Boolean.valueOf(artframework.sts1.FullPresentMode.maySuppressNative(id)));
             m.put("actions", actions);
             m.put("signals", new ArrayList<String>(signals));
-            m.putAll(FrameRuntimes.get().projection().probeSlice());
+            m.putAll(PresentProjections.get().probeSlice());
             return m;
         }
 
         protected IntentResult submit(String intentName, Object... args) {
-            return FrameRuntimes.get()
-                    .submitIntent(UiIntent.of(intentName, id, args));
+            artframework.core.SignalDispatchResult result = artframework.core.SignalBuses.get().emit(
+                    new artframework.core.UiSignal(
+                            ContextSignals.action(id, intentName), id,
+                            UiIntent.of(intentName, id, args)));
+            if (result == null) {
+                return IntentResult.rejected("no result");
+            }
+            if (result.isRejected()) {
+                return IntentResult.rejected(result.message);
+            }
+            // Host executors often queue STS gestures; preserve that as success for UiOps.
+            if (result.message != null && result.message.startsWith("queued:")) {
+                return IntentResult.queued(result.message);
+            }
+            return IntentResult.accepted(result.message != null ? result.message : "");
         }
 
         protected static UiOpResult toOp(IntentResult r) {
@@ -199,7 +215,7 @@ public final class PresentSurfaces {
             if (!isMounted()) {
                 return UiOpResult.notBound("hand surface not mounted");
             }
-            PresentProjection proj = FrameRuntimes.get().projection();
+            PresentProjection proj = PresentProjections.get();
             if ("begin_drag".equals(name) || IntentNames.BEGIN_DRAG.equals(name)) {
                 String instanceId = argString(args, 0);
                 CardEntity e = proj.get(instanceId);
@@ -279,8 +295,7 @@ public final class PresentSurfaces {
                 return toOp(r);
             }
             if ("sync_frame".equals(name)) {
-                FrameDiff d = FrameRuntimes.get().syncFromBackend();
-                return d.applied ? UiOpResult.ok("frame " + proj.lastFrameId()) : UiOpResult.unavailable(d.message);
+                return UiOpResult.unavailable("frames are published by the authority endpoint");
             }
             return UiOpResult.unavailable("unknown action: " + name);
         }
@@ -297,7 +312,7 @@ public final class PresentSurfaces {
                                     "play_card",
                                     "sync_frame"));
             List<Map<String, Object>> hand = new ArrayList<Map<String, Object>>();
-            for (CardEntity e : FrameRuntimes.get().projection().listZone(CardZone.HAND)) {
+            for (CardEntity e : PresentProjections.get().listZone(CardZone.HAND)) {
                 Map<String, Object> row = new LinkedHashMap<String, Object>();
                 row.put("instanceId", e.instanceId);
                 row.put("cardId", e.cardId);
@@ -336,7 +351,7 @@ public final class PresentSurfaces {
             }
             if ("inspect_slot".equals(name)) {
                 String instanceId = argString(args, 0);
-                CardEntity e = FrameRuntimes.get().projection().get(instanceId);
+                CardEntity e = PresentProjections.get().get(instanceId);
                 return e != null
                         ? UiOpResult.ok(e.zone + ":" + e.slotIndex)
                         : UiOpResult.unavailable("no slot for " + instanceId);
@@ -353,7 +368,7 @@ public final class PresentSurfaces {
 
         private static Map<String, Object> zoneCounts() {
             Map<String, Object> z = new LinkedHashMap<String, Object>();
-            PresentProjection p = FrameRuntimes.get().projection();
+            PresentProjection p = PresentProjections.get();
             for (CardZone zone : CardZone.values()) {
                 z.put(zone.name(), Integer.valueOf(p.listZone(zone).size()));
             }
@@ -388,7 +403,7 @@ public final class PresentSurfaces {
         @Override
         public Map<String, Object> probeSlice() {
             Map<String, Object> m = baseProbe(Arrays.asList("press", "press_end_turn"));
-            ControlsView cv = FrameRuntimes.get().projection().controls();
+            ControlsView cv = PresentProjections.get().controls();
             m.put("endTurnEnabled", Boolean.valueOf(cv.endTurnEnabled));
             m.put("endTurnVisible", Boolean.valueOf(cv.endTurnVisible));
             m.put("energy", Integer.valueOf(cv.energy));
@@ -412,7 +427,7 @@ public final class PresentSurfaces {
                     || IntentNames.CLICK_MAP_NODE.equals(name)) {
                 Object node = args != null && args.length > 0 ? args[0] : null;
                 IntentResult r = submit(IntentNames.CLICK_MAP_NODE, node);
-                if (r.isAccepted()) {
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
                     emit(SignalNames.NODE_CLICKED, node);
                 }
                 return toOp(r);
@@ -426,7 +441,7 @@ public final class PresentSurfaces {
         @Override
         public Map<String, Object> probeSlice() {
             Map<String, Object> m = baseProbe(Arrays.asList("click_node", "set_pins"));
-            MapView mv = FrameRuntimes.get().projection().map();
+            MapView mv = PresentProjections.get().map();
             m.put("map", mv.toMap());
             m.put("nodeCount", Integer.valueOf(mv.nodeCount()));
             return m;
@@ -456,6 +471,92 @@ public final class PresentSurfaces {
         @Override
         public Map<String, Object> probeSlice() {
             return baseProbe(Arrays.asList("play", "stop", "set_transform"));
+        }
+    }
+
+    /** Event full-present surface (19.5): option intents; STS1 draw deferred. */
+    static final class EventSurface extends BaseSurface {
+        EventSurface() {
+            super(SurfaceIds.EVENT, SignalNames.OPTION_CHOSEN, SignalNames.SURFACE_OPENED, SignalNames.SURFACE_CLOSED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_event".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("event surface mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("event surface not mounted");
+            }
+            if ("choose_option".equals(name)
+                    || IntentNames.CHOOSE_EVENT_OPTION.equals(name)
+                    || "choose_event_option".equals(name)) {
+                Object index = args != null && args.length > 0 ? args[0] : Integer.valueOf(0);
+                Object label = args != null && args.length > 1 ? args[1] : "";
+                IntentResult r = submit(IntentNames.CHOOSE_EVENT_OPTION, index, label);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.OPTION_CHOSEN, index, label);
+                }
+                return toOp(r);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            return baseProbe(Arrays.asList("choose_option", "mount_event", IntentNames.CHOOSE_EVENT_OPTION));
+        }
+    }
+
+    /** Grid/hand select full-present surface (19.5). */
+    static final class SelectSurface extends BaseSurface {
+        SelectSurface(String id) {
+            super(id, SignalNames.CARD_SELECTED, SignalNames.CONFIRMED, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_select".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok(id() + " mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound(id() + " not mounted");
+            }
+            if ("select_card".equals(name) || IntentNames.SELECT_CARD.equals(name)) {
+                IntentResult r = submit(IntentNames.SELECT_CARD, args);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.CARD_SELECTED, args);
+                }
+                return toOp(r);
+            }
+            if ("confirm".equals(name) || IntentNames.CONFIRM_SELECT.equals(name)) {
+                IntentResult r = submit(IntentNames.CONFIRM_SELECT, args);
+                if (r != null && r.status != IntentResult.Status.REJECTED) {
+                    emit(SignalNames.CONFIRMED, args);
+                }
+                return toOp(r);
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m =
+                    baseProbe(
+                            Arrays.asList(
+                                    "select_card",
+                                    "confirm",
+                                    "mount_select",
+                                    IntentNames.SELECT_CARD,
+                                    IntentNames.CONFIRM_SELECT));
+            m.put(
+                    "selectKind",
+                    SurfaceIds.SELECT_HAND.equals(id()) ? "HAND" : "GRID");
+            return m;
         }
     }
 

@@ -1,40 +1,40 @@
 package artframework.core;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Per-tree signal connect / emit / disconnect (pure; no GL).
  */
 public final class SignalHub {
 
-    private final Map<String, List<SignalHandler>> handlers =
-            new LinkedHashMap<String, List<SignalHandler>>();
+    private final List<Registration> registrations = new ArrayList<Registration>();
 
     public void connect(String instanceId, String signal, SignalHandler handler) {
         if (instanceId == null || signal == null || handler == null) {
             throw new IllegalArgumentException("instanceId, signal, handler required");
         }
-        String k = key(instanceId, signal);
-        List<SignalHandler> list = handlers.get(k);
-        if (list == null) {
-            list = new ArrayList<SignalHandler>();
-            handlers.put(k, list);
-        }
-        if (!list.contains(handler)) {
-            list.add(handler);
-        }
+        registrations.add(new Registration(instanceId, signal, handler,
+                SignalBuses.get().connect(name(instanceId, signal), new SignalListener() {
+                    @Override public SignalDecision onSignal(UiSignal event) {
+                        Object[] payload = event.payload instanceof Object[]
+                                ? (Object[]) event.payload : new Object[] {event.payload};
+                        handler.handle(payload);
+                        return SignalDecision.continueSignal();
+                    }
+                })));
     }
 
     public void disconnect(String instanceId, String signal, SignalHandler handler) {
         if (instanceId == null || signal == null || handler == null) {
             return;
         }
-        List<SignalHandler> list = handlers.get(key(instanceId, signal));
-        if (list != null) {
-            list.remove(handler);
+        for (Registration registration : new ArrayList<Registration>(registrations)) {
+            if (registration.instanceId.equals(instanceId) && registration.signal.equals(signal)
+                    && registration.handler == handler) {
+                registration.subscription.disconnect();
+                registrations.remove(registration);
+            }
         }
     }
 
@@ -42,19 +42,13 @@ public final class SignalHub {
         if (instanceId == null || signal == null) {
             return;
         }
-        List<SignalHandler> list = handlers.get(key(instanceId, signal));
-        if (list == null || list.isEmpty()) {
-            return;
-        }
         Object[] payload = args != null ? args : new Object[0];
-        List<SignalHandler> copy = new ArrayList<SignalHandler>(list);
-        for (SignalHandler h : copy) {
-            h.handle(payload);
-        }
+        SignalBuses.get().emit(new UiSignal(name(instanceId, signal), instanceId, payload));
     }
 
     public void clear() {
-        handlers.clear();
+        for (Registration registration : registrations) registration.subscription.disconnect();
+        registrations.clear();
     }
 
     /** Remove all handlers for one instance id. */
@@ -62,24 +56,34 @@ public final class SignalHub {
         if (instanceId == null) {
             return;
         }
-        String prefix = instanceId + "\0";
-        List<String> remove = new ArrayList<String>();
-        for (String k : handlers.keySet()) {
-            if (k.startsWith(prefix)) {
-                remove.add(k);
+        for (Registration registration : new ArrayList<Registration>(registrations)) {
+            if (registration.instanceId.equals(instanceId)) {
+                registration.subscription.disconnect();
+                registrations.remove(registration);
             }
-        }
-        for (String k : remove) {
-            handlers.remove(k);
         }
     }
 
     public int handlerCount(String instanceId, String signal) {
-        List<SignalHandler> list = handlers.get(key(instanceId, signal));
-        return list == null ? 0 : list.size();
+        int total = 0;
+        for (Registration registration : registrations) {
+            if (registration.instanceId.equals(instanceId) && registration.signal.equals(signal)
+                    && registration.subscription.isConnected()) total++;
+        }
+        return total;
     }
 
-    private static String key(String instanceId, String signal) {
-        return instanceId + "\0" + signal;
+    public static String name(String instanceId, String signal) {
+        return "ui/" + instanceId + "/" + signal;
+    }
+
+    private static final class Registration {
+        final String instanceId;
+        final String signal;
+        final SignalHandler handler;
+        final SignalSubscription subscription;
+        Registration(String instanceId, String signal, SignalHandler handler, SignalSubscription subscription) {
+            this.instanceId = instanceId; this.signal = signal; this.handler = handler; this.subscription = subscription;
+        }
     }
 }

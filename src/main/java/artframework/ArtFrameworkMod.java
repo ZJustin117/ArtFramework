@@ -41,7 +41,7 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
     @Override
     public void receivePostInitialize() {
         ArtFramework.setNativeOpsBackend(StsNativeOps.INSTANCE);
-        ArtFramework.bindPresentationBackend(Sts1PresentationBackend.INSTANCE);
+        Sts1PresentationBackend.INSTANCE.installSignals();
         try {
             artframework.sts1.assets.Sts1HostAssets.install();
         } catch (Throwable t) {

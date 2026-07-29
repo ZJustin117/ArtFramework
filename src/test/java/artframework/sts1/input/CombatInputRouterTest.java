@@ -6,7 +6,7 @@ import artframework.context.CardView;
 import artframework.context.CardZone;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
-import artframework.context.FakeBackend;
+import artframework.context.FakeSignalBackend;
 import artframework.context.IntentNames;
 import artframework.context.IntentResult;
 import artframework.context.MapView;
@@ -30,9 +30,9 @@ public class CombatInputRouterTest {
         CombatInputRouter.resetForTests();
     }
 
-    private void mountHand(FakeBackend backend) {
-        ArtFramework.bindPresentationBackend(backend);
-        backend.pushFrame(
+    private void mountHand(FakeSignalBackend backend) {
+        backend.installSignals();
+        backend.publish(
                 ContextFrame.of(
                         1L,
                         1L,
@@ -45,13 +45,13 @@ public class CombatInputRouterTest {
                         ControlsView.combat(3, 1, 0, 0, 0, true, true),
                         MapView.empty(),
                         null));
-        ArtFramework.frames().syncFromBackend();
+        ArtFramework.publishFrame(backend.currentFrame());
         ArtFramework.ops().invoke(SurfaceIds.COMBAT_SURFACE, "mount_combat");
     }
 
     @Test
     public void rejectsWhenPresentOff() {
-        FakeBackend backend = new FakeBackend();
+        FakeSignalBackend backend = new FakeSignalBackend();
         mountHand(backend);
         IntentResult r = CombatInputRouter.beginDrag("h1");
         assertEquals(IntentResult.Status.REJECTED, r.status);
@@ -60,6 +60,8 @@ public class CombatInputRouterTest {
 
     @Test
     public void fullRoutesToRecordingExecutor() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        mountHand(backend);
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
         RecordingIntentExecutor rec = new RecordingIntentExecutor();
         CombatInputRouter.setExecutor(rec);
@@ -74,12 +76,13 @@ public class CombatInputRouterTest {
 
     @Test
     public void beginDragViaRouterWithFakeBackend() {
-        FakeBackend backend = new FakeBackend();
+        FakeSignalBackend backend = new FakeSignalBackend();
         mountHand(backend);
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         IntentResult r = CombatInputRouter.beginDrag("h1");
         assertTrue(r.isAccepted());
-        assertEquals(1, backend.intentLog().size());
+        assertEquals(1, backend.signalLog().size());
     }
 
     @Test
@@ -92,9 +95,10 @@ public class CombatInputRouterTest {
 
     @Test
     public void unknownInstanceRejected() {
-        FakeBackend backend = new FakeBackend();
+        FakeSignalBackend backend = new FakeSignalBackend();
         mountHand(backend);
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         IntentResult r = CombatInputRouter.beginDrag("missing");
         assertEquals(IntentResult.Status.REJECTED, r.status);
         assertTrue(r.message.contains("unknown"));
@@ -102,30 +106,34 @@ public class CombatInputRouterTest {
 
     @Test
     public void suppressNativeInputRequiresFullMountCombat() {
-        FakeBackend backend = new FakeBackend();
+        FakeSignalBackend backend = new FakeSignalBackend();
         mountHand(backend);
         CombatInputRouter.setSuppressNativeInput(true);
         assertFalse(CombatInputRouter.shouldSuppressNativeInput());
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        assertFalse(CombatInputRouter.shouldSuppressNativeInput());
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         assertTrue(CombatInputRouter.shouldSuppressNativeInput());
     }
 
     @Test
     public void pressEndTurnNeedsControlsFull() {
-        FakeBackend backend = new FakeBackend();
+        FakeSignalBackend backend = new FakeSignalBackend();
         mountHand(backend);
         IntentResult off = CombatInputRouter.pressEndTurn();
         assertEquals(IntentResult.Status.REJECTED, off.status);
         FullPresentMode.setCombatControlsLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         IntentResult on = CombatInputRouter.pressEndTurn();
         assertTrue(on.isAccepted());
     }
 
     @Test
     public void playCardRef() {
-        FakeBackend backend = new FakeBackend();
+        FakeSignalBackend backend = new FakeSignalBackend();
         mountHand(backend);
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         IntentResult r = CombatInputRouter.playCard(new CardRef("h1", "Strike_R"), "m1");
         assertTrue(r.isAccepted());
     }

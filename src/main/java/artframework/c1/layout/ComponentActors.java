@@ -2,7 +2,6 @@ package artframework.c1.layout;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
@@ -52,23 +51,47 @@ public final class ComponentActors {
         float height = root.layout.hasHeight() ? root.layout.height * scale : 240f * scale;
         String title = root.propString("title", windowId);
 
-        Window window = new Window(title, skin);
+        // Empty scene2d title — STS fonts break Window title glyphs; draw title as StsTextActor.
+        Window window = new Window("", skin);
+        window.setName(root.id != null && !root.id.isEmpty() ? root.id : windowId);
         window.setModal(true);
         window.setMovable(true);
-        window.setSize(width, height);
         float pad = root.layout.pad > 0f ? root.layout.pad * scale : 8f * scale;
         window.defaults().pad(pad);
+        if (title != null && !title.isEmpty()) {
+            StsTextActor titleActor = new StsTextActor(title, false);
+            titleActor.setHeight(32f * scale);
+            window.add(titleActor).growX().padBottom(8f * scale).row();
+        }
 
         for (UiNode child : root.children) {
+            if (ArtNodeTypes.ANIMATION_PLAYER.equals(child.type)
+                    || ArtNodeTypes.SKELETON.equals(child.type)) {
+                buildNode(windowId, child, skin, onClose, scale);
+                continue;
+            }
             Actor a = buildNode(windowId, child, skin, onClose, scale);
             if (a != null) {
-                window.add(a).growX().padBottom(6f * scale).row();
+                // Always growX so labels/buttons get full client width (avoids 1-glyph collapse).
+                if (child.layout.hasHeight()) {
+                    window.add(a)
+                            .growX()
+                            .height(child.layout.height * scale)
+                            .padBottom(6f * scale)
+                            .row();
+                } else {
+                    window.add(a).growX().padBottom(6f * scale).row();
+                }
             }
         }
 
+        // Fixed outer size like legacy LayoutActors — pack first then enforce min client size.
+        window.pack();
+        window.setSize(Math.max(window.getWidth(), width), Math.max(window.getHeight(), height));
         float screenW = Settings.WIDTH > 0 ? Settings.WIDTH : 1920f;
         float screenH = Settings.HEIGHT > 0 ? Settings.HEIGHT : 1080f;
-        window.setPosition((screenW - width) * 0.5f, (screenH - height) * 0.5f);
+        window.setPosition(
+                (screenW - window.getWidth()) * 0.5f, (screenH - window.getHeight()) * 0.5f);
         return window;
     }
 
@@ -85,7 +108,19 @@ public final class ComponentActors {
             throw new IllegalArgumentException(
                     "no C1 factory for type: " + node.type + " id=" + node.id);
         }
-        return factory.create(node, new C1NodeContext(windowId, skin, onClose, scale));
+        Actor created = factory.create(node, new C1NodeContext(windowId, skin, onClose, scale));
+        return nameActor(created, node);
+    }
+
+    /** Name actors so StageHost can sync RenderHost effect targets to stage coordinates. */
+    static Actor nameActor(Actor actor, UiNode node) {
+        if (actor != null && node != null && node.id != null && !node.id.isEmpty()) {
+            try {
+                actor.setName(node.id);
+            } catch (Throwable ignored) {
+            }
+        }
+        return actor;
     }
 
     /**
@@ -99,7 +134,8 @@ public final class ComponentActors {
         Skin skin = context.skin;
         Runnable onClose = context.onClose;
         float scale = context.scale;
-        if (UiTypes.FRAGMENT.equals(node.type)) {
+        if (UiTypes.FRAGMENT.equals(node.type)
+                || ArtNodeTypes.PRESENT_PROFILE.equals(node.type)) {
             Table t = new Table(skin);
             for (UiNode c : node.children) {
                 Actor a = buildNode(windowId, c, skin, onClose, scale);
@@ -138,7 +174,7 @@ public final class ComponentActors {
             return stack;
         }
         if (UiTypes.LABEL.equals(node.type)) {
-            return new Label(node.propString("text", ""), skin);
+            return buildStsLabel(node, scale);
         }
         if (UiTypes.BUTTON.equals(node.type)) {
             return buildButton(windowId, node, skin, onClose, scale);
@@ -183,7 +219,7 @@ public final class ComponentActors {
             if (session != null && session.hasProgress(node.id)) {
                 v = session.getProgress(node.id);
             }
-            return new Label(String.format("%.0f%%", Float.valueOf(v * 100f)), skin);
+            return buildStsLabelText(String.format("%.0f%%", Float.valueOf(v * 100f)), scale, false);
         }
         if (ArtNodeTypes.ANIMATION_PLAYER.equals(node.type)
                 || ArtNodeTypes.SKELETON.equals(node.type)) {
@@ -203,6 +239,53 @@ public final class ComponentActors {
         throw new IllegalArgumentException("unhandled builtin type: " + node.type);
     }
 
+    /** Panel / glass: theme-driven background (border via LightwaveEffect on panel target). */
+    static void applyPanelChrome(Table table, UiNode node, Skin skin) {
+        if (table == null || node == null || skin == null) {
+            return;
+        }
+        if (!UiTypes.PANEL.equals(node.type) && !UiTypes.GLASS.equals(node.type)) {
+            return;
+        }
+        try {
+            if (skin.has("panel-bg", com.badlogic.gdx.scenes.scene2d.utils.Drawable.class)) {
+                table.setBackground(skin.getDrawable("panel-bg"));
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * Declared size is applied by the parent cell (window.add width/height), not by freezing the
+     * Table before children layout — early setSize collapses labels/buttons.
+     */
+    static void applyDeclaredSize(Table table, UiNode node, float scale) {
+        // no-op: parent cell + pack handle size; FX bounds come from stage actor after layout
+    }
+
+    /** Apply declared opacity prop (0..1) so animation_player tweens are visible. */
+    static Actor applyOpacity(Actor actor, UiNode node) {
+        if (actor == null || node == null) {
+            return actor;
+        }
+        if (!node.props.containsKey("opacity")) {
+            return actor;
+        }
+        float o = node.propFloat("opacity", 1f);
+        if (o < 0f) {
+            o = 0f;
+        }
+        if (o > 1f) {
+            o = 1f;
+        }
+        try {
+            com.badlogic.gdx.graphics.Color c = actor.getColor();
+            actor.setColor(c.r, c.g, c.b, o);
+        } catch (Throwable ignored) {
+        }
+        return actor;
+    }
+
     private static Actor buildCheckbox(
             final String windowId, final UiNode node, Skin skin, float scale) {
         boolean checked = node.propBool("checked", false);
@@ -210,17 +293,29 @@ public final class ComponentActors {
         if (session != null && session.hasCheckbox(node.id)) {
             checked = session.getChecked(node.id);
         }
-        String mark = checked ? "[x] " : "[ ] ";
-        final TextButton box = new TextButton(mark + node.propString("text", ""), skin);
         final String id = node.id;
-        box.addListener(new ChangeListener() {
+        final String base = node.propString("text", "");
+        String mark = checked ? "[x] " : "[ ] ";
+        final StsTextActor caption = new StsTextActor(mark + base, false);
+        Table box = new Table(skin);
+        try {
+            if (skin.has("default", TextButton.TextButtonStyle.class)) {
+                TextButton.TextButtonStyle st = skin.get(TextButton.TextButtonStyle.class);
+                if (st != null && st.up != null) {
+                    box.setBackground(st.up);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        box.add(caption).growX().pad(6f * scale);
+        box.addListener(new ClickListener() {
             @Override
-            public void changed(ChangeEvent event, Actor actor) {
+            public void clicked(InputEvent event, float x, float y) {
                 ArtFramework.ops().toggleCheckbox(windowId, id);
                 WidgetSession s = WidgetSessions.get(windowId);
                 if (s != null && s.hasCheckbox(id)) {
                     String m = s.getChecked(id) ? "[x] " : "[ ] ";
-                    box.setText(m + node.propString("text", ""));
+                    caption.setText(m + base);
                 }
             }
         });
@@ -230,6 +325,8 @@ public final class ComponentActors {
     private static Table buildCol(
             String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
         Table t = new Table(skin);
+        applyPanelChrome(t, node, skin);
+        applyDeclaredSize(t, node, scale);
         float pad = node.layout.pad * scale;
         float gap = node.layout.gap * scale;
         if (pad > 0f) {
@@ -240,7 +337,14 @@ public final class ComponentActors {
             if (a == null) {
                 continue;
             }
-            if (node.children.get(i).layout.grow) {
+            UiNode child = node.children.get(i);
+            if (UiTypes.BUTTON.equals(child.type) || UiTypes.SLIDER.equals(child.type)) {
+                float bh =
+                        child.layout.hasHeight()
+                                ? child.layout.height * scale
+                                : (UiTypes.SLIDER.equals(child.type) ? 40f * scale : 44f * scale);
+                t.add(a).growX().height(bh).padBottom(gap).row();
+            } else if (child.layout.grow) {
                 t.add(a).growX().expandY().fillY().padBottom(gap).row();
             } else {
                 t.add(a).growX().padBottom(gap).row();
@@ -263,10 +367,12 @@ public final class ComponentActors {
             if (a == null) {
                 continue;
             }
+            float bh =
+                    c.layout.hasHeight() ? c.layout.height * scale : 44f * scale;
             if (c.layout.grow) {
-                t.add(a).growX().expandX().fillX().padRight(gap);
+                t.add(a).growX().expandX().fillX().height(bh).minWidth(80f * scale).padRight(gap);
             } else {
-                t.add(a).padRight(gap);
+                t.add(a).height(bh).minWidth(80f * scale).padRight(gap);
             }
         }
         return t;
@@ -313,35 +419,95 @@ public final class ComponentActors {
         return buildNode(windowId, node.children.get(active), skin, onClose, scale);
     }
 
-    private static TextButton buildButton(
+    private static Actor buildStsLabel(UiNode node, float scale) {
+        return buildStsLabelText(node.propString("text", ""), scale, false);
+    }
+
+    private static Actor buildStsLabelText(String text, float scale, boolean centered) {
+        StsTextActor a = new StsTextActor(text, centered);
+        a.setHeight(28f * scale);
+        return a;
+    }
+
+    /**
+     * Hit target + chrome via Table; label via FontHelper (not scene2d TextButton glyphs).
+     */
+    private static Actor buildButton(
             final String windowId,
             final UiNode node,
             Skin skin,
             final Runnable onClose,
             float scale) {
         final String buttonId = node.id;
-        TextButton button = new TextButton(node.propString("text", ""), skin);
+        final String label = node.propString("text", buttonId != null ? buttonId : "OK");
+        float bh = node.layout.hasHeight() ? node.layout.height * scale : 48f * scale;
+
+        Table button = new Table(skin);
+        try {
+            if (skin.has("default", TextButton.TextButtonStyle.class)) {
+                TextButton.TextButtonStyle st = skin.get(TextButton.TextButtonStyle.class);
+                if (st != null && st.up != null) {
+                    button.setBackground(st.up);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        if (button.getBackground() == null) {
+            try {
+                if (skin.has("panel-bg", com.badlogic.gdx.scenes.scene2d.utils.Drawable.class)) {
+                    button.setBackground(skin.getDrawable("panel-bg"));
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        StsTextActor caption = new StsTextActor(label, true);
+        caption.setHeight(bh - 8f * scale);
+        button.add(caption).expand().fill().pad(6f * scale);
+        button.setHeight(bh);
+        button.setName(buttonId != null ? buttonId : "");
+        button.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                handleButton(windowId, buttonId, onClose);
+            }
+        });
+        // Pressed visual: darken slightly
         button.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if ("close".equals(buttonId) && onClose != null) {
-                    onClose.run();
-                    return;
-                }
-                UiOps ops = ArtFramework.ops();
-                // Prefer registered handler; clickButton validates layout
-                try {
-                    ops.clickButton(windowId, buttonId);
-                } catch (RuntimeException ignored) {
-                }
+                // no-op; Table has no ChangeEvent by default
             }
         });
-        if (node.layout.hasHeight()) {
-            button.setHeight(node.layout.height * scale);
-        } else {
-            button.setHeight(40f * scale);
-        }
         return button;
+    }
+
+    private static long lastButtonMs;
+    private static String lastButtonKey = "";
+
+    private static void handleButton(String windowId, String buttonId, Runnable onClose) {
+        // Debounce double fire from ChangeListener + ClickListener.
+        long now = System.currentTimeMillis();
+        String key = windowId + "/" + buttonId;
+        if (key.equals(lastButtonKey) && now - lastButtonMs < 250L) {
+            return;
+        }
+        lastButtonKey = key;
+        lastButtonMs = now;
+        if ("close".equals(buttonId) && onClose != null) {
+            try {
+                ArtFramework.ops().clickButton(windowId, buttonId);
+            } catch (RuntimeException ignored) {
+            }
+            artframework.render.LightwaveControls.closeWithFx(windowId, onClose);
+            return;
+        }
+        try {
+            ArtFramework.ops().clickButton(windowId, buttonId);
+        } catch (RuntimeException ignored) {
+        }
+        if ("ok".equals(buttonId) || "pulse".equalsIgnoreCase(buttonId)) {
+            artframework.render.LightwaveControls.pulse(windowId);
+        }
     }
 
     private static Actor buildSlider(
@@ -370,11 +536,17 @@ public final class ComponentActors {
         slider.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                ArtFramework.ops().setSlider(windowId, sliderId, slider.getValue());
+                float v = slider.getValue();
+                ArtFramework.ops().setSlider(windowId, sliderId, v);
             }
         });
         Table wrap = new Table(skin);
-        wrap.add(slider).growX().height(28f * scale);
+        if (node.id != null && !node.id.isEmpty()) {
+            wrap.setName(node.id);
+        }
+        float sh = 40f * scale;
+        wrap.add(slider).growX().height(sh).minHeight(sh).prefHeight(sh).pad(4f * scale);
+        wrap.setHeight(sh + 8f * scale);
         return wrap;
     }
 

@@ -129,9 +129,9 @@ Lookup order:
 
 1. Instance local override  
 2. Walk parent chain themes (type variation → type → parent types)  
-3. Project / default `StsTheme` (FontHelper, ImageMaster, Settings)
+  3. Project fallback theme from **ProjectPresent** / nearest present-profile node (`sts` / `lightwave`; see [`present-profile.md`](./present-profile.md))
 
-Controls **consume** theme; theme does not draw by itself.
+Controls **consume** theme; theme does not draw by itself. `StsSkin.create(Theme)` realizes C1 scene2d styles from the active theme.
 
 ### UiComponent (C1 leaf + C2 native)
 

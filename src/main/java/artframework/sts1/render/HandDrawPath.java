@@ -133,6 +133,9 @@ public final class HandDrawPath {
         }
         m.put("items", list);
         m.put("missingArt", Integer.valueOf(missingArt));
+        m.put("chrome", artframework.core.PresentResolve.chrome().probeSummary());
+        m.put("presentProfile", artframework.core.ProjectPresent.id());
+        m.put("projectPresent", artframework.core.ProjectPresent.id());
         return m;
     }
 

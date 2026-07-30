@@ -37,7 +37,8 @@ public final class LayoutEngine {
         if (!node.id.isEmpty()) {
             byId.put(node.id, bounds);
         }
-        if (UiTypes.FRAGMENT.equals(node.type)) {
+        if (UiTypes.FRAGMENT.equals(node.type)
+                || ArtNodeTypes.PRESENT_PROFILE.equals(node.type)) {
             placeFragment(node, bounds, byId);
             return;
         }
@@ -267,7 +268,8 @@ public final class LayoutEngine {
             raw = node.layout.width;
         } else if (UiTypes.WINDOW.equals(node.type)) {
             raw = DEFAULT_WINDOW_WIDTH;
-        } else if (UiTypes.FRAGMENT.equals(node.type)) {
+        } else if (UiTypes.FRAGMENT.equals(node.type)
+                || ArtNodeTypes.PRESENT_PROFILE.equals(node.type)) {
             if (node.children.isEmpty()) {
                 raw = 0f;
             } else {
@@ -337,7 +339,8 @@ public final class LayoutEngine {
             raw = node.layout.height;
         } else if (UiTypes.WINDOW.equals(node.type)) {
             raw = DEFAULT_WINDOW_HEIGHT;
-        } else if (UiTypes.FRAGMENT.equals(node.type)) {
+        } else if (UiTypes.FRAGMENT.equals(node.type)
+                || ArtNodeTypes.PRESENT_PROFILE.equals(node.type)) {
             if (node.children.isEmpty()) {
                 raw = 0f;
             } else {

@@ -87,6 +87,12 @@ public final class UiNodeRegistry {
                                         artframework.core.SignalNames.SKELETON_EVENT,
                                         artframework.core.SignalNames.ASSET_FAILED))
                         .build());
+        registerBuiltin(
+                UiNodeType.builder(ArtNodeTypes.PRESENT_PROFILE)
+                        .kind(NodeKind.BEHAVIOR)
+                        .allowsChildren(true)
+                        .builtin(true)
+                        .build());
     }
 
     private static UiNodeType container(String type) {

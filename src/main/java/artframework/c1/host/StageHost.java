@@ -7,7 +7,9 @@ import basemod.interfaces.PostUpdateSubscriber;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -20,7 +22,13 @@ import artframework.c1.layout.LayoutActors;
 import artframework.c1.layout.LayoutNode;
 import artframework.c1.skin.StsSkin;
 import artframework.component.UiNode;
+import artframework.core.Theme;
+import artframework.core.Themes;
+import artframework.core.UiInstance;
+import artframework.core.UiTree;
+import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
+import artframework.render.RenderTarget;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -71,7 +79,7 @@ public final class StageHost
     @Override
     public void receivePostInitialize() {
         try {
-            skin = StsSkin.create();
+            skin = StsSkin.create(Themes.getDefault());
             stage = new Stage(new ScreenViewport());
             ready = true;
             SyntheticRuntime.installStageBackend(this);
@@ -111,6 +119,11 @@ public final class StageHost
         } catch (Throwable ignored) {
         }
         RenderHosts.get().tick(dt);
+        try {
+            ArtFramework.tick(dt);
+            artframework.render.LightwaveControls.tickPulses(dt);
+        } catch (Throwable ignored) {
+        }
         if (Gdx.graphics != null) {
             // Always track screen size for capture UV mapping
             RenderHosts.get()
@@ -121,6 +134,9 @@ public final class StageHost
         }
         stage.getViewport().update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
         stage.act(dt);
+        syncActorPropsFromTree();
+        // LayoutEngine targets are local (0,0); scene2d windows are centered/draggable — realign FX.
+        syncEffectTargetBounds();
     }
 
     @Override
@@ -134,23 +150,10 @@ public final class StageHost
         if (!hasStage && !hasFx && !hasPresentDraw) {
             return;
         }
-        // End batch so default FB is complete, then copy screen for glass/blur, then draw FX.
+        // End batch: capture game FB, draw C1 FX *under* scene2d (so labels stay readable),
+        // then stage UI, then C2 + full-frame overlays.
         sb.end();
-        if (hasStage) {
-            // Stage draws after capture so glass samples the *game* scene, not our UI chrome.
-            // Capture first while only game content is on screen.
-            if (RenderHosts.get().needsCapture()) {
-                try {
-                    RenderHosts.get()
-                            .frameCapture()
-                            .captureScreen(
-                                    (int) RenderHosts.get().screenWidth(),
-                                    (int) RenderHosts.get().screenHeight());
-                } catch (Throwable ignored) {
-                }
-            }
-            stage.draw();
-        } else if (RenderHosts.get().needsCapture()) {
+        if (RenderHosts.get().needsCapture()) {
             try {
                 RenderHosts.get()
                         .frameCapture()
@@ -161,10 +164,16 @@ public final class StageHost
             }
         }
         sb.begin();
-        // C2 full-present surfaces draw after native world/UI rendering. The matching native
-        // render patch suppresses only the enabled surface, so this has a safe native fallback.
+        // Band under UI text; white border after stage so panel bg does not cover it.
+        RenderHosts.get().drawFrame(sb, true, artframework.render.RenderHost.kindsC1UnderUi());
+        sb.end();
+        if (hasStage) {
+            stage.draw();
+        }
+        sb.begin();
+        RenderHosts.get().drawC1LightwaveBorders(sb);
         artframework.sts1.render.Sts1SurfaceRenderer.render(sb);
-        RenderHosts.get().drawFrame(sb, true);
+        RenderHosts.get().drawFrame(sb, true, artframework.render.RenderHost.kindsOverUi());
     }
 
     @Override
@@ -174,7 +183,7 @@ public final class StageHost
 
     @Override
     public void attach(String id, LayoutNode root) {
-        if (!ready || stage == null || skin == null) {
+        if (!ready || stage == null) {
             return;
         }
         if (id == null || root == null) {
@@ -182,7 +191,11 @@ public final class StageHost
         }
         detach(id);
         final String windowId = id;
-        Actor actor = LayoutActors.toActor(windowId, root, skin, new Runnable() {
+        Skin useSkin = skinForWindow(windowId);
+        if (useSkin == null) {
+            return;
+        }
+        Actor actor = LayoutActors.toActor(windowId, root, useSkin, new Runnable() {
             @Override
             public void run() {
                 ArtFramework.close(windowId);
@@ -191,11 +204,12 @@ public final class StageHost
         actors.put(id, actor);
         stage.addActor(actor);
         captureInput();
+        syncEffectTargetBounds();
     }
 
     @Override
     public void attachComposition(String id, UiNode root) {
-        if (!ready || stage == null || skin == null) {
+        if (!ready || stage == null) {
             return;
         }
         if (id == null || root == null) {
@@ -203,7 +217,11 @@ public final class StageHost
         }
         detach(id);
         final String windowId = id;
-        Actor actor = ComponentActors.toActor(windowId, root, skin, new Runnable() {
+        Skin useSkin = skinForWindow(windowId);
+        if (useSkin == null) {
+            return;
+        }
+        Actor actor = ComponentActors.toActor(windowId, root, useSkin, new Runnable() {
             @Override
             public void run() {
                 ArtFramework.close(windowId);
@@ -212,6 +230,161 @@ public final class StageHost
         actors.put(id, actor);
         stage.addActor(actor);
         captureInput();
+        syncEffectTargetBounds();
+    }
+
+    /**
+     * Prefer resolved present theme on the mounted tree, else project fallback.
+     * Builds a fresh Skin so Lightwave tokens actually paint (not the PostInitialize STS skin).
+     */
+    private Skin skinForWindow(String windowId) {
+        Theme theme = artframework.core.ProjectPresent.theme();
+        try {
+            UiTree tree = ArtFramework.tree(windowId);
+            if (tree != null) {
+                theme = artframework.core.PresentResolve.themeFor(tree);
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            return StsSkin.create(theme);
+        } catch (Throwable t) {
+            return skin != null ? skin : null;
+        }
+    }
+
+    /** Push UiInstance props (e.g. opacity from animation_player) onto named stage actors. */
+    private void syncActorPropsFromTree() {
+        for (Map.Entry<String, Actor> e : actors.entrySet()) {
+            String winId = e.getKey();
+            Actor root = e.getValue();
+            if (root == null) {
+                continue;
+            }
+            UiTree tree = null;
+            try {
+                tree = ArtFramework.tree(winId);
+            } catch (Throwable ignored) {
+            }
+            if (tree == null) {
+                continue;
+            }
+            syncNamedActorProps(tree, root);
+        }
+    }
+
+    private static void syncNamedActorProps(UiTree tree, Actor actor) {
+        if (actor == null || tree == null) {
+            return;
+        }
+        String name = null;
+        try {
+            name = actor.getName();
+        } catch (Throwable ignored) {
+        }
+        if (name != null && !name.isEmpty()) {
+            UiInstance inst = tree.get(name);
+            if (inst != null) {
+                // Drive lightwave intensity from anim/slider props — do NOT setColor on Groups
+                // (multiplies child Label/TextButton glyphs and looks like missing letters).
+                syncFxIntensity(tree.windowId(), name, inst);
+            }
+        }
+        if (actor instanceof Group) {
+            for (Actor child : ((Group) actor).getChildren()) {
+                syncNamedActorProps(tree, child);
+            }
+        }
+    }
+
+    private static void syncFxIntensity(String windowId, String nodeId, UiInstance inst) {
+        // Active pulse owns intensity/phase; do not overwrite from tree each frame.
+        // Enter animation still uses applyIntensity via AnimationPlayer → prop → here only when idle.
+        Object raw = inst.prop("fx_intensity");
+        if (!(raw instanceof Number)) {
+            return;
+        }
+        float v = ((Number) raw).floatValue();
+        try {
+            artframework.render.LightwaveControls.applyIntensity(windowId, "panel", v);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * Map RenderHost c1 targets from pure LayoutEngine space onto live stage actor bounds.
+     */
+    private void syncEffectTargetBounds() {
+        if (stage == null || actors.isEmpty()) {
+            return;
+        }
+        RenderHost host = RenderHosts.get();
+        Vector2 tmp = new Vector2();
+        for (Map.Entry<String, Actor> e : actors.entrySet()) {
+            String winId = e.getKey();
+            Actor root = e.getValue();
+            if (root == null) {
+                continue;
+            }
+            updateTargetFromActor(host, "c1:" + winId, root, tmp);
+            syncNamedActors(host, winId, root, tmp);
+        }
+    }
+
+    private static void syncNamedActors(RenderHost host, String winId, Actor actor, Vector2 tmp) {
+        if (actor == null) {
+            return;
+        }
+        String name = null;
+        try {
+            name = actor.getName();
+        } catch (Throwable ignored) {
+        }
+        if (name != null && !name.isEmpty()) {
+            updateTargetFromActor(host, "c1:" + winId + ":" + name, actor, tmp);
+        }
+        if (actor instanceof Group) {
+            Group g = (Group) actor;
+            for (Actor child : g.getChildren()) {
+                syncNamedActors(host, winId, child, tmp);
+            }
+        }
+    }
+
+    private static void updateTargetFromActor(
+            RenderHost host, String targetId, Actor actor, Vector2 tmp) {
+        if (host == null || targetId == null || actor == null) {
+            return;
+        }
+        RenderTarget t = host.getTarget(targetId);
+        if (t == null) {
+            return;
+        }
+        try {
+            tmp.set(0f, 0f);
+            actor.localToStageCoordinates(tmp);
+            float w = actor.getWidth();
+            float h = actor.getHeight();
+            if (w > 0f && h > 0f) {
+                t.setBounds(tmp.x, tmp.y, w, h);
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Rebuild process default skin after profile switch (open windows keep their attach skin). */
+    public void refreshDefaultSkin() {
+        if (!ready) {
+            return;
+        }
+        try {
+            skin = StsSkin.create(Themes.getDefault());
+        } catch (Throwable t) {
+            try {
+                BaseMod.logger.warn("ArtFramework skin refresh skipped: " + t.getMessage());
+            } catch (Throwable ignored) {
+            }
+        }
     }
 
     @Override

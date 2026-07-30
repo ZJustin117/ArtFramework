@@ -89,6 +89,72 @@ public final class EffectDraw {
     }
 
     /**
+     * Lightwave diagonal band shader path. Sets u_intensity / u_angle / u_width / u_phase when present.
+     */
+    public static void fillWithLightwave(
+            Object batchObj,
+            RenderTarget target,
+            ShaderProgram shader,
+            float intensity,
+            float angleDeg,
+            float width,
+            float phase,
+            float r,
+            float g,
+            float b,
+            float a) {
+        if (target == null || batchObj == null) {
+            return;
+        }
+        if (!(batchObj instanceof SpriteBatch)) {
+            return;
+        }
+        if (ImageMaster.WHITE_SQUARE_IMG == null) {
+            return;
+        }
+        if (target.width() <= 0f || target.height() <= 0f) {
+            return;
+        }
+        SpriteBatch sb = (SpriteBatch) batchObj;
+        Color prev = sb.getColor();
+        ShaderProgram prevShader = sb.getShader();
+        try {
+            if (shader != null && shader.isCompiled()) {
+                sb.setShader(shader);
+                if (shader.hasUniform("u_intensity")) {
+                    shader.setUniformf("u_intensity", intensity);
+                }
+                if (shader.hasUniform("u_angle")) {
+                    shader.setUniformf("u_angle", angleDeg);
+                }
+                if (shader.hasUniform("u_width")) {
+                    shader.setUniformf("u_width", width);
+                }
+                if (shader.hasUniform("u_phase")) {
+                    shader.setUniformf("u_phase", phase);
+                }
+                if (shader.hasUniform("u_time")) {
+                    shader.setUniformf("u_time", phase);
+                }
+            }
+            sb.setColor(r, g, b, a);
+            sb.draw(
+                    ImageMaster.WHITE_SQUARE_IMG,
+                    target.x(),
+                    target.y(),
+                    target.width(),
+                    target.height());
+        } catch (Throwable ignored) {
+        } finally {
+            try {
+                sb.setShader(prevShader);
+            } catch (Throwable ignored) {
+            }
+            sb.setColor(prev);
+        }
+    }
+
+    /**
      * Sample a region of a full-screen capture texture into {@code target} bounds.
      * UV assumes capture is the full screen in the same coordinate system as the target.
      */

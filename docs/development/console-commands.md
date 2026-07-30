@@ -21,13 +21,14 @@ Lab bring-up: [`android-device-lab.md`](./android-device-lab.md).
 | `art op …` | UiOps gestures (C1 + C2 sugar) |
 | `art ui …` | Inspect tree, emit signals, invoke, native dump/click |
 | `art lab …` | Lab run nav: menu / fresh / start-run (D1) |
-| `art fx …` | Full-frame effects |
+| `art fx …` | Full-frame effects (incl. `lightwave`) |
+| `art profile` / `art theme …` | PresentProfile list/get/set (`sts`, `lightwave`) |
 | `art assets …` | HostAssets packs / resolve |
 | `art frame` | Sync context frame from backend |
 | `art present combat …` | Combat full-present toggle |
 
 ```
-art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | assets … | frame | present combat on|off | op …
+art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | profile|theme … | assets … | frame | present … | op …
 ```
 
 ---
@@ -36,7 +37,7 @@ art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | asset
 
 | Command | Description |
 |---------|-------------|
-| `art open <id>` | Open registered synthetic window (e.g. `demo`, `comp_sample`, `glass_demo`) |
+| `art open <id>` | Open registered synthetic window (e.g. `demo`, `glass_demo`, `lightwave_demo`) |
 | `art bind <id>` | Bind native template (`sts1.map`, `sts1.event`, `sts1.select.grid`, `sts1.select.hand`, `sts1.endturn`; legacy `sts.*` accepted) |
 | `art close <id>` | Close / unbind |
 

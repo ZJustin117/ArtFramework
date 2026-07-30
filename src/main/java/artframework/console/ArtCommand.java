@@ -102,11 +102,90 @@ public class ArtCommand extends ConsoleCommand {
             cmdPresent(tokens, depth + 1);
             return;
         }
+        if ("profile".equals(sub) || "theme".equals(sub)) {
+            cmdProfile(tokens, depth + 1);
+            return;
+        }
         if ("lab".equals(sub)) {
             cmdLab(tokens, depth + 1);
             return;
         }
         errorMsg();
+    }
+
+    private void cmdProfile(String[] tokens, int depth) {
+        if (tokens.length <= depth) {
+            DevConsole.log(
+                    "Usage: art profile|theme list|get|set <sts|lightwave>  (project="
+                            + ArtFramework.projectPresent()
+                            + ")  set = project fallback only; trees use present_profile nodes");
+            return;
+        }
+        String action = tokens[depth].toLowerCase();
+        if ("list".equals(action)) {
+            DevConsole.log("profiles: " + artframework.core.PresentProfiles.ids());
+            DevConsole.log("themes: " + artframework.core.Themes.names());
+            DevConsole.log("project=" + ArtFramework.projectPresent());
+            return;
+        }
+        if ("get".equals(action)) {
+            artframework.core.PresentProfile p = artframework.core.ProjectPresent.profile();
+            DevConsole.log(
+                    "project="
+                            + (p != null ? p.id : "?")
+                            + " theme="
+                            + (p != null && p.theme.name() != null ? p.theme.name() : "")
+                            + " cardAlpha="
+                            + (p != null ? p.chrome.cardAlpha : 1f));
+            if (tokens.length >= depth + 2) {
+                String win = tokens[depth + 1];
+                artframework.core.PresentResolved r = ArtFramework.resolvePresent(win);
+                DevConsole.log(
+                        "resolve "
+                                + win
+                                + " id="
+                                + r.profileId
+                                + " fromProject="
+                                + r.fromProject
+                                + " cardAlpha="
+                                + r.chrome.cardAlpha);
+            }
+            return;
+        }
+        if ("set".equals(action) || "project".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art profile set|project <sts|lightwave>");
+                return;
+            }
+            try {
+                ArtFramework.setProjectPresent(tokens[depth + 1]);
+                DevConsole.log(
+                        "project present "
+                                + ArtFramework.projectPresent()
+                                + " (fallback only; open windows keep resolve; reopen to restyle)");
+            } catch (RuntimeException e) {
+                DevConsole.log("profile set failed: " + e.getMessage());
+            }
+            return;
+        }
+        if ("resolve".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art profile resolve <windowId>");
+                return;
+            }
+            artframework.core.PresentResolved r = ArtFramework.resolvePresent(tokens[depth + 1]);
+            DevConsole.log(
+                    "resolve id="
+                            + r.profileId
+                            + " fromProject="
+                            + r.fromProject
+                            + " theme="
+                            + (r.theme.name() != null ? r.theme.name() : "")
+                            + " cardAlpha="
+                            + r.chrome.cardAlpha);
+            return;
+        }
+        DevConsole.log("Unknown profile action: " + action);
     }
 
     private void cmdLab(String[] tokens, int depth) {
@@ -527,7 +606,7 @@ public class ArtCommand extends ConsoleCommand {
     private void cmdFullFrame(String[] tokens, int depth) {
         if (tokens.length <= depth) {
             DevConsole.log(
-                    "Usage: art fx enable|disable|tint|glow|blur|glass|clear|capture [args]");
+                    "Usage: art fx enable|disable|tint|glow|blur|glass|lightwave|clear|capture [args]");
             return;
         }
         String action = tokens[depth].toLowerCase();
@@ -572,6 +651,19 @@ public class ArtCommand extends ConsoleCommand {
                 ArtFramework.render().setCaptureEnabled(true);
                 ArtFramework.render().bindFullFrameEffect(artframework.render.GlassEffect.ID, p);
                 DevConsole.log("full_frame glass radius=" + radius + " tint=" + tint);
+            } else if ("lightwave".equals(action)) {
+                float intensity =
+                        tokens.length > depth + 1 ? parseFloat(tokens[depth + 1], 0.55f) : 0.55f;
+                float angle =
+                        tokens.length > depth + 2 ? parseFloat(tokens[depth + 2], 35f) : 35f;
+                java.util.Map<String, Object> p = new java.util.LinkedHashMap<String, Object>();
+                p.put("intensity", Float.valueOf(intensity));
+                p.put("angle", Float.valueOf(angle));
+                p.put("width", Float.valueOf(0.18f));
+                p.put("speed", Float.valueOf(0.35f));
+                ArtFramework.render()
+                        .bindFullFrameEffect(artframework.render.LightwaveEffect.ID, p);
+                DevConsole.log("full_frame lightwave intensity=" + intensity + " angle=" + angle);
             } else if ("capture".equals(action)) {
                 boolean on = tokens.length <= depth + 1
                         || !"off".equalsIgnoreCase(tokens[depth + 1]);
@@ -994,6 +1086,6 @@ public class ArtCommand extends ConsoleCommand {
     @Override
     public void errorMsg() {
         DevConsole.log(
-                "art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | assets … | frame | present combat on|off | op …");
+                "art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | profile|theme … | assets … | frame | present combat on|off | op …");
     }
 }

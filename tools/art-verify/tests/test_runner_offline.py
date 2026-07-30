@@ -13,6 +13,8 @@ COMBAT_INPUT = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f8_combat_input_r
 CONTROLS_DRAW = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f9_controls_draw.yaml"
 MAP_DRAW = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f10_map_draw.yaml"
 PRESENT_SAFETY = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f11_present_safety.yaml"
+PRESENT_PROFILE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f14_present_profile_lightwave.yaml"
+LIGHTWAVE_EFFECTS = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f15_lightwave_demo_effects.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
 
 
@@ -51,6 +53,14 @@ class RunnerOfflineTest(unittest.TestCase):
 
     def test_present_safety_fixture_pass(self):
         r = run_scenario(PRESENT_SAFETY)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_present_profile_lightwave_fixture_pass(self):
+        r = run_scenario(PRESENT_PROFILE)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_lightwave_demo_effects_fixture_pass(self):
+        r = run_scenario(LIGHTWAVE_EFFECTS)
         self.assertEqual(r["status"], "pass", r.get("error"))
 
     def test_device_skips_without_serial(self):

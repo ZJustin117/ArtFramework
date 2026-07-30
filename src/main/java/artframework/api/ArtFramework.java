@@ -221,6 +221,10 @@ public final class ArtFramework {
         NativeTemplateRuntime.resetForTests();
         RenderHosts.resetForTests();
         Themes.resetForTests();
+        artframework.core.PresentProfiles.resetForTests();
+        artframework.core.ProjectPresent.resetForTests();
+        artframework.render.LightwaveControls.resetForTests();
+        artframework.c1.skin.StsSkin.resetFontsForTests();
         HostBackends.resetForTests();
         UiNodeRegistry.global().resetBuiltinsForTests();
         C1NodeFactories.global().resetBuiltinsForTests();
@@ -265,13 +269,67 @@ public final class ArtFramework {
         HostBackends.set(backend);
     }
 
-    /** Process default theme for new synthetic trees. */
+    /** Project fallback theme for trees without a present-profile node. */
     public static Theme theme() {
-        return Themes.getDefault();
+        return artframework.core.ProjectPresent.theme();
     }
 
     public static void setTheme(Theme theme) {
-        Themes.setDefault(theme);
+        if (theme == null) {
+            artframework.core.ProjectPresent.set(artframework.core.PresentProfiles.STS);
+            return;
+        }
+        String name = theme.name();
+        if (name != null && !name.isEmpty() && artframework.core.PresentProfiles.get(name) != null) {
+            artframework.core.ProjectPresent.set(name);
+        } else {
+            Themes.setDefault(theme);
+        }
+        refreshDefaultSkinQuiet();
+    }
+
+    /** Project fallback present profile id ({@code sts}, {@code lightwave}, …). */
+    public static String presentProfile() {
+        return artframework.core.ProjectPresent.id();
+    }
+
+    /**
+     * Sets project fallback present only. Does not restyle open windows; mount/resolve is
+     * node-scoped via {@code present_profile} / {@code art.present_profile}.
+     */
+    public static void setPresentProfile(String id) {
+        artframework.core.ProjectPresent.set(id);
+        refreshDefaultSkinQuiet();
+    }
+
+    public static void setProjectPresent(String id) {
+        setPresentProfile(id);
+    }
+
+    public static String projectPresent() {
+        return artframework.core.ProjectPresent.id();
+    }
+
+    public static artframework.core.PresentChromeStyle presentChrome() {
+        return artframework.core.ProjectPresent.chrome();
+    }
+
+    public static artframework.core.PresentResolved resolvePresent(String windowId) {
+        UiTree t = tree(windowId);
+        if (t == null) {
+            return artframework.core.ProjectPresent.resolved();
+        }
+        return t.resolvePresent();
+    }
+
+    private static void refreshDefaultSkinQuiet() {
+        try {
+            artframework.c1.host.StageHost host = artframework.c1.host.StageHost.get();
+            if (host != null) {
+                host.refreshDefaultSkin();
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     /** Imperative UI commands (C1 + C2). */

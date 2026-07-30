@@ -9,6 +9,7 @@ public final class StsTheme {
 
     public static Theme createDefault() {
         Theme t = new Theme();
+        t.setName("sts");
         // Label
         t.setColor("Label", "font_color", 0.95f, 0.92f, 0.85f, 1f);
         t.setFontSize("Label", "font_size", 22);

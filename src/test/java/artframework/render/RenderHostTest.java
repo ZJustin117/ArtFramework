@@ -32,7 +32,9 @@ public class RenderHostTest {
         RenderHost host = ArtFramework.render();
         assertTrue(host.effects().contains(TintEffect.ID));
         assertTrue(host.effects().contains(GlowEffect.ID));
+        assertTrue(host.effects().contains(LightwaveEffect.ID));
         assertTrue(host.shaders().contains(GlowEffect.SHADER_ID));
+        assertTrue(host.shaders().contains(LightwaveEffect.SHADER_ID));
         ShaderRegistry.ShaderDef glow = host.shaders().get(GlowEffect.SHADER_ID);
         assertEquals("shaders/glow.vert", glow.vertexClasspath);
         assertEquals("shaders/glow.frag", glow.fragmentClasspath);

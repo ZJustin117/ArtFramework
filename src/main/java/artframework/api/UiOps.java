@@ -259,10 +259,8 @@ public final class UiOps {
             return UiOpResult.blocked("button blocked: " + windowId + "/" + buttonId);
         }
         emitSignal(windowId, buttonId, SignalNames.PRESSED);
-        UiTree tree = UiTrees.get(windowId);
-        return tree != null && tree.signalHub().handlerCount(buttonId, SignalNames.PRESSED) > 0
-                ? UiOpResult.ok()
-                : UiOpResult.unavailable("no handler for " + windowId + "/" + buttonId);
+        // Declared buttons always succeed after emit (animation triggers / labs may be sole listeners).
+        return UiOpResult.ok();
     }
 
     /**
@@ -288,6 +286,10 @@ public final class UiOps {
         }
         session.setSlider(sliderId, value);
         emitSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
+        try {
+            artframework.render.LightwaveControls.applyIntensity(windowId, sliderId, clamped);
+        } catch (Throwable ignored) {
+        }
         return UiOpResult.ok();
     }
 

@@ -115,24 +115,38 @@ public final class Sts1SurfaceRenderer {
                 }
                 float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.85f;
                 float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.12f;
+                artframework.core.PresentChromeStyle chrome =
+                        artframework.core.PresentResolve.chrome();
                 Texture icon = Sts1AssetMaterializer.resolveTexture(item.iconSource);
                 if (icon != null) {
                     float w = icon.getWidth() * 0.75f;
                     float h = icon.getHeight() * 0.75f;
-                    sb.setColor(item.enabled ? Color.WHITE : Color.GRAY);
+                    if (item.enabled) {
+                        sb.setColor(chrome.labelR, chrome.labelG, chrome.labelB, chrome.labelA);
+                    } else {
+                        sb.setColor(
+                                chrome.disabledR, chrome.disabledG, chrome.disabledB, chrome.disabledA);
+                    }
                     sb.draw(icon, x - w / 2f, y - h / 2f, w, h);
                     sb.setColor(Color.WHITE);
                 }
                 String label = item.enabled ? item.text : (item.text + " (disabled)");
+                com.badlogic.gdx.graphics.Color fontColor =
+                        item.enabled
+                                ? new com.badlogic.gdx.graphics.Color(
+                                        chrome.labelR, chrome.labelG, chrome.labelB, chrome.labelA)
+                                : new com.badlogic.gdx.graphics.Color(
+                                        chrome.disabledR,
+                                        chrome.disabledG,
+                                        chrome.disabledB,
+                                        chrome.disabledA);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
                         label,
                         x,
                         y,
-                        item.enabled
-                                ? com.badlogic.gdx.graphics.Color.WHITE
-                                : com.badlogic.gdx.graphics.Color.GRAY);
+                        fontColor);
             }
         } catch (Throwable ignored) {
         }

@@ -25,6 +25,7 @@ public final class UiInstance {
     private final Map<String, ThemeColor> colorOverrides = new LinkedHashMap<String, ThemeColor>();
     private final Map<String, Integer> constantOverrides = new LinkedHashMap<String, Integer>();
     private Theme theme;
+    private PresentBinding presentBinding;
     private Rect rect = Rect.ZERO;
     private float minW;
     private float minH;
@@ -38,6 +39,7 @@ public final class UiInstance {
         this.type = decl.type;
         this.parent = parent;
         this.props.putAll(decl.props);
+        this.presentBinding = PresentResolve.parseBindingFromProps(decl.type, decl.props);
     }
 
     public UiTree tree() {
@@ -124,6 +126,19 @@ public final class UiInstance {
         return theme;
     }
 
+    public PresentBinding presentBinding() {
+        return presentBinding;
+    }
+
+    public void setPresentBinding(PresentBinding binding) {
+        this.presentBinding = binding;
+    }
+
+    /** Resolved present (profile cascade + project fallback) at this node. */
+    public PresentResolved resolvePresent() {
+        return PresentResolve.forNode(this);
+    }
+
     public void setThemeColorOverride(String name, float r, float g, float b, float a) {
         if (name != null) {
             colorOverrides.put(name, new ThemeColor(r, g, b, a));
@@ -136,15 +151,32 @@ public final class UiInstance {
         }
     }
 
+    /** Declared theme type variation (prop themeType), else component type. */
+    public String themeType() {
+        Object v = props.get("themeType");
+        if (v == null) {
+            v = props.get("theme_type");
+        }
+        if (v != null) {
+            String s = String.valueOf(v).trim();
+            if (!s.isEmpty()) {
+                return s;
+            }
+        }
+        return type;
+    }
+
     public ThemeColor getThemeColor(String name, String themeType) {
         ThemeColor local = colorOverrides.get(name);
         if (local != null) {
             return local;
         }
+        String variation = themeType != null ? themeType : themeType();
+        String baseType = type;
         UiInstance cur = this;
         while (cur != null) {
             if (cur.theme != null) {
-                ThemeColor c = cur.theme.getColor(themeType, name);
+                ThemeColor c = lookupColor(cur.theme, variation, baseType, name);
                 if (c != null) {
                     return c;
                 }
@@ -153,7 +185,7 @@ public final class UiInstance {
         }
         Theme treeTheme = tree.theme();
         if (treeTheme != null) {
-            return treeTheme.getColor(themeType, name);
+            return lookupColor(treeTheme, variation, baseType, name);
         }
         return null;
     }
@@ -163,18 +195,184 @@ public final class UiInstance {
         if (local != null) {
             return local.intValue();
         }
+        String variation = themeType != null ? themeType : themeType();
+        String baseType = type;
         UiInstance cur = this;
         while (cur != null) {
-            if (cur.theme != null && cur.theme.hasConstant(themeType, name)) {
-                return cur.theme.getConstant(themeType, name);
+            if (cur.theme != null) {
+                Integer v = lookupConstant(cur.theme, variation, baseType, name);
+                if (v != null) {
+                    return v.intValue();
+                }
             }
             cur = cur.parent;
         }
         Theme treeTheme = tree.theme();
-        if (treeTheme != null && treeTheme.hasConstant(themeType, name)) {
-            return treeTheme.getConstant(themeType, name);
+        if (treeTheme != null) {
+            Integer v = lookupConstant(treeTheme, variation, baseType, name);
+            if (v != null) {
+                return v.intValue();
+            }
         }
         return 0;
+    }
+
+    public String getThemeFont(String name, String themeType) {
+        String variation = themeType != null ? themeType : themeType();
+        String baseType = type;
+        UiInstance cur = this;
+        while (cur != null) {
+            if (cur.theme != null) {
+                String f = lookupFont(cur.theme, variation, baseType, name);
+                if (f != null) {
+                    return f;
+                }
+            }
+            cur = cur.parent;
+        }
+        Theme treeTheme = tree.theme();
+        if (treeTheme != null) {
+            return lookupFont(treeTheme, variation, baseType, name);
+        }
+        return null;
+    }
+
+    public int getThemeFontSize(String name, String themeType) {
+        String variation = themeType != null ? themeType : themeType();
+        String baseType = type;
+        UiInstance cur = this;
+        while (cur != null) {
+            if (cur.theme != null) {
+                Integer v = lookupFontSize(cur.theme, variation, baseType, name);
+                if (v != null) {
+                    return v.intValue();
+                }
+            }
+            cur = cur.parent;
+        }
+        Theme treeTheme = tree.theme();
+        if (treeTheme != null) {
+            Integer v = lookupFontSize(treeTheme, variation, baseType, name);
+            if (v != null) {
+                return v.intValue();
+            }
+        }
+        return 0;
+    }
+
+    public String getThemeIcon(String name, String themeType) {
+        String variation = themeType != null ? themeType : themeType();
+        String baseType = type;
+        UiInstance cur = this;
+        while (cur != null) {
+            if (cur.theme != null) {
+                String icon = lookupIcon(cur.theme, variation, baseType, name);
+                if (icon != null) {
+                    return icon;
+                }
+            }
+            cur = cur.parent;
+        }
+        Theme treeTheme = tree.theme();
+        if (treeTheme != null) {
+            return lookupIcon(treeTheme, variation, baseType, name);
+        }
+        return null;
+    }
+
+    public String getThemeStyle(String name, String themeType) {
+        String variation = themeType != null ? themeType : themeType();
+        String baseType = type;
+        UiInstance cur = this;
+        while (cur != null) {
+            if (cur.theme != null) {
+                String style = lookupStyle(cur.theme, variation, baseType, name);
+                if (style != null) {
+                    return style;
+                }
+            }
+            cur = cur.parent;
+        }
+        Theme treeTheme = tree.theme();
+        if (treeTheme != null) {
+            return lookupStyle(treeTheme, variation, baseType, name);
+        }
+        return null;
+    }
+
+    private static ThemeColor lookupColor(Theme theme, String variation, String baseType, String name) {
+        if (variation != null && !variation.isEmpty()) {
+            ThemeColor c = theme.getColor(variation, name);
+            if (c != null) {
+                return c;
+            }
+        }
+        if (baseType != null && !baseType.isEmpty() && !baseType.equals(variation)) {
+            ThemeColor c = theme.getColor(baseType, name);
+            if (c != null) {
+                return c;
+            }
+        }
+        return theme.getColor(variation != null ? variation : baseType, name);
+    }
+
+    private static Integer lookupConstant(Theme theme, String variation, String baseType, String name) {
+        if (variation != null && !variation.isEmpty() && theme.hasConstant(variation, name)) {
+            return Integer.valueOf(theme.getConstant(variation, name));
+        }
+        if (baseType != null && !baseType.isEmpty() && theme.hasConstant(baseType, name)) {
+            return Integer.valueOf(theme.getConstant(baseType, name));
+        }
+        return null;
+    }
+
+    private static String lookupFont(Theme theme, String variation, String baseType, String name) {
+        if (variation != null && !variation.isEmpty()) {
+            String f = theme.getFont(variation, name);
+            if (f != null) {
+                return f;
+            }
+        }
+        if (baseType != null && !baseType.isEmpty()) {
+            return theme.getFont(baseType, name);
+        }
+        return null;
+    }
+
+    private static Integer lookupFontSize(Theme theme, String variation, String baseType, String name) {
+        if (variation != null && !variation.isEmpty() && theme.hasFontSize(variation, name)) {
+            return Integer.valueOf(theme.getFontSize(variation, name));
+        }
+        if (baseType != null && !baseType.isEmpty() && theme.hasFontSize(baseType, name)) {
+            return Integer.valueOf(theme.getFontSize(baseType, name));
+        }
+        return null;
+    }
+
+    private static String lookupIcon(Theme theme, String variation, String baseType, String name) {
+        if (variation != null && !variation.isEmpty()) {
+            String icon = theme.getIcon(variation, name);
+            if (icon != null) {
+                return icon;
+            }
+        }
+        if (baseType != null && !baseType.isEmpty()) {
+            return theme.getIcon(baseType, name);
+        }
+        return null;
+    }
+
+    private static String lookupStyle(Theme theme, String variation, String baseType, String name) {
+        if (variation != null && !variation.isEmpty()) {
+            String style = theme.getStyleBox(variation, name);
+            if (style != null) {
+                return style;
+            }
+        }
+        if (baseType != null && !baseType.isEmpty()) {
+            return theme.getStyleBox(baseType, name);
+        }
+        return null;
     }
 
     public List<String> signals() {

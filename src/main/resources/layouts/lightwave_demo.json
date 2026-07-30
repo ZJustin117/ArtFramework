@@ -1,0 +1,88 @@
+{
+  "type": "window",
+  "id": "lightwave_demo",
+  "title": "Lightwave",
+  "width": 480,
+  "height": 320,
+  "pad": 12,
+  "gap": 8,
+  "present_profile": "lightwave",
+  "theme": "lightwave",
+  "children": [
+    {
+      "type": "panel",
+      "id": "panel",
+      "height": 260,
+      "pad": 12,
+      "gap": 10,
+      "fx_intensity": 0.55,
+      "effects": [
+        {
+          "id": "lightwave",
+          "params": {
+            "intensity": 0.55,
+            "angle": 35,
+            "width": 0.28,
+            "speed": 0.28,
+            "border": 1,
+            "borderWidth": 3
+          }
+        }
+      ],
+      "children": [
+        {
+          "type": "label",
+          "id": "hint",
+          "text": "WAVE slider. PULSE flashes band. CLOSE exits."
+        },
+        {
+          "type": "row",
+          "id": "actions",
+          "gap": 12,
+          "children": [
+            {
+              "type": "button",
+              "id": "ok",
+              "text": "PULSE",
+              "grow": true,
+              "height": 48
+            },
+            {
+              "type": "button",
+              "id": "close",
+              "text": "CLOSE",
+              "grow": true,
+              "height": 48
+            }
+          ]
+        },
+        {
+          "type": "label",
+          "id": "wave_label",
+          "text": "INTENSITY"
+        },
+        {
+          "type": "slider",
+          "id": "wave",
+          "min": 0,
+          "max": 1,
+          "value": 0.55,
+          "height": 40
+        }
+      ]
+    },
+    {
+      "type": "art.animation_player",
+      "id": "motion",
+      "auto_play": "enter",
+      "animations": [
+        {
+          "name": "enter",
+          "target": "panel",
+          "duration": 0.3,
+          "tracks": [{ "property": "fx_intensity", "from": 0.2, "to": 0.55 }]
+        }
+      ]
+    }
+  ]
+}

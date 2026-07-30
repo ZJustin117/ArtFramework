@@ -1,0 +1,27 @@
+# Offline fixture: project present + lightwave demo tree resolve (sample JSON).
+name: f14_present_profile_lightwave
+schemaVersion: 1
+mode: fixture
+fixture: sample_present_profile_probe.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: presentProfile.project
+      eq: lightwave
+  - assert:
+      path: presentProfile.active
+      eq: lightwave
+  - assert:
+      path: presentProfile.chrome.cardAlpha
+      lte: 0.95
+  - assert:
+      path: theme.name
+      eq: lightwave
+  - assert:
+      path: windows.openIds
+      contains: lightwave_demo
+  - assert:
+      path: windows.byId.lightwave_demo.present.id
+      eq: lightwave

@@ -10,12 +10,21 @@ import java.util.Map;
  */
 public final class Theme {
 
+    private String name = "";
     private final Map<String, ThemeColor> colors = new LinkedHashMap<String, ThemeColor>();
     private final Map<String, Integer> constants = new LinkedHashMap<String, Integer>();
     private final Map<String, Integer> fontSizes = new LinkedHashMap<String, Integer>();
     private final Map<String, String> fonts = new LinkedHashMap<String, String>();
     private final Map<String, String> icons = new LinkedHashMap<String, String>();
     private final Map<String, String> styleBoxes = new LinkedHashMap<String, String>();
+
+    public void setName(String name) {
+        this.name = name != null ? name : "";
+    }
+
+    public String name() {
+        return name;
+    }
 
     public void setColor(String type, String name, float r, float g, float b, float a) {
         colors.put(itemKey(type, name), new ThemeColor(r, g, b, a));
@@ -114,6 +123,9 @@ public final class Theme {
 
     public Map<String, Object> probeSummary() {
         Map<String, Object> out = new LinkedHashMap<String, Object>();
+        if (name != null && !name.isEmpty()) {
+            out.put("name", name);
+        }
         out.put("colorCount", Integer.valueOf(colors.size()));
         out.put("constantCount", Integer.valueOf(constants.size()));
         out.put("fontSizeCount", Integer.valueOf(fontSizes.size()));

@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Milestone **34** node-scoped PresentProfile (no process active):
+  - `ProjectPresent` fallback + `PresentResolve` cascade (`override` / `attach`)
+  - `art.present_profile` node; root `present_profile` sugar
+  - C1/C2 consume resolve or project chrome — not `PresentProfiles.active`
+  - Probe `projectPresent` + `windows.*.present`; console `project` / `resolve`
+  - Design: [`docs/design/present-profile.md`](docs/design/present-profile.md)
+
+### Added
+
+- Milestone **29–33** PresentProfile + Lightwave showcase:
+  - `PresentProfile` / `PresentProfiles` (`sts`, `lightwave`) + `PresentChromeStyle`
+  - `LightwaveTheme`; Theme cascade font/icon/style + `themeType` variation
+  - Declarative window `present_profile` / `theme`; `LightwaveEffect` + GLSL + fallback
+  - `animation_player` `auto_play` / `triggers`; C1 `opacity` on actors
+  - `StsSkin.create(Theme)`; hand/controls chrome from profile resource
+  - Console `art profile|theme list|get|set`; `art fx lightwave`
+  - Demo `lightwave_demo`; fixture `f14_present_profile_lightwave`; D1 `d1_lightwave_demo`
+  - Design: [`docs/design/present-profile.md`](docs/design/present-profile.md)
+
+### Fixed
+
+- Lightwave / glass FX misaligned with C1 windows: StageHost syncs RenderHost target bounds
+  from named scene2d actors after `stage.act` (LayoutEngine was origin-local only)
+- Demo windows stayed STS cream skin: attach now uses `StsSkin.create(tree.theme())`;
+  panels get Theme `panel-bg` drawable
+- Lightwave demo: `ArtFramework.tick` from StageHost; panel declared size; window pack;
+  lightwave border on shader path; animation_player not layout-consuming; clickButton always OK after emit
+- Probe `render.demoEffects.lightwave_demo` + target w/h/effectIds for automated effect contracts
+  (JUnit + f15 + D1 `d1_lightwave_demo`)
+- C1 FX draw **under** scene2d (lightwave no longer paints over labels); opaque font colors;
+  Pulse/Close drive intensity flash via `LightwaveControls` (Pulse returns to slider baseline)
+- C1 text via `StsTextActor` + `FontHelper.render*` (scene2d Label/TextButton glyphs unusable with
+  shared STS fonts on device); buttons are Table chrome + FontHelper caption
+
+### Known limits
+
+- Changing project present does not rebuild already-open C1 windows (close/reopen)
+- C2 without surface present node uses project chrome only
+- C2 chrome beyond hand/controls still mostly hardcoded label colors
+- Lightwave does not auto-enable FULL present
+
 ## 1.0.0-alpha.4
 
 ### Added

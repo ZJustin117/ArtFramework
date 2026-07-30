@@ -1,0 +1,45 @@
+# Offline contract: lightwave_demo effect bind + controls + chrome (sample probe).
+name: f15_lightwave_demo_effects
+schemaVersion: 1
+mode: fixture
+fixture: sample_lightwave_demo_effects.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: presentProfile.active
+      eq: lightwave
+  - assert:
+      path: theme.name
+      eq: lightwave
+  - assert:
+      path: windows.openIds
+      contains: lightwave_demo
+  - assert:
+      path: windows.byId.lightwave_demo.buttonIds
+      contains: ok
+  - assert:
+      path: windows.byId.lightwave_demo.controls.sliderIds
+      contains: wave
+  - assert:
+      path: render.demoEffects.lightwave_demo.bound
+      eq: true
+  - assert:
+      path: render.demoEffects.lightwave_demo.hasLightwave
+      eq: true
+  - assert:
+      path: render.demoEffects.lightwave_demo.borderDrawn
+      eq: true
+  - assert:
+      path: render.demoEffects.lightwave_demo.w
+      gte: 100
+  - assert:
+      path: render.demoEffects.lightwave_demo.h
+      gte: 80
+  - assert:
+      path: render.demoEffects.lightwave_demo.effectIds
+      contains: lightwave
+  - assert:
+      path: presentProfile.chrome.borderWidth
+      gte: 1

@@ -8,6 +8,7 @@ import artframework.api.WindowDef;
 import artframework.component.TemplateExpander;
 import artframework.component.UiNode;
 import artframework.component.UiNodeLoader;
+import artframework.component.UiTypes;
 
 import java.util.Map;
 
@@ -93,6 +94,45 @@ public class ThemeTest {
         assertNull(empty.getColor("Label", "font_color"));
         assertEquals(0, empty.getConstant("Box", "separation"));
         assertEquals(0, empty.getFontSize("Label", "font_size"));
+    }
+
+    @Test
+    public void themeTypeVariationBeatsBaseType() {
+        Theme theme = new Theme();
+        theme.setColor("Button", "font_color", 1f, 0f, 0f, 1f);
+        theme.setColor("PrimaryButton", "font_color", 0f, 0f, 1f, 1f);
+        theme.setFont("Label", "font", "sts.font.desc");
+        theme.setFontSize("Label", "font_size", 22);
+        theme.setStyleBox("Button", "normal", "sts.button.normal");
+        UiTree tree =
+                UiTree.mount(
+                        "w",
+                        UiNode.of(UiTypes.WINDOW)
+                                .id("w")
+                                .prop("title", "T")
+                                .child(
+                                        UiNode.of(UiTypes.BUTTON)
+                                                .id("ok")
+                                                .prop("text", "OK")
+                                                .prop("themeType", "PrimaryButton")
+                                                .build())
+                                .build());
+        tree.setTheme(theme);
+        ThemeColor c = tree.get("ok").getThemeColor("font_color", tree.get("ok").themeType());
+        assertNotNull(c);
+        assertEquals(0f, c.r, 0.001f);
+        assertEquals(1f, c.b, 0.001f);
+        assertEquals("PrimaryButton", tree.get("ok").themeType());
+        assertEquals("sts.font.desc", tree.get("ok").getThemeFont("font", "Label"));
+        assertEquals(22, tree.get("ok").getThemeFontSize("font_size", "Label"));
+        assertEquals("sts.button.normal", tree.get("ok").getThemeStyle("normal", "Button"));
+    }
+
+    @Test
+    public void namedThemesRegistry() {
+        assertNotNull(Themes.get("sts"));
+        assertNotNull(Themes.get("lightwave"));
+        assertTrue(Themes.names().contains("lightwave"));
     }
 
     private static boolean windowsHaveTheme(Map<String, Object> snap) {

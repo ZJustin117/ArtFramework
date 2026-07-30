@@ -28,7 +28,22 @@ public final class UiNodeLoader {
         "placeholder",
         "progress",
         "columns",
-        "active"
+        "active",
+        "theme",
+        "themeType",
+        "theme_type",
+        "present_profile",
+        "presentProfile",
+        "present_mode",
+        "presentMode",
+        "profile",
+        "mode",
+        "auto_play",
+        "autoPlay",
+        "opacity",
+        "fx_intensity",
+        "animations",
+        "triggers"
     };
 
     private UiNodeLoader() {}

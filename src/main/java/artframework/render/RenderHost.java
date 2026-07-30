@@ -55,6 +55,7 @@ public final class RenderHost {
         effects.register(new GlowEffect(shaderRuntime));
         effects.register(new BlurEffect(shaderRuntime));
         effects.register(new GlassEffect(shaderRuntime));
+        effects.register(new LightwaveEffect(shaderRuntime));
         shaders.register(
                 GlowEffect.SHADER_ID,
                 "shaders/glow.vert",
@@ -67,6 +68,10 @@ public final class RenderHost {
                 GlassEffect.SHADER_ID,
                 "shaders/glass.vert",
                 "shaders/glass.frag");
+        shaders.register(
+                LightwaveEffect.SHADER_ID,
+                "shaders/lightwave.vert",
+                "shaders/lightwave.frag");
     }
 
     public FrameCapture frameCapture() {
@@ -288,6 +293,27 @@ public final class RenderHost {
         }
     }
 
+    /**
+     * Update a live effect param (e.g. lightwave intensity from a C1 slider). No-op if missing.
+     */
+    public boolean setEffectParam(String targetId, String effectId, String key, float value) {
+        if (targetId == null || effectId == null || key == null) {
+            return false;
+        }
+        List<EffectBinding> list = bindings.get(targetId);
+        if (list == null) {
+            return false;
+        }
+        boolean any = false;
+        for (EffectBinding b : list) {
+            if (effectId.equals(b.effectId)) {
+                b.setParamFloat(key, value);
+                any = true;
+            }
+        }
+        return any;
+    }
+
     public List<EffectBinding> effectsOf(String targetId) {
         List<EffectBinding> list = bindings.get(targetId);
         if (list == null) {
@@ -461,6 +487,14 @@ public final class RenderHost {
      * @param alreadyCaptured if true, skip {@link FrameCapture#captureScreen}
      */
     public void drawFrame(Object spriteBatch, boolean alreadyCaptured) {
+        drawFrame(spriteBatch, alreadyCaptured, null);
+    }
+
+    /**
+     * @param kinds if non-null, only draw targets whose kind is in the set (e.g. C1 under UI vs
+     *     FULL_FRAME over everything).
+     */
+    public void drawFrame(Object spriteBatch, boolean alreadyCaptured, java.util.Set<RenderTargetKind> kinds) {
         if (!alreadyCaptured && needsCapture() && hostBackend.supportsCapture()) {
             hostBackend.captureScreen(frameCapture, (int) screenW, (int) screenH);
         }
@@ -479,6 +513,9 @@ public final class RenderHost {
             if (!target.isEnabled()) {
                 continue;
             }
+            if (kinds != null && !kinds.contains(target.kind)) {
+                continue;
+            }
             if (target.kind == RenderTargetKind.FULL_FRAME && !fullFrameEnabled) {
                 continue;
             }
@@ -493,6 +530,57 @@ public final class RenderHost {
                 Effect effect = effects.get(binding.effectId);
                 if (effect != null) {
                     hostBackend.drawEffect(effect, target, binding, ctx);
+                }
+            }
+        }
+    }
+
+    /** C1 synthetic targets — draw under scene2d so labels/buttons stay readable. */
+    public static java.util.Set<RenderTargetKind> kindsC1UnderUi() {
+        java.util.EnumSet<RenderTargetKind> s = java.util.EnumSet.noneOf(RenderTargetKind.class);
+        s.add(RenderTargetKind.SYNTHETIC_WINDOW);
+        s.add(RenderTargetKind.SYNTHETIC_WIDGET);
+        return s;
+    }
+
+    /** Overlay / full-frame / entity — draw after stage. */
+    public static java.util.Set<RenderTargetKind> kindsOverUi() {
+        java.util.EnumSet<RenderTargetKind> s = java.util.EnumSet.noneOf(RenderTargetKind.class);
+        s.add(RenderTargetKind.FULL_FRAME);
+        s.add(RenderTargetKind.OVERLAY);
+        s.add(RenderTargetKind.ENTITY_SLOT);
+        return s;
+    }
+
+    /**
+     * White borders for C1 lightwave targets — must run <b>after</b> stage.draw so panel chrome
+     * does not cover the stroke.
+     */
+    public void drawC1LightwaveBorders(Object spriteBatch) {
+        RenderContext ctx =
+                new RenderContext(
+                        spriteBatch,
+                        timeSeconds,
+                        needsCapture() || frameCapture.hasTexture() ? frameCapture : null);
+        for (RenderTarget target : targets.values()) {
+            if (!target.isEnabled()) {
+                continue;
+            }
+            if (target.kind != RenderTargetKind.SYNTHETIC_WIDGET
+                    && target.kind != RenderTargetKind.SYNTHETIC_WINDOW) {
+                continue;
+            }
+            List<EffectBinding> list = bindings.get(target.id);
+            if (list == null) {
+                continue;
+            }
+            for (EffectBinding binding : list) {
+                if (!binding.isEnabled() || !LightwaveEffect.ID.equals(binding.effectId)) {
+                    continue;
+                }
+                Effect effect = effects.get(LightwaveEffect.ID);
+                if (effect instanceof LightwaveEffect) {
+                    ((LightwaveEffect) effect).drawBorderOnly(target, binding, ctx);
                 }
             }
         }
@@ -547,16 +635,93 @@ public final class RenderHost {
         }
         out.put("shaders", shaderStatus);
         List<Map<String, Object>> tlist = new ArrayList<Map<String, Object>>();
+        Map<String, Object> bySafeId = new LinkedHashMap<String, Object>();
         for (RenderTarget t : targets.values()) {
-            Map<String, Object> one = new LinkedHashMap<String, Object>();
-            one.put("id", t.id);
-            one.put("kind", t.kind.name());
-            one.put("enabled", Boolean.valueOf(t.isEnabled()));
-            one.put("effectCount", Integer.valueOf(effectsOf(t.id).size()));
+            Map<String, Object> one = probeTarget(t);
             tlist.add(one);
+            bySafeId.put(safeTargetKey(t.id), one);
         }
         out.put("targets", tlist);
+        out.put("targetsById", bySafeId);
+        out.put("demoEffects", probeDemoEffects());
         return out;
+    }
+
+    private Map<String, Object> probeTarget(RenderTarget t) {
+        Map<String, Object> one = new LinkedHashMap<String, Object>();
+        one.put("id", t.id);
+        one.put("kind", t.kind.name());
+        one.put("enabled", Boolean.valueOf(t.isEnabled()));
+        one.put("x", Float.valueOf(t.x()));
+        one.put("y", Float.valueOf(t.y()));
+        one.put("w", Float.valueOf(t.width()));
+        one.put("h", Float.valueOf(t.height()));
+        List<EffectBinding> efs = effectsOf(t.id);
+        one.put("effectCount", Integer.valueOf(efs.size()));
+        List<String> ids = new ArrayList<String>();
+        List<Map<String, Object>> detail = new ArrayList<Map<String, Object>>();
+        boolean borderDrawn = false;
+        for (EffectBinding b : efs) {
+            ids.add(b.effectId);
+            Map<String, Object> em = new LinkedHashMap<String, Object>();
+            em.put("id", b.effectId);
+            em.put("enabled", Boolean.valueOf(b.isEnabled()));
+            if (LightwaveEffect.ID.equals(b.effectId)) {
+                em.put("intensity", Float.valueOf(b.paramFloat("intensity", 0.55f)));
+                em.put("angle", Float.valueOf(b.paramFloat("angle", 35f)));
+                boolean bd = LightwaveEffect.shouldDrawBorder(b);
+                em.put("borderDrawn", Boolean.valueOf(bd));
+                if (bd) {
+                    borderDrawn = true;
+                }
+            }
+            detail.add(em);
+        }
+        one.put("effectIds", ids);
+        one.put("effects", detail);
+        one.put("borderDrawn", Boolean.valueOf(borderDrawn));
+        return one;
+    }
+
+    /**
+     * Showcase slice for YAML-friendly paths (no colon keys): lightwave_demo panel contract.
+     */
+    private Map<String, Object> probeDemoEffects() {
+        Map<String, Object> demo = new LinkedHashMap<String, Object>();
+        String panelId = "c1:lightwave_demo:panel";
+        RenderTarget panel = targets.get(panelId);
+        Map<String, Object> lw = new LinkedHashMap<String, Object>();
+        lw.put("windowId", "lightwave_demo");
+        lw.put("targetId", panelId);
+        if (panel == null) {
+            lw.put("bound", Boolean.FALSE);
+            demo.put("lightwave_demo", lw);
+            return demo;
+        }
+        Map<String, Object> slice = probeTarget(panel);
+        lw.put("bound", Boolean.TRUE);
+        lw.put("x", slice.get("x"));
+        lw.put("y", slice.get("y"));
+        lw.put("w", slice.get("w"));
+        lw.put("h", slice.get("h"));
+        lw.put("effectIds", slice.get("effectIds"));
+        lw.put("effectCount", slice.get("effectCount"));
+        lw.put("borderDrawn", slice.get("borderDrawn"));
+        @SuppressWarnings("unchecked")
+        List<String> eids = (List<String>) slice.get("effectIds");
+        lw.put(
+                "hasLightwave",
+                Boolean.valueOf(eids != null && eids.contains(LightwaveEffect.ID)));
+        demo.put("lightwave_demo", lw);
+        return demo;
+    }
+
+    /** Dot-path safe key: {@code c1:win:node} → {@code c1_win_node}. */
+    static String safeTargetKey(String id) {
+        if (id == null || id.isEmpty()) {
+            return "";
+        }
+        return id.replace(':', '_');
     }
 
     private String captureStatus() {

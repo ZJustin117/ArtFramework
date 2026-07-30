@@ -27,7 +27,7 @@ public final class UiTree {
         }
         this.windowId = windowId;
         this.lifecycle = lifecycle;
-        this.theme = Themes.getDefault();
+        this.theme = ProjectPresent.theme();
     }
 
     public static UiTree mount(String windowId, UiNode expandedRoot) {
@@ -40,10 +40,52 @@ public final class UiTree {
         }
         UiTree tree = new UiTree(windowId, lifecycle);
         tree.root = tree.build(expandedRoot, null);
+        tree.applyResolvedPresent();
         tree.fireMount(tree.root, lifecycle);
         tree.fireReady(tree.root, lifecycle);
         AnimationPlayers.syncTree(tree);
         return tree;
+    }
+
+    /**
+     * Tree theme from present cascade at root (node present_profile / art.present_profile /
+     * theme name), else {@link ProjectPresent}. Instance themes are stamped only on nodes with
+     * an explicit {@link PresentBinding} (not project fallback), so tree.setTheme still cascades.
+     */
+    private void applyResolvedPresent() {
+        if (root == null) {
+            this.theme = ProjectPresent.theme();
+            return;
+        }
+        this.theme = PresentResolve.forNode(root).theme;
+        stampPresentInstanceThemes(root);
+    }
+
+    private static void stampPresentInstanceThemes(UiInstance n) {
+        if (n == null) {
+            return;
+        }
+        PresentBinding b = n.presentBinding();
+        if (b != null) {
+            PresentProfile p = b.resolveResource();
+            if (p != null) {
+                n.setTheme(p.theme);
+            }
+        } else {
+            Object themeName = n.prop("theme");
+            if (themeName != null) {
+                String name = String.valueOf(themeName).trim();
+                if (!name.isEmpty()) {
+                    Theme named = Themes.get(name);
+                    if (named != null) {
+                        n.setTheme(named);
+                    }
+                }
+            }
+        }
+        for (UiInstance c : n.children()) {
+            stampPresentInstanceThemes(c);
+        }
     }
 
     public Theme theme() {
@@ -51,7 +93,11 @@ public final class UiTree {
     }
 
     public void setTheme(Theme theme) {
-        this.theme = theme != null ? theme : Themes.getDefault();
+        this.theme = theme != null ? theme : ProjectPresent.theme();
+    }
+
+    public PresentResolved resolvePresent() {
+        return PresentResolve.forTree(this);
     }
 
     public String windowId() {

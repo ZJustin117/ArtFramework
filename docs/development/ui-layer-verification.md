@@ -23,6 +23,9 @@ default:  pure JUnit (@junit-test) + offline/art-verify offline unittest
 2. **Trigger** — ALLOW + `UiOps` / dispatch → observable probe or Fake backend state changes.
 3. **C1** — open layout → probe lists window → `clickButton` fires registered handler (FakeStage / pure).
 4. **Composition** — pure `UiNode` nest/slot/ref + layout bounds (JUnit); fixture `f4_composition_tree` for sample tree shape offline.
+5. **Lightwave demo effects** — `LightwaveDemoContractTest` + `f15_lightwave_demo_effects` + D1 `d1_lightwave_demo`:
+   `render.demoEffects.lightwave_demo` bound/hasLightwave/borderDrawn/w/h; controls + ops; close clears bind.
+   Demo-only (not native UI). Pixel look is manual; probe is the automated gate.
 
 ## What stays CrossSpire
 

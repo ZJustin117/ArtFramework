@@ -1,12 +1,12 @@
 package artframework.c1.layout;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
-import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.megacrit.cardcrawl.core.Settings;
 import artframework.api.ArtFramework;
 import artframework.api.UiOpResult;
@@ -37,22 +37,36 @@ public final class LayoutActors {
         float width = root.width > 0f ? root.width * scale : 400f * scale;
         float height = root.height > 0f ? root.height * scale : 240f * scale;
 
-        Window window = new Window(root.title, skin);
+        Window window = new Window("", skin);
         window.setModal(true);
         window.setMovable(true);
         window.setSize(width, height);
         window.defaults().pad(8f * scale);
+        if (root.title != null && !root.title.isEmpty()) {
+            window.add(new StsTextActor(root.title, false)).growX().padBottom(8f * scale).row();
+        }
 
         for (LayoutNode child : root.children) {
             if (child.type == LayoutNode.Type.LABEL) {
-                window.add(new Label(child.text, skin)).growX().padBottom(6f * scale).row();
+                window.add(new StsTextActor(child.text, false)).growX().padBottom(6f * scale).row();
             } else if (child.type == LayoutNode.Type.BUTTON) {
-                TextButton button = new TextButton(child.text, skin);
                 final String buttonId = child.id;
+                Table button = new Table(skin);
+                try {
+                    TextButton.TextButtonStyle st = skin.get(TextButton.TextButtonStyle.class);
+                    if (st != null && st.up != null) {
+                        button.setBackground(st.up);
+                    }
+                } catch (Throwable ignored) {
+                }
+                button.add(new StsTextActor(child.text != null ? child.text : "", true))
+                        .expand()
+                        .fill()
+                        .pad(6f * scale);
                 if ("close".equals(child.id) && onClose != null) {
-                    button.addListener(new ChangeListener() {
+                    button.addListener(new ClickListener() {
                         @Override
-                        public void changed(ChangeEvent event, Actor actor) {
+                        public void clicked(InputEvent event, float x, float y) {
                             UiOpResult result = ArtFramework.ops().clickButton(windowId, buttonId);
                             if (result.status != UiOpResult.Status.BLOCKED) {
                                 onClose.run();
@@ -60,9 +74,9 @@ public final class LayoutActors {
                         }
                     });
                 } else if (child.id != null && !child.id.isEmpty()) {
-                    button.addListener(new ChangeListener() {
+                    button.addListener(new ClickListener() {
                         @Override
-                        public void changed(ChangeEvent event, Actor actor) {
+                        public void clicked(InputEvent event, float x, float y) {
                             ArtFramework.ops().clickButton(windowId, buttonId);
                         }
                     });

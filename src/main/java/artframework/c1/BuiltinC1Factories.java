@@ -33,6 +33,7 @@ final class BuiltinC1Factories {
         reg.register(delegate(ArtNodeTypes.ANIMATION_PLAYER));
         reg.register(delegate(ArtNodeTypes.SHADER_EFFECT));
         reg.register(delegate(ArtNodeTypes.SKELETON));
+        reg.register(delegate(ArtNodeTypes.PRESENT_PROFILE));
     }
 
     private static C1NodeFactory delegate(final String type) {

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "theme": {
+    "name": "lightwave",
+    "colorCount": 12,
+    "constantCount": 6
+  },
+  "presentProfile": {
+    "project": "lightwave",
+    "active": "lightwave",
+    "id": "lightwave",
+    "ids": ["sts", "lightwave"],
+    "chrome": {
+      "cardAlpha": 0.88,
+      "panelAlpha": 0.72,
+      "borderWidth": 2.0
+    }
+  },
+  "projectPresent": {
+    "project": "lightwave",
+    "active": "lightwave",
+    "id": "lightwave",
+    "ids": ["sts", "lightwave"],
+    "chrome": {
+      "cardAlpha": 0.88,
+      "panelAlpha": 0.72,
+      "borderWidth": 2.0
+    }
+  },
+  "windows": {
+    "openIds": ["lightwave_demo"],
+    "byId": {
+      "lightwave_demo": {
+        "windowClass": "SYNTHETIC",
+        "title": "Lightwave",
+        "present": {
+          "id": "lightwave",
+          "fromProject": false
+        }
+      }
+    }
+  },
+  "render": {
+    "effects": ["tint", "glow", "blur", "glass", "lightwave"]
+  }
+}

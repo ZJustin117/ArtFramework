@@ -71,6 +71,7 @@ public final class C1NodeFactories {
                 || UiTypes.WINDOW.equals(type)
                 || ArtNodeTypes.ANIMATION_PLAYER.equals(type)
                 || ArtNodeTypes.SHADER_EFFECT.equals(type)
-                || ArtNodeTypes.SKELETON.equals(type);
+                || ArtNodeTypes.SKELETON.equals(type)
+                || ArtNodeTypes.PRESENT_PROFILE.equals(type);
     }
 }

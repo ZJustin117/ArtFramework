@@ -38,7 +38,9 @@ public final class UiProbe {
         root.put("endTurn", endTurnMap());
         root.put("entities", entitiesMap());
         root.put("render", RenderHosts.get().probeMap());
-        root.put("theme", Themes.getDefault().probeSummary());
+        root.put("theme", artframework.core.ProjectPresent.theme().probeSummary());
+        root.put("presentProfile", artframework.core.ProjectPresent.probeSummary());
+        root.put("projectPresent", artframework.core.ProjectPresent.probeSummary());
         List<Map<String, Object>> components = new ArrayList<Map<String, Object>>();
         components.addAll(artframework.c1.SyntheticComponents.probeAll());
         components.addAll(NativeComponents.probeAll());
@@ -142,8 +144,11 @@ public final class UiProbe {
                 }
             }
             UiTree tree = UiTrees.get(id);
-            if (tree != null && tree.theme() != null) {
-                one.put("theme", tree.theme().probeSummary());
+            if (tree != null) {
+                if (tree.theme() != null) {
+                    one.put("theme", tree.theme().probeSummary());
+                }
+                one.put("present", tree.resolvePresent().probeSummary());
             }
             byId.put(id, one);
         }

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "theme": {
+    "name": "lightwave",
+    "colorCount": 14
+  },
+  "presentProfile": {
+    "active": "lightwave",
+    "id": "lightwave",
+    "chrome": {
+      "cardAlpha": 0.88,
+      "borderWidth": 2.0
+    }
+  },
+  "windows": {
+    "openIds": ["lightwave_demo"],
+    "byId": {
+      "lightwave_demo": {
+        "windowClass": "SYNTHETIC",
+        "title": "Lightwave",
+        "buttonIds": ["ok", "close"],
+        "theme": { "name": "lightwave" },
+        "controls": {
+          "buttonIds": ["ok", "close"],
+          "sliderIds": ["wave"],
+          "sliders": { "wave": 0.55 }
+        }
+      }
+    }
+  },
+  "render": {
+    "effectIds": ["tint", "glow", "blur", "glass", "lightwave"],
+    "demoEffects": {
+      "lightwave_demo": {
+        "windowId": "lightwave_demo",
+        "targetId": "c1:lightwave_demo:panel",
+        "bound": true,
+        "hasLightwave": true,
+        "borderDrawn": true,
+        "w": 440.0,
+        "h": 280.0,
+        "effectIds": ["lightwave"],
+        "effectCount": 1
+      }
+    },
+    "targetsById": {
+      "c1_lightwave_demo_panel": {
+        "id": "c1:lightwave_demo:panel",
+        "w": 440.0,
+        "h": 280.0,
+        "effectIds": ["lightwave"],
+        "borderDrawn": true
+      }
+    }
+  }
+}

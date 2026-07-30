@@ -318,3 +318,50 @@ executor + host paint).
 
 - [x] 28.1 Known-limits / consumer freeze notes refresh
 - [x] 28.2 Version bump `1.0.0-alpha.4` + CHANGELOG
+
+### 29. PresentProfile + Lightwave (theme / cascade / declarative)
+
+Design: PresentProfile aggregates Theme + PresentChromeStyle + optional pack; not a mid-draw
+RenderInterceptor. Suppress still owned by FullPresentMode.
+
+- [x] 29.1 `PresentProfile` / `PresentProfiles` + `sts` / `lightwave` builtins + probe
+- [x] 29.2 `LightwaveTheme` (semi-transparent panel, white border, cool accent, Card alpha)
+- [x] 29.3 Theme cascade: font/icon/style + `themeType` variation
+- [x] 29.4 Declarative `present_profile` / `theme` on window root + JUnit
+
+### 30. Lightwave FX + animation triggers + demo
+
+- [x] 30.1 `LightwaveEffect` + GLSL + fallback strips + `art fx lightwave`
+- [x] 30.2 White border via effect fallback / chrome tokens
+- [x] 30.3 `animation_player` `auto_play` + `triggers` (no new LML component type)
+- [x] 30.4 C1 `opacity` prop applied on actors
+- [x] 30.5 `layouts/lightwave_demo.json` + window register
+
+### 31. C1 StsSkin from Theme
+
+- [x] 31.1 `StsSkin.create(Theme)` + pure mapping helpers JUnit
+- [x] 31.2 StageHost uses `Themes.getDefault()` at init
+
+### 32. C2 PresentChromeStyle consumption
+
+- [x] 32.1 `PresentChromeStyle` + fromTheme / probe
+- [x] 32.2 Hand card alpha + white border; controls label colors from chrome
+- [x] 32.3 HandDrawPath probe includes chrome + presentProfile
+
+### 33. Console / docs / scenarios
+
+- [x] 33.1 `art profile|theme list|get|set`
+- [x] 33.2 Offline fixture `f14_present_profile_lightwave` + D1 `d1_lightwave_demo`
+- [x] 33.3 task / design / CHANGELOG notes
+
+### 34. Node-scoped PresentProfile (no process active)
+
+Design: Present resources + ProjectPresent fallback + `art.present_profile` attach/override;
+effects stay explicit nodes. See [`present-profile.md`](design/present-profile.md).
+
+- [x] 34.1 `ProjectPresent` + `PresentResolve` + `PresentBinding` / `PresentMode`
+- [x] 34.2 Remove process active; registry is resources only
+- [x] 34.3 UiTree/UiInstance resolve; root sugar + `art.present_profile`
+- [x] 34.4 C1 StageHost + C2 chrome via resolve / project
+- [x] 34.5 Probe `projectPresent` + `windows.*.present`; console project/resolve
+- [x] 34.6 JUnit + f14 + d1_lightwave_demo (node assert, no global set required)

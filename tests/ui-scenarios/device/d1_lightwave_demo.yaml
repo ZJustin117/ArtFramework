@@ -1,0 +1,80 @@
+# Lightwave demo effect contract on D1 (probe, not pixels).
+# Node-scoped present_profile on layout; project set only as optional fallback.
+# Expect: panel binds lightwave, size floor, controls, ops, close. Demo-only (not native UI).
+name: d1_lightwave_demo
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art open lightwave_demo"
+  - wait_ms: 900
+  - probe: all
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: windows.openIds
+      contains: lightwave_demo
+  - assert:
+      path: windows.byId.lightwave_demo.windowClass
+      eq: SYNTHETIC
+  - assert:
+      path: windows.byId.lightwave_demo.present.id
+      eq: lightwave
+  - assert:
+      path: windows.byId.lightwave_demo.theme.name
+      eq: lightwave
+  - assert:
+      path: windows.byId.lightwave_demo.buttonIds
+      contains: ok
+  - assert:
+      path: windows.byId.lightwave_demo.buttonIds
+      contains: close
+  - assert:
+      path: windows.byId.lightwave_demo.controls.sliderIds
+      contains: wave
+  - assert:
+      path: render.demoEffects.lightwave_demo.bound
+      eq: true
+  - assert:
+      path: render.demoEffects.lightwave_demo.hasLightwave
+      eq: true
+  - assert:
+      path: render.demoEffects.lightwave_demo.borderDrawn
+      eq: true
+  - assert:
+      path: render.demoEffects.lightwave_demo.w
+      gte: 100
+  - assert:
+      path: render.demoEffects.lightwave_demo.h
+      gte: 80
+  - assert:
+      path: render.demoEffects.lightwave_demo.effectIds
+      contains: lightwave
+  - assert:
+      path: windows.byId.lightwave_demo.present.chrome.borderWidth
+      gte: 1
+  - console: "art profile resolve lightwave_demo"
+  - wait_ms: 100
+  - console: "art op button lightwave_demo ok"
+  - wait_ms: 250
+  - console: "art op slider lightwave_demo wave 0.8"
+  - wait_ms: 200
+  - probe: all
+  - assert:
+      path: windows.byId.lightwave_demo.controls.sliders.wave
+      gte: 0.75
+  - assert:
+      path: windows.byId.lightwave_demo.controls.sliders.wave
+      lte: 0.85
+  - console: "art close lightwave_demo"
+  - wait_ms: 400
+  - probe: all
+  - assert:
+      path: render.demoEffects.lightwave_demo.bound
+      eq: false

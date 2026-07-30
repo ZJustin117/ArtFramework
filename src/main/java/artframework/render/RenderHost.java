@@ -338,6 +338,19 @@ public final class RenderHost {
         return Collections.unmodifiableList(new ArrayList<String>(targets.keySet()));
     }
 
+    public List<String> targetIdsWithPrefix(String prefix) {
+        List<String> out = new ArrayList<String>();
+        if (prefix == null) {
+            return out;
+        }
+        for (String id : targets.keySet()) {
+            if (id != null && id.startsWith(prefix)) {
+                out.add(id);
+            }
+        }
+        return out;
+    }
+
     /**
      * Sync C1 widget session: window + nodes with effects / interactive ids.
      */
@@ -356,22 +369,88 @@ public final class RenderHost {
         winTarget.setZ(0f);
         clearEffects(winTargetId);
         applyNodeEffects(winTargetId, session.root());
+        // Title chrome (not in UiNode tree) — pack label defaults via synthetic type "label".
+        ensureTitleEffectTarget(win);
 
-        syncNodeTargets(session.root(), win, layout, 1f);
+        syncNodeTargets(session.root(), win, layout, 1f, "", 0);
     }
 
-    private void syncNodeTargets(UiNode node, String windowId, LayoutResult layout, float zBase) {
+    private void ensureTitleEffectTarget(String windowId) {
+        String tid = "c1:" + windowId + ":__art_title";
+        RenderTarget t = ensureTarget(tid, RenderTargetKind.SYNTHETIC_WIDGET);
+        t.setZ(0.5f);
+        clearEffects(tid);
+        // Reuse label effectDefaults (pack table) for title bar chrome.
+        try {
+            java.util.List<artframework.component.EffectDecl> decls =
+                    artframework.core.PresentPackApply.effectDefaultsForType(UiTypes.LABEL);
+            if (decls != null) {
+                for (artframework.component.EffectDecl decl : decls) {
+                    if (decl == null || !effects.contains(decl.id)) {
+                        continue;
+                    }
+                    java.util.Map<String, Object> params =
+                            new LinkedHashMap<String, Object>();
+                    if (decl.params != null) {
+                        params.putAll(decl.params);
+                    }
+                    // Slightly stronger title frame
+                    if (!params.containsKey("borderWidth")) {
+                        params.put("borderWidth", Float.valueOf(2f));
+                    }
+                    bindEffect(tid, decl.id, params);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void syncNodeTargets(
+            UiNode node, String windowId, LayoutResult layout, float zBase, String parentKey, int index) {
+        if (node == null) {
+            return;
+        }
         boolean shaderNode = ArtNodeTypes.SHADER_EFFECT.equals(node.type);
-        boolean track = !node.id.isEmpty()
-                && (UiTypes.isLeaf(node.type)
+        String key = LayoutEngine.effectKey(node, parentKey, index);
+        boolean hasDefaults = false;
+        try {
+            hasDefaults =
+                    !artframework.core.PresentPackApply.effectDefaultsForType(node.type).isEmpty();
+        } catch (Throwable ignored) {
+        }
+        boolean track =
+                UiTypes.isLeaf(node.type)
                         || !node.effects.isEmpty()
+                        || hasDefaults
                         || shaderNode
                         || UiTypes.GLASS.equals(node.type)
-                        || UiTypes.PANEL.equals(node.type));
-        if (track) {
-            String tid = "c1:" + windowId + ":" + node.id;
+                        || UiTypes.PANEL.equals(node.type)
+                        || UiTypes.BUTTON.equals(node.type)
+                        || UiTypes.SLIDER.equals(node.type)
+                        || UiTypes.LABEL.equals(node.type)
+                        || UiTypes.ROW.equals(node.type)
+                        || UiTypes.COL.equals(node.type)
+                        || UiTypes.STACK.equals(node.type)
+                        || UiTypes.SCROLL.equals(node.type)
+                        || UiTypes.GRID.equals(node.type)
+                        || UiTypes.TABS.equals(node.type)
+                        || UiTypes.CENTER.equals(node.type)
+                        || UiTypes.MARGIN.equals(node.type)
+                        || UiTypes.TEXTFIELD.equals(node.type)
+                        || UiTypes.CHECKBOX.equals(node.type)
+                        || UiTypes.PROGRESS.equals(node.type)
+                        || UiTypes.HITAREA.equals(node.type);
+        // Skip pure structural fragment without defaults/effects
+        if (UiTypes.FRAGMENT.equals(node.type) && node.effects.isEmpty() && !hasDefaults) {
+            track = false;
+        }
+        if (track && key != null && !key.isEmpty()) {
+            String tid = "c1:" + windowId + ":" + key;
             RenderTarget t = ensureTarget(tid, RenderTargetKind.SYNTHETIC_WIDGET);
-            Rect b = layout.boundsOf(node.id);
+            Rect b = layout.boundsOf(key);
+            if (b == null && !node.id.isEmpty()) {
+                b = layout.boundsOf(node.id);
+            }
             if (b != null) {
                 t.setBounds(b);
             }
@@ -382,14 +461,26 @@ public final class RenderHost {
                 applyShaderEffectNode(tid, node);
             }
         }
-        for (UiNode c : node.children) {
-            syncNodeTargets(c, windowId, layout, zBase + 0.01f);
+        List<UiNode> kids = node.children;
+        for (int i = 0; i < kids.size(); i++) {
+            syncNodeTargets(kids.get(i), windowId, layout, zBase + 0.01f, key, i);
         }
     }
 
     private void applyNodeEffects(String targetId, UiNode node) {
-        for (EffectDecl decl : node.effects) {
-            if (!effects.contains(decl.id)) {
+        List<EffectDecl> decls = node.effects;
+        if (decls == null || decls.isEmpty()) {
+            try {
+                decls = artframework.core.PresentPackApply.effectDefaultsForType(node.type);
+            } catch (Throwable t) {
+                decls = java.util.Collections.emptyList();
+            }
+        }
+        if (decls == null) {
+            return;
+        }
+        for (EffectDecl decl : decls) {
+            if (decl == null || !effects.contains(decl.id)) {
                 continue;
             }
             Map<String, Object> params = new LinkedHashMap<String, Object>();
@@ -502,6 +593,7 @@ public final class RenderHost {
                 spriteBatch,
                 timeSeconds,
                 needsCapture() || frameCapture.hasTexture() ? frameCapture : null);
+        // Snapshot values — StageHost may mutate targets during the same frame.
         List<RenderTarget> ordered = new ArrayList<RenderTarget>(targets.values());
         Collections.sort(ordered, new Comparator<RenderTarget>() {
             @Override
@@ -562,8 +654,12 @@ public final class RenderHost {
                         spriteBatch,
                         timeSeconds,
                         needsCapture() || frameCapture.hasTexture() ? frameCapture : null);
-        for (RenderTarget target : targets.values()) {
-            if (!target.isEnabled()) {
+        // Copy to avoid ConcurrentModificationException if sync mutates targets mid-draw.
+        java.util.List<RenderTarget> snapshot =
+                new java.util.ArrayList<RenderTarget>(targets.values());
+        for (int ti = 0; ti < snapshot.size(); ti++) {
+            RenderTarget target = snapshot.get(ti);
+            if (target == null || !target.isEnabled()) {
                 continue;
             }
             if (target.kind != RenderTargetKind.SYNTHETIC_WIDGET

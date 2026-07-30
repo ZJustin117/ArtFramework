@@ -29,21 +29,36 @@ public final class LayoutEngine {
         float rw = preferredWidth(root);
         float rh = preferredHeight(root);
         Rect bounds = new Rect(0f, 0f, rw, rh);
-        place(root, bounds, byId);
+        place(root, bounds, byId, "", 0);
         return new LayoutResult(root, bounds, byId);
     }
 
-    private static void place(UiNode node, Rect bounds, Map<String, Rect> byId) {
-        if (!node.id.isEmpty()) {
+    /** Stable key for effect targets: node id, or path {@code @i} / {@code parent/@i}. */
+    public static String effectKey(UiNode node, String parentKey, int indexAmongSiblings) {
+        if (node != null && node.id != null && !node.id.isEmpty()) {
+            return node.id;
+        }
+        String syn = "@" + indexAmongSiblings;
+        if (parentKey == null || parentKey.isEmpty()) {
+            return syn;
+        }
+        return parentKey + "/" + syn;
+    }
+
+    private static void place(
+            UiNode node, Rect bounds, Map<String, Rect> byId, String parentKey, int index) {
+        String key = effectKey(node, parentKey, index);
+        byId.put(key, bounds);
+        if (node.id != null && !node.id.isEmpty() && !node.id.equals(key)) {
             byId.put(node.id, bounds);
         }
         if (UiTypes.FRAGMENT.equals(node.type)
                 || ArtNodeTypes.PRESENT_PROFILE.equals(node.type)) {
-            placeFragment(node, bounds, byId);
+            placeFragment(node, bounds, byId, key);
             return;
         }
         if (UiTypes.ROW.equals(node.type)) {
-            placeRow(node, bounds, byId);
+            placeRow(node, bounds, byId, key);
             return;
         }
         if (UiTypes.COL.equals(node.type)
@@ -53,29 +68,30 @@ public final class LayoutEngine {
                 || UiTypes.SCROLL.equals(node.type)
                 || UiTypes.MARGIN.equals(node.type)
                 || ArtNodeTypes.SHADER_EFFECT.equals(node.type)) {
-            placeCol(node, bounds, byId);
+            placeCol(node, bounds, byId, key);
             return;
         }
         if (UiTypes.CENTER.equals(node.type)) {
-            placeCenter(node, bounds, byId);
+            placeCenter(node, bounds, byId, key);
             return;
         }
         if (UiTypes.STACK.equals(node.type)) {
-            placeStack(node, bounds, byId);
+            placeStack(node, bounds, byId, key);
             return;
         }
         if (UiTypes.GRID.equals(node.type)) {
-            placeGrid(node, bounds, byId);
+            placeGrid(node, bounds, byId, key);
             return;
         }
         if (UiTypes.TABS.equals(node.type)) {
-            placeTabs(node, bounds, byId);
+            placeTabs(node, bounds, byId, key);
             return;
         }
         // leaves: no children placement
     }
 
-    private static void placeGrid(UiNode node, Rect bounds, Map<String, Rect> byId) {
+    private static void placeGrid(
+            UiNode node, Rect bounds, Map<String, Rect> byId, String parentKey) {
         float pad = node.layout.pad;
         float gap = node.layout.gap;
         int columns = Math.max(1, node.propInt("columns", 2));
@@ -95,7 +111,7 @@ public final class LayoutEngine {
                 cw = Math.max(c.layout.width, minWidthOf(c));
             }
             float x = x0 + col * (cellW + gap);
-            place(c, new Rect(x, y, cw, ch), byId);
+            place(c, new Rect(x, y, cw, ch), byId, parentKey, i);
             rowH = Math.max(rowH, ch);
             col++;
             if (col >= columns) {
@@ -106,7 +122,8 @@ public final class LayoutEngine {
         }
     }
 
-    private static void placeTabs(UiNode node, Rect bounds, Map<String, Rect> byId) {
+    private static void placeTabs(
+            UiNode node, Rect bounds, Map<String, Rect> byId, String parentKey) {
         float pad = node.layout.pad;
         int active = Math.max(0, node.propInt("active", 0));
         List<UiNode> kids = visibleChildren(node);
@@ -122,27 +139,32 @@ public final class LayoutEngine {
                         bounds.y + pad,
                         Math.max(0f, bounds.width - 2f * pad),
                         Math.max(0f, bounds.height - 2f * pad));
-        place(kids.get(active), inner, byId);
+        place(kids.get(active), inner, byId, parentKey, active);
     }
 
-    private static void placeCenter(UiNode node, Rect bounds, Map<String, Rect> byId) {
+    private static void placeCenter(
+            UiNode node, Rect bounds, Map<String, Rect> byId, String parentKey) {
         float pad = node.layout.pad;
         float innerW = Math.max(0f, bounds.width - 2f * pad);
         float innerH = Math.max(0f, bounds.height - 2f * pad);
-        for (UiNode c : visibleChildren(node)) {
+        List<UiNode> kids = visibleChildren(node);
+        for (int i = 0; i < kids.size(); i++) {
+            UiNode c = kids.get(i);
             float cw = preferredWidth(c);
             float ch = preferredHeight(c);
             float x = bounds.x + pad + Math.max(0f, (innerW - cw) * 0.5f);
             float y = bounds.y + pad + Math.max(0f, (innerH - ch) * 0.5f);
-            place(c, new Rect(x, y, cw, ch), byId);
+            place(c, new Rect(x, y, cw, ch), byId, parentKey, i);
         }
     }
 
-    private static void placeFragment(UiNode node, Rect bounds, Map<String, Rect> byId) {
-        placeCol(node, bounds, byId);
+    private static void placeFragment(
+            UiNode node, Rect bounds, Map<String, Rect> byId, String parentKey) {
+        placeCol(node, bounds, byId, parentKey);
     }
 
-    private static void placeRow(UiNode node, Rect bounds, Map<String, Rect> byId) {
+    private static void placeRow(
+            UiNode node, Rect bounds, Map<String, Rect> byId, String parentKey) {
         float pad = node.layout.pad;
         float gap = node.layout.gap;
         float x = bounds.x + pad;
@@ -162,7 +184,8 @@ public final class LayoutEngine {
         float innerW = Math.max(0f, bounds.width - 2f * pad);
         float free = Math.max(0f, innerW - fixed - gaps);
 
-        for (UiNode c : kids) {
+        for (int i = 0; i < kids.size(); i++) {
+            UiNode c = kids.get(i);
             float cw =
                     c.layout.expandsH()
                             ? (ratioSum > 0f ? free * (c.layout.stretchRatio / ratioSum) : 0f)
@@ -178,12 +201,13 @@ public final class LayoutEngine {
             }
             float y = yBase + crossOffset(innerH, ch, c.layout.align);
             Rect childBounds = new Rect(x, y, cw, ch);
-            place(c, childBounds, byId);
+            place(c, childBounds, byId, parentKey, i);
             x += cw + gap;
         }
     }
 
-    private static void placeCol(UiNode node, Rect bounds, Map<String, Rect> byId) {
+    private static void placeCol(
+            UiNode node, Rect bounds, Map<String, Rect> byId, String parentKey) {
         float pad = node.layout.pad;
         float gap = node.layout.gap;
         float xBase = bounds.x + pad;
@@ -203,7 +227,8 @@ public final class LayoutEngine {
         float innerH = Math.max(0f, bounds.height - 2f * pad);
         float free = Math.max(0f, innerH - fixed - gaps);
 
-        for (UiNode c : kids) {
+        for (int i = 0; i < kids.size(); i++) {
+            UiNode c = kids.get(i);
             float ch =
                     c.layout.expandsV()
                             ? (ratioSum > 0f ? free * (c.layout.stretchRatio / ratioSum) : 0f)
@@ -219,7 +244,7 @@ public final class LayoutEngine {
             }
             float x = xBase + crossOffset(innerW, cw, c.layout.align);
             Rect childBounds = new Rect(x, y, cw, ch);
-            place(c, childBounds, byId);
+            place(c, childBounds, byId, parentKey, i);
             y += ch + gap;
         }
     }
@@ -237,15 +262,17 @@ public final class LayoutEngine {
         return 0f;
     }
 
-    private static void placeStack(UiNode node, Rect bounds, Map<String, Rect> byId) {
+    private static void placeStack(
+            UiNode node, Rect bounds, Map<String, Rect> byId, String parentKey) {
         float pad = node.layout.pad;
         Rect inner = new Rect(
                 bounds.x + pad,
                 bounds.y + pad,
                 Math.max(0f, bounds.width - 2f * pad),
                 Math.max(0f, bounds.height - 2f * pad));
-        for (UiNode c : visibleChildren(node)) {
-            place(c, inner, byId);
+        List<UiNode> kids = visibleChildren(node);
+        for (int i = 0; i < kids.size(); i++) {
+            place(kids.get(i), inner, byId, parentKey, i);
         }
     }
 

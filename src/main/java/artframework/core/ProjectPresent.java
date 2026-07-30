@@ -39,8 +39,17 @@ public final class ProjectPresent {
         if (p == null) {
             throw new IllegalArgumentException("unknown present profile: " + profileId);
         }
+        if (!EnabledPresents.isEnabled(p.id)) {
+            throw new IllegalArgumentException("present profile not enabled: " + p.id);
+        }
         projectId = p.id;
         Themes.setDefault(p.theme);
+        PresentRestyle.onProjectPresentChanged();
+        try {
+            PresentPacks.activateForProfile(p);
+        } catch (RuntimeException ignored) {
+            // Pack missing is OK for skin-only profiles
+        }
     }
 
     public static void setProfile(PresentProfile profile) {
@@ -48,8 +57,16 @@ public final class ProjectPresent {
             throw new IllegalArgumentException("profile required");
         }
         PresentProfiles.register(profile);
+        if (!EnabledPresents.isEnabled(profile.id)) {
+            EnabledPresents.enable(profile.id);
+        }
         projectId = profile.id;
         Themes.setDefault(profile.theme);
+        PresentRestyle.onProjectPresentChanged();
+        try {
+            PresentPacks.activateForProfile(profile);
+        } catch (RuntimeException ignored) {
+        }
     }
 
     public static PresentResolved resolved() {
@@ -64,6 +81,9 @@ public final class ProjectPresent {
         // Alias for older fixtures / scenarios that read presentProfile.active
         m.put("active", p != null ? p.id : STS);
         m.put("ids", PresentProfiles.ids());
+        m.put("registeredIds", PresentProfiles.ids());
+        m.put("packActive", PresentPacks.activeId());
+        m.putAll(EnabledPresents.probeSummary());
         if (p != null) {
             m.putAll(p.probeSummary());
         }
@@ -73,5 +93,6 @@ public final class ProjectPresent {
     public static void resetForTests() {
         projectId = STS;
         Themes.setDefault(PresentProfiles.get(STS).theme);
+        // No PresentRestyle / pack activate — tests reset packs separately.
     }
 }

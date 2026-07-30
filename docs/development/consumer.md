@@ -43,7 +43,7 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 
 | Entry | Role |
 |-------|------|
-| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** |
+| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** / **`registerPresentProfile` / `presentProfiles()` / `setProjectPresent` / `bindSurfacePresent`** |
 | `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
 | `artframework.core.*` | `UiTree` / `UiInstance` / `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
@@ -66,6 +66,23 @@ Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md),
 [`docs/design/c2-full-present.md`](../design/c2-full-present.md),
 [`docs/design/host-assets.md`](../design/host-assets.md).  
 `open`/`bind` remain aliases of `mount` paths (compatibility).
+
+### PresentProfile / PresentPack (37–38)
+
+```java
+// Skin
+ArtFramework.registerPresentProfile("mod.coolwave", theme, "mod.cool_pack");
+// UI module (LML/JSON) — effects live in the layout files
+ArtFramework.registerPresentPackClasspath("present-packs/mod_cool/pack.json");
+// or PresentPack.builder("mod.cool_pack").template(...).window(...).build()
+
+ArtFramework.setProjectPresent("mod.coolwave"); // restyle + activate pack
+ArtFramework.selectPresentMatching("^mod\\.");  // first enabled match
+ArtFramework.modifyPresentsMatching("^mod\\.", true); // regex enable
+```
+
+Probe: `presentProfiles`, `presentPacks`, `enabledPresents`.  
+Design: [`docs/design/present-profile.md`](../design/present-profile.md).
 
 ### Milestone 15–20 consumer notes (signals + full present)
 

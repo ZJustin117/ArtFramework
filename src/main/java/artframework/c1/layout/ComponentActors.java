@@ -46,6 +46,8 @@ public final class ComponentActors {
             throw new IllegalArgumentException("root must be window");
         }
 
+        artframework.c1.host.EffectTargetActors.clearWindow(windowId);
+
         float scale = Settings.scale > 0f ? Settings.scale : 1f;
         float width = root.layout.hasWidth() ? root.layout.width * scale : 400f * scale;
         float height = root.layout.hasHeight() ? root.layout.height * scale : 240f * scale;
@@ -61,19 +63,42 @@ public final class ComponentActors {
         if (title != null && !title.isEmpty()) {
             StsTextActor titleActor = new StsTextActor(title, false);
             titleActor.setHeight(32f * scale);
+            // Dedicated FX key so title gets pack label/window chrome without stealing widget ids.
+            try {
+                titleActor.setName("__art_title");
+            } catch (Throwable ignored) {
+            }
+            artframework.c1.host.EffectTargetActors.put(windowId, "__art_title", titleActor);
             window.add(titleActor).growX().padBottom(8f * scale).row();
         }
 
-        for (UiNode child : root.children) {
+        String rootKey =
+                root.id != null && !root.id.isEmpty()
+                        ? root.id
+                        : windowId;
+        for (int ci = 0; ci < root.children.size(); ci++) {
+            UiNode child = root.children.get(ci);
             if (ArtNodeTypes.ANIMATION_PLAYER.equals(child.type)
                     || ArtNodeTypes.SKELETON.equals(child.type)) {
-                buildNode(windowId, child, skin, onClose, scale);
+                buildNode(windowId, child, skin, onClose, scale, rootKey, ci);
                 continue;
             }
-            Actor a = buildNode(windowId, child, skin, onClose, scale);
+            Actor a = buildNode(windowId, child, skin, onClose, scale, rootKey, ci);
             if (a != null) {
-                // Always growX so labels/buttons get full client width (avoids 1-glyph collapse).
-                if (child.layout.hasHeight()) {
+                // Labels: left with min width so FX frame is visible (not hairline on "Hello").
+                if (UiTypes.LABEL.equals(child.type)) {
+                    float minW = Math.max(a.getWidth() + 24f * scale, 120f * scale);
+                    if (child.layout.hasHeight()) {
+                        window.add(a)
+                                .left()
+                                .minWidth(minW)
+                                .height(child.layout.height * scale)
+                                .padBottom(6f * scale)
+                                .row();
+                    } else {
+                        window.add(a).left().minWidth(minW).padBottom(6f * scale).row();
+                    }
+                } else if (child.layout.hasHeight()) {
                     window.add(a)
                             .growX()
                             .height(child.layout.height * scale)
@@ -92,6 +117,10 @@ public final class ComponentActors {
         float screenH = Settings.HEIGHT > 0 ? Settings.HEIGHT : 1080f;
         window.setPosition(
                 (screenW - window.getWidth()) * 0.5f, (screenH - window.getHeight()) * 0.5f);
+        // Register window root for FX (same key as RenderHost window target uses tree root id).
+        String winFxKey =
+                root.id != null && !root.id.isEmpty() ? root.id : windowId;
+        artframework.c1.host.EffectTargetActors.put(windowId, winFxKey, window);
         return window;
     }
 
@@ -100,6 +129,17 @@ public final class ComponentActors {
      */
     public static Actor buildNode(
             String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
+        return buildNode(windowId, node, skin, onClose, scale, "", 0);
+    }
+
+    public static Actor buildNode(
+            String windowId,
+            UiNode node,
+            Skin skin,
+            Runnable onClose,
+            float scale,
+            String parentKey,
+            int index) {
         if (node == null) {
             return null;
         }
@@ -108,19 +148,39 @@ public final class ComponentActors {
             throw new IllegalArgumentException(
                     "no C1 factory for type: " + node.type + " id=" + node.id);
         }
-        Actor created = factory.create(node, new C1NodeContext(windowId, skin, onClose, scale));
-        return nameActor(created, node);
+        String key = artframework.component.LayoutEngine.effectKey(node, parentKey, index);
+        Actor created =
+                factory.create(
+                        node,
+                        new C1NodeContext(windowId, skin, onClose, scale, parentKey, index));
+        nameActor(windowId, created, key);
+        return created;
     }
 
     /** Name actors so StageHost can sync RenderHost effect targets to stage coordinates. */
     static Actor nameActor(Actor actor, UiNode node) {
-        if (actor != null && node != null && node.id != null && !node.id.isEmpty()) {
+        if (node == null) {
+            return actor;
+        }
+        String key = node.id != null && !node.id.isEmpty() ? node.id : null;
+        return nameActor(null, actor, key);
+    }
+
+    static Actor nameActor(String windowId, Actor actor, String effectKey) {
+        if (actor != null && effectKey != null && !effectKey.isEmpty()) {
             try {
-                actor.setName(node.id);
+                actor.setName(effectKey);
             } catch (Throwable ignored) {
+            }
+            if (windowId != null && !windowId.isEmpty()) {
+                artframework.c1.host.EffectTargetActors.put(windowId, effectKey, actor);
             }
         }
         return actor;
+    }
+
+    static Actor nameActor(Actor actor, String effectKey) {
+        return nameActor(null, actor, effectKey);
     }
 
     /**
@@ -134,11 +194,16 @@ public final class ComponentActors {
         Skin skin = context.skin;
         Runnable onClose = context.onClose;
         float scale = context.scale;
+        String myKey =
+                artframework.component.LayoutEngine.effectKey(
+                        node, context.parentEffectKey, context.siblingIndex);
         if (UiTypes.FRAGMENT.equals(node.type)
                 || ArtNodeTypes.PRESENT_PROFILE.equals(node.type)) {
             Table t = new Table(skin);
-            for (UiNode c : node.children) {
-                Actor a = buildNode(windowId, c, skin, onClose, scale);
+            for (int i = 0; i < node.children.size(); i++) {
+                Actor a =
+                        buildNode(
+                                windowId, node.children.get(i), skin, onClose, scale, myKey, i);
                 if (a != null) {
                     t.add(a).growX().row();
                 }
@@ -153,20 +218,22 @@ public final class ComponentActors {
                 || UiTypes.CENTER.equals(node.type)
                 || UiTypes.TABS.equals(node.type)) {
             if (UiTypes.TABS.equals(node.type)) {
-                return buildTabs(windowId, node, skin, onClose, scale);
+                return buildTabs(windowId, node, skin, onClose, scale, myKey);
             }
-            return buildCol(windowId, node, skin, onClose, scale);
+            return buildCol(windowId, node, skin, onClose, scale, myKey);
         }
         if (UiTypes.ROW.equals(node.type)) {
-            return buildRow(windowId, node, skin, onClose, scale);
+            return buildRow(windowId, node, skin, onClose, scale, myKey);
         }
         if (UiTypes.GRID.equals(node.type)) {
-            return buildGrid(windowId, node, skin, onClose, scale);
+            return buildGrid(windowId, node, skin, onClose, scale, myKey);
         }
         if (UiTypes.STACK.equals(node.type)) {
             Stack stack = new Stack();
-            for (UiNode c : node.children) {
-                Actor a = buildNode(windowId, c, skin, onClose, scale);
+            for (int i = 0; i < node.children.size(); i++) {
+                Actor a =
+                        buildNode(
+                                windowId, node.children.get(i), skin, onClose, scale, myKey, i);
                 if (a != null) {
                     stack.add(a);
                 }
@@ -228,8 +295,10 @@ public final class ComponentActors {
         }
         if (ArtNodeTypes.SHADER_EFFECT.equals(node.type)) {
             Table wrap = new Table(skin);
-            for (UiNode c : node.children) {
-                Actor a = buildNode(windowId, c, skin, onClose, scale);
+            for (int i = 0; i < node.children.size(); i++) {
+                Actor a =
+                        buildNode(
+                                windowId, node.children.get(i), skin, onClose, scale, myKey, i);
                 if (a != null) {
                     wrap.add(a).grow();
                 }
@@ -323,7 +392,12 @@ public final class ComponentActors {
     }
 
     private static Table buildCol(
-            String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
+            String windowId,
+            UiNode node,
+            Skin skin,
+            Runnable onClose,
+            float scale,
+            String parentKey) {
         Table t = new Table(skin);
         applyPanelChrome(t, node, skin);
         applyDeclaredSize(t, node, scale);
@@ -333,7 +407,8 @@ public final class ComponentActors {
             t.pad(pad);
         }
         for (int i = 0; i < node.children.size(); i++) {
-            Actor a = buildNode(windowId, node.children.get(i), skin, onClose, scale);
+            Actor a =
+                    buildNode(windowId, node.children.get(i), skin, onClose, scale, parentKey, i);
             if (a == null) {
                 continue;
             }
@@ -354,7 +429,12 @@ public final class ComponentActors {
     }
 
     private static Table buildRow(
-            String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
+            String windowId,
+            UiNode node,
+            Skin skin,
+            Runnable onClose,
+            float scale,
+            String parentKey) {
         Table t = new Table(skin);
         float pad = node.layout.pad * scale;
         float gap = node.layout.gap * scale;
@@ -363,7 +443,7 @@ public final class ComponentActors {
         }
         for (int i = 0; i < node.children.size(); i++) {
             UiNode c = node.children.get(i);
-            Actor a = buildNode(windowId, c, skin, onClose, scale);
+            Actor a = buildNode(windowId, c, skin, onClose, scale, parentKey, i);
             if (a == null) {
                 continue;
             }
@@ -379,7 +459,12 @@ public final class ComponentActors {
     }
 
     private static Table buildGrid(
-            String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
+            String windowId,
+            UiNode node,
+            Skin skin,
+            Runnable onClose,
+            float scale,
+            String parentKey) {
         Table t = new Table(skin);
         float pad = node.layout.pad * scale;
         float gap = node.layout.gap * scale;
@@ -389,7 +474,8 @@ public final class ComponentActors {
         }
         int col = 0;
         for (int i = 0; i < node.children.size(); i++) {
-            Actor a = buildNode(windowId, node.children.get(i), skin, onClose, scale);
+            Actor a =
+                    buildNode(windowId, node.children.get(i), skin, onClose, scale, parentKey, i);
             if (a == null) {
                 continue;
             }
@@ -408,7 +494,12 @@ public final class ComponentActors {
     }
 
     private static Actor buildTabs(
-            String windowId, UiNode node, Skin skin, Runnable onClose, float scale) {
+            String windowId,
+            UiNode node,
+            Skin skin,
+            Runnable onClose,
+            float scale,
+            String parentKey) {
         int active = Math.max(0, node.propInt("active", 0));
         if (node.children.isEmpty()) {
             return new Table(skin);
@@ -416,14 +507,21 @@ public final class ComponentActors {
         if (active >= node.children.size()) {
             active = node.children.size() - 1;
         }
-        return buildNode(windowId, node.children.get(active), skin, onClose, scale);
+        return buildNode(windowId, node.children.get(active), skin, onClose, scale, parentKey, active);
     }
 
     private static Actor buildStsLabel(UiNode node, float scale) {
-        return buildStsLabelText(node.propString("text", ""), scale, false);
+        StsTextActor a = buildStsLabelText(node.propString("text", ""), scale, false);
+        if (node != null && node.id != null && !node.id.isEmpty()) {
+            try {
+                a.setName(node.id);
+            } catch (Throwable ignored) {
+            }
+        }
+        return a;
     }
 
-    private static Actor buildStsLabelText(String text, float scale, boolean centered) {
+    private static StsTextActor buildStsLabelText(String text, float scale, boolean centered) {
         StsTextActor a = new StsTextActor(text, centered);
         a.setHeight(28f * scale);
         return a;
@@ -464,7 +562,7 @@ public final class ComponentActors {
         caption.setHeight(bh - 8f * scale);
         button.add(caption).expand().fill().pad(6f * scale);
         button.setHeight(bh);
-        button.setName(buttonId != null ? buttonId : "");
+        // Do not setName here — buildNode nameActor assigns effectKey (id or path).
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {

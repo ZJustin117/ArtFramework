@@ -64,6 +64,16 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
                 new WindowDef("grid_tabs_demo", WindowClass.SYNTHETIC, "layouts/grid_tabs_sample.json"));
         ArtFramework.register(
                 new WindowDef("lightwave_demo", WindowClass.SYNTHETIC, "layouts/lightwave_demo.json"));
+        ArtFramework.register(
+                new WindowDef(
+                        "glass_lightwave_demo",
+                        WindowClass.SYNTHETIC,
+                        "layouts/glass_lightwave_demo.json"));
+        try {
+            artframework.core.PresentPacks.installBuiltinLightwavePack();
+        } catch (Throwable t) {
+            BaseMod.logger.warn("ArtFramework: lightwave present pack skipped: " + t.getMessage());
+        }
         registerNative(NativeTemplateIds.MAP);
         registerNative(NativeTemplateIds.EVENT);
         registerNative(NativeTemplateIds.SELECT_GRID);

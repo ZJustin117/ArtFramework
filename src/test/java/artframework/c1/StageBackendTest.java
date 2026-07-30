@@ -32,9 +32,12 @@ public class StageBackendTest {
         assertTrue(h.isOpen());
         assertTrue(fake.isAttached("demo"));
         assertEquals(1, fake.attachedCount());
-        LayoutNode root = fake.getAttached("demo");
-        assertNotNull(root);
-        assertEquals("ArtFramework Demo", root.title);
+        // Always composition attach (EffectTargetActors); not legacy LayoutNode path.
+        assertNull(fake.getAttached("demo"));
+        assertNotNull(fake.getAttachedComposition("demo"));
+        assertEquals(
+                "ArtFramework Demo",
+                fake.getAttachedComposition("demo").propString("title", ""));
     }
 
     @Test

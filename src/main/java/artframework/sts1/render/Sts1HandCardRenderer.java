@@ -22,7 +22,8 @@ final class Sts1HandCardRenderer {
         if (sb == null || item == null) {
             return;
         }
-        PresentChromeStyle chrome = PresentResolve.chrome();
+        PresentChromeStyle chrome =
+                PresentResolve.chromeForSurface(artframework.context.SurfaceIds.COMBAT_HAND);
         float alpha = chrome.cardAlpha > 0f && chrome.cardAlpha <= 1f ? chrome.cardAlpha : 1f;
         float scale = item.scale > 0f ? item.scale : 1f;
         float x = item.x - WIDTH * scale / 2f;

@@ -59,6 +59,15 @@ public final class PresentResolve {
         return ProjectPresent.chrome();
     }
 
+    /** C2 surface chrome: {@link SurfacePresent} bind, else project. */
+    public static PresentChromeStyle chromeForSurface(String surfaceId) {
+        return SurfacePresent.chrome(surfaceId);
+    }
+
+    public static PresentResolved forSurface(String surfaceId) {
+        return SurfacePresent.resolve(surfaceId);
+    }
+
     public static PresentChromeStyle chromeFor(UiTree tree) {
         return forTree(tree).chrome;
     }

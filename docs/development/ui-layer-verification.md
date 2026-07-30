@@ -25,6 +25,11 @@ default:  pure JUnit (@junit-test) + offline/art-verify offline unittest
 4. **Composition** — pure `UiNode` nest/slot/ref + layout bounds (JUnit); fixture `f4_composition_tree` for sample tree shape offline.
 5. **Lightwave demo effects** — `LightwaveDemoContractTest` + `f15_lightwave_demo_effects` + D1 `d1_lightwave_demo`:
    `render.demoEffects.lightwave_demo` bound/hasLightwave/borderDrawn/w/h; controls + ops; close clears bind.
+6. **Present production (35)** — `PresentProductionTest`: project hot restyle, `SurfacePresent`, packId → HostAssets,
+   third-party profile sample; optional open `glass_lightwave_demo`.
+7. **PresentProfile catalog (37)** — `PresentProfileCatalogTest` + fixture `f16_present_profiles_catalog` +
+   D1 `d1_present_profiles_catalog`: register ≠ apply; probe `presentProfiles.ids` / `byId`; project set + demo fromProject.
+8. **PresentPack (38)** — `PresentPackTest` + f18 + D1 `d1_present_packs`: pack activate by packId, regex select.
    Demo-only (not native UI). Pixel look is manual; probe is the automated gate.
 
 ## What stays CrossSpire

@@ -78,6 +78,34 @@ public final class HostAssets {
         config.setPackOrder(order);
     }
 
+    /**
+     * Prefer a present-profile pack for resolve: enable it and place last in packOrder (wins).
+     * Empty packId clears preferred present pack from order head (keeps other order).
+     */
+    public void preferPresentPack(String packId) {
+        String preferred = packId != null ? packId.trim() : "";
+        config.setPresentPackId(preferred);
+        if (preferred.isEmpty()) {
+            return;
+        }
+        if (!packs.containsKey(preferred) && !VANILLA_PACK_ID.equals(preferred)) {
+            // Pack may register later; still record preference for probe / order when present.
+        }
+        enablePack(preferred, true);
+        List<String> order = new ArrayList<String>(config.packOrder());
+        order.remove(preferred);
+        if (packs.containsKey(preferred) || VANILLA_PACK_ID.equals(preferred)) {
+            order.add(preferred);
+        } else if (!order.contains(preferred)) {
+            order.add(preferred);
+        }
+        config.setPackOrder(order);
+    }
+
+    public String presentPackId() {
+        return config.presentPackId();
+    }
+
     public void registerAlias(String from, String to) {
         if (from != null && to != null && !from.isEmpty() && !to.isEmpty()) {
             aliases.put(from, to);
@@ -256,6 +284,7 @@ public final class HostAssets {
         registrationOrder.clear();
         lastConflicts.clear();
         config.setActiveProfile("default");
+        config.setPresentPackId("");
         config.setPackOrder(Collections.<String>emptyList());
         config.setStrictMissing(false);
         for (AssetDomain d : AssetDomain.values()) {

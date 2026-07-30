@@ -82,12 +82,12 @@ public final class StsTextActor extends Widget {
             return;
         }
         try {
-            // Stage coords: local origin bottom-left of this actor.
+            // Parent-local coords: Stage SpriteBatch already applies actor transform.
+            // Stage-absolute coords here double-transform and text vanishes off-screen.
             float x = getX();
             float y = getY();
             float w = getWidth();
             float h = getHeight();
-            // FontHelper Y is baseline-ish; center in actor bounds.
             float cy = y + h * 0.5f;
             if (centered) {
                 FontHelper.renderFontCentered(sb, font, text, x + w * 0.5f, cy, draw);

@@ -22,7 +22,7 @@ Lab bring-up: [`android-device-lab.md`](./android-device-lab.md).
 | `art ui …` | Inspect tree, emit signals, invoke, native dump/click |
 | `art lab …` | Lab run nav: menu / fresh / start-run (D1) |
 | `art fx …` | Full-frame effects (incl. `lightwave`) |
-| `art profile` / `art theme …` | PresentProfile list/get/set (`sts`, `lightwave`) |
+| `art profile` / `art theme …` | Catalog list + project apply: list/get/set/project/resolve/surface/restyle (`sts`, `lightwave`). Register skins via `ArtFramework.registerPresentProfile` |
 | `art assets …` | HostAssets packs / resolve |
 | `art frame` | Sync context frame from backend |
 | `art present combat …` | Combat full-present toggle |
@@ -37,7 +37,7 @@ art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | profi
 
 | Command | Description |
 |---------|-------------|
-| `art open <id>` | Open registered synthetic window (e.g. `demo`, `glass_demo`, `lightwave_demo`) |
+| `art open <id>` | Open registered synthetic window (e.g. `demo`, `glass_demo`, `lightwave_demo`, `glass_lightwave_demo`) |
 | `art bind <id>` | Bind native template (`sts1.map`, `sts1.event`, `sts1.select.grid`, `sts1.select.hand`, `sts1.endturn`; legacy `sts.*` accepted) |
 | `art close <id>` | Close / unbind |
 

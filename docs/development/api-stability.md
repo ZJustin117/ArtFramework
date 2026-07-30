@@ -15,7 +15,14 @@ the jar as a separate ModTheSpire dependency.
 | `ops` / `probe` | Unified commands + snapshot |
 | `signals` / `connect` / `emit` | SignalBus |
 | `host` / `setHostBackend` | Host SPI |
-| `theme` / `setTheme` | Default theme |
+| `theme` / `setTheme` | Default theme (project present when name is a profile id) |
+| `projectPresent` / `setProjectPresent` / `presentProfile` / `setPresentProfile` | Project fallback present; set hot-restyles project-fallback C1 |
+| `registerPresentProfile` / `getPresentProfile` / `presentProfileIds` / `presentProfiles()` | Global skin catalog (register ≠ apply) |
+| `registerPresentPack` / `activatePresentPack` / `presentPackIds` / `activePresentPack` | UI pack catalog (LML/JSON modules) |
+| `enabledPresentIds` / `setEnabledPresentProfiles` / `selectPresentMatching` / `modifyPresentsMatching` | Enable set + regex select/modify |
+| `presentChrome` / `resolvePresent` | Project chrome / window resolve |
+| `bindSurfacePresent` / `unbindSurfacePresent` / `resolveSurfacePresent` / `surfaceChrome` | C2 surface → PresentProfile |
+| `restyleOpenPresent` | Force present refresh + Stage reattach for project-fallback windows |
 | `component` | C1 / native / full-present `UiComponent` |
 | `projection` / `publishFrame` | Present projection + frame publish |
 | `assets` | HostAssets |

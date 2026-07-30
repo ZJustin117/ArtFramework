@@ -116,7 +116,7 @@ public final class Sts1SurfaceRenderer {
                 float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.85f;
                 float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.12f;
                 artframework.core.PresentChromeStyle chrome =
-                        artframework.core.PresentResolve.chrome();
+                        artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_CONTROLS);
                 Texture icon = Sts1AssetMaterializer.resolveTexture(item.iconSource);
                 if (icon != null) {
                     float w = icon.getWidth() * 0.75f;
@@ -162,12 +162,18 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.MAP);
             for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
                 String label = item.symbol != null && !item.symbol.isEmpty() ? item.symbol : "?";
                 Texture art = Sts1AssetMaterializer.resolveTexture(item.artSource);
                 if (art != null) {
                     float size = item.highlighted ? 80f : 64f;
-                    sb.setColor(item.taken ? Color.DARK_GRAY : Color.WHITE);
+                    if (item.taken) {
+                        sb.setColor(chrome.disabledR, chrome.disabledG, chrome.disabledB, chrome.disabledA);
+                    } else {
+                        sb.setColor(chrome.labelR, chrome.labelG, chrome.labelB, chrome.labelA);
+                    }
                     sb.draw(art, item.screenX - size / 2f, item.screenY - size / 2f, size, size);
                     sb.setColor(Color.WHITE);
                 } else {
@@ -180,9 +186,7 @@ public final class Sts1SurfaceRenderer {
                             label,
                             item.screenX,
                             item.screenY,
-                            item.taken
-                                    ? com.badlogic.gdx.graphics.Color.DARK_GRAY
-                                    : com.badlogic.gdx.graphics.Color.WHITE);
+                            item.taken ? colorDisabled(chrome) : colorLabel(chrome));
                 }
             }
         } catch (Throwable ignored) {
@@ -195,6 +199,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.EVENT);
             String title = ArtFramework.projection().event().title;
             if (title != null && !title.isEmpty()) {
                 float tx = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
@@ -205,7 +211,7 @@ public final class Sts1SurfaceRenderer {
                         title,
                         tx,
                         ty,
-                        Color.WHITE);
+                        colorLabel(chrome));
             }
             for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
                 if (!item.visible) {
@@ -218,7 +224,7 @@ public final class Sts1SurfaceRenderer {
                         label,
                         item.x,
                         item.y,
-                        item.enabled ? Color.WHITE : Color.GRAY);
+                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
             }
         } catch (Throwable ignored) {
         }
@@ -230,6 +236,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.SELECT_GRID);
             for (SelectDrawPath.DrawItem item : SelectDrawPath.buildFromProjection()) {
                 if (!item.visible) {
                     continue;
@@ -244,7 +252,7 @@ public final class Sts1SurfaceRenderer {
                         label,
                         item.x,
                         item.y,
-                        item.selected || item.confirm ? Color.GOLD : Color.WHITE);
+                        item.selected || item.confirm ? colorAccent(chrome) : colorLabel(chrome));
             }
         } catch (Throwable ignored) {
         }
@@ -255,6 +263,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.REWARD_COMBAT);
             for (RewardDrawPath.DrawItem item : RewardDrawPath.buildFromProjection()) {
                 if (!item.visible) {
                     continue;
@@ -265,7 +275,7 @@ public final class Sts1SurfaceRenderer {
                         item.label,
                         item.x,
                         item.y,
-                        item.enabled ? Color.WHITE : Color.GRAY);
+                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
             }
         } catch (Throwable ignored) {
         }
@@ -276,6 +286,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.REST);
             float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.5f;
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
             int i = 0;
@@ -289,7 +301,7 @@ public final class Sts1SurfaceRenderer {
                         item.label,
                         x,
                         y - i * 48f,
-                        item.enabled ? Color.WHITE : Color.GRAY);
+                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 i++;
             }
         } catch (Throwable ignored) {
@@ -308,6 +320,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.SHOP);
             float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.55f;
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
             int gold = ArtFramework.projection().shop().gold;
@@ -317,7 +331,7 @@ public final class Sts1SurfaceRenderer {
                     "Gold " + gold,
                     x,
                     y + 64f,
-                    Color.GOLD);
+                    colorAccent(chrome));
             int i = 0;
             for (ShopDrawPath.DrawItem item : ShopDrawPath.buildFromProjection()) {
                 String label =
@@ -332,7 +346,7 @@ public final class Sts1SurfaceRenderer {
                         label,
                         x,
                         y - i * 40f,
-                        item.soldOut ? Color.GRAY : Color.WHITE);
+                        item.soldOut ? colorDisabled(chrome) : colorLabel(chrome));
                 i++;
             }
         } catch (Throwable ignored) {
@@ -344,6 +358,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TREASURE);
             artframework.context.TreasureView tv = ArtFramework.projection().treasure();
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
             float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.5f;
@@ -357,7 +373,7 @@ public final class Sts1SurfaceRenderer {
                     label,
                     x,
                     y,
-                    Color.WHITE);
+                    colorLabel(chrome));
         } catch (Throwable ignored) {
         }
     }
@@ -367,6 +383,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_PROCEED);
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
             float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.2f;
             int i = 0;
@@ -380,7 +398,7 @@ public final class Sts1SurfaceRenderer {
                         item.text,
                         x,
                         y - i * 40f,
-                        item.enabled ? Color.WHITE : Color.GRAY);
+                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 i++;
             }
         } catch (Throwable ignored) {
@@ -393,6 +411,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TOP_PANEL);
             artframework.context.TopPanelView tv = ArtFramework.projection().topPanel();
             if (!tv.available) {
                 return;
@@ -413,7 +433,7 @@ public final class Sts1SurfaceRenderer {
                     line,
                     40f,
                     com.megacrit.cardcrawl.core.Settings.HEIGHT - 40f,
-                    Color.WHITE);
+                    colorLabel(chrome));
         } catch (Throwable ignored) {
         }
     }
@@ -424,6 +444,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_ENERGY);
             int energy = ArtFramework.projection().controls().energy;
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.12f;
             float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.18f;
@@ -433,7 +455,7 @@ public final class Sts1SurfaceRenderer {
                     String.valueOf(energy),
                     x,
                     y,
-                    Color.CYAN);
+                    colorAccent(chrome));
         } catch (Throwable ignored) {
         }
     }
@@ -444,6 +466,8 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_INTENTS);
             for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
@@ -451,7 +475,7 @@ public final class Sts1SurfaceRenderer {
                         item.monsterName + ":" + item.intentType,
                         item.x,
                         item.y,
-                        Color.ORANGE);
+                        colorAccent(chrome));
             }
         } catch (Throwable ignored) {
         }
@@ -459,6 +483,8 @@ public final class Sts1SurfaceRenderer {
 
     private static void renderEntityChrome(SpriteBatch sb) {
         try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chrome();
             for (artframework.c2.EntityDrawPath.DrawItem item :
                     artframework.c2.EntityDrawPath.buildFromPresent()) {
                 if (!item.visible || item.overlayOnly) {
@@ -477,10 +503,22 @@ public final class Sts1SurfaceRenderer {
                         label,
                         item.x,
                         item.y,
-                        Color.LIGHT_GRAY);
+                        colorDisabled(chrome));
             }
         } catch (Throwable ignored) {
         }
+    }
+
+    private static Color colorLabel(artframework.core.PresentChromeStyle c) {
+        return new Color(c.labelR, c.labelG, c.labelB, c.labelA);
+    }
+
+    private static Color colorDisabled(artframework.core.PresentChromeStyle c) {
+        return new Color(c.disabledR, c.disabledG, c.disabledB, c.disabledA);
+    }
+
+    private static Color colorAccent(artframework.core.PresentChromeStyle c) {
+        return new Color(c.accentR, c.accentG, c.accentB, c.accentA);
     }
 
     private static AbstractCard find(String instanceId) {

@@ -5,7 +5,7 @@
   "width": 400,
   "height": 240,
   "children": [
-    { "type": "label", "text": "Hello" },
+    { "type": "label", "id": "hello", "text": "Hello" },
     { "type": "button", "id": "close", "text": "Close" }
   ]
 }

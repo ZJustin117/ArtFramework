@@ -116,16 +116,29 @@ public class ArtCommand extends ConsoleCommand {
     private void cmdProfile(String[] tokens, int depth) {
         if (tokens.length <= depth) {
             DevConsole.log(
-                    "Usage: art profile|theme list|get|set <sts|lightwave>  (project="
+                    "Usage: art profile list|get|set|project|resolve|surface|restyle|"
+                            + "enable|select|pack|modify"
+                            + "  (project="
                             + ArtFramework.projectPresent()
-                            + ")  set = project fallback only; trees use present_profile nodes");
+                            + ")");
             return;
         }
         String action = tokens[depth].toLowerCase();
         if ("list".equals(action)) {
-            DevConsole.log("profiles: " + artframework.core.PresentProfiles.ids());
+            DevConsole.log(
+                    "catalog ids="
+                            + ArtFramework.presentProfileIds()
+                            + " count="
+                            + ArtFramework.presentProfileIds().size());
+            DevConsole.log("enabled=" + ArtFramework.enabledPresentIds());
+            DevConsole.log(
+                    "packs="
+                            + ArtFramework.presentPackIds()
+                            + " active="
+                            + ArtFramework.activePresentPack());
             DevConsole.log("themes: " + artframework.core.Themes.names());
-            DevConsole.log("project=" + ArtFramework.projectPresent());
+            DevConsole.log("project=" + ArtFramework.projectPresent() + " (apply; register via API)");
+            DevConsole.log("surfacePresent=" + artframework.core.SurfacePresent.probeSummary());
             return;
         }
         if ("get".equals(action)) {
@@ -135,6 +148,8 @@ public class ArtCommand extends ConsoleCommand {
                             + (p != null ? p.id : "?")
                             + " theme="
                             + (p != null && p.theme.name() != null ? p.theme.name() : "")
+                            + " packId="
+                            + (p != null ? p.packId : "")
                             + " cardAlpha="
                             + (p != null ? p.chrome.cardAlpha : 1f));
             if (tokens.length >= depth + 2) {
@@ -147,6 +162,8 @@ public class ArtCommand extends ConsoleCommand {
                                 + r.profileId
                                 + " fromProject="
                                 + r.fromProject
+                                + " packId="
+                                + r.packId
                                 + " cardAlpha="
                                 + r.chrome.cardAlpha);
             }
@@ -162,7 +179,7 @@ public class ArtCommand extends ConsoleCommand {
                 DevConsole.log(
                         "project present "
                                 + ArtFramework.projectPresent()
-                                + " (fallback only; open windows keep resolve; reopen to restyle)");
+                                + " (hot restyle project-fallback windows)");
             } catch (RuntimeException e) {
                 DevConsole.log("profile set failed: " + e.getMessage());
             }
@@ -170,19 +187,161 @@ public class ArtCommand extends ConsoleCommand {
         }
         if ("resolve".equals(action)) {
             if (tokens.length < depth + 2) {
-                DevConsole.log("Usage: art profile resolve <windowId>");
+                DevConsole.log("Usage: art profile resolve <windowId|surfaceId>");
                 return;
             }
-            artframework.core.PresentResolved r = ArtFramework.resolvePresent(tokens[depth + 1]);
+            String target = tokens[depth + 1];
+            artframework.core.PresentResolved r;
+            if (ArtFramework.tree(target) != null) {
+                r = ArtFramework.resolvePresent(target);
+            } else {
+                r = ArtFramework.resolveSurfacePresent(target);
+            }
             DevConsole.log(
                     "resolve id="
                             + r.profileId
                             + " fromProject="
                             + r.fromProject
+                            + " packId="
+                            + r.packId
                             + " theme="
                             + (r.theme.name() != null ? r.theme.name() : "")
                             + " cardAlpha="
                             + r.chrome.cardAlpha);
+            return;
+        }
+        if ("surface".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art profile surface <surfaceId> [profileId|clear]");
+                return;
+            }
+            String sid = tokens[depth + 1];
+            if (tokens.length < depth + 3 || "clear".equalsIgnoreCase(tokens[depth + 2])) {
+                ArtFramework.unbindSurfacePresent(sid);
+                DevConsole.log("surface present cleared: " + sid);
+                return;
+            }
+            try {
+                ArtFramework.bindSurfacePresent(sid, tokens[depth + 2]);
+                artframework.core.PresentResolved r = ArtFramework.resolveSurfacePresent(sid);
+                DevConsole.log(
+                        "surface "
+                                + sid
+                                + " → "
+                                + r.profileId
+                                + " cardAlpha="
+                                + r.chrome.cardAlpha);
+            } catch (RuntimeException e) {
+                DevConsole.log("surface bind failed: " + e.getMessage());
+            }
+            return;
+        }
+        if ("restyle".equals(action)) {
+            ArtFramework.restyleOpenPresent();
+            DevConsole.log("restyle open present done project=" + ArtFramework.projectPresent());
+            return;
+        }
+        if ("enable".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art profile enable <regex>|all|clear");
+                return;
+            }
+            String arg = tokens[depth + 1];
+            if ("all".equalsIgnoreCase(arg) || "clear".equalsIgnoreCase(arg)) {
+                ArtFramework.clearEnabledPresentRestriction();
+                DevConsole.log("enabled presents: all (" + ArtFramework.enabledPresentIds() + ")");
+                return;
+            }
+            int n = ArtFramework.modifyPresentsMatching(arg, true);
+            DevConsole.log("enabled matching " + arg + " count=" + n + " → " + ArtFramework.enabledPresentIds());
+            return;
+        }
+        if ("disable".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art profile disable <regex>");
+                return;
+            }
+            int n = ArtFramework.modifyPresentsMatching(tokens[depth + 1], false);
+            DevConsole.log("disabled matching count=" + n + " → " + ArtFramework.enabledPresentIds());
+            return;
+        }
+        if ("select".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art profile select <regex>");
+                return;
+            }
+            try {
+                String id = ArtFramework.selectPresentMatching(tokens[depth + 1]);
+                DevConsole.log(
+                        "selected "
+                                + id
+                                + " pack="
+                                + ArtFramework.activePresentPack());
+            } catch (RuntimeException e) {
+                DevConsole.log("select failed: " + e.getMessage());
+            }
+            return;
+        }
+        if ("pack".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art profile pack list|activate <id>|deactivate [id]");
+                return;
+            }
+            String sub = tokens[depth + 1].toLowerCase();
+            if ("list".equals(sub)) {
+                DevConsole.log(
+                        "packs="
+                                + ArtFramework.presentPackIds()
+                                + " active="
+                                + ArtFramework.activePresentPack());
+                return;
+            }
+            if ("activate".equals(sub)) {
+                if (tokens.length < depth + 3) {
+                    DevConsole.log("Usage: art profile pack activate <packId>");
+                    return;
+                }
+                try {
+                    ArtFramework.activatePresentPack(tokens[depth + 2]);
+                    DevConsole.log("pack active=" + ArtFramework.activePresentPack());
+                } catch (RuntimeException e) {
+                    DevConsole.log("pack activate failed: " + e.getMessage());
+                }
+                return;
+            }
+            if ("deactivate".equals(sub)) {
+                String id =
+                        tokens.length >= depth + 3
+                                ? tokens[depth + 2]
+                                : ArtFramework.activePresentPack();
+                ArtFramework.deactivatePresentPack(id);
+                DevConsole.log("pack deactivated; active=" + ArtFramework.activePresentPack());
+                return;
+            }
+            DevConsole.log("Unknown pack action: " + sub);
+            return;
+        }
+        if ("modify".equals(action)) {
+            if (tokens.length < depth + 3) {
+                DevConsole.log("Usage: art profile modify <regex> packId <id>|clear [select]");
+                return;
+            }
+            String regex = tokens[depth + 1];
+            if (!"packid".equalsIgnoreCase(tokens[depth + 2])
+                    && !"pack".equalsIgnoreCase(tokens[depth + 2])) {
+                DevConsole.log("Usage: art profile modify <regex> packId <id>|clear [select]");
+                return;
+            }
+            if (tokens.length < depth + 4) {
+                DevConsole.log("Usage: art profile modify <regex> packId <id>|clear [select]");
+                return;
+            }
+            String packArg = tokens[depth + 3];
+            String newPack = "clear".equalsIgnoreCase(packArg) ? "" : packArg;
+            boolean select =
+                    tokens.length >= depth + 5 && "select".equalsIgnoreCase(tokens[depth + 4]);
+            int n = ArtFramework.modifyPresentPackIdMatching(regex, newPack, select);
+            DevConsole.log("modified packId count=" + n + " project=" + ArtFramework.projectPresent());
             return;
         }
         DevConsole.log("Unknown profile action: " + action);

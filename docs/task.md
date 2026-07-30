@@ -365,3 +365,42 @@ effects stay explicit nodes. See [`present-profile.md`](design/present-profile.m
 - [x] 34.4 C1 StageHost + C2 chrome via resolve / project
 - [x] 34.5 Probe `projectPresent` + `windows.*.present`; console project/resolve
 - [x] 34.6 JUnit + f14 + d1_lightwave_demo (node assert, no global set required)
+
+### 35. Present production (hot restyle / C2 surface / pack)
+
+Design: close Known limits from PresentProfile/Lightwave showcase — restyle open C1,
+surface-scoped chrome, packId → HostAssets. See [`present-profile.md`](design/present-profile.md).
+
+- [x] 35.1 Hot restyle: project/present change refreshes trees + re-attaches Stage (project-fallback windows)
+- [x] 35.2 `SurfacePresent` bind + `PresentResolve.chromeForSurface` for C2 draw paths
+- [x] 35.3 C2 chrome expand: event/select/room/proceed/energy/intents/top labels via chrome
+- [x] 35.4 `packId` → HostAssets prefer/enable + JUnit + probe
+- [x] 35.5 API stability + CHANGELOG notes (setProjectPresent restyles; SurfacePresent)
+
+### 36. Lightwave visual deepen (optional polish)
+
+- [x] 36.1 Lightwave border/band tokens from effect params (theme-aligned defaults)
+- [x] 36.2 `glass_lightwave_demo` layout (glass + lightwave co-window)
+- [x] 36.3 Third-party PresentProfile register sample JUnit (namespaced theme + chrome)
+
+### 37. Global PresentProfile catalog (skin register facade)
+
+Design: PresentProfiles is the sole skin resource catalog; facade register ≠ apply.
+See [`present-profile.md`](design/present-profile.md).
+
+- [x] 37.1 `PresentProfiles.register` syncs `Themes` (name / profile id)
+- [x] 37.2 `ArtFramework.registerPresentProfile` / `get` / `ids` / `presentProfiles()`
+- [x] 37.3 JUnit `PresentProfileCatalogTest` (register no apply; set applies; reset)
+- [x] 37.4 Probe `presentProfiles` + f16 fixture; design / api-stability / consumer
+
+### 38. PresentPack + enabled profiles (regex select/modify)
+
+Design: Profile = skin; Pack = LML/JSON templates + windows. Select profile → activate pack by
+packId / profileId link. No profile-id special cases in core. Regex enable/select/modify.
+
+- [x] 38.1 `PresentPack` / `PresentPacks` / manifest loader
+- [x] 38.2 activate/deactivate → ComponentRegistry + WindowDef
+- [x] 38.3 `ProjectPresent.set` → `activateForProfile`
+- [x] 38.4 `EnabledPresents` + regex select/modify + packId patch
+- [x] 38.5 Builtin lightwave pack + facade / probe / console
+- [x] 38.6 JUnit `PresentPackTest` + f18 + D1 `d1_present_packs`

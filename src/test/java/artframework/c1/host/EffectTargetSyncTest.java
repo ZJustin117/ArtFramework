@@ -38,10 +38,37 @@ public class EffectTargetSyncTest {
         // Pure LayoutEngine coords are window-local (pad offset), not screen-centered.
         // StageHost.syncEffectTargetBounds rewrites these to stage space after act() on device.
         assertTrue(
-                "layout-local x should be small vs screen center",
+                "layout-local x should be small vs screen center without Stage",
                 panel.x() < 200f);
         assertTrue(panel.y() < 200f);
         assertEquals(1, host.effectsOf("c1:lightwave_demo:panel").size());
+    }
+
+    @Test
+    public void packDefaultsBindNamedAndPathTargets() {
+        artframework.core.PresentPacks.installBuiltinLightwavePack();
+        ArtFramework.setProjectPresent(PresentProfiles.LIGHTWAVE);
+        ArtFramework.register(
+                new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.open("demo");
+        RenderHost host = ArtFramework.render();
+        assertNotNull(host.getTarget("c1:demo:close"));
+        assertEquals(1, host.effectsOf("c1:demo:close").size());
+        assertEquals("lightwave", host.effectsOf("c1:demo:close").get(0).effectId);
+        assertNotNull(host.getTarget("c1:demo:hello"));
+        assertEquals(1, host.effectsOf("c1:demo:hello").size());
+        assertEquals("lightwave", host.effectsOf("c1:demo:hello").get(0).effectId);
+    }
+
+    @Test
+    public void effectTargetActorsRegistryKeys() {
+        // Without Stage, registry only fills when ComponentActors.toActor runs (device).
+        // Pure open still creates RenderHost targets from layout keys.
+        ArtFramework.register(
+                new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.open("demo");
+        assertNotNull(ArtFramework.render().getTarget("c1:demo:hello"));
+        assertNotNull(ArtFramework.render().getTarget("c1:demo:close"));
     }
 
     @Test

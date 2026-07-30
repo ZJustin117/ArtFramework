@@ -1,0 +1,212 @@
+{
+  "id": "lightwave",
+  "profileId": "lightwave",
+  "version": "1",
+  "provider": "artframework",
+  "templates": [
+    {
+      "name": "lightwave.panel_chrome",
+      "resource": "present-packs/lightwave/panel_chrome.json"
+    }
+  ],
+  "windows": [
+    {
+      "id": "lightwave_pack_demo",
+      "resource": "layouts/lightwave_demo.json"
+    }
+  ],
+  "autoOpen": [],
+  "effectDefaults": {
+    "window": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.55,
+          "angle": 35,
+          "width": 0.22,
+          "speed": 0.25,
+          "border": 1,
+          "borderWidth": 3,
+          "r": 0.55,
+          "g": 0.88,
+          "b": 1
+        }
+      }
+    ],
+    "panel": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.6,
+          "angle": 35,
+          "width": 0.28,
+          "speed": 0.28,
+          "border": 1,
+          "borderWidth": 3
+        }
+      }
+    ],
+    "button": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.7,
+          "angle": 40,
+          "width": 0.4,
+          "speed": 0.35,
+          "border": 1,
+          "borderWidth": 3
+        }
+      }
+    ],
+    "label": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.65,
+          "angle": 30,
+          "width": 0.4,
+          "speed": 0.28,
+          "border": 1,
+          "borderWidth": 2,
+          "padX": 12,
+          "padY": 6
+        }
+      }
+    ],
+    "slider": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.55,
+          "angle": 0,
+          "width": 0.5,
+          "speed": 0.3,
+          "border": 1,
+          "borderWidth": 2
+        }
+      }
+    ],
+    "row": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.4,
+          "angle": 20,
+          "width": 0.22,
+          "speed": 0.25,
+          "border": 1,
+          "borderWidth": 1
+        }
+      }
+    ],
+    "col": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.4,
+          "angle": 50,
+          "width": 0.22,
+          "speed": 0.25,
+          "border": 1,
+          "borderWidth": 1
+        }
+      }
+    ],
+    "glass": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.5,
+          "angle": 35,
+          "width": 0.26,
+          "speed": 0.28,
+          "border": 1,
+          "borderWidth": 3
+        }
+      }
+    ],
+    "textfield": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.55,
+          "angle": 15,
+          "width": 0.35,
+          "speed": 0.25,
+          "border": 1,
+          "borderWidth": 2
+        }
+      }
+    ],
+    "checkbox": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.55,
+          "angle": 45,
+          "width": 0.4,
+          "speed": 0.3,
+          "border": 1,
+          "borderWidth": 2
+        }
+      }
+    ],
+    "progress": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.55,
+          "angle": 0,
+          "width": 0.45,
+          "speed": 0.35,
+          "border": 1,
+          "borderWidth": 2
+        }
+      }
+    ],
+    "hitarea": [
+      {
+        "id": "lightwave",
+        "params": {
+          "intensity": 0.5,
+          "angle": 25,
+          "width": 0.35,
+          "speed": 0.28,
+          "border": 1,
+          "borderWidth": 2
+        }
+      }
+    ]
+  },
+  "fullFrame": [
+    {
+      "id": "lightwave",
+      "params": {
+        "intensity": 0.2,
+        "angle": 32,
+        "width": 0.16,
+        "speed": 0.18,
+        "border": 0
+      }
+    }
+  ],
+  "bindSurfaces": [
+    "sts1.combat.hand",
+    "sts1.combat.controls",
+    "sts1.event",
+    "sts1.select.grid",
+    "sts1.map",
+    "sts1.reward.combat",
+    "sts1.rest",
+    "sts1.shop",
+    "sts1.treasure",
+    "sts1.combat.proceed",
+    "sts1.combat.energy",
+    "sts1.combat.intents",
+    "sts1.top_panel"
+  ],
+  "unregisterTemplatesOnDeactivate": true,
+  "unregisterWindowsOnDeactivate": false,
+  "autoCloseOnDeactivate": false
+}

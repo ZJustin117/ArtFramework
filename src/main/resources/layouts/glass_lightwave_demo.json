@@ -1,0 +1,102 @@
+{
+  "type": "window",
+  "id": "glass_lightwave_demo",
+  "title": "Glass + Lightwave",
+  "width": 480,
+  "height": 340,
+  "pad": 12,
+  "gap": 8,
+  "present_profile": "lightwave",
+  "theme": "lightwave",
+  "children": [
+    {
+      "type": "panel",
+      "id": "panel",
+      "height": 280,
+      "pad": 10,
+      "gap": 8,
+      "fx_intensity": 0.5,
+      "effects": [
+        {
+          "id": "lightwave",
+          "params": {
+            "intensity": 0.5,
+            "angle": 35,
+            "width": 0.26,
+            "speed": 0.3,
+            "border": 1,
+            "borderWidth": 3,
+            "r": 0.55,
+            "g": 0.88,
+            "b": 1,
+            "borderR": 1,
+            "borderG": 1,
+            "borderB": 1,
+            "borderA": 0.95
+          }
+        }
+      ],
+      "children": [
+        {
+          "type": "glass",
+          "id": "frost",
+          "height": 120,
+          "pad": 10,
+          "gap": 6,
+          "radius": 3,
+          "tint": 0.45,
+          "alpha": 0.85,
+          "children": [
+            {
+              "type": "label",
+              "id": "hint",
+              "text": "Glass over lightwave band (capture + FX)."
+            }
+          ]
+        },
+        {
+          "type": "row",
+          "id": "actions",
+          "gap": 12,
+          "children": [
+            {
+              "type": "button",
+              "id": "ok",
+              "text": "PULSE",
+              "grow": true,
+              "height": 44
+            },
+            {
+              "type": "button",
+              "id": "close",
+              "text": "CLOSE",
+              "grow": true,
+              "height": 44
+            }
+          ]
+        },
+        {
+          "type": "slider",
+          "id": "wave",
+          "min": 0,
+          "max": 1,
+          "value": 0.5,
+          "height": 36
+        }
+      ]
+    },
+    {
+      "type": "art.animation_player",
+      "id": "motion",
+      "auto_play": "enter",
+      "animations": [
+        {
+          "name": "enter",
+          "target": "panel",
+          "duration": 0.25,
+          "tracks": [{ "property": "fx_intensity", "from": 0.15, "to": 0.5 }]
+        }
+      ]
+    }
+  ]
+}

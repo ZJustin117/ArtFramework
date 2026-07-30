@@ -17,11 +17,46 @@ PresentResolve.forNode / forTree
         ├─► Chrome    → C2 hand / controls (project when no surface node)
         └─► packId    → HostAssets (optional)
 
-Effects are separate nodes (art.shader_effect / effects[]), never implied by profile.
+Effects live in layout / LML (or pack templates), never implied by Java profile id.
+PresentPack registers classpath LML/JSON; select profile → activate pack by packId.
 ```
 
 **FullPresentMode** still decides suppress / FULL vs OBSERVE. A profile never
 auto-suppresses native surfaces.
+
+## PresentPack (UI module)
+
+```text
+PresentPacks.register(manifest | PresentPack)
+  templates: name → classpath (.json|.lml)  → ComponentRegistry on activate
+  windows:   id   → classpath              → WindowDef on activate
+  autoOpen:  optional mounts after activate
+
+ProjectPresent.set(profileId)
+  → theme/chrome restyle
+  → PresentPacks.activateForProfile(profile)   // packId, else pack.profileId match
+```
+
+Builtin `lightwave` profile has `packId=lightwave` and manifest
+`present-packs/lightwave/pack.json` (templates, **effectDefaults**, **fullFrame**,
+**bindSurfaces**). Activate applies ambient tables via `PresentPackApply` (not Java
+`if (lightwave)`). Layout `effects[]` still wins when non-empty.
+
+**Why “set lightwave” alone looked like no global FX:** skin/chrome + pack templates
+register without open windows / full-frame / surface binds until pack ambient tables
+exist. After pack.json ambient fields, `art profile set lightwave` enables full-frame
+band + C2 chrome binds + empty-node effectDefaults.
+
+**Coverage (honest):**
+
+| Surface | Lightwave band | Notes |
+|---------|----------------|-------|
+| C1 synthetic (Art open windows) | Per-widget via effectDefaults + layout effects | StageHost maps targets to actor stage bounds |
+| Full screen | `fullFrame` on active pack | Always-on overlay while pack active |
+| C2 / native STS UI | Chrome colors only via `bindSurfaces` | **No** per-button native lightwave without FULL present + custom draw |
+| Native dialogs (not Art windows) | Only full-frame wash | Not individual hitboxes |
+
+Native STS is not a scene2d tree ART owns — component frames apply to **ArtFramework C1** only.
 
 ## Built-in resources
 
@@ -44,12 +79,33 @@ auto-suppresses native surfaces.
 
 ## API
 
-- `ArtFramework.setProjectPresent("lightwave")` / `projectPresent()` / `presentChrome()` (project fallback)
-- `ArtFramework.resolvePresent(windowId)` — tree root resolve
-- `UiTree.resolvePresent()` / `UiInstance.resolvePresent()`
-- Console: `art profile\|theme list\|get\|set\|project\|resolve <windowId>`
-- Probe: `projectPresent` / `presentProfile` (alias with `project` + `active`); `windows.byId.*.present`
+### Global catalog (register — does not apply)
 
+| API | Role |
+|-----|------|
+| `ArtFramework.registerPresentProfile(PresentProfile)` | Install skin resource |
+| `ArtFramework.registerPresentProfile(id, Theme [, packId])` | Sugar |
+| `ArtFramework.getPresentProfile(id)` / `presentProfileIds()` | Lookup |
+| `ArtFramework.presentProfiles()` | `PresentProfileCatalog` view (register/get/ids/probe) |
+| `PresentProfiles.register` | Same store (core; facade preferred for consumers) |
+
+Register syncs `Themes` under theme name (and profile id when needed). **Does not** change
+`ProjectPresent` or open windows.
+
+| Pack / enable API | Role |
+|-------------------|------|
+| `registerPresentPack` / `activatePresentPack` | UI module catalog |
+| `enabledPresentIds` / `setEnabledPresentProfiles` | Panel enable set (empty = all) |
+| `presentIdsMatching(regex)` / `selectPresentMatching(regex)` | Regex select (first enabled) |
+| `modifyPresentsMatching(regex, enable)` | Regex enable/disable |
+| `modifyPresentPackIdMatching(regex, packId, selectFirst)` | Regex patch packId |
+
+### Apply
+
+- `ArtFramework.setProjectPresent("lightwave")` — skin restyle + **activate linked pack**
+- `ArtFramework.bindSurfacePresent(surfaceId, profileId)` — C2 surface chrome
+- Console: `art profile list|set|select <regex>|enable|disable|pack|modify|…`
+- Probe: `presentPacks`, `enabledPresents`, `presentProfiles`, `projectPresent`
 ## Lightwave visuals
 
 | Concern | Mechanism |
@@ -66,12 +122,28 @@ auto-suppresses native surfaces.
 2. Parent chain node themes (variation `themeType` → base type)  
 3. `UiTree.theme()` from `PresentResolve` at root / project fallback
 
+## Surface present (C2)
+
+```text
+SurfacePresent.bind(surfaceId, profileId)
+  → PresentResolve.chromeForSurface / forSurface
+  → Sts1SurfaceRenderer / hand chrome
+```
+
+Unbound surfaces use **ProjectPresent**. Binding does not enable FULL present.
+
+## Pack preference
+
+`PresentProfile.packId` non-empty → `HostAssets.preferPresentPack` (enable + last in
+packOrder). Applied on project present change and surface bind when pack set.
+
 ## Known limits
 
-- Project switch does not rebuild already-open windows (close/reopen to restyle)
-- C2 without a surface present node uses **project** chrome only
+- Node-override C1 windows keep their resolve on project switch (by design); only
+  **fromProject** trees re-attach Stage skin
 - Lightwave does not auto-enable FULL present or native chrome
 - Scenarios assert probe contracts, not screenshot SSIM
+- C2 chrome is label/border/alpha tokens — not full STS atlas fidelity
 
 ## Related
 

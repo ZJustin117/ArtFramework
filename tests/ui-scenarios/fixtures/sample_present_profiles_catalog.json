@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "theme": {
+    "name": "sts",
+    "colorCount": 8
+  },
+  "presentProfile": {
+    "project": "sts",
+    "active": "sts",
+    "id": "sts",
+    "ids": ["sts", "lightwave"],
+    "registeredIds": ["sts", "lightwave"]
+  },
+  "projectPresent": {
+    "project": "sts",
+    "active": "sts",
+    "ids": ["sts", "lightwave"],
+    "registeredIds": ["sts", "lightwave"]
+  },
+  "presentProfiles": {
+    "count": 2,
+    "ids": ["sts", "lightwave"],
+    "byId": {
+      "sts": {
+        "id": "sts",
+        "packId": "",
+        "themeName": "sts"
+      },
+      "lightwave": {
+        "id": "lightwave",
+        "packId": "",
+        "themeName": "lightwave"
+      }
+    }
+  },
+  "windows": {
+    "openIds": []
+  }
+}

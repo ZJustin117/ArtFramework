@@ -75,11 +75,9 @@ public final class SyntheticRuntime {
             WindowManager.put(def.id, legacy);
             RenderHosts.get().syncWidgetSession(session);
             if (stageBackend != null && stageBackend.isReady()) {
-                if (LayoutNodeBridge.isLegacyTree(session.root())) {
-                    stageBackend.attach(def.id, legacy);
-                } else {
-                    stageBackend.attachComposition(def.id, session.root());
-                }
+                // Always composition path so EffectTargetActors registers for FX stage sync.
+                // Legacy LayoutActors skipped the registry → demo Hello FX stayed at (0,32).
+                stageBackend.attachComposition(def.id, session.root());
             }
             return legacy;
         } catch (RuntimeException e) {
@@ -108,6 +106,27 @@ public final class SyntheticRuntime {
         RenderHosts.get().detachWidgetSession(id);
     }
 
+    /**
+     * Re-attach stage for an open window using current session/layout (hot restyle 35.1).
+     * No-op if stage not ready or window not open.
+     */
+    public static void reattach(String id) {
+        if (id == null || id.isEmpty() || stageBackend == null || !stageBackend.isReady()) {
+            return;
+        }
+        WidgetSession session = WidgetSessions.get(id);
+        if (session != null && session.root() != null) {
+            stageBackend.detach(id);
+            stageBackend.attachComposition(id, session.root());
+            return;
+        }
+        LayoutNode legacy = WindowManager.get(id);
+        if (legacy != null) {
+            stageBackend.detach(id);
+            stageBackend.attach(id, legacy);
+        }
+    }
+
     private static void cleanupFailedOpen(String id) {
         if (stageBackend != null) {
             try {
@@ -132,6 +151,11 @@ public final class SyntheticRuntime {
     }
 
     static UiNode loadLayout(String resource) {
+        return loadLayoutResource(resource);
+    }
+
+    /** Public load for PresentPack templates/windows (JSON or LML). */
+    public static UiNode loadLayoutResource(String resource) {
         if (resource == null || resource.isEmpty()) {
             throw new IllegalArgumentException("layout resource required");
         }

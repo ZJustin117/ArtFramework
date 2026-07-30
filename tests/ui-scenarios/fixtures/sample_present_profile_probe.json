@@ -11,6 +11,7 @@
     "active": "lightwave",
     "id": "lightwave",
     "ids": ["sts", "lightwave"],
+    "registeredIds": ["sts", "lightwave"],
     "chrome": {
       "cardAlpha": 0.88,
       "panelAlpha": 0.72,
@@ -22,10 +23,19 @@
     "active": "lightwave",
     "id": "lightwave",
     "ids": ["sts", "lightwave"],
+    "registeredIds": ["sts", "lightwave"],
     "chrome": {
       "cardAlpha": 0.88,
       "panelAlpha": 0.72,
       "borderWidth": 2.0
+    }
+  },
+  "presentProfiles": {
+    "count": 2,
+    "ids": ["sts", "lightwave"],
+    "byId": {
+      "sts": { "id": "sts", "packId": "", "themeName": "sts" },
+      "lightwave": { "id": "lightwave", "packId": "", "themeName": "lightwave" }
     }
   },
   "windows": {

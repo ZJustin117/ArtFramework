@@ -11,6 +11,8 @@ import java.util.Map;
 public final class AssetsConfig {
 
     private String activeProfile = "default";
+    /** PresentProfile.packId preference (HostAssets.preferPresentPack). */
+    private String presentPackId = "";
     private final List<String> packOrder = new ArrayList<String>();
     private final Map<AssetDomain, Boolean> domainEnable =
             new EnumMap<AssetDomain, Boolean>(AssetDomain.class);
@@ -29,6 +31,14 @@ public final class AssetsConfig {
 
     public void setActiveProfile(String profile) {
         this.activeProfile = profile != null ? profile : "default";
+    }
+
+    public String presentPackId() {
+        return presentPackId;
+    }
+
+    public void setPresentPackId(String packId) {
+        this.presentPackId = packId != null ? packId : "";
     }
 
     public List<String> packOrder() {
@@ -82,6 +92,7 @@ public final class AssetsConfig {
     public Map<String, Object> probeSummary() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("activeProfile", activeProfile);
+        m.put("presentPackId", presentPackId);
         m.put("packOrder", new ArrayList<String>(packOrder));
         m.put("strictMissing", Boolean.valueOf(strictMissing));
         Map<String, Object> domains = new LinkedHashMap<String, Object>();

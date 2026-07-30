@@ -1,0 +1,26 @@
+{
+  "type": "panel",
+  "id": "panel",
+  "pad": 12,
+  "gap": 10,
+  "fx_intensity": 0.55,
+  "effects": [
+    {
+      "id": "lightwave",
+      "params": {
+        "intensity": 0.55,
+        "angle": 35,
+        "width": 0.28,
+        "speed": 0.28,
+        "border": 1,
+        "borderWidth": 3
+      }
+    }
+  ],
+  "children": [
+    {
+      "type": "slot",
+      "name": "body"
+    }
+  ]
+}

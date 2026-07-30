@@ -1,0 +1,30 @@
+# Offline fixture: global PresentProfile catalog probe (milestone 37 skin register).
+name: f16_present_profiles_catalog
+schemaVersion: 1
+mode: fixture
+fixture: sample_present_profiles_catalog.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: presentProfiles.count
+      gte: 2
+  - assert:
+      path: presentProfiles.ids
+      contains: sts
+  - assert:
+      path: presentProfiles.ids
+      contains: lightwave
+  - assert:
+      path: presentProfiles.byId.sts.id
+      eq: sts
+  - assert:
+      path: presentProfiles.byId.lightwave.themeName
+      eq: lightwave
+  - assert:
+      path: presentProfile.registeredIds
+      contains: sts
+  - assert:
+      path: presentProfile.project
+      eq: sts

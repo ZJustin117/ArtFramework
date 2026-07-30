@@ -100,6 +100,14 @@ public final class UiTree {
         return PresentResolve.forTree(this);
     }
 
+    /** Re-apply present cascade theme stamps after project or binding change (35.1). */
+    public void refreshPresent() {
+        if (!alive || root == null) {
+            return;
+        }
+        applyResolvedPresent();
+    }
+
     public String windowId() {
         return windowId;
     }

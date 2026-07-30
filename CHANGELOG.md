@@ -2,8 +2,28 @@
 
 ## Unreleased
 
+### Added
+
+- Milestone **38** PresentPack UI modules + regex enable/select/modify:
+  - `PresentPack` / `PresentPacks` (templates → ComponentRegistry, windows → WindowDef)
+  - `ProjectPresent.set` activates pack by `packId` or `pack.profileId` (no id special-cases)
+  - `EnabledPresents` + `selectPresentMatching` / `modifyPresentsMatching` / packId patch
+  - Builtin `present-packs/lightwave/`; probe `presentPacks` / `enabledPresents`
+  - Fixture f18; D1 `d1_present_packs`
+- Milestone **37** global PresentProfile catalog (skin register facade):
+  - `ArtFramework.registerPresentProfile` / `getPresentProfile` / `presentProfileIds` /
+    `presentProfiles()` → `PresentProfileCatalog`
+  - `PresentProfiles.register` syncs `Themes`; probe `presentProfiles` + `registeredIds`
+  - Fixture `f16_present_profiles_catalog`; register does not apply project present
+
 ### Changed
 
+- Milestone **35** Present production:
+  - `setProjectPresent` / `ProjectPresent.set` **hot-restyles** open project-fallback C1
+    windows (`UiTree.refreshPresent` + Stage reattach); node-override trees keep resolve
+  - C2 chrome from `SurfacePresent` / `PresentResolve.chromeForSurface` (event/select/room/…)
+  - `PresentProfile.packId` → `HostAssets.preferPresentPack`
+  - Console: `art profile surface|restyle`; probe `surfacePresent`
 - Milestone **34** node-scoped PresentProfile (no process active):
   - `ProjectPresent` fallback + `PresentResolve` cascade (`override` / `attach`)
   - `art.present_profile` node; root `present_profile` sugar
@@ -13,6 +33,8 @@
 
 ### Added
 
+- Milestone **35–36**: `SurfacePresent`, `PresentRestyle`, `glass_lightwave_demo`, third-party
+  profile sample JUnit; Lightwave border/band param tokens
 - Milestone **29–33** PresentProfile + Lightwave showcase:
   - `PresentProfile` / `PresentProfiles` (`sts`, `lightwave`) + `PresentChromeStyle`
   - `LightwaveTheme`; Theme cascade font/icon/style + `themeType` variation
@@ -40,9 +62,9 @@
 
 ### Known limits
 
-- Changing project present does not rebuild already-open C1 windows (close/reopen)
-- C2 without surface present node uses project chrome only
-- C2 chrome beyond hand/controls still mostly hardcoded label colors
+- Node-override C1 windows are not re-skinned on project switch (by design)
+- C2 unbound surfaces still use project chrome only
+- C2 chrome is token-level (labels/borders/alpha), not full STS atlas fidelity
 - Lightwave does not auto-enable FULL present
 
 ## 1.0.0-alpha.4

@@ -134,9 +134,9 @@ public final class StageHost
         }
         stage.getViewport().update(Gdx.graphics.getWidth(), Gdx.graphics.getHeight(), true);
         stage.act(dt);
+        // Force table/window layout so child getWidth/Height are non-zero before FX sync.
+        layoutAndSyncFx();
         syncActorPropsFromTree();
-        // LayoutEngine targets are local (0,0); scene2d windows are centered/draggable — realign FX.
-        syncEffectTargetBounds();
     }
 
     @Override
@@ -204,7 +204,7 @@ public final class StageHost
         actors.put(id, actor);
         stage.addActor(actor);
         captureInput();
-        syncEffectTargetBounds();
+        layoutAndSyncFx();
     }
 
     @Override
@@ -230,7 +230,37 @@ public final class StageHost
         actors.put(id, actor);
         stage.addActor(actor);
         captureInput();
+        layoutAndSyncFx();
+    }
+
+    /** Validate scene2d layout then map all C1 effect targets to stage coordinates. */
+    private void layoutAndSyncFx() {
+        for (Actor root : actors.values()) {
+            layoutActorTree(root);
+        }
         syncEffectTargetBounds();
+    }
+
+    private static void layoutActorTree(Actor root) {
+        if (root == null) {
+            return;
+        }
+        try {
+            if (root instanceof com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup) {
+                com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup wg =
+                        (com.badlogic.gdx.scenes.scene2d.ui.WidgetGroup) root;
+                wg.invalidateHierarchy();
+                wg.validate();
+            } else if (root instanceof com.badlogic.gdx.scenes.scene2d.ui.Widget) {
+                ((com.badlogic.gdx.scenes.scene2d.ui.Widget) root).validate();
+            }
+        } catch (Throwable ignored) {
+        }
+        if (root instanceof Group) {
+            for (Actor child : ((Group) root).getChildren()) {
+                layoutActorTree(child);
+            }
+        }
     }
 
     /**
@@ -312,7 +342,9 @@ public final class StageHost
     }
 
     /**
-     * Map RenderHost c1 targets from pure LayoutEngine space onto live stage actor bounds.
+     * Map C1 FX targets to stage space from {@link EffectTargetActors} (inflate-time registry).
+     * Never use LayoutEngine Y-order for widgets — it disagrees with scene2d Table + title row
+     * (Hello lightwave sat on the title).
      */
     private void syncEffectTargetBounds() {
         if (stage == null || actors.isEmpty()) {
@@ -327,26 +359,21 @@ public final class StageHost
                 continue;
             }
             updateTargetFromActor(host, "c1:" + winId, root, tmp);
-            syncNamedActors(host, winId, root, tmp);
-        }
-    }
-
-    private static void syncNamedActors(RenderHost host, String winId, Actor actor, Vector2 tmp) {
-        if (actor == null) {
-            return;
-        }
-        String name = null;
-        try {
-            name = actor.getName();
-        } catch (Throwable ignored) {
-        }
-        if (name != null && !name.isEmpty()) {
-            updateTargetFromActor(host, "c1:" + winId + ":" + name, actor, tmp);
-        }
-        if (actor instanceof Group) {
-            Group g = (Group) actor;
-            for (Actor child : g.getChildren()) {
-                syncNamedActors(host, winId, child, tmp);
+            java.util.Map<String, Actor> mapped = EffectTargetActors.entriesForWindow(winId);
+            for (Map.Entry<String, Actor> me : mapped.entrySet()) {
+                String effectKey = me.getKey();
+                Actor a = me.getValue();
+                if (effectKey == null || a == null) {
+                    continue;
+                }
+                try {
+                    if (a.getStage() == null) {
+                        continue;
+                    }
+                } catch (Throwable ignored) {
+                }
+                // Title uses dedicated key; still sync so pack can frame it.
+                updateTargetFromActor(host, "c1:" + winId + ":" + effectKey, a, tmp);
             }
         }
     }
@@ -361,13 +388,49 @@ public final class StageHost
             return;
         }
         try {
-            tmp.set(0f, 0f);
-            actor.localToStageCoordinates(tmp);
             float w = actor.getWidth();
             float h = actor.getHeight();
-            if (w > 0f && h > 0f) {
-                t.setBounds(tmp.x, tmp.y, w, h);
+            if (w < 1f) {
+                w = 32f;
             }
+            if (h < 1f) {
+                h = 28f;
+            }
+            // Labels: prefer pref width but pad so the lightwave frame is readable (not hairline).
+            try {
+                if (actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Widget) {
+                    com.badlogic.gdx.scenes.scene2d.ui.Widget wg =
+                            (com.badlogic.gdx.scenes.scene2d.ui.Widget) actor;
+                    float pw = wg.getPrefWidth();
+                    float ph = wg.getPrefHeight();
+                    if (pw > 8f && pw < w) {
+                        w = Math.max(pw + 24f, 96f);
+                    }
+                    if (ph > 8f) {
+                        h = Math.max(ph + 12f, 32f);
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+            tmp.set(0f, 0f);
+            actor.localToStageCoordinates(tmp);
+            float x0 = tmp.x;
+            float y0 = tmp.y;
+            tmp.set(w, h);
+            actor.localToStageCoordinates(tmp);
+            float x1 = tmp.x;
+            float y1 = tmp.y;
+            float x = Math.min(x0, x1);
+            float y = Math.min(y0, y1);
+            float bw = Math.abs(x1 - x0);
+            float bh = Math.abs(y1 - y0);
+            if (bw < 1f) {
+                bw = w;
+            }
+            if (bh < 1f) {
+                bh = h;
+            }
+            t.setBounds(x, y, bw, bh);
         } catch (Throwable ignored) {
         }
     }
@@ -389,6 +452,7 @@ public final class StageHost
 
     @Override
     public void detach(String id) {
+        EffectTargetActors.clearWindow(id);
         Actor actor = actors.remove(id);
         if (actor != null) {
             actor.remove();

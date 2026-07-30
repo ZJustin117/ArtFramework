@@ -1,0 +1,73 @@
+# D1: PresentPack activate via profile select (data-driven; no ambient special-case).
+name: d1_present_packs
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art profile pack list"
+  - wait_ms: 150
+  # Builtin pack may be installed at mod init; activate via project select
+  - console: "art profile select lightwave"
+  - wait_ms: 500
+  - probe: all
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: projectPresent.project
+      eq: lightwave
+  - assert:
+      path: presentPacks.active
+      eq: lightwave
+  - assert:
+      path: presentPacks.ids
+      contains: lightwave
+  - assert:
+      path: presentProfile.packActive
+      eq: lightwave
+  - assert:
+      path: presentPacks.apply.managedFullFrame
+      eq: true
+  - assert:
+      path: presentPacks.apply.activePack
+      eq: lightwave
+  - assert:
+      path: render.fullFrameEnabled
+      eq: true
+  - console: "art open lightwave_pack_demo"
+  - wait_ms: 900
+  - probe: all
+  - assert:
+      path: windows.openIds
+      contains: lightwave_pack_demo
+  - assert:
+      path: windows.byId.lightwave_pack_demo.windowClass
+      eq: SYNTHETIC
+  - console: "art close lightwave_pack_demo"
+  - wait_ms: 300
+  # Same layout as pack window; demoEffects probe key is layout showcase id
+  - console: "art open lightwave_demo"
+  - wait_ms: 900
+  - probe: all
+  - assert:
+      path: render.demoEffects.lightwave_demo.hasLightwave
+      eq: true
+  - console: "art close lightwave_demo"
+  - wait_ms: 400
+  - console: "art profile set sts"
+  - wait_ms: 400
+  - probe: all
+  - assert:
+      path: projectPresent.project
+      eq: sts
+  - assert:
+      path: presentPacks.active
+      eq: ""
+  - assert:
+      path: render.fullFrameEnabled
+      eq: false

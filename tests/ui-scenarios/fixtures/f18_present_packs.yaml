@@ -1,0 +1,27 @@
+# Offline fixture: PresentPack catalog probe (milestone 38).
+name: f18_present_packs
+schemaVersion: 1
+mode: fixture
+fixture: sample_present_packs_probe.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: presentPacks.count
+      gte: 1
+  - assert:
+      path: presentPacks.ids
+      contains: lightwave
+  - assert:
+      path: presentPacks.byId.lightwave.profileId
+      eq: lightwave
+  - assert:
+      path: presentPacks.byId.lightwave.templates
+      contains: lightwave.panel_chrome
+  - assert:
+      path: enabledPresents.restricting
+      eq: false
+  - assert:
+      path: presentProfiles.ids
+      contains: lightwave

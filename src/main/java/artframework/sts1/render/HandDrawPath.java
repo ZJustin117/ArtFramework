@@ -133,9 +133,14 @@ public final class HandDrawPath {
         }
         m.put("items", list);
         m.put("missingArt", Integer.valueOf(missingArt));
-        m.put("chrome", artframework.core.PresentResolve.chrome().probeSummary());
-        m.put("presentProfile", artframework.core.ProjectPresent.id());
+        artframework.core.PresentResolved pr =
+                artframework.core.PresentResolve.forSurface(
+                        artframework.context.SurfaceIds.COMBAT_HAND);
+        m.put("chrome", pr.chrome.probeSummary());
+        m.put("presentProfile", pr.profileId);
         m.put("projectPresent", artframework.core.ProjectPresent.id());
+        m.put("fromProject", Boolean.valueOf(pr.fromProject));
+        m.put("packId", pr.packId);
         return m;
     }
 

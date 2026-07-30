@@ -41,6 +41,10 @@ public final class UiProbe {
         root.put("theme", artframework.core.ProjectPresent.theme().probeSummary());
         root.put("presentProfile", artframework.core.ProjectPresent.probeSummary());
         root.put("projectPresent", artframework.core.ProjectPresent.probeSummary());
+        root.put("presentProfiles", artframework.core.PresentProfiles.catalogProbeSummary());
+        root.put("presentPacks", artframework.core.PresentPacks.probeSummary());
+        root.put("enabledPresents", artframework.core.EnabledPresents.probeSummary());
+        root.put("surfacePresent", artframework.core.SurfacePresent.probeSummary());
         List<Map<String, Object>> components = new ArrayList<Map<String, Object>>();
         components.addAll(artframework.c1.SyntheticComponents.probeAll());
         components.addAll(NativeComponents.probeAll());

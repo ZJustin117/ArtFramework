@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "modId": "artframework",
+  "presentProfile": {
+    "project": "sts",
+    "active": "sts",
+    "ids": ["sts", "lightwave"],
+    "registeredIds": ["sts", "lightwave"],
+    "packActive": "",
+    "restricting": false,
+    "enabledIds": ["sts", "lightwave"]
+  },
+  "presentPacks": {
+    "count": 1,
+    "active": "",
+    "ids": ["lightwave"],
+    "apply": {
+      "activePack": "",
+      "managedFullFrame": false,
+      "boundSurfaces": []
+    },
+    "byId": {
+      "lightwave": {
+        "id": "lightwave",
+        "profileId": "lightwave",
+        "templateCount": 1,
+        "windowCount": 1,
+        "active": false,
+        "templates": ["lightwave.panel_chrome"],
+        "windows": ["lightwave_pack_demo"],
+        "fullFrameEffectCount": 1
+      }
+    }
+  },
+  "enabledPresents": {
+    "restricting": false,
+    "enabledCount": 2,
+    "enabledIds": ["sts", "lightwave"]
+  },
+  "presentProfiles": {
+    "count": 2,
+    "ids": ["sts", "lightwave"]
+  }
+}

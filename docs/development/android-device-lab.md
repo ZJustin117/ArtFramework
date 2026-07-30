@@ -109,6 +109,9 @@ Lab nav design: [`lab-run-nav.md`](../design/lab-run-nav.md).
 
 ```bash
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_probe_smoke.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_present_profiles_catalog.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_present_packs.yaml --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lightwave_demo.yaml --device
 # lab navigation:
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_dump.yaml --device
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_lab_ensure_fresh_menu.yaml --device

@@ -86,6 +86,15 @@ public final class ArtFramework {
         return canon != null && DEFS.containsKey(canon);
     }
 
+    /** Remove a window def (PresentPack deactivate). Closes if open. */
+    public static void unregisterWindow(String id) {
+        if (id == null || id.isEmpty()) {
+            return;
+        }
+        close(id);
+        DEFS.remove(id);
+    }
+
     /**
      * Mount a registered window (synthetic open or native bind). Preferred Godot-aligned entry.
      */
@@ -221,8 +230,16 @@ public final class ArtFramework {
         NativeTemplateRuntime.resetForTests();
         RenderHosts.resetForTests();
         Themes.resetForTests();
+        artframework.core.PresentPackApply.resetForTests();
+        artframework.core.PresentPacks.resetForTests();
+        artframework.core.EnabledPresents.resetForTests();
+        try {
+            artframework.c1.host.EffectTargetActors.resetForTests();
+        } catch (Throwable ignored) {
+        }
         artframework.core.PresentProfiles.resetForTests();
         artframework.core.ProjectPresent.resetForTests();
+        artframework.core.SurfacePresent.resetForTests();
         artframework.render.LightwaveControls.resetForTests();
         artframework.c1.skin.StsSkin.resetFontsForTests();
         HostBackends.resetForTests();
@@ -284,8 +301,8 @@ public final class ArtFramework {
             artframework.core.ProjectPresent.set(name);
         } else {
             Themes.setDefault(theme);
+            refreshDefaultSkinQuiet();
         }
-        refreshDefaultSkinQuiet();
     }
 
     /** Project fallback present profile id ({@code sts}, {@code lightwave}, …). */
@@ -294,12 +311,46 @@ public final class ArtFramework {
     }
 
     /**
-     * Sets project fallback present only. Does not restyle open windows; mount/resolve is
-     * node-scoped via {@code present_profile} / {@code art.present_profile}.
+     * Global present-profile (skin) catalog. Register resources here; apply with {@link
+     * #setProjectPresent} / {@link #bindSurfacePresent}.
+     */
+    public static artframework.core.PresentProfileCatalog presentProfiles() {
+        return artframework.core.PresentProfileCatalog.get();
+    }
+
+    /** Register a present profile resource (does not change project fallback). */
+    public static void registerPresentProfile(artframework.core.PresentProfile profile) {
+        artframework.core.PresentProfiles.register(profile);
+    }
+
+    public static void registerPresentProfile(String id, Theme theme) {
+        artframework.core.PresentProfiles.register(new artframework.core.PresentProfile(id, theme));
+    }
+
+    public static void registerPresentProfile(String id, Theme theme, String packId) {
+        artframework.core.PresentProfiles.register(
+                new artframework.core.PresentProfile(
+                        id,
+                        theme,
+                        artframework.core.PresentChromeStyle.fromTheme(theme),
+                        packId != null ? packId : ""));
+    }
+
+    public static artframework.core.PresentProfile getPresentProfile(String id) {
+        return artframework.core.PresentProfiles.get(id);
+    }
+
+    public static java.util.List<String> presentProfileIds() {
+        return artframework.core.PresentProfiles.ids();
+    }
+
+    /**
+     * Sets project fallback present and hot-restyles open project-fallback C1 windows (35.1).
+     * Trees with node {@code present_profile} / {@code art.present_profile} override keep their
+     * resolve; only from-project trees re-attach Stage.
      */
     public static void setPresentProfile(String id) {
         artframework.core.ProjectPresent.set(id);
-        refreshDefaultSkinQuiet();
     }
 
     public static void setProjectPresent(String id) {
@@ -320,6 +371,101 @@ public final class ArtFramework {
             return artframework.core.ProjectPresent.resolved();
         }
         return t.resolvePresent();
+    }
+
+    /** Bind a C2 full-present surface to a PresentProfile (35.2). */
+    public static void bindSurfacePresent(String surfaceId, String profileId) {
+        artframework.core.SurfacePresent.bind(surfaceId, profileId);
+        artframework.core.PresentRestyle.applyPresentPack(
+                artframework.core.SurfacePresent.resolve(surfaceId));
+    }
+
+    public static void unbindSurfacePresent(String surfaceId) {
+        artframework.core.SurfacePresent.unbind(surfaceId);
+    }
+
+    public static artframework.core.PresentResolved resolveSurfacePresent(String surfaceId) {
+        return artframework.core.SurfacePresent.resolve(surfaceId);
+    }
+
+    public static artframework.core.PresentChromeStyle surfaceChrome(String surfaceId) {
+        return artframework.core.PresentResolve.chromeForSurface(surfaceId);
+    }
+
+    /** Force re-apply present cascade + Stage reattach for project-fallback windows. */
+    public static void restyleOpenPresent() {
+        artframework.core.PresentRestyle.onProjectPresentChanged();
+    }
+
+    /** Present UI packs (LML/JSON templates + windows). */
+    public static void registerPresentPack(artframework.core.PresentPack pack) {
+        artframework.core.PresentPacks.register(pack);
+    }
+
+    public static void registerPresentPackClasspath(String manifestResource) {
+        artframework.core.PresentPacks.registerClasspath(manifestResource);
+    }
+
+    public static void activatePresentPack(String packId) {
+        artframework.core.PresentPacks.activate(packId);
+    }
+
+    public static void deactivatePresentPack(String packId) {
+        artframework.core.PresentPacks.deactivate(packId);
+    }
+
+    public static java.util.List<String> presentPackIds() {
+        return artframework.core.PresentPacks.ids();
+    }
+
+    public static String activePresentPack() {
+        return artframework.core.PresentPacks.activeId();
+    }
+
+    public static artframework.core.PresentPack getPresentPack(String id) {
+        return artframework.core.PresentPacks.get(id);
+    }
+
+    /** Profile ids whose id matches regex (catalog). */
+    public static java.util.List<String> presentIdsMatching(String regex) {
+        return artframework.core.EnabledPresents.idsMatching(regex);
+    }
+
+    public static java.util.List<String> enabledPresentIds() {
+        return artframework.core.EnabledPresents.enabledIds();
+    }
+
+    public static void setEnabledPresentProfiles(java.util.List<String> ids) {
+        artframework.core.EnabledPresents.setEnabled(ids);
+    }
+
+    public static void clearEnabledPresentRestriction() {
+        artframework.core.EnabledPresents.clearRestriction();
+    }
+
+    /** Enable/disable all catalog profiles matching regex. */
+    public static int modifyPresentsMatching(String regex, boolean enable) {
+        return artframework.core.EnabledPresents.modifyMatching(regex, enable);
+    }
+
+    /** Select first enabled profile matching regex (applies project + pack). */
+    public static String selectPresentMatching(String regex) {
+        return artframework.core.EnabledPresents.selectMatching(regex);
+    }
+
+    /**
+     * Set packId on every profile matching regex; optional select first match.
+     *
+     * @return number of profiles updated
+     */
+    public static int modifyPresentPackIdMatching(
+            String regex, String newPackId, boolean selectFirst) {
+        return artframework.core.EnabledPresents.modifyProfilesMatching(
+                regex, newPackId, selectFirst);
+    }
+
+    public static java.util.List<String> presentPackIdsMatching(String regex) {
+        return artframework.core.PresentPacks.idsMatching(regex);
     }
 
     private static void refreshDefaultSkinQuiet() {

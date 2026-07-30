@@ -91,8 +91,9 @@ public final class LightwaveEffect implements Effect {
         float speed = binding.paramFloat("speed", 0.35f);
         // freeze>0: hold phase (one-shot flash without speeding the scroll)
         float freeze = binding.paramFloat("freeze", 0f);
-        float r = binding.paramFloat("r", 0.7f);
-        float g = binding.paramFloat("g", 0.95f);
+        // Defaults align LightwaveTheme Lightwave/band + glow cool tint
+        float r = binding.paramFloat("r", 0.55f);
+        float g = binding.paramFloat("g", 0.88f);
         float b = binding.paramFloat("b", 1f);
         float time = ctx.timeSeconds;
         float phase;
@@ -126,7 +127,7 @@ public final class LightwaveEffect implements Effect {
         }
     }
 
-    /** White bounds stroke — call after scene2d so panel chrome does not cover it. */
+    /** Bounds stroke after scene2d; colors from binding (defaults match LightwaveTheme border). */
     public void drawBorderOnly(RenderTarget target, EffectBinding binding, RenderContext ctx) {
         if (!shouldDrawBorder(binding) || target == null || ctx == null) {
             return;
@@ -135,8 +136,11 @@ public final class LightwaveEffect implements Effect {
         if (bw < 2f) {
             bw = 3f;
         }
-        // Solid white, high alpha
-        drawBorder(ctx, target, bw, 1f, 1f, 1f, 0.95f);
+        float br = binding.paramFloat("borderR", 1f);
+        float bg = binding.paramFloat("borderG", 1f);
+        float bb = binding.paramFloat("borderB", 1f);
+        float ba = binding.paramFloat("borderA", 0.95f);
+        drawBorder(ctx, target, bw, br, bg, bb, ba);
     }
 
     private static void drawFallbackStrips(

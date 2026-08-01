@@ -8,6 +8,7 @@ import artframework.assets.ResourceIds;
 import artframework.core.SignalHandler;
 import artframework.core.SignalNames;
 import artframework.core.UiComponent;
+import artframework.ecs.EntityId;
 import org.junit.After;
 import org.junit.Test;
 
@@ -76,6 +77,23 @@ public class PresentSurfacesTest {
         assertEquals("FULL", slice.get("presentLevel"));
         assertEquals(Boolean.TRUE, slice.get("fullPresent"));
         assertEquals(Boolean.FALSE, slice.get("maySuppressNative"));
+    }
+
+    @Test
+    public void surfaceLifecycleAndPolicyAreMirroredByComponents() {
+        UiComponent hand = ArtFramework.component(SurfaceIds.COMBAT_HAND);
+        hand.mount();
+        hand.probeSlice();
+
+        EntityId entity = PresentSurfaces.world().entities().get(0);
+        assertEquals(SurfaceIds.COMBAT_HAND,
+                PresentSurfaces.world().get(entity, SurfaceIdentityComponent.class).id);
+        assertTrue(PresentSurfaces.world().get(entity, SurfaceLifecycleComponent.class).mounted);
+        assertEquals(artframework.sts1.PresentLevel.OFF,
+                PresentSurfaces.world().get(entity, SurfacePolicyComponent.class).level);
+
+        hand.unmount();
+        assertFalse(PresentSurfaces.world().contains(entity));
     }
 
     @Test

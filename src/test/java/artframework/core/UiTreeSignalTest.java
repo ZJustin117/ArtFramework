@@ -10,6 +10,7 @@ import artframework.component.UiNode;
 import artframework.component.UiNodeLoader;
 import artframework.component.UiTypes;
 import artframework.component.TemplateExpander;
+import artframework.ecs.EntityId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,27 @@ public class UiTreeSignalTest {
         assertNotNull(tree.get("intensity"));
         assertSame(tree, tree.get("ok").tree());
         assertEquals("ok", tree.get("ok").id());
+    }
+
+    @Test
+    public void nodeStructureAndLifecycleAreMirroredByPresentationComponents() {
+        UiTree tree = UiTree.mount("w", expandedSample());
+        UiInstance root = tree.root();
+        UiInstance ok = tree.get("ok");
+        UiInstance parent = ok.parent();
+        EntityId rootEntity = tree.entityId(root);
+        EntityId okEntity = tree.entityId(ok);
+        EntityId parentEntity = tree.entityId(parent);
+
+        assertNotNull(rootEntity);
+        assertNotNull(okEntity);
+        assertEquals("comp_sample", tree.world().get(rootEntity, NodeIdentityComponent.class).id);
+        assertEquals(parentEntity, tree.world().get(okEntity, NodeHierarchyComponent.class).parent);
+        assertTrue(tree.world().get(okEntity, NodeLifecycleComponent.class).mounted);
+        assertTrue(tree.world().get(parentEntity, NodeHierarchyComponent.class).children.contains(okEntity));
+
+        tree.unmount();
+        assertEquals(0, tree.world().entities().size());
     }
 
     @Test

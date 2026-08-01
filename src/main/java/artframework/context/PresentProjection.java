@@ -1,5 +1,8 @@
 package artframework.context;
 
+import artframework.ecs.EntityId;
+import artframework.ecs.PresentationWorld;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -12,6 +15,8 @@ import java.util.Map;
 public final class PresentProjection {
 
     private final Map<String, CardEntity> byInstance = new LinkedHashMap<String, CardEntity>();
+    private final Map<String, EntityId> entityByInstance = new LinkedHashMap<String, EntityId>();
+    private final PresentationWorld world = new PresentationWorld("present-projection");
     private long lastFrameId = -1L;
     private long sceneEpoch = -1L;
     private String scene = "";
@@ -54,10 +59,13 @@ public final class PresentProjection {
             if (entity == null) {
                 entity = new CardEntity(id);
                 byInstance.put(id, entity);
+                entityByInstance.put(id, world.createEntity());
                 entity.apply(view);
+                applyComponents(entityByInstance.get(id), view);
                 added.add(id);
             } else {
                 entity.apply(view);
+                applyComponents(entityByInstance.get(id), view);
                 updated.add(id);
             }
         }
@@ -71,6 +79,7 @@ public final class PresentProjection {
         }
         for (String id : toRemove) {
             byInstance.remove(id);
+            world.destroyEntity(entityByInstance.remove(id));
             removed.add(id);
             if (id.equals(dragInstanceId)) {
                 dragInstanceId = null;
@@ -146,6 +155,8 @@ public final class PresentProjection {
 
     public void reset() {
         byInstance.clear();
+        entityByInstance.clear();
+        world.clear();
         lastFrameId = -1L;
         scene = "";
         sceneEpoch = -1L;
@@ -153,6 +164,27 @@ public final class PresentProjection {
         stale = false;
         dragInstanceId = null;
         lastFrame = ContextFrame.unavailable(0L);
+    }
+
+    /** Internal presentation ECS world; consumers should continue using this projection facade. */
+    public PresentationWorld world() {
+        return world;
+    }
+
+    /** Returns the ECS identity for a projected card, or null when absent. */
+    public EntityId entityId(String instanceId) {
+        return entityByInstance.get(instanceId);
+    }
+
+    private void applyComponents(EntityId entity, CardView view) {
+        world.put(entity, CardIdentityComponent.class,
+                new CardIdentityComponent(view.ref.instanceId, view.ref.cardId));
+        world.put(entity, CardPlacementComponent.class,
+                new CardPlacementComponent(view.zone, view.slotIndex, view.pose));
+        world.put(entity, CardInteractionComponent.class,
+                new CardInteractionComponent(view.playable, view.selected, view.hovered, view.dragging));
+        world.put(entity, CardAssetsComponent.class,
+                new CardAssetsComponent(view.artResourceId, view.frameResourceId));
     }
 
     public ControlsView controls() {

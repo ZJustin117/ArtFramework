@@ -1,6 +1,8 @@
 package artframework.core;
 
 import artframework.component.UiNode;
+import artframework.ecs.EntityId;
+import artframework.ecs.PresentationWorld;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -15,6 +17,8 @@ public final class UiTree {
     private final String windowId;
     private final SignalHub signalHub = new SignalHub();
     private final Map<String, UiInstance> byId = new LinkedHashMap<String, UiInstance>();
+    private final PresentationWorld world;
+    private final Map<UiInstance, EntityId> entityIds = new java.util.IdentityHashMap<UiInstance, EntityId>();
     private final TreeLifecycle lifecycle;
     private Theme theme;
     private UiInstance root;
@@ -27,6 +31,7 @@ public final class UiTree {
         }
         this.windowId = windowId;
         this.lifecycle = lifecycle;
+        this.world = new PresentationWorld("tree:" + windowId);
         this.theme = ProjectPresent.theme();
     }
 
@@ -124,6 +129,15 @@ public final class UiTree {
         return alive;
     }
 
+    /** Internal ECS mirror for durable node state; tree APIs remain the structural facade. */
+    public PresentationWorld world() {
+        return world;
+    }
+
+    public EntityId entityId(UiInstance instance) {
+        return entityIds.get(instance);
+    }
+
     public UiInstance get(String id) {
         if (id == null || id.isEmpty()) {
             return null;
@@ -200,6 +214,8 @@ public final class UiTree {
         fireUnmount(root, lifecycle);
         signalHub.clear();
         byId.clear();
+        entityIds.clear();
+        world.clear();
         alive = false;
     }
 
@@ -213,6 +229,14 @@ public final class UiTree {
 
     private UiInstance build(UiNode node, UiInstance parent) {
         UiInstance inst = new UiInstance(this, node, parent, ++anonymousSequence);
+        EntityId entity = world.createEntity();
+        entityIds.put(inst, entity);
+        EntityId parentEntity = parent != null ? entityIds.get(parent) : null;
+        world.put(entity, NodeIdentityComponent.class,
+                new NodeIdentityComponent(inst.id(), inst.resolveEmitId(), inst.type()));
+        world.put(entity, NodeHierarchyComponent.class,
+                new NodeHierarchyComponent(parentEntity, null));
+        world.put(entity, NodeLifecycleComponent.class, new NodeLifecycleComponent(false));
         if (!inst.id().isEmpty()) {
             if (byId.containsKey(inst.id())) {
                 throw new IllegalArgumentException("duplicate id: " + inst.id());
@@ -222,11 +246,18 @@ public final class UiTree {
         for (UiNode c : node.children) {
             inst.addChild(build(c, inst));
         }
+        List<EntityId> childEntities = new ArrayList<EntityId>();
+        for (UiInstance child : inst.children()) {
+            childEntities.add(entityIds.get(child));
+        }
+        world.put(entity, NodeHierarchyComponent.class,
+                new NodeHierarchyComponent(parentEntity, childEntities));
         return inst;
     }
 
     private void fireMount(UiInstance n, TreeLifecycle lifecycle) {
         n.markMounted(true);
+        setMountedComponent(n, true);
         if (lifecycle != null) {
             lifecycle.onMount(n);
         }
@@ -253,6 +284,14 @@ public final class UiTree {
             lifecycle.onUnmount(n);
         }
         n.markMounted(false);
+        setMountedComponent(n, false);
+    }
+
+    private void setMountedComponent(UiInstance instance, boolean mounted) {
+        EntityId entity = entityIds.get(instance);
+        if (entity != null && world.contains(entity)) {
+            world.put(entity, NodeLifecycleComponent.class, new NodeLifecycleComponent(mounted));
+        }
     }
 
     private static UiInstance childById(UiInstance parent, String id) {

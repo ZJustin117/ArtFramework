@@ -403,7 +403,7 @@ public final class UiInstance {
         this.mounted = value;
     }
 
-    private String resolveEmitId() {
+    String resolveEmitId() {
         return emitId;
     }
 }

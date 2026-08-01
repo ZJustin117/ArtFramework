@@ -1,5 +1,8 @@
 package artframework.c2;
 
+import artframework.ecs.EntityId;
+import artframework.ecs.PresentationWorld;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -13,6 +16,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class DefaultEntityPresent implements EntityPresent {
 
     private final Map<String, EntitySlot> slots = new LinkedHashMap<String, EntitySlot>();
+    private final Map<String, EntityId> entityIds = new LinkedHashMap<String, EntityId>();
+    private final PresentationWorld world = new PresentationWorld("entity-present");
     private final CopyOnWriteArrayList<EntityPresentListener> listeners =
             new CopyOnWriteArrayList<EntityPresentListener>();
 
@@ -25,10 +30,19 @@ public final class DefaultEntityPresent implements EntityPresent {
         EntitySlot previous = slots.get(slotId);
         if (previous != null) {
             slots.remove(slotId);
+            world.destroyEntity(entityIds.remove(slotId));
             fireDetached(slotId);
         }
         EntitySlot slot = new EntitySlot(slotId, k, refId);
         slots.put(slotId, slot);
+        EntityId entity = world.createEntity();
+        entityIds.put(slotId, entity);
+        world.put(entity, EntitySlotIdentityComponent.class,
+                new EntitySlotIdentityComponent(slotId, k, refId));
+        world.put(entity, EntitySlotSnapshotComponent.class,
+                new EntitySlotSnapshotComponent(null));
+        world.put(entity, EntitySlotTransformComponent.class,
+                new EntitySlotTransformComponent(0f, 0f, 1f, false));
         for (EntityPresentListener l : listeners) {
             l.onAttached(slot);
         }
@@ -38,6 +52,9 @@ public final class DefaultEntityPresent implements EntityPresent {
     public void sync(String slotId, Object snapshotDto) {
         EntitySlot slot = require(slotId);
         slot.setSnapshot(snapshotDto);
+        EntityId entity = entityIds.get(slotId);
+        world.put(entity, EntitySlotSnapshotComponent.class,
+                new EntitySlotSnapshotComponent(snapshotDto));
         for (EntityPresentListener l : listeners) {
             l.onSynced(slot);
         }
@@ -47,6 +64,9 @@ public final class DefaultEntityPresent implements EntityPresent {
     public void layout(String slotId, float x, float y, float scale) {
         EntitySlot slot = require(slotId);
         slot.setLayout(x, y, scale);
+        EntityId entity = entityIds.get(slotId);
+        world.put(entity, EntitySlotTransformComponent.class,
+                new EntitySlotTransformComponent(x, y, scale, true));
         for (EntityPresentListener l : listeners) {
             l.onLaidOut(slot);
         }
@@ -58,6 +78,7 @@ public final class DefaultEntityPresent implements EntityPresent {
             return;
         }
         if (slots.remove(slotId) != null) {
+            world.destroyEntity(entityIds.remove(slotId));
             fireDetached(slotId);
         }
     }
@@ -109,8 +130,19 @@ public final class DefaultEntityPresent implements EntityPresent {
         return listeners.size();
     }
 
+    /** Internal ECS world; the EntityPresent API remains the compatibility facade. */
+    public PresentationWorld world() {
+        return world;
+    }
+
+    public EntityId entityId(String slotId) {
+        return entityIds.get(slotId);
+    }
+
     void resetForTests() {
         slots.clear();
+        entityIds.clear();
+        world.clear();
         listeners.clear();
     }
 

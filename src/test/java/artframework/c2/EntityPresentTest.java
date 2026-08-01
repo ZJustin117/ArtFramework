@@ -3,6 +3,7 @@ package artframework.c2;
 import org.junit.After;
 import org.junit.Test;
 import artframework.api.ArtFramework;
+import artframework.ecs.EntityId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -117,6 +118,30 @@ public class EntityPresentTest {
     @Test
     public void facadeSameInstanceAsRuntime() {
         assertSame(NativeTemplateRuntime.entities(), ArtFramework.entities());
+    }
+
+    @Test
+    public void slotStateIsMirroredByPresentationComponents() {
+        DefaultEntityPresent p = ArtFramework.entityPresent();
+        p.attach("c1", "card", "Strike");
+        EntityId entity = p.entityId("c1");
+        assertNotNull(entity);
+        assertEquals(1, p.world().entities().size());
+        assertEquals(EntityKind.CARD, p.world().get(entity, EntitySlotIdentityComponent.class).kind);
+        assertNull(p.world().get(entity, EntitySlotSnapshotComponent.class).snapshot);
+        assertFalse(p.world().get(entity, EntitySlotTransformComponent.class).laidOut);
+
+        Object snapshot = new Object();
+        p.sync("c1", snapshot);
+        p.layout("c1", 10f, 20f, 0.5f);
+        assertSame(snapshot, p.world().get(entity, EntitySlotSnapshotComponent.class).snapshot);
+        EntitySlotTransformComponent transform = p.world().get(entity, EntitySlotTransformComponent.class);
+        assertTrue(transform.laidOut);
+        assertEquals(10f, transform.x, 0.001f);
+        assertEquals(0.5f, transform.scale, 0.001f);
+
+        p.detach("c1");
+        assertFalse(p.world().contains(entity));
     }
 
     private static final class RecordingListener implements EntityPresentListener {

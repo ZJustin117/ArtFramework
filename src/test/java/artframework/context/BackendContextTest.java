@@ -3,6 +3,7 @@ package artframework.context;
 import artframework.api.ArtFramework;
 import artframework.core.SignalDecision;
 import artframework.core.UiSignal;
+import artframework.ecs.EntityId;
 import org.junit.After;
 import org.junit.Test;
 
@@ -63,5 +64,35 @@ public class BackendContextTest {
                 ControlsView.empty(), MapView.empty(), null)).applied);
         assertEquals(0, ArtFramework.projection().size());
         assertNull(ArtFramework.projection().dragInstanceId());
+    }
+
+    @Test public void cardProjectionStoresLongLivedStateInPresentationComponents() {
+        CardView card = CardView.builder(new CardRef("instance", "Strike_R"))
+                .zone(CardZone.HAND).slot(2).selected(true).art("card-art").frame("card-frame").build();
+        assertTrue(ArtFramework.publishFrame(ContextFrame.of(1L, "combat", Arrays.asList(card))).applied);
+
+        EntityId entity = ArtFramework.projection().entityId("instance");
+        assertNotNull(entity);
+        assertEquals(1, ArtFramework.projection().world().entities().size());
+        assertEquals("Strike_R", ArtFramework.projection().world()
+                .get(entity, CardIdentityComponent.class).cardId);
+        assertEquals(2, ArtFramework.projection().world()
+                .get(entity, CardPlacementComponent.class).slotIndex);
+        assertTrue(ArtFramework.projection().world()
+                .get(entity, CardInteractionComponent.class).selected);
+        assertEquals("card-art", ArtFramework.projection().world()
+                .get(entity, CardAssetsComponent.class).artResourceId);
+    }
+
+    @Test public void removedCardDestroysItsPresentationEntity() {
+        assertTrue(ArtFramework.publishFrame(ContextFrame.of(1L, "combat", Arrays.asList(
+                CardView.builder(new CardRef("instance", "Strike_R")).build()))).applied);
+        EntityId entity = ArtFramework.projection().entityId("instance");
+        assertNotNull(entity);
+
+        assertTrue(ArtFramework.publishFrame(ContextFrame.of(2L, "combat", null)).applied);
+        assertNull(ArtFramework.projection().entityId("instance"));
+        assertFalse(ArtFramework.projection().world().contains(entity));
+        assertEquals(0, ArtFramework.projection().world().entities().size());
     }
 }

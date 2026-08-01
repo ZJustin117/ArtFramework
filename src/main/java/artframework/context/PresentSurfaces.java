@@ -8,6 +8,8 @@ import artframework.core.SignalHandler;
 import artframework.core.SignalHub;
 import artframework.core.SignalNames;
 import artframework.core.UiComponent;
+import artframework.ecs.EntityId;
+import artframework.ecs.PresentationWorld;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,6 +27,8 @@ public final class PresentSurfaces {
 
     private static final Map<String, UiComponent> BY_ID = new LinkedHashMap<String, UiComponent>();
     private static final SignalHub HUB = new SignalHub();
+    private static final PresentationWorld WORLD = new PresentationWorld("present-surfaces");
+    private static final Map<String, EntityId> ENTITY_IDS = new LinkedHashMap<String, EntityId>();
 
     static {
         register(new HandSurface());
@@ -80,6 +84,8 @@ public final class PresentSurfaces {
 
     public static void resetForTests() {
         HUB.clear();
+        ENTITY_IDS.clear();
+        WORLD.clear();
         for (UiComponent c : BY_ID.values()) {
             if (c.isMounted()) {
                 c.unmount();
@@ -92,6 +98,11 @@ public final class PresentSurfaces {
         if (c != null) {
             c.emit(signal, args);
         }
+    }
+
+    /** Internal ECS world for durable surface state; surface APIs remain the compatibility facade. */
+    public static PresentationWorld world() {
+        return WORLD;
     }
 
     abstract static class BaseSurface implements UiComponent {
@@ -122,11 +133,14 @@ public final class PresentSurfaces {
         @Override
         public void mount() {
             mounted = true;
+            syncComponents();
         }
 
         @Override
         public void unmount() {
             mounted = false;
+            EntityId entity = ENTITY_IDS.remove(id);
+            if (entity != null) WORLD.destroyEntity(entity);
             HUB.clearInstance(id);
             if (SurfaceIds.COMBAT_HAND.equals(id)) {
                 PresentProjections.get().clearDrag();
@@ -158,6 +172,7 @@ public final class PresentSurfaces {
         }
 
         Map<String, Object> baseProbe(List<String> actions) {
+            syncComponents();
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("id", id);
             m.put("kind", kind().name());
@@ -171,6 +186,22 @@ public final class PresentSurfaces {
             m.put("signals", new ArrayList<String>(signals));
             m.putAll(PresentProjections.get().probeSlice());
             return m;
+        }
+
+        private void syncComponents() {
+            EntityId entity = ENTITY_IDS.get(id);
+            if (entity == null) {
+                entity = WORLD.createEntity();
+                ENTITY_IDS.put(id, entity);
+                WORLD.put(entity, SurfaceIdentityComponent.class,
+                        new SurfaceIdentityComponent(id, kind()));
+            }
+            artframework.sts1.PresentLevel level = artframework.sts1.FullPresentMode.levelOf(id);
+            WORLD.put(entity, SurfaceLifecycleComponent.class,
+                    new SurfaceLifecycleComponent(mounted));
+            WORLD.put(entity, SurfacePolicyComponent.class,
+                    new SurfacePolicyComponent(level, level.allowsFullPresent(),
+                            level.allowsObserve(), artframework.sts1.FullPresentMode.maySuppressNative(id)));
         }
 
         protected IntentResult submit(String intentName, Object... args) {

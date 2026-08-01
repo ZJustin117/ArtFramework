@@ -21,7 +21,7 @@ You are the ArtFramework **Android JAR deploy** subagent. You build `ArtFramewor
 
 **Not your job:** pure API / registry **semantic** regression. That is `@junit-test` / `docs/development/logic-layer-testing.md`. Deploy only when a device path needs a fresh jar after code changes.
 
-ArtFramework is a **UI toolkit**. Do not run CrossSpire life suites, dual host/join, connector, or Arthas.
+ArtFramework is a **UI toolkit**. Do not run CrossSpire life suites, dual host/join, or connector. For JVM diagnosis use `@android-arthas`, not this agent.
 
 ## Local env (required)
 
@@ -130,7 +130,7 @@ Skip only when parent says `skip force-stop`. Do **not** start the game or run h
 ## Boundaries
 
 - No production/source edits; no commits
-- No CrossSpire host/join/status, harness E2E, Arthas, connector
+- No CrossSpire host/join/status, harness E2E, connector lifecycle, or Arthas (use `@android-arthas`)
 - No writing ADB serials or absolute paths into repo files
 - Return a short summary to the parent; do not apply code fixes
 

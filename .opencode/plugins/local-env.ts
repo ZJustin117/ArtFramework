@@ -14,12 +14,14 @@ const ALLOWED_KEYS = new Set([
   "ART_AMETHYST_TOOLS_DIR",
   "ART_HARNESS_OUT_DIR",
   "ART_GAME_PROBE_PORT",
+  "ART_ARTHAS_PORT",
 ])
 
 const TEST_AGENTS = new Set([
   "junit-test",
   "android-deploy-jar",
   "art-verify",
+  "android-arthas",
 ])
 
 function parseDotEnv(content: string): Record<string, string> {
@@ -84,6 +86,9 @@ function applyDerivedJars(merged: Record<string, string>): void {
   }
   if (!merged.ART_GAME_PROBE_PORT) {
     merged.ART_GAME_PROBE_PORT = "9099"
+  }
+  if (!merged.ART_ARTHAS_PORT) {
+    merged.ART_ARTHAS_PORT = "8099"
   }
 }
 

@@ -11,7 +11,7 @@ default:   pure registry + C1/C2 templates + (soon) UiOps/UiProbe JUnit
 
 **Default gate:** `./scripts/with-art-env.sh test` or OpenCode `@junit-test`.
 
-Dual-device life suites and multiplayer protocol assertions are **out of scope** for ArtFramework. Consumers (e.g. CrossSpire) own co-op E2E. UI intercept/trigger fixtures: [`ui-layer-verification.md`](./ui-layer-verification.md).
+Dual-device life suites and multiplayer protocol assertions are **out of scope** for ArtFramework. Consumers (e.g. CrossSpire) own co-op E2E. UI intercept/trigger fixtures: [`ui-layer-verification.md`](./ui-layer-verification.md). Optional JVM diagnostics: [`android-arthas.md`](./android-arthas.md) / `@android-arthas` (not a semantic gate).
 
 ## What to test here
 

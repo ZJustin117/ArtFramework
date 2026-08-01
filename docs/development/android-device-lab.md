@@ -25,6 +25,7 @@ Shared docs use env **names** only. Values live in gitignored `.env.local`.
 | `STS_CONNECTOR_PORT` | Connector daemon (same name as CrossSpire / Amethyst) |
 | `ART_D1_SERIAL` | ADB serial (same physical device as CrossSpire D1 when mirrored) |
 | `ART_GAME_PROBE_PORT` | Device game-probe (default `9099`) |
+| `ART_ARTHAS_PORT` | Optional device-side Arthas bridge (default `8099`) |
 | `ART_HARNESS_OUT_DIR` | Absolute dir for harness `result.json` (gitignored) |
 | `ART_UI_VERIFY_OUT_DIR` | Optional art-verify JSON out |
 
@@ -45,6 +46,7 @@ set -a && source .env.local && set +a
 | sts-harness | **ArtFramework repo root** | `python3 "$ART_AMETHYST_TOOLS_DIR/main.py" sts-harness ...` |
 | jar build/push | ArtFramework root | `./scripts/with-art-env.sh jar` then `@android-deploy-jar` or manual push |
 | UI YAML | ArtFramework root | `python3 tools/art-verify/run.py tests/ui-scenarios/... --device` |
+| Arthas query | ArtFramework root (`PYTHONPATH` = Amethyst) | `python3 -m scripts.tools.arthas --device "$ART_D1_SERIAL" …` (see [`android-arthas.md`](./android-arthas.md)) |
 
 Do **not** set harness tool workdir to Amethyst root for `main.py` invocations from ArtFramework (Amethyst resolves its own repo_root from the tools path). Connector **must** run with `PYTHONPATH`/`cwd` = Amethyst root so `scripts.tools` imports.
 
@@ -135,10 +137,11 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_event.
 
 ## OpenCode order
 
-`junit-test` → `android-deploy-jar` → connector up → harness start → `@art-verify` device.
+`junit-test` → `android-deploy-jar` → connector up → harness start → `@art-verify` device. Use `@android-arthas` separately for a bounded JVM diagnosis; it does not manage connector lifecycle or replace UI verification.
 
 ## Related
 
 - CrossSpire: `docs/development/android-harness.md` (full dual-device)
 - [`ui-layer-verification.md`](./ui-layer-verification.md)
+- [`android-arthas.md`](./android-arthas.md)
 - [`android-deploy.md`](./android-deploy.md)

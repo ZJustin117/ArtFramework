@@ -50,5 +50,5 @@ Prefer OpenCode `@android-deploy-jar` so size verification and failure modes sta
 
 ## Out of scope
 
-- Dual host/join, CrossSpire life YAML, connector daemon, Arthas
+- Dual host/join, CrossSpire life YAML, connector daemon, or Arthas diagnosis
 - Using deploy as a substitute for failing pure API tests

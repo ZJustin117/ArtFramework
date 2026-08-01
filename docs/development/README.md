@@ -24,6 +24,7 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 | `junit-test` | `@junit-test` | Default gate: `./scripts/with-art-env.sh test` (read-only) |
 | `android-deploy-jar` | `@android-deploy-jar` | Build + push `ArtFramework.jar` (default D1); not semantic regression |
 | `art-verify` | `@art-verify` | `tools/art-verify` fixture YAML + offline unittest; optional D1 later |
+| `android-arthas` | `@android-arthas` | Read-only Android JVM diagnostics; bounded `start -> query -> stop`; not a default gate |
 
 ## Docs in this folder
 
@@ -35,6 +36,7 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 | [`../design/lab-run-nav.md`](../design/lab-run-nav.md) | Lab run navigation (`art lab`) for D1 |
 | [`android-deploy.md`](./android-deploy.md) | Device jar push paths and force-stop |
 | [`android-device-lab.md`](./android-device-lab.md) | Amethyst connector / harness / UI smoke (D1) |
+| [`android-arthas.md`](./android-arthas.md) | Optional Arthas JVM diagnostics on the Android device |
 | [`consumer.md`](./consumer.md) | How CrossSpire (or others) depend on `ArtFramework.jar` |
 | [`../design/art-framework.md`](../design/art-framework.md) | ART presentation graph + Host SPI + milestone 12 |
 | [`../design/backend-context.md`](../design/backend-context.md) | Backend / context / intents (milestone 15) |
@@ -45,4 +47,4 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 ## Boundary
 
 - Default verification is **JUnit**. Device deploy is optional and does not replace API tests.
-- Dual-device life YAML, connector, and Arthas are **CrossSpire** gates. ArtFramework may use **single-device** UI smoke (`ART_D1_SERIAL`) only.
+- Dual-device life YAML remains a **CrossSpire** gate. ArtFramework may use **single-device** UI smoke (`ART_D1_SERIAL`) and optional read-only Arthas JVM diagnostics; neither replaces JUnit or `art-verify`.

@@ -58,7 +58,7 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 | `junit-test` | **Default semantic gate** after API/registry/runtime pure-logic changes; user asks for JUnit | Docs-only; code will not compile; device-only ops |
 | `android-deploy-jar` | Need fresh `ArtFramework.jar` on device after UI source changes; before manual/on-device UI checks | Semantic regression (use junit); no device / unset serial; jar unchanged |
 | `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist | Pure API rules (junit); CrossSpire life/co-op |
-| `android-arthas` | Explicit bounded Android JVM diagnosis: threads, classloading, methods, traces, or bridge failures; requires the debug-compatible game-probe and a running connector | Default gate; UI semantics; jar deploy; connector lifecycle; CrossSpire life/co-op |
+| `android-arthas` | Explicit bounded Android JVM diagnosis: threads, classloading, methods, traces, or bridge failures | Default gate; UI semantics; jar deploy; connector lifecycle; CrossSpire life/co-op |
 
 **Do not add** CrossSpire-style dual-device **life** suites or protocol assertions here. Arthas is optional read-only JVM diagnostics, not a default ArtFramework gate; connector lifecycle and dual-device life stay outside this repository's default workflow. ArtFramework may run **single-device UI** smoke via `@art-verify`.
 

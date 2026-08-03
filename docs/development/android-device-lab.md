@@ -137,7 +137,7 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_event.
 
 ## OpenCode order
 
-`junit-test` → `android-deploy-jar` → connector up → harness start → `@art-verify` device. Use `@android-arthas` separately for a bounded JVM diagnosis; it does not manage connector lifecycle or replace UI verification.
+`junit-test` → `android-deploy-jar` → connector up → `@android-harness` start / console / stop → `@art-verify` device. Use `@android-arthas` separately for a bounded JVM diagnosis; it does not manage connector lifecycle or replace UI verification.
 
 ## Related
 

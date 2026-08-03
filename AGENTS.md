@@ -59,13 +59,14 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 | `android-deploy-jar` | Need fresh `ArtFramework.jar` on device after UI source changes; before manual/on-device UI checks | Semantic regression (use junit); no device / unset serial; jar unchanged |
 | `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist | Pure API rules (junit); CrossSpire life/co-op |
 | `android-arthas` | Explicit bounded Android JVM diagnosis: threads, classloading, methods, traces, or bridge failures | Default gate; UI semantics; jar deploy; connector lifecycle; CrossSpire life/co-op |
+| `android-harness` | D1 harness lifecycle, game status, logs/screenshots, and bounded BaseMod console commands | Source edits; jar deploy; connector lifecycle; Arthas; CrossSpire life/co-op |
 
 **Do not add** CrossSpire-style dual-device **life** suites or protocol assertions here. Arthas is optional read-only JVM diagnostics, not a default ArtFramework gate; connector lifecycle and dual-device life stay outside this repository's default workflow. ArtFramework may run **single-device UI** smoke via `@art-verify`.
 
 ### Delegation rules
 
 1. One Task = one narrow goal (full `./scripts/with-art-env.sh test`, deploy jar, or art-verify). Do not bundle refactor + test + fix in one subagent.
-2. Order: code change → **`@junit-test`** → offline **`@art-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → connector + harness cold start ([`android-device-lab.md`](docs/development/android-device-lab.md)) → device **`@art-verify`**. Use **`@android-arthas`** only when a separate JVM diagnosis is requested.
+2. Order: code change → **`@junit-test`** → offline **`@art-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → **`@android-harness`** for connector-ready game lifecycle and console operations → device **`@art-verify`**. Use **`@android-arthas`** only when a separate JVM diagnosis is requested.
 3. Subagents **report summaries only** (`edit: deny`). Parent fixes source, then re-delegates.
 4. Prefer not running full suites in the parent session when subagents are available.
 5. Task resume: `task_id` only from a real `ses…` id; **omit `task_id` on new tasks** (do not invent UUIDs). Plugin strips non-`ses` ids.

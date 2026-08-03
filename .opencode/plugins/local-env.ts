@@ -22,6 +22,7 @@ const TEST_AGENTS = new Set([
   "android-deploy-jar",
   "art-verify",
   "android-arthas",
+  "android-harness",
 ])
 
 function parseDotEnv(content: string): Record<string, string> {

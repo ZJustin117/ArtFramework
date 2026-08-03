@@ -46,6 +46,14 @@ Artifact: `build/libs/ArtFramework.jar`.
 **Default gate is JUnit.** OpenCode: `@junit-test`. Optional on-device: `@android-deploy-jar`.  
 UI tooling: `cd tools/art-verify && python3 -m unittest discover -s tests -v` or `@art-verify`.
 
+Common D1 lab operations:
+
+```bash
+scripts/art-lab ready
+scripts/art-lab combat verify-full
+scripts/art-lab console "art probe"
+```
+
 ## ModTheSpire
 
 - `modid`: `artframework`

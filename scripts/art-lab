@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+# Small, bounded entry point for the ArtFramework D1 device lab.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+ENV_KEYS=(
+  SLAY_THE_AMETHYST_ROOT
+  ART_AMETHYST_TOOLS_DIR
+  ART_D1_SERIAL
+  STS_CONNECTOR_PORT
+  ART_HARNESS_OUT_DIR
+  ART_GAME_PROBE_PORT
+)
+declare -A PROCESS_ENV=()
+for key in "${ENV_KEYS[@]}"; do
+  if [[ -v "$key" ]]; then
+    PROCESS_ENV["$key"]="${!key}"
+  fi
+done
+
+if [[ -f "$ROOT/.env.local" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env.local"
+  set +a
+fi
+for key in "${!PROCESS_ENV[@]}"; do
+  printf -v "$key" '%s' "${PROCESS_ENV[$key]}"
+done
+
+usage() {
+  printf '%s\n' \
+    'Usage:' \
+    '  scripts/art-lab ready [--timeout-seconds N] [--poll-interval-seconds N]' \
+    '  scripts/art-lab status' \
+    '  scripts/art-lab stop' \
+    '  scripts/art-lab console "<BaseMod command>"' \
+    '  scripts/art-lab combat verify-full [--out-dir DIR]' \
+    '' \
+    'The connector daemon must already be running. This script never manages it.' >&2
+}
+
+die() {
+  printf 'art-lab: %s\n' "$*" >&2
+  exit 2
+}
+
+require_env() {
+  local missing=()
+  local key
+  for key in "$@"; do
+    [[ -n "${!key:-}" ]] || missing+=("$key")
+  done
+  if ((${#missing[@]})); then
+    printf 'art-lab: missing environment keys: %s\n' "${missing[*]}" >&2
+    exit 2
+  fi
+}
+
+tools_dir() {
+  printf '%s\n' "${ART_AMETHYST_TOOLS_DIR:-$SLAY_THE_AMETHYST_ROOT/scripts/tools}"
+}
+
+require_device_env() {
+  require_env SLAY_THE_AMETHYST_ROOT ART_D1_SERIAL STS_CONNECTOR_PORT \
+    ART_HARNESS_OUT_DIR ART_GAME_PROBE_PORT
+  [[ -d "$SLAY_THE_AMETHYST_ROOT" ]] || die "SLAY_THE_AMETHYST_ROOT does not exist: $SLAY_THE_AMETHYST_ROOT"
+  [[ -f "$(tools_dir)/main.py" ]] || die "Amethyst harness entrypoint not found under $(tools_dir)"
+  [[ -d "$ART_HARNESS_OUT_DIR" ]] || mkdir -p "$ART_HARNESS_OUT_DIR"
+  adb -s "$ART_D1_SERIAL" get-state >/dev/null
+  PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 -m scripts.tools.connector status --port "$STS_CONNECTOR_PORT" >/dev/null
+}
+
+harness() {
+  python3 "$(tools_dir)/main.py" sts-harness \
+    "$@" \
+    -DeviceSerial "$ART_D1_SERIAL" \
+    -ConnectorPort "$STS_CONNECTOR_PORT" \
+    -AgentPort "$ART_GAME_PROBE_PORT" \
+    -OutDir "$ART_HARNESS_OUT_DIR"
+}
+
+latest_result() {
+  python3 - "$ART_HARNESS_OUT_DIR" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+files = sorted(root.glob("**/result.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+if not files:
+    raise SystemExit("art-lab: no Harness result.json found")
+path = files[0]
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except (OSError, ValueError) as exc:
+    raise SystemExit(f"art-lab: cannot read {path}: {exc}")
+print(json.dumps({"path": str(path), "result": data}, separators=(",", ":")))
+PY
+}
+
+print_result() {
+  local payload="$1"
+  python3 - "$payload" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+data = payload["result"]
+snapshot = data.get("statusSnapshot") or {}
+print(f"result={payload['path']}")
+print(f"success={data.get('success')} status={data.get('status')} observedState={snapshot.get('observedState', '')}")
+if data.get("message"):
+    print(f"message={data['message']}")
+if data.get("error"):
+    print(f"error={data['error']}")
+PY
+}
+
+status_payload() {
+  harness -Command status >/dev/null
+  latest_result
+}
+
+is_ready() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+data = json.loads(sys.argv[1])["result"]
+snapshot = data.get("statusSnapshot") or {}
+raise SystemExit(0 if snapshot.get("observedState") == "READY" else 1)
+PY
+}
+
+ready() {
+  local timeout=120
+  local interval=2
+  while (($#)); do
+    case "$1" in
+      --timeout-seconds) [[ $# -ge 2 ]] || die "$1 requires a value"; timeout="$2"; shift 2;;
+      --poll-interval-seconds) [[ $# -ge 2 ]] || die "$1 requires a value"; interval="$2"; shift 2;;
+      *) die "unknown ready option: $1";;
+    esac
+  done
+  [[ "$timeout" =~ ^[0-9]+$ && "$timeout" -gt 0 && "$interval" =~ ^[0-9]+$ && "$interval" -gt 0 ]] || die "timeout and poll interval must be positive integers"
+
+  local payload
+  if payload="$(status_payload)"; then
+    print_result "$payload"
+    if is_ready "$payload"; then
+      return 0
+    fi
+  fi
+
+  harness -Command start -LaunchMode mts_basemod -DebugMode >/dev/null
+  local deadline=$((SECONDS + timeout))
+  while ((SECONDS <= deadline)); do
+    payload="$(status_payload)"
+    print_result "$payload"
+    if is_ready "$payload"; then
+      return 0
+    fi
+    sleep "$interval"
+  done
+  printf 'art-lab: timed out waiting for READY after %ss\n' "$timeout" >&2
+  return 1
+}
+
+status() {
+  local payload
+  payload="$(status_payload)"
+  print_result "$payload"
+}
+
+stop() {
+  harness -Command stop >/dev/null
+  print_result "$(latest_result)"
+}
+
+console() {
+  [[ $# -eq 1 ]] || die 'console requires exactly one command string'
+  harness -Command console -ConsoleCommand "$1" >/dev/null
+  print_result "$(latest_result)"
+}
+
+combat_verify_full() {
+  local out_dir=""
+  while (($#)); do
+    case "$1" in
+      --out-dir) [[ $# -ge 2 ]] || die "$1 requires a value"; out_dir="$2"; shift 2;;
+      *) die "unknown combat option: $1";;
+    esac
+  done
+  ready
+  local args=(tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_combat_ready.yaml --device)
+  [[ -n "$out_dir" ]] && args+=(--out-dir "$out_dir")
+  python3 "${args[@]}"
+}
+
+main() {
+  [[ $# -gt 0 ]] || { usage; exit 2; }
+  require_device_env
+  case "$1" in
+    ready) shift; ready "$@";;
+    status) [[ $# -eq 1 ]] || die 'status takes no options'; status;;
+    stop) [[ $# -eq 1 ]] || die 'stop takes no options'; stop;;
+    console) shift; console "$@";;
+    combat)
+      shift
+      [[ "${1:-}" == verify-full ]] || die 'supported combat command: verify-full'
+      shift
+      combat_verify_full "$@"
+      ;;
+    *) usage; die "unknown command: $1";;
+  esac
+}
+
+main "$@"

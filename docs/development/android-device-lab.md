@@ -50,6 +50,29 @@ set -a && source .env.local && set +a
 
 Do **not** set harness tool workdir to Amethyst root for `main.py` invocations from ArtFramework (Amethyst resolves its own repo_root from the tools path). Connector **must** run with `PYTHONPATH`/`cwd` = Amethyst root so `scripts.tools` imports.
 
+## Common D1 commands
+
+Use `scripts/art-lab` from the ArtFramework root for the common bounded D1
+flow. It validates the device and connector status, invokes Harness with its
+required parameters, and reports the newest Harness `result.json` rather than
+relying only on the process exit status.
+
+```bash
+scripts/art-lab ready
+scripts/art-lab status
+scripts/art-lab console "art probe"
+scripts/art-lab combat verify-full
+scripts/art-lab stop
+```
+
+`ready` starts `mts_basemod` with game-probe enabled and polls until Harness
+observes `READY`. `combat verify-full` reuses
+`d1_full_present_combat_ready.yaml`: ART lab navigation, BaseMod `fight
+Cultist`, and `FULL_READY` probe assertions remain in the evidence-producing
+scenario. The wrapper never starts, stops, or restarts the shared connector.
+Arthas remains on its native CLI because its start/query/cleanup choice is a
+diagnostic decision, not a device-lab default.
+
 ## Bring-up checklist (UI smoke)
 
 1. ADB: `adb connect` / `adb -s "$ART_D1_SERIAL" get-state` → `device`

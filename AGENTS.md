@@ -57,20 +57,21 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 |-------|-------------|-------------|
 | `junit-test` | **Default semantic gate** after API/registry/runtime pure-logic changes; user asks for JUnit | Docs-only; code will not compile; device-only ops |
 | `android-deploy-jar` | Need fresh `ArtFramework.jar` on device after UI source changes; before manual/on-device UI checks | Semantic regression (use junit); no device / unset serial; jar unchanged |
-| `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist | Pure API rules (junit); CrossSpire life/co-op |
+| `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist; scenarios other than `scripts/art-lab combat verify-full` | Pure API rules (junit); standard `ready` / `status` / `console` / `combat verify-full` wrapper operations; CrossSpire life/co-op |
 | `android-arthas` | Explicit bounded Android JVM diagnosis: threads, classloading, methods, traces, or bridge failures | Default gate; UI semantics; jar deploy; connector lifecycle; CrossSpire life/co-op |
-| `android-harness` | D1 harness lifecycle, game status, logs/screenshots, and bounded BaseMod console commands | Source edits; jar deploy; connector lifecycle; Arthas; CrossSpire life/co-op |
+| `android-harness` | D1 logs/screenshots, `doctor` / `mods` / `set-mods`, or a bounded Harness command not exposed by `scripts/art-lab` | Standard `scripts/art-lab ready/status/stop/console/combat verify-full`; source edits; jar deploy; connector lifecycle; Arthas; CrossSpire life/co-op |
 
 **Do not add** CrossSpire-style dual-device **life** suites or protocol assertions here. Arthas is optional read-only JVM diagnostics, not a default ArtFramework gate; connector lifecycle and dual-device life stay outside this repository's default workflow. ArtFramework may run **single-device UI** smoke via `@art-verify`.
 
 ### Delegation rules
 
-1. One Task = one narrow goal (full `./scripts/with-art-env.sh test`, deploy jar, or art-verify). Do not bundle refactor + test + fix in one subagent.
-2. Order: code change → **`@junit-test`** → offline **`@art-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → **`@android-harness`** for connector-ready game lifecycle and console operations → device **`@art-verify`**. Use **`@android-arthas`** only when a separate JVM diagnosis is requested.
-3. Subagents **report summaries only** (`edit: deny`). Parent fixes source, then re-delegates.
-4. Prefer not running full suites in the parent session when subagents are available.
-5. Task resume: `task_id` only from a real `ses…` id; **omit `task_id` on new tasks** (do not invent UUIDs). Plugin strips non-`ses` ids.
-6. Missing env: subagent stops and lists **key names**; parent must not invent absolute paths.
+1. Prefer a script for a deterministic, parameterized operation it already owns. In particular, call `scripts/art-lab ready`, `status`, `stop`, `console`, or `combat verify-full` directly instead of creating a subagent Task. A script result is sufficient only for the evidence it explicitly reports; do not infer unrelated UI behavior.
+2. Create one narrow Task only when the work needs a read-only specialist: full JUnit, jar deploy, a nonstandard UI YAML suite, Harness logs/screenshots or unsupported operations, or a bounded Arthas diagnosis. Do not bundle refactor + test + fix in one subagent.
+3. Order: code change → **`@junit-test`** → offline **`@art-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → confirm connector is already online → `scripts/art-lab ready` / `combat verify-full` for the standard D1 smoke. Use **`@android-harness`** only for work outside that wrapper; use device **`@art-verify`** for scenarios the wrapper does not own. Use **`@android-arthas`** only when a separate bounded JVM diagnosis is requested.
+4. Subagents **report summaries only** (`edit: deny`). Parent fixes source, then re-delegates.
+5. Prefer not running full suites in the parent session when subagents are available.
+6. Task resume: `task_id` only from a real `ses…` id; **omit `task_id` on new tasks** (do not invent UUIDs). Plugin strips non-`ses` ids.
+7. Missing env: scripts and subagents stop and list **key names**; parent must not invent absolute paths.
 
 ## Code
 

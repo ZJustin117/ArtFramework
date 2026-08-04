@@ -9,6 +9,11 @@ import java.util.Map;
  */
 public final class EffectBinding {
 
+    /** Ambient / base band (default when layer param omitted). */
+    public static final String LAYER_AMBIENT = "ambient";
+    /** One-shot overlay band (e.g. lightwave pulse sweep). */
+    public static final String LAYER_PULSE = "pulse";
+
     public final String effectId;
     private final Map<String, Object> params;
     private boolean enabled = true;
@@ -22,6 +27,29 @@ public final class EffectBinding {
         if (params != null) {
             this.params.putAll(params);
         }
+        if (!this.params.containsKey("layer")) {
+            this.params.put("layer", LAYER_AMBIENT);
+        }
+        Object en = this.params.get("enabled");
+        if (en instanceof Boolean) {
+            this.enabled = ((Boolean) en).booleanValue();
+        } else if (en instanceof Number) {
+            this.enabled = ((Number) en).floatValue() > 0.5f;
+        } else if (en instanceof String) {
+            this.enabled =
+                    !"false".equalsIgnoreCase(((String) en).trim())
+                            && !"0".equals(((String) en).trim());
+        }
+    }
+
+    /** Logical layer id ({@link #LAYER_AMBIENT}, {@link #LAYER_PULSE}, …). */
+    public String layer() {
+        Object v = params.get("layer");
+        if (v == null) {
+            return LAYER_AMBIENT;
+        }
+        String s = String.valueOf(v).trim();
+        return s.isEmpty() ? LAYER_AMBIENT : s;
     }
 
     public boolean isEnabled() {
@@ -30,6 +58,7 @@ public final class EffectBinding {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+        params.put("enabled", Boolean.valueOf(enabled));
     }
 
     public Map<String, Object> paramsView() {

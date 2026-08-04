@@ -4,6 +4,28 @@
 
 ### Added
 
+- Milestones **39–43** runtime and presentation integration:
+  - SignalBus-aligned node `connections`, exact/regex wiring, registered `UiActions`, and
+    `NodeStateMachine` / AnimationPlayer pause-loop states
+  - C2 Lightwave chrome panels, pack-driven surface/item effects, diagnostics probe, and
+    cleanup on profile switch
+  - Offline fixture coverage and D1 `d1_node_connections` / `d1_lightwave_c2_full` scenarios
+
+### Verification
+
+- JUnit semantic gate: PASS
+- `tools/art-verify` offline suite: 18 tests PASS
+- Release gate and consumer fixture: PASS (`1.0.0-alpha.4`)
+- D1 Lightwave C2 scenario: 35 steps PASS; combat hand, controls, energy, intents, and proceed
+  reached `FULL_READY`, then cleanup returned to `sts`
+- Four legacy D1 scenarios were updated from `backend.id=sts1` to the Unified SignalBus value
+  `backend.id=signals` and pass individually
+
+### Remaining D1 Gaps
+
+- `d1_full_present_event`: lab navigation did not reach a drawable event surface
+- `d1_full_present_map_ready`: `art op map first` did not leave the map after the map was opened
+
 - Milestone **38** PresentPack UI modules + regex enable/select/modify:
   - `PresentPack` / `PresentPacks` (templates → ComponentRegistry, windows → WindowDef)
   - `ProjectPresent.set` activates pack by `packId` or `pack.profileId` (no id special-cases)

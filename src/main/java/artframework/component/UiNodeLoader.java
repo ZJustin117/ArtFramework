@@ -43,7 +43,12 @@ public final class UiNodeLoader {
         "opacity",
         "fx_intensity",
         "animations",
-        "triggers"
+        "triggers",
+        "connections",
+        "states",
+        "mode",
+        "loop_count",
+        "loopCount"
     };
 
     private UiNodeLoader() {}

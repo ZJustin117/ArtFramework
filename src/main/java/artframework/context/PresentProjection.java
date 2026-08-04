@@ -5,9 +5,11 @@ import artframework.ecs.PresentationWorld;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * ART-owned hard-sync projection of card entities from context frames.
@@ -50,7 +52,7 @@ public final class PresentProjection {
 
         List<String> added = new ArrayList<String>();
         List<String> updated = new ArrayList<String>();
-        List<String> seen = new ArrayList<String>();
+        Set<String> seen = new HashSet<String>();
 
         for (CardView view : frame.cards) {
             String id = view.ref.instanceId;
@@ -60,13 +62,19 @@ public final class PresentProjection {
                 entity = new CardEntity(id);
                 byInstance.put(id, entity);
                 entityByInstance.put(id, world.createEntity());
+                int changes = CardEntity.IDENTITY_CHANGED
+                        | CardEntity.PLACEMENT_CHANGED
+                        | CardEntity.INTERACTION_CHANGED
+                        | CardEntity.ASSETS_CHANGED;
                 entity.apply(view);
-                applyComponents(entityByInstance.get(id), view);
+                applyComponents(entityByInstance.get(id), view, changes);
                 added.add(id);
             } else {
-                entity.apply(view);
-                applyComponents(entityByInstance.get(id), view);
-                updated.add(id);
+                int changes = entity.apply(view);
+                if (changes != 0) {
+                    applyComponents(entityByInstance.get(id), view, changes);
+                    updated.add(id);
+                }
             }
         }
 
@@ -176,15 +184,23 @@ public final class PresentProjection {
         return entityByInstance.get(instanceId);
     }
 
-    private void applyComponents(EntityId entity, CardView view) {
-        world.put(entity, CardIdentityComponent.class,
-                new CardIdentityComponent(view.ref.instanceId, view.ref.cardId));
-        world.put(entity, CardPlacementComponent.class,
-                new CardPlacementComponent(view.zone, view.slotIndex, view.pose));
-        world.put(entity, CardInteractionComponent.class,
-                new CardInteractionComponent(view.playable, view.selected, view.hovered, view.dragging));
-        world.put(entity, CardAssetsComponent.class,
-                new CardAssetsComponent(view.artResourceId, view.frameResourceId));
+    private void applyComponents(EntityId entity, CardView view, int changes) {
+        if ((changes & CardEntity.IDENTITY_CHANGED) != 0) {
+            world.put(entity, CardIdentityComponent.class,
+                    new CardIdentityComponent(view.ref.instanceId, view.ref.cardId));
+        }
+        if ((changes & CardEntity.PLACEMENT_CHANGED) != 0) {
+            world.put(entity, CardPlacementComponent.class,
+                    new CardPlacementComponent(view.zone, view.slotIndex, view.pose));
+        }
+        if ((changes & CardEntity.INTERACTION_CHANGED) != 0) {
+            world.put(entity, CardInteractionComponent.class,
+                    new CardInteractionComponent(view.playable, view.selected, view.hovered, view.dragging));
+        }
+        if ((changes & CardEntity.ASSETS_CHANGED) != 0) {
+            world.put(entity, CardAssetsComponent.class,
+                    new CardAssetsComponent(view.artResourceId, view.frameResourceId));
+        }
     }
 
     public ControlsView controls() {

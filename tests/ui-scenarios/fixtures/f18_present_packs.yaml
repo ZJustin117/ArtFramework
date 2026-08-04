@@ -20,6 +20,9 @@ steps:
       path: presentPacks.byId.lightwave.templates
       contains: lightwave.panel_chrome
   - assert:
+      path: presentPacks.byId.lightwave.surfaceEffectSurfaces
+      contains: sts1.combat.hand
+  - assert:
       path: enabledPresents.restricting
       eq: false
   - assert:

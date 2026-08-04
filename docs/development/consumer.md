@@ -43,7 +43,7 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 
 | Entry | Role |
 |-------|------|
-| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** / **`registerPresentProfile` / `presentProfiles()` / `setProjectPresent` / `bindSurfacePresent`** |
+| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** / **`registerUiAction` / `nodeState`** / **`registerPresentProfile` / `presentProfiles()` / `setProjectPresent` / `bindSurfacePresent`** |
 | `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
 | `artframework.core.*` | `UiTree` / `UiInstance` / `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
@@ -66,6 +66,19 @@ Design: [`docs/design/godot-aligned-ui.md`](../design/godot-aligned-ui.md),
 [`docs/design/c2-full-present.md`](../design/c2-full-present.md),
 [`docs/design/host-assets.md`](../design/host-assets.md).  
 `open`/`bind` remain aliases of `mount` paths (compatibility).
+
+### Node connections / UiActions / FSM (39–42)
+
+Declarative wiring (no scripts in LML). Full bus names + regex; actions are registered ids.
+
+```java
+ArtFramework.registerUiAction("mod.hit", ctx -> { /* ... */ return true; });
+// Layout connections: { "match_pattern": "ui/ok/.*", "action": "mod.hit" }
+// Or builtins: play, pause, stop, resume, set_prop, pulse_effect, emit, close_window
+ArtFramework.nodeState(windowId, nodeId); // optional states{} FSM
+```
+
+See [`docs/design/node-signal-runtime.md`](../design/node-signal-runtime.md).
 
 ### PresentProfile / PresentPack (37–38)
 

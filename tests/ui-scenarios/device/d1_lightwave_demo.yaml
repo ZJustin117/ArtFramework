@@ -37,7 +37,7 @@ steps:
       contains: close
   - assert:
       path: windows.byId.lightwave_demo.controls.sliderIds
-      contains: wave
+      contains: wave_slider
   - assert:
       path: render.demoEffects.lightwave_demo.bound
       eq: true
@@ -63,14 +63,14 @@ steps:
   - wait_ms: 100
   - console: "art op button lightwave_demo ok"
   - wait_ms: 250
-  - console: "art op slider lightwave_demo wave 0.8"
+  - console: "art op slider lightwave_demo wave_slider 0.8"
   - wait_ms: 200
   - probe: all
   - assert:
-      path: windows.byId.lightwave_demo.controls.sliders.wave
+      path: windows.byId.lightwave_demo.controls.sliders.wave_slider
       gte: 0.75
   - assert:
-      path: windows.byId.lightwave_demo.controls.sliders.wave
+      path: windows.byId.lightwave_demo.controls.sliders.wave_slider
       lte: 0.85
   - console: "art close lightwave_demo"
   - wait_ms: 400

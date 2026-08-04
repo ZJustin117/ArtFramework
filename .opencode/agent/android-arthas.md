@@ -53,21 +53,33 @@ PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
 ```
 
 4. Resolve device serial: parent override → else `$ART_D1_SERIAL`. Export for the session if useful: `export STS_TEST_DEVICE="<serial>"` (CLI convenience only; prefer explicit `--device`).
-5. Run all Arthas commands with `PYTHONPATH` set to Amethyst root and always pass `--device <serial>`:
+5. Run all Arthas commands with `PYTHONPATH` set to Amethyst root and always pass the explicit device and configured ports:
 
 ```bash
 DEVICE="${STS_TEST_DEVICE:-$ART_D1_SERIAL}"
 PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
-  python3 -m scripts.tools.arthas --device "$DEVICE" start
+  python3 -m scripts.tools.arthas \
+    --device "$DEVICE" \
+    --agent-port "$ART_GAME_PROBE_PORT" \
+    --arthas-port "$ART_ARTHAS_PORT" \
+    start
 PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
-  python3 -m scripts.tools.arthas --device "$DEVICE" query "thread -n 5"
+  python3 -m scripts.tools.arthas \
+    --device "$DEVICE" \
+    --agent-port "$ART_GAME_PROBE_PORT" \
+    --arthas-port "$ART_ARTHAS_PORT" \
+    query "thread -n 5"
 PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
-  python3 -m scripts.tools.arthas --device "$DEVICE" stop
+  python3 -m scripts.tools.arthas \
+    --device "$DEVICE" \
+    --agent-port "$ART_GAME_PROBE_PORT" \
+    --arthas-port "$ART_ARTHAS_PORT" \
+    stop
 ```
 
-Optional ports when CLI supports them: `--agent-port` ← `$ART_GAME_PROBE_PORT`, `--arthas-port` ← `$ART_ARTHAS_PORT`.
+`stop` is the default cleanup: it sends `reset` and leaves the bridge backend listening for another diagnosis. Run `shutdown` only when the parent explicitly requests full teardown; it sends `reset + stop` and waits for the bridge port to be released.
 
-6. Use `query` only. Do not open the unbounded interactive `shell` command.
+6. Use `query` only. Do not open the unbounded interactive `shell` command. For `monitor`, `watch`, or `trace`, pass a finite `--duration <seconds>` so the CLI sends Ctrl-C and closes the listener.
 7. After `start`, always attempt `stop` after the query, including after a failed query. Report a cleanup failure separately.
 8. For ModTheSpire-loaded classes, run `sc -d <class>` first and use its `classLoaderHash` in later `jad`, `watch`, or `trace` commands via `-c <hash>`. Prefer `artframework.*` packages when diagnosing this mod.
 

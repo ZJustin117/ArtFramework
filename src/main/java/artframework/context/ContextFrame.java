@@ -41,6 +41,62 @@ public final class ContextFrame {
      */
     public final Map<String, Object> map;
 
+    /**
+     * Reuses all immutable domain views while assigning a new transport frame id. Backend adapters
+     * use this when only the host tick advanced and no published domain value changed.
+     */
+    public ContextFrame reframe(long nextFrameId) {
+        return new ContextFrame(
+                nextFrameId,
+                sceneEpoch,
+                scene,
+                cards,
+                controlsView,
+                mapView,
+                eventView,
+                selectView,
+                rewardView,
+                restView,
+                treasureView,
+                shopView,
+                topPanelView,
+                intentsView,
+                available,
+                viewport,
+                controls,
+                map,
+                true);
+    }
+
+    /** Compares immutable domain references without walking or allocating their contents. */
+    public boolean sameDomains(ContextFrame other) {
+        return other != null
+                && sceneEpoch == other.sceneEpoch
+                && scene.equals(other.scene)
+                && available == other.available
+                && cardsSame(cards, other.cards)
+                && controlsView == other.controlsView
+                && mapView == other.mapView
+                && eventView == other.eventView
+                && selectView == other.selectView
+                && rewardView == other.rewardView
+                && restView == other.restView
+                && treasureView == other.treasureView
+                && shopView == other.shopView
+                && topPanelView == other.topPanelView
+                && intentsView == other.intentsView
+                && viewport == other.viewport;
+    }
+
+    private static boolean cardsSame(List<CardView> left, List<CardView> right) {
+        if (left == right) return true;
+        if (left == null || right == null || left.size() != right.size()) return false;
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i) != right.get(i)) return false;
+        }
+        return true;
+    }
+
     public ContextFrame(
             long frameId,
             long sceneEpoch,
@@ -111,6 +167,46 @@ public final class ContextFrame {
         this.controls =
                 Collections.unmodifiableMap(new LinkedHashMap<String, Object>(this.controlsView.toMap()));
         this.map = Collections.unmodifiableMap(new LinkedHashMap<String, Object>(this.mapView.toMap()));
+    }
+
+    private ContextFrame(
+            long frameId,
+            long sceneEpoch,
+            String scene,
+            List<CardView> cards,
+            ControlsView controlsView,
+            MapView mapView,
+            EventView eventView,
+            SelectView selectView,
+            RewardView rewardView,
+            RestView restView,
+            TreasureView treasureView,
+            ShopView shopView,
+            TopPanelView topPanelView,
+            MonsterIntentView intentsView,
+            boolean available,
+            ViewportView viewport,
+            Map<String, Object> controls,
+            Map<String, Object> map,
+            boolean trustedImmutable) {
+        this.frameId = frameId;
+        this.sceneEpoch = sceneEpoch;
+        this.scene = scene != null ? scene : "";
+        this.cards = cards != null ? cards : Collections.<CardView>emptyList();
+        this.controlsView = controlsView != null ? controlsView : ControlsView.empty();
+        this.mapView = mapView != null ? mapView : MapView.empty();
+        this.eventView = eventView != null ? eventView : EventView.empty();
+        this.selectView = selectView != null ? selectView : SelectView.empty();
+        this.rewardView = rewardView != null ? rewardView : RewardView.empty();
+        this.restView = restView != null ? restView : RestView.empty();
+        this.treasureView = treasureView != null ? treasureView : TreasureView.empty();
+        this.shopView = shopView != null ? shopView : ShopView.empty();
+        this.topPanelView = topPanelView != null ? topPanelView : TopPanelView.empty();
+        this.intentsView = intentsView != null ? intentsView : MonsterIntentView.empty();
+        this.available = available;
+        this.viewport = viewport != null ? viewport : ViewportView.unavailable();
+        this.controls = controls != null ? controls : Collections.<String, Object>emptyMap();
+        this.map = map != null ? map : Collections.<String, Object>emptyMap();
     }
 
     /** Strong controls/map without event/select (defaults empty). */

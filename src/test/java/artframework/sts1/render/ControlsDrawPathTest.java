@@ -61,6 +61,15 @@ public class ControlsDrawPathTest {
     }
 
     @Test
+    public void endTurnBoundsMatchCombatControlPlacement() {
+        artframework.component.Rect bounds = ControlsDrawPath.endTurnBounds(1920f, 1080f);
+        assertEquals(1440f, bounds.x, 0.01f);
+        assertEquals(54f, bounds.y, 0.01f);
+        assertEquals(384f, bounds.width, 0.01f);
+        assertEquals(151.2f, bounds.height, 0.01f);
+    }
+
+    @Test
     public void suppressOnlyWhenFullMountedCombat() {
         combatControlsFrame();
         assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());

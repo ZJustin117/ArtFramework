@@ -23,6 +23,8 @@ import java.util.Map;
  */
 public final class RenderHost {
 
+    public static final String C2_SURFACE_PREFIX = "c2:surface:";
+
     private final EffectRegistry effects = new EffectRegistry();
     private final ShaderRegistry shaders = new ShaderRegistry();
     private final ShaderRuntime shaderRuntime = new ShaderRuntime();
@@ -235,6 +237,85 @@ public final class RenderHost {
         return targets.get(id);
     }
 
+    public static String c2SurfaceTargetId(String surfaceId) {
+        if (surfaceId == null || surfaceId.trim().isEmpty()) {
+            throw new IllegalArgumentException("surfaceId required");
+        }
+        return C2_SURFACE_PREFIX + surfaceId.trim();
+    }
+
+    public static String c2ItemTargetId(String surfaceId, String itemId) {
+        if (itemId == null || itemId.trim().isEmpty()) {
+            throw new IllegalArgumentException("itemId required");
+        }
+        return c2SurfaceTargetId(surfaceId) + ":item:" + itemId.trim();
+    }
+
+    /** Create or update the render region used by a C2 surface effect. */
+    public RenderTarget syncC2Surface(
+            String surfaceId, float x, float y, float width, float height) {
+        RenderTarget target =
+                ensureTarget(c2SurfaceTargetId(surfaceId), RenderTargetKind.C2_SURFACE);
+        target.setBounds(x, y, width, height);
+        target.setEnabled(width > 0f && height > 0f);
+        target.setZ(-10f);
+        return target;
+    }
+
+    public void setC2SurfaceEnabled(String surfaceId, boolean enabled) {
+        RenderTarget target = getTarget(c2SurfaceTargetId(surfaceId));
+        if (target != null) {
+            target.setEnabled(enabled);
+        }
+    }
+
+    /** Sync an exact C2 item region and copy the owning surface's ambient effects once. */
+    public RenderTarget syncC2Item(
+            String surfaceId, String itemId, float x, float y, float width, float height) {
+        String targetId = c2ItemTargetId(surfaceId, itemId);
+        RenderTarget target = ensureTarget(targetId, RenderTargetKind.C2_SURFACE);
+        target.setBounds(x, y, width, height);
+        target.setEnabled(width > 0f && height > 0f);
+        target.setZ(-5f);
+        if (effectsOf(targetId).isEmpty()) {
+            for (EffectBinding binding : effectsOf(c2SurfaceTargetId(surfaceId))) {
+                bindEffect(targetId, binding.effectId, binding.paramsView());
+            }
+        }
+        return target;
+    }
+
+    public void removeC2Items(String surfaceId) {
+        if (surfaceId != null && !surfaceId.trim().isEmpty()) {
+            removeTargetsWithPrefix(c2SurfaceTargetId(surfaceId) + ":item:");
+        }
+    }
+
+    /** Keep the current item targets and remove only items absent from the current projection. */
+    public void retainC2Items(String surfaceId, java.util.Set<String> itemIds) {
+        if (surfaceId == null || surfaceId.trim().isEmpty()) {
+            return;
+        }
+        String prefix = c2SurfaceTargetId(surfaceId) + ":item:";
+        List<String> ids = new ArrayList<String>(targets.keySet());
+        for (String id : ids) {
+            if (!id.startsWith(prefix)) {
+                continue;
+            }
+            String itemId = id.substring(prefix.length());
+            if (itemIds == null || !itemIds.contains(itemId)) {
+                removeTarget(id);
+            }
+        }
+    }
+
+    public void removeC2Surface(String surfaceId) {
+        if (surfaceId != null && !surfaceId.trim().isEmpty()) {
+            removeTarget(c2SurfaceTargetId(surfaceId));
+            removeC2Items(surfaceId);
+        }
+    }
+
     public void removeTarget(String id) {
         if (id == null) {
             return;
@@ -294,7 +375,8 @@ public final class RenderHost {
     }
 
     /**
-     * Update a live effect param (e.g. lightwave intensity from a C1 slider). No-op if missing.
+     * Update a live effect param. Prefer ambient layer when multiple lightwave bindings exist
+     * (pulse overlay is addressed via layer overload).
      */
     public boolean setEffectParam(String targetId, String effectId, String key, float value) {
         if (targetId == null || effectId == null || key == null) {
@@ -304,6 +386,12 @@ public final class RenderHost {
         if (list == null) {
             return false;
         }
+        // Prefer ambient when present so slider/anim do not stomp pulse overlay.
+        EffectBinding ambient = findEffect(targetId, effectId, EffectBinding.LAYER_AMBIENT);
+        if (ambient != null) {
+            ambient.setParamFloat(key, value);
+            return true;
+        }
         boolean any = false;
         for (EffectBinding b : list) {
             if (effectId.equals(b.effectId)) {
@@ -312,6 +400,89 @@ public final class RenderHost {
             }
         }
         return any;
+    }
+
+    /**
+     * Update param only on bindings whose {@link EffectBinding#layer()} equals {@code layer}.
+     * Null/empty layer falls back to {@link #setEffectParam(String, String, String, float)}.
+     */
+    public boolean setEffectParam(
+            String targetId, String effectId, String layer, String key, float value) {
+        if (layer == null || layer.trim().isEmpty()) {
+            return setEffectParam(targetId, effectId, key, value);
+        }
+        if (targetId == null || effectId == null || key == null) {
+            return false;
+        }
+        List<EffectBinding> list = bindings.get(targetId);
+        if (list == null) {
+            return false;
+        }
+        boolean any = false;
+        String want = layer.trim();
+        for (EffectBinding b : list) {
+            if (!effectId.equals(b.effectId)) {
+                continue;
+            }
+            if (!want.equals(b.layer())) {
+                continue;
+            }
+            b.setParamFloat(key, value);
+            any = true;
+        }
+        return any;
+    }
+
+    /** First binding for effect+layer, or null. */
+    public EffectBinding findEffect(String targetId, String effectId, String layer) {
+        if (targetId == null || effectId == null) {
+            return null;
+        }
+        List<EffectBinding> list = bindings.get(targetId);
+        if (list == null) {
+            return null;
+        }
+        String want =
+                layer == null || layer.isEmpty() ? EffectBinding.LAYER_AMBIENT : layer.trim();
+        for (EffectBinding b : list) {
+            if (effectId.equals(b.effectId) && want.equals(b.layer())) {
+                return b;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Ensure a pulse-layer lightwave binding exists (overlay band). Returns the binding or null.
+     */
+    public EffectBinding ensurePulseLightwave(String targetId) {
+        if (targetId == null) {
+            return null;
+        }
+        EffectBinding existing =
+                findEffect(targetId, LightwaveEffect.ID, EffectBinding.LAYER_PULSE);
+        if (existing != null) {
+            return existing;
+        }
+        if (targets.get(targetId) == null) {
+            return null;
+        }
+        Map<String, Object> params = new LinkedHashMap<String, Object>();
+        params.put("layer", EffectBinding.LAYER_PULSE);
+        params.put("intensity", Float.valueOf(0f));
+        params.put("phase", Float.valueOf(0f));
+        params.put("freeze", Float.valueOf(1f));
+        params.put("width", Float.valueOf(0.22f));
+        params.put("angle", Float.valueOf(35f));
+        params.put("border", Float.valueOf(0f));
+        params.put("speed", Float.valueOf(0f));
+        try {
+            EffectBinding b = bindEffect(targetId, LightwaveEffect.ID, params);
+            b.setEnabled(false);
+            return b;
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     public List<EffectBinding> effectsOf(String targetId) {
@@ -608,6 +779,10 @@ public final class RenderHost {
             if (kinds != null && !kinds.contains(target.kind)) {
                 continue;
             }
+            if (target.kind == RenderTargetKind.C2_SURFACE
+                    && !LightwaveDiagnostics.c2EffectsEnabled()) {
+                continue;
+            }
             if (target.kind == RenderTargetKind.FULL_FRAME && !fullFrameEnabled) {
                 continue;
             }
@@ -633,6 +808,11 @@ public final class RenderHost {
         s.add(RenderTargetKind.SYNTHETIC_WINDOW);
         s.add(RenderTargetKind.SYNTHETIC_WIDGET);
         return s;
+    }
+
+    /** C2 surface/item effects draw below the ART-owned C2 chrome and labels. */
+    public static java.util.Set<RenderTargetKind> kindsC2UnderPresent() {
+        return java.util.EnumSet.of(RenderTargetKind.C2_SURFACE);
     }
 
     /** Overlay / full-frame / entity — draw after stage. */
@@ -740,6 +920,47 @@ public final class RenderHost {
         out.put("targets", tlist);
         out.put("targetsById", bySafeId);
         out.put("demoEffects", probeDemoEffects());
+        out.put("c2SurfaceEffects", probeC2SurfaceEffects());
+        out.put("c2ItemEffects", probeC2ItemEffects());
+        out.put("lightwaveDiagnostics", LightwaveDiagnostics.probeSummary());
+        return out;
+    }
+
+    private Map<String, Object> probeC2SurfaceEffects() {
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        for (RenderTarget t : targets.values()) {
+            if (t.kind == RenderTargetKind.C2_SURFACE) {
+                out.put(safeTargetKey(t.id.substring(C2_SURFACE_PREFIX.length())), probeTarget(t));
+            }
+        }
+        return out;
+    }
+
+    private Map<String, Object> probeC2ItemEffects() {
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        for (RenderTarget target : targets.values()) {
+            if (target.kind != RenderTargetKind.C2_SURFACE) {
+                continue;
+            }
+            int marker = target.id.indexOf(":item:");
+            if (marker < 0 || !target.id.startsWith(C2_SURFACE_PREFIX)) {
+                continue;
+            }
+            String surface = target.id.substring(C2_SURFACE_PREFIX.length(), marker);
+            String key = safeTargetKey(surface);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> group = (Map<String, Object>) out.get(key);
+            if (group == null) {
+                group = new LinkedHashMap<String, Object>();
+                group.put("count", Integer.valueOf(0));
+                group.put("targets", new ArrayList<Map<String, Object>>());
+                out.put(key, group);
+            }
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> list = (List<Map<String, Object>>) group.get("targets");
+            list.add(probeTarget(target));
+            group.put("count", Integer.valueOf(list.size()));
+        }
         return out;
     }
 
@@ -812,12 +1033,12 @@ public final class RenderHost {
         return demo;
     }
 
-    /** Dot-path safe key: {@code c1:win:node} → {@code c1_win_node}. */
+    /** Dot-path safe key for render target ids. */
     static String safeTargetKey(String id) {
         if (id == null || id.isEmpty()) {
             return "";
         }
-        return id.replace(':', '_');
+        return id.replace(':', '_').replace('.', '_');
     }
 
     private String captureStatus() {

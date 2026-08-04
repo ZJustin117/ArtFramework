@@ -7,6 +7,7 @@ import artframework.context.ControlView;
 import artframework.context.ControlsView;
 import artframework.sts1.FullPresentMode;
 import artframework.context.SurfaceIds;
+import artframework.component.Rect;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -18,6 +19,12 @@ import java.util.Map;
  * ControlsView; native end-turn may be suppressed when FULL + mounted.
  */
 public final class ControlsDrawPath {
+
+    public static Rect endTurnBounds(float screenWidth, float screenHeight) {
+        float w = screenWidth * 0.2f;
+        float h = screenHeight * 0.14f;
+        return new Rect(screenWidth * 0.85f - w / 2f, screenHeight * 0.12f - h / 2f, w, h);
+    }
 
     public static final class DrawItem {
         public final String id;

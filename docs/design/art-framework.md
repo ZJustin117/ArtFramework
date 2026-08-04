@@ -78,6 +78,10 @@ Third-party types: **namespaced** (`my_mod.ripple_effect`). Registration via exp
 - No business methods in declaration; handlers stay in Java.
 - C1 signal interceptors run before state mutation and emission; C2 native signals emit after
   the native gate allows the action and before the backend gesture.
+- **Declarative wiring (39–42):** `connections` / legacy `triggers` → registered `UiActions`;
+  exact or regex on full bus names; optional `states` FSM. See
+  [`node-signal-runtime.md`](./node-signal-runtime.md). Not a substitute for Backend
+  `context/frame/updated`.
 
 ## LML (planned)
 

@@ -105,13 +105,18 @@ public final class StageHost
         float dt = Gdx.graphics != null ? Gdx.graphics.getDeltaTime() : 0f;
         // The STS1 backend is observational until an individual full-present surface is enabled.
         // Snapshot after native update so ART sees a coherent authority frame for this render pass.
-        try {
-            ArtFramework.publishFrame(
-                    artframework.sts1.backend.Sts1PresentationBackend.INSTANCE.publishFrame());
-        } catch (Throwable t) {
+        // Native STS remains the owner until a C2 surface is mounted or lab observation is
+        // requested. Avoid rebuilding the full authority snapshot on every native-only frame.
+        if (artframework.context.PresentSurfaces.anyMounted()
+                || artframework.sts1.render.Sts1RenderPipeline.isOverlayObserve()) {
             try {
-                BaseMod.logger.warn("ArtFramework frame sync skipped: " + t.getMessage());
-            } catch (Throwable ignored) {
+                ArtFramework.publishFrame(
+                        artframework.sts1.backend.Sts1PresentationBackend.INSTANCE.publishFrame());
+            } catch (Throwable t) {
+                try {
+                    BaseMod.logger.warn("ArtFramework frame sync skipped: " + t.getMessage());
+                } catch (Throwable ignored) {
+                }
             }
         }
         try {
@@ -121,7 +126,7 @@ public final class StageHost
         RenderHosts.get().tick(dt);
         try {
             ArtFramework.tick(dt);
-            artframework.render.LightwaveControls.tickPulses(dt);
+            // EffectPulse advances inside ArtFramework.tick (do not double-tick here).
         } catch (Throwable ignored) {
         }
         if (Gdx.graphics != null) {
@@ -172,6 +177,9 @@ public final class StageHost
         }
         sb.begin();
         RenderHosts.get().drawC1LightwaveBorders(sb);
+        // C2 bands are placed below ART's own C2 chrome, matching C1's readable-label ordering.
+        RenderHosts.get().drawFrame(
+                sb, true, artframework.render.RenderHost.kindsC2UnderPresent());
         artframework.sts1.render.Sts1SurfaceRenderer.render(sb);
         RenderHosts.get().drawFrame(sb, true, artframework.render.RenderHost.kindsOverUi());
     }
@@ -328,8 +336,10 @@ public final class StageHost
     }
 
     private static void syncFxIntensity(String windowId, String nodeId, UiInstance inst) {
-        // Active pulse owns intensity/phase; do not overwrite from tree each frame.
-        // Enter animation still uses applyIntensity via AnimationPlayer → prop → here only when idle.
+        // Ambient intensity only — pulse overlay is a separate binding layer.
+        if (artframework.core.EffectPulse.isActive(windowId, null)) {
+            return;
+        }
         Object raw = inst.prop("fx_intensity");
         if (!(raw instanceof Number)) {
             return;

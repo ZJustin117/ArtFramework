@@ -109,7 +109,7 @@ public final class LightwaveEffect implements Effect {
         }
         // Batch alpha: allow full bright at high intensity
         float batchA = Math.min(1f, 0.45f + intensity * 0.4f);
-        if (program != null && program.isCompiled()) {
+        if (!LightwaveDiagnostics.forceFallback() && program != null && program.isCompiled()) {
             EffectDraw.fillWithLightwave(
                     ctx.spriteBatch,
                     target,

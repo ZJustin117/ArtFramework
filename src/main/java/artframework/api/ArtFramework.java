@@ -241,6 +241,11 @@ public final class ArtFramework {
         artframework.core.ProjectPresent.resetForTests();
         artframework.core.SurfacePresent.resetForTests();
         artframework.render.LightwaveControls.resetForTests();
+        artframework.render.LightwaveDiagnostics.resetForTests();
+        artframework.core.EffectPulse.resetForTests();
+        artframework.core.NodeConnections.resetForTests();
+        artframework.core.NodeStateMachines.resetForTests();
+        artframework.core.UiActions.resetForTests();
         artframework.c1.skin.StsSkin.resetFontsForTests();
         HostBackends.resetForTests();
         UiNodeRegistry.global().resetBuiltinsForTests();
@@ -533,6 +538,7 @@ public final class ArtFramework {
         for (UiTree tree : UiTrees.listOpen()) {
             tree.tick(deltaSeconds);
         }
+        artframework.core.EffectPulse.tick(deltaSeconds);
         HostBackends.get().tick(deltaSeconds);
     }
 
@@ -596,6 +602,27 @@ public final class ArtFramework {
     /** Animation player for a mounted {@code art.animation_player} node, or null. */
     public static AnimationPlayer animation(String windowId, String nodeId) {
         return AnimationPlayers.get(windowId, nodeId);
+    }
+
+    /** Register a UI action id for declarative {@code connections} (and Java invoke). */
+    public static void registerUiAction(String id, artframework.core.UiAction action) {
+        artframework.core.UiActions.register(id, action);
+    }
+
+    /** Lookup registered UI action, or null. */
+    public static artframework.core.UiAction getUiAction(String id) {
+        return artframework.core.UiActions.get(id);
+    }
+
+    /** Registered UI action ids (builtins + third-party). */
+    public static java.util.List<String> uiActionIds() {
+        return artframework.core.UiActions.ids();
+    }
+
+    /** Node state machine from {@code states} decl, or null. */
+    public static artframework.core.NodeStateMachine nodeState(
+            String windowId, String nodeId) {
+        return artframework.core.NodeStateMachines.get(windowId, nodeId);
     }
 
     /** Skeleton provider registry. */

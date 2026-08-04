@@ -12,6 +12,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 - [x] D1/D2 serial keys documented; local D1 mirrors CrossSpire device
 - [x] `tools/art-verify` scaffold + offline unittest + `@art-verify` agent
 - [x] Design: `ui-ops-probe.md` + `ui-layer-verification.md` + dual-track roadmap 6–8
+- [x] Optional `@android-arthas` + `android-arthas.md` + `ART_ARTHAS_PORT` (not a default gate)
 
 ## Product roadmap (from dual-track)
 
@@ -404,3 +405,38 @@ packId / profileId link. No profile-id special cases in core. Regex enable/selec
 - [x] 38.4 `EnabledPresents` + regex select/modify + packId patch
 - [x] 38.5 Builtin lightwave pack + facade / probe / console
 - [x] 38.6 JUnit `PresentPackTest` + f18 + D1 `d1_present_packs`
+
+### 39. Signal wiring aligned with bus (exact + regex)
+
+Design: [`node-signal-runtime.md`](design/node-signal-runtime.md). Backend ↔ Signal ↔ Node.
+
+- [x] 39.1 `SignalHub` / `UiTree.connectBus` exact + `Pattern`
+- [x] 39.2 `NodeConnections` + `connections` decl; legacy `triggers` normalize
+- [x] 39.3 JUnit exact / regex / unmount clear
+
+### 40. UiActions (full builtin set)
+
+- [x] 40.1 `UiActions` registry + `ArtFramework.registerUiAction`
+- [x] 40.2 Builtins: play/pause/stop/resume/set_prop/pulse_effect/emit/close_window
+- [x] 40.3 `PropEffectBridge` + `EffectPulse` (signal path for lightwave pulse)
+- [x] 40.4 JUnit actions + third-party register + pulse binding
+
+### 41. NodeStateMachine + AnimationPlayer once/loop/pause
+
+- [x] 41.1 `NodeStateMachine` / `NodeStateMachines` from `states` decl
+- [x] 41.2 AnimationPlayer pause/resume/loop + state idle/playing/paused
+- [x] 41.3 Signals paused/resumed/looped; JUnit
+
+### 42. Integration / demo / docs / D1
+
+- [x] 42.1 `lightwave_demo` connections (pulse_effect + set_prop); no imperative ok pulse
+- [x] 42.2 Design `node-signal-runtime.md` + task / consumer notes
+- [x] 42.3 D1 `d1_node_connections` + existing `d1_lightwave_demo`
+
+### 43. C2 Lightwave chrome + surface FX
+
+- [x] 43.1 Baseline coverage and C2 surface target lifecycle
+- [x] 43.2 Surface chrome panels/borders for ART-owned C2 draw regions
+- [x] 43.3 Pack-driven per-surface LightwaveEffect bindings with inactive-surface cleanup
+- [x] 43.4 Probe + offline fixture + `C2LightwaveSurfaceTest`
+- [x] 43.5 D1 `d1_lightwave_c2_full` scenario for combat C2 visual verification

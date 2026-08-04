@@ -17,7 +17,8 @@
     "apply": {
       "activePack": "",
       "managedFullFrame": false,
-      "boundSurfaces": []
+      "boundSurfaces": [],
+      "boundC2Effects": []
     },
     "byId": {
       "lightwave": {
@@ -28,7 +29,8 @@
         "active": false,
         "templates": ["lightwave.panel_chrome"],
         "windows": ["lightwave_pack_demo"],
-        "fullFrameEffectCount": 1
+        "fullFrameEffectCount": 1,
+        "surfaceEffectSurfaces": ["sts1.combat.hand", "sts1.event"]
       }
     }
   },

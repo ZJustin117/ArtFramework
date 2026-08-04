@@ -181,8 +181,10 @@ public class PresentProfileTest {
         assertEquals("lightwave", tree.resolvePresent().profileId);
         assertEquals(PresentProfiles.STS, ProjectPresent.id());
         assertNotNull(tree.get("panel"));
-        assertNotNull(tree.get("motion"));
-        assertNotNull(AnimationPlayers.get("lightwave_demo", "motion"));
+        assertNotNull(tree.get("wave"));
+        assertNotNull(tree.get("pulse"));
+        assertNotNull(AnimationPlayers.get("lightwave_demo", "wave"));
+        assertNotNull(AnimationPlayers.get("lightwave_demo", "pulse"));
         Map<String, Object> snap = ArtFramework.probe().asMap();
         @SuppressWarnings("unchecked")
         Map<String, Object> wins = (Map<String, Object>) snap.get("windows");

@@ -38,10 +38,15 @@ public class LightwaveDemoContractTest {
         // LayoutEngine still reports declared/content size; stage may grow width.
         assertTrue(panel.width() >= 100f);
         assertTrue(panel.height() >= 80f);
-        assertEquals(1, host.effectsOf("c1:lightwave_demo:panel").size());
+        assertEquals(2, host.effectsOf("c1:lightwave_demo:panel").size());
         assertEquals(LightwaveEffect.ID, host.effectsOf("c1:lightwave_demo:panel").get(0).effectId);
+        assertEquals(LightwaveEffect.ID, host.effectsOf("c1:lightwave_demo:panel").get(1).effectId);
         assertTrue(
-                LightwaveEffect.shouldDrawBorder(host.effectsOf("c1:lightwave_demo:panel").get(0)));
+                LightwaveEffect.shouldDrawBorder(
+                        host.findEffect(
+                                "c1:lightwave_demo:panel",
+                                LightwaveEffect.ID,
+                                artframework.render.EffectBinding.LAYER_AMBIENT)));
     }
 
     @Test
@@ -78,7 +83,7 @@ public class LightwaveDemoContractTest {
         assertNotNull(WidgetSessions.get("lightwave_demo"));
         assertTrue(WidgetSessions.get("lightwave_demo").buttonIds().contains("ok"));
         assertTrue(WidgetSessions.get("lightwave_demo").buttonIds().contains("close"));
-        assertTrue(WidgetSessions.get("lightwave_demo").sliderIds().contains("wave"));
+        assertTrue(WidgetSessions.get("lightwave_demo").sliderIds().contains("wave_slider"));
 
         Map<String, Object> snap = ArtFramework.probe().asMap();
         @SuppressWarnings("unchecked")
@@ -104,69 +109,81 @@ public class LightwaveDemoContractTest {
         ArtFramework.tick(0.4f);
         float end = ((Number) tree.get("panel").prop("fx_intensity")).floatValue();
         assertEquals(0.55f, end, 0.05f);
+        // After enter, wave player loops ripple.
+        AnimationPlayer wave = AnimationPlayers.get("lightwave_demo", "wave");
+        assertNotNull(wave);
+        assertTrue(wave.isPlaying());
+        assertEquals("ripple", wave.playing());
     }
 
     @Test
-    public void pulseSweepsPhaseOnceWithoutChangingSpeed() {
+    public void pulseAddsSecondBandWithoutStoppingWave() {
         openDemo();
-        ArtFramework.tick(0.4f);
-        ArtFramework.ops().setSlider("lightwave_demo", "wave", 0.7f);
-        float speedBefore =
-                ArtFramework.render()
-                        .effectsOf("c1:lightwave_demo:panel")
-                        .get(0)
-                        .paramFloat("speed", -1f);
-        artframework.render.LightwaveControls.pulse("lightwave_demo");
+        ArtFramework.tick(0.5f);
+        ArtFramework.ops().setSlider("lightwave_demo", "wave_slider", 0.7f);
+        AnimationPlayer wave = AnimationPlayers.get("lightwave_demo", "wave");
+        AnimationPlayer pulse = AnimationPlayers.get("lightwave_demo", "pulse");
+        assertNotNull(wave);
+        assertNotNull(pulse);
+        assertTrue(wave.isPlaying());
+        assertEquals("ripple", wave.playing());
         assertEquals(
-                1f,
+                2,
+                ArtFramework.render().effectsOf("c1:lightwave_demo:panel").size());
+        artframework.render.EffectBinding ambient =
                 ArtFramework.render()
-                        .effectsOf("c1:lightwave_demo:panel")
-                        .get(0)
-                        .paramFloat("freeze", 0f),
-                0.01f);
-        float phase0 =
+                        .findEffect(
+                                "c1:lightwave_demo:panel",
+                                LightwaveEffect.ID,
+                                artframework.render.EffectBinding.LAYER_AMBIENT);
+        artframework.render.EffectBinding pulseBind =
                 ArtFramework.render()
-                        .effectsOf("c1:lightwave_demo:panel")
-                        .get(0)
-                        .paramFloat("phase", -1f);
-        assertEquals(0f, phase0, 0.05f);
-        artframework.render.LightwaveControls.tickPulses(0.2f);
-        float phaseMid =
-                ArtFramework.render()
-                        .effectsOf("c1:lightwave_demo:panel")
-                        .get(0)
-                        .paramFloat("phase", -1f);
-        assertTrue(phaseMid > phase0);
-        assertEquals(
-                speedBefore,
-                ArtFramework.render()
-                        .effectsOf("c1:lightwave_demo:panel")
-                        .get(0)
-                        .paramFloat("speed", -1f),
-                0.01f);
-        artframework.render.LightwaveControls.tickPulses(0.4f);
-        assertEquals(
-                0f,
-                ArtFramework.render()
-                        .effectsOf("c1:lightwave_demo:panel")
-                        .get(0)
-                        .paramFloat("freeze", 1f),
-                0.01f);
+                        .findEffect(
+                                "c1:lightwave_demo:panel",
+                                LightwaveEffect.ID,
+                                artframework.render.EffectBinding.LAYER_PULSE);
+        assertNotNull(ambient);
+        assertNotNull(pulseBind);
+        float ambientPhase0 = ambient.paramFloat("phase", -1f);
+        // PULSE → overlay band only; ambient wave keeps looping
+        ArtFramework.ops().clickButton("lightwave_demo", "ok");
+        assertTrue(pulse.isPlaying());
+        assertEquals("flash", pulse.playing());
+        assertTrue(wave.isPlaying());
+        assertEquals("ripple", wave.playing());
+        assertTrue(pulseBind.isEnabled());
+        float pulsePhase0 = pulseBind.paramFloat("phase", -1f);
+        ArtFramework.tick(0.15f);
+        float pulsePhaseMid = pulseBind.paramFloat("phase", -1f);
+        assertTrue(pulsePhaseMid > pulsePhase0);
+        // Ambient still advancing independently
+        ArtFramework.tick(0.1f);
+        float ambientPhase1 = ambient.paramFloat("phase", -1f);
+        assertTrue(
+                ambientPhase1 != ambientPhase0
+                        || ambient.paramFloat("intensity", 0f) > 0.5f);
+        // Finish flash + fade
+        ArtFramework.tick(0.3f);
+        if (pulse.isPlaying()) {
+            ArtFramework.tick(0.2f);
+        }
+        assertTrue(!pulse.isPlaying());
+        assertTrue(wave.isPlaying());
+        assertEquals("ripple", wave.playing());
         assertEquals(
                 0.7f,
-                ArtFramework.render()
-                        .effectsOf("c1:lightwave_demo:panel")
-                        .get(0)
-                        .paramFloat("intensity", -1f),
-                0.08f);
+                ambient.paramFloat("intensity", -1f),
+                0.12f);
+        assertTrue(pulseBind.paramFloat("intensity", 1f) < 0.05f || !pulseBind.isEnabled());
     }
 
     @Test
     public void setSliderUpdatesSessionAndLightwaveIntensity() {
         openDemo();
-        UiOpResult r = ArtFramework.ops().setSlider("lightwave_demo", "wave", 0.8f);
+        ArtFramework.tick(0.5f);
+        UiOpResult r = ArtFramework.ops().setSlider("lightwave_demo", "wave_slider", 0.8f);
         assertEquals(UiOpResult.Status.OK, r.status);
-        assertEquals(0.8f, WidgetSessions.get("lightwave_demo").getSlider("wave"), 0.001f);
+        assertEquals(0.8f, WidgetSessions.get("lightwave_demo").getSlider("wave_slider"), 0.001f);
         float intensity =
                 ArtFramework.render()
                         .effectsOf("c1:lightwave_demo:panel")

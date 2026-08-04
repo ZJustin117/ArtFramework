@@ -16,7 +16,7 @@ Composable, extensible UI declaration for C1 (and render attach for C2). Complem
 | **Nest** | `children[]` on containers | Structure / flex-like layout |
 | **Slot** | `slots.{name}` + template `{ "type":"slot","name":"…" }` | Named insertion for composites |
 | **Attach** | `effects[]` → future `RenderHost` | Visual stack; does not affect layout math |
-| **Bind** | Signals + `UiOps` handlers (sugar) + runtime props | Behavior; not encoded as executable JSON logic. Target: `SignalHub` / `connect` — [`godot-aligned-ui.md`](./godot-aligned-ui.md) |
+| **Bind** | Signals + `UiOps` + `connections` → `UiActions` + runtime props | Behavior; data-only wiring / registered actions — no scripts. [`node-signal-runtime.md`](./node-signal-runtime.md), [`godot-aligned-ui.md`](./godot-aligned-ui.md) |
 
 ## Node shape
 

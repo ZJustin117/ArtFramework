@@ -21,6 +21,10 @@ public final class SignalNames {
     public static final String STARTED = "started";
     public static final String FINISHED = "finished";
     public static final String CANCELLED = "cancelled";
+    public static final String PAUSED = "paused";
+    public static final String RESUMED = "resumed";
+    public static final String LOOPED = "looped";
+    public static final String STATE_CHANGED = "state_changed";
     public static final String CARD_PRESSED = "card_pressed";
     public static final String DRAG_STARTED = "drag_started";
     public static final String DRAG_MOVED = "drag_moved";

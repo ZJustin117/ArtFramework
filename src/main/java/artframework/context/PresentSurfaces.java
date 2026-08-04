@@ -74,6 +74,16 @@ public final class PresentSurfaces {
         return Collections.unmodifiableList(new ArrayList<String>(BY_ID.keySet()));
     }
 
+    /** Whether any native/full-present surface currently participates in the frame. */
+    public static boolean anyMounted() {
+        for (UiComponent c : BY_ID.values()) {
+            if (c.isMounted()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static List<Map<String, Object>> probeAll() {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
         for (UiComponent c : BY_ID.values()) {
@@ -889,6 +899,7 @@ public final class PresentSurfaces {
                 PresentSurfaces.get(SurfaceIds.COMBAT_HAND).mount();
                 PresentSurfaces.get(SurfaceIds.COMBAT_CARD_SLOTS).mount();
                 PresentSurfaces.get(SurfaceIds.COMBAT_CONTROLS).mount();
+                PresentSurfaces.get(SurfaceIds.COMBAT_ENERGY).mount();
                 mount();
                 emit(SignalNames.SURFACE_OPENED);
                 return UiOpResult.ok("combat surfaces mounted");

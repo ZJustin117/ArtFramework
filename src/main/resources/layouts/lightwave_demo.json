@@ -8,6 +8,28 @@
   "gap": 8,
   "present_profile": "lightwave",
   "theme": "lightwave",
+  "connections": [
+    {
+      "match": "ui/ok/pressed",
+      "action": "play",
+      "args": { "player": "pulse", "name": "flash" }
+    },
+    {
+      "match": "ui/pulse/finished",
+      "action": "play",
+      "args": { "player": "pulse", "name": "fade", "if_payload": "flash" }
+    },
+    {
+      "match": "ui/wave/finished",
+      "action": "play",
+      "args": { "player": "wave", "name": "ripple", "mode": "loop", "if_payload": "enter" }
+    },
+    {
+      "match_pattern": "ui/wave_slider/value_changed",
+      "action": "set_prop",
+      "args": { "target": "panel", "prop": "fx_intensity", "from_payload": 0 }
+    }
+  ],
   "children": [
     {
       "type": "panel",
@@ -16,16 +38,37 @@
       "pad": 12,
       "gap": 10,
       "fx_intensity": 0.55,
+      "fx_phase": 0,
+      "fx_freeze": 1,
+      "fx_pulse_intensity": 0,
+      "fx_pulse_phase": 0,
       "effects": [
         {
           "id": "lightwave",
           "params": {
+            "layer": "ambient",
             "intensity": 0.55,
             "angle": 35,
             "width": 0.28,
             "speed": 0.28,
+            "phase": 0,
+            "freeze": 1,
             "border": 1,
             "borderWidth": 3
+          }
+        },
+        {
+          "id": "lightwave",
+          "params": {
+            "layer": "pulse",
+            "enabled": false,
+            "intensity": 0,
+            "angle": 35,
+            "width": 0.2,
+            "speed": 0,
+            "phase": 0,
+            "freeze": 1,
+            "border": 0
           }
         }
       ],
@@ -33,7 +76,7 @@
         {
           "type": "label",
           "id": "hint",
-          "text": "WAVE slider. PULSE flashes band. CLOSE exits."
+          "text": "WAVE loops. PULSE adds a second fast band."
         },
         {
           "type": "row",
@@ -63,7 +106,7 @@
         },
         {
           "type": "slider",
-          "id": "wave",
+          "id": "wave_slider",
           "min": 0,
           "max": 1,
           "value": 0.55,
@@ -73,14 +116,57 @@
     },
     {
       "type": "art.animation_player",
-      "id": "motion",
+      "id": "wave",
       "auto_play": "enter",
       "animations": [
         {
           "name": "enter",
           "target": "panel",
           "duration": 0.3,
-          "tracks": [{ "property": "fx_intensity", "from": 0.2, "to": 0.55 }]
+          "mode": "once",
+          "tracks": [
+            { "property": "fx_intensity", "from": 0.2, "to": 0.55 },
+            { "property": "fx_freeze", "from": 1, "to": 1 },
+            { "property": "fx_phase", "from": 0, "to": 0.15 }
+          ]
+        },
+        {
+          "name": "ripple",
+          "target": "panel",
+          "duration": 2.5,
+          "mode": "loop",
+          "tracks": [
+            { "property": "fx_phase", "from": 0, "to": 1 },
+            { "property": "fx_freeze", "from": 1, "to": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "art.animation_player",
+      "id": "pulse",
+      "animations": [
+        {
+          "name": "flash",
+          "target": "panel",
+          "duration": 0.35,
+          "mode": "once",
+          "tracks": [
+            { "property": "fx_pulse_intensity", "from": 1.6, "to": 1.2 },
+            { "property": "fx_pulse_phase", "from": 0, "to": 1 },
+            { "property": "fx_pulse_width", "from": 0.18, "to": 0.26 },
+            { "property": "fx_pulse_freeze", "from": 1, "to": 1 }
+          ]
+        },
+        {
+          "name": "fade",
+          "target": "panel",
+          "duration": 0.12,
+          "mode": "once",
+          "tracks": [
+            { "property": "fx_pulse_intensity", "from": "current", "to": 0 },
+            { "property": "fx_pulse_width", "from": "current", "to": 0.18 }
+          ]
         }
       ]
     }

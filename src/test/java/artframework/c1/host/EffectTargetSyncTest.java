@@ -41,7 +41,8 @@ public class EffectTargetSyncTest {
                 "layout-local x should be small vs screen center without Stage",
                 panel.x() < 200f);
         assertTrue(panel.y() < 200f);
-        assertEquals(1, host.effectsOf("c1:lightwave_demo:panel").size());
+        // ambient + pulse overlay lightwave bindings
+        assertEquals(2, host.effectsOf("c1:lightwave_demo:panel").size());
     }
 
     @Test

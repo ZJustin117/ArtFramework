@@ -29,7 +29,7 @@ steps:
       eq: artframework
   - assert:
       path: backend.id
-      eq: sts1
+      eq: signals
   - assert:
       path: backend.fullPresent.combatHand
       eq: "FULL"

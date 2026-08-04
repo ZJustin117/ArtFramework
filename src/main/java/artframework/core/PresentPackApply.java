@@ -19,6 +19,7 @@ import java.util.Map;
 public final class PresentPackApply {
 
     private static final List<String> BOUND_SURFACES = new ArrayList<String>();
+    private static final List<String> BOUND_C2_EFFECTS = new ArrayList<String>();
     private static boolean managedFullFrame;
 
     private PresentPackApply() {}
@@ -33,6 +34,7 @@ public final class PresentPackApply {
         }
         applyFullFrame(pack);
         applySurfaceBinds(pack);
+        applyC2SurfaceEffects(pack);
         resyncOpenC1Render();
     }
 
@@ -89,6 +91,29 @@ public final class PresentPackApply {
         }
     }
 
+    private static void applyC2SurfaceEffects(PresentPack pack) {
+        if (pack.surfaceEffects.isEmpty()) {
+            return;
+        }
+        RenderHost host = RenderHosts.get();
+        for (Map.Entry<String, List<artframework.component.EffectDecl>> entry
+                : pack.surfaceEffects.entrySet()) {
+            if (entry.getValue() == null || entry.getValue().isEmpty()) {
+                continue;
+            }
+            String targetId = RenderHost.c2SurfaceTargetId(entry.getKey());
+            try {
+                host.ensureTarget(targetId, artframework.render.RenderTargetKind.C2_SURFACE);
+                host.clearEffects(targetId);
+                for (artframework.component.EffectDecl d : entry.getValue()) {
+                    host.bindEffect(targetId, d.id, d.params);
+                }
+                BOUND_C2_EFFECTS.add(entry.getKey());
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
+
     private static void resyncOpenC1Render() {
         for (String winId : WidgetSessions.listOpenIds()) {
             WidgetSession session = WidgetSessions.get(winId);
@@ -110,6 +135,14 @@ public final class PresentPackApply {
             }
         }
         BOUND_SURFACES.clear();
+        RenderHost host = RenderHosts.get();
+        for (String sid : new ArrayList<String>(BOUND_C2_EFFECTS)) {
+            try {
+                host.removeC2Surface(sid);
+            } catch (RuntimeException ignored) {
+            }
+        }
+        BOUND_C2_EFFECTS.clear();
         if (managedFullFrame) {
             try {
                 RenderHosts.get().disableFullFrame();
@@ -122,6 +155,7 @@ public final class PresentPackApply {
     public static Map<String, Object> probeSummary() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("boundSurfaces", new ArrayList<String>(BOUND_SURFACES));
+        m.put("boundC2Effects", new ArrayList<String>(BOUND_C2_EFFECTS));
         m.put("managedFullFrame", Boolean.valueOf(managedFullFrame));
         PresentPack p = PresentPacks.active();
         m.put("activePack", p != null ? p.id : "");

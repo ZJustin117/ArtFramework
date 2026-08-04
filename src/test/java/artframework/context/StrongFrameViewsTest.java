@@ -15,6 +15,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class StrongFrameViewsTest {
@@ -55,6 +56,28 @@ public class StrongFrameViewsTest {
         assertEquals(1920, ArtFramework.projection().viewport().logicalWidth);
         assertEquals(Boolean.TRUE, ArtFramework.projection().probeSlice().get("endTurnEnabled"));
         assertEquals(Integer.valueOf(1), ArtFramework.projection().probeSlice().get("mapNodeCount"));
+    }
+
+    @Test
+    public void reframeSharesImmutableDomainViews() {
+        CardView card = CardView.builder(new CardRef("c1", "Strike_R")).build();
+        ContextFrame original = ContextFrame.of(
+                1L,
+                4L,
+                "combat",
+                Collections.singletonList(card),
+                ControlsView.empty(),
+                MapView.empty(),
+                new ViewportView(100, 100, 100, 100));
+        ContextFrame reframed = original.reframe(2L);
+
+        assertEquals(2L, reframed.frameId);
+        assertTrue(original.sameDomains(reframed));
+        assertSame(original.cards, reframed.cards);
+        assertSame(original.controlsView, reframed.controlsView);
+        assertSame(original.mapView, reframed.mapView);
+        assertSame(original.controls, reframed.controls);
+        assertSame(original.map, reframed.map);
     }
 
     @Test

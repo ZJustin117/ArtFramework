@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class HandDrawPathTest {
@@ -74,6 +75,26 @@ public class HandDrawPathTest {
         assertTrue(items.get(0).frameSource.length() > 0);
         assertEquals(ResourceIds.cardArt("Strike_R"), items.get(0).artResourceId);
         assertEquals(ResourceIds.CARD_FRAME_RED, items.get(0).frameResourceId);
+    }
+
+    @Test
+    public void unchangedProjectionReusesDrawItem() {
+        pushHand();
+        HandDrawPath.resetForTests();
+        HandDrawPath.DrawItem first = HandDrawPath.buildFromProjection().get(0);
+        HandDrawPath.DrawItem second = HandDrawPath.buildFromProjection().get(0);
+        assertSame(first, second);
+    }
+
+    @Test
+    public void drawItemBoundsFollowCardPoseAndScale() {
+        pushHand();
+        HandDrawPath.DrawItem first = HandDrawPath.buildFromProjection().get(0);
+        artframework.component.Rect bounds = first.bounds();
+        assertEquals(-12.5f, bounds.x, 0.01f);
+        assertEquals(42.5f, bounds.y, 0.01f);
+        assertEquals(225f, bounds.width, 0.01f);
+        assertEquals(315f, bounds.height, 0.01f);
     }
 
     @Test

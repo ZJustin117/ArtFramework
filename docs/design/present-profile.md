@@ -39,7 +39,7 @@ ProjectPresent.set(profileId)
 
 Builtin `lightwave` profile has `packId=lightwave` and manifest
 `present-packs/lightwave/pack.json` (templates, **effectDefaults**, **fullFrame**,
-**bindSurfaces**). Activate applies ambient tables via `PresentPackApply` (not Java
+**surfaceEffects**, **bindSurfaces**). Activate applies ambient tables via `PresentPackApply` (not Java
 `if (lightwave)`). Layout `effects[]` still wins when non-empty.
 
 **Why “set lightwave” alone looked like no global FX:** skin/chrome + pack templates
@@ -53,7 +53,7 @@ band + C2 chrome binds + empty-node effectDefaults.
 |---------|----------------|-------|
 | C1 synthetic (Art open windows) | Per-widget via effectDefaults + layout effects | StageHost maps targets to actor stage bounds |
 | Full screen | `fullFrame` on active pack | Always-on overlay while pack active |
-| C2 / native STS UI | Chrome colors only via `bindSurfaces` | **No** per-button native lightwave without FULL present + custom draw |
+| C2 / native STS UI | Surface chrome + per-surface LightwaveEffect when FULL is drawn | Native UI remains unchanged unless FULL present owns the surface |
 | Native dialogs (not Art windows) | Only full-frame wash | Not individual hitboxes |
 
 Native STS is not a scene2d tree ART owns — component frames apply to **ArtFramework C1** only.
@@ -113,7 +113,7 @@ Register syncs `Themes` under theme name (and profile id when needed). **Does no
 | Tokens | `LightwaveTheme` colors/constants |
 | C1 skin | `StsSkin.create(resolved Theme)` |
 | Diagonal band | `LightwaveEffect` via layout `effects` / shader node (explicit) |
-| Bounds | border tokens + effect border; C2 hand white frame from chrome |
+| Bounds | border tokens + effect border; C2 surface regions share draw-plan bounds |
 | Event anim | `art.animation_player` (independent node) |
 
 ## Lookup (Theme colors)
@@ -127,7 +127,7 @@ Register syncs `Themes` under theme name (and profile id when needed). **Does no
 ```text
 SurfacePresent.bind(surfaceId, profileId)
   → PresentResolve.chromeForSurface / forSurface
-  → Sts1SurfaceRenderer / hand chrome
+  → Sts1SurfaceRenderer / C2 chrome painter / surface FX targets
 ```
 
 Unbound surfaces use **ProjectPresent**. Binding does not enable FULL present.
@@ -143,7 +143,8 @@ packOrder). Applied on project present change and surface bind when pack set.
   **fromProject** trees re-attach Stage skin
 - Lightwave does not auto-enable FULL present or native chrome
 - Scenarios assert probe contracts, not screenshot SSIM
-- C2 chrome is label/border/alpha tokens — not full STS atlas fidelity
+- C2 chrome is label/panel/border/alpha tokens — not full STS atlas fidelity
+- Surface FX only draws for active FULL draw-plan entries; profile selection alone does not suppress native UI
 
 ## Related
 

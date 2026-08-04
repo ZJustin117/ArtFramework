@@ -28,6 +28,8 @@ public final class PresentPack {
     public final List<EffectDecl> fullFrameEffects;
     /** C2 surface ids to bind to {@link #profileId} (or pack id) on activate. */
     public final List<String> bindSurfaces;
+    /** C2 surface id -> effects applied to the surface target while the pack is active. */
+    public final Map<String, List<EffectDecl>> surfaceEffects;
     public final boolean unregisterTemplatesOnDeactivate;
     public final boolean unregisterWindowsOnDeactivate;
     public final boolean autoCloseOnDeactivate;
@@ -43,6 +45,7 @@ public final class PresentPack {
             Map<String, List<EffectDecl>> effectDefaults,
             List<EffectDecl> fullFrameEffects,
             List<String> bindSurfaces,
+            Map<String, List<EffectDecl>> surfaceEffects,
             boolean unregisterTemplatesOnDeactivate,
             boolean unregisterWindowsOnDeactivate,
             boolean autoCloseOnDeactivate) {
@@ -74,6 +77,7 @@ public final class PresentPack {
                 bindSurfaces != null
                         ? Collections.unmodifiableList(new ArrayList<String>(bindSurfaces))
                         : Collections.<String>emptyList();
+        this.surfaceEffects = freezeDefaults(surfaceEffects);
         this.unregisterTemplatesOnDeactivate = unregisterTemplatesOnDeactivate;
         this.unregisterWindowsOnDeactivate = unregisterWindowsOnDeactivate;
         this.autoCloseOnDeactivate = autoCloseOnDeactivate;
@@ -126,6 +130,7 @@ public final class PresentPack {
         m.put("effectDefaultTypes", new ArrayList<String>(effectDefaults.keySet()));
         m.put("fullFrameEffectCount", Integer.valueOf(fullFrameEffects.size()));
         m.put("bindSurfaces", new ArrayList<String>(bindSurfaces));
+        m.put("surfaceEffectSurfaces", new ArrayList<String>(surfaceEffects.keySet()));
         return Collections.unmodifiableMap(m);
     }
 
@@ -177,6 +182,8 @@ public final class PresentPack {
                 new LinkedHashMap<String, List<EffectDecl>>();
         private final List<EffectDecl> fullFrameEffects = new ArrayList<EffectDecl>();
         private final List<String> bindSurfaces = new ArrayList<String>();
+        private final Map<String, List<EffectDecl>> surfaceEffects =
+                new LinkedHashMap<String, List<EffectDecl>>();
         private boolean unregisterTemplatesOnDeactivate = true;
         private boolean unregisterWindowsOnDeactivate = false;
         private boolean autoCloseOnDeactivate = false;
@@ -244,6 +251,19 @@ public final class PresentPack {
             return this;
         }
 
+        public Builder surfaceEffect(String surfaceId, EffectDecl effect) {
+            if (surfaceId == null || surfaceId.isEmpty() || effect == null) {
+                return this;
+            }
+            List<EffectDecl> list = surfaceEffects.get(surfaceId);
+            if (list == null) {
+                list = new ArrayList<EffectDecl>();
+                surfaceEffects.put(surfaceId, list);
+            }
+            list.add(effect);
+            return this;
+        }
+
         public Builder unregisterTemplatesOnDeactivate(boolean v) {
             this.unregisterTemplatesOnDeactivate = v;
             return this;
@@ -271,6 +291,7 @@ public final class PresentPack {
                     effectDefaults,
                     fullFrameEffects,
                     bindSurfaces,
+                    surfaceEffects,
                     unregisterTemplatesOnDeactivate,
                     unregisterWindowsOnDeactivate,
                     autoCloseOnDeactivate);

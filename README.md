@@ -9,7 +9,8 @@ Version: see `gradle.properties` → `artframework.version` (currently **1.0.0-a
   1. **C1 Synthetic** — scene2d.ui windows (layout DSL / LML + StageHost + StsSkin)
   2. **C2 Native** — thin templates + **full-present** surfaces (hand/map/event/select/reward/…)
 - **SignalBus** + **HostAssets** + **EntityPresent** co-op chrome slots
-- Shipped milestones **0–28** (room FULL production + C1 grid/tabs + alpha.4)
+- Shipped milestones **0–43** (room/full-present production, PresentPack, node-signal runtime,
+  and C2 Lightwave chrome/FX)
 
 Open work: [`docs/task.md`](docs/task.md). Design hub: [`docs/design/art-framework.md`](docs/design/art-framework.md).  
 Consumer: [`docs/development/consumer.md`](docs/development/consumer.md).  

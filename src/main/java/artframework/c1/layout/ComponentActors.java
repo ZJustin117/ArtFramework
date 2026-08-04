@@ -603,9 +603,7 @@ public final class ComponentActors {
             ArtFramework.ops().clickButton(windowId, buttonId);
         } catch (RuntimeException ignored) {
         }
-        if ("ok".equals(buttonId) || "pulse".equalsIgnoreCase(buttonId)) {
-            artframework.render.LightwaveControls.pulse(windowId);
-        }
+        // Pulse / other behaviors: declarative connections → UiActions (see lightwave_demo).
     }
 
     private static Actor buildSlider(

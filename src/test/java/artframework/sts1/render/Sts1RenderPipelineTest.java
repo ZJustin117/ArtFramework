@@ -88,6 +88,15 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
+    public void mountingCombatRootAlsoMountsEnergySurface() {
+        combatFrameMounted();
+        assertTrue(ArtFramework.component(SurfaceIds.COMBAT_ENERGY).isMounted());
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        FullPresentMode.setEnergyLevel(PresentLevel.FULL);
+        assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_ENERGY));
+    }
+
+    @Test
     public void fullMountedCombatWithoutExecutorFallsBackToNative() {
         combatFrameMounted();
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);

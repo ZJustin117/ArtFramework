@@ -12,12 +12,14 @@ import artframework.component.UiTypes;
 import artframework.component.WidgetSessions;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class RenderHostTest {
@@ -115,6 +117,16 @@ public class RenderHostTest {
     }
 
     @Test
+    public void retainC2ItemsPreservesExistingTargets() {
+        RenderHost host = ArtFramework.render();
+        RenderTarget first = host.syncC2Item("hand", "a", 1f, 2f, 3f, 4f);
+        host.syncC2Item("hand", "b", 5f, 6f, 7f, 8f);
+        host.retainC2Items("hand", new HashSet<String>(Collections.singletonList("a")));
+        assertSame(first, host.getTarget(RenderHost.c2ItemTargetId("hand", "a")));
+        assertNullTarget(host, RenderHost.c2ItemTargetId("hand", "b"));
+    }
+
+    @Test
     public void openTreeSyncsEffectsFromNode() {
         UiNode root = UiNode.of(UiTypes.WINDOW)
                 .id("w")
@@ -132,5 +144,9 @@ public class RenderHostTest {
 
     private static void assertNullTarget(String id) {
         assertFalse(ArtFramework.render().listTargetIds().contains(id));
+    }
+
+    private static void assertNullTarget(RenderHost host, String id) {
+        assertFalse(host.listTargetIds().contains(id));
     }
 }

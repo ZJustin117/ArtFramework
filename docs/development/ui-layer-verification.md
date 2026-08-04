@@ -15,6 +15,7 @@ default:  pure JUnit (@junit-test) + offline/art-verify offline unittest
 | Pure API | `@junit-test` | After every ops/template/API change |
 | Tooling offline | `tools/art-verify` unittest | After runner/assert changes |
 | On-device UI | `@art-verify` + `ART_D1_SERIAL` | After patches / real gestures land |
+| JVM diagnose | `@android-arthas` | Explicit thread/classloader/method investigations only |
 | Co-op life | CrossSpire only | Never default gate here |
 
 ## What ArtFramework verifies
@@ -30,7 +31,10 @@ default:  pure JUnit (@junit-test) + offline/art-verify offline unittest
 7. **PresentProfile catalog (37)** — `PresentProfileCatalogTest` + fixture `f16_present_profiles_catalog` +
    D1 `d1_present_profiles_catalog`: register ≠ apply; probe `presentProfiles.ids` / `byId`; project set + demo fromProject.
 8. **PresentPack (38)** — `PresentPackTest` + f18 + D1 `d1_present_packs`: pack activate by packId, regex select.
-   Demo-only (not native UI). Pixel look is manual; probe is the automated gate.
+    Demo-only (not native UI). Pixel look is manual; probe is the automated gate.
+9. **C2 Lightwave chrome/FX (43)** — `C2LightwaveSurfaceTest` + f18 surface effect contract + D1
+   `d1_lightwave_c2_full`: profile activation, C2 effect targets, combat FULL readiness, and cleanup
+   after returning to `sts`. Visual correctness remains manual on D1.
 
 ## What stays CrossSpire
 

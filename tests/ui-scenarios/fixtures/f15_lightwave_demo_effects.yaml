@@ -21,7 +21,7 @@ steps:
       contains: ok
   - assert:
       path: windows.byId.lightwave_demo.controls.sliderIds
-      contains: wave
+      contains: wave_slider
   - assert:
       path: render.demoEffects.lightwave_demo.bound
       eq: true

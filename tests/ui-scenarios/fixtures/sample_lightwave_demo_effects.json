@@ -23,8 +23,8 @@
         "theme": { "name": "lightwave" },
         "controls": {
           "buttonIds": ["ok", "close"],
-          "sliderIds": ["wave"],
-          "sliders": { "wave": 0.55 }
+          "sliderIds": ["wave_slider"],
+          "sliders": { "wave_slider": 0.55 }
         }
       }
     }

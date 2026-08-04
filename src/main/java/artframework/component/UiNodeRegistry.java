@@ -65,7 +65,11 @@ public final class UiNodeRegistry {
                                 java.util.Arrays.asList(
                                         artframework.core.AnimationPlayer.SIGNAL_STARTED,
                                         artframework.core.AnimationPlayer.SIGNAL_FINISHED,
-                                        artframework.core.AnimationPlayer.SIGNAL_CANCELLED))
+                                        artframework.core.AnimationPlayer.SIGNAL_CANCELLED,
+                                        artframework.core.AnimationPlayer.SIGNAL_PAUSED,
+                                        artframework.core.AnimationPlayer.SIGNAL_RESUMED,
+                                        artframework.core.AnimationPlayer.SIGNAL_LOOPED,
+                                        artframework.core.SignalNames.STATE_CHANGED))
                         .build());
         registerBuiltin(
                 UiNodeType.builder(ArtNodeTypes.SHADER_EFFECT)

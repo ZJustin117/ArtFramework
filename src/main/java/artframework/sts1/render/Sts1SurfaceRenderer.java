@@ -8,6 +8,11 @@ import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import artframework.api.ArtFramework;
 import artframework.context.SurfaceIds;
 import artframework.sts1.assets.Sts1AssetMaterializer;
+import artframework.render.RenderHosts;
+import artframework.render.RenderHost;
+
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 
 /**
@@ -47,7 +52,9 @@ public final class Sts1SurfaceRenderer {
             if (artframework.sts1.PresentSafety.isPanic()) {
                 return;
             }
+            disableInactiveSurfaceEffects(plan);
             for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
+                prepareSurfaceChrome(sb, e.surfaceId);
                 if (SurfaceIds.COMBAT_HAND.equals(e.surfaceId)) {
                     renderHand(sb);
                 } else if (SurfaceIds.COMBAT_CONTROLS.equals(e.surfaceId)) {
@@ -87,17 +94,94 @@ public final class Sts1SurfaceRenderer {
         }
     }
 
-    private static void renderHand(SpriteBatch sb) {
-        if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+    private static void disableInactiveSurfaceEffects(SurfaceDrawPlan plan) {
+        String[] surfaces = {
+            SurfaceIds.COMBAT_HAND, SurfaceIds.COMBAT_CONTROLS, SurfaceIds.MAP, SurfaceIds.EVENT,
+            SurfaceIds.SELECT_GRID, SurfaceIds.REWARD_COMBAT, SurfaceIds.REST, SurfaceIds.SHOP,
+            SurfaceIds.TREASURE, SurfaceIds.COMBAT_PROCEED, SurfaceIds.TOP_PANEL,
+            SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_INTENTS
+        };
+        for (String sid : surfaces) {
+            boolean active = false;
+            for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+                if (sid.equals(entry.surfaceId)) {
+                    active = true;
+                    break;
+                }
+            }
+            RenderHosts.get().setC2SurfaceEnabled(sid, active);
+            if (!active) {
+                RenderHosts.get().removeC2Items(sid);
+            }
+        }
+    }
+
+    private static void prepareSurfaceChrome(SpriteBatch sb, String surfaceId) {
+        if (surfaceId == null) {
             return;
         }
+        float sw = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        float sh = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        float x = sw * 0.18f;
+        float y = sh * 0.18f;
+        float w = sw * 0.64f;
+        float h = sh * 0.64f;
+        if (SurfaceIds.COMBAT_HAND.equals(surfaceId)) {
+            x = 0f; y = 0f; w = sw; h = sh * 0.46f;
+        } else if (SurfaceIds.COMBAT_CONTROLS.equals(surfaceId)) {
+            x = sw * 0.76f; y = sh * 0.06f; w = sw * 0.2f; h = sh * 0.14f;
+        } else if (SurfaceIds.TOP_PANEL.equals(surfaceId)) {
+            x = 20f; y = sh - 82f; w = sw * 0.48f; h = 58f;
+        } else if (SurfaceIds.COMBAT_ENERGY.equals(surfaceId)) {
+            x = sw * 0.06f; y = sh * 0.11f; w = sw * 0.13f; h = 70f;
+        } else if (SurfaceIds.COMBAT_INTENTS.equals(surfaceId)) {
+            x = sw * 0.62f; y = sh * 0.52f; w = sw * 0.28f; h = sh * 0.28f;
+        } else if (SurfaceIds.MAP.equals(surfaceId)) {
+            x = sw * 0.08f; y = sh * 0.12f; w = sw * 0.84f; h = sh * 0.72f;
+        }
+        artframework.core.PresentChromeStyle chrome =
+                artframework.core.PresentResolve.chromeForSurface(surfaceId);
+        try {
+            RenderHost host = RenderHosts.get();
+            host.syncC2Surface(surfaceId, x, y, w, h);
+            if (SurfaceIds.COMBAT_HAND.equals(surfaceId)
+                    || SurfaceIds.COMBAT_CONTROLS.equals(surfaceId)) {
+                host.setC2SurfaceEnabled(surfaceId, false);
+            }
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private static void renderHand(SpriteBatch sb) {
+        if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+            RenderHosts.get().removeC2Items(SurfaceIds.COMBAT_HAND);
+            return;
+        }
+        RenderHost host = RenderHosts.get();
+        host.syncC2Surface(
+                SurfaceIds.COMBAT_HAND,
+                0f,
+                0f,
+                com.megacrit.cardcrawl.core.Settings.WIDTH,
+                com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.46f);
         // Draw in projection order; hard-sync pose onto live card before render (16.4).
+        Set<String> visibleItems = new LinkedHashSet<String>();
         for (HandDrawPath.DrawItem item : HandDrawPath.buildFromProjection()) {
             if (!item.visible) {
                 continue;
             }
+            artframework.component.Rect bounds = item.bounds();
+            host.syncC2Item(
+                    SurfaceIds.COMBAT_HAND,
+                    item.instanceId,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height);
+            visibleItems.add(item.instanceId);
             Sts1HandCardRenderer.render(sb, item, find(item.instanceId));
         }
+        host.retainC2Items(SurfaceIds.COMBAT_HAND, visibleItems);
     }
 
     /**
@@ -106,15 +190,28 @@ public final class Sts1SurfaceRenderer {
      */
     private static void renderControls(SpriteBatch sb) {
         if (!ControlsDrawPath.shouldSuppressNativeEndTurn()) {
+            RenderHosts.get().removeC2Items(SurfaceIds.COMBAT_CONTROLS);
             return;
         }
         try {
+            Set<String> visibleItems = new LinkedHashSet<String>();
             for (ControlsDrawPath.DrawItem item : ControlsDrawPath.buildFromProjection()) {
                 if (!item.visible || !ControlsViewIdEndTurn(item.id)) {
                     continue;
                 }
-                float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.85f;
-                float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.12f;
+                artframework.component.Rect bounds = Sts1EndTurnChrome.bounds(
+                        com.megacrit.cardcrawl.core.Settings.WIDTH,
+                        com.megacrit.cardcrawl.core.Settings.HEIGHT);
+                RenderHosts.get().syncC2Item(
+                        SurfaceIds.COMBAT_CONTROLS,
+                        item.id,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width,
+                        bounds.height);
+                visibleItems.add(item.id);
+                float x = bounds.x + bounds.width / 2f;
+                float y = bounds.y + bounds.height / 2f;
                 artframework.core.PresentChromeStyle chrome =
                         artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_CONTROLS);
                 Texture icon = Sts1AssetMaterializer.resolveTexture(item.iconSource);
@@ -130,7 +227,8 @@ public final class Sts1SurfaceRenderer {
                     sb.draw(icon, x - w / 2f, y - h / 2f, w, h);
                     sb.setColor(Color.WHITE);
                 }
-                String label = item.enabled ? item.text : (item.text + " (disabled)");
+                String nativeLabel = Sts1EndTurnChrome.label(item.text);
+                String label = nativeLabel;
                 com.badlogic.gdx.graphics.Color fontColor =
                         item.enabled
                                 ? new com.badlogic.gdx.graphics.Color(
@@ -148,6 +246,7 @@ public final class Sts1SurfaceRenderer {
                         y,
                         fontColor);
             }
+            RenderHosts.get().retainC2Items(SurfaceIds.COMBAT_CONTROLS, visibleItems);
         } catch (Throwable ignored) {
         }
     }
@@ -465,20 +564,7 @@ public final class Sts1SurfaceRenderer {
                 && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_INTENTS)) {
             return;
         }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_INTENTS);
-            for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.cardDescFont_N,
-                        item.monsterName + ":" + item.intentType,
-                        item.x,
-                        item.y,
-                        colorAccent(chrome));
-            }
-        } catch (Throwable ignored) {
-        }
+        // Native intent art remains authoritative until ART has an icon-level replacement.
     }
 
     private static void renderEntityChrome(SpriteBatch sb) {

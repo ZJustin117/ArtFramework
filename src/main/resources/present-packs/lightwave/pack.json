@@ -191,6 +191,32 @@
       }
     }
   ],
+  "surfaceEffects": {
+    "sts1.combat.hand": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.combat.controls": [
+      { "id": "lightwave", "params": { "intensity": 0.3, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.combat.energy": [
+      { "id": "lightwave", "params": { "intensity": 0.28, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.combat.intents": [
+      { "id": "lightwave", "params": { "intensity": 0.26, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.combat.proceed": [
+      { "id": "lightwave", "params": { "intensity": 0.3, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.event": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.select.grid": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.select.hand": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ]
+  },
   "bindSurfaces": [
     "sts1.combat.hand",
     "sts1.combat.controls",

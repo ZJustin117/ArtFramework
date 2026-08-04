@@ -28,6 +28,9 @@ public final class PresentChromeStyle {
 
     public final float cardAlpha;
     public final float panelAlpha;
+    public final float panelR;
+    public final float panelG;
+    public final float panelB;
     public final float disabledR;
     public final float disabledG;
     public final float disabledB;
@@ -49,6 +52,9 @@ public final class PresentChromeStyle {
             float borderWidth,
             float cardAlpha,
             float panelAlpha,
+            float panelR,
+            float panelG,
+            float panelB,
             float disabledR,
             float disabledG,
             float disabledB,
@@ -68,6 +74,9 @@ public final class PresentChromeStyle {
         this.borderWidth = borderWidth;
         this.cardAlpha = cardAlpha;
         this.panelAlpha = panelAlpha;
+        this.panelR = panelR;
+        this.panelG = panelG;
+        this.panelB = panelB;
         this.disabledR = disabledR;
         this.disabledG = disabledG;
         this.disabledB = disabledB;
@@ -82,6 +91,7 @@ public final class PresentChromeStyle {
                 1f,
                 1f,
                 0.92f,
+                0.12f, 0.11f, 0.1f,
                 0.55f, 0.55f, 0.55f, 1f);
     }
 
@@ -110,6 +120,7 @@ public final class PresentChromeStyle {
                 borderW,
                 cardA,
                 panel.a > 0f ? panel.a : 0.9f,
+                panel.r, panel.g, panel.b,
                 disabled.r * 0.55f, disabled.g * 0.55f, disabled.b * 0.55f, disabled.a);
     }
 
@@ -117,6 +128,7 @@ public final class PresentChromeStyle {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("cardAlpha", Float.valueOf(cardAlpha));
         m.put("panelAlpha", Float.valueOf(panelAlpha));
+        m.put("panel", rgba(panelR, panelG, panelB, panelAlpha));
         m.put("borderWidth", Float.valueOf(borderWidth));
         m.put("border", rgba(borderR, borderG, borderB, borderA));
         m.put("label", rgba(labelR, labelG, labelB, labelA));

@@ -16,6 +16,7 @@ the jar as a separate ModTheSpire dependency.
 | `signals` / `connect` / `emit` | SignalBus |
 | `host` / `setHostBackend` | Host SPI |
 | `theme` / `setTheme` | Default theme (project present when name is a profile id) |
+| `registerUiAction` / `getUiAction` / `uiActionIds` / `nodeState` | Declarative connections actions + node FSM (39–42) |
 | `projectPresent` / `setProjectPresent` / `presentProfile` / `setPresentProfile` | Project fallback present; set hot-restyles project-fallback C1 |
 | `registerPresentProfile` / `getPresentProfile` / `presentProfileIds` / `presentProfiles()` | Global skin catalog (register ≠ apply) |
 | `registerPresentPack` / `activatePresentPack` / `presentPackIds` / `activePresentPack` | UI pack catalog (LML/JSON modules) |

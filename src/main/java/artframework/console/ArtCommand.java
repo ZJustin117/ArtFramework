@@ -522,9 +522,12 @@ public class ArtCommand extends ConsoleCommand {
         if ("combat".equals(target)) {
             artframework.sts1.FullPresentMode.setCombatHandLevel(level);
             artframework.sts1.FullPresentMode.setCombatControlsLevel(level);
+            artframework.sts1.FullPresentMode.setEnergyLevel(level);
             if (level.allowsFullPresent() || level.allowsObserve()) {
                 ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE)
                         .action("mount_combat");
+                mountPresentAction(
+                        artframework.context.SurfaceIds.COMBAT_ENERGY, "mount_energy", level);
             } else {
                 unmountCombatSurfaces();
             }
@@ -701,6 +704,11 @@ public class ArtCommand extends ConsoleCommand {
         if (controls != null && controls.isMounted()) {
             controls.unmount();
         }
+        artframework.core.UiComponent energy =
+                ArtFramework.component(artframework.context.SurfaceIds.COMBAT_ENERGY);
+        if (energy != null && energy.isMounted()) {
+            energy.unmount();
+        }
         artframework.core.UiComponent root =
                 ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE);
         if (root != null && root.isMounted()) {
@@ -765,7 +773,7 @@ public class ArtCommand extends ConsoleCommand {
     private void cmdFullFrame(String[] tokens, int depth) {
         if (tokens.length <= depth) {
             DevConsole.log(
-                    "Usage: art fx enable|disable|tint|glow|blur|glass|lightwave|clear|capture [args]");
+                "Usage: art fx enable|disable|tint|glow|blur|glass|lightwave|lightwave-test|diag|clear|capture [args]");
             return;
         }
         String action = tokens[depth].toLowerCase();
@@ -823,6 +831,23 @@ public class ArtCommand extends ConsoleCommand {
                 ArtFramework.render()
                         .bindFullFrameEffect(artframework.render.LightwaveEffect.ID, p);
                 DevConsole.log("full_frame lightwave intensity=" + intensity + " angle=" + angle);
+            } else if ("lightwave-test".equals(action)) {
+                java.util.Map<String, Object> p = new java.util.LinkedHashMap<String, Object>();
+                p.put("intensity", Float.valueOf(1f));
+                p.put("angle", Float.valueOf(35f));
+                p.put("width", Float.valueOf(0.5f));
+                p.put("speed", Float.valueOf(0f));
+                p.put("phase", Float.valueOf(0.5f));
+                p.put("freeze", Float.valueOf(1f));
+                p.put("r", Float.valueOf(1f));
+                p.put("g", Float.valueOf(1f));
+                p.put("b", Float.valueOf(1f));
+                ArtFramework.render().clearEffects(artframework.render.RenderHost.FULL_FRAME_ID);
+                ArtFramework.render()
+                        .bindFullFrameEffect(artframework.render.LightwaveEffect.ID, p);
+                DevConsole.log("full_frame lightwave diagnostic: fixed high-contrast band");
+            } else if ("diag".equals(action)) {
+                cmdLightwaveDiagnostic(tokens, depth + 1);
             } else if ("capture".equals(action)) {
                 boolean on = tokens.length <= depth + 1
                         || !"off".equalsIgnoreCase(tokens[depth + 1]);
@@ -837,6 +862,37 @@ public class ArtCommand extends ConsoleCommand {
         } catch (RuntimeException e) {
             DevConsole.log("fx failed: " + e.getMessage());
         }
+    }
+
+    private void cmdLightwaveDiagnostic(String[] tokens, int depth) {
+        if (tokens.length <= depth || "status".equalsIgnoreCase(tokens[depth])) {
+            DevConsole.log("lightwave diag=" + artframework.render.LightwaveDiagnostics.probeSummary());
+            return;
+        }
+        if ("reset".equalsIgnoreCase(tokens[depth])) {
+            artframework.render.LightwaveDiagnostics.resetForTests();
+            DevConsole.log("lightwave diag reset");
+            return;
+        }
+        if (tokens.length <= depth + 1) {
+            DevConsole.log("Usage: art fx diag <c2|items|panels|fallback> <on|off>|status|reset");
+            return;
+        }
+        boolean on = !"off".equalsIgnoreCase(tokens[depth + 1]);
+        String part = tokens[depth].toLowerCase();
+        if ("c2".equals(part)) {
+            artframework.render.LightwaveDiagnostics.setC2EffectsEnabled(on);
+        } else if ("items".equals(part)) {
+            artframework.render.LightwaveDiagnostics.setC2ItemsEnabled(on);
+        } else if ("panels".equals(part)) {
+            artframework.render.LightwaveDiagnostics.setC2PanelsEnabled(on);
+        } else if ("fallback".equals(part)) {
+            artframework.render.LightwaveDiagnostics.setForceFallback(on);
+        } else {
+            DevConsole.log("Unknown lightwave diag part: " + part);
+            return;
+        }
+        DevConsole.log("lightwave diag " + part + "=" + on);
     }
 
     private void cmdGate(String[] tokens, int depth) {

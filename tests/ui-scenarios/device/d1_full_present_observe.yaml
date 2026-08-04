@@ -26,7 +26,7 @@ steps:
       eq: 1
   - assert:
       path: backend.id
-      eq: sts1
+      eq: signals
   - assert:
       path: backend.fullPresent.combatHand
       eq: "OBSERVE"

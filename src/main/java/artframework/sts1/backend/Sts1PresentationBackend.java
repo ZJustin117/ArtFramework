@@ -36,7 +36,11 @@ import com.megacrit.cardcrawl.screens.select.GridCardSelectScreen;
 import com.megacrit.cardcrawl.screens.select.HandCardSelectScreen;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * STS1 read-only authority adapter. Observation-only until the matching full-present surface owns
@@ -50,6 +54,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
     private String scene = "";
     private long sceneEpoch;
     private artframework.core.SignalSubscription actionSubscription;
+    private final Map<String, PlayabilityState> playability = new HashMap<String, PlayabilityState>();
+    private final Map<String, CardView> cardViews = new HashMap<String, CardView>();
+    private ContextFrame lastPublished;
+    private long combatRevision = Long.MIN_VALUE;
 
     private Sts1PresentationBackend() {}
 
@@ -70,34 +78,43 @@ public final class Sts1PresentationBackend implements SignalBackend {
             }
             frameId++;
             if ("combat".equals(scene)) {
-                return enrich(combatFrame());
+                return publish(combatFrame());
             }
             if ("map".equals(scene)) {
-                return enrich(mapFrame());
+                return publish(mapFrame());
             }
             if ("event".equals(scene)) {
-                return enrich(eventFrame());
+                return publish(eventFrame());
             }
             if ("select".equals(scene)) {
-                return enrich(selectOnlyFrame());
+                return publish(selectOnlyFrame());
             }
             if ("reward".equals(scene)) {
-                return enrich(rewardFrame());
+                return publish(rewardFrame());
             }
             if ("rest".equals(scene)) {
-                return enrich(restFrame());
+                return publish(restFrame());
             }
             if ("treasure".equals(scene)) {
-                return enrich(treasureFrame());
+                return publish(treasureFrame());
             }
             if ("shop".equals(scene)) {
-                return enrich(shopFrame());
+                return publish(shopFrame());
             }
-            return ContextFrame.unavailable(frameId);
+            return publish(ContextFrame.unavailable(frameId));
         } catch (Throwable t) {
             frameId++;
             return ContextFrame.unavailable(frameId);
         }
+    }
+
+    private ContextFrame publish(ContextFrame candidate) {
+        if (lastPublished != null && lastPublished.sameDomains(candidate)) {
+            lastPublished = lastPublished.reframe(candidate.frameId);
+        } else {
+            lastPublished = candidate;
+        }
+        return lastPublished;
     }
 
     @Override
@@ -136,11 +153,19 @@ public final class Sts1PresentationBackend implements SignalBackend {
         if (player == null) {
             return ContextFrame.unavailable(frameId);
         }
+        long nextCombatRevision = combatRevision(player);
         List<CardView> cards = new ArrayList<CardView>();
-        append(cards, player.hand, CardZone.HAND);
-        append(cards, player.drawPile, CardZone.DRAW);
-        append(cards, player.discardPile, CardZone.DISCARD);
-        append(cards, player.exhaustPile, CardZone.EXHAUST);
+        Set<String> seenCards = new HashSet<String>();
+        append(cards, seenCards, player.hand, CardZone.HAND, nextCombatRevision);
+        append(cards, seenCards, player.drawPile, CardZone.DRAW, nextCombatRevision);
+        append(cards, seenCards, player.discardPile, CardZone.DISCARD, nextCombatRevision);
+        append(cards, seenCards, player.exhaustPile, CardZone.EXHAUST, nextCombatRevision);
+        for (String id : new ArrayList<String>(cardViews.keySet())) {
+            if (!seenCards.contains(id)) {
+                cardViews.remove(id);
+                playability.remove(id);
+            }
+        }
 
         boolean endTurnEnabled = AbstractDungeon.overlayMenu != null
                 && AbstractDungeon.overlayMenu.endTurnButton != null
@@ -278,38 +303,41 @@ public final class Sts1PresentationBackend implements SignalBackend {
         if (base == null || !base.available) {
             return base;
         }
-        EventView event = readEventView();
-        SelectView select = readSelectView();
-        RewardView reward = readRewardView();
-        RestView rest = readRestView();
-        TreasureView treasure = readTreasureView();
-        ShopView shop = readShopView();
-        TopPanelView top = readTopPanelView();
-        MonsterIntentView intents =
-                "combat".equals(base.scene) ? readIntentsView() : base.intentsView;
-        if (!event.available) {
-            event = base.eventView;
+        // Scene samplers already own their live view. Only sample shared or transient domains
+        // that are meaningful for this scene; do not probe every STS screen every post-update.
+        EventView event = base.eventView;
+        SelectView select = base.selectView;
+        RewardView reward = base.rewardView;
+        RestView rest = base.restView;
+        TreasureView treasure = base.treasureView;
+        ShopView shop = base.shopView;
+        TopPanelView top = base.topPanelView;
+        MonsterIntentView intents = base.intentsView;
+        if ("combat".equals(base.scene)) {
+            top = readTopPanelView();
+            intents = readIntentsView();
+        } else if ("map".equals(base.scene)) {
+            top = readTopPanelView();
+        } else if ("event".equals(base.scene)) {
+            top = readTopPanelView();
+        } else if ("select".equals(base.scene)) {
+            select = readSelectView();
+            top = readTopPanelView();
+        } else if ("reward".equals(base.scene)) {
+            reward = readRewardView();
+            top = readTopPanelView();
+        } else if ("rest".equals(base.scene)) {
+            rest = readRestView();
+            top = readTopPanelView();
+        } else if ("treasure".equals(base.scene)) {
+            treasure = readTreasureView();
+            top = readTopPanelView();
+        } else if ("shop".equals(base.scene)) {
+            shop = readShopView();
+            top = readTopPanelView();
         }
-        if (!select.available) {
-            select = base.selectView;
-        }
-        if (!reward.available) {
-            reward = base.rewardView;
-        }
-        if (!rest.available) {
-            rest = base.restView;
-        }
-        if (!treasure.available) {
-            treasure = base.treasureView;
-        }
-        if (!shop.available) {
-            shop = base.shopView;
-        }
-        if (!top.available) {
-            top = base.topPanelView;
-        }
-        if (!intents.available) {
-            intents = base.intentsView;
+        if (sameView(base, event, select, reward, rest, treasure, shop, top, intents)) {
+            return base;
         }
         return new ContextFrame(
                 base.frameId,
@@ -328,6 +356,26 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 intents,
                 true,
                 base.viewport);
+    }
+
+    private static boolean sameView(
+            ContextFrame base,
+            EventView event,
+            SelectView select,
+            RewardView reward,
+            RestView rest,
+            TreasureView treasure,
+            ShopView shop,
+            TopPanelView top,
+            MonsterIntentView intents) {
+        return base.eventView == event
+                && base.selectView == select
+                && base.rewardView == reward
+                && base.restView == rest
+                && base.treasureView == treasure
+                && base.shopView == shop
+                && base.topPanelView == top
+                && base.intentsView == intents;
     }
 
     private ContextFrame rewardFrame() {
@@ -728,7 +776,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
     }
 
-    private static void append(List<CardView> out, CardGroup group, CardZone zone) {
+    private void append(
+            List<CardView> out,
+            Set<String> seenCards,
+            CardGroup group,
+            CardZone zone,
+            long revision) {
         if (group == null || group.group == null) {
             return;
         }
@@ -745,12 +798,8 @@ public final class Sts1PresentationBackend implements SignalBackend {
                     card.drawScale,
                     i,
                     !card.fadingOut);
-            boolean playable = false;
-            try {
-                playable = card.canUse(AbstractDungeon.player, null);
-            } catch (Throwable ignored) {
-            }
-            out.add(CardView.builder(new CardRef(instance, card.cardID))
+            boolean playable = playable(card, zone, revision);
+            CardView next = CardView.builder(new CardRef(instance, card.cardID))
                     .zone(zone)
                     .slot(i)
                     .pose(pose)
@@ -761,7 +810,81 @@ public final class Sts1PresentationBackend implements SignalBackend {
                             && AbstractDungeon.player.hoveredCard == card)
                     .art(ResourceIds.cardArt(card.cardID))
                     .frame(ResourceIds.cardFrame(card.color != null ? card.color.name().toLowerCase() : "colorless"))
-                    .build());
+                    .build();
+            CardView stable = cardViews.get(instance);
+            if (stable == null || !sameCardView(stable, next)) {
+                stable = next;
+                cardViews.put(instance, stable);
+            }
+            seenCards.add(instance);
+            out.add(stable);
+        }
+    }
+
+    private static boolean sameCardView(CardView a, CardView b) {
+        return a.ref.instanceId.equals(b.ref.instanceId)
+                && a.ref.cardId.equals(b.ref.cardId)
+                && a.zone == b.zone
+                && a.slotIndex == b.slotIndex
+                && a.pose.equals(b.pose)
+                && a.playable == b.playable
+                && a.selected == b.selected
+                && a.hovered == b.hovered
+                && a.dragging == b.dragging
+                && a.artResourceId.equals(b.artResourceId)
+                && a.frameResourceId.equals(b.frameResourceId);
+    }
+
+    private boolean playable(AbstractCard card, CardZone zone, long revision) {
+        if (card == null || zone != CardZone.HAND) {
+            return false;
+        }
+        String instance = card.uuid != null ? card.uuid.toString() : identity(card);
+        PlayabilityState cached = playability.get(instance);
+        if (cached != null && cached.revision == revision) {
+            return cached.value;
+        }
+        boolean value = false;
+        try {
+            value = card.canUse(AbstractDungeon.player, null);
+        } catch (Throwable ignored) {
+        }
+        playability.put(instance, new PlayabilityState(revision, value));
+        return value;
+    }
+
+    private long combatRevision(AbstractPlayer player) {
+        long revision = 17L;
+        revision = 31L * revision + (player.energy != null ? player.energy.energy : 0);
+        revision = 31L * revision + player.currentHealth;
+        revision = 31L * revision + player.maxHealth;
+        revision = 31L * revision + (player.hand != null ? player.hand.size() : 0);
+        revision = 31L * revision + (player.drawPile != null ? player.drawPile.size() : 0);
+        revision = 31L * revision + (player.discardPile != null ? player.discardPile.size() : 0);
+        revision = 31L * revision + (player.exhaustPile != null ? player.exhaustPile.size() : 0);
+        AbstractRoom room = safeCurrRoom();
+        revision = 31L * revision + (room != null && room.isBattleOver ? 1 : 0);
+        if (AbstractDungeon.getMonsters() != null && AbstractDungeon.getMonsters().monsters != null) {
+            for (com.megacrit.cardcrawl.monsters.AbstractMonster monster
+                    : AbstractDungeon.getMonsters().monsters) {
+                if (monster == null) continue;
+                revision = 31L * revision + monster.currentHealth;
+                revision = 31L * revision + (monster.intent != null ? monster.intent.ordinal() : -1);
+            }
+        }
+        if (revision != combatRevision) {
+            combatRevision = revision;
+        }
+        return revision;
+    }
+
+    private static final class PlayabilityState {
+        final long revision;
+        final boolean value;
+
+        PlayabilityState(long revision, boolean value) {
+            this.revision = revision;
+            this.value = value;
         }
     }
 

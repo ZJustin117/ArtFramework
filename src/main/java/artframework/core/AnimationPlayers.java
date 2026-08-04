@@ -10,7 +10,8 @@ import java.util.Map;
 
 /**
  * Attaches {@link AnimationPlayer} instances to mounted animation_player nodes.
- * Supports declarative {@code auto_play} and {@code triggers} on the player node.
+ * Supports declarative {@code auto_play}; signal wiring via {@link NodeConnections}
+ * ({@code connections} / legacy {@code triggers}).
  */
 public final class AnimationPlayers {
 
@@ -74,7 +75,6 @@ public final class AnimationPlayers {
             AnimationPlayer player = new AnimationPlayer(inst);
             loadFromDecl(player, inst.decl());
             BY_KEY.put(key(tree.windowId(), inst.id()), player);
-            wireTriggers(tree, inst, player);
             maybeAutoPlay(inst, player);
         }
         for (UiInstance c : inst.children()) {
@@ -99,6 +99,11 @@ public final class AnimationPlayers {
             }
             String target = stringVal(m.get("target"));
             float duration = floatVal(m.get("duration"), 0.2f);
+            String mode = stringVal(m.get("mode"));
+            if (mode.isEmpty()) {
+                mode = stringVal(m.get("playback"));
+            }
+            int loopCount = intVal(m.get("loop_count"), intVal(m.get("loopCount"), 0));
             List<AnimationPlayer.Track> tracks = new ArrayList<AnimationPlayer.Track>();
             Object tr = m.get("tracks");
             if (tr instanceof List) {
@@ -114,53 +119,24 @@ public final class AnimationPlayers {
                     if (prop.isEmpty()) {
                         continue;
                     }
-                    float from = floatVal(tm.get("from"), 0f);
+                    boolean fromCurrent = false;
+                    Object fromRaw = tm.get("from");
+                    if (fromRaw != null
+                            && ("current".equalsIgnoreCase(String.valueOf(fromRaw).trim())
+                                    || "cur".equalsIgnoreCase(String.valueOf(fromRaw).trim()))) {
+                        fromCurrent = true;
+                    }
+                    float from = fromCurrent ? 0f : floatVal(fromRaw, 0f);
                     float to = floatVal(tm.get("to"), 1f);
-                    tracks.add(new AnimationPlayer.Track(prop, from, to));
+                    tracks.add(new AnimationPlayer.Track(prop, from, to, fromCurrent));
                 }
             }
-            player.register(new AnimationPlayer.Animation(name, target, duration, tracks));
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void wireTriggers(final UiTree tree, UiInstance owner, final AnimationPlayer player) {
-        Object raw = owner.prop("triggers");
-        if (!(raw instanceof List)) {
-            return;
-        }
-        for (Object item : (List<?>) raw) {
-            if (!(item instanceof Map)) {
-                continue;
-            }
-            Map<String, Object> m = (Map<String, Object>) item;
-            String source = stringVal(m.get("source"));
-            String signal = stringVal(m.get("signal"));
-            final String play = stringVal(m.get("play"));
-            if (source.isEmpty() || signal.isEmpty() || play.isEmpty()) {
-                continue;
-            }
-            if (".".equals(source) || "self".equals(source)) {
-                source = owner.id();
-            }
-            final String sourceId = source;
-            if (!player.has(play)) {
-                continue;
-            }
-            try {
-                tree.connect(
-                        sourceId,
-                        signal,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                if (player.has(play)) {
-                                    player.play(play);
-                                }
-                            }
-                        });
-            } catch (RuntimeException ignored) {
-                // Undeclared signal on source — skip wiring
+            if (mode.isEmpty()) {
+                player.register(new AnimationPlayer.Animation(name, target, duration, tracks));
+            } else {
+                player.register(
+                        new AnimationPlayer.Animation(
+                                name, target, duration, tracks, mode, loopCount));
             }
         }
     }
@@ -195,6 +171,19 @@ public final class AnimationPlayers {
         if (v instanceof String) {
             try {
                 return Float.parseFloat(((String) v).trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return def;
+    }
+
+    private static int intVal(Object v, int def) {
+        if (v instanceof Number) {
+            return ((Number) v).intValue();
+        }
+        if (v instanceof String) {
+            try {
+                return Integer.parseInt(((String) v).trim());
             } catch (NumberFormatException ignored) {
             }
         }

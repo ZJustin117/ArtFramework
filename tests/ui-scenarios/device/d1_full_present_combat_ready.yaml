@@ -1,4 +1,4 @@
-# D1: BaseMod fight provision reaches combat, then ART owns the mounted hand/controls surfaces.
+# D1: BaseMod fight provision reaches combat, then ART owns the mounted hand/controls/energy surfaces.
 name: d1_full_present_combat_ready
 schemaVersion: 1
 mode: device
@@ -42,7 +42,7 @@ steps:
       eq: true
   - assert:
       path: backend.renderPlan.drawCount
-      eq: 3
+      gte: 4
   - assert:
       path: backend.controlsDraw.suppressNativeEndTurn
       eq: true

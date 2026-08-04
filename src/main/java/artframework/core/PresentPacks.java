@@ -256,7 +256,7 @@ public final class PresentPacks {
             p.put("borderWidth", Float.valueOf(3f));
             artframework.component.EffectDecl lw =
                     new artframework.component.EffectDecl("lightwave", p);
-            register(
+            PresentPack.Builder builder =
                     PresentPack.builder(PresentProfiles.LIGHTWAVE)
                             .profileId(PresentProfiles.LIGHTWAVE)
                             .provider("artframework")
@@ -270,9 +270,13 @@ public final class PresentPacks {
                             .effectDefault("button", lw)
                             .effectDefault("label", lw)
                             .fullFrameEffect(lw)
+                            .surfaceEffect(artframework.context.SurfaceIds.COMBAT_HAND, lw)
+                            .surfaceEffect(artframework.context.SurfaceIds.COMBAT_CONTROLS, lw)
+                            .surfaceEffect(artframework.context.SurfaceIds.EVENT, lw)
+                            .surfaceEffect(artframework.context.SurfaceIds.SELECT_GRID, lw)
                             .bindSurface(artframework.context.SurfaceIds.COMBAT_HAND)
-                            .bindSurface(artframework.context.SurfaceIds.EVENT)
-                            .build());
+                            .bindSurface(artframework.context.SurfaceIds.EVENT);
+            register(builder.build());
         }
     }
 

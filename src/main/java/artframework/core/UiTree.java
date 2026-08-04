@@ -49,6 +49,8 @@ public final class UiTree {
         tree.fireMount(tree.root, lifecycle);
         tree.fireReady(tree.root, lifecycle);
         AnimationPlayers.syncTree(tree);
+        NodeConnections.syncTree(tree);
+        NodeStateMachines.syncTree(tree);
         return tree;
     }
 
@@ -176,6 +178,22 @@ public final class UiTree {
         signalHub.connect(instanceId, signal, handler);
     }
 
+    /**
+     * Subscribe to a full bus name (same as program {@link SignalBus#connect(String,
+     * SignalListener)}).
+     */
+    public SignalSubscription connectBus(String busName, SignalListener listener) {
+        return signalHub.connectBus(busName, listener);
+    }
+
+    /**
+     * Regex subscribe on full bus names (same as {@link SignalBus#connect(java.util.regex.Pattern,
+     * SignalListener)}).
+     */
+    public SignalSubscription connectBus(java.util.regex.Pattern pattern, SignalListener listener) {
+        return signalHub.connectBus(pattern, listener);
+    }
+
     public void disconnect(String instanceId, String signal, SignalHandler handler) {
         signalHub.disconnect(instanceId, signal, handler);
     }
@@ -210,6 +228,8 @@ public final class UiTree {
         if (!alive) {
             return;
         }
+        NodeConnections.clearWindow(windowId);
+        NodeStateMachines.clearWindow(windowId);
         AnimationPlayers.clearWindow(windowId);
         fireUnmount(root, lifecycle);
         signalHub.clear();

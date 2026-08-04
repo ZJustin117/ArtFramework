@@ -88,7 +88,9 @@ PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
 
 ## Lifecycle rules
 
-For `start`, use the documented debug launch mode:
+For `start`, use the documented debug launch mode. Add `-TimeoutSeconds` or
+`-PollIntervalSeconds` only when the parent provides an override; Harness
+defaults are 120 seconds and 2 seconds respectively.
 
 ```bash
 python3 "$ART_AMETHYST_TOOLS_DIR/main.py" sts-harness \
@@ -101,7 +103,8 @@ python3 "$ART_AMETHYST_TOOLS_DIR/main.py" sts-harness \
 
 `start` being accepted is not enough. Follow it with `status` and report the
 observed state. Poll at a reasonable interval until `READY` or a terminal
-failure, respecting the requested timeout.
+failure, respecting the requested timeout. Preserve the Harness result paths
+for both start and status in the final report.
 
 Do not automatically stop a successfully started game when the subagent task
 ends. Stop only when the parent requests `stop`, cleanup, or a complete
@@ -123,10 +126,9 @@ python3 "$ART_AMETHYST_TOOLS_DIR/main.py" sts-harness \
 ```
 
 Use `logs` or `screenshot` when requested. The harness may return only `ok`
-for game-probe commands; inspect the reported artifacts and, when relevant,
-the device log for `ART_PROBE`, `ART_UI`, or `ART_LAB` evidence. Do not claim a
-UI command succeeded based only on process exit status when no evidence was
-returned.
+for game-probe commands; inspect `result.json` and, when relevant, the device
+log for `ART_PROBE`, `ART_UI`, or `ART_LAB` evidence. Do not claim a UI command
+succeeded based only on process exit status when no evidence was returned.
 
 ## Safety boundaries
 

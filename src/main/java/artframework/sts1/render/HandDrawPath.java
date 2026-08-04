@@ -5,17 +5,24 @@ import artframework.assets.AssetResolveResult;
 import artframework.context.CardEntity;
 import artframework.context.CardZone;
 import artframework.sts1.assets.Sts1HostAssets;
+import artframework.component.Rect;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Pure hand full-present draw path description. It retains logical resource ids for the STS1 host
  * renderer while keeping texture materialization outside the pure projection path.
  */
 public final class HandDrawPath {
+
+    public static final float CARD_WIDTH = 250f;
+    public static final float CARD_HEIGHT = 350f;
 
     public static final class DrawItem {
         public final String instanceId;
@@ -72,19 +79,76 @@ public final class HandDrawPath {
             m.put("artFound", Boolean.valueOf(artFound));
             m.put("artResourceId", artResourceId);
             m.put("frameResourceId", frameResourceId);
+            Rect bounds = bounds();
+            Map<String, Object> b = new LinkedHashMap<String, Object>();
+            b.put("x", Float.valueOf(bounds.x));
+            b.put("y", Float.valueOf(bounds.y));
+            b.put("w", Float.valueOf(bounds.width));
+            b.put("h", Float.valueOf(bounds.height));
+            m.put("bounds", b);
             return m;
+        }
+
+        public Rect bounds() {
+            float s = scale > 0f ? scale : 1f;
+            float w = CARD_WIDTH * s;
+            float h = CARD_HEIGHT * s;
+            return new Rect(x - w / 2f, y - h / 2f, w, h);
         }
     }
 
     private HandDrawPath() {}
 
+    private static final Map<String, CachedItem> CACHE = new HashMap<String, CachedItem>();
+
     /** Build draw list from current projection HAND zone + HostAssets resolve. */
     public static List<DrawItem> buildFromProjection() {
         List<DrawItem> out = new ArrayList<DrawItem>();
+        Set<String> current = new HashSet<String>();
         for (CardEntity e : ArtFramework.projection().listZone(CardZone.HAND)) {
-            out.add(fromEntity(e));
+            if (e == null) continue;
+            current.add(e.instanceId);
+            CachedItem cached = CACHE.get(e.instanceId);
+            long key = key(e);
+            if (cached == null || cached.key != key) {
+                cached = new CachedItem(key, fromEntity(e));
+                CACHE.put(e.instanceId, cached);
+            }
+            out.add(cached.item);
+        }
+        for (String id : new ArrayList<String>(CACHE.keySet())) {
+            if (!current.contains(id)) {
+                CACHE.remove(id);
+            }
         }
         return out;
+    }
+
+    private static long key(CardEntity e) {
+        long h = 17L;
+        h = 31L * h + stringHash(e.cardId);
+        h = 31L * h + stringHash(e.artResourceId);
+        h = 31L * h + stringHash(e.frameResourceId);
+        h = 31L * h + (e.pose != null ? e.pose.hashCode() : 0);
+        return h;
+    }
+
+    private static int stringHash(String value) {
+        return value != null ? value.hashCode() : 0;
+    }
+
+    private static final class CachedItem {
+        final long key;
+        final DrawItem item;
+
+        CachedItem(long key, DrawItem item) {
+            this.key = key;
+            this.item = item;
+        }
+    }
+
+    public static void resetForTests() {
+        CACHE.clear();
     }
 
     public static DrawItem fromEntity(CardEntity e) {

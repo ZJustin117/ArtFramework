@@ -132,6 +132,19 @@ public final class PresentPackLoader {
                 }
             }
         }
+        Object surfaceEffects = map.get("surfaceEffects");
+        if (surfaceEffects instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> se = (Map<String, Object>) surfaceEffects;
+            for (Map.Entry<String, Object> e : se.entrySet()) {
+                if (e.getKey() == null || !(e.getValue() instanceof List)) {
+                    continue;
+                }
+                for (EffectDecl d : parseEffectList((List<?>) e.getValue())) {
+                    b.surfaceEffect(e.getKey(), d);
+                }
+            }
+        }
         return b.build();
     }
 

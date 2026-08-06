@@ -26,6 +26,8 @@ public class C1NodeFactoriesTest {
         C1NodeFactories r = C1NodeFactories.global();
         assertTrue(r.contains(UiTypes.BUTTON));
         assertTrue(r.contains(UiTypes.COL));
+        assertTrue(r.contains(UiTypes.GRID));
+        assertTrue(r.contains(UiTypes.TABS));
         assertTrue(r.contains(UiTypes.PROGRESS));
         assertNotNull(r.get(UiTypes.LABEL));
         assertFalse(r.contains(UiTypes.WINDOW));

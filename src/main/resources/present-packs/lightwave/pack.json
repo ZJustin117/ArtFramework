@@ -13,6 +13,10 @@
     {
       "id": "lightwave_pack_demo",
       "resource": "layouts/lightwave_demo.json"
+    },
+    {
+      "id": "lightwave_components_demo",
+      "resource": "layouts/lightwave_components_demo.json"
     }
   ],
   "autoOpen": [],
@@ -113,6 +117,48 @@
         }
       }
     ],
+    "stack": [
+      {
+        "id": "lightwave",
+        "params": { "intensity": 0.4, "angle": 40, "width": 0.22, "speed": 0.25, "border": 1, "borderWidth": 1 }
+      }
+    ],
+    "fragment": [
+      {
+        "id": "lightwave",
+        "params": { "intensity": 0.35, "angle": 25, "width": 0.2, "speed": 0.2, "border": 0 }
+      }
+    ],
+    "scroll": [
+      {
+        "id": "lightwave",
+        "params": { "intensity": 0.4, "angle": 25, "width": 0.24, "speed": 0.25, "border": 1, "borderWidth": 2 }
+      }
+    ],
+    "center": [
+      {
+        "id": "lightwave",
+        "params": { "intensity": 0.35, "angle": 35, "width": 0.22, "speed": 0.22, "border": 1, "borderWidth": 1 }
+      }
+    ],
+    "margin": [
+      {
+        "id": "lightwave",
+        "params": { "intensity": 0.35, "angle": 35, "width": 0.22, "speed": 0.22, "border": 1, "borderWidth": 1 }
+      }
+    ],
+    "grid": [
+      {
+        "id": "lightwave",
+        "params": { "intensity": 0.45, "angle": 30, "width": 0.25, "speed": 0.25, "border": 1, "borderWidth": 2 }
+      }
+    ],
+    "tabs": [
+      {
+        "id": "lightwave",
+        "params": { "intensity": 0.45, "angle": 30, "width": 0.25, "speed": 0.25, "border": 1, "borderWidth": 2 }
+      }
+    ],
     "glass": [
       {
         "id": "lightwave",
@@ -198,6 +244,9 @@
     "sts1.combat.controls": [
       { "id": "lightwave", "params": { "intensity": 0.3, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
     ],
+    "sts1.combat.card_slots": [
+      { "id": "lightwave", "params": { "intensity": 0.22, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
     "sts1.combat.energy": [
       { "id": "lightwave", "params": { "intensity": 0.28, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
     ],
@@ -210,20 +259,48 @@
     "sts1.event": [
       { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
     ],
+    "sts1.map": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
     "sts1.select.grid": [
       { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
     ],
     "sts1.select.hand": [
       { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.reward.combat": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.reward.card": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.reward.boss_relic": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.rest": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.treasure": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.shop": [
+      { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
+    ],
+    "sts1.top_panel": [
+      { "id": "lightwave", "params": { "intensity": 0.22, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }
     ]
   },
   "bindSurfaces": [
     "sts1.combat.hand",
     "sts1.combat.controls",
+    "sts1.combat.card_slots",
     "sts1.event",
     "sts1.select.grid",
+    "sts1.select.hand",
     "sts1.map",
     "sts1.reward.combat",
+    "sts1.reward.card",
+    "sts1.reward.boss_relic",
     "sts1.rest",
     "sts1.shop",
     "sts1.treasure",

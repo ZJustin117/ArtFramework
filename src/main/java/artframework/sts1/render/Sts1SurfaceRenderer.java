@@ -411,7 +411,23 @@ public final class Sts1SurfaceRenderer {
         if (!artframework.sts1.skeleton.Sts1SkeletonBridge.shouldDraw()) {
             return;
         }
-        // Host Spine draw is provider-owned; bridge records live handles for probe.
+        // Provider owns Spine type details. Preserve the host SpriteBatch contract around it.
+        boolean drawing = false;
+        try {
+            drawing = sb.isDrawing();
+            if (drawing) {
+                sb.end();
+            }
+            artframework.sts1.skeleton.Sts1SkeletonBridge.renderAll(sb);
+        } catch (Throwable ignored) {
+        } finally {
+            if (drawing) {
+                try {
+                    sb.begin();
+                } catch (Throwable ignored) {
+                }
+            }
+        }
     }
 
     private static void renderShop(SpriteBatch sb) {

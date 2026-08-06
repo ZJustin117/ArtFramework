@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "presentProfile": { "active": "lightwave" },
+  "presentPacks": { "active": "lightwave" },
+  "render": {
+    "lightwaveCoverage": {
+      "c1VisualTypes": 19,
+      "c2Surfaces": 17,
+      "galleryBound": true,
+      "cleanupVerified": true
+    }
+  }
+}

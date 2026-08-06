@@ -1,0 +1,27 @@
+# Offline contract: Lightwave profile covers the C1 component gallery and C2 surface matrix.
+name: f19_lightwave_component_coverage
+schemaVersion: 1
+mode: fixture
+fixture: sample_lightwave_component_coverage.json
+steps:
+  - assert:
+      path: schemaVersion
+      eq: 1
+  - assert:
+      path: presentProfile.active
+      eq: lightwave
+  - assert:
+      path: presentPacks.active
+      eq: lightwave
+  - assert:
+      path: render.lightwaveCoverage.c1VisualTypes
+      gte: 19
+  - assert:
+      path: render.lightwaveCoverage.c2Surfaces
+      gte: 17
+  - assert:
+      path: render.lightwaveCoverage.galleryBound
+      eq: true
+  - assert:
+      path: render.lightwaveCoverage.cleanupVerified
+      eq: true

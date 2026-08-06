@@ -2,6 +2,9 @@
 .gradle/
 .kotlin/
 build/
+/build/dev/*.jar
+/build/spine42-runtime/
+*.sts2-assets.jar
 *.iml
 .idea/
 local.properties

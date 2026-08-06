@@ -33,6 +33,13 @@ Copy [`.env.example`](.env.example) → `.env.local` and fill the **`ART_*` key 
 
 Optional: `ART_D1_SERIAL` / `ART_D2_SERIAL` (device jar push); `ART_INSTALL_DIR` / `ART_CONSUMER_JAR` (publish-art-local).
 
+Optional developer-only STS2 assets use `ART_STS2_ROOT` and can be bundled with
+`./scripts/package-sts2-assets.sh`. The generated `Sts2Assets.jar` is gitignored and is
+never included in either release artifact.
+
+The optional Spine 4.2 runtime artifact is built separately with
+`./scripts/build-spine42-runtime.sh`; its build contains no tests or STS2 assets.
+
 ## Build & test
 
 ```bash

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from probe_parse import last_probe_from_text, parse_probe_line
+from command_parse import last_command_for_text
 
 DEFAULT_STS_LATEST_LOG = "/sdcard/Android/data/io.stamethyst/files/sts/latest.log"
 DEFAULT_STS_PROBE_SIDECAR = "/sdcard/Android/data/io.stamethyst/files/sts/art_probe_latest.log"
@@ -157,6 +158,39 @@ def scrape_probe_log(
         return None
     text = proc.stdout or ""
     return last_probe_from_text(text)
+
+
+def scrape_command_log(
+    command: str, serial: Optional[str] = None, *, adb: str = "adb", lines: int = 400
+) -> Optional[Dict[str, Any]]:
+    ser = serial or serial_d1()
+    text = ""
+    try:
+        root = str(amethyst_root())
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        from scripts.tools.connector.client import ConnectorClient
+
+        conn = ConnectorClient(auto_start=False)
+        conn.connect()
+        conn.select(ser)
+        response = conn.shell(
+            f"tail -n {lines} {DEFAULT_STS_LATEST_LOG} 2>/dev/null || true",
+            timeout_ms=10000,
+        )
+        conn.close()
+        if isinstance(response, dict):
+            text = str(response.get("stdout") or response.get("output") or "")
+    except Exception:
+        text = ""
+    if not text:
+        cmd = [adb, "-s", ser, "shell", f"tail -n {lines} {DEFAULT_STS_LATEST_LOG} 2>/dev/null || true"]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            text = proc.stdout or ""
+        except Exception:
+            return None
+    return last_command_for_text(text, command)
 
 
 def scrape_probe_sidecar(serial: Optional[str] = None) -> Optional[Any]:

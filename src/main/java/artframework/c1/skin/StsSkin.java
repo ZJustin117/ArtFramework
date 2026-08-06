@@ -10,6 +10,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.TextField;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
@@ -111,6 +112,15 @@ public final class StsSkin {
         buttonStyle.checkedFontColor = btnFontC.cpy();
         skin.add("default", buttonStyle);
 
+        TextField.TextFieldStyle textFieldStyle = new TextField.TextFieldStyle();
+        textFieldStyle.font = any;
+        textFieldStyle.fontColor = labelC.cpy();
+        textFieldStyle.background = white.tint(panelBackground(theme).cpy());
+        textFieldStyle.focusedBackground = white.tint(buttonUpC.cpy());
+        textFieldStyle.cursor = white.tint(btnHoverC.cpy());
+        textFieldStyle.selection = white.tint(btnHoverC.cpy());
+        skin.add("default", textFieldStyle);
+
         Slider.SliderStyle sliderStyle = new Slider.SliderStyle();
         sliderStyle.background = white.tint(sliderTrack.cpy());
         sliderStyle.knob = white.tint(sliderGrab.cpy());
@@ -155,6 +165,11 @@ public final class StsSkin {
             return fallback.cpy();
         }
         return new Color(c.r, c.g, c.b, c.a);
+    }
+
+    private static Color panelBackground(Theme theme) {
+        Color c = colorOr(theme, "Panel", "bg", new Color(0.08f, 0.1f, 0.14f, 0.45f));
+        return c.a > 0.55f ? new Color(c.r, c.g, c.b, 0.45f) : c;
     }
 
     private static Color opaque(Color c) {

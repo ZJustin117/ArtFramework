@@ -57,4 +57,15 @@ public class SkeletonProviderTest {
                         .defaultSignals()
                         .contains(artframework.core.SignalNames.SKELETON_EVENT));
     }
+
+    @Test
+    public void skeletonBindingIsNullSafe() {
+        SkeletonBinding invalid = new SkeletonBinding(null, null);
+        invalid.setAnimation("idle", true);
+        invalid.addAnimation("idle", true, 0f);
+        invalid.setMix("a", "b", 0.1f);
+        assertFalse(invalid.isValid());
+        assertEquals(null, invalid.currentAnimation());
+        assertEquals(null, invalid.boneTransform("root"));
+    }
 }

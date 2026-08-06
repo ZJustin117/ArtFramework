@@ -772,7 +772,12 @@ public final class PresentSurfaces {
             if (!isMounted()) {
                 return UiOpResult.notBound("skeleton surface not mounted");
             }
-            if ("play".equals(name) || "stop".equals(name) || "set_transform".equals(name)) {
+            if ("play".equals(name)
+                    || "stop".equals(name)
+                    || "set_transform".equals(name)
+                    || "set_animation".equals(name)
+                    || "add_animation".equals(name)
+                    || "set_mix".equals(name)) {
                 IntentResult r = submit(name, args);
                 if (r.isAccepted() && "play".equals(name)) {
                     // finished is host-driven later; acknowledge play only
@@ -784,7 +789,7 @@ public final class PresentSurfaces {
 
         @Override
         public Map<String, Object> probeSlice() {
-            return baseProbe(Arrays.asList("play", "stop", "set_transform"));
+            return baseProbe(Arrays.asList("play", "stop", "set_transform", "set_animation", "add_animation", "set_mix"));
         }
     }
 

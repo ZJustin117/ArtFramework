@@ -1,0 +1,50 @@
+# D1: Lightwave C1 component gallery render/probe contract.
+name: d1_lightwave_components
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art profile set lightwave"
+  - wait_ms: 500
+  - console: "art open lightwave_components_demo"
+  - wait_ms: 1000
+  - probe: all
+  - assert:
+      path: windows.openIds
+      contains: lightwave_components_demo
+  - assert:
+      path: windows.byId.lightwave_components_demo.windowClass
+      eq: SYNTHETIC
+  - assert:
+      path: windows.byId.lightwave_components_demo.present.id
+      eq: lightwave
+  - assert:
+      path: windows.byId.lightwave_components_demo.theme.name
+      eq: lightwave
+  - assert:
+      path: windows.byId.lightwave_components_demo.buttonIds
+      contains: primary
+  - assert:
+      path: windows.byId.lightwave_components_demo.controls.sliderIds
+      contains: intensity
+  - assert:
+      path: render.targetsById.c1_lightwave_components_demo.enabled
+      eq: true
+  - assert:
+      path: render.targetsById.c1_lightwave_components_demo.borderDrawn
+      eq: true
+  - assert:
+      path: render.targetsById.c1_lightwave_components_demo.effectIds
+      contains: lightwave
+  - console: "art close lightwave_components_demo"
+  - wait_ms: 500
+  - probe: all
+  - assert:
+      path: render.targetsById.c1_lightwave_components_demo
+      exists: false
+  - console: "art profile set sts"

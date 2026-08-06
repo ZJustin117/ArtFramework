@@ -22,7 +22,9 @@ final class BuiltinC1Factories {
         reg.register(delegate(UiTypes.MARGIN));
         reg.register(delegate(UiTypes.CENTER));
         reg.register(delegate(UiTypes.ROW));
+        reg.register(delegate(UiTypes.GRID));
         reg.register(delegate(UiTypes.STACK));
+        reg.register(delegate(UiTypes.TABS));
         reg.register(delegate(UiTypes.LABEL));
         reg.register(delegate(UiTypes.BUTTON));
         reg.register(delegate(UiTypes.SLIDER));

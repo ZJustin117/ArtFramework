@@ -38,6 +38,7 @@ public final class PresentSafety {
         panicReason = reason != null ? reason : "panic";
         CombatInputRouter.setSuppressNativeInput(false);
         Sts1RenderPipeline.setOverlayObserve(false);
+        artframework.sts1.skeleton.Sts1SkeletonBridge.stopAll();
         unmountAllPresentSurfaces();
     }
 

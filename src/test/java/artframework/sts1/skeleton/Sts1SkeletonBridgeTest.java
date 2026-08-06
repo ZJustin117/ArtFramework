@@ -58,4 +58,20 @@ public class Sts1SkeletonBridgeTest {
         Sts1SkeletonBridge.stopAll();
         assertEquals(0, Sts1SkeletonBridge.liveCount());
     }
+
+    @Test
+    public void forwardsCommandProviderActions() {
+        FakeSkeletonProvider fake = new FakeSkeletonProvider();
+        ArtFramework.skeletons().register(fake);
+        Sts1SkeletonBridge.setProviderId(FakeSkeletonProvider.ID);
+        Sts1SkeletonBridge.play("hero", "", "");
+
+        assertTrue(Sts1SkeletonBridge.setAnimation("hero", "idle_loop", true));
+        assertTrue(Sts1SkeletonBridge.addAnimation("hero", "attack", false, 0.2f));
+        assertTrue(Sts1SkeletonBridge.setMix("hero", "idle_loop", "attack", 0.1f));
+
+        assertEquals("idle_loop", Sts1SkeletonBridge.currentAnimation("hero"));
+        assertEquals(Float.valueOf(0.1f), fake.mix("hero", "idle_loop", "attack"));
+        assertTrue(fake.events("hero").contains("add:attack:false:0.2"));
+    }
 }

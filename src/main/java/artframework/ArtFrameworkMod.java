@@ -50,6 +50,11 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
             BaseMod.logger.warn("ArtFramework: STS1 HostAssets install skipped: " + t.getMessage());
         }
         try {
+            artframework.sts1.skeleton.Sts1Spine42Dev.install();
+        } catch (Throwable t) {
+            BaseMod.logger.warn("ArtFramework: optional Spine42 developer bundle skipped: " + t.getMessage());
+        }
+        try {
             // Executor handles programmatic intents; native input suppress stays off until
             // ART owns a real touch path (flag via CombatInputRouter / future console).
             artframework.sts1.input.CombatInputRouter.setExecutor(
@@ -64,6 +69,11 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
                 new WindowDef("glass_demo", WindowClass.SYNTHETIC, "layouts/glass_demo.json"));
         ArtFramework.register(
                 new WindowDef("grid_tabs_demo", WindowClass.SYNTHETIC, "layouts/grid_tabs_sample.json"));
+        ArtFramework.register(
+                new WindowDef(
+                        "lightwave_components_demo",
+                        WindowClass.SYNTHETIC,
+                        "layouts/lightwave_components_demo.json"));
         ArtFramework.register(
                 new WindowDef("lightwave_demo", WindowClass.SYNTHETIC, "layouts/lightwave_demo.json"));
         ArtFramework.register(

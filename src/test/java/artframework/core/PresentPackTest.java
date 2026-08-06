@@ -226,7 +226,7 @@ public class PresentPackTest {
         assertEquals("lightwave", p.profileId);
         assertEquals(1, p.templates.size());
         assertEquals("lightwave.panel_chrome", p.templates.get(0).name);
-        assertEquals(1, p.windows.size());
+        assertEquals(2, p.windows.size());
     }
 
     @Test

@@ -224,7 +224,7 @@ def _run_step(
             rec["status"] = "skip"
             rec["error"] = "op/console ignored in fixture mode"
             return rec
-        from device_console import console_exec, console_output_text
+        from device_console import console_exec, console_output_text, scrape_command_log
 
         if "console" in step:
             cmd = str(step["console"])
@@ -246,6 +246,12 @@ def _run_step(
         if raw.get("executed") is False and raw.get("error"):
             rec["status"] = "fail"
             rec["error"] = str(raw.get("error"))
+        elif mode == "device":
+            command = scrape_command_log(cmd)
+            if command is not None and str(command.get("status", "")).upper() == "ERROR":
+                rec["status"] = "fail"
+                rec["error"] = str(command.get("message") or "command failed")
+                rec["command_log"] = command
         return rec
 
     if "set" in step and isinstance(step["set"], dict):

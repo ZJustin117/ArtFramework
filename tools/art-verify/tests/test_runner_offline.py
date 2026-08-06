@@ -1,7 +1,9 @@
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from runner import _run_step, run_scenario
+from command_parse import last_command_for_text, parse_command_line
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f1_probe_shape.yaml"
@@ -15,10 +17,45 @@ MAP_DRAW = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f10_map_draw.yaml"
 PRESENT_SAFETY = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f11_present_safety.yaml"
 PRESENT_PROFILE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f14_present_profile_lightwave.yaml"
 LIGHTWAVE_EFFECTS = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f15_lightwave_demo_effects.yaml"
+LIGHTWAVE_COVERAGE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f19_lightwave_component_coverage.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
 
 
 class RunnerOfflineTest(unittest.TestCase):
+    def test_command_parser_reads_structured_result(self):
+        line = 'INFO ART_COMMAND {"status":"ERROR","command":"art open bad","message":"layout missing"}'
+        self.assertEqual("ERROR", parse_command_line(line)["status"])
+        self.assertEqual("layout missing", last_command_for_text(line, "art open bad")["message"])
+
+    def test_command_parser_ignores_other_commands_and_invalid_lines(self):
+        text = "\n".join(
+            [
+                "ART_COMMAND not-json",
+                'ART_COMMAND {"status":"ERROR","command":"art open other","message":"old"}',
+                'ART_COMMAND {"status":"OK","command":"art open bad","message":"opened bad"}',
+            ]
+        )
+        self.assertIsNone(parse_command_line("ordinary log line"))
+        self.assertEqual("OK", last_command_for_text(text, "art open bad")["status"])
+        self.assertIsNone(last_command_for_text(text, "art open missing"))
+
+    def test_device_command_error_fails_step(self):
+        raw = {"executed": True, "command": "art open bad", "output": "ok"}
+        error = {"status": "ERROR", "command": "art open bad", "message": "textfield style missing"}
+        with patch("device_console.console_exec", return_value=raw), patch(
+            "device_console.scrape_command_log", return_value=error
+        ):
+            rec = _run_step(
+                {"console": "art open bad"},
+                0,
+                mode="device",
+                last_probe=None,
+                vars_map={},
+                client=object(),
+            )
+        self.assertEqual("fail", rec["status"])
+        self.assertEqual("textfield style missing", rec["error"])
+
     def test_fixture_pass(self):
         r = run_scenario(FIXTURE)
         self.assertEqual(r["status"], "pass", r.get("error"))
@@ -61,6 +98,10 @@ class RunnerOfflineTest(unittest.TestCase):
 
     def test_lightwave_demo_effects_fixture_pass(self):
         r = run_scenario(LIGHTWAVE_EFFECTS)
+        self.assertEqual(r["status"], "pass", r.get("error"))
+
+    def test_lightwave_component_coverage_fixture_pass(self):
+        r = run_scenario(LIGHTWAVE_COVERAGE)
         self.assertEqual(r["status"], "pass", r.get("error"))
 
     def test_device_skips_without_serial(self):

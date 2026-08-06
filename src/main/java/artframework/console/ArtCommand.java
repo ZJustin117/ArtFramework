@@ -19,6 +19,8 @@ import artframework.sts1.lab.StsLabNav;
 import artframework.sts1.lab.StsLabRecipes;
 
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * BaseMod console: {@code art probe | open | bind | close | gate | ui | op ...}
@@ -50,9 +52,9 @@ public class ArtCommand extends ConsoleCommand {
             }
             try {
                 ArtFramework.open(tokens[depth + 1]);
-                DevConsole.log("opened " + tokens[depth + 1]);
+                commandResult("art open " + tokens[depth + 1], "OK", "opened " + tokens[depth + 1]);
             } catch (RuntimeException e) {
-                DevConsole.log("open failed: " + e.getMessage());
+                commandResult("art open " + tokens[depth + 1], "ERROR", message(e, "open failed"));
             }
             return;
         }
@@ -64,9 +66,9 @@ public class ArtCommand extends ConsoleCommand {
             try {
                 ensureNativeRegistered(tokens[depth + 1]);
                 ArtFramework.bind(tokens[depth + 1]);
-                DevConsole.log("bound " + tokens[depth + 1]);
+                commandResult("art bind " + tokens[depth + 1], "OK", "bound " + tokens[depth + 1]);
             } catch (RuntimeException e) {
-                DevConsole.log("bind failed: " + e.getMessage());
+                commandResult("art bind " + tokens[depth + 1], "ERROR", message(e, "bind failed"));
             }
             return;
         }
@@ -103,6 +105,10 @@ public class ArtCommand extends ConsoleCommand {
             cmdPresent(tokens, depth + 1);
             return;
         }
+        if ("skeleton".equals(sub)) {
+            cmdSkeleton(tokens, depth + 1);
+            return;
+        }
         if ("profile".equals(sub) || "theme".equals(sub)) {
             cmdProfile(tokens, depth + 1);
             return;
@@ -112,6 +118,70 @@ public class ArtCommand extends ConsoleCommand {
             return;
         }
         errorMsg();
+    }
+
+    private static String message(RuntimeException e, String fallback) {
+        return e.getMessage() != null && !e.getMessage().isEmpty() ? e.getMessage() : fallback;
+    }
+
+    private static void commandResult(String command, String status, String message) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("status", status);
+        result.put("command", command);
+        result.put("message", message != null ? message : "");
+        String line = "ART_COMMAND " + artframework.inspect.UiInspect.toJson(result);
+        DevConsole.log(line);
+        if ("ERROR".equals(status)) {
+            BaseMod.logger.error(line);
+        } else {
+            BaseMod.logger.info(line);
+        }
+    }
+
+    private void cmdSkeleton(String[] tokens, int depth) {
+        if (tokens.length <= depth) {
+            DevConsole.log("Usage: art skeleton dev status|load <id> <atlasEntry> <skeletonEntry>|play <id> <animation>|bone <id> <bone>|stop <id>");
+            return;
+        }
+        String scope = tokens[depth].toLowerCase();
+        if (!"dev".equals(scope)) {
+            DevConsole.log("Usage: art skeleton dev status|load|play|bone|stop");
+            return;
+        }
+        String action = tokens.length > depth + 1 ? tokens[depth + 1].toLowerCase() : "status";
+        try {
+            if ("status".equals(action)) {
+                logSkeletonDev("ART_SKELETON_DEV provider=spine42 bundle="
+                        + artframework.sts1.skeleton.Sts1SkeletonBridge.devBundleConfigured()
+                        + " probe=" + artframework.sts1.skeleton.Sts1SkeletonBridge.probeSlice());
+            } else if ("load".equals(action) && tokens.length >= depth + 5) {
+                artframework.sts1.skeleton.Sts1SkeletonBridge.devLoad(
+                        tokens[depth + 2], tokens[depth + 3], tokens[depth + 4]);
+                logSkeletonDev("ART_SKELETON_DEV loaded " + tokens[depth + 2]);
+            } else if ("play".equals(action) && tokens.length >= depth + 4) {
+                artframework.sts1.skeleton.Sts1SkeletonBridge.noteDevCommand("play:" + tokens[depth + 2]);
+                boolean ok = artframework.sts1.skeleton.Sts1SkeletonBridge.setAnimation(
+                        tokens[depth + 2], tokens[depth + 3], false);
+                logSkeletonDev("ART_SKELETON_DEV play " + ok);
+            } else if ("stop".equals(action) && tokens.length >= depth + 3) {
+                artframework.sts1.skeleton.Sts1SkeletonBridge.noteDevCommand("stop:" + tokens[depth + 2]);
+                artframework.sts1.skeleton.Sts1SkeletonBridge.stop(tokens[depth + 2]);
+                logSkeletonDev("ART_SKELETON_DEV stopped " + tokens[depth + 2]);
+            } else if ("bone".equals(action) && tokens.length >= depth + 4) {
+                artframework.skeleton.BoneTransform bone = artframework.sts1.skeleton.Sts1SkeletonBridge.devBone(
+                        tokens[depth + 2], tokens[depth + 3]);
+                logSkeletonDev("ART_SKELETON_DEV bone " + (bone != null));
+            } else {
+                logSkeletonDev("Usage: art skeleton dev status|load <id> <atlasEntry> <skeletonEntry>|play <id> <animation>|bone <id> <bone>|stop <id>");
+            }
+        } catch (Throwable t) {
+            logSkeletonDev("ART_SKELETON_DEV failed: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+        }
+    }
+
+    private static void logSkeletonDev(String line) {
+        DevConsole.log(line);
+        BaseMod.logger.info(line);
     }
 
     private static void writeLocalProbe(String line) {

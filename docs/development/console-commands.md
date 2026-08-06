@@ -4,6 +4,8 @@ BaseMod DevConsole namespace **`art`**, implemented by `artframework.console.Art
 
 Use in-game (BaseMod console) or via Amethyst harness / `tools/art-verify` device steps.
 Harness often returns only `ok`; scrape device log for machine lines (`ART_PROBE`, `ART_UI`, …).
+Mount commands also emit `ART_COMMAND {"status":"OK"|"ERROR",...}` records. Device verification uses
+the matching command record so attach failures are reported instead of appearing as a successful `ok`.
 
 Design detail for inspect/emit: [`docs/design/dev-ui-console.md`](../design/dev-ui-console.md).  
 UiOps contract: [`docs/design/ui-ops-probe.md`](../design/ui-ops-probe.md).  
@@ -186,6 +188,15 @@ Path form also works: `art ui emit demo/close pressed`.
 | `art assets disable <packId>` | Disable pack |
 | `art assets order <ids…>` | Set pack order |
 | `art assets resolve <resourceId>` | Resolve one ResourceId |
+
+Developer Spine 4.2 commands are available when a local developer bundle is configured:
+
+```text
+art skeleton dev status
+art skeleton dev load <id> <atlasEntry> <skeletonEntry>
+art skeleton dev play <id> <animation>
+art skeleton dev stop <id>
+```
 
 ---
 

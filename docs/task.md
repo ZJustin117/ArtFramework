@@ -440,3 +440,27 @@ Design: [`node-signal-runtime.md`](design/node-signal-runtime.md). Backend ↔ S
 - [x] 43.3 Pack-driven per-surface LightwaveEffect bindings with inactive-surface cleanup
 - [x] 43.4 Probe + offline fixture + `C2LightwaveSurfaceTest`
 - [x] 43.5 D1 `d1_lightwave_c2_full` scenario for combat C2 visual verification
+
+### 44. Spine 4.2 present architecture
+
+Design: [`docs/design/spine42-present.md`](design/spine42-present.md).
+
+Boundary: STS2 assets are never committed or packaged. Spine runtime users must satisfy
+the Spine Runtime license; 4.2 runtime integration is provider-side and kept separate from
+core presentation contracts.
+
+- [x] 44.1 Design: Spine 4.2 present architecture, license/resource boundary, dual provider plan
+- [x] 44.2 Pure atlas 4.x parser for compact `bounds` / `offsets` / `rotate:90` regions
+- [x] 44.3 `AnimState`, `AnimGraph`, `SkeletonMixTable`, and STS2-style `SkeletonAnimator`
+- [x] 44.4 Extended `SkeletonProvider` commands with fake-provider JUnit coverage
+- [x] 44.5 STS1 Spine 3.4 provider baseline using host-bundled runtime
+- [x] 44.6 Spine 4.2 provider probe shell for shaded runtime detection and safe degradation
+- [x] 44.7 JUnit coverage for parser, graph, animator, provider commands, and provider probes
+- [x] 44.8 Optional `spine42-runtime` sub-build: relocated runtime jar, Java 8 output, license,
+  and artifact allowlist verification; separate from the main jar and test lifecycle
+- [x] 44.9 `ART_STS2_ROOT` local asset bundle script and gitignored `Sts2Assets.jar`
+- [x] 44.10 Independent `tests/spine42-assets` bundle checks; standard JUnit has no asset dependency
+- [x] 44.11 Developer runtime loader, device asset deployment, and `spine42` dev console controls
+- [x] 44.12 D1 resource status/load/animation/lifecycle scenario skeletons
+- [x] 44.13 D1 data-path evidence: source-patched runtime loads a real 4.2 `.skel`, animates,
+  reports a bone transform, and cleans lifecycle state; pixel renderer intentionally deferred

@@ -1,0 +1,112 @@
+{
+  "type": "window",
+  "id": "lightwave_components_demo",
+  "title": "Lightwave Components",
+  "width": 680,
+  "height": 620,
+  "pad": 12,
+  "gap": 8,
+  "present_profile": "lightwave",
+  "theme": "lightwave",
+  "children": [
+    {
+      "type": "panel",
+      "id": "visuals",
+      "height": 440,
+      "pad": 10,
+      "gap": 8,
+      "children": [
+        { "type": "label", "id": "title", "text": "C1 visual component coverage" },
+        {
+          "type": "row",
+          "id": "top_row",
+          "gap": 8,
+          "children": [
+            { "type": "button", "id": "primary", "text": "ACTIVE", "grow": true, "height": 42 },
+            { "type": "button", "id": "disabled", "text": "DISABLED", "enabled": false, "grow": true, "height": 42 },
+            { "type": "checkbox", "id": "checked", "text": "CHECKED", "checked": true, "grow": true, "height": 42 }
+          ]
+        },
+        {
+          "type": "row",
+          "id": "input_row",
+          "gap": 8,
+          "children": [
+            { "type": "textfield", "id": "name", "text": "Lightwave", "placeholder": "Name", "grow": true },
+            { "type": "slider", "id": "intensity", "min": 0, "max": 1, "value": 0.65, "grow": true },
+            { "type": "progress", "id": "progress", "min": 0, "max": 1, "value": 0.7, "grow": true }
+          ]
+        },
+        {
+          "type": "stack",
+          "id": "stack",
+          "height": 90,
+          "children": [
+            { "type": "panel", "id": "stack_panel", "pad": 8 },
+            { "type": "label", "id": "stack_label", "text": "STACK / MARGIN / CENTER" }
+          ]
+        },
+        {
+          "type": "scroll",
+          "id": "scroll",
+          "height": 70,
+          "grow": true,
+          "children": [
+            {
+              "type": "col",
+              "id": "scroll_body",
+              "gap": 6,
+              "children": [
+                { "type": "label", "id": "scroll_label", "text": "SCROLL / FRAGMENT / HITAREA" },
+                { "type": "hitarea", "id": "hitarea", "width": 220, "height": 28 }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "grid",
+          "id": "grid",
+          "columns": 3,
+          "gap": 6,
+          "children": [
+            { "type": "label", "id": "grid_label", "text": "GRID" },
+            { "type": "button", "id": "grid_button", "text": "CELL" },
+            { "type": "label", "id": "grid_label_2", "text": "TABS" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "tabs",
+      "id": "tabs",
+      "active": 0,
+      "height": 100,
+      "children": [
+        {
+          "type": "col",
+          "id": "tab_one",
+          "gap": 4,
+          "children": [
+            { "type": "label", "id": "tab_label", "text": "TAB / TEMPLATE READY" },
+            { "type": "panel", "id": "slot_preview", "height": 48, "pad": 6, "children": [{ "type": "label", "id": "slot_label", "text": "SLOT" }] }
+          ]
+        },
+        { "type": "col", "id": "tab_two", "children": [{ "type": "label", "id": "tab_two_label", "text": "SECOND TAB" }] }
+      ]
+    },
+    {
+      "type": "art.animation_player",
+      "id": "motion",
+      "auto_play": "enter",
+      "animations": [
+        {
+          "name": "enter",
+          "target": "visuals",
+          "duration": 0.2,
+          "mode": "once",
+          "tracks": [{ "property": "opacity", "from": 0.8, "to": 1.0 }]
+        }
+      ]
+    }
+  ]
+}

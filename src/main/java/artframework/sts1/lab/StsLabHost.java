@@ -104,7 +104,6 @@ public final class StsLabHost implements LabHost {
                 @Override
                 public void run() {
                     try {
-                        setGameMode("CHAR_SELECT");
                         charSelect.getClass().getMethod("open", boolean.class).invoke(charSelect, Boolean.FALSE);
                     } catch (Throwable ignored) {
                     }
@@ -146,7 +145,6 @@ public final class StsLabHost implements LabHost {
                 @Override
                 public void run() {
                     try {
-                        setGameMode("CHAR_SELECT");
                         Class<?> input =
                                 Class.forName("com.megacrit.cardcrawl.helpers.input.InputHelper");
                         Object cx = StsLabState.field(hb.getClass(), hb, "cX");
@@ -185,7 +183,7 @@ public final class StsLabHost implements LabHost {
             }
             Object disabled = StsLabState.field(confirm.getClass(), confirm, "isDisabled");
             if (Boolean.TRUE.equals(disabled)) {
-                setBoolean(confirm, "isDisabled", false);
+                return UiOpResult.unavailable("embark disabled");
             }
             final Object hb = StsLabState.field(confirm.getClass(), confirm, "hb");
             if (hb == null) {
@@ -195,7 +193,6 @@ public final class StsLabHost implements LabHost {
                 @Override
                 public void run() {
                     try {
-                        setGameMode("CHAR_SELECT");
                         setBoolean(hb, "clicked", true);
                     } catch (Throwable ignored) {
                     }
@@ -244,8 +241,53 @@ public final class StsLabHost implements LabHost {
 
     @Override
     public UiOpResult enterEvent(String eventId) {
-        return LabNavigationSignals.dispatch(
-                LabNavigationIntent.of(LabIntentNames.ENTER_EVENT_ROOM, eventId));
+        final String normalized = LabEventIds.normalize(eventId);
+        if (normalized.isEmpty()) {
+            return UiOpResult.unavailable("unsupported event: " + eventId);
+        }
+        try {
+            Class<?> dungeon = Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon");
+            Object player = StsLabState.field(dungeon, null, "player");
+            if (player == null) {
+                return UiOpResult.unavailable("run not ready");
+            }
+            Object node = StsLabState.field(dungeon, null, "currMapNode");
+            if (node == null) {
+                return UiOpResult.unavailable("current map node unavailable");
+            }
+            Object currentRoom = node.getClass().getMethod("getRoom").invoke(node);
+            if (currentRoom != null) {
+                Object currentPhase = StsLabState.field(currentRoom.getClass(), currentRoom, "phase");
+                Object battleOver = StsLabState.field(currentRoom.getClass(), currentRoom, "isBattleOver");
+                if (currentPhase != null
+                        && "COMBAT".equals(String.valueOf(currentPhase))
+                        && !Boolean.TRUE.equals(battleOver)) {
+                    return UiOpResult.unavailable("cannot enter event during live combat");
+                }
+            }
+            Class<?> roomClass = Class.forName("com.megacrit.cardcrawl.rooms.EventRoom");
+            final Object room = roomClass.getConstructor().newInstance();
+            Object event =
+                    Class.forName("com.megacrit.cardcrawl.helpers.EventHelper")
+                            .getMethod("getEvent", String.class)
+                            .invoke(null, normalized);
+            if (event == null) {
+                return UiOpResult.unavailable("event unavailable: " + normalized);
+            }
+            StsLabState.setField(room.getClass(), room, "event", event);
+            Class<?> phase = Class.forName("com.megacrit.cardcrawl.rooms.AbstractRoom$RoomPhase");
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Object eventPhase = Enum.valueOf((Class) phase, "EVENT");
+            StsLabState.setField(room.getClass(), room, "phase", eventPhase);
+            StsLabState.setField(node.getClass(), node, "room", room);
+            Class<?> dungeonClass = Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon");
+            StsLabState.setField(dungeonClass, null, "screen", null);
+            StsLabState.setField(dungeonClass, null, "isScreenUp", Boolean.FALSE);
+            event.getClass().getMethod("onEnterRoom").invoke(event);
+            return UiOpResult.ok("event entered " + normalized);
+        } catch (Throwable t) {
+            return unavailable(t);
+        }
     }
 
     @Override
@@ -311,18 +353,36 @@ public final class StsLabHost implements LabHost {
                 }
                 return UiOpResult.unavailable("not in run");
             }
-            post(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame")
-                                .getMethod("startOver")
-                                .invoke(null);
-                    } catch (Throwable ignored) {
+            // Best-effort: open settings via TopPanel then rely on follow-up ticks / menu abandon.
+            try {
+                Class<?> dungeon = Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon");
+                Object top = StsLabState.field(dungeon, null, "topPanel");
+                if (top != null) {
+                    Object settingsHb = StsLabState.field(top.getClass(), top, "settingsHb");
+                    if (settingsHb == null) {
+                        Object btn = StsLabState.field(top.getClass(), top, "settingsButton");
+                        if (btn != null) {
+                            settingsHb = StsLabState.field(btn.getClass(), btn, "hb");
+                        }
+                    }
+                    if (settingsHb != null) {
+                        final Object hb = settingsHb;
+                        post(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    setBoolean(hb, "clicked", true);
+                                } catch (Throwable ignored) {
+                                }
+                            }
+                        });
+                        return UiOpResult.ok("settings click scheduled (abandon follow-up)");
                     }
                 }
-            });
-            return UiOpResult.ok("start-over scheduled");
+            } catch (Throwable ignored) {
+            }
+            // Fallback: delete saves and hope next menu load is clean (does not exit run alone).
+            return UiOpResult.unavailable("abandon path unavailable; use ensure-menu after death or settings");
         } catch (Throwable t) {
             return unavailable(t);
         }
@@ -562,14 +622,6 @@ public final class StsLabHost implements LabHost {
                 c = c.getSuperclass();
             }
         }
-    }
-
-    private static void setGameMode(String modeName) throws Exception {
-        Class<?> game = Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame");
-        Class<?> mode = Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame$GameMode");
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        Object value = Enum.valueOf((Class) mode, modeName);
-        game.getField("mode").set(null, value);
     }
 
     private static java.lang.reflect.Field findField(Class<?> type, String name) {

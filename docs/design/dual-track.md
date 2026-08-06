@@ -3,7 +3,7 @@
 ## Two jobs
 
 1. **C1 Synthetic windows** — build UI with **scene2d.ui** (window manager, StsSkin, widgets).
-2. **C2 Native template windows** — wrap STS native UI as **callable templates** (intercept/decorate), plus **entity presenters** (player/card/relic/monster draw helpers for co-op consumers).
+2. **C2 Native template windows** — wrap STS native UI as **callable templates** (intercept/decorate), plus **entity presenters** (player/card/relic/monster draw helpers for consumers).
 
 Both share one facade (`artframework.api.ArtFramework`) and registration format; runtimes differ.
 
@@ -108,7 +108,7 @@ Composable Nest / Slot / Attach / Bind model lives in `artframework.component` (
 
 4. EntityPresent lifecycle API (logic done; STS draw later)  
 
-5. Consumer (CrossSpire) depends on `ArtFramework.jar` (compileOnly + MTS `artframework`; see consumer.md)  
+5. Consumers depend on `ArtFramework.jar` (compileOnly + MTS `artframework`; see consumer.md)
 
 6. **UiOps / UiProbe** — unified C1+C2 command + query surface (see [`ui-ops-probe.md`](./ui-ops-probe.md))  
 
@@ -136,5 +136,5 @@ ArtFramework.probe()  → UI snapshot (open windows, bound templates, pins, sele
 ```
 
 - **Gesture only** for combat hand play — no queue / protocol / party authority in this repo.
-- Map **decorative** pins stay in `MapTemplate`; co-op pin consensus stays in the consumer.
-- Device serials for optional UI smoke: `ART_D1_SERIAL` (same physical device as CrossSpire D1 when set).
+- Map **decorative** pins stay in `MapTemplate`; semantic pin consensus stays outside ArtFramework.
+- Device serials for optional UI smoke: `ART_D1_SERIAL`.

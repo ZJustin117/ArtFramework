@@ -20,11 +20,17 @@
   reached `FULL_READY`, then cleanup returned to `sts`
 - Four legacy D1 scenarios were updated from `backend.id=sts1` to the Unified SignalBus value
   `backend.id=signals` and pass individually
+- D1 `d1_full_present_event` and `d1_full_present_map_ready` scenarios now pass; the lab
+  event navigation reaches a drawable event surface, and `art op map first` leaves the map.
 
-### Remaining D1 Gaps
+### Documentation
 
-- `d1_full_present_event`: lab navigation did not reach a drawable event surface
-- `d1_full_present_map_ready`: `art op map first` did not leave the map after the map was opened
+- Documented `artframework.ecs` presentation state (`EntityId` / `PresentationWorld`) and
+  clarified `inspect` / `skeleton` API stability tiers.
+- Removed downstream-project-specific references from ArtFramework docs; this repo documents only
+  generic consumer contracts and ArtFramework verification boundaries.
+
+### Added
 
 - Milestone **38** PresentPack UI modules + regex enable/select/modify:
   - `PresentPack` / `PresentPacks` (templates → ComponentRegistry, windows → WindowDef)
@@ -110,7 +116,7 @@
 
 - Shop/rest/treasure host paint remains label/chrome level (not full STS atlas fidelity)
 - Boss relic / shop D1 still lab-hard; JUnit + offline fixtures are primary
-- Hand select / dual-mod CrossSpire patch coexistence: see `ui-ops-probe.md` Known limits
+- Hand select remains best-effort via native hand-select fields; see `ui-ops-probe.md` Known limits
 - EntityPresent CARD never replaces combat hand FULL hard-sync
 
 ## 1.0.0-alpha.3

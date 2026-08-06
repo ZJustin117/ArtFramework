@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build ArtFramework.jar and optionally install for a consumer (e.g. CrossSpire).
+# Build ArtFramework.jar and optionally install for a downstream consumer.
 #
 # Env:
 #   ART_* jar keys — via with-art-env / .env.local

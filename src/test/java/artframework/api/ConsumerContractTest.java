@@ -11,7 +11,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Locks the public surface consumers (e.g. CrossSpire) are expected to compile against.
+ * Locks the public surface downstream mods are expected to compile against.
  */
 public class ConsumerContractTest {
 

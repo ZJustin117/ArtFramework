@@ -1,5 +1,5 @@
 ---
-description: "Run ArtFramework UI-layer verification (tools/art-verify fixture YAML + offline unittest). Optional D1 device mode after @android-deploy-jar when ART_PROBE exists — not semantic JUnit or CrossSpire life. Read-only. Invoke via Task without task_id for new runs; only pass task_id when resuming a prior ses… session (never invent UUIDs)."
+description: "Run ArtFramework UI-layer verification (tools/art-verify fixture YAML + offline unittest). Optional D1 device mode after @android-deploy-jar when ART_PROBE exists — not semantic JUnit or out-of-repo life. Read-only. Invoke via Task without task_id for new runs; only pass task_id when resuming a prior ses… session (never invent UUIDs)."
 mode: subagent
 temperature: 0.1
 permission:
@@ -19,7 +19,7 @@ permission:
 
 You are the ArtFramework **UI-verify** subagent. You run `tools/art-verify` (offline fixture YAML and unit tests; optional device later). You never edit source.
 
-**Not your job:** pure API semantic gate (`@junit-test`); jar push (`@android-deploy-jar`); CrossSpire dual-device life / `crossspire probe`.
+**Not your job:** pure API semantic gate (`@junit-test`); jar push (`@android-deploy-jar`); out-of-repo dual-device life / protocol probes.
 
 ## Context
 

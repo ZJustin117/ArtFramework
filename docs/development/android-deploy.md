@@ -10,7 +10,7 @@ Optional path for on-device UI checks. **Not** the semantic default gate (use JU
 | `ART_D1_SERIAL` | push | Default single device |
 | `ART_D2_SERIAL` | optional | Only when dual deploy explicitly requested |
 
-Serials may match CrossSpire device serials; use **`ART_*` key names** in this repo’s `.env.local`.
+Use **`ART_*` key names** in this repo's `.env.local`.
 
 ## Paths
 
@@ -37,18 +37,18 @@ adb -s "$ART_D1_SERIAL" shell am force-stop io.stamethyst
 
 Prefer OpenCode `@android-deploy-jar` so size verification and failure modes stay consistent.
 
-## Coexistence with CrossSpire
+## Mod isolation
 
-- Remote filename is **`ArtFramework.jar`**, not `CrossSpire.jar` — both can sit in `mods_library`.
-- ModTheSpire load order / consumer `dependencies` on `artframework` is a product integration step (roadmap item 5), not part of this deploy script.
+- Remote filename is **`ArtFramework.jar`**.
+- ModTheSpire load order / consumer `dependencies` on `artframework` is a product integration step, not part of this deploy script.
 
 ## After deploy
 
-1. Ensure `sts/enabled_mods.txt` includes `…/mods_library/ArtFramework.jar` only (Amethyst will not load optional jars otherwise). Art lab does **not** enable CrossSpire.
+1. Ensure `sts/enabled_mods.txt` includes `.../mods_library/ArtFramework.jar` (Amethyst will not load optional jars otherwise).
 2. Cold start via harness (`-DebugMode`), not only SkipInstall — see [`android-device-lab.md`](./android-device-lab.md).
 3. UI-layer checks: [`ui-layer-verification.md`](./ui-layer-verification.md) / `@art-verify` device YAML.
 
 ## Out of scope
 
-- Dual host/join, CrossSpire life YAML, connector daemon, or Arthas diagnosis
+- Dual-device life YAML, connector daemon, or Arthas diagnosis
 - Using deploy as a substitute for failing pure API tests

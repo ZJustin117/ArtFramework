@@ -1,4 +1,4 @@
-"""Amethyst connector + game-probe console (same pattern as CrossSpire device-scenario-runner)."""
+"""Amethyst connector + game-probe console for ArtFramework device scenarios."""
 
 from __future__ import annotations
 

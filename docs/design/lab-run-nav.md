@@ -92,7 +92,7 @@ Console L2 commands **return immediately** (`… armed`). Progress via
 ## Non-goals
 
 - Consumer public API stability for lab commands
-- Dual-device / CrossSpire life
+- Dual-device life
 - Replacing Amethyst `single-room` harness (optional external; not default gate)
 - Arbitrary reflection REPL
 

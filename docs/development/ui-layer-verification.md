@@ -1,11 +1,11 @@
 # ArtFramework UI-layer verification
 
-Prove **intercept**, **trigger**, and **C1 panel** behavior without owning CrossSpire multiplayer life suites.
+Prove **intercept**, **trigger**, and **C1 panel** behavior without owning multiplayer life suites.
 
 ## Pyramid
 
 ```
-rare:     dual-device life / co-op (CrossSpire @device-scenario)
+rare:     dual-device life / co-op (out of repo)
 optional: single-device UI smoke (D1) after @android-deploy-jar
 default:  pure JUnit (@junit-test) + offline/art-verify offline unittest
 ```
@@ -16,7 +16,7 @@ default:  pure JUnit (@junit-test) + offline/art-verify offline unittest
 | Tooling offline | `tools/art-verify` unittest | After runner/assert changes |
 | On-device UI | `@art-verify` + `ART_D1_SERIAL` | After patches / real gestures land |
 | JVM diagnose | `@android-arthas` | Explicit thread/classloader/method investigations only |
-| Co-op life | CrossSpire only | Never default gate here |
+| Co-op life | Out of repo | Never default gate here |
 
 ## What ArtFramework verifies
 
@@ -36,9 +36,8 @@ default:  pure JUnit (@junit-test) + offline/art-verify offline unittest
    `d1_lightwave_c2_full`: profile activation, C2 effect targets, combat FULL readiness, and cleanup
    after returning to `sts`. Visual correctness remains manual on D1.
 
-## What stays CrossSpire
+## Out of scope
 
-- `crossspire probe` facets: connected / peers / party / combat powers / nav unlock
 - YAML life l1–l5, dual host/join, tunnel, connector
 - Protocol messages, queue submit authority
 
@@ -63,7 +62,7 @@ Env (device):
 | Key | Role |
 |-----|------|
 | `ART_D1_SERIAL` | ADB serial |
-| `STS_CONNECTOR_PORT` | Amethyst connector (shared with CrossSpire) |
+| `STS_CONNECTOR_PORT` | Amethyst connector |
 | `SLAY_THE_AMETHYST_ROOT` | Import root for `scripts.tools` |
 | `ART_AMETHYST_TOOLS_DIR` | Optional tools path |
 | `ART_GAME_PROBE_PORT` | Default 9099 |

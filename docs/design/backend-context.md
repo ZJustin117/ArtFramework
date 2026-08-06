@@ -16,7 +16,7 @@ Roadmap: [`docs/task.md`](../task.md) milestone **15**.
 
 ## Non-goals
 
-- CrossSpire protocol, party election, combat phase authority.
+- Multiplayer protocol, party election, combat phase authority.
 - Letting signals execute game rules or mutate authority.
 - Multiple Primary backends writing the same display domain in one frame.
 - Leaking STS concrete types (`AbstractCard`, `Hitbox`, …) into core or consumer public API.
@@ -163,7 +163,7 @@ Payloads use ART refs (`CardRef`, `MapNodeRef`, `TargetRef`), not engine objects
 1. Unbound / inactive surface → `notBound` or documented passthrough (match [`ui-ops-probe.md`](./ui-ops-probe.md)).
 2. First interceptor `BLOCK` → no intent submit, no engine side effect.
 3. `ALLOW` → emit signal (as documented per surface) → submit intent → backend result.
-4. Never import CrossSpire protocol / party / combat-phase types into this repo.
+4. Never import multiplayer protocol / party / combat-phase types into this repo.
 
 ## Timing
 

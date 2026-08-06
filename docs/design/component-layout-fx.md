@@ -23,7 +23,7 @@ Builds on [`component-composition.md`](./component-composition.md).
 
 ## Not in ArtFramework
 
-- CrossSpire protocol / combat authority
+- Multiplayer protocol / combat authority
 - Replacing STS hand-play pipeline with scene2d
 
 ## Related

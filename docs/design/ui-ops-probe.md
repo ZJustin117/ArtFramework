@@ -5,12 +5,11 @@ Complements [`dual-track.md`](./dual-track.md). Implementation is phased; this d
 
 ## Why
 
-CrossSpire today drives native UI via console (`select` / `confirm` / map patches) and probes co-op state via `crossspire probe`.  
-ArtFramework should own **UI-layer** instructions and snapshots so:
+ArtFramework owns **UI-layer** instructions and snapshots so:
 
 - interceptors (BLOCK/ALLOW) and imperative ops share one path;
-- consumers (CrossSpire, tests) do not re-implement grid/map/event gestures;
-- ArtFramework can verify **intercept / trigger / C1 panel** without multiplayer protocol.
+- consumers and tests do not re-implement grid/map/event gestures;
+- ArtFramework can verify **intercept / trigger / C1 panel** without game authority.
 
 ## Facades (target API)
 
@@ -43,7 +42,7 @@ Rules:
 
 1. Inactive / unbound template → `notBound` (or documented passthrough).
 2. First interceptor `BLOCK` → return `blocked`; no engine side effect.
-3. Never import CrossSpire protocol / party / combat phase types.
+3. Never import multiplayer protocol / party / combat phase types.
 
 C1 signal-producing operations apply the same first-`BLOCK` rule through
 `UiTree.addSignalInterceptor`. `UiOps.onButton`, `onSlider`, and `onHitArea` register
@@ -63,12 +62,12 @@ Machine-oriented snapshot (future console: `art probe` → one line `ART_PROBE` 
 | endTurn | `buttonEnabled` hint |
 | entities | slot count / kinds (no combat authority) |
 
-**Out of probe:** `connected`, `peers`, party election, combat phase tables — CrossSpire `GameStateProbe`.
+**Out of probe:** `connected`, `peers`, party election, combat phase tables, and other domain-authority state.
 
 ## SpirePatch boundary
 
 Patches live in ArtFramework and only call `NativeTemplateRuntime` / active templates.  
-Consumers register interceptors for policy. Dual-call migration then delete consumer duplicates.
+Consumers register interceptors for policy; ArtFramework patches remain thin UI-layer adapters.
 
 ## Phasing
 
@@ -79,7 +78,7 @@ Consumers register interceptors for policy. Dual-call migration then delete cons
 | P2 | STS `NativeOpsBackend` (`StsNativeOps`) | done (best-effort gestures) |
 | P3 | `@SpirePatch` thin hooks + `NativeUiHooks` | done |
 | P4 | Console `art probe` / `art op` + fixture art-verify | done; device log scrape optional |
-| P5 | CrossSpire consumer migration (other repo) | open |
+| P5 | Public consumer contract and fixture verification | done |
 
 ## Forward compatibility (Godot-aligned + milestone 15)
 
@@ -101,11 +100,10 @@ P0–P5 status above is **done** and not reopened by this section.
 ### Known limits (honest)
 
 - Combat hand FULL uses ART draw + live executor; not a full reimplementation of every STS card chrome edge case.
-- Map programmatic travel: ART map intent when FULL; consumer still owns pin protocol / enter-room policy.
+- Map programmatic travel: ART map intent when FULL; domain code still owns enter-room policy.
 - Event option invoke uses reflection (`buttonEffect` protected); FULL event suppresses `GenericEventDialog.render`.
 - Event **gate patch**: instrument `AbstractEvent.update` call sites — Prefix on protected abstract `buttonEffect` NPEs MTS ParamInfo.
 - Select FULL: grid select is primary; hand select is best-effort via `HandCardSelectScreen` fields.
-- Dual-mod with CrossSpire map/end-turn patches: both may run — consumer should migrate interceptors to ArtFramework and slim own patches.
 - Amethyst: jar in `mods_library` requires `enabled_mods.txt` entry.
 - Room FULL_READY requires matching `projection.scene` (`reward`/`rest`/`shop`/`treasure`); mount alone falls back to native.
 - Shop/rest/treasure ART paint is chrome/labels; native atlas fidelity is not a 26 goal.
@@ -119,4 +117,3 @@ P0–P5 status above is **done** and not reopened by this section.
 - [`host-assets.md`](./host-assets.md) — asset resolve / packs
 - [`docs/development/ui-layer-verification.md`](../development/ui-layer-verification.md)
 - [`docs/development/consumer.md`](../development/consumer.md)
-- CrossSpire `docs/console-commands.md` (co-op gestures; not ArtFramework UI console)

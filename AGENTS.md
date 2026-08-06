@@ -2,7 +2,7 @@
 
 ## Boundary
 
-- **This repo is a presentation framework (ART).** Do not depend on CrossSpire packages, protocol schema, or party/combat authority.
+- **This repo is a presentation framework (ART).** Do not depend on downstream project packages, protocol schema, or party/combat authority.
 - Dual track: **C1** = scene2d synthetic windows; **C2** = native STS templates + full-present surfaces + EntityPresent. See [`docs/design/dual-track.md`](docs/design/dual-track.md).
 - Presentation graph + Host SPI: [`docs/design/art-framework.md`](docs/design/art-framework.md).
 - Godot-aligned API (UiTree / signals / C2 as components / host SPI): [`docs/design/godot-aligned-ui.md`](docs/design/godot-aligned-ui.md).
@@ -23,7 +23,7 @@
 | [`docs/design/backend-context.md`](docs/design/backend-context.md) | Pluggable Backend, three faces, context frames, intents (15) |
 | [`docs/design/c2-full-present.md`](docs/design/c2-full-present.md) | C2 full present / hard-sync / surfaces (15) |
 | [`docs/design/host-assets.md`](docs/design/host-assets.md) | HostAssets ResourceId / packs / resolve (15) |
-| [`docs/design/entity-present.md`](docs/design/entity-present.md) | EntityPresent co-op chrome draw (24) |
+| [`docs/design/entity-present.md`](docs/design/entity-present.md) | EntityPresent chrome draw (24) |
 | [`docs/design/present-profile.md`](docs/design/present-profile.md) | PresentProfile / Lightwave (Theme + chrome + FX) |
 | [`docs/design/node-signal-runtime.md`](docs/design/node-signal-runtime.md) | connections / UiActions / NodeStateMachine (39–42) |
 | [`docs/task.md`](docs/task.md) | Open implementation tasks |
@@ -38,9 +38,9 @@
 
 ## Build / test
 
-- Env keys: `ART_STS_JAR`, `ART_BASEMOD_JAR`, `ART_MODTHESPIRE_JAR` (paths may match CrossSpire machine setup; **key names** stay `ART_*`).
-- Optional deploy / UI device: `ART_D1_SERIAL` (mirror CrossSpire D1), `ART_D2_SERIAL` (dual only if requested).
-- Device lab (Amethyst, same pattern as CrossSpire): `STS_CONNECTOR_PORT`, `SLAY_THE_AMETHYST_ROOT`, `ART_AMETHYST_TOOLS_DIR`, `ART_HARNESS_OUT_DIR`, `ART_GAME_PROBE_PORT`, `ART_ARTHAS_PORT` — see [`docs/development/android-device-lab.md`](docs/development/android-device-lab.md) and [`docs/development/android-arthas.md`](docs/development/android-arthas.md).
+- Env keys: `ART_STS_JAR`, `ART_BASEMOD_JAR`, `ART_MODTHESPIRE_JAR` (**key names** stay `ART_*`).
+- Optional deploy / UI device: `ART_D1_SERIAL`, `ART_D2_SERIAL` (dual only if requested).
+- Device lab (Amethyst): `STS_CONNECTOR_PORT`, `SLAY_THE_AMETHYST_ROOT`, `ART_AMETHYST_TOOLS_DIR`, `ART_HARNESS_OUT_DIR`, `ART_GAME_PROBE_PORT`, `ART_ARTHAS_PORT` — see [`docs/development/android-device-lab.md`](docs/development/android-device-lab.md) and [`docs/development/android-arthas.md`](docs/development/android-arthas.md).
 - Arthas startup additionally requires the game to run with `launchMode=mts` and a debug-compatible game-probe (`debugMode`, `autoplay`, `forceJvmCrash`, `forceRuntimeCrash`, or `performanceDeepDiagnostics`), so game-probe can accept `LOAD_AGENT`.
 - The connector daemon must already be online on `STS_CONNECTOR_PORT`; neither Arthas nor Harness subagents manage its lifecycle. Check connector status first and report its unavailability rather than starting or restarting it.
 - Run Arthas from the ArtFramework root with `PYTHONPATH` including `SLAY_THE_AMETHYST_ROOT`, explicit `--device "$ART_D1_SERIAL"`, `--agent-port "$ART_GAME_PROBE_PORT"`, and `--arthas-port "$ART_ARTHAS_PORT"`. Default diagnostic cleanup is `stop` (`reset`; bridge remains listening); use `shutdown` (releases the bridge port) only when a parent explicitly requests full teardown. Bound `monitor`, `watch`, and `trace` queries with `--duration`.
@@ -60,11 +60,11 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 |-------|-------------|-------------|
 | `junit-test` | **Default semantic gate** after API/registry/runtime pure-logic changes; user asks for JUnit | Docs-only; code will not compile; device-only ops |
 | `android-deploy-jar` | Need fresh `ArtFramework.jar` on device after UI source changes; before manual/on-device UI checks | Semantic regression (use junit); no device / unset serial; jar unchanged |
-| `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist; scenarios other than `scripts/art-lab combat verify-full` | Pure API rules (junit); standard `ready` / `status` / `console` / `combat verify-full` wrapper operations; CrossSpire life/co-op |
-| `android-arthas` | Explicit bounded Android JVM diagnosis: threads, classloading, methods, traces, or bridge failures; default `start -> query -> stop` cleanup | Default gate; UI semantics; jar deploy; connector lifecycle; CrossSpire life/co-op |
-| `android-harness` | D1 logs/screenshots, `doctor` / `mods` / `set-mods`, or a bounded Harness command not exposed by `scripts/art-lab` | Standard `scripts/art-lab ready/status/stop/console/combat verify-full`; source edits; jar deploy; connector lifecycle; Arthas; CrossSpire life/co-op |
+| `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist; scenarios other than `scripts/art-lab combat verify-full` | Pure API rules (junit); standard `ready` / `status` / `console` / `combat verify-full` wrapper operations; out-of-repo life/co-op |
+| `android-arthas` | Explicit bounded Android JVM diagnosis: threads, classloading, methods, traces, or bridge failures; default `start -> query -> stop` cleanup | Default gate; UI semantics; jar deploy; connector lifecycle; out-of-repo life/co-op |
+| `android-harness` | D1 logs/screenshots, `doctor` / `mods` / `set-mods`, or a bounded Harness command not exposed by `scripts/art-lab` | Standard `scripts/art-lab ready/status/stop/console/combat verify-full`; source edits; jar deploy; connector lifecycle; Arthas; out-of-repo life/co-op |
 
-**Do not add** CrossSpire-style dual-device **life** suites or protocol assertions here. Arthas is optional read-only JVM diagnostics, not a default ArtFramework gate; connector lifecycle and dual-device life stay outside this repository's default workflow. ArtFramework may run **single-device UI** smoke via `@art-verify`.
+**Do not add** dual-device **life** suites or protocol assertions here. Arthas is optional read-only JVM diagnostics, not a default ArtFramework gate; connector lifecycle and dual-device life stay outside this repository's default workflow. ArtFramework may run **single-device UI** smoke via `@art-verify`.
 
 ### Delegation rules
 
@@ -86,7 +86,7 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 
 1. Register or refine open work in [`docs/task.md`](docs/task.md); design in `docs/design/dual-track.md` / `ui-ops-probe.md` when tracks change.
 2. Start behavior changes with a focused failing JUnit (pure registry/API preferred).
-3. Smallest implementation to green. Keep CrossSpire protocol/party types out of this repo.
+3. Smallest implementation to green. Keep downstream protocol/party types out of this repo.
 4. Delegate **`@junit-test`** after each coherent slice. Deploy jar only when on-device UI verification is needed.
 
 ## Git

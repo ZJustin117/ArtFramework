@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ensure Amethyst enabled_mods.txt lists only ArtFramework.jar (no CrossSpire).
+# Ensure Amethyst enabled_mods.txt lists only ArtFramework.jar.
 # Usage: ART_D1_SERIAL=... ./scripts/ensure-art-enabled-mods.sh
 # Optional: ART_D2_SERIAL for dual (set ART_ENSURE_DUAL=1).
 set -euo pipefail

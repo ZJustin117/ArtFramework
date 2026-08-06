@@ -1,6 +1,6 @@
 # ArtFramework development infrastructure
 
-Local build, pure JUnit, UI-verify tooling, and optional single-device jar deploy. **Not** CrossSpire multiplayer life/harness infrastructure.
+Local build, pure JUnit, UI-verify tooling, and optional single-device jar deploy.
 
 ## Local config
 
@@ -11,7 +11,7 @@ Local build, pure JUnit, UI-verify tooling, and optional single-device jar deplo
 
 ```bash
 cp .env.example .env.local
-# edit paths; set ART_D1_SERIAL to the same device as CrossSpire D1 when testing on-device
+# edit paths; optionally set ART_D1_SERIAL when testing on-device
 ./scripts/with-art-env.sh test
 ```
 
@@ -37,7 +37,7 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 | [`android-deploy.md`](./android-deploy.md) | Device jar push paths and force-stop |
 | [`android-device-lab.md`](./android-device-lab.md) | Amethyst connector / harness / UI smoke (D1) |
 | [`android-arthas.md`](./android-arthas.md) | Optional Arthas JVM diagnostics on the Android device |
-| [`consumer.md`](./consumer.md) | How CrossSpire (or others) depend on `ArtFramework.jar` |
+| [`consumer.md`](./consumer.md) | How downstream mods depend on `ArtFramework.jar` |
 | [`../design/art-framework.md`](../design/art-framework.md) | ART presentation graph + Host SPI + milestone 12 |
 | [`../design/backend-context.md`](../design/backend-context.md) | Backend / context / intents (milestone 15) |
 | [`../design/c2-full-present.md`](../design/c2-full-present.md) | C2 full present hard-sync (15) |
@@ -47,4 +47,4 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 ## Boundary
 
 - Default verification is **JUnit**. Device deploy is optional and does not replace API tests.
-- Dual-device life YAML remains a **CrossSpire** gate. ArtFramework may use **single-device** UI smoke (`ART_D1_SERIAL`) and optional read-only Arthas JVM diagnostics; neither replaces JUnit or `art-verify`.
+- ArtFramework may use **single-device** UI smoke (`ART_D1_SERIAL`) and optional read-only Arthas JVM diagnostics; neither replaces JUnit or `art-verify`.

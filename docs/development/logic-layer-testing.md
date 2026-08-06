@@ -3,7 +3,7 @@
 ## Pyramid
 
 ```
-rare:      CrossSpire dual-device life (other repo)
+rare:      dual-device life / domain E2E (out of repo)
 optional:  single-device UI smoke (@art-verify after @android-deploy-jar)
 tooling:   tools/art-verify offline unittest + fixture YAML
 default:   pure registry + C1/C2 templates + (soon) UiOps/UiProbe JUnit
@@ -11,7 +11,7 @@ default:   pure registry + C1/C2 templates + (soon) UiOps/UiProbe JUnit
 
 **Default gate:** `./scripts/with-art-env.sh test` or OpenCode `@junit-test`.
 
-Dual-device life suites and multiplayer protocol assertions are **out of scope** for ArtFramework. Consumers (e.g. CrossSpire) own co-op E2E. UI intercept/trigger fixtures: [`ui-layer-verification.md`](./ui-layer-verification.md). Optional JVM diagnostics: [`android-arthas.md`](./android-arthas.md) / `@android-arthas` (not a semantic gate).
+Dual-device life suites and multiplayer protocol assertions are **out of scope** for ArtFramework. UI intercept/trigger fixtures: [`ui-layer-verification.md`](./ui-layer-verification.md). Optional JVM diagnostics: [`android-arthas.md`](./android-arthas.md) / `@android-arthas` (not a semantic gate).
 
 ## What to test here
 
@@ -32,7 +32,7 @@ Dual-device life suites and multiplayer protocol assertions are **out of scope**
 - `ArtFrameworkMod` BaseMod subscribe (needs full STS/BaseMod on test classpath)
 - scene2d draw frames, real `StageHost`/`StsSkin` GL init, `@SpirePatch` bytecode
   (document design first; add focused tests only when behavior is pure)
-- CrossSpire protocol, party election, combat phase
+- Multiplayer protocol, party election, combat phase
 
 ## Rules
 

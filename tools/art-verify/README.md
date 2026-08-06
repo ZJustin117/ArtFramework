@@ -1,7 +1,7 @@
 # ArtFramework UI-verify
 
 Minimal YAML runner for **UI-layer** checks (intercept / trigger / C1).  
-Not CrossSpire life/co-op scenarios.
+Not multiplayer life/co-op scenarios.
 
 ```bash
 pip install -r requirements.txt

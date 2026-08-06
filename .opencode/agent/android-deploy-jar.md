@@ -21,7 +21,7 @@ You are the ArtFramework **Android JAR deploy** subagent. You build `ArtFramewor
 
 **Not your job:** pure API / registry **semantic** regression. That is `@junit-test` / `docs/development/logic-layer-testing.md`. Deploy only when a device path needs a fresh jar after code changes.
 
-ArtFramework is a **UI toolkit**. Do not run CrossSpire life suites, dual host/join, or connector. For JVM diagnosis use `@android-arthas`, not this agent.
+ArtFramework is a **UI toolkit**. Do not run out-of-repo life suites, dual host/join, or connector. For JVM diagnosis use `@android-arthas`, not this agent.
 
 ## Local env (required)
 
@@ -39,7 +39,7 @@ ArtFramework is a **UI toolkit**. Do not run CrossSpire life suites, dual host/j
 
 ## Process docs
 
-- `docs/development/android-deploy.md` — paths, force-stop, coexistence with CrossSpire.jar
+- `docs/development/android-deploy.md` — paths, force-stop, mod isolation
 - `README.md` — jar output path
 
 ## Defaults
@@ -62,7 +62,7 @@ Override defaults only when the parent/user explicitly asks:
 - `skip force-stop`: skip force-stop only with an explicit reason in the final report.
 - `clean rebuild`: run `./scripts/with-art-env.sh clean jar` only when explicitly requested.
 
-Do not run `test`, connector I/O, game start, harness, or CrossSpire scenarios by default.
+Do not run `test`, connector I/O, game start, harness, or out-of-repo scenarios by default.
 
 ## Workflow
 
@@ -117,7 +117,7 @@ Jar in `mods_library` alone does **not** enable the mod. After successful push o
 # dual: ART_ENSURE_DUAL=1 ./scripts/ensure-enabled-mods.sh
 ```
 
-Or manually write `sts/enabled_mods.txt` with ArtFramework only (no CrossSpire). See `docs/development/android-device-lab.md`.
+Or manually write `sts/enabled_mods.txt` with ArtFramework only. See `docs/development/android-device-lab.md`.
 
 ### 4. Force-stop verified devices (default on)
 
@@ -130,7 +130,7 @@ Skip only when parent says `skip force-stop`. Do **not** start the game or run h
 ## Boundaries
 
 - No production/source edits; no commits
-- No CrossSpire host/join/status, harness E2E, connector lifecycle, or Arthas (use `@android-arthas`)
+- No out-of-repo host/join/status, harness E2E, connector lifecycle, or Arthas (use `@android-arthas`)
 - No writing ADB serials or absolute paths into repo files
 - Return a short summary to the parent; do not apply code fixes
 

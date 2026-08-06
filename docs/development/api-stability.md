@@ -38,18 +38,23 @@ Also stable: `WindowDef`, `WindowClass`, `WindowHandle`, `UiOps`, `UiOpResult`, 
 
 - `artframework.core`: `UiTree`, `UiInstance`, `SignalHub`, `SignalBus`, `Theme`, `HostBackend`,
   `HostCapabilities`, `UiComponent`
+- `artframework.ecs`: `EntityId`, `PresentationWorld` for deterministic ART-owned presentation
+  state. Scope/id semantics are stable; internal component classes remain package/domain owned.
 - `artframework.context`: `ContextFrame`, `CardRef`, `CardView`, strong views (`ControlsView`,
   `MapView`, `EventView`, `SelectView`, reward/rest/shop/treasure/top-panel/intent views),
   `PresentSurfaces`, `PresentProjection`, `SurfaceIds`, `IntentNames`, `UiIntent`,
   `FakeSignalBackend`, `EntitySnapshot` (via c2)
 - `artframework.assets`: `HostAssets`, `AssetPack`, `ResourceIds`, resolve results
+- `artframework.skeleton`: `SkeletonProvider`, `SkeletonProviders`, `SkeletonSource`, and
+  `SkeletonHandle` SPI; provider implementations are host-specific.
 - `artframework.c2.NativeTemplateIds`: canonical `sts1.*` (+ legacy `sts.*` input)
 - `artframework.sts1.PresentLevel`, `FullPresentMode` (policy); **not** patch/draw path classes
 
 ### Host-only / lab-only (may evolve without major version)
 
 - `artframework.sts1.render.*`, `sts1.patch.*`, `sts1.input.Sts1IntentExecutor` bodies
-- `artframework.sts1.lab.*`, console `art lab` / `art ui` native reflect
+- `artframework.inspect.*`, `artframework.sts1.inspect.*`, `artframework.sts1.lab.*`, console
+  `art lab` / `art ui` native reflect
 - SpirePatch suppress points, pan/zoom defaults
 
 ## Intents (not `UiOps.submitIntent`)
@@ -96,6 +101,6 @@ Equivalent steps:
 2. `cd tools/art-verify && python3 -m unittest discover -s tests -v`
 3. Build jar; assert `gradle.properties` == jar manifest == `ModTheSpire.json` version
 4. `./scripts/verify-consumer-fixture.sh`
-5. (Optional) Deploy ArtFramework + consumer before D1 UI verification
+5. (Optional) Deploy ArtFramework before D1 UI verification
 
 Version policy: [`versioning.md`](./versioning.md). Consumer guide: [`consumer.md`](./consumer.md).

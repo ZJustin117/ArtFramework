@@ -4,11 +4,11 @@
 
 Version: see `gradle.properties` → `artframework.version` (currently **1.0.0-alpha.4**).
 
-- **Separate repository** from multiplayer logic (e.g. CrossSpire) — no protocol/party types here.
+- **Presentation-only** — no multiplayer protocol, party, or combat-authority types here.
 - **Dual track** ([`docs/design/dual-track.md`](docs/design/dual-track.md)):
   1. **C1 Synthetic** — scene2d.ui windows (layout DSL / LML + StageHost + StsSkin)
   2. **C2 Native** — thin templates + **full-present** surfaces (hand/map/event/select/reward/…)
-- **SignalBus** + **HostAssets** + **EntityPresent** co-op chrome slots
+- **SignalBus** + **HostAssets** + **EntityPresent** presentation slots
 - Shipped milestones **0–43** (room/full-present production, PresentPack, node-signal runtime,
   and C2 Lightwave chrome/FX)
 
@@ -29,7 +29,7 @@ Release gate: `./scripts/release-gate.sh`.
   | `ART_BASEMOD_JAR` | BaseMod.jar |
   | `ART_MODTHESPIRE_JAR` | ModTheSpire.jar |
 
-Copy [`.env.example`](.env.example) → `.env.local`. **Reuse the same file paths as CrossSpire**, but use the **`ART_*` key names** (not `CROSSSPIRE_*`).
+Copy [`.env.example`](.env.example) → `.env.local` and fill the **`ART_*` key names** with local STS / BaseMod / ModTheSpire paths.
 
 Optional: `ART_D1_SERIAL` / `ART_D2_SERIAL` (device jar push); `ART_INSTALL_DIR` / `ART_CONSUMER_JAR` (publish-art-local).
 
@@ -68,6 +68,7 @@ scripts/art-lab console "art probe"
 | `artframework.api` | Facade, UiOps/UiProbe, window defs |
 | `artframework.core` | UiTree, signals, Theme, HostBackend |
 | `artframework.context` | ContextFrame, present surfaces, intents |
+| `artframework.ecs` | EntityId + PresentationWorld for ART-owned presentation state |
 | `artframework.assets` | HostAssets packs / ResourceId |
 | `artframework.c1` | Synthetic runtime, StageHost, layout/LML |
 | `artframework.c2` | Native templates + EntityPresent |

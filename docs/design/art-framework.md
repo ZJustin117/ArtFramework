@@ -16,18 +16,18 @@ Identity (breaking, post-rename):
 | Env prefix | `ART_*` |
 | Verify tooling | `tools/art-verify` |
 
-Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Roadmap: [`docs/task.md`](../task.md) milestones **12** (done), **15** (Backend / full C2 / HostAssets).
+Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Roadmap: [`docs/task.md`](../task.md) milestones **0–43** shipped.
 
 ## Purpose
 
-1. One **Presentation Graph** for UI, native screen presenters, overlays, effects, animation, and (later) skeleton/particle nodes.
+1. One **Presentation Graph** for UI, native screen presenters, overlays, effects, animation, and skeleton anchors.
 2. **Host SPI**: core types stay free of STS / BaseMod / libGDX concrete APIs; STS1 is the first full host.
 3. **Declaration vs behavior**: JSON/LML declare structure, props, layout, effects, and **named signals**; Java owns handlers and game rules.
-4. Attract display-layer mods as an MTS **dependency** (`basemod` + `artframework`) without owning combat/party protocol.
+4. Attract display-layer mods as an MTS **dependency** (`basemod` + `artframework`) without owning game authority.
 
 ## Non-goals
 
-- CrossSpire protocol, party election, combat phase authority.
+- Multiplayer protocol, party election, combat phase authority.
 - Executable logic / Java class names / scripts / raw GLSL inside LML or layout JSON.
 - Cloning full Godot / Spine editor surfaces.
 - Dual-device life / connector as default ArtFramework gates.
@@ -37,11 +37,12 @@ Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](.
 ```text
 Caller
   → artframework.api.ArtFramework
-       register | mount | unmount | tree | ops | probe | render | nodes (planned)
+       register | mount | unmount | tree | ops | probe | render | nodes
   → Core (host-agnostic)
        PresentationNode (decl AST; today UiNode)
        PresentationTree / PresentationInstance (today UiTree / UiInstance)
-       SignalHub · LayoutEngine · Theme · ComponentRegistry · NodeRegistry (planned)
+       SignalHub · LayoutEngine · Theme · ComponentRegistry · NodeRegistry
+       PresentationWorld · EntityId (ART-owned presentation state)
        RenderGraph bookkeeping (today RenderHost pure side)
   → Host SPI
        PresentationHost · HostRenderBackend · HostInput · HostAssets · NativePresentationBridge
@@ -63,7 +64,7 @@ Caller
 | Kind | Layout? | Draw? | Examples |
 |------|---------|-------|----------|
 | Control | yes | yes | window, row/col, label, button, … |
-| Behavior | no | no | animation_player (planned) |
+| Behavior | no | no | animation_player |
 | Visual / effect | wraps or attaches | yes | shader_effect, glass, UiNode.effects |
 | Composition | expand-time | — | ref, slot |
 | Native presenter | host-owned | host | sts1.map (migrate from `sts.*`) |
@@ -83,9 +84,9 @@ Third-party types: **namespaced** (`my_mod.ripple_effect`). Registration via exp
   [`node-signal-runtime.md`](./node-signal-runtime.md). Not a substitute for Backend
   `context/frame/updated`.
 
-## LML (planned)
+## LML
 
-- Pure Java XML → same AST as JSON (`UiNode` / future `PresentationNode`).
+- Pure Java XML → same AST as JSON (`UiNode` / target `PresentationNode`).
 - Safe parser (no external entities/DTD).
 - Maps tags/attrs → type, id, props, layout, effects, slots, signals.
 - Forbidden: controller methods, class names, scripts, embedded GLSL.
@@ -95,6 +96,19 @@ Third-party types: **namespaced** (`my_mod.ripple_effect`). Registration via exp
 - Already: `EffectRegistry`, `ShaderRegistry`, `ShaderRuntime`, `RenderHost`, `EffectDecl` on nodes.
 - Third parties register effects/shaders by id; declaration only references registered ids.
 - Capability-aware hosts: unsupported capture/shader → validated failure / fallback, not silent crash.
+
+## Presentation ECS
+
+`artframework.ecs` is the deterministic store for ART-owned presentation state. It is not a game
+authority model and does not own signals.
+
+| Type | Role |
+|------|------|
+| `PresentationWorld` | Scoped entity/component store for long-lived presentation state, with deterministic iteration and explicit close/clear lifecycle |
+| `EntityId` | Stable identity within one `PresentationWorld` scope; string form is `scope:value` |
+
+Current users include present projection, present surfaces, entity present, and UI tree hierarchy
+bookkeeping. Domain components stay owned by their package; `PresentationWorld` only stores them.
 
 ## Host SPI (phased)
 
@@ -126,7 +140,7 @@ STS1 implements full set used by current C1/C2. STS2 implements what the real ho
 | `spireui` package / modid / jar / console | **Removed** (breaking) |
 | `ArtFramework.open` / `bind` / `close` | Keep; aliases of mount/unmount where applicable |
 | `UiOps` / `UiProbe` names | Keep until Presentation Graph rename slice |
-| `UiNode` / `UiTree` | Keep as implementation; public rename is a later milestone |
+| `UiNode` / `UiTree` | Keep as implementation names; no public rename scheduled |
 | Probe `modId` | `artframework` |
 | Console root | `art` |
 
@@ -156,4 +170,4 @@ Default gate: `./scripts/with-art-env.sh test`. Offline: `tools/art-verify`. Dev
 - [`component-composition.md`](./component-composition.md) — Nest / Slot / Bind
 - [`component-layout-fx.md`](./component-layout-fx.md) — layout + FX
 - [`ui-ops-probe.md`](./ui-ops-probe.md) — commands + snapshot
-- [`docs/development/consumer.md`](../development/consumer.md) — consumer jar / MTS deps
+- [`docs/development/consumer.md`](../development/consumer.md) — generic consumer jar / MTS deps

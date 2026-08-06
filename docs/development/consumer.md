@@ -1,6 +1,6 @@
 # Consuming ArtFramework.jar
 
-ArtFramework is a **separate ModTheSpire mod** (`modid`: `artframework`). Consumers (e.g. CrossSpire) compile against the jar and load it **beside** their own jar — do **not** shade ArtFramework classes into the consumer fat jar (would duplicate `ArtFrameworkMod`).
+ArtFramework is a **separate ModTheSpire mod** (`modid`: `artframework`). Consumers compile against the jar and load it **beside** their own jar — do **not** shade ArtFramework classes into the consumer fat jar (would duplicate `ArtFrameworkMod`).
 
 ## Build artifact
 
@@ -29,7 +29,7 @@ dependencies {
 }
 ```
 
-Env key name used by CrossSpire: **`CROSSSPIRE_ART_JAR`** (path to built `ArtFramework.jar`).
+Use a consumer-local Gradle property or environment variable for the built `ArtFramework.jar` path; this repository does not prescribe downstream names.
 
 ## ModTheSpire.json (consumer)
 
@@ -47,6 +47,7 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 | `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
 | `artframework.core.*` | `UiTree` / `UiInstance` / `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
+| `artframework.ecs.*` | `EntityId` / `PresentationWorld` for ART-owned presentation state |
 | `artframework.context.*` | **Signal model:** `ContextSignals` / `ContextFrame` / `PresentProjections` / `FakeSignalBackend` / `SignalBackend` / `CardRef` / `PresentSurfaces` |
 | `artframework.assets.*` | **HostAssets** ResourceId / packs / resolve / `FakeHostAssets` |
 | `artframework.c1.SyntheticRuntime` | C1 layout open; Stage via `StageHost` |
@@ -107,7 +108,7 @@ Design: [`docs/design/present-profile.md`](../design/present-profile.md).
   `sts1.reward.combat|card|boss_relic`, `sts1.rest`, `sts1.treasure`, `sts1.shop`, `sts1.top_panel`.
 - Legacy `sts.*` / `sts1.endturn` **NativeComponents** remain; end-turn full-present is `sts1.combat.controls` (not an alias that steals `sts1.endturn`).
 - Card identity: use **`CardRef.instanceId`** (multi-instance safe); `playHandCard(cardId)` still resolves first hand match when hand surface is mounted.
-- EntityPresent co-op chrome: `ArtFramework.entities()` + `EntitySnapshot` / `EntityDrawPath`; combat HAND FULL owns in-combat cards.
+- EntityPresent chrome: `ArtFramework.entities()` + `EntitySnapshot` / `EntityDrawPath`; combat HAND FULL owns in-combat cards.
 - Assets: register packs on `ArtFramework.assets()`; Theme icons/style resolve via HostAssets.
 - Pack release gate: `./scripts/verify-consumer-fixture.sh` / `./scripts/release-gate.sh`.
 
@@ -125,11 +126,11 @@ Design: [`docs/design/present-profile.md`](../design/present-profile.md).
 
 **Host-only (may evolve):** `Sts1IntentExecutor` gesture bodies, SpriteBatch label fallbacks, SpirePatch suppress points, pan/zoom defaults.
 
-**Panic:** `PresentSafety.panic` forces all levels OFF and unmounts present surfaces — consumers should treat as “native UI restored”.
+**Panic:** `PresentSafety.panic` forces all levels OFF and unmounts present surfaces; native UI is restored.
 
 Console (in-game): full reference [`console-commands.md`](./console-commands.md) — `art probe` | `art ui …` | `art frame` | `art present …` | `art assets …` | `art op …` | `art gate …` | `art lab …`
 
-**Out of ArtFramework:** multiplayer protocol, party election, combat authority (consumer owns these).
+**Out of ArtFramework:** multiplayer protocol, party election, and combat authority.
 
 ## Smoke
 

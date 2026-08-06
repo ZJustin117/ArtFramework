@@ -1,11 +1,11 @@
 # ArtFramework Android device lab (SlayTheAmethyst)
 
-Mirror of CrossSpire’s Amethyst test-bed for **single-device UI** checks.  
-**Not** dual-device life / co-op (that stays in CrossSpire).
+Amethyst test-bed for **single-device UI** checks.
+**Not** dual-device life / co-op.
 
 Shared docs use env **names** only. Values live in gitignored `.env.local`.
 
-## Topology (same as CrossSpire, D1 only by default)
+## Topology (D1 only by default)
 
 ```text
 开发机
@@ -15,21 +15,21 @@ Shared docs use env **names** only. Values live in gitignored `.env.local`.
          → art probe | art op … | art ui …
 
 设备
-└── mods_library/ArtFramework.jar  (+ optional CrossSpire.jar for co-load)
+└── mods_library/ArtFramework.jar
 ```
 
 | Key | Role |
 |-----|------|
 | `SLAY_THE_AMETHYST_ROOT` | Amethyst checkout (import root for `scripts.tools`) |
 | `ART_AMETHYST_TOOLS_DIR` | Optional; default `$SLAY_THE_AMETHYST_ROOT/scripts/tools` |
-| `STS_CONNECTOR_PORT` | Connector daemon (same name as CrossSpire / Amethyst) |
-| `ART_D1_SERIAL` | ADB serial (same physical device as CrossSpire D1 when mirrored) |
+| `STS_CONNECTOR_PORT` | Connector daemon |
+| `ART_D1_SERIAL` | ADB serial |
 | `ART_GAME_PROBE_PORT` | Device game-probe (default `9099`) |
 | `ART_ARTHAS_PORT` | Optional device-side Arthas bridge (default `8099`) |
 | `ART_HARNESS_OUT_DIR` | Absolute dir for harness `result.json` (gitignored) |
 | `ART_UI_VERIFY_OUT_DIR` | Optional art-verify JSON out |
 
-Same machine as CrossSpire: copy serial / connector / tools paths from CrossSpire `.env.local`, but **rename** `CROSSSPIRE_D1_SERIAL` → `ART_D1_SERIAL`, etc. Keep `STS_CONNECTOR_PORT` and `SLAY_THE_AMETHYST_ROOT` shared.
+Set these names directly in ArtFramework's gitignored `.env.local`. Keep shared machine-specific values out of committed docs.
 
 ## Load env
 
@@ -93,7 +93,7 @@ python3 -m scripts.tools.connector status --port "$STS_CONNECTOR_PORT"
 ./scripts/ensure-art-enabled-mods.sh
 ```
 
-   Writes `sts/enabled_mods.txt` with **only** ArtFramework (CrossSpire not enabled).  
+   Writes `sts/enabled_mods.txt` with **only** ArtFramework enabled.
    Then `am force-stop io.stamethyst`. Confirm next cold start log contains `artframework (0.2.0)` and `ArtFramework: demo + native templates`.
 6. Cold start with game-probe:
 
@@ -152,11 +152,11 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_panic.
 python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_event.yaml --device
 ```
 
-## Coexistence with CrossSpire
+## Mod isolation
 
-- CrossSpire.jar may remain in `mods_library`, but Art lab `enabled_mods.txt` enables **ArtFramework only**.
-- Do **not** use ArtFramework lab for dual host/join life; use CrossSpire `@device-scenario life`.
-- Same connector port/daemon can serve both repos if serials match.
+- Art lab `enabled_mods.txt` enables **ArtFramework only**.
+- Do **not** use ArtFramework lab for dual host/join life.
+- The connector daemon is external tooling; this repo does not own its lifecycle.
 
 ## OpenCode order
 
@@ -164,7 +164,6 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_event.
 
 ## Related
 
-- CrossSpire: `docs/development/android-harness.md` (full dual-device)
 - [`ui-layer-verification.md`](./ui-layer-verification.md)
 - [`android-arthas.md`](./android-arthas.md)
 - [`android-deploy.md`](./android-deploy.md)

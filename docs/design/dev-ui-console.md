@@ -73,7 +73,7 @@ art ui …
 - Arbitrary `Class.forName` / field REPL
 - Layout hot-reload
 - Replacing `ART_PROBE` schema (optional future merge of tree summary)
-- Dual-device life / CrossSpire protocol
+- Dual-device life / multiplayer protocol
 
 ## Related
 

@@ -9,7 +9,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 - [x] `docs/development` testing + deploy notes
 - [x] Expand pure API JUnit beyond smoke
 - [x] Optional `@android-deploy-jar` (default D1)
-- [x] D1/D2 serial keys documented; local D1 mirrors CrossSpire device
+- [x] D1/D2 serial keys documented for optional device UI smoke
 - [x] `tools/art-verify` scaffold + offline unittest + `@art-verify` agent
 - [x] Design: `ui-ops-probe.md` + `ui-layer-verification.md` + dual-track roadmap 6–8
 - [x] Optional `@android-arthas` + `android-arthas.md` + `ART_ARTHAS_PORT` (not a default gate)
@@ -23,7 +23,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 - [x] 2. C2 map template intercept + pin decorator hooks (logic; patches later)
 - [x] 3. C2 event/select/end-turn templates (logic; patches later)
 - [x] 4. EntityPresent lifecycle API (logic; STS draw later)
-- [x] 5. Consumer contract: versioned jar + CrossSpire `compileOnly` + MTS dep
+- [x] 5. Consumer contract: versioned jar + `compileOnly` + MTS dep
 
 ### 6. UiOps / UiProbe (unified UI commands + snapshot)
 
@@ -46,7 +46,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 - [x] 8.0 Fixture YAML + assert runner offline
 - [x] 8.1 Device mode: Amethyst connector console + `ART_PROBE` log scrape (`device_console.py`)
 - [x] 8.2 Fixture smoke: probe shape + C1 window + intercept-related template flags (JUnit owns BLOCK/ALLOW)
-- [x] 8.3 Lab doc: `android-device-lab.md` (CrossSpire/Amethyst parity, D1 UI only)
+- [x] 8.3 Lab doc: `android-device-lab.md` (Amethyst D1 UI only)
 - [x] 8.4 On-device pass of `tests/ui-scenarios/device/*` (D1 READY; enabled_mods + cold start)
 
 ### 9. Lab intercept + deploy hardening

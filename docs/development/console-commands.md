@@ -289,6 +289,6 @@ Registration: `ConsoleCommand.addCommand("art", ArtCommand.class)` in `ArtFramew
 
 ## Not in this namespace
 
-- CrossSpire co-op / party / life (`crossspire …`) — other repo
+- Multiplayer co-op / party / life commands — out of repo
 - Arbitrary Java reflection REPL
 - Dual-device connector protocol

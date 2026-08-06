@@ -7,9 +7,9 @@ Optional maintainer tooling for diagnosing the SlayTheAmethyst Android JVM while
 - Arthas diagnoses JVM threads, class loading, decompilation, method arguments/results, and call timing.
 - ArtFramework `art probe`, `art ui`, and `art op` diagnose UI state and UI operations.
 - JUnit remains the semantic/API gate. `tools/art-verify` remains the UI fixture gate.
-- CrossSpire owns multiplayer protocol, party/combat authority, and dual-device life scenarios.
+- Multiplayer protocol, party/combat authority, and dual-device life scenarios are out of scope.
 
-The `@android-arthas` subagent is read-only. It accepts one bounded diagnosis, uses `start -> query -> stop`, and attempts bridge cleanup after a failed query. It does not start or stop the connector daemon, enter an interactive shell, edit source, push jars, or run CrossSpire scenarios.
+The `@android-arthas` subagent is read-only. It accepts one bounded diagnosis, uses `start -> query -> stop`, and attempts bridge cleanup after a failed query. It does not start or stop the connector daemon, enter an interactive shell, edit source, push jars, or run out-of-repo scenarios.
 
 ## Environment
 
@@ -25,7 +25,7 @@ Values belong in gitignored `.env.local`; shared documents contain names only.
 | `ART_GAME_PROBE_PORT` | Game-probe agent port | `9099` |
 | `ART_ARTHAS_PORT` | Arthas bridge port | `8099` |
 
-`ART_ARTHAS_PORT` corresponds to CrossSpire's `CROSSSPIRE_ARTHAS_PORT`, but ArtFramework commands use only the `ART_*` name. Do not put real paths, serials, or ports in production code or committed documentation.
+ArtFramework commands use only the `ART_*` names. Do not put real paths, serials, or ports in production code or committed documentation.
 
 ## Topology
 
@@ -37,7 +37,7 @@ Developer machine
     └── arthas bridge :$ART_ARTHAS_PORT -> query stream
 ```
 
-The connector must already be running. Its lifecycle is outside this subagent and may be shared with the ArtFramework single-device lab. The Arthas port is device-side forwarding and is unrelated to any game or CrossSpire network port.
+The connector must already be running. Its lifecycle is outside this subagent and may be shared with the ArtFramework single-device lab. The Arthas port is device-side forwarding and is unrelated to any game network port.
 
 ## Preconditions
 

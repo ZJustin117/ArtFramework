@@ -2,7 +2,7 @@
 
 Design contract for a **Godot-shaped** public API: one consumer surface, full C1 synthetic UI, C2 native STS screens as **encapsulated components**, shared structure for STS1 / future STS2 hosts.
 
-Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host SPI / LML roadmap), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Milestone 11–14 complete; further work is milestone **15** in [`docs/task.md`](../task.md).
+Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host SPI / LML), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Milestones **11–43** are shipped in [`docs/task.md`](../task.md).
 
 ## Purpose
 
@@ -13,7 +13,7 @@ Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host 
 
 ## Non-goals
 
-- CrossSpire protocol, party election, combat phase authority (consumer-owned).
+- Multiplayer protocol, party election, combat phase authority.
 - Cloning full Godot Control set, accessibility stack, SubViewport as a general feature, or anchor editor presets.
 - Replacing the full STS hand-play / `AbstractPlayer` pipeline with scene2d as the default production path.
 - Executable logic inside layout JSON (behavior stays Java Bind / signals).
@@ -70,7 +70,7 @@ Caller
 | **Host dual track** | C1 synthetic draw vs C2 native intercept remain implementations |
 | **Dual-track today** | `WindowClass.SYNTHETIC` / `NATIVE_TEMPLATE` — keep as kind; evolve toward `ComponentKind` |
 
-Suggested package split is **guidance** until milestone 11.6; do not churn imports until API convergence.
+Suggested package split is implemented as the current public/API package map; avoid churn unless a new milestone explicitly changes the stability tier.
 
 ## Contracts (design level)
 
@@ -216,7 +216,7 @@ sts.map  → NativeControl("sts.map")  → Sts1MapHost (patch + gesture)
 ```
 
 - Consumer always uses component id + signals/actions.  
-- Swapping backend must not change CrossSpire call shape.  
+- Swapping backend must preserve the generic component id + signal/action contract.
 - Full map/event/hand redraw in C1 is **not** the default next step; optional pilot (task 11.7) only for low-risk chrome.
 
 ## Compatibility

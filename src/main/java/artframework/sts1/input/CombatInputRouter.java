@@ -90,8 +90,10 @@ public final class CombatInputRouter {
                     || "shop".equals(scene)
                     || "event".equals(scene);
         }
-        if (SurfaceIds.EVENT.equals(id)
-                || SurfaceIds.SELECT_GRID.equals(id)
+        if (SurfaceIds.EVENT.equals(id)) {
+            return "event".equals(scene);
+        }
+        if (SurfaceIds.SELECT_GRID.equals(id)
                 || SurfaceIds.SELECT_HAND.equals(id)
                 || SurfaceIds.SKELETON.equals(id)) {
             return mounted;

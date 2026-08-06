@@ -27,6 +27,7 @@ public final class LabRecipeRunner {
     private static String lastMessage = "";
     private static boolean clearsDone;
     private static boolean stripDone;
+    private static boolean embarkDone;
 
     private LabRecipeRunner() {}
 
@@ -40,6 +41,7 @@ public final class LabRecipeRunner {
         lastMessage = "";
         clearsDone = false;
         stripDone = false;
+        embarkDone = false;
     }
 
     public static synchronized boolean isBusy() {
@@ -73,6 +75,7 @@ public final class LabRecipeRunner {
         ticksLeft = budget > 0 ? budget : StsLabRecipes.DEFAULT_BUDGET;
         clearsDone = false;
         stripDone = false;
+        embarkDone = false;
         lastStatus = "running";
         lastMessage = "ensure-fresh-menu armed";
         return UiOpResult.ok("ensure-fresh-menu armed ticks=" + ticksLeft);
@@ -86,6 +89,7 @@ public final class LabRecipeRunner {
         ticksLeft = budget > 0 ? budget : StsLabRecipes.DEFAULT_BUDGET;
         clearsDone = false;
         stripDone = false;
+        embarkDone = false;
         lastStatus = "running";
         lastMessage = "start-run armed char=" + characterId;
         return UiOpResult.ok("start-run armed char=" + characterId + " ticks=" + ticksLeft);
@@ -183,11 +187,28 @@ public final class LabRecipeRunner {
     private static void stepStartRun() {
         LabHost host = StsLabNav.host();
         LabStateSnapshot s = host.dump();
-        if (s.inGame) {
-            succeed("in game char=" + s.selectedCharacter);
+        boolean didEmbark;
+        synchronized (LabRecipeRunner.class) {
+            didEmbark = embarkDone;
+        }
+        if (s.inGame && didEmbark) {
+            succeed("embark submitted char=" + s.selectedCharacter);
             return;
         }
-        if (s.fading) {
+        if (s.isRunReady() && !s.inCombat) {
+            succeed("existing run char=" + s.selectedCharacter);
+            return;
+        }
+        if (s.isRunReady() && !s.charSelectOpen) {
+            host.abandon();
+            return;
+        }
+        if (s.inGame && !s.charSelectOpen) {
+            // Player assignment precedes a stable dungeon frame during embark. Waiting here keeps
+            // the recipe from issuing map/proceed commands against the lingering character select.
+            return;
+        }
+        if (s.fading && !s.charSelectOpen) {
             return;
         }
         // Fresh prep first when still on main menu with resume, or never cleared this job.
@@ -203,8 +224,12 @@ public final class LabRecipeRunner {
                 return;
             }
         }
-        if (s.inGame || s.hasAbandon || s.abandonConfirmOpen || s.endScreen) {
+        if (s.abandonConfirmOpen || s.endScreen || (s.hasAbandon && !s.onMainMenu())) {
             stepEnsureMenu(true);
+            return;
+        }
+        if (s.charSelectOpen && s.inGame && s.isRunReady() && !s.embarkEnabled) {
+            host.openCharSelect();
             return;
         }
         if (!s.charSelectOpen && !s.onCharSelect()) {
@@ -216,6 +241,7 @@ public final class LabRecipeRunner {
             want = characterId;
         }
         if (!s.characterSelected
+                || (s.charSelectOpen && !s.embarkEnabled)
                 || (s.selectedCharacter != null
                         && !s.selectedCharacter.isEmpty()
                         && !s.selectedCharacter.equalsIgnoreCase(want))) {
@@ -230,7 +256,14 @@ public final class LabRecipeRunner {
             }
         }
         if (!s.embarkEnabled && s.characterSelected) {
+            synchronized (LabRecipeRunner.class) {
+                embarkDone = true;
+            }
+            host.embark();
             return;
+        }
+        synchronized (LabRecipeRunner.class) {
+            embarkDone = true;
         }
         host.embark();
     }

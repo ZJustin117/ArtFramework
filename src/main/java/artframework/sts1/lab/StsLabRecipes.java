@@ -8,8 +8,11 @@ import artframework.api.UiOpResult;
  */
 public final class StsLabRecipes {
 
-    /** Ticks per recipe; STS host yields ~350ms/tick so keep moderate. */
+    /** Ticks per synchronous recipe; STS host yields ~350ms/tick so keep moderate. */
     public static final int DEFAULT_BUDGET = 40;
+
+    /** Ticks per async recipe; advanced once per frame on device. */
+    public static final int ASYNC_DEFAULT_BUDGET = 3600;
 
     public static final String LOG_PREFIX = "ART_LAB ";
 
@@ -39,6 +42,11 @@ public final class StsLabRecipes {
                 return UiOpResult.ok("on main menu");
             }
             if (s.fading) {
+                host.yieldFrame();
+                continue;
+            }
+            if (s.isEmbarkTransition()) {
+                // A player can be initialized while character select is still fading out.
                 host.yieldFrame();
                 continue;
             }
@@ -116,8 +124,14 @@ public final class StsLabRecipes {
         }
         for (int i = 0; i < budget; i++) {
             LabStateSnapshot s = host.dump();
-            if (s.inGame) {
+            if (s.isRunReady()) {
                 return UiOpResult.ok("in game char=" + s.selectedCharacter);
+            }
+            if (s.inGame) {
+                // AbstractDungeon.player can be assigned before the character-select fade ends.
+                // Do not treat that transient state as a usable dungeon run.
+                host.yieldFrame();
+                continue;
             }
             if (s.fading) {
                 host.yieldFrame();
@@ -164,7 +178,7 @@ public final class StsLabRecipes {
             host.yieldFrame();
         }
         LabStateSnapshot last = host.dump();
-        if (last.inGame) {
+        if (last.isRunReady()) {
             return UiOpResult.ok("in game");
         }
         return UiOpResult.unavailable(

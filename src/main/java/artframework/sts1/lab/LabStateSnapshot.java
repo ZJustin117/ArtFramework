@@ -88,11 +88,26 @@ public final class LabStateSnapshot {
         return !inGame && ("CHAR_SELECT".equals(menuScreen) || charSelectOpen) && !fading;
     }
 
+    /** True once STS has initialized a current dungeon room. */
+    public boolean isRunReady() {
+        // MainMenuScreen retains CHAR_SELECT/fade fields after embark. The current-room phase is
+        // the authoritative boundary: it is absent until AbstractDungeon has a usable room.
+        return inGame && !roomPhase.isEmpty();
+    }
+
+    /** True while STS exposes a player but has not initialized a current dungeon room. */
+    public boolean isEmbarkTransition() {
+        return inGame
+                && !isRunReady()
+                && (fading || charSelectOpen || "CHAR_SELECT".equals(menuScreen));
+    }
+
     public Map<String, Object> toMap() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("mode", mode);
         m.put("menuScreen", menuScreen);
         m.put("inGame", Boolean.valueOf(inGame));
+        m.put("runReady", Boolean.valueOf(isRunReady()));
         m.put("inCombat", Boolean.valueOf(inCombat));
         m.put("fading", Boolean.valueOf(fading));
         m.put("hasResume", Boolean.valueOf(hasResume));

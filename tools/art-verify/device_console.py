@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 from probe_parse import last_probe_from_text, parse_probe_line
 
 DEFAULT_STS_LATEST_LOG = "/sdcard/Android/data/io.stamethyst/files/sts/latest.log"
+DEFAULT_STS_PROBE_SIDECAR = "/sdcard/Android/data/io.stamethyst/files/sts/art_probe_latest.log"
 PROBE_MARKER = "ART_PROBE"
 
 
@@ -60,6 +61,24 @@ def connect_console(serial: Optional[str] = None) -> Tuple[Any, Any]:
     stream = conn.connect_stream(port=port)
     client = AgentClient(stream=stream)
 
+    def reconnect() -> None:
+        nonlocal conn, stream
+        try:
+            client.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        conn = ConnectorClient(auto_start=False)
+        conn.connect()
+        conn.select(ser)
+        stream = conn.connect_stream(port=port)
+        client._stream = stream
+
+    client._art_reconnect = reconnect
+
     def close() -> None:
         try:
             client.close()
@@ -85,10 +104,23 @@ def console_exec(client: Any, command: str, *, retries: int = 3) -> Dict[str, An
                 err = result.get("error")
                 if err and not result.get("executed", False):
                     last_err = str(err)
+                    if "unexpected response:" in last_err and not getattr(client, "_art_reconnected", False):
+                        reconnect = getattr(client, "_art_reconnect", None)
+                        if reconnect is not None:
+                            reconnect()
+                            client._art_reconnected = True
+                            continue
                 else:
+                    client._art_reconnected = False
                     return result
         except Exception as e:
             last_err = f"{type(e).__name__}: {e}"
+            if isinstance(e, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, EOFError)):
+                reconnect = getattr(client, "_art_reconnect", None)
+                if reconnect is not None and not getattr(client, "_art_reconnected", False):
+                    reconnect()
+                    client._art_reconnected = True
+                    continue
         if attempt + 1 < retries:
             import time
 
@@ -127,6 +159,35 @@ def scrape_probe_log(
     return last_probe_from_text(text)
 
 
+def scrape_probe_sidecar(serial: Optional[str] = None) -> Optional[Any]:
+    if not _env("STS_CONNECTOR_PORT"):
+        return None
+    root = str(amethyst_root())
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    try:
+        from scripts.tools.connector.client import ConnectorClient
+
+        conn = ConnectorClient(auto_start=False)
+        conn.connect()
+        conn.select(serial or serial_d1())
+        resp = conn.shell(f"cat '{DEFAULT_STS_PROBE_SIDECAR}' 2>/dev/null || true", timeout_ms=10000)
+        conn.close()
+    except Exception:
+        return None
+    text = ""
+    if isinstance(resp, dict):
+        text = str(resp.get("stdout") or resp.get("output") or "")
+    parsed = parse_probe_line(text) if text else None
+    if parsed is None and text:
+        parsed = last_probe_from_text(text)
+    if isinstance(parsed, dict):
+        lab = parsed.get("lab")
+        if isinstance(lab, dict) and lab.get("message") == "host not ready":
+            return None
+    return parsed
+
+
 def probe_after_console(
     client: Any,
     *,
@@ -141,6 +202,9 @@ def probe_after_console(
         parsed = last_probe_from_text(text)
     if parsed is not None:
         return parsed
+    sidecar = scrape_probe_sidecar(serial)
+    if sidecar is not None:
+        return sidecar
     # Always scrape log: game-probe often returns only "ok"
     scraped = scrape_probe_log(serial)
     if scraped is not None:

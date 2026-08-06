@@ -15,6 +15,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -140,6 +142,54 @@ public class RenderHostTest {
         assertEquals(1, ArtFramework.render().effectsOf("c1:w").size());
         WidgetSessions.close("w");
         ArtFramework.render().detachWidgetSession("w");
+    }
+
+    @Test
+    public void bindingCountIsSafeDuringConcurrentTargetUpdates() throws Exception {
+        final RenderHost host = new RenderHost();
+        final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
+        final CountDownLatch start = new CountDownLatch(1);
+        Thread writer =
+                new Thread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    start.await();
+                                    for (int i = 0; i < 500; i++) {
+                                        String id = "concurrent-" + (i % 8);
+                                        host.ensureTarget(id, RenderTargetKind.OVERLAY);
+                                        host.bindEffect(id, TintEffect.ID, null);
+                                        host.clearEffects(id);
+                                    }
+                                } catch (Throwable t) {
+                                    failure.compareAndSet(null, t);
+                                }
+                            }
+                        });
+        Thread reader =
+                new Thread(
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    start.await();
+                                    for (int i = 0; i < 500; i++) {
+                                        host.bindingCount();
+                                        host.needsCapture();
+                                        host.probeMap();
+                                    }
+                                } catch (Throwable t) {
+                                    failure.compareAndSet(null, t);
+                                }
+                            }
+                        });
+        writer.start();
+        reader.start();
+        start.countDown();
+        writer.join();
+        reader.join();
+        assertTrue(failure.get() == null);
     }
 
     private static void assertNullTarget(String id) {

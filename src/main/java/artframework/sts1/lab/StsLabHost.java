@@ -104,6 +104,7 @@ public final class StsLabHost implements LabHost {
                 @Override
                 public void run() {
                     try {
+                        setGameMode("CHAR_SELECT");
                         charSelect.getClass().getMethod("open", boolean.class).invoke(charSelect, Boolean.FALSE);
                     } catch (Throwable ignored) {
                     }
@@ -145,6 +146,7 @@ public final class StsLabHost implements LabHost {
                 @Override
                 public void run() {
                     try {
+                        setGameMode("CHAR_SELECT");
                         Class<?> input =
                                 Class.forName("com.megacrit.cardcrawl.helpers.input.InputHelper");
                         Object cx = StsLabState.field(hb.getClass(), hb, "cX");
@@ -183,7 +185,7 @@ public final class StsLabHost implements LabHost {
             }
             Object disabled = StsLabState.field(confirm.getClass(), confirm, "isDisabled");
             if (Boolean.TRUE.equals(disabled)) {
-                return UiOpResult.unavailable("embark disabled");
+                setBoolean(confirm, "isDisabled", false);
             }
             final Object hb = StsLabState.field(confirm.getClass(), confirm, "hb");
             if (hb == null) {
@@ -193,6 +195,7 @@ public final class StsLabHost implements LabHost {
                 @Override
                 public void run() {
                     try {
+                        setGameMode("CHAR_SELECT");
                         setBoolean(hb, "clicked", true);
                     } catch (Throwable ignored) {
                     }
@@ -237,6 +240,12 @@ public final class StsLabHost implements LabHost {
         } catch (Throwable t) {
             return unavailable(t);
         }
+    }
+
+    @Override
+    public UiOpResult enterEvent(String eventId) {
+        return LabNavigationSignals.dispatch(
+                LabNavigationIntent.of(LabIntentNames.ENTER_EVENT_ROOM, eventId));
     }
 
     @Override
@@ -302,36 +311,18 @@ public final class StsLabHost implements LabHost {
                 }
                 return UiOpResult.unavailable("not in run");
             }
-            // Best-effort: open settings via TopPanel then rely on follow-up ticks / menu abandon.
-            try {
-                Class<?> dungeon = Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon");
-                Object top = StsLabState.field(dungeon, null, "topPanel");
-                if (top != null) {
-                    Object settingsHb = StsLabState.field(top.getClass(), top, "settingsHb");
-                    if (settingsHb == null) {
-                        Object btn = StsLabState.field(top.getClass(), top, "settingsButton");
-                        if (btn != null) {
-                            settingsHb = StsLabState.field(btn.getClass(), btn, "hb");
-                        }
-                    }
-                    if (settingsHb != null) {
-                        final Object hb = settingsHb;
-                        post(new Runnable() {
-                            @Override
-                            public void run() {
-                                try {
-                                    setBoolean(hb, "clicked", true);
-                                } catch (Throwable ignored) {
-                                }
-                            }
-                        });
-                        return UiOpResult.ok("settings click scheduled (abandon follow-up)");
+            post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame")
+                                .getMethod("startOver")
+                                .invoke(null);
+                    } catch (Throwable ignored) {
                     }
                 }
-            } catch (Throwable ignored) {
-            }
-            // Fallback: delete saves and hope next menu load is clean (does not exit run alone).
-            return UiOpResult.unavailable("abandon path unavailable; use ensure-menu after death or settings");
+            });
+            return UiOpResult.ok("start-over scheduled");
         } catch (Throwable t) {
             return unavailable(t);
         }
@@ -571,6 +562,14 @@ public final class StsLabHost implements LabHost {
                 c = c.getSuperclass();
             }
         }
+    }
+
+    private static void setGameMode(String modeName) throws Exception {
+        Class<?> game = Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame");
+        Class<?> mode = Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame$GameMode");
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        Object value = Enum.valueOf((Class) mode, modeName);
+        game.getField("mode").set(null, value);
     }
 
     private static java.lang.reflect.Field findField(Class<?> type, String name) {

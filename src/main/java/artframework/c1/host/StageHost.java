@@ -46,6 +46,8 @@ public final class StageHost
     private Stage stage;
     private Skin skin;
     private boolean ready;
+    private int probeSidecarTicks;
+    private boolean probeSidecarWarned;
     private final Map<String, Actor> actors = new LinkedHashMap<String, Actor>();
     private InputProcessor previousInput;
     private boolean inputCaptured;
@@ -70,6 +72,8 @@ public final class StageHost
             instance.releaseInput();
             instance.actors.clear();
             instance.ready = false;
+            artframework.sts1.StsRuntimeReady.setReady(false);
+            artframework.sts1.StsRuntimeReady.setStarted(false);
             instance.stage = null;
             instance.skin = null;
         }
@@ -82,6 +86,7 @@ public final class StageHost
             skin = StsSkin.create(Themes.getDefault());
             stage = new Stage(new ScreenViewport());
             ready = true;
+            artframework.sts1.StsRuntimeReady.setReady(true);
             SyntheticRuntime.installStageBackend(this);
             int shaders = 0;
             try {
@@ -93,6 +98,7 @@ public final class StageHost
                     "ArtFramework StageHost ready (StsSkin + Stage; shadersCompiled=" + shaders + ")");
         } catch (RuntimeException e) {
             ready = false;
+            artframework.sts1.StsRuntimeReady.setReady(false);
             BaseMod.logger.error("ArtFramework StageHost init failed", e);
         }
     }
@@ -123,6 +129,7 @@ public final class StageHost
             artframework.sts1.lab.LabRecipeRunner.tick();
         } catch (Throwable ignored) {
         }
+        writeProbeSidecarOnInterval();
         RenderHosts.get().tick(dt);
         try {
             ArtFramework.tick(dt);
@@ -144,11 +151,32 @@ public final class StageHost
         syncActorPropsFromTree();
     }
 
+    private void writeProbeSidecarOnInterval() {
+        probeSidecarTicks++;
+        if (probeSidecarTicks < 30) {
+            return;
+        }
+        probeSidecarTicks = 0;
+        try {
+            Gdx.files.local("art_probe_latest.log")
+                    .writeString(ArtFramework.probe().toJsonLine() + "\n", false, "UTF-8");
+        } catch (Throwable t) {
+            if (!probeSidecarWarned) {
+                probeSidecarWarned = true;
+                try {
+                    BaseMod.logger.warn("ArtFramework probe sidecar skipped: " + t.getMessage());
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+    }
+
     @Override
     public void receivePostRender(SpriteBatch sb) {
         if (!ready) {
             return;
         }
+        writeProbeSidecarOnInterval();
         boolean hasStage = stage != null && !actors.isEmpty();
         boolean hasFx = RenderHosts.get().bindingCount() > 0 || RenderHosts.get().targetCount() > 0;
         boolean hasPresentDraw = !artframework.sts1.render.Sts1RenderPipeline.plan().drawOrder().isEmpty();

@@ -16,6 +16,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Track-agnostic render attach surface. Pure bookkeeping + effect dispatch;
@@ -29,8 +31,11 @@ public final class RenderHost {
     private final ShaderRegistry shaders = new ShaderRegistry();
     private final ShaderRuntime shaderRuntime = new ShaderRuntime();
     private final FrameCapture frameCapture = new FrameCapture();
-    private final Map<String, RenderTarget> targets = new LinkedHashMap<String, RenderTarget>();
-    private final Map<String, List<EffectBinding>> bindings = new LinkedHashMap<String, List<EffectBinding>>();
+    // Console/profile changes may update effects while BaseMod's post-render callback reads them.
+    // Draw order is derived by z below, so insertion ordering is not a render contract here.
+    private final Map<String, RenderTarget> targets = new ConcurrentHashMap<String, RenderTarget>();
+    private final Map<String, List<EffectBinding>> bindings =
+            new ConcurrentHashMap<String, List<EffectBinding>>();
     private HostRenderBackend hostBackend = DirectHostRenderBackend.INSTANCE;
     private boolean fullFrameEnabled;
     private boolean captureEnabled;
@@ -225,7 +230,7 @@ public final class RenderHost {
         if (t == null) {
             t = new RenderTarget(id, kind);
             targets.put(id, t);
-            bindings.put(id, new ArrayList<EffectBinding>());
+            bindings.put(id, new CopyOnWriteArrayList<EffectBinding>());
         } else if (t.kind != kind) {
             throw new IllegalArgumentException(
                     "target kind mismatch for " + id + ": " + t.kind + " vs " + kind);

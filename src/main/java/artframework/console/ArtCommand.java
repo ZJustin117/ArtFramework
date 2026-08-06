@@ -38,6 +38,7 @@ public class ArtCommand extends ConsoleCommand {
         }
         if ("probe".equals(sub)) {
             String line = ArtFramework.probe().toJsonLine();
+            writeLocalProbe(line);
             DevConsole.log(line);
             BaseMod.logger.info(line);
             return;
@@ -111,6 +112,13 @@ public class ArtCommand extends ConsoleCommand {
             return;
         }
         errorMsg();
+    }
+
+    private static void writeLocalProbe(String line) {
+        try {
+            com.badlogic.gdx.Gdx.files.local("art_probe_latest.log").writeString(line + "\n", false, "UTF-8");
+        } catch (Throwable ignored) {
+        }
     }
 
     private void cmdProfile(String[] tokens, int depth) {
@@ -409,6 +417,8 @@ public class ArtCommand extends ConsoleCommand {
             r = StsLabNav.returnMenu();
         } else if ("proceed".equals(action)) {
             r = StsLabNav.proceed();
+        } else if ("enter-event".equals(action) || "enter_event".equals(action)) {
+            r = StsLabNav.enterEvent(tokens.length > depth + 1 ? tokens[depth + 1] : "");
         } else if ("ensure-menu".equals(action) || "ensure_menu".equals(action)) {
             // Async: advanced each postUpdate so hitbox clicks can apply.
             r = StsLabNav.armEnsureMenu();
@@ -550,7 +560,9 @@ public class ArtCommand extends ConsoleCommand {
                     ArtFramework.component(artframework.context.SurfaceIds.EVENT);
             if (event != null) {
                 if (level.allowsFullPresent() || level.allowsObserve()) {
-                    event.action("mount_event");
+                    if (!event.isMounted()) {
+                        event.mount();
+                    }
                 } else if (event.isMounted()) {
                     event.unmount();
                 }
@@ -1196,14 +1208,15 @@ public class ArtCommand extends ConsoleCommand {
         } else if ("map".equals(kind)) {
             if (tokens.length >= depth + 2 && "first".equalsIgnoreCase(tokens[depth + 1])) {
                 artframework.context.IntentResult ir =
-                        artframework.sts1.input.Sts1MapIntentBridge.clickFirstPresentable();
+                        artframework.sts1.input.Sts1MapIntentBridge.clickFirstPresentable(
+                                tokens.length > depth + 2 ? tokens[depth + 2] : "");
                 if (ir == null || ir.status == artframework.context.IntentResult.Status.REJECTED) {
                     r = UiOpResult.unavailable(ir != null ? ir.message : "map first failed");
                 } else {
                     r = UiOpResult.ok(ir.message);
                 }
             } else if (tokens.length < depth + 3) {
-                DevConsole.log("Usage: art op map <row> <col> [roomType] | art op map first");
+                DevConsole.log("Usage: art op map <row> <col> [roomType] | art op map first [roomType]");
                 return;
             } else {
                 int row = parseInt(tokens[depth + 1], 0);

@@ -14,6 +14,7 @@ public final class FakeLabHost implements LabHost {
     private int clearCount;
     private boolean failChar;
     private boolean failAbandon;
+    private boolean stickyDirtyMenu;
 
     public FakeLabHost(LabStateSnapshot initial) {
         this.state = initial != null ? initial : LabStateSnapshot.builder().mode("CHAR_SELECT").menuScreen("MAIN_MENU").hasPlay(true).build();
@@ -41,6 +42,11 @@ public final class FakeLabHost implements LabHost {
         return this;
     }
 
+    public FakeLabHost stickyDirtyMenu(boolean v) {
+        stickyDirtyMenu = v;
+        return this;
+    }
+
     public int clearCount() {
         return clearCount;
     }
@@ -54,6 +60,9 @@ public final class FakeLabHost implements LabHost {
     public UiOpResult clearSaves() {
         actions.add("clear-saves");
         clearCount++;
+        if (stickyDirtyMenu) {
+            return UiOpResult.ok("cleared");
+        }
         state =
                 LabStateSnapshot.builder()
                         .mode(state.mode)
@@ -70,6 +79,9 @@ public final class FakeLabHost implements LabHost {
     @Override
     public UiOpResult stripResumeButtons() {
         actions.add("strip-resume");
+        if (stickyDirtyMenu) {
+            return UiOpResult.ok("stripped");
+        }
         List<String> buttons = new ArrayList<String>();
         buttons.add("PLAY");
         for (String b : state.buttons) {
@@ -93,7 +105,7 @@ public final class FakeLabHost implements LabHost {
     @Override
     public UiOpResult openCharSelect() {
         actions.add("open-char-select");
-        if (state.inGame) {
+        if (state.inGame && !state.charSelectOpen) {
             return UiOpResult.unavailable("in game");
         }
         state =
@@ -292,6 +304,16 @@ public final class FakeLabHost implements LabHost {
                         .selectedCharacter(state.selectedCharacter)
                         .build();
         return UiOpResult.ok("proceed");
+    }
+
+    @Override
+    public UiOpResult enterEvent(String eventId) {
+        actions.add("event:" + eventId);
+        if (!state.inGame) {
+            return UiOpResult.unavailable("not in game");
+        }
+        return LabNavigationSignals.dispatch(
+                LabNavigationIntent.of(LabIntentNames.ENTER_EVENT_ROOM, eventId));
     }
 
     @Override

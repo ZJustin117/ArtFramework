@@ -1,5 +1,4 @@
-# Device: FULL combat request safely falls back while start-run has not reached combat.
-# A later combat-room scenario validates the FULL_READY branch.
+# Device: start-run reaches combat; FULL request owns the ready hand surface.
 name: d1_full_present_combat_on
 schemaVersion: 1
 mode: device
@@ -10,10 +9,19 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
-  - console: "art lab ensure-fresh-menu"
-  - wait_ms: 8000
   - console: "art lab start-run IRONCLAD"
-  - wait_ms: 25000
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
   - console: "art present combat on"
   - wait_ms: 1000
   - console: "art frame"
@@ -38,13 +46,13 @@ steps:
       eq: true
   - assert:
       path: backend.fullPresent.maySuppressNativeHand
-      eq: false
+      eq: true
   - assert:
       path: backend.input.handOwnsInput
-      eq: false
+      eq: true
   - assert:
       path: backend.input.handState
-      eq: "FULL_FALLBACK_NATIVE"
+      eq: "FULL_READY"
   - assert:
       path: backend.renderPlan
       exists: true

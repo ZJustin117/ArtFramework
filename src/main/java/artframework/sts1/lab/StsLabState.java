@@ -242,6 +242,21 @@ public final class StsLabState {
         return "";
     }
 
+    static void setField(Class<?> type, Object target, String name, Object value) throws Exception {
+        Class<?> c = type;
+        while (c != null) {
+            try {
+                java.lang.reflect.Field f = c.getDeclaredField(name);
+                f.setAccessible(true);
+                f.set(target, value);
+                return;
+            } catch (NoSuchFieldException e) {
+                c = c.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(name);
+    }
+
     static Object field(Class<?> type, Object instance, String name) throws Exception {
         Class<?> c = type;
         while (c != null) {

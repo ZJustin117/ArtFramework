@@ -9,10 +9,20 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
-  - console: "art lab ensure-fresh-menu"
-  - wait_ms: 8000
   - console: "art lab start-run IRONCLAD"
-  - wait_ms: 25000
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  # Player assignment can precede the completed embark fade; only continue from a live dungeon.
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
   # Leave Neow/event so first-floor map nodes become selectable (room COMPLETE).
   - console: "art lab proceed"
   - wait_ms: 3000
@@ -20,15 +30,24 @@ steps:
   - wait_ms: 3000
   # STS MapRoomNode first-pick requires currRoom.phase == COMPLETE.
   - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  # A pending lab room transition is not a legal target for ART's map bridge.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
   - wait_ms: 500
   - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # Mount first: StageHost publishes native frames while a present surface is active.
+  - console: "art present map on"
   - wait_probe:
-      timeout_ms: 15000
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.available
+        eq: true
+  - wait_probe:
+      timeout_ms: 20000
       interval_ms: 500
       assert:
         path: projection.scene
         eq: map
-  - console: "art present map on"
   - wait_probe:
       timeout_ms: 10000
       interval_ms: 500
@@ -47,7 +66,7 @@ steps:
   # Pick leftmost presentable floor-0 node (skips offscreen column placeholders).
   - console: "art op map first"
   - wait_probe:
-      timeout_ms: 20000
+      timeout_ms: 30000
       interval_ms: 500
       assert:
         path: projection.scene

@@ -182,7 +182,18 @@ def _run_step(
             else:
                 from device_console import probe_after_console
 
-                probe = probe_after_console(client)
+                try:
+                    probe = probe_after_console(client)
+                except Exception as e:
+                    last_error = f"probe unavailable: {type(e).__name__}: {e}"
+                    if time.monotonic() >= deadline:
+                        rec["status"] = "fail"
+                        rec["error"] = f"wait_probe timeout after {timeout_ms}ms: {last_error}"
+                        rec["attempts"] = attempts
+                        return rec
+                    if mode == "device":
+                        time.sleep(max(0, interval_ms) / 1000.0)
+                    continue
             try:
                 run_assert(probe, spec["assert"], vars=vars_map)
                 rec["probe"] = probe

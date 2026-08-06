@@ -9,15 +9,39 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
-  - console: "art lab ensure-fresh-menu"
-  - wait_ms: 8000
   - console: "art lab start-run IRONCLAD"
-  - wait_ms: 20000
-  # Stay on Neow/event before proceed clears it.
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  # Player assignment can precede the completed embark fade; only continue from a live dungeon.
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Finish Neow first; otherwise its transient grid-select screen can survive the forced map open.
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  # Observe first so StageHost publishes backend frames without suppressing native event UI.
+  - console: "art present event observe"
+  # Enter a real STS event via native map navigation; lab must not directly set projection state.
+  - console: "art lab enter-event"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: event
   - console: "art present event on"
   - wait_probe:
-      timeout_ms: 20000
-      interval_ms: 1000
+      timeout_ms: 30000
+      interval_ms: 500
       assert:
         path: backend.input.eventState
         eq: FULL_READY

@@ -137,4 +137,11 @@ public class CombatInputRouterTest {
         IntentResult r = CombatInputRouter.playCard(new CardRef("h1", "Strike_R"), "m1");
         assertTrue(r.isAccepted());
     }
+
+    @Test
+    public void eventSurfaceRequiresEventProjectionScene() {
+        assertFalse(CombatInputRouter.sceneReadyFor(SurfaceIds.EVENT, "", true));
+        assertFalse(CombatInputRouter.sceneReadyFor(SurfaceIds.EVENT, "map", true));
+        assertTrue(CombatInputRouter.sceneReadyFor(SurfaceIds.EVENT, "event", true));
+    }
 }

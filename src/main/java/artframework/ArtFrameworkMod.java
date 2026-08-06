@@ -26,6 +26,7 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
     }
 
     public ArtFrameworkMod() {
+        artframework.sts1.StsRuntimeReady.setStarted(true);
         BaseMod.subscribe(this);
         StageHost.install();
         try {
@@ -42,6 +43,7 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
     public void receivePostInitialize() {
         ArtFramework.setNativeOpsBackend(StsNativeOps.INSTANCE);
         Sts1PresentationBackend.INSTANCE.installSignals();
+        artframework.sts1.lab.StsLabNativeNavigator.install();
         try {
             artframework.sts1.assets.Sts1HostAssets.install();
         } catch (Throwable t) {

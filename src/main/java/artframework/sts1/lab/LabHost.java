@@ -33,6 +33,9 @@ public interface LabHost {
 
     UiOpResult proceed();
 
+    /** Enter one validated vanilla event without invoking the native event console command. */
+    UiOpResult enterEvent(String eventId);
+
     /**
      * Yield so scheduled GL/input work can apply before the next recipe tick.
      * Fake hosts no-op; STS host sleeps briefly.

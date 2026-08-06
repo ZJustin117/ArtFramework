@@ -33,6 +33,12 @@ public final class UiProbe {
         root.put("schemaVersion", Integer.valueOf(SCHEMA_VERSION));
         root.put("modId", MOD_ID);
         root.put("windows", windowsMap());
+        if (artframework.sts1.StsRuntimeReady.hasStarted()
+                && !artframework.sts1.StsRuntimeReady.isReady()) {
+            root.put("lab", labMap());
+            root.put("host", hostMap());
+            return root;
+        }
         root.put("templates", templatesMap());
         root.put("map", mapMap());
         root.put("endTurn", endTurnMap());
@@ -52,6 +58,7 @@ public final class UiProbe {
         root.put("present", artframework.context.PresentSurfaces.probeAll());
         root.put("projection", ArtFramework.projection().probeSlice());
         root.put("backend", backendMap());
+        root.put("lab", labMap());
         root.put("assets", ArtFramework.assets().probeAssets());
         root.put("host", hostMap());
         return root;
@@ -82,6 +89,7 @@ public final class UiProbe {
         m.put("input", artframework.sts1.input.CombatInputRouter.probeSlice());
         m.put("controlsDraw", artframework.sts1.render.ControlsDrawPath.probeSlice());
         m.put("mapDraw", artframework.sts1.render.MapDrawPath.probeSlice());
+        m.put("mapIntent", artframework.sts1.input.Sts1MapIntentBridge.probeSlice());
         m.put("eventDraw", artframework.sts1.render.EventDrawPath.probeSlice());
         m.put("selectDraw", artframework.sts1.render.SelectDrawPath.probeSlice());
         m.put("rewardDraw", artframework.sts1.render.RewardDrawPath.probeSlice());
@@ -105,6 +113,20 @@ public final class UiProbe {
         out.put("ready", Boolean.valueOf(host.isReady()));
         out.put("capabilities", new ArrayList<String>(host.capabilities().values()));
         return out;
+    }
+
+    private static Map<String, Object> labMap() {
+        // `art probe` is callable while CardCrawlGame is constructing its card library. Avoid
+        // loading AbstractDungeon reflectively until STS has completed post-initialize.
+        if (!artframework.sts1.StsRuntimeReady.isReady()) {
+            return artframework.sts1.lab.LabStateSnapshot.builder()
+                    .message("host not ready")
+                    .build()
+                    .toMap();
+        }
+        Map<String, Object> m = artframework.sts1.lab.StsLabNav.dump().toMap();
+        m.put("recipe", artframework.sts1.lab.LabRecipeRunner.statusMap());
+        return m;
     }
 
     /** Single log/console line: prefix + compact JSON. */

@@ -889,17 +889,26 @@ public final class Sts1PresentationBackend implements SignalBackend {
     }
 
     private static String scene() {
+        // The map screen can be opened during a room transition while player/dungeon guards are
+        // temporarily unset. It is still a valid present surface and mapFrame() does not require
+        // the player instance, so detect it before the transient player guard.
+        if (AbstractDungeon.screen != null && "MAP".equals(AbstractDungeon.screen.name())) {
+            return "map";
+        }
+        AbstractRoom room = safeCurrRoom();
+        // Deterministic lab transitions can establish a valid event room before STS's coarse
+        // player-in-dungeon guard reflects the new room. Prefer the live room over stale combat.
+        if (room != null && room.event != null
+                && room.phase != AbstractRoom.RoomPhase.COMBAT) {
+            return "event";
+        }
         if (!AbstractDungeon.isPlayerInDungeon() || AbstractDungeon.player == null) {
             return "";
         }
-        AbstractRoom room = safeCurrRoom();
         if (room != null
                 && room.phase == AbstractRoom.RoomPhase.COMBAT
                 && !room.isBattleOver) {
             return "combat";
-        }
-        if (AbstractDungeon.screen != null && "MAP".equals(AbstractDungeon.screen.name())) {
-            return "map";
         }
         try {
             if (AbstractDungeon.gridSelectScreen != null
@@ -944,11 +953,6 @@ public final class Sts1PresentationBackend implements SignalBackend {
             }
         } catch (Throwable ignored) {
         }
-        // Event room with live event (e.g. Neow) before map/combat.
-        if (room != null && room.event != null
-                && room.phase != AbstractRoom.RoomPhase.COMBAT) {
-            return "event";
-        }
         return "";
     }
 
@@ -978,6 +982,25 @@ public final class Sts1PresentationBackend implements SignalBackend {
     }
 
     private static String roomKind(MapRoomNode node) {
+        if (node.room instanceof com.megacrit.cardcrawl.rooms.EventRoom) {
+            return "event";
+        }
+        if (node.room instanceof com.megacrit.cardcrawl.rooms.MonsterRoom) {
+            return "monster";
+        }
+        if (node.room instanceof com.megacrit.cardcrawl.rooms.MonsterRoomElite) {
+            return "elite";
+        }
+        if (node.room instanceof com.megacrit.cardcrawl.rooms.RestRoom) {
+            return "rest";
+        }
+        if (node.room instanceof com.megacrit.cardcrawl.rooms.ShopRoom) {
+            return "shop";
+        }
+        if (node.room instanceof com.megacrit.cardcrawl.rooms.TreasureRoom
+                || node.room instanceof com.megacrit.cardcrawl.rooms.TreasureRoomBoss) {
+            return "treasure";
+        }
         String symbol = node.getRoomSymbol(Boolean.FALSE);
         if ("M".equals(symbol)) {
             return "monster";
@@ -997,7 +1020,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
         if ("B".equals(symbol)) {
             return "boss";
         }
-        return "event";
+        return "unknown";
     }
 
     private static String identity(AbstractCard card) {

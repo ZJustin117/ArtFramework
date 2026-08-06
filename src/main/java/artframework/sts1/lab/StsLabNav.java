@@ -24,6 +24,7 @@ public final class StsLabNav {
         host = StsLabHost.INSTANCE;
         recipes = new StsLabRecipes(host);
         LabRecipeRunner.resetForTests();
+        StsLabNativeNavigator.resetForTests();
     }
 
     public static LabHost host() {
@@ -82,6 +83,10 @@ public final class StsLabNav {
         return host.proceed();
     }
 
+    public static UiOpResult enterEvent(String eventId) {
+        return host.enterEvent(eventId);
+    }
+
     /**
      * Synchronous recipe (FakeLabHost / unit tests). On device prefer {@link #armEnsureMenu()} so
      * the game thread is not blocked.
@@ -104,14 +109,14 @@ public final class StsLabNav {
 
     /** Arm async ensure-menu (advanced each {@link LabRecipeRunner#tick}). */
     public static UiOpResult armEnsureMenu() {
-        return LabRecipeRunner.armEnsureMenu(StsLabRecipes.DEFAULT_BUDGET);
+        return LabRecipeRunner.armEnsureMenu(StsLabRecipes.ASYNC_DEFAULT_BUDGET);
     }
 
     public static UiOpResult armEnsureFreshMenu() {
-        return LabRecipeRunner.armEnsureFresh(StsLabRecipes.DEFAULT_BUDGET);
+        return LabRecipeRunner.armEnsureFresh(StsLabRecipes.ASYNC_DEFAULT_BUDGET);
     }
 
     public static UiOpResult armStartRun(String characterId, String seed) {
-        return LabRecipeRunner.armStartRun(characterId, seed, StsLabRecipes.DEFAULT_BUDGET);
+        return LabRecipeRunner.armStartRun(characterId, seed, StsLabRecipes.ASYNC_DEFAULT_BUDGET);
     }
 }

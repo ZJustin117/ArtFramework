@@ -27,6 +27,14 @@ public interface SkeletonCommandProvider extends SkeletonProvider {
 
     BoneTransform boneTransform(SkeletonHandle handle, String boneName);
 
+    /** Optional host pose update; providers without a mutable pose may ignore it. */
+    default void setPose(SkeletonHandle handle, float x, float y, float rotation,
+            float scaleX, float scaleY, boolean flipX, boolean flipY) {}
+
+    /** Optional provider tint update. Values are normalized RGBA. */
+    default void setVisual(SkeletonHandle handle, boolean visible, float red, float green,
+            float blue, float alpha) {}
+
     /** Host render hook. The batch is intentionally opaque to keep core Spine-free. */
     default void render(SkeletonHandle handle, Object batch) {
         // Providers without a renderer remain data-only.

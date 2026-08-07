@@ -201,6 +201,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                         com.megacrit.cardcrawl.core.Settings.HEIGHT,
                         com.megacrit.cardcrawl.core.Settings.WIDTH,
                         com.megacrit.cardcrawl.core.Settings.HEIGHT);
+        publishSkeletonFrame();
         return ContextFrame.ofFull(
                 frameId,
                 sceneEpoch,
@@ -217,6 +218,13 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 readTopPanelView(),
                 readIntentsView(),
                 viewport);
+    }
+
+    private void publishSkeletonFrame() {
+        try {
+            artframework.sts1.skeleton.Sts1CreatureSkeletonSnapshots.publish(frameId);
+        } catch (Throwable ignored) {
+        }
     }
 
     private ContextFrame mapFrame() {

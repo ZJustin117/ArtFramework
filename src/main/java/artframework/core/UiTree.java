@@ -3,6 +3,8 @@ package artframework.core;
 import artframework.component.UiNode;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
+import artframework.component.ArtNodeTypes;
+import artframework.skeleton.SkeletonNodeBinding;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -257,6 +259,20 @@ public final class UiTree {
         world.put(entity, NodeHierarchyComponent.class,
                 new NodeHierarchyComponent(parentEntity, null));
         world.put(entity, NodeLifecycleComponent.class, new NodeLifecycleComponent(false));
+        if (ArtNodeTypes.SKELETON.equals(inst.type())) {
+            Object entityKey = inst.prop("entity");
+            if (entityKey == null) entityKey = inst.prop("entity_key");
+            if (entityKey != null && !String.valueOf(entityKey).trim().isEmpty()) {
+                world.put(entity, SkeletonNodeBindingComponent.class,
+                        new SkeletonNodeBindingComponent(new SkeletonNodeBinding(
+                                String.valueOf(entityKey),
+                                stringProp(inst, "anchor", ""),
+                                floatProp(inst, "offset_x", 0f),
+                                floatProp(inst, "offset_y", 0f),
+                                floatProp(inst, "local_scale", 1f),
+                                booleanProp(inst, "owner", false) || booleanProp(inst, "node_owned", false))));
+            }
+        }
         if (!inst.id().isEmpty()) {
             if (byId.containsKey(inst.id())) {
                 throw new IllegalArgumentException("duplicate id: " + inst.id());
@@ -321,5 +337,24 @@ public final class UiTree {
             }
         }
         return null;
+    }
+
+    private static String stringProp(UiInstance instance, String key, String fallback) {
+        Object value = instance.prop(key);
+        return value == null ? fallback : String.valueOf(value);
+    }
+
+    private static float floatProp(UiInstance instance, String key, float fallback) {
+        Object value = instance.prop(key);
+        if (value instanceof Number) return ((Number) value).floatValue();
+        if (value != null) {
+            try { return Float.parseFloat(String.valueOf(value)); } catch (NumberFormatException ignored) { }
+        }
+        return fallback;
+    }
+
+    private static boolean booleanProp(UiInstance instance, String key, boolean fallback) {
+        Object value = instance.prop(key);
+        return value == null ? fallback : Boolean.parseBoolean(String.valueOf(value));
     }
 }

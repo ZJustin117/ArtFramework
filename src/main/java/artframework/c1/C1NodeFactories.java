@@ -72,6 +72,17 @@ public final class C1NodeFactories {
                 || ArtNodeTypes.ANIMATION_PLAYER.equals(type)
                 || ArtNodeTypes.SHADER_EFFECT.equals(type)
                 || ArtNodeTypes.SKELETON.equals(type)
-                || ArtNodeTypes.PRESENT_PROFILE.equals(type);
+                || ArtNodeTypes.PRESENT_PROFILE.equals(type)
+                || ArtNodeTypes.STS_BUTTON.equals(type)
+                || ArtNodeTypes.STS_PANEL.equals(type)
+                || ArtNodeTypes.STS_CARD.equals(type)
+                || ArtNodeTypes.STS_ENERGY_ORB.equals(type)
+                || ArtNodeTypes.STS_INTENT.equals(type)
+                || ArtNodeTypes.STS_TOP_PANEL.equals(type)
+                || ArtNodeTypes.STS_MAP.equals(type)
+                || ArtNodeTypes.STS_MAP_NODE.equals(type)
+                || ArtNodeTypes.STS_EVENT_OPTION.equals(type)
+                || ArtNodeTypes.STS_REWARD_ITEM.equals(type)
+                || ArtNodeTypes.STS_ROOM_ACTION.equals(type);
     }
 }

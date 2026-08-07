@@ -43,11 +43,29 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_BUTTON_DEFAULT, "images/ui/topPanel/buttonBlue.png");
         put(m, ResourceIds.UI_PANEL_DEFAULT, "images/ui/reward/rewardList.png");
         put(m, ResourceIds.UI_WINDOW_DEFAULT, "images/ui/tip.png");
+        put(m, ResourceIds.UI_BUTTON_END_TURN, "images/ui/topPanel/endTurnButton.png");
+        // Historical C2 draw paths resolve this key; retain it while public nodes use button.end_turn.
         put(m, ResourceIds.UI_PREFIX + "endturn", "images/ui/topPanel/endTurnButton.png");
-        put(m, ResourceIds.UI_PREFIX + "energy_red", "images/ui/topPanel/red/energy.png");
-        put(m, ResourceIds.UI_PREFIX + "energy_green", "images/ui/topPanel/green/energy.png");
-        put(m, ResourceIds.UI_PREFIX + "energy_blue", "images/ui/topPanel/blue/energy.png");
-        put(m, ResourceIds.UI_PREFIX + "energy_purple", "images/ui/topPanel/purple/energy.png");
+        put(m, ResourceIds.UI_BUTTON_END_TURN_HOVER, "images/ui/topPanel/endTurnHover.png");
+        put(m, ResourceIds.energyOrb("red"), "images/ui/topPanel/red/layer1.png");
+        put(m, ResourceIds.energyOrb("green"), "images/ui/topPanel/green/layer1.png");
+        put(m, ResourceIds.energyOrb("blue"), "images/ui/topPanel/blue/layer1.png");
+        put(m, ResourceIds.energyOrb("purple"), "images/ui/topPanel/purple/l1.png");
+        put(m, ResourceIds.UI_EVENT_BUTTON_ENABLED, "images/ui/event/enabledButton.png");
+        put(m, ResourceIds.UI_EVENT_BUTTON_DISABLED, "images/ui/event/disabledButton.png");
+        put(m, ResourceIds.UI_EVENT_PANEL, "images/ui/event/panel.png");
+        put(m, ResourceIds.UI_REWARD_PANEL, "images/ui/reward/rewardList.png");
+        put(m, ResourceIds.UI_REWARD_CARD, "images/ui/reward/normalCardReward.png");
+        put(m, ResourceIds.UI_CAMPFIRE_OUTLINE, "images/ui/campfire/outline.png");
+        put(m, ResourceIds.UI_CAMPFIRE_SLEEP, "images/ui/campfire/sleep.png");
+        put(m, ResourceIds.UI_CAMPFIRE_SMITH, "images/ui/campfire/smith.png");
+        put(m, ResourceIds.UI_COMBAT_BLOCK, "images/ui/combat/block.png");
+        put(m, ResourceIds.UI_COMBAT_INTENT_UNKNOWN, "images/ui/combat/reticleBlock.png");
+        put(m, ResourceIds.UI_REWARD_TAKE_ALL, "images/ui/reward/takeAll.png");
+        put(m, ResourceIds.UI_REWARD_ITEM_PANEL, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_MAP_SELECT, "images/ui/map/selectBox.png");
+        put(m, ResourceIds.UI_TOP_PANEL_BAR, "images/ui/topPanel/bar.png");
+        put(m, ResourceIds.UI_TOP_PANEL_GOLD, "images/ui/topPanel/gold.png");
     }
 
     private static void putCardFrames(Map<String, String> m) {
@@ -69,6 +87,12 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.MAP_NODE_EVENT, "images/ui/map/event.png");
         put(m, ResourceIds.MAP_NODE_BOSS, "images/ui/map/boss.png");
         put(m, ResourceIds.MAP_BG_PREFIX + "act1", "images/ui/map/mapBg.png");
+        put(m, ResourceIds.mapOutline("monster"), "images/ui/map/monsterOutline.png");
+        put(m, ResourceIds.mapOutline("elite"), "images/ui/map/eliteOutline.png");
+        put(m, ResourceIds.mapOutline("rest"), "images/ui/map/restOutline.png");
+        put(m, ResourceIds.mapOutline("shop"), "images/ui/map/shopOutline.png");
+        put(m, ResourceIds.mapOutline("treasure"), "images/ui/map/chestOutline.png");
+        put(m, ResourceIds.mapOutline("event"), "images/ui/map/eventOutline.png");
     }
 
     private static void putCommonCardArt(Map<String, String> m) {

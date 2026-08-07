@@ -13,10 +13,35 @@ public final class ResourceIds {
     public static final String CHAR_PREFIX = "char.";
     public static final String AUDIO_SFX_PREFIX = "audio.sfx.";
     public static final String AUDIO_BGM_PREFIX = "audio.bgm.";
+    public static final String UI_EVENT_PREFIX = "ui.event.";
+    public static final String UI_REWARD_PREFIX = "ui.reward.";
+    public static final String UI_CAMPFIRE_PREFIX = "ui.campfire.";
+    public static final String UI_COMBAT_PREFIX = "ui.combat.";
+    public static final String UI_INTENT_PREFIX = "ui.intent.";
+    public static final String CARD_BANNER_PREFIX = "card.banner.";
+    public static final String CARD_ORB_PREFIX = "card.orb.";
 
     public static final String UI_BUTTON_DEFAULT = "ui.button.default";
     public static final String UI_PANEL_DEFAULT = "ui.panel.default";
     public static final String UI_WINDOW_DEFAULT = "ui.window.default";
+    public static final String UI_BUTTON_END_TURN = "ui.button.end_turn";
+    public static final String UI_BUTTON_END_TURN_HOVER = "ui.button.end_turn.hover";
+    public static final String UI_EVENT_BUTTON_ENABLED = "ui.event.button.enabled";
+    public static final String UI_EVENT_BUTTON_DISABLED = "ui.event.button.disabled";
+    public static final String UI_EVENT_PANEL = "ui.event.panel";
+    public static final String UI_REWARD_PANEL = "ui.reward.panel";
+    public static final String UI_REWARD_CARD = "ui.reward.card";
+    public static final String UI_CAMPFIRE_OUTLINE = "ui.campfire.outline";
+    public static final String UI_CAMPFIRE_SLEEP = "ui.campfire.sleep";
+    public static final String UI_CAMPFIRE_SMITH = "ui.campfire.smith";
+    public static final String UI_COMBAT_BLOCK = "ui.combat.block";
+    public static final String UI_COMBAT_INTENT_UNKNOWN = "ui.intent.unknown";
+    public static final String UI_REWARD_TAKE_ALL = "ui.reward.take_all";
+    public static final String UI_REWARD_ITEM_PANEL = "ui.reward.item_panel";
+    public static final String UI_MAP_SELECT = "ui.map.select";
+    public static final String UI_MAP_OUTLINE_PREFIX = "ui.map.outline.";
+    public static final String UI_TOP_PANEL_BAR = "ui.top_panel.bar";
+    public static final String UI_TOP_PANEL_GOLD = "ui.top_panel.gold";
     public static final String CARD_FRAME_RED = "card.frame.red";
     public static final String CARD_FRAME_GREEN = "card.frame.green";
     public static final String CARD_FRAME_BLUE = "card.frame.blue";
@@ -38,6 +63,26 @@ public final class ResourceIds {
 
     public static String cardFrame(String color) {
         return CARD_FRAME_PREFIX + (color != null ? color : "colorless");
+    }
+
+    public static String cardBanner(String color) {
+        return CARD_BANNER_PREFIX + (color != null ? color : "colorless");
+    }
+
+    public static String cardOrb(String color) {
+        return CARD_ORB_PREFIX + (color != null ? color : "colorless");
+    }
+
+    public static String energyOrb(String color) {
+        return UI_PREFIX + "energy." + (color != null ? color : "red");
+    }
+
+    public static String intent(String id) {
+        return UI_INTENT_PREFIX + (id != null ? id : "unknown");
+    }
+
+    public static String mapOutline(String kind) {
+        return UI_MAP_OUTLINE_PREFIX + (kind != null ? kind : "monster");
     }
 
     public static String mapNode(String kind) {

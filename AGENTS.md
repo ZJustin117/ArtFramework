@@ -50,7 +50,7 @@
 - Default gate: `./scripts/with-art-env.sh test` (or `./gradlew test` with `-PstsJar` / `-PbaseModJar` / `-PmodTheSpireJar`).
 - UI tooling offline: `cd tools/art-verify && python3 -m unittest discover -s tests -v`.
 - Java 8 bytecode; JUnit 4. **No device harness required** for ArtFramework unit work.
-- OpenCode plugin [`.opencode/plugins/local-env.ts`](.opencode/plugins/local-env.ts) loads allowlisted `.env.local` keys into shell env and test-agent context. Restart opencode after changing agents/plugins.
+- OpenCode plugin [`.opencode/plugins/local-env.ts`](.opencode/plugins/local-env.ts) loads allowlisted `.env.local` keys into shell env and test-agent context. In new secondary Git worktrees, it creates a relative `.env.local` link to the primary worktree when no local file exists. Restart opencode after changing agents/plugins.
 
 ## OpenCode subagents
 

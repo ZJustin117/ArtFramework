@@ -93,3 +93,10 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 
 - Prefer prefixes: `feat:`, `fix:`, `perf:`, `chores:`.
 - Do not commit secrets, `build/`, `node_modules/`, or `.env.local`.
+- OpenCode task worktrees are isolated delivery branches. Make task changes, commits, and integration only from the task worktree; never switch, reset, or otherwise modify another worktree, including the local `main` worktree.
+- When a task changes tracked files, complete the applicable verification before delivery. ART pure API, registry, or runtime changes require the default `@junit-test` gate. Do not commit, push, or merge after a failed test, compile failure, unresolved conflict, or incomplete required verification.
+- Before committing, inspect `git status`, `git diff --check`, and the staged diff. Stage only task-owned changes; if pre-existing changes cannot be distinguished from task changes, stop and report rather than committing them. Never bypass hooks.
+- After verification, create one focused, non-empty commit using the repository prefix convention, then `git fetch origin` and merge the current `origin/main` into the task branch. If the merge conflicts, stop and report; do not resolve conflicts automatically.
+- Run the applicable verification again after merging `origin/main`. Only after it passes, integrate directly by fast-forward push from the task worktree: `git push origin HEAD:refs/heads/main`. This leaves other local worktrees untouched.
+- Never use `--force`, `--force-with-lease`, history rewrites, or protected-branch bypasses. If the direct push is rejected for non-fast-forward updates, missing permission, branch protection, hooks, or CI policy, stop and report the result. Do not create a PR or retry against a changed remote without an explicit user request.
+- After a successful push, report the resulting commit and note that other local worktrees may need to synchronize themselves. Do not pull or alter them automatically.

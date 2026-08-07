@@ -140,10 +140,27 @@ public class ArtCommand extends ConsoleCommand {
 
     private void cmdSkeleton(String[] tokens, int depth) {
         if (tokens.length <= depth) {
-            DevConsole.log("Usage: art skeleton dev status|load <id> <atlasEntry> <skeletonEntry>|play <id> <animation>|bone <id> <bone>|stop <id>");
+            DevConsole.log("Usage: art skeleton dev status|load ... or art skeleton sts1 load <id> <atlas> <json>");
             return;
         }
         String scope = tokens[depth].toLowerCase();
+        if ("sts1".equals(scope)) {
+            if (tokens.length >= depth + 4 && "load".equalsIgnoreCase(tokens[depth + 1])) {
+                artframework.sts1.skeleton.Sts1SkeletonBridge.sts1Load(
+                        tokens[depth + 2], tokens[depth + 3], tokens[depth + 4]);
+                logSkeletonDev("ART_SKELETON_STS1 loaded " + tokens[depth + 2]);
+            } else if (tokens.length >= depth + 3 && "play".equalsIgnoreCase(tokens[depth + 1])) {
+                boolean ok = artframework.sts1.skeleton.Sts1SkeletonBridge.setAnimation(
+                        tokens[depth + 2], tokens[depth + 3], false);
+                logSkeletonDev("ART_SKELETON_STS1 play " + ok);
+            } else if (tokens.length >= depth + 3 && "stop".equalsIgnoreCase(tokens[depth + 1])) {
+                artframework.sts1.skeleton.Sts1SkeletonBridge.stop(tokens[depth + 2]);
+                logSkeletonDev("ART_SKELETON_STS1 stopped " + tokens[depth + 2]);
+            } else {
+                logSkeletonDev("Usage: art skeleton sts1 load <id> <atlas> <json>|play <id> <animation>|stop <id>");
+            }
+            return;
+        }
         if (!"dev".equals(scope)) {
             DevConsole.log("Usage: art skeleton dev status|load|play|bone|stop");
             return;

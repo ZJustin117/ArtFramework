@@ -109,6 +109,12 @@ public final class StageHost
             return;
         }
         float dt = Gdx.graphics != null ? Gdx.graphics.getDeltaTime() : 0f;
+        try {
+            artframework.sts1.skeleton.Sts1SkeletonBridge.tick(dt);
+        } catch (Throwable t) {
+            try { BaseMod.logger.warn("ArtFramework skeleton tick skipped: " + t.getMessage()); }
+            catch (Throwable ignored) { }
+        }
         // The STS1 backend is observational until an individual full-present surface is enabled.
         // Snapshot after native update so ART sees a coherent authority frame for this render pass.
         // Native STS remains the owner until a C2 surface is mounted or lab observation is

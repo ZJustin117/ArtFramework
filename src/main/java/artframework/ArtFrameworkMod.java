@@ -43,6 +43,12 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
     public void receivePostInitialize() {
         ArtFramework.setNativeOpsBackend(StsNativeOps.INSTANCE);
         Sts1PresentationBackend.INSTANCE.installSignals();
+        try {
+            ArtFramework.skeletons().register(new artframework.sts1.skeleton.Sts1Spine34Provider());
+            artframework.sts1.skeleton.Sts1SkeletonBridge.installPresentationSignals();
+        } catch (Throwable t) {
+            BaseMod.logger.warn("ArtFramework: Spine34 provider skipped: " + t.getMessage());
+        }
         artframework.sts1.lab.StsLabNativeNavigator.install();
         try {
             artframework.sts1.assets.Sts1HostAssets.install();

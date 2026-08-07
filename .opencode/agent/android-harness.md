@@ -22,6 +22,11 @@ SlayTheAmethyst single-device D1 lab through the existing `sts-harness` CLI.
 You never edit source, build or push jars, run JUnit, run `art-verify`, use
 Arthas, or perform out-of-repo multiplayer scenarios.
 
+OpenCode acquires the shared D1 test lock before your first device command and
+releases it when this session becomes idle, is deleted, or OpenCode exits.
+Keep a complete start/use/cleanup flow in this session; never bypass the lock
+or delegate part of a device operation to an untracked shell.
+
 ## Scope
 
 Supported work:

@@ -19,6 +19,10 @@ permission:
 
 You are the ArtFramework **UI-verify** subagent. You run `tools/art-verify` (offline fixture YAML and unit tests; optional device later). You never edit source.
 
+OpenCode acquires the shared D1 test lock for `--device` runs before the device
+command starts and releases it when this session becomes idle, is deleted, or
+OpenCode exits. Offline fixture and unittest work does not take the lock.
+
 **Not your job:** pure API semantic gate (`@junit-test`); jar push (`@android-deploy-jar`); out-of-repo dual-device life / protocol probes.
 
 ## Context

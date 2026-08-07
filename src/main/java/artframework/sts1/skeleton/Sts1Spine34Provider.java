@@ -16,6 +16,7 @@ import com.esotericsoftware.spine.SkeletonJson;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.lang.reflect.InvocationTargetException;
 
 /**
  * Provider for STS1's host-bundled Spine 3.4 runtime.
@@ -25,6 +26,11 @@ public final class Sts1Spine34Provider implements SkeletonCommandProvider {
     public static final String ID = "spine34";
 
     private final Map<String, Instance> live = new LinkedHashMap<String, Instance>();
+    // Keep the provider constructible in pure JUnit where the host's libGDX runtime is absent.
+    private Object renderer;
+    private Object meshBatch;
+    private volatile boolean rendererAvailable = true;
+    private volatile String lastRenderError = "";
 
     @Override
     public String id() {
@@ -157,6 +163,94 @@ public final class Sts1Spine34Provider implements SkeletonCommandProvider {
             return null;
         }
         return new BoneTransform(bone.getWorldX(), bone.getWorldY(), bone.getWorldRotationX(), bone.getWorldScaleX(), bone.getWorldScaleY());
+    }
+
+    @Override
+    public void setPose(SkeletonHandle handle, float x, float y, float rotation,
+            float scaleX, float scaleY, boolean flipX, boolean flipY) {
+        Instance i = instance(handle);
+        if (i == null) return;
+        i.skeleton.setPosition(x, y);
+        i.skeleton.setFlip(flipX, flipY);
+        i.skeleton.getRootBone().setRotation(rotation);
+        i.skeleton.getRootBone().setScale(scaleX, scaleY);
+        i.skeleton.updateWorldTransform();
+    }
+
+    @Override
+    public void setVisual(SkeletonHandle handle, boolean visible, float red, float green,
+            float blue, float alpha) {
+        Instance i = instance(handle);
+        if (i != null) i.skeleton.setColor(new Color(red, green, blue, visible ? alpha : 0f));
+    }
+
+    @Override
+    public void render(SkeletonHandle handle, Object batch) {
+        Instance i = instance(handle);
+        if (i == null || i.skeleton.getColor().a <= 0f || batch == null) {
+            return;
+        }
+        try {
+            if (renderer == null) {
+                renderer = Class.forName("com.esotericsoftware.spine.SkeletonMeshRenderer")
+                        .getConstructor().newInstance();
+            }
+            Class<?> polygonBatchType = Class.forName("com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch");
+            if (meshBatch == null) meshBatch = polygonBatchType.getConstructor().newInstance();
+            // ART is called with SpriteBatch, while STS1's mesh renderer requires PolygonSpriteBatch.
+            // Copy the active projection so both batches address the same world coordinates.
+            Object projection = batch.getClass().getMethod("getProjectionMatrix").invoke(batch);
+            Class<?> matrixType = Class.forName("com.badlogic.gdx.math.Matrix4");
+            polygonBatchType.getMethod("setProjectionMatrix", matrixType).invoke(meshBatch, projection);
+            polygonBatchType.getMethod("begin").invoke(meshBatch);
+            try {
+                renderer.getClass().getMethod("draw", polygonBatchType, Skeleton.class)
+                        .invoke(renderer, meshBatch, i.skeleton);
+            } finally {
+                polygonBatchType.getMethod("end").invoke(meshBatch);
+            }
+            rendererAvailable = true;
+            lastRenderError = "";
+        } catch (Throwable t) {
+            Throwable root = t;
+            if (t instanceof InvocationTargetException
+                    && ((InvocationTargetException) t).getCause() != null) {
+                root = ((InvocationTargetException) t).getCause();
+            }
+            rendererAvailable = false;
+            lastRenderError = root.getClass().getSimpleName() + ": " + root.getMessage();
+        }
+    }
+
+    public boolean rendererAvailable() { return rendererAvailable; }
+    public String lastRenderError() { return lastRenderError; }
+
+    /** Draw inside STS1's already-active PolygonSpriteBatch native creature render slot. */
+    public boolean renderAtNativeSlot(SkeletonHandle handle, Object batch) {
+        Instance i = instance(handle);
+        if (i == null || i.skeleton.getColor().a <= 0f || batch == null) return false;
+        try {
+            if (renderer == null) {
+                renderer = Class.forName("com.esotericsoftware.spine.SkeletonMeshRenderer")
+                        .getConstructor().newInstance();
+            }
+            Class<?> polygonBatchType = Class.forName("com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch");
+            if (!polygonBatchType.isInstance(batch)) return false;
+            renderer.getClass().getMethod("draw", polygonBatchType, Skeleton.class)
+                    .invoke(renderer, batch, i.skeleton);
+            rendererAvailable = true;
+            lastRenderError = "";
+            return true;
+        } catch (Throwable t) {
+            Throwable root = t;
+            if (t instanceof InvocationTargetException
+                    && ((InvocationTargetException) t).getCause() != null) {
+                root = ((InvocationTargetException) t).getCause();
+            }
+            rendererAvailable = false;
+            lastRenderError = root.getClass().getSimpleName() + ": " + root.getMessage();
+            return false;
+        }
     }
 
     private Instance instance(SkeletonHandle handle) {

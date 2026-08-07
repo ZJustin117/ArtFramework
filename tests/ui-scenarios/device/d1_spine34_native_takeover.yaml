@@ -1,0 +1,41 @@
+# D1: ART mirrors a real STS1 creature in its native PolygonSpriteBatch draw slot.
+name: d1_spine34_native_takeover
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab start-run IRONCLAD"
+  - wait_ms: 25000
+  - console: "art present skeleton on"
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: projection.scene
+        eq: combat
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.nativeCreatureCount
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.nativeClaimedCount
+        gte: 1
+  - assert:
+      path: backend.skeleton.spine34RendererAvailable
+      eq: true
+  - assert:
+      path: backend.skeleton.spine34LastRenderError
+      eq: ""

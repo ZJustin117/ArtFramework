@@ -102,6 +102,20 @@ public final class FakeSkeletonProvider implements SkeletonCommandProvider {
     }
 
     @Override
+    public void setPose(SkeletonHandle handle, float x, float y, float rotation,
+            float scaleX, float scaleY, boolean flipX, boolean flipY) {
+        FakeState s = state(handle);
+        if (s != null) {
+            s.x = x; s.y = y; s.rotation = rotation;
+            s.scaleX = scaleX; s.scaleY = scaleY;
+            s.flipX = flipX; s.flipY = flipY;
+        }
+    }
+
+    public float x(String id) { return states.get(id).x; }
+    public float y(String id) { return states.get(id).y; }
+
+    @Override
     public float animationEnd(SkeletonHandle handle, int trackId) {
         FakeState s = state(handle);
         return s != null ? s.animationEnd : 0f;
@@ -168,6 +182,8 @@ public final class FakeSkeletonProvider implements SkeletonCommandProvider {
         private float animationEnd = 2f;
         private boolean updated;
         private boolean applied;
+        private float x, y, rotation, scaleX = 1f, scaleY = 1f;
+        private boolean flipX, flipY;
 
         @SuppressWarnings("unchecked")
         private FakeState(Map<String, Object> params) {

@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+wait_seconds="${ART_DEVICE_LOCK_TIMEOUT_SECONDS:-600}"
+ttl="20m"
+label="D1 debug transaction"
+
+usage() {
+  printf 'Usage: %s [--wait SECONDS] [--ttl DURATION] [--label TEXT] -- COMMAND [ARG...]\n' "$0" >&2
+}
+
+while (($#)); do
+  case "$1" in
+    --wait)
+      wait_seconds="${2:?missing value for --wait}"
+      shift 2
+      ;;
+    --ttl)
+      ttl="${2:?missing value for --ttl}"
+      shift 2
+      ;;
+    --label)
+      label="${2:?missing value for --label}"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if (($# == 0)); then
+  usage
+  exit 2
+fi
+if [[ ! "$wait_seconds" =~ ^[0-9]+$ ]]; then
+  printf 'with-d1-lock: --wait must be a non-negative number of seconds\n' >&2
+  exit 2
+fi
+if [[ ! "$ttl" =~ ^([0-9]+)([smhd]?)$ ]] || [[ "${BASH_REMATCH[1]}" == "0" ]]; then
+  printf 'with-d1-lock: --ttl must be a positive whole duration using s, m, h, or d\n' >&2
+  exit 2
+fi
+
+ttl_value="${BASH_REMATCH[1]}"
+ttl_unit="${BASH_REMATCH[2]:-s}"
+case "$ttl_unit" in
+  s) ttl_seconds="$ttl_value" ;;
+  m) ttl_seconds=$((ttl_value * 60)) ;;
+  h) ttl_seconds=$((ttl_value * 60 * 60)) ;;
+  d) ttl_seconds=$((ttl_value * 60 * 60 * 24)) ;;
+esac
+
+serial="${ART_D1_SERIAL:-}"
+if [[ -z "$serial" && -f .env.local ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" == ART_D1_SERIAL=* ]] || continue
+    serial="${line#ART_D1_SERIAL=}"
+    serial="${serial#\"}"
+    serial="${serial%\"}"
+    serial="${serial#\'}"
+    serial="${serial%\'}"
+    break
+  done < .env.local
+fi
+if [[ -z "$serial" ]]; then
+  printf 'with-d1-lock: missing environment key ART_D1_SERIAL\n' >&2
+  exit 2
+fi
+
+digest="$(printf %s "$serial" | sha256sum | cut -c1-24)"
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+lock_dir="$runtime_dir/artframework-device-locks"
+mkdir -p -m 700 "$lock_dir"
+lock_path="$lock_dir/d1-$digest.lock"
+info_path="$lock_path.info"
+
+printf 'with-d1-lock: waiting for D1 (%s, TTL %s)\n' "$label" "$ttl" >&2
+exec 9>"$lock_path"
+if ! flock -w "$wait_seconds" 9; then
+  if [[ -r "$info_path" ]]; then
+    printf 'with-d1-lock: D1 is held by:\n' >&2
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      printf '  %s\n' "$line" >&2
+    done < "$info_path"
+  fi
+  exit 1
+fi
+
+started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+deadline_at="$(date -u -d "+$ttl_seconds seconds" +%Y-%m-%dT%H:%M:%SZ)"
+umask 077
+{
+  printf 'pid=%s\n' "$$"
+  printf 'label=%s\n' "$label"
+  printf 'started_at=%s\n' "$started_at"
+  printf 'deadline_at=%s\n' "$deadline_at"
+} > "$info_path"
+
+cleanup() {
+  rm -f "$info_path"
+}
+trap cleanup EXIT
+
+timeout --preserve-status --signal=TERM --kill-after=10s "$ttl" "$@"

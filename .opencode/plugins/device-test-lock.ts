@@ -64,7 +64,11 @@ function timeoutMilliseconds(): number {
 function requiresDeviceLock(tool: string, args: unknown): boolean {
   if (tool !== "bash") return false
   const command = (args as { command?: unknown })?.command
-  return typeof command === "string" && DEVICE_COMMAND_PATTERNS.some((pattern) => pattern.test(command))
+  if (typeof command !== "string") return false
+  // The wrapper owns a lease for its child command. Taking a second flock here
+  // would make a wrapped art-lab/adb command wait on its own transaction.
+  if (/(?:^|\s)(?:\.\/)?scripts\/with-d1-lock(?:\s|$)/.test(command)) return false
+  return DEVICE_COMMAND_PATTERNS.some((pattern) => pattern.test(command))
 }
 
 async function acquire(serial: string): Promise<LockHolder> {
@@ -108,17 +112,26 @@ async function release(holder: LockHolder | undefined): Promise<void> {
   holder.released = true
   holder.child.stdin.end()
   await new Promise<void>((resolve) => {
-    holder.child.once("exit", () => resolve())
-    setTimeout(resolve, 1000).unref()
+    let forceTimer: ReturnType<typeof setTimeout> | undefined
+    const done = () => {
+      if (forceTimer) clearTimeout(forceTimer)
+      resolve()
+    }
+    holder.child.once("exit", done)
+    setTimeout(() => {
+      holder.child.kill("SIGTERM")
+      forceTimer = setTimeout(done, 1000)
+      forceTimer.unref()
+    }, 1000).unref()
   })
 }
 
 export default async ({ directory }: { directory: string }) => {
   const holders = new Map<string, Promise<LockHolder>>()
 
-  async function releaseSession(sessionID: string): Promise<void> {
-    const pending = holders.get(sessionID)
-    holders.delete(sessionID)
+  async function releaseCall(callID: string): Promise<void> {
+    const pending = holders.get(callID)
+    holders.delete(callID)
     if (!pending) return
     try {
       await release(await pending)
@@ -129,7 +142,7 @@ export default async ({ directory }: { directory: string }) => {
 
   return {
     "tool.execute.before": async (
-      input: { tool: string; sessionID: string },
+      input: { tool: string; sessionID: string; callID: string },
       output: { args: unknown },
     ) => {
       if (!requiresDeviceLock(input.tool, output.args)) return
@@ -137,22 +150,22 @@ export default async ({ directory }: { directory: string }) => {
       if (!serial) {
         throw new Error("device test lock: missing environment key ART_D1_SERIAL")
       }
-      if (!holders.has(input.sessionID)) {
-        holders.set(input.sessionID, acquire(serial))
+      if (!holders.has(input.callID)) {
+        const pending = acquire(serial)
+        holders.set(input.callID, pending)
+        // A failed acquisition must not poison retries in this session.
+        pending.catch(() => {
+          if (holders.get(input.callID) === pending) holders.delete(input.callID)
+        })
       }
-      const holder = await holders.get(input.sessionID)!
-      console.error(`device test lock: session ${input.sessionID} holds D1 ${holder.serialDigest}`)
+      const holder = await holders.get(input.callID)!
+      console.error(`device test lock: call ${input.callID} holds D1 ${holder.serialDigest}`)
     },
-    event: async ({ event }: { event: { type: string; properties: { sessionID?: string; info?: { id?: string } } } }) => {
-      if (event.type === "session.idle") {
-        await releaseSession(event.properties.sessionID || "")
-      }
-      if (event.type === "session.deleted") {
-        await releaseSession(event.properties.info?.id || "")
-      }
+    "tool.execute.after": async (input: { callID: string }) => {
+      await releaseCall(input.callID)
     },
     dispose: async () => {
-      await Promise.all([...holders.keys()].map(releaseSession))
+      await Promise.all([...holders.keys()].map(releaseCall))
     },
   }
 }

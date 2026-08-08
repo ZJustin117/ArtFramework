@@ -86,7 +86,7 @@ The lock key is derived from `ART_D1_SERIAL` without putting the serial in the
 lock filename. Device work from an ordinary terminal is outside OpenCode's
 control, so do not run it concurrently with an OpenCode device session. Set
 `ART_DEVICE_LOCK_TIMEOUT_SECONDS` to a non-negative number of seconds to
-override the default ten-minute wait; `0` fails immediately when D1 is busy.
+override the default 30-second wait; `0` fails immediately when D1 is busy.
 
 For a multi-command debugging transaction, run one wrapper command rather
 than retaining a lock for the entire OpenCode session:

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { mkdirSync, readFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync } from "node:fs"
 import { spawn } from "node:child_process"
 
 const DEVICE_COMMAND_PATTERNS = [
@@ -56,9 +56,26 @@ function lockPath(serial: string): string {
 
 function timeoutMilliseconds(): number {
   const value = process.env.ART_DEVICE_LOCK_TIMEOUT_SECONDS?.trim()
-  if (!value) return 10 * 60 * 1000
-  if (!/^\d+$/.test(value)) return 10 * 60 * 1000
+  if (!value) return 30 * 1000
+  if (!/^\d+$/.test(value)) return 30 * 1000
   return Number(value) * 1000
+}
+
+function lockFailure(path: string, timeout: number, code: number | null, stderr: string): Error {
+  let holder = ""
+  const infoPath = `${path}.info`
+  if (existsSync(infoPath)) {
+    try {
+      holder = readFileSync(infoPath, "utf8").trim()
+    } catch {
+      holder = "unreadable"
+    }
+  }
+  const reason = stderr.trim() || (code === null ? "lock wait timed out" : `flock exited ${code}`)
+  const details = holder ? ` holder=${holder.replace(/\s+/g, " ")}` : " holder=unknown"
+  return new Error(
+    `D1 device lock unavailable after ${timeout / 1000}s: ${reason}; lock=${path};${details}`,
+  )
 }
 
 function requiresDeviceLock(tool: string, args: unknown): boolean {
@@ -81,7 +98,7 @@ async function acquire(serial: string): Promise<LockHolder> {
     let stderr = ""
     const timer = setTimeout(() => {
       child.kill("SIGTERM")
-      reject(new Error(`timed out waiting for D1 device lock after ${timeout / 1000}s`))
+      reject(lockFailure(path, timeout, null, ""))
     }, timeout + 1000)
     child.stdout.once("data", (chunk) => {
       clearTimeout(timer)
@@ -96,7 +113,7 @@ async function acquire(serial: string): Promise<LockHolder> {
     })
     child.once("exit", (code) => {
       clearTimeout(timer)
-      if (code !== 0) reject(new Error(stderr.trim() || `D1 device lock unavailable (flock exited ${code})`))
+      if (code !== 0) reject(lockFailure(path, timeout, code, stderr))
     })
   })
   if (!acquired) throw new Error("D1 device lock unavailable")

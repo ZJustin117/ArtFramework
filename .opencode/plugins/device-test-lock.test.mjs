@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { spawn } from "node:child_process"
@@ -49,6 +49,10 @@ function start(command, args, env) {
   })
 }
 
+async function loadPlugin() {
+  return (await import("./device-test-lock.ts")).default
+}
+
 async function waitForFile(path) {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
@@ -77,6 +81,34 @@ try {
   holder.stdin.end()
   await new Promise((resolve) => holder.once("exit", resolve))
   assert.equal(await tryLock(first), 0, "closing the owner releases the lock")
+
+  const pluginFactory = await loadPlugin()
+  const plugin = await pluginFactory({ directory: runtime })
+  const blocked = await holdLock(first)
+  await writeFile(`${first}.info`, "label=blocked verification\npid=1234\n")
+  const previousSerial = process.env.ART_D1_SERIAL
+  const previousTimeout = process.env.ART_DEVICE_LOCK_TIMEOUT_SECONDS
+  process.env.ART_D1_SERIAL = "test-device-a"
+  process.env.ART_DEVICE_LOCK_TIMEOUT_SECONDS = "0"
+  try {
+    await assert.rejects(
+      plugin["tool.execute.before"](
+        { tool: "bash", sessionID: "ses_test", callID: "call_blocked" },
+        { args: { command: "python3 tools/art-verify/run.py demo.yaml --device" } },
+      ),
+      /D1 device lock unavailable after 0s:.*lock=.*holder=label=blocked verification pid=1234/,
+      "a busy device must fail immediately with holder diagnostics",
+    )
+  } finally {
+    if (previousSerial === undefined) delete process.env.ART_D1_SERIAL
+    else process.env.ART_D1_SERIAL = previousSerial
+    if (previousTimeout === undefined) delete process.env.ART_DEVICE_LOCK_TIMEOUT_SECONDS
+    else process.env.ART_DEVICE_LOCK_TIMEOUT_SECONDS = previousTimeout
+    blocked.stdin.end()
+    await new Promise((resolve) => blocked.once("exit", resolve))
+    await rm(`${first}.info`, { force: true })
+    await plugin.dispose()
+  }
 
   const leaseEnv = { ...process.env, ART_D1_SERIAL: "test-device-a", XDG_RUNTIME_DIR: runtime }
   const active = await start(wrapper.pathname, ["--ttl", "10s", "--label", "metadata check", "--", "sh", "-c", "sleep 2"], leaseEnv)

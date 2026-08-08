@@ -86,6 +86,7 @@ def run_scenario(
     vars_map: Dict[str, Any] = {}
     client = None
     close_fn = None
+    device_lock = None
 
     if mode == "fixture":
         try:
@@ -97,12 +98,18 @@ def run_scenario(
             return result
     else:
         try:
+            from device_console import serial_d1
+            from device_lock import D1Lock
             from device_console import connect_console
 
+            device_lock = D1Lock(serial_d1())
+            device_lock.__enter__()
             client, close_fn = connect_console()
         except Exception as e:
+            if device_lock is not None:
+                device_lock.__exit__()
             result["status"] = "fail"
-            result["error"] = f"device console connect: {type(e).__name__}: {e}"
+            result["error"] = f"device setup: {type(e).__name__}: {e}"
             _write_result(result, out_dir)
             return result
 
@@ -140,6 +147,8 @@ def run_scenario(
                 close_fn()
             except Exception:
                 pass
+        if device_lock is not None:
+            device_lock.__exit__()
 
     _write_result(result, out_dir)
     return result

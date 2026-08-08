@@ -107,4 +107,4 @@ cleanup() {
 }
 trap cleanup EXIT
 
-timeout --preserve-status --signal=TERM --kill-after=10s "$ttl" "$@"
+ART_D1_LOCK_HELD=1 timeout --preserve-status --signal=TERM --kill-after=10s "$ttl" "$@"

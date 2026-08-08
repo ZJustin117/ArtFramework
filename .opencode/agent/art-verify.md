@@ -57,7 +57,8 @@ Device (only if parent asks and lab ready — connector + game READY + ArtFramew
 
 ```bash
 set -a && source .env.local && set +a
-python3 tools/art-verify/run.py tests/ui-scenarios/device/ --device
+./scripts/with-d1-lock --label "art-verify device" -- \
+  python3 tools/art-verify/run.py tests/ui-scenarios/device/ --device
 ```
 
 If jar not pushed / game not cold-started after deploy, **stop** and ask parent for `@android-deploy-jar` + lab bring-up (`android-device-lab.md`).

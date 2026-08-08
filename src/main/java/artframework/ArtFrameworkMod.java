@@ -76,6 +76,8 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
         ArtFramework.register(
                 new WindowDef("grid_tabs_demo", WindowClass.SYNTHETIC, "layouts/grid_tabs_sample.json"));
         ArtFramework.register(
+                new WindowDef("sts1_vanilla_demo", WindowClass.SYNTHETIC, "layouts/sts1_vanilla_demo.json"));
+        ArtFramework.register(
                 new WindowDef(
                         "lightwave_components_demo",
                         WindowClass.SYNTHETIC,

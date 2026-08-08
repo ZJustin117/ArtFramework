@@ -252,7 +252,7 @@ public final class UiOps {
         if (h == null || !h.isOpen() || h.windowClass() != WindowClass.SYNTHETIC) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        if (!controlExists(windowId, buttonId, UiTypes.BUTTON)) {
+        if (!pressableControlExists(windowId, buttonId)) {
             return UiOpResult.unavailable("button not in layout: " + buttonId);
         }
         if (!allowSignal(windowId, buttonId, SignalNames.PRESSED)) {
@@ -548,6 +548,14 @@ public final class UiOps {
             return root != null && hasButton(root, controlId);
         }
         return false;
+    }
+
+    private static boolean pressableControlExists(String windowId, String controlId) {
+        WidgetSession session = WidgetSessions.get(windowId);
+        if (session != null) {
+            return session.isPressable(controlId);
+        }
+        return controlExists(windowId, controlId, UiTypes.BUTTON);
     }
 
     private static SelectTemplate selectTemplate(SelectKind kind) {

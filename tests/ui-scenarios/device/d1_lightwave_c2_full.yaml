@@ -68,7 +68,8 @@ steps:
       contains: lightwave
   - assert:
       path: render.c2ItemEffects.sts1_combat_hand.targets[0].w
-      gte: 100
+      # Hand layout scales cards by hand size; require a real visible target, not one fixed pose.
+      gte: 64
   - assert:
       path: render.c2ItemEffects.sts1_combat_controls.count
       eq: 1

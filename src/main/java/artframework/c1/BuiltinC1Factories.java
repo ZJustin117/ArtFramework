@@ -36,6 +36,17 @@ final class BuiltinC1Factories {
         reg.register(delegate(ArtNodeTypes.SHADER_EFFECT));
         reg.register(delegate(ArtNodeTypes.SKELETON));
         reg.register(delegate(ArtNodeTypes.PRESENT_PROFILE));
+        reg.register(delegateSts(ArtNodeTypes.STS_BUTTON));
+        reg.register(delegateSts(ArtNodeTypes.STS_PANEL));
+        reg.register(delegateSts(ArtNodeTypes.STS_CARD));
+        reg.register(delegateSts(ArtNodeTypes.STS_ENERGY_ORB));
+        reg.register(delegateSts(ArtNodeTypes.STS_INTENT));
+        reg.register(delegateSts(ArtNodeTypes.STS_TOP_PANEL));
+        reg.register(delegateSts(ArtNodeTypes.STS_MAP));
+        reg.register(delegateSts(ArtNodeTypes.STS_MAP_NODE));
+        reg.register(delegateSts(ArtNodeTypes.STS_EVENT_OPTION));
+        reg.register(delegateSts(ArtNodeTypes.STS_REWARD_ITEM));
+        reg.register(delegateSts(ArtNodeTypes.STS_ROOM_ACTION));
     }
 
     private static C1NodeFactory delegate(final String type) {
@@ -48,6 +59,28 @@ final class BuiltinC1Factories {
             @Override
             public Actor create(UiNode node, C1NodeContext context) {
                 return ComponentActors.inflateBuiltin(node, context);
+            }
+        };
+    }
+
+    /** Keep pure registry tests independent of LibGDX; the host factory loads only on inflate. */
+    private static C1NodeFactory delegateSts(final String type) {
+        return new C1NodeFactory() {
+            @Override
+            public String type() {
+                return type;
+            }
+
+            @Override
+            public Actor create(UiNode node, C1NodeContext context) {
+                try {
+                    Class<?> cls = Class.forName("artframework.sts1.c1.Sts1VanillaNodeFactory");
+                    C1NodeFactory factory = (C1NodeFactory) cls
+                            .getConstructor(String.class).newInstance(type);
+                    return factory.create(node, context);
+                } catch (Exception e) {
+                    throw new IllegalStateException("STS1 vanilla node factory unavailable: " + type, e);
+                }
             }
         };
     }

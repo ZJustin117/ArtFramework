@@ -180,7 +180,19 @@ public final class WidgetSession {
     }
 
     public List<String> buttonIds() {
-        return index.idsOfType(UiTypes.BUTTON);
+        List<String> ids = new ArrayList<String>(index.idsOfType(UiTypes.BUTTON));
+        for (String id : index.ids()) {
+            UiNode node = index.get(id);
+            if (node != null && StsNodeTypes.isPressable(node.type)) {
+                ids.add(id);
+            }
+        }
+        return Collections.unmodifiableList(ids);
+    }
+
+    public boolean isPressable(String id) {
+        UiNode node = index.get(id);
+        return node != null && (UiTypes.BUTTON.equals(node.type) || StsNodeTypes.isPressable(node.type));
     }
 
     public List<String> hitAreaIds() {

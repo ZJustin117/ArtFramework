@@ -263,6 +263,9 @@ public final class Sts1SurfaceRenderer {
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.MAP);
+            Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.MAP_BG_PREFIX + "act1",
+                    0f, 0f, com.megacrit.cardcrawl.core.Settings.WIDTH,
+                    com.megacrit.cardcrawl.core.Settings.HEIGHT);
             for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
                 String label = item.symbol != null && !item.symbol.isEmpty() ? item.symbol : "?";
                 Texture art = Sts1AssetMaterializer.resolveTexture(item.artSource);
@@ -274,6 +277,11 @@ public final class Sts1SurfaceRenderer {
                         sb.setColor(chrome.labelR, chrome.labelG, chrome.labelB, chrome.labelA);
                     }
                     sb.draw(art, item.screenX - size / 2f, item.screenY - size / 2f, size, size);
+                    if (item.highlighted) {
+                        Sts1VanillaDraw.draw(sb,
+                                artframework.assets.ResourceIds.mapOutline(item.roomKind),
+                                item.screenX - size / 2f, item.screenY - size / 2f, size, size);
+                    }
                     sb.setColor(Color.WHITE);
                 } else {
                     if (item.highlighted) {
@@ -312,11 +320,20 @@ public final class Sts1SurfaceRenderer {
                         ty,
                         colorLabel(chrome));
             }
+            Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.UI_EVENT_PANEL,
+                    com.megacrit.cardcrawl.core.Settings.WIDTH * 0.18f,
+                    com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.48f,
+                    com.megacrit.cardcrawl.core.Settings.WIDTH * 0.64f,
+                    com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.34f);
             for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
                 if (!item.visible) {
                     continue;
                 }
                 String label = item.enabled ? item.label : (item.label + " (disabled)");
+                Sts1VanillaDraw.draw(sb,
+                        item.enabled ? artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED
+                                : artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED,
+                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
@@ -368,6 +385,8 @@ public final class Sts1SurfaceRenderer {
                 if (!item.visible) {
                     continue;
                 }
+                Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
+                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
@@ -394,6 +413,10 @@ public final class Sts1SurfaceRenderer {
                 if (!item.visible) {
                     continue;
                 }
+                String icon = item.id.toLowerCase().contains("smith")
+                        ? artframework.assets.ResourceIds.UI_CAMPFIRE_SMITH
+                        : artframework.assets.ResourceIds.UI_CAMPFIRE_SLEEP;
+                Sts1VanillaDraw.draw(sb, icon, x - 36f, y - i * 48f - 22f, 44f, 44f);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
@@ -455,6 +478,8 @@ public final class Sts1SurfaceRenderer {
                                 + item.cost
                                 + "g)"
                                 + (item.soldOut ? " SOLD" : "");
+                Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
+                        x - 230f, y - i * 40f - 20f, 460f, 36f);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.cardDescFont_N,
@@ -482,6 +507,10 @@ public final class Sts1SurfaceRenderer {
                     tv.chestOpen
                             ? (tv.relicLabel.isEmpty() ? "Chest open" : tv.relicLabel)
                             : (tv.canOpen ? "Open chest" : "Chest");
+            Sts1VanillaDraw.draw(sb, tv.chestOpen
+                            ? artframework.assets.ResourceIds.UI_REWARD_CARD
+                            : artframework.assets.ResourceIds.MAP_NODE_TREASURE,
+                    x - 64f, y - 64f, 128f, 128f);
             com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                     sb,
                     com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
@@ -580,7 +609,19 @@ public final class Sts1SurfaceRenderer {
                 && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_INTENTS)) {
             return;
         }
-        // Native intent art remains authoritative until ART has an icon-level replacement.
+        for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
+            String key = item.iconResourceId == null || item.iconResourceId.isEmpty()
+                    ? artframework.assets.ResourceIds.UI_COMBAT_INTENT_UNKNOWN
+                    : item.iconResourceId;
+            Sts1VanillaDraw.draw(sb, key, item.x - 32f, item.y - 32f, 64f, 64f);
+            if (item.multiAmount > 0) {
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        String.valueOf(item.multiAmount), item.x, item.y - 42f, colorAccent(
+                                artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_INTENTS)));
+            }
+        }
     }
 
     private static void renderEntityChrome(SpriteBatch sb) {

@@ -117,6 +117,15 @@ public class WidgetSessionTest {
     }
 
     @Test
+    public void semanticStsButtonAppearsInProbeAndAcceptsUiOps() {
+        ArtFramework.register(
+                new WindowDef("sts", WindowClass.SYNTHETIC, "layouts/sts1_vanilla_demo.json"));
+        ArtFramework.open("sts");
+        assertTrue(ArtFramework.widgets("sts").buttonIds().contains("end_turn"));
+        assertEquals(UiOpResult.Status.OK, ArtFramework.ops().clickButton("sts", "end_turn").status);
+    }
+
+    @Test
     public void closeClearsSession() {
         ArtFramework.register(
                 new WindowDef("comp", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));

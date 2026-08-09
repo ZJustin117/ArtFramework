@@ -1,11 +1,8 @@
 import {
   existsSync,
-  lstatSync,
   readFileSync,
-  symlinkSync,
 } from "node:fs"
-import { execFileSync } from "node:child_process"
-import { join, relative, resolve } from "node:path"
+import { join } from "node:path"
 
 /** Whitelist only ArtFramework / Amethyst build+deploy keys — never secrets/API keys. */
 const ALLOWED_KEYS = new Set([
@@ -54,41 +51,6 @@ function parseDotEnv(content: string): Record<string, string> {
     if (val) out[key] = val
   }
   return out
-}
-
-function mainWorktree(directory: string): string | undefined {
-  try {
-    const output = execFileSync("git", ["worktree", "list", "--porcelain"], {
-      cwd: directory,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-    const first = output.split(/\r?\n/).find((line) => line.startsWith("worktree "))
-    return first ? first.slice("worktree ".length) : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function pathExists(path: string): boolean {
-  try {
-    lstatSync(path)
-    return true
-  } catch {
-    return false
-  }
-}
-
-function linkSharedLocalEnv(directory: string): void {
-  const primary = mainWorktree(directory)
-  if (!primary || resolve(primary) === resolve(directory)) return
-
-  const linkPath = join(directory, ".env.local")
-  const targetPath = join(primary, ".env.local")
-  if (!existsSync(targetPath) || pathExists(linkPath)) return
-
-  // Keep the link valid when the repository directory is moved as a unit.
-  symlinkSync(relative(directory, targetPath), linkPath)
 }
 
 function loadLocalEnv(directory: string): {
@@ -193,7 +155,6 @@ function stripInvalidTaskId(args: Record<string, unknown>): void {
 
 export const LocalEnvPlugin = async ({ directory }: { directory: string }) => {
   const root = directory
-  linkSharedLocalEnv(root)
   const { filePath, merged, missingFile } = loadLocalEnv(root)
   applyDerivedJars(merged)
 

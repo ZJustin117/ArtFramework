@@ -73,37 +73,11 @@ scenario. The wrapper never starts, stops, or restarts the shared connector.
 Arthas remains on its native CLI because its start/query/cleanup choice is a
 diagnostic decision, not a device-lab default.
 
-## OpenCode device lock
+## Concurrent D1 operations
 
-OpenCode serializes D1 operations across its sessions. Its local
-`device-test-lock` plugin obtains a per-device OS lock before supported device
-commands (`scripts/art-lab`, device-mode `art-verify`, Harness, deployment,
-and Arthas), waits for the previous test command to finish, and returns the
-lock when that command completes. OpenCode exit remains a fallback for an
-interrupted tool call.
-
-The lock key is derived from `ART_D1_SERIAL` without putting the serial in the
-lock filename. Device work from an ordinary terminal is outside OpenCode's
-control, so do not run it concurrently with an OpenCode device session. Set
-`ART_DEVICE_LOCK_TIMEOUT_SECONDS` to a non-negative number of seconds to
-override the default 30-second wait; `0` fails immediately when D1 is busy.
-
-For a multi-command debugging transaction, run one wrapper command rather
-than retaining a lock for the entire OpenCode session:
-
-```bash
-./scripts/with-d1-lock --ttl 20m --label "full present smoke" -- ./scripts/art-lab combat verify-full
-```
-
-The wrapper holds the same per-device OS lock for its child command and
-releases it when that command exits. `--ttl` is a hard lease limit (default
-`20m`) and `--wait` controls acquisition waiting in seconds (defaulting to
-`ART_DEVICE_LOCK_TIMEOUT_SECONDS`). Place the full ordered flow in a script
-and pass that script after `--`; failures, cancellation, and TTL expiry all
-release the lock. While held, the adjacent restricted `.lock.info` file shows
-the operation label, PID, start time, and deadline to a waiting caller. The
-OpenCode plugin recognizes this wrapper and does not take a nested
-per-command lock.
+D1 commands are not serialized by ArtFramework. Do not run overlapping
+deployment, Harness, `art-verify`, or Arthas operations against the same
+device unless their interaction is intentional.
 
 ## Bring-up checklist (UI smoke)
 

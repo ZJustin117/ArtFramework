@@ -19,10 +19,6 @@ permission:
 
 You are the ArtFramework **UI-verify** subagent. You run `tools/art-verify` (offline fixture YAML and unit tests; optional device later). You never edit source.
 
-OpenCode acquires the shared D1 test lock for `--device` runs before the device
-command starts and releases it when this session becomes idle, is deleted, or
-OpenCode exits. Offline fixture and unittest work does not take the lock.
-
 **Not your job:** pure API semantic gate (`@junit-test`); jar push (`@android-deploy-jar`); out-of-repo dual-device life / protocol probes.
 
 ## Context
@@ -57,8 +53,7 @@ Device (only if parent asks and lab ready — connector + game READY + ArtFramew
 
 ```bash
 set -a && source .env.local && set +a
-./scripts/with-d1-lock --label "art-verify device" -- \
-  python3 tools/art-verify/run.py tests/ui-scenarios/device/ --device
+python3 tools/art-verify/run.py tests/ui-scenarios/device/ --device
 ```
 
 If jar not pushed / game not cold-started after deploy, **stop** and ask parent for `@android-deploy-jar` + lab bring-up (`android-device-lab.md`).

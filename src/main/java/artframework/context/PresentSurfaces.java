@@ -10,6 +10,13 @@ import artframework.core.SignalNames;
 import artframework.core.UiComponent;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
+import artframework.presentation.HostBindingComponent;
+import artframework.presentation.NodePropertiesComponent;
+import artframework.presentation.PresentPolicyComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationKey;
+import artframework.presentation.PresentationRegistry;
+import artframework.presentation.SignalPortsComponent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,7 +34,8 @@ public final class PresentSurfaces {
 
     private static final Map<String, UiComponent> BY_ID = new LinkedHashMap<String, UiComponent>();
     private static final SignalHub HUB = new SignalHub();
-    private static final PresentationWorld WORLD = new PresentationWorld("present-surfaces");
+    private static final PresentationContext CONTEXT = PresentationRegistry.context("c2-surfaces");
+    private static final PresentationWorld WORLD = CONTEXT.world();
     private static final Map<String, EntityId> ENTITY_IDS = new LinkedHashMap<String, EntityId>();
 
     static {
@@ -94,8 +102,8 @@ public final class PresentSurfaces {
 
     public static void resetForTests() {
         HUB.clear();
+        for (EntityId entity : new ArrayList<EntityId>(ENTITY_IDS.values())) CONTEXT.destroy(entity);
         ENTITY_IDS.clear();
-        WORLD.clear();
         for (UiComponent c : BY_ID.values()) {
             if (c.isMounted()) {
                 c.unmount();
@@ -200,8 +208,16 @@ public final class PresentSurfaces {
 
         private void syncComponents() {
             EntityId entity = ENTITY_IDS.get(id);
+            if (entity != null && !WORLD.contains(entity)) {
+                ENTITY_IDS.remove(id);
+                entity = null;
+            }
             if (entity == null) {
-                entity = WORLD.createEntity();
+                PresentationKey key = new PresentationKey("sts1.surface", id);
+                entity = CONTEXT.entity(key);
+                if (entity == null) {
+                    entity = CONTEXT.create(key, id, "surface", "c2");
+                }
                 ENTITY_IDS.put(id, entity);
                 WORLD.put(entity, SurfaceIdentityComponent.class,
                         new SurfaceIdentityComponent(id, kind()));
@@ -212,6 +228,14 @@ public final class PresentSurfaces {
             WORLD.put(entity, SurfacePolicyComponent.class,
                     new SurfacePolicyComponent(level, level.allowsFullPresent(),
                             level.allowsObserve(), artframework.sts1.FullPresentMode.maySuppressNative(id)));
+            WORLD.put(entity, HostBindingComponent.class, new HostBindingComponent("STS1_C2", id));
+            WORLD.put(entity, SignalPortsComponent.class,
+                    new SignalPortsComponent(new ArrayList<String>(signals), Collections.<String>emptyList()));
+            WORLD.put(entity, NodePropertiesComponent.class,
+                    new NodePropertiesComponent(Collections.<String, Object>singletonMap("surfaceId", id)));
+            WORLD.put(entity, PresentPolicyComponent.class,
+                    new PresentPolicyComponent(level.name(), level.allowsFullPresent(),
+                            level.allowsFullPresent()));
         }
 
         protected IntentResult submit(String intentName, Object... args) {

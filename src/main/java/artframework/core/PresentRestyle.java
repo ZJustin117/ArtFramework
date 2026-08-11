@@ -4,6 +4,8 @@ import artframework.assets.HostAssetsHolder;
 import artframework.c1.SyntheticRuntime;
 import artframework.c1.WindowManager;
 import artframework.component.WidgetSessions;
+import artframework.presentation.NodeTree;
+import artframework.presentation.NodeTrees;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +13,7 @@ import java.util.List;
 /**
  * Hot restyle after project present / open-tree present refresh (milestone 35.1).
  *
- * <p>Re-applies cascade themes on open {@link UiTree}s; re-attaches Stage for trees that still
+     * <p>Re-applies cascade themes on open {@link NodeTree}s; re-attaches Stage for trees that still
  * resolve from project fallback (node override windows keep their skin until remount).
  */
 public final class PresentRestyle {
@@ -27,7 +29,7 @@ public final class PresentRestyle {
 
     /** Refresh all open trees from cascade (no Stage reattach). */
     public static void refreshOpenTrees() {
-        for (UiTree tree : UiTrees.listOpen()) {
+        for (NodeTree tree : NodeTrees.listOpen()) {
             if (tree != null) {
                 tree.refreshPresent();
             }
@@ -36,14 +38,14 @@ public final class PresentRestyle {
 
     public static void refreshOpenTreesAndReattachProjectFallback() {
         List<String> reattach = new ArrayList<String>();
-        for (UiTree tree : UiTrees.listOpen()) {
+        for (NodeTree tree : NodeTrees.listOpen()) {
             if (tree == null) {
                 continue;
             }
             tree.refreshPresent();
             PresentResolved r = tree.resolvePresent();
             if (r != null && r.fromProject) {
-                reattach.add(tree.windowId());
+                reattach.add(tree.scope().replace("tree:", ""));
             }
         }
         for (String id : reattach) {

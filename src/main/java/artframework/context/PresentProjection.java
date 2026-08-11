@@ -2,6 +2,14 @@ package artframework.context;
 
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
+import artframework.presentation.BoundsComponent;
+import artframework.presentation.DrawComponent;
+import artframework.presentation.HostBindingComponent;
+import artframework.presentation.NodePropertiesComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationKey;
+import artframework.presentation.PresentationRegistry;
+import artframework.presentation.VisibilityComponent;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,7 +26,8 @@ public final class PresentProjection {
 
     private final Map<String, CardEntity> byInstance = new LinkedHashMap<String, CardEntity>();
     private final Map<String, EntityId> entityByInstance = new LinkedHashMap<String, EntityId>();
-    private final PresentationWorld world = new PresentationWorld("present-projection");
+    private final PresentationContext context = PresentationRegistry.context("c2-projection");
+    private final PresentationWorld world = context.world();
     private long lastFrameId = -1L;
     private long sceneEpoch = -1L;
     private String scene = "";
@@ -61,7 +70,15 @@ public final class PresentProjection {
             if (entity == null) {
                 entity = new CardEntity(id);
                 byInstance.put(id, entity);
-                entityByInstance.put(id, world.createEntity());
+                PresentationKey key = new PresentationKey("sts1.card", id);
+                EntityId presentationEntity = context.entity(key);
+                if (presentationEntity != null && !world.contains(presentationEntity)) {
+                    presentationEntity = null;
+                }
+                if (presentationEntity == null) {
+                    presentationEntity = context.create(key, id, "card", "c2-projection");
+                }
+                entityByInstance.put(id, presentationEntity);
                 int changes = CardEntity.IDENTITY_CHANGED
                         | CardEntity.PLACEMENT_CHANGED
                         | CardEntity.INTERACTION_CHANGED
@@ -162,9 +179,9 @@ public final class PresentProjection {
     }
 
     public void reset() {
+        for (EntityId entity : new ArrayList<EntityId>(entityByInstance.values())) context.destroy(entity);
         byInstance.clear();
         entityByInstance.clear();
-        world.clear();
         lastFrameId = -1L;
         scene = "";
         sceneEpoch = -1L;
@@ -200,6 +217,19 @@ public final class PresentProjection {
         if ((changes & CardEntity.ASSETS_CHANGED) != 0) {
             world.put(entity, CardAssetsComponent.class,
                     new CardAssetsComponent(view.artResourceId, view.frameResourceId));
+        }
+        world.put(entity, HostBindingComponent.class,
+                new HostBindingComponent("STS1_C2", view.ref.instanceId));
+        world.put(entity, DrawComponent.class,
+                new DrawComponent("card", view.artResourceId, view.ref.cardId));
+        world.put(entity, VisibilityComponent.class, new VisibilityComponent(true, 1f));
+        world.put(entity, NodePropertiesComponent.class,
+                new NodePropertiesComponent(java.util.Collections.<String, Object>singletonMap(
+                        "instanceId", view.ref.instanceId)));
+        if (view.pose != null) {
+            world.put(entity, BoundsComponent.class,
+                    new BoundsComponent(new artframework.component.Rect(
+                            view.pose.x, view.pose.y, 0f, 0f), view.pose.z));
         }
     }
 

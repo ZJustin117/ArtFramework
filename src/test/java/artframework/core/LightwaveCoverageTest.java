@@ -117,10 +117,10 @@ public class LightwaveCoverageTest {
     }
 
     @Test
-    public void switchingAwayCleansLightwaveAmbientState() {
+    public void switchingAwayCleansLightwaveC2AmbientState() {
         PresentPacks.installBuiltinLightwavePack();
         ArtFramework.setProjectPresent(PresentProfiles.LIGHTWAVE);
-        assertTrue(RenderHosts.get().isFullFrameEnabled());
+        assertFalse(RenderHosts.get().isFullFrameEnabled());
         assertFalse(PresentPackApply.probeSummary().get("boundC2Effects").toString().isEmpty());
 
         ArtFramework.setProjectPresent(PresentProfiles.STS);

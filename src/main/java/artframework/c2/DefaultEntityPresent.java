@@ -2,6 +2,10 @@ package artframework.c2;
 
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
+import artframework.presentation.HostBindingComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationKey;
+import artframework.presentation.PresentationRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +21,8 @@ public final class DefaultEntityPresent implements EntityPresent {
 
     private final Map<String, EntitySlot> slots = new LinkedHashMap<String, EntitySlot>();
     private final Map<String, EntityId> entityIds = new LinkedHashMap<String, EntityId>();
-    private final PresentationWorld world = new PresentationWorld("entity-present");
+    private final PresentationContext context = PresentationRegistry.context("c2-entity-present");
+    private final PresentationWorld world = context.world();
     private final CopyOnWriteArrayList<EntityPresentListener> listeners =
             new CopyOnWriteArrayList<EntityPresentListener>();
 
@@ -35,7 +40,11 @@ public final class DefaultEntityPresent implements EntityPresent {
         }
         EntitySlot slot = new EntitySlot(slotId, k, refId);
         slots.put(slotId, slot);
-        EntityId entity = world.createEntity();
+        PresentationKey key = new PresentationKey("entity.slot", slotId);
+        EntityId entity = context.entity(key);
+        if (entity == null) {
+            entity = context.create(key, slotId, "entity-slot", "entity-present");
+        }
         entityIds.put(slotId, entity);
         world.put(entity, EntitySlotIdentityComponent.class,
                 new EntitySlotIdentityComponent(slotId, k, refId));
@@ -43,6 +52,8 @@ public final class DefaultEntityPresent implements EntityPresent {
                 new EntitySlotSnapshotComponent(null));
         world.put(entity, EntitySlotTransformComponent.class,
                 new EntitySlotTransformComponent(0f, 0f, 1f, false));
+        world.put(entity, HostBindingComponent.class,
+                new HostBindingComponent("STS1_ENTITY", slotId));
         for (EntityPresentListener l : listeners) {
             l.onAttached(slot);
         }
@@ -111,6 +122,7 @@ public final class DefaultEntityPresent implements EntityPresent {
         List<String> ids = new ArrayList<String>(slots.keySet());
         slots.clear();
         for (String id : ids) {
+            context.destroy(entityIds.remove(id));
             fireDetached(id);
         }
     }
@@ -140,9 +152,9 @@ public final class DefaultEntityPresent implements EntityPresent {
     }
 
     void resetForTests() {
+        for (EntityId entity : new ArrayList<EntityId>(entityIds.values())) context.destroy(entity);
         slots.clear();
         entityIds.clear();
-        world.clear();
         listeners.clear();
     }
 

@@ -225,18 +225,7 @@
       }
     ]
   },
-  "fullFrame": [
-    {
-      "id": "lightwave",
-      "params": {
-        "intensity": 0.2,
-        "angle": 32,
-        "width": 0.16,
-        "speed": 0.18,
-        "border": 0
-      }
-    }
-  ],
+  "fullFrame": [],
   "surfaceEffects": {
     "sts1.combat.hand": [
       { "id": "lightwave", "params": { "intensity": 0.24, "angle": 32, "width": 0.16, "speed": 0.18, "border": 1, "borderWidth": 2 } }

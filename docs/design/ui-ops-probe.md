@@ -45,7 +45,7 @@ Rules:
 3. Never import multiplayer protocol / party / combat phase types.
 
 C1 signal-producing operations apply the same first-`BLOCK` rule through
-`UiTree.addSignalInterceptor`. `UiOps.onButton`, `onSlider`, and `onHitArea` register
+`NodeTree` signal routing. `UiOps.onButton`, `onSlider`, and `onHitArea` register
 handlers on the tree `SignalHub`; they do not form a second dispatch path.
 
 ## UiProbe (first wave)

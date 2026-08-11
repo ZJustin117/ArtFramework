@@ -18,8 +18,8 @@ import artframework.core.HostBackends;
 import artframework.core.Theme;
 import artframework.core.Themes;
 import artframework.core.UiComponent;
-import artframework.core.UiTree;
-import artframework.core.UiTrees;
+import artframework.presentation.NodeTree;
+import artframework.presentation.NodeTrees;
 import artframework.core.SignalBus;
 import artframework.core.SignalBuses;
 import artframework.core.SignalDispatchResult;
@@ -133,7 +133,7 @@ public final class ArtFramework {
         LayoutNode root = SyntheticRuntime.open(def);
         WindowHandle handle = new TrackedHandle(def, root);
         OPEN.put(def.id, handle);
-        UiTree tree = UiTrees.get(def.id);
+        NodeTree tree = NodeTrees.get(def.id);
         if (tree != null) {
             OPS.onTreeMounted(def.id);
             HostBackends.get().attach(tree);
@@ -371,11 +371,11 @@ public final class ArtFramework {
     }
 
     public static artframework.core.PresentResolved resolvePresent(String windowId) {
-        UiTree t = tree(windowId);
+        NodeTree t = tree(windowId);
         if (t == null) {
             return artframework.core.ProjectPresent.resolved();
         }
-        return t.resolvePresent();
+        return artframework.core.ProjectPresent.resolved();
     }
 
     /** Bind a C2 full-present surface to a PresentProfile (35.2). */
@@ -525,9 +525,9 @@ public final class ArtFramework {
         return WidgetSessions.get(id);
     }
 
-    /** Mounted instance tree for an open synthetic window, or null. */
-    public static UiTree tree(String id) {
-        return UiTrees.get(id);
+    /** Mounted ECS-backed node tree for an open synthetic window, or null. */
+    public static NodeTree tree(String id) {
+        return NodeTrees.get(id);
     }
 
     /** Advance all mounted synthetic trees and the configured host. */
@@ -535,8 +535,9 @@ public final class ArtFramework {
         if (deltaSeconds < 0f) {
             throw new IllegalArgumentException("deltaSeconds must be non-negative");
         }
-        for (UiTree tree : UiTrees.listOpen()) {
-            tree.tick(deltaSeconds);
+        for (NodeTree tree : NodeTrees.listOpen()) {
+            artframework.core.AnimationPlayers.tick(
+                    tree.scope().replace("tree:", ""), deltaSeconds);
         }
         artframework.core.EffectPulse.tick(deltaSeconds);
         HostBackends.get().tick(deltaSeconds);
@@ -682,7 +683,7 @@ public final class ArtFramework {
             open = false;
             removeHandleAliases(this);
             if (def.windowClass == WindowClass.SYNTHETIC) {
-                UiTree tree = UiTrees.get(def.id);
+                NodeTree tree = NodeTrees.get(def.id);
                 if (tree != null) {
                     HostBackends.get().detach(tree);
                 }

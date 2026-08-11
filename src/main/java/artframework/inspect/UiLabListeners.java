@@ -3,9 +3,11 @@ package artframework.inspect;
 import artframework.api.UiOpResult;
 import artframework.core.SignalHandler;
 import artframework.core.UiComponent;
-import artframework.core.UiTree;
-import artframework.core.UiTrees;
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
+import artframework.presentation.NodeTrees;
 import artframework.api.ArtFramework;
+import artframework.core.SignalSubscription;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -149,14 +151,14 @@ public final class UiLabListeners {
         if (slash > 0 && slash < target.length() - 1) {
             String windowId = target.substring(0, slash);
             String controlId = target.substring(slash + 1);
-            UiTree tree = UiTrees.get(windowId);
-            if (tree == null || !tree.isAlive()) {
+            NodeTree tree = NodeTrees.get(windowId);
+            if (tree == null) {
                 return AttachResult.fail("window not open: " + windowId);
             }
-            if (tree.find(controlId) == null) {
+            if (tree.get(controlId) == null) {
                 return AttachResult.fail("control not found: " + controlId);
             }
-            tree.connect(controlId, signal, handler);
+            final SignalSubscription subscription = tree.connect(controlId, signal, handler);
             final String w = windowId;
             final String c = controlId;
             final String sig = signal;
@@ -165,20 +167,17 @@ public final class UiLabListeners {
                     new Runnable() {
                         @Override
                         public void run() {
-                            UiTree t = UiTrees.get(w);
-                            if (t != null) {
-                                t.disconnect(c, sig, h);
-                            }
+                            subscription.disconnect();
                         }
                     });
         }
-        UiTree tree = UiTrees.get(target);
-        if (tree != null && tree.isAlive()) {
+        NodeTree tree = NodeTrees.get(target);
+        if (tree != null) {
             String rootId =
-                    tree.root() != null && !tree.root().id().isEmpty()
-                            ? tree.root().id()
+                    tree.root() != null && !tree.root().name().isEmpty()
+                            ? tree.root().name()
                             : target;
-            tree.connect(rootId, signal, handler);
+            final SignalSubscription subscription = tree.connect(rootId, signal, handler);
             final String w = target;
             final String c = rootId;
             final String sig = signal;
@@ -187,10 +186,7 @@ public final class UiLabListeners {
                     new Runnable() {
                         @Override
                         public void run() {
-                            UiTree t = UiTrees.get(w);
-                            if (t != null) {
-                                t.disconnect(c, sig, h);
-                            }
+                            subscription.disconnect();
                         }
                     });
         }

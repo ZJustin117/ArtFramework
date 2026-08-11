@@ -28,6 +28,8 @@ void main() {
     vec3 core = vec3(1.0, 1.0, 1.0) * glow;
     vec3 halo = vec3(0.45, 0.85, 1.0) * glow * 0.85;
     vec3 wave = core * 0.55 + halo;
-    float a = clamp(0.2 + glow * 0.95, 0.0, 1.0) * v_color.a;
+    // Outside the band this is an overlay with no pixels. A baseline black alpha turns the
+    // full-frame target into an unintended screen dimmer.
+    float a = clamp(glow * 0.95, 0.0, 1.0) * v_color.a;
     gl_FragColor = vec4(wave, a);
 }

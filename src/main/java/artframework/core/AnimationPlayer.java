@@ -1,5 +1,8 @@
 package artframework.core;
 
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -7,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Pure timeline player for a behavior node. Drives target {@link UiInstance} props.
+ * Pure timeline player for a behavior node. Drives target presentation Node props.
  * States: idle / playing / paused via thin {@link NodeStateMachine} fields.
  */
 public final class AnimationPlayer {
@@ -82,7 +85,7 @@ public final class AnimationPlayer {
         }
     }
 
-    private final UiInstance owner;
+    private final Node owner;
     private final Map<String, Animation> animations = new LinkedHashMap<String, Animation>();
     private final NodeStateMachine fsm;
     private String playing;
@@ -93,7 +96,7 @@ public final class AnimationPlayer {
     private int loopsDone;
     private final Map<String, Float> fromSnapshot = new LinkedHashMap<String, Float>();
 
-    public AnimationPlayer(UiInstance owner) {
+    public AnimationPlayer(Node owner) {
         if (owner == null) {
             throw new IllegalArgumentException("owner required");
         }
@@ -245,14 +248,15 @@ public final class AnimationPlayer {
 
     /** Behavior signals: hub emit so undeclared optional names (paused/looped) still propagate. */
     private void emitOwn(String signal, Object... args) {
-        if (signal == null || owner.id().isEmpty()) {
+        if (signal == null || owner.name().isEmpty()) {
             return;
         }
         try {
             if (owner.declaresSignal(signal)) {
-                owner.emit(signal, args);
+                owner.emitSignal(signal, args);
             } else {
-                owner.tree().signalHub().emit(owner.id(), signal, args);
+                artframework.core.SignalBuses.get().emit(
+                        new UiSignal(SignalHub.name(owner.name(), signal), owner.name(), args));
             }
         } catch (RuntimeException ignored) {
         }
@@ -260,7 +264,7 @@ public final class AnimationPlayer {
 
     private void captureFromSnapshot(Animation anim) {
         fromSnapshot.clear();
-        UiInstance target = resolveTarget(anim.targetId);
+        Node target = resolveTarget(anim.targetId);
         if (target == null) {
             return;
         }
@@ -268,7 +272,7 @@ public final class AnimationPlayer {
             if (!track.fromCurrent) {
                 continue;
             }
-            Object cur = target.prop(track.property);
+            Object cur = target.get(track.property);
             float f = track.from;
             if (cur instanceof Number) {
                 f = ((Number) cur).floatValue();
@@ -291,7 +295,7 @@ public final class AnimationPlayer {
         if (t > 1f) {
             t = 1f;
         }
-        UiInstance target = resolveTarget(anim.targetId);
+        Node target = resolveTarget(anim.targetId);
         if (target == null) {
             return;
         }
@@ -302,11 +306,11 @@ public final class AnimationPlayer {
         }
     }
 
-    private UiInstance resolveTarget(String targetId) {
+    private Node resolveTarget(String targetId) {
         if (targetId == null || targetId.isEmpty()) {
             return owner.parent();
         }
-        UiInstance found = owner.tree().get(targetId);
+        Node found = owner.tree().get(targetId);
         if (found != null) {
             return found;
         }

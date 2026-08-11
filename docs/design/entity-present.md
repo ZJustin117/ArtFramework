@@ -21,7 +21,7 @@ attach(slotId, kind, refId) → sync(snapshot) → layout(x,y,scale) → detach
 
 - `kind`: `PLAYER` | `CARD` | `RELIC` | `MONSTER`
 - Snapshot: typed `EntitySnapshot` (pose, resourceIds, chrome flags) or opaque Object
-- RenderHost target `c2:entity:{slotId}` for FX anchors; kind-aware default bounds
+- Presentation entity `c2:entity:{slotId}` is the FX anchor; RenderHost targets are derived caches
 
 ## Policy (24.4)
 

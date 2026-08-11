@@ -80,6 +80,24 @@ public class StsLabRecipesTest {
     }
 
     @Test
+    public void startRunUsesDefaultSeedWhenNoneIsProvided() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("CHAR_SELECT")
+                                .menuScreen("MAIN_MENU")
+                                .hasPlay(true)
+                                .buttons(Arrays.asList("PLAY"))
+                                .build());
+        StsLabRecipes recipes = new StsLabRecipes(host, 12);
+
+        UiOpResult result = recipes.startRun("IRONCLAD");
+
+        assertTrue(result.message, result.isOk());
+        assertTrue(host.actions.contains("seed:" + StsLabRecipes.DEFAULT_SEED));
+    }
+
+    @Test
     public void startRunWaitsForPlayerBeforeDungeonRoomExists() {
         FakeLabHost host =
                 new FakeLabHost(
@@ -88,7 +106,7 @@ public class StsLabRecipesTest {
                                 .menuScreen("CHAR_SELECT")
                                 .inGame(true)
                                 .fading(true)
-                                .charSelectOpen(true)
+                                .charSelectOpen(false)
                                 .selectedCharacter("IRONCLAD")
                                 .build());
         StsLabRecipes recipes = new StsLabRecipes(host, 2);
@@ -149,11 +167,11 @@ public class StsLabRecipesTest {
     public void runReadyRequiresDungeonRoomEvenWhenPlayerExists() {
         LabStateSnapshot transition =
                 LabStateSnapshot.builder()
-                        .mode("GAMEPLAY")
-                        .menuScreen("CHAR_SELECT")
-                        .inGame(true)
-                        .fading(true)
-                        .charSelectOpen(true)
+                                .mode("GAMEPLAY")
+                                .menuScreen("CHAR_SELECT")
+                                .inGame(true)
+                                .fading(true)
+                                .charSelectOpen(false)
                         .build();
         assertFalse(transition.isRunReady());
         assertTrue(transition.isEmbarkTransition());
@@ -270,6 +288,7 @@ public class StsLabRecipesTest {
         assertFalse(LabRecipeRunner.isBusy());
         assertEquals("ok", LabRecipeRunner.statusMap().get("status"));
         assertTrue(host.dump().inGame);
+        assertTrue(host.actions.contains("seed:" + StsLabRecipes.DEFAULT_SEED));
     }
 
     @Test

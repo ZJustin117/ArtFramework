@@ -2,6 +2,8 @@ package artframework.core;
 
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -19,11 +21,11 @@ public final class AnimationPlayers {
 
     private AnimationPlayers() {}
 
-    public static void syncTree(UiTree tree) {
+    public static void syncTree(NodeTree tree) {
         if (tree == null) {
             return;
         }
-        clearWindow(tree.windowId());
+        clearWindow(windowId(tree));
         walk(tree, tree.root());
     }
 
@@ -67,24 +69,24 @@ public final class AnimationPlayers {
         BY_KEY.clear();
     }
 
-    private static void walk(UiTree tree, UiInstance inst) {
+    private static void walk(NodeTree tree, Node inst) {
         if (inst == null) {
             return;
         }
-        if (ArtNodeTypes.ANIMATION_PLAYER.equals(inst.type()) && !inst.id().isEmpty()) {
+        if (ArtNodeTypes.ANIMATION_PLAYER.equals(inst.type()) && !inst.name().isEmpty()) {
             AnimationPlayer player = new AnimationPlayer(inst);
-            loadFromDecl(player, inst.decl());
-            BY_KEY.put(key(tree.windowId(), inst.id()), player);
+            loadFromProps(player, inst);
+            BY_KEY.put(key(windowId(tree), inst.name()), player);
             maybeAutoPlay(inst, player);
         }
-        for (UiInstance c : inst.children()) {
+        for (Node c : inst.children()) {
             walk(tree, c);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadFromDecl(AnimationPlayer player, UiNode decl) {
-        Object raw = decl.props.get("animations");
+    private static void loadFromProps(AnimationPlayer player, Node owner) {
+        Object raw = owner.get("animations");
         if (!(raw instanceof List)) {
             return;
         }
@@ -141,10 +143,10 @@ public final class AnimationPlayers {
         }
     }
 
-    private static void maybeAutoPlay(UiInstance owner, AnimationPlayer player) {
-        Object raw = owner.prop("auto_play");
+    private static void maybeAutoPlay(Node owner, AnimationPlayer player) {
+        Object raw = owner.get("auto_play");
         if (raw == null) {
-            raw = owner.prop("autoPlay");
+            raw = owner.get("autoPlay");
         }
         if (raw == null) {
             return;
@@ -188,5 +190,9 @@ public final class AnimationPlayers {
             }
         }
         return def;
+    }
+
+    private static String windowId(NodeTree tree) {
+        return tree.context().world().scope().replace("tree:", "");
     }
 }

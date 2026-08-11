@@ -84,8 +84,8 @@ public final class LabRecipeRunner {
     public static synchronized UiOpResult armStartRun(String charId, String seedText, int budget) {
         kind = Kind.START_RUN;
         characterId = charId != null && !charId.isEmpty() ? charId : "IRONCLAD";
-        seed = seedText;
-        seedDone = seed == null || seed.isEmpty();
+        seed = seedText != null && !seedText.isEmpty() ? seedText : StsLabRecipes.DEFAULT_SEED;
+        seedDone = false;
         ticksLeft = budget > 0 ? budget : StsLabRecipes.DEFAULT_BUDGET;
         clearsDone = false;
         stripDone = false;
@@ -191,16 +191,28 @@ public final class LabRecipeRunner {
         synchronized (LabRecipeRunner.class) {
             didEmbark = embarkDone;
         }
-        if (s.inGame && didEmbark) {
-            succeed("embark submitted char=" + s.selectedCharacter);
-            return;
-        }
-        if (s.isRunReady() && !s.inCombat) {
-            succeed("existing run char=" + s.selectedCharacter);
-            return;
-        }
-        if (s.isRunReady() && !s.charSelectOpen) {
+        if (s.isRunReady()) {
+            if (didEmbark) {
+                synchronized (LabRecipeRunner.class) {
+                    if (!seedDone) {
+                        seedDone = true;
+                        host.setSeed(seed);
+                        return;
+                    }
+                }
+                succeed("embark ready char=" + s.selectedCharacter + " seed=" + seed);
+                return;
+            }
             host.abandon();
+            return;
+        }
+        if (s.inGame && didEmbark) {
+            synchronized (LabRecipeRunner.class) {
+                if (!seedDone) {
+                    seedDone = true;
+                    host.setSeed(seed);
+                }
+            }
             return;
         }
         if (s.inGame && !s.charSelectOpen) {
@@ -247,13 +259,6 @@ public final class LabRecipeRunner {
                         && !s.selectedCharacter.equalsIgnoreCase(want))) {
             host.selectCharacter(want);
             return;
-        }
-        synchronized (LabRecipeRunner.class) {
-            if (!seedDone && seed != null && !seed.isEmpty()) {
-                seedDone = true;
-                host.setSeed(seed);
-                return;
-            }
         }
         if (!s.embarkEnabled && s.characterSelected) {
             synchronized (LabRecipeRunner.class) {

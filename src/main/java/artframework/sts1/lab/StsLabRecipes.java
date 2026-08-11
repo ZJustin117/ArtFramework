@@ -16,6 +16,9 @@ public final class StsLabRecipes {
 
     public static final String LOG_PREFIX = "ART_LAB ";
 
+    /** A fresh lab run must have a seed before STS serializes its first room transition. */
+    public static final String DEFAULT_SEED = "ARTFRAMEWORK1";
+
     private final LabHost host;
     private final int budget;
 
@@ -118,6 +121,7 @@ public final class StsLabRecipes {
     public UiOpResult startRun(String characterId, String seed) {
         String charId =
                 characterId != null && !characterId.isEmpty() ? characterId : "IRONCLAD";
+        String seedText = seed != null && !seed.isEmpty() ? seed : DEFAULT_SEED;
         UiOpResult fresh = ensureFreshMenu();
         if (!fresh.isOk()) {
             return fresh;
@@ -125,6 +129,12 @@ public final class StsLabRecipes {
         for (int i = 0; i < budget; i++) {
             LabStateSnapshot s = host.dump();
             if (s.isRunReady()) {
+                if (seedText != null) {
+                    UiOpResult seedResult = host.setSeed(seedText);
+                    if (!seedResult.isOk()) {
+                        return seedResult;
+                    }
+                }
                 return UiOpResult.ok("in game char=" + s.selectedCharacter);
             }
             if (s.inGame) {
@@ -155,15 +165,6 @@ public final class StsLabRecipes {
                 if (!sel.isOk()) {
                     return sel;
                 }
-                host.yieldFrame();
-                continue;
-            }
-            if (seed != null && !seed.isEmpty()) {
-                UiOpResult seedResult = host.setSeed(seed);
-                if (!seedResult.isOk()) {
-                    return seedResult;
-                }
-                seed = null;
                 host.yieldFrame();
                 continue;
             }

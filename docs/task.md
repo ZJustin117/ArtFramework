@@ -462,5 +462,23 @@ core presentation contracts.
 - [x] 44.10 Independent `tests/spine42-assets` bundle checks; standard JUnit has no asset dependency
 - [x] 44.11 Developer runtime loader, device asset deployment, and `spine42` dev console controls
 - [x] 44.12 D1 resource status/load/animation/lifecycle scenario skeletons
+
+### 45. Unified Presentation Entity Runtime
+
+Design: [`docs/design/presentation-entity-runtime.md`](design/presentation-entity-runtime.md).
+
+- [x] 45.1 Add dependency-neutral `presentation` runtime: context, stable keys, common entity
+      components, immutable frame snapshots, and pure ECS tests.
+- [x] 45.2 Replace `UiInstance` with ECS-backed `Node` / `NodeTree`; migrate tree lifecycle,
+      NodePath, props, theme resolution, and public API.
+- [x] 45.3 Migrate signals, declarative connections, state machines, and animation to node/entity
+      identity while retaining declared-port and first-stop semantics.
+- [x] 45.4 Migrate C1 Stage materialization and render synchronization to presentation frames.
+- [x] 45.5 Migrate C2 surfaces, projection items, entity present, and skeleton lifecycle into the
+      unified context; retain STS policy and intent authority in the host adapter.
+- [x] 45.6 Derive render attachments from entities; migrate Lightwave chrome/effects to exact
+      visual-item attachments and remove target-map authority.
+- [x] 45.7 Replace legacy runtime/docs/fixtures and complete JUnit, offline verifier, and D1
+      C1/C2 visual verification.
 - [x] 44.13 D1 data-path evidence: source-patched runtime loads a real 4.2 `.skel`, animates,
   reports a bone transform, and cleans lifecycle state; pixel renderer intentionally deferred

@@ -1,5 +1,7 @@
 package artframework.core;
 
+import artframework.presentation.NodeTree;
+
 /** Default host for JUnit / headless. */
 public final class NoOpHostBackend implements HostBackend {
 
@@ -13,11 +15,11 @@ public final class NoOpHostBackend implements HostBackend {
     }
 
     @Override
-    public void attach(UiTree tree) {}
+    public void attach(NodeTree tree) {}
 
     @Override
-    public void detach(UiTree tree) {}
+    public void detach(NodeTree tree) {}
 
     @Override
-    public void applyLayout(UiTree tree) {}
+    public void applyLayout(NodeTree tree) {}
 }

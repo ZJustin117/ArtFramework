@@ -24,8 +24,8 @@ import artframework.c1.skin.StsSkin;
 import artframework.component.UiNode;
 import artframework.core.Theme;
 import artframework.core.Themes;
-import artframework.core.UiInstance;
-import artframework.core.UiTree;
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
 import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
 import artframework.render.RenderTarget;
@@ -211,9 +211,6 @@ public final class StageHost
         }
         sb.begin();
         RenderHosts.get().drawC1LightwaveBorders(sb);
-        // C2 bands are placed below ART's own C2 chrome, matching C1's readable-label ordering.
-        RenderHosts.get().drawFrame(
-                sb, true, artframework.render.RenderHost.kindsC2UnderPresent());
         artframework.sts1.render.Sts1SurfaceRenderer.render(sb);
         RenderHosts.get().drawFrame(sb, true, artframework.render.RenderHost.kindsOverUi());
     }
@@ -312,9 +309,9 @@ public final class StageHost
     private Skin skinForWindow(String windowId) {
         Theme theme = artframework.core.ProjectPresent.theme();
         try {
-            UiTree tree = ArtFramework.tree(windowId);
+            NodeTree tree = ArtFramework.tree(windowId);
             if (tree != null) {
-                theme = artframework.core.PresentResolve.themeFor(tree);
+                theme = artframework.core.ProjectPresent.theme();
             }
         } catch (Throwable ignored) {
         }
@@ -325,7 +322,7 @@ public final class StageHost
         }
     }
 
-    /** Push UiInstance props (e.g. opacity from animation_player) onto named stage actors. */
+    /** Push ECS-backed Node props (e.g. opacity from animation_player) onto named stage actors. */
     private void syncActorPropsFromTree() {
         for (Map.Entry<String, Actor> e : actors.entrySet()) {
             String winId = e.getKey();
@@ -333,7 +330,7 @@ public final class StageHost
             if (root == null) {
                 continue;
             }
-            UiTree tree = null;
+            NodeTree tree = null;
             try {
                 tree = ArtFramework.tree(winId);
             } catch (Throwable ignored) {
@@ -345,7 +342,7 @@ public final class StageHost
         }
     }
 
-    private static void syncNamedActorProps(UiTree tree, Actor actor) {
+    private static void syncNamedActorProps(NodeTree tree, Actor actor) {
         if (actor == null || tree == null) {
             return;
         }
@@ -355,11 +352,11 @@ public final class StageHost
         } catch (Throwable ignored) {
         }
         if (name != null && !name.isEmpty()) {
-            UiInstance inst = tree.get(name);
+            Node inst = tree.find("root/" + name);
             if (inst != null) {
                 // Drive lightwave intensity from anim/slider props — do NOT setColor on Groups
                 // (multiplies child Label/TextButton glyphs and looks like missing letters).
-                syncFxIntensity(tree.windowId(), name, inst);
+                syncFxIntensity(tree.context().world().scope().replace("tree:", ""), name, inst);
             }
         }
         if (actor instanceof Group) {
@@ -369,12 +366,12 @@ public final class StageHost
         }
     }
 
-    private static void syncFxIntensity(String windowId, String nodeId, UiInstance inst) {
+    private static void syncFxIntensity(String windowId, String nodeId, Node inst) {
         // Ambient intensity only — pulse overlay is a separate binding layer.
         if (artframework.core.EffectPulse.isActive(windowId, null)) {
             return;
         }
-        Object raw = inst.prop("fx_intensity");
+        Object raw = inst.get("fx_intensity");
         if (!(raw instanceof Number)) {
             return;
         }

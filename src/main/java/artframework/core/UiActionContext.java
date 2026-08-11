@@ -3,20 +3,22 @@ package artframework.core;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
 
 /**
  * Runtime context for a {@link UiAction} invocation.
  */
 public final class UiActionContext {
 
-    public final UiTree tree;
+    public final NodeTree tree;
     /** Node that declared the connection (may be null for programmatic run). */
-    public final UiInstance owner;
+    public final Node owner;
     public final UiSignal signal;
     public final Map<String, Object> args;
 
     public UiActionContext(
-            UiTree tree, UiInstance owner, UiSignal signal, Map<String, Object> args) {
+            NodeTree tree, Node owner, UiSignal signal, Map<String, Object> args) {
         this.tree = tree;
         this.owner = owner;
         this.signal = signal;

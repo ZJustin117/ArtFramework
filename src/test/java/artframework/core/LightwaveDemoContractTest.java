@@ -7,6 +7,7 @@ import artframework.api.UiOpResult;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
 import artframework.component.WidgetSessions;
+import artframework.presentation.NodeTree;
 import artframework.render.LightwaveEffect;
 import artframework.render.RenderHost;
 import artframework.render.RenderTarget;
@@ -77,7 +78,7 @@ public class LightwaveDemoContractTest {
     @Test
     public void treeThemeAndControls() {
         openDemo();
-        UiTree tree = ArtFramework.tree("lightwave_demo");
+        NodeTree tree = ArtFramework.tree("lightwave_demo");
         assertNotNull(tree);
         assertEquals("lightwave", tree.theme().name());
         assertNotNull(WidgetSessions.get("lightwave_demo"));
@@ -103,7 +104,7 @@ public class LightwaveDemoContractTest {
     @Test
     public void tickAdvancesEnterFxIntensity() {
         openDemo();
-        UiTree tree = ArtFramework.tree("lightwave_demo");
+        NodeTree tree = ArtFramework.tree("lightwave_demo");
         float start = ((Number) tree.get("panel").prop("fx_intensity")).floatValue();
         assertTrue(start < 0.55f);
         ArtFramework.tick(0.4f);

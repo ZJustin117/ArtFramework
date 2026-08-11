@@ -46,7 +46,8 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 | `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** / **`registerUiAction` / `nodeState`** / **`registerPresentProfile` / `presentProfiles()` / `setProjectPresent` / `bindSurfacePresent`** |
 | `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
-| `artframework.core.*` | `UiTree` / `UiInstance` / `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
+| `artframework.presentation.*` | `NodeTree` / `Node` / `PresentationFrame` / `PresentationWorld` |
+| `artframework.core.*` | `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
 | `artframework.ecs.*` | `EntityId` / `PresentationWorld` for ART-owned presentation state |
 | `artframework.context.*` | **Signal model:** `ContextSignals` / `ContextFrame` / `PresentProjections` / `FakeSignalBackend` / `SignalBackend` / `CardRef` / `PresentSurfaces` |
 | `artframework.assets.*` | **HostAssets** ResourceId / packs / resolve / `FakeHostAssets` |

@@ -13,17 +13,18 @@ public final class PropEffectBridge {
 
     private PropEffectBridge() {}
 
-    public static void applyProp(UiTree tree, UiInstance target, String prop, Object value) {
+    public static void applyProp(artframework.presentation.NodeTree tree,
+            artframework.presentation.Node target, String prop, Object value) {
         if (tree == null || target == null || prop == null || prop.isEmpty()) {
             return;
         }
-        target.setProp(prop, value);
+        target.set(prop, value);
         if (!(value instanceof Number)) {
             return;
         }
         float f = ((Number) value).floatValue();
-        String win = tree.windowId();
-        String nodeId = target.id();
+        String win = tree.context().world().scope().replace("tree:", "");
+        String nodeId = target.name();
         if (nodeId == null || nodeId.isEmpty()) {
             return;
         }
@@ -52,7 +53,7 @@ public final class PropEffectBridge {
             RenderHosts.get()
                     .setEffectParam(
                             tid, LightwaveEffect.ID, EffectBinding.LAYER_AMBIENT, "freeze", 1f);
-            target.setProp("fx_freeze", Float.valueOf(1f));
+            target.set("fx_freeze", Float.valueOf(1f));
         } else if ("fx_freeze".equals(prop) || "freeze".equals(prop)) {
             RenderHosts.get()
                     .setEffectParam(
@@ -100,13 +101,13 @@ public final class PropEffectBridge {
     }
 
     public static void applyProp(String windowId, String targetId, String prop, Object value) {
-        UiTree tree = ArtFramework.tree(windowId);
+        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
         if (tree == null) {
             return;
         }
-        UiInstance inst = tree.get(targetId);
+        artframework.presentation.Node inst = tree.find(targetId);
         if (inst == null) {
-            inst = tree.find(targetId);
+            inst = tree.find("root/" + targetId);
         }
         if (inst == null) {
             return;

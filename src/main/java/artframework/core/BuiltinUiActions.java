@@ -68,13 +68,13 @@ final class BuiltinUiActions {
         }
         String playerId = ctx.argString("player", "");
         if (playerId.isEmpty() && ctx.owner != null) {
-            playerId = ctx.owner.id();
+            playerId = ctx.owner.name();
         }
         String name = ctx.argString("name", ctx.argString("play", ""));
         if (playerId.isEmpty() || name.isEmpty()) {
             return false;
         }
-        AnimationPlayer player = AnimationPlayers.get(ctx.tree.windowId(), playerId);
+        AnimationPlayer player = AnimationPlayers.get(windowId(ctx.tree), playerId);
         if (player == null || !player.has(name)) {
             return false;
         }
@@ -93,12 +93,12 @@ final class BuiltinUiActions {
         }
         String playerId = ctx.argString("player", "");
         if (playerId.isEmpty() && ctx.owner != null) {
-            playerId = ctx.owner.id();
+            playerId = ctx.owner.name();
         }
         if (playerId.isEmpty()) {
             return false;
         }
-        AnimationPlayer player = AnimationPlayers.get(ctx.tree.windowId(), playerId);
+        AnimationPlayer player = AnimationPlayers.get(windowId(ctx.tree), playerId);
         if (player == null) {
             return false;
         }
@@ -116,12 +116,12 @@ final class BuiltinUiActions {
         }
         String playerId = ctx.argString("player", "");
         if (playerId.isEmpty() && ctx.owner != null) {
-            playerId = ctx.owner.id();
+            playerId = ctx.owner.name();
         }
         if (playerId.isEmpty()) {
             return false;
         }
-        AnimationPlayer player = AnimationPlayers.get(ctx.tree.windowId(), playerId);
+        AnimationPlayer player = AnimationPlayers.get(windowId(ctx.tree), playerId);
         if (player == null) {
             return false;
         }
@@ -138,9 +138,9 @@ final class BuiltinUiActions {
         if (targetId.isEmpty() || prop.isEmpty()) {
             return false;
         }
-        UiInstance target = ctx.tree.get(targetId);
+        artframework.presentation.Node target = ctx.tree.get(targetId);
         if (target == null) {
-            target = ctx.tree.find(targetId);
+                target = ctx.tree.find(targetId);
         }
         if (target == null) {
             return false;
@@ -150,7 +150,7 @@ final class BuiltinUiActions {
         if (value == null && !fromSlider.isEmpty()) {
             try {
                 artframework.component.WidgetSession session =
-                        artframework.component.WidgetSessions.get(ctx.tree.windowId());
+                        artframework.component.WidgetSessions.get(windowId(ctx.tree));
                 if (session != null && session.hasSlider(fromSlider)) {
                     value = Float.valueOf(session.getSlider(fromSlider));
                 }
@@ -171,7 +171,7 @@ final class BuiltinUiActions {
         String target = ctx.argString("target", "panel");
         String effect = ctx.argString("effect", LightwaveEffect.ID);
         float duration = ctx.argFloat("duration", 0.45f);
-        EffectPulse.pulse(ctx.tree.windowId(), target, effect, duration);
+        EffectPulse.pulse(windowId(ctx.tree), target, effect, duration);
         return true;
     }
 
@@ -201,7 +201,7 @@ final class BuiltinUiActions {
         String win =
                 ctx.argString(
                         "window",
-                        ctx.tree != null ? ctx.tree.windowId() : "");
+                        ctx.tree != null ? windowId(ctx.tree) : "");
         if (win.isEmpty()) {
             return false;
         }
@@ -226,5 +226,9 @@ final class BuiltinUiActions {
             close.run();
         }
         return true;
+    }
+
+    private static String windowId(artframework.presentation.NodeTree tree) {
+        return tree.context().world().scope().replace("tree:", "");
     }
 }

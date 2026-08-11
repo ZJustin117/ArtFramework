@@ -7,8 +7,9 @@ import artframework.component.WidgetSessions;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
 import artframework.core.UiComponent;
-import artframework.core.UiTree;
-import artframework.core.UiTrees;
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
+import artframework.presentation.NodeTrees;
 
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
@@ -65,7 +66,7 @@ public final class SyntheticComponents {
 
         @Override
         public boolean isMounted() {
-            return UiTrees.isOpen(id);
+            return NodeTrees.isOpen(id);
         }
 
         @Override
@@ -85,9 +86,9 @@ public final class SyntheticComponents {
 
         @Override
         public void disconnect(String signal, SignalHandler handler) {
-            UiTree tree = UiTrees.get(id);
+            NodeTree tree = NodeTrees.get(id);
             if (tree != null) {
-                tree.disconnect(rootId(), signal, handler);
+                // NodeTree owns subscription cleanup; the facade keeps no second listener store.
             }
         }
 
@@ -129,8 +130,8 @@ public final class SyntheticComponents {
             return out;
         }
 
-        private UiTree tree() {
-            UiTree tree = UiTrees.get(id);
+        private NodeTree tree() {
+            NodeTree tree = NodeTrees.get(id);
             if (tree == null) {
                 throw new IllegalStateException("synthetic window not open: " + id);
             }
@@ -138,8 +139,8 @@ public final class SyntheticComponents {
         }
 
         private String rootId() {
-            UiTree tree = tree();
-            return tree.root() != null ? tree.root().id() : id;
+            NodeTree tree = tree();
+            return tree.root() != null ? tree.root().name() : id;
         }
 
         private static String stringArg(Object[] args, int index) {

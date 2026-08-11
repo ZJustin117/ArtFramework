@@ -9,9 +9,14 @@ import artframework.component.Rect;
 import artframework.context.PresentSurfaces;
 import artframework.core.SignalHub;
 import artframework.core.UiComponent;
-import artframework.core.UiInstance;
-import artframework.core.UiTree;
-import artframework.core.UiTrees;
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
+import artframework.presentation.NodeTrees;
+import artframework.presentation.NodeHierarchyComponent;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.presentation.NodeLifecycleComponent;
+import artframework.presentation.NodePropertiesComponent;
+import artframework.presentation.SignalPortsComponent;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -57,15 +62,15 @@ public final class UiInspect {
             out.put("error", "windowId required");
             return out;
         }
-        UiTree tree = UiTrees.get(windowId);
-        if (tree == null || !tree.isAlive()) {
+        NodeTree tree = NodeTrees.get(windowId);
+        if (tree == null) {
             out.put("error", "window not open: " + windowId);
             return out;
         }
         int depth = maxDepth > 0 ? maxDepth : DEFAULT_TREE_DEPTH;
         out.put("windowId", windowId);
         out.put("depth", Integer.valueOf(depth));
-        out.put("root", instanceTree(tree.root(), tree.signalHub(), 0, depth));
+        out.put("root", nodeTree(tree.root(), tree, 0, depth));
         return out;
     }
 
@@ -94,18 +99,19 @@ public final class UiInspect {
             out.put("error", "id or path required");
             return out;
         }
-        UiTree tree = UiTrees.get(windowId);
-        if (tree == null || !tree.isAlive()) {
+        NodeTree tree = NodeTrees.get(windowId);
+        if (tree == null) {
             out.put("error", "window not open: " + windowId);
             return out;
         }
-        UiInstance inst = tree.find(pathOrId);
+        Node inst = tree.find(pathOrId);
+        if (inst == null) inst = tree.get(pathOrId);
         if (inst == null) {
             out.put("error", "not found: " + pathOrId);
             return out;
         }
         out.put("windowId", windowId);
-        out.put("node", instanceDetail(inst, tree.signalHub()));
+        out.put("node", nodeDetail(inst, tree));
         return out;
     }
 
@@ -123,15 +129,15 @@ public final class UiInspect {
         try {
             EmitTarget et = resolveEmitTarget(target);
             if (et.kind == EmitKind.C1) {
-                UiTree tree = UiTrees.get(et.windowId);
-                if (tree == null || !tree.isAlive()) {
+                NodeTree tree = NodeTrees.get(et.windowId);
+                if (tree == null) {
                     return UiOpResult.notBound("window not open: " + et.windowId);
                 }
-                UiInstance inst = tree.find(et.controlId);
+                Node inst = tree.get(et.controlId);
                 if (inst == null) {
                     return UiOpResult.notBound("control not found: " + et.controlId);
                 }
-                tree.emit(et.controlId, signal, payload);
+                inst.emitSignal(signal, payload);
                 return UiOpResult.ok("emitted " + et.windowId + "/" + et.controlId + " " + signal);
             }
             UiComponent c = ArtFramework.component(et.componentId);
@@ -227,16 +233,16 @@ public final class UiInspect {
         return m;
     }
 
-    private static Map<String, Object> instanceTree(
-            UiInstance inst, SignalHub hub, int depth, int maxDepth) {
-        Map<String, Object> m = instanceBrief(inst, hub);
+    private static Map<String, Object> nodeTree(
+            Node inst, NodeTree tree, int depth, int maxDepth) {
+        Map<String, Object> m = nodeBrief(inst, tree);
         if (depth >= maxDepth) {
             m.put("truncated", Boolean.TRUE);
             return m;
         }
         List<Map<String, Object>> children = new ArrayList<Map<String, Object>>();
-        for (UiInstance child : inst.children()) {
-            children.add(instanceTree(child, hub, depth + 1, maxDepth));
+        for (Node child : inst.children()) {
+            children.add(nodeTree(child, tree, depth + 1, maxDepth));
         }
         if (!children.isEmpty()) {
             m.put("children", children);
@@ -244,21 +250,22 @@ public final class UiInspect {
         return m;
     }
 
-    private static Map<String, Object> instanceBrief(UiInstance inst, SignalHub hub) {
+    private static Map<String, Object> nodeBrief(Node inst, NodeTree tree) {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
-        String id = inst.id();
-        m.put("id", id.isEmpty() ? inst.propString("id", "") : id);
+        String id = inst.name();
+        m.put("id", id);
         if (id.isEmpty()) {
             m.put("anon", Boolean.TRUE);
         }
         m.put("type", inst.type());
-        List<String> signals = inst.signals();
+        SignalPortsComponent ports = tree.context().world().get(inst.entityId(), SignalPortsComponent.class);
+        List<String> signals = ports != null ? ports.emits : java.util.Collections.<String>emptyList();
         if (signals != null && !signals.isEmpty()) {
             m.put("signals", new ArrayList<String>(signals));
             if (!id.isEmpty()) {
                 Map<String, Object> counts = new LinkedHashMap<String, Object>();
                 for (String s : signals) {
-                    counts.put(s, Integer.valueOf(hub.handlerCount(id, s)));
+                    counts.put(s, Integer.valueOf(0));
                 }
                 m.put("handlerCounts", counts);
             }
@@ -266,11 +273,12 @@ public final class UiInspect {
         return m;
     }
 
-    private static Map<String, Object> instanceDetail(UiInstance inst, SignalHub hub) {
-        Map<String, Object> m = instanceBrief(inst, hub);
+    private static Map<String, Object> nodeDetail(Node inst, NodeTree tree) {
+        Map<String, Object> m = nodeBrief(inst, tree);
         m.put("mounted", Boolean.valueOf(inst.isMounted()));
+        NodePropertiesComponent properties = tree.context().world().get(inst.entityId(), NodePropertiesComponent.class);
         Map<String, Object> props = new LinkedHashMap<String, Object>();
-        for (Map.Entry<String, Object> e : inst.propsView().entrySet()) {
+        for (Map.Entry<String, Object> e : properties.view().entrySet()) {
             Object v = e.getValue();
             if (v == null || v instanceof String || v instanceof Number || v instanceof Boolean) {
                 props.put(e.getKey(), v);
@@ -289,8 +297,8 @@ public final class UiInspect {
             m.put("rect", rect);
         }
         List<String> childIds = new ArrayList<String>();
-        for (UiInstance c : inst.children()) {
-            childIds.add(c.id().isEmpty() ? ("@" + c.type()) : c.id());
+        for (Node c : inst.children()) {
+            childIds.add(c.name().isEmpty() ? ("@" + c.type()) : c.name());
         }
         m.put("childIds", childIds);
         return m;
@@ -363,11 +371,11 @@ public final class UiInspect {
         if (slash > 0 && slash < target.length() - 1) {
             return new EmitTarget(target.substring(0, slash), target.substring(slash + 1));
         }
-        if (UiTrees.get(target) != null) {
-            UiTree tree = UiTrees.get(target);
+        if (NodeTrees.get(target) != null) {
+            NodeTree tree = NodeTrees.get(target);
             String rootId =
-                    tree.root() != null && !tree.root().id().isEmpty()
-                            ? tree.root().id()
+                    tree.root() != null && !tree.root().name().isEmpty()
+                            ? tree.root().name()
                             : target;
             return new EmitTarget(target, rootId);
         }

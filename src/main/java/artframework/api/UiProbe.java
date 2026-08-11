@@ -8,8 +8,6 @@ import artframework.component.WidgetSessions;
 import artframework.c2.NativeComponents;
 import artframework.core.Themes;
 import artframework.core.HostBackend;
-import artframework.core.UiTree;
-import artframework.core.UiTrees;
 import artframework.render.RenderHosts;
 
 import java.util.ArrayList;
@@ -33,6 +31,8 @@ public final class UiProbe {
         root.put("schemaVersion", Integer.valueOf(SCHEMA_VERSION));
         root.put("modId", MOD_ID);
         root.put("windows", windowsMap());
+        root.put("presentation", artframework.presentation.PresentationRegistry.probeAll());
+        root.put("presentationFrames", artframework.presentation.PresentationRegistry.frames().size());
         if (artframework.sts1.StsRuntimeReady.hasStarted()
                 && !artframework.sts1.StsRuntimeReady.isReady()) {
             root.put("lab", labMap());
@@ -169,11 +169,10 @@ public final class UiProbe {
                     }
                 }
             }
-            UiTree tree = UiTrees.get(id);
+            artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(id);
             if (tree != null) {
-                if (tree.theme() != null) {
-                    one.put("theme", tree.theme().probeSummary());
-                }
+                one.put("presentationEntities", Integer.valueOf(tree.context().world().entities().size()));
+                one.put("theme", tree.theme().probeSummary());
                 one.put("present", tree.resolvePresent().probeSummary());
             }
             byId.put(id, one);

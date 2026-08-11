@@ -6,6 +6,7 @@ import artframework.api.ArtFramework;
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
+import artframework.presentation.NodeTree;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,7 +30,7 @@ public class AnimationTriggerTest {
 
     @Test
     public void autoPlayRunsOnMount() {
-        UiTree tree = UiTree.mount("win", rootWithAutoPlay());
+        NodeTree tree = NodeTree.mount("tree:win", rootWithAutoPlay(), null);
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         assertNotNull(player);
         assertEquals("enter", player.playing());
@@ -41,7 +42,7 @@ public class AnimationTriggerTest {
 
     @Test
     public void triggerPlaysOnPressed() {
-        UiTree tree = UiTree.mount("win", rootWithTrigger());
+        NodeTree tree = NodeTree.mount("tree:win", rootWithTrigger(), null);
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         assertNotNull(player);
         // auto_play ran at sync (listener not yet attached)

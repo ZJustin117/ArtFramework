@@ -25,6 +25,7 @@ public class Sts1HostAssetsTest {
     public void catalogCoversFramesMapUi() {
         Map<String, String> cat = Sts1VanillaCatalog.catalog();
         assertTrue(cat.containsKey(ResourceIds.CARD_FRAME_RED));
+        assertEquals("sts1:cardui/frame", cat.get(ResourceIds.CARD_FRAME_RED));
         assertTrue(cat.containsKey(ResourceIds.MAP_NODE_ELITE));
         assertTrue(cat.containsKey(ResourceIds.UI_BUTTON_DEFAULT));
         assertTrue(cat.get(ResourceIds.MAP_NODE_MONSTER).startsWith(Sts1VanillaCatalog.SOURCE_PREFIX));

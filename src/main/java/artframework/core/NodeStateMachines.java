@@ -15,11 +15,11 @@ public final class NodeStateMachines {
 
     private NodeStateMachines() {}
 
-    public static void syncTree(UiTree tree) {
+    public static void syncTree(artframework.presentation.NodeTree tree) {
         if (tree == null) {
             return;
         }
-        clearWindow(tree.windowId());
+        clearWindow(tree.context().world().scope().replace("tree:", ""));
         walk(tree, tree.root());
     }
 
@@ -54,18 +54,21 @@ public final class NodeStateMachines {
         BY_KEY.clear();
     }
 
-    private static void walk(UiTree tree, UiInstance inst) {
+    private static void walk(
+            artframework.presentation.NodeTree tree, artframework.presentation.Node inst) {
         if (inst == null) {
             return;
         }
-        if (!inst.id().isEmpty() && inst.prop("states") != null) {
+        if (!inst.name().isEmpty() && inst.get("states") != null) {
             NodeStateMachine fsm = NodeStateMachine.fromDecl(inst);
             if (fsm != null) {
-                BY_KEY.put(tree.windowId() + "/" + inst.id(), fsm);
+                BY_KEY.put(
+                        tree.context().world().scope().replace("tree:", "") + "/" + inst.name(),
+                        fsm);
                 fsm.wire(tree);
             }
         }
-        for (UiInstance c : inst.children()) {
+        for (artframework.presentation.Node c : inst.children()) {
             walk(tree, c);
         }
     }

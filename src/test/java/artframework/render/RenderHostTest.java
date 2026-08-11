@@ -10,6 +10,15 @@ import artframework.component.LayoutSpec;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.component.WidgetSessions;
+import artframework.component.Rect;
+import artframework.ecs.EntityId;
+import artframework.presentation.BoundsComponent;
+import artframework.presentation.DrawComponent;
+import artframework.presentation.EffectAttachment;
+import artframework.presentation.EffectsComponent;
+import artframework.presentation.NodeTree;
+import artframework.presentation.PresentationKey;
+import artframework.presentation.VisibilityComponent;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -142,6 +151,35 @@ public class RenderHostTest {
         assertEquals(1, ArtFramework.render().effectsOf("c1:w").size());
         WidgetSessions.close("w");
         ArtFramework.render().detachWidgetSession("w");
+    }
+
+    @Test
+    public void syncFrameDerivesUiCacheFromPresentationEntities() {
+        NodeTree tree = new NodeTree("frame-test");
+        try {
+            artframework.presentation.Node node = tree.create(
+                    new PresentationKey("ui", "panel"), "panel", "panel", "c1", null);
+            EntityId id = node.entityId();
+            tree.world().put(id, BoundsComponent.class,
+                    new BoundsComponent(new Rect(4f, 5f, 60f, 20f), 3f));
+            tree.world().put(id, DrawComponent.class, new DrawComponent("panel", "", "P"));
+            tree.world().put(id, VisibilityComponent.class, new VisibilityComponent(true, 1f));
+            EffectsComponent effects = tree.world().get(id, EffectsComponent.class);
+            effects.put(new EffectAttachment(TintEffect.ID, "ambient",
+                    Collections.<String, Object>singletonMap("alpha", 0.25f)));
+
+            RenderHost host = new RenderHost();
+            artframework.presentation.PresentationFrame frame = tree.frame();
+            host.syncFrame(frame, RenderTargetKind.SYNTHETIC_WIDGET);
+            RenderTarget target = host.getTarget("ui:panel");
+            assertNotNull(target);
+            assertEquals(new Rect(4f, 5f, 60f, 20f), target.bounds());
+            assertEquals(3f, target.z(), 0.001f);
+            assertEquals(1, host.effectsOf("ui:panel").size());
+            assertSame(frame, host.lastPresentationFrame());
+        } finally {
+            tree.close();
+        }
     }
 
     @Test

@@ -9,6 +9,8 @@ import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.component.WidgetSession;
 import artframework.c2.EntitySlot;
+import artframework.presentation.PresentationFrame;
+import artframework.presentation.PresentationDrawItem;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,6 +45,7 @@ public final class RenderHost {
     private float timeSeconds;
     private float screenW = 1920f;
     private float screenH = 1080f;
+    private PresentationFrame lastPresentationFrame;
 
     public RenderHost() {
         installBuiltins();
@@ -188,6 +191,33 @@ public final class RenderHost {
     public float screenHeight() {
         return screenH;
     }
+
+    /**
+     * Rebuild the host-side render cache from the immutable ECS snapshot. The frame is the source
+     * of bounds, z and effect attachment identity; RenderTarget/EffectBinding remain draw caches.
+     */
+    public void syncFrame(PresentationFrame frame, RenderTargetKind kind) {
+        if (frame == null) return;
+        lastPresentationFrame = frame;
+        java.util.Set<String> live = new java.util.LinkedHashSet<String>();
+        for (PresentationDrawItem item : frame.items) {
+            String id = item.key.toString();
+            live.add(id);
+            RenderTarget target = ensureTarget(id, kind == null ? RenderTargetKind.SYNTHETIC_WIDGET : kind);
+            target.setBounds(item.bounds);
+            target.setZ(item.z);
+            target.setEnabled(true);
+            clearEffects(id);
+            for (artframework.presentation.EffectAttachment attachment : item.effects) {
+                if (effects.contains(attachment.effectId)) bindEffect(id, attachment.effectId, attachment.params());
+            }
+        }
+        for (String id : new ArrayList<String>(targetIdsWithPrefix("ui:"))) {
+            if (!live.contains(id)) removeTarget(id);
+        }
+    }
+
+    public PresentationFrame lastPresentationFrame() { return lastPresentationFrame; }
 
     public boolean needsCapture() {
         if (captureEnabled) {

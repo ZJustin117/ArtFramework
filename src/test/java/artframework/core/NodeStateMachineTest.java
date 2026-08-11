@@ -5,6 +5,7 @@ import org.junit.Test;
 import artframework.api.ArtFramework;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
+import artframework.presentation.NodeTree;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +29,7 @@ public class NodeStateMachineTest {
     @Test
     public void transitionOnExactMatch() {
         Map<String, Object> states = dualStateDecl("ui/open_btn/pressed", "ui/close_btn/pressed", false);
-        UiTree tree = mountFsm(states);
+        NodeTree tree = mountFsm(states);
         NodeStateMachine fsm = NodeStateMachines.get("win", "gate");
         assertNotNull(fsm);
         assertEquals("closed", fsm.state());
@@ -57,7 +58,7 @@ public class NodeStateMachineTest {
         close.put("match_pattern", "ui/close_.*/pressed");
         transitions.add(close);
         states.put("transitions", transitions);
-        UiTree tree = mountFsm(states);
+        NodeTree tree = mountFsm(states);
         NodeStateMachine fsm = ArtFramework.nodeState("win", "gate");
         assertEquals("closed", fsm.state());
         tree.emit("open_btn", SignalNames.PRESSED);
@@ -70,7 +71,7 @@ public class NodeStateMachineTest {
     public void stateChangedSignal() {
         Map<String, Object> states = dualStateDecl("ui/open_btn/pressed", "ui/close_btn/pressed", false);
         UiNode root = fsmRoot(states, true);
-        UiTree tree = UiTree.mount("win", root);
+        NodeTree tree = NodeTree.mount("tree:win", root, null);
         final AtomicReference<String> last = new AtomicReference<String>();
         tree.get("gate")
                 .connect(
@@ -113,7 +114,7 @@ public class NodeStateMachineTest {
         t.put("on_enter", onEnter);
         transitions.add(t);
         states.put("transitions", transitions);
-        UiTree tree = mountFsm(states);
+        NodeTree tree = mountFsm(states);
         tree.emit("go", SignalNames.PRESSED);
         assertEquals("b", NodeStateMachines.get("win", "gate").state());
         assertEquals(1, hits.get());
@@ -141,8 +142,8 @@ public class NodeStateMachineTest {
         return states;
     }
 
-    private static UiTree mountFsm(Map<String, Object> states) {
-        return UiTree.mount("win", fsmRoot(states, false));
+    private static NodeTree mountFsm(Map<String, Object> states) {
+        return NodeTree.mount("tree:win", fsmRoot(states, false), null);
     }
 
     private static UiNode fsmRoot(Map<String, Object> states, boolean stateChangedSignal) {

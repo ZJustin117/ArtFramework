@@ -8,6 +8,7 @@ import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.render.LightwaveEffect;
 import artframework.render.RenderHosts;
+import artframework.presentation.NodeTree;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,7 +34,7 @@ public class NodeConnectionsTest {
 
     @Test
     public void exactMatchPlaysAnimation() {
-        UiTree tree = mountWithPlayConnection("ui/ok/pressed", false);
+        NodeTree tree = mountWithPlayConnection("ui/ok/pressed", false);
         AtomicInteger started = new AtomicInteger();
         tree.get("motion")
                 .connect(
@@ -52,7 +53,7 @@ public class NodeConnectionsTest {
 
     @Test
     public void regexMatchPlaysAnimation() {
-        UiTree tree = mountWithPlayConnection("ui/.+/pressed", true);
+        NodeTree tree = mountWithPlayConnection("ui/.+/pressed", true);
         AtomicInteger started = new AtomicInteger();
         tree.get("motion")
                 .connect(
@@ -76,7 +77,7 @@ public class NodeConnectionsTest {
         UiNode root =
                 windowWithButtonAndPlayer(
                         Collections.singletonList(trigger), null);
-        UiTree tree = UiTree.mount("win", root);
+        NodeTree tree = NodeTree.mount("tree:win", root, null);
         AtomicInteger started = new AtomicInteger();
         tree.get("motion")
                 .connect(
@@ -115,7 +116,7 @@ public class NodeConnectionsTest {
                                         .prop("value", 0.1f)
                                         .build())
                         .build();
-        UiTree tree = UiTree.mount("win", root);
+        NodeTree tree = NodeTree.mount("tree:win", root, null);
         tree.emit("wave", SignalNames.VALUE_CHANGED, Float.valueOf(0.8f));
         assertEquals(0.8f, ((Number) tree.get("panel").prop("fx_intensity")).floatValue(), 0.001f);
     }
@@ -142,7 +143,7 @@ public class NodeConnectionsTest {
                                         .build())
                         .child(UiNode.of(UiTypes.BUTTON).id("ok").prop("text", "P").build())
                         .build();
-        UiTree tree = UiTree.mount("win", root);
+        NodeTree tree = NodeTree.mount("tree:win", root, null);
         RenderHosts.get()
                 .ensureTarget("c1:win:panel", artframework.render.RenderTargetKind.SYNTHETIC_WIDGET);
         Map<String, Object> params = new LinkedHashMap<String, Object>();
@@ -173,7 +174,7 @@ public class NodeConnectionsTest {
                         .child(UiNode.of(UiTypes.BUTTON).id("ok").build())
                         .build();
         try {
-            UiTree.mount("win", root);
+            NodeTree.mount("tree:win", root, null);
             fail("expected unknown action");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("unknown ui action"));
@@ -201,7 +202,7 @@ public class NodeConnectionsTest {
                         .prop("connections", Collections.singletonList(conn))
                         .child(UiNode.of(UiTypes.BUTTON).id("ok").build())
                         .build();
-        UiTree tree = UiTree.mount("win", root);
+        NodeTree tree = NodeTree.mount("tree:win", root, null);
         tree.emit("ok", SignalNames.PRESSED);
         assertEquals(1, hits.get());
         assertTrue(ArtFramework.uiActionIds().contains("mod.test_hit"));
@@ -209,7 +210,7 @@ public class NodeConnectionsTest {
 
     @Test
     public void unmountClearsSubscriptions() {
-        UiTree tree = mountWithPlayConnection("ui/ok/pressed", false);
+        NodeTree tree = mountWithPlayConnection("ui/ok/pressed", false);
         assertTrue(NodeConnections.subscriptionCount("win") >= 1);
         tree.unmount();
         assertEquals(0, NodeConnections.subscriptionCount("win"));
@@ -226,7 +227,7 @@ public class NodeConnectionsTest {
         assertNotNull(ArtFramework.getUiAction(UiActions.PAUSE));
     }
 
-    private static UiTree mountWithPlayConnection(String match, boolean pattern) {
+    private static NodeTree mountWithPlayConnection(String match, boolean pattern) {
         Map<String, Object> conn = new LinkedHashMap<String, Object>();
         if (pattern) {
             conn.put("match_pattern", match);
@@ -238,7 +239,7 @@ public class NodeConnectionsTest {
         args.put("player", "motion");
         args.put("name", "enter");
         conn.put("args", args);
-        return UiTree.mount("win", windowWithButtonAndPlayer(null, Collections.singletonList(conn)));
+        return NodeTree.mount("tree:win", windowWithButtonAndPlayer(null, Collections.singletonList(conn)), null);
     }
 
     private static UiNode windowWithButtonAndPlayer(

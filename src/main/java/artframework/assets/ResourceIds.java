@@ -77,6 +77,10 @@ public final class ResourceIds {
         return UI_PREFIX + "energy." + (color != null ? color : "red");
     }
 
+    public static String energyOrbLayer(String color, int layer) {
+        return energyOrb(color) + ".layer" + layer;
+    }
+
     public static String intent(String id) {
         return UI_INTENT_PREFIX + (id != null ? id : "unknown");
     }

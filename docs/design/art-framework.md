@@ -40,7 +40,7 @@ Caller
        register | mount | unmount | tree | ops | probe | render | nodes
   → Core (host-agnostic)
        PresentationNode (decl AST; today UiNode)
-       PresentationTree / PresentationInstance (today UiTree / UiInstance)
+        NodeTree / Node facade over PresentationWorld entities
        SignalHub · LayoutEngine · Theme · ComponentRegistry · NodeRegistry
        PresentationWorld · EntityId (ART-owned presentation state)
        RenderGraph bookkeeping (today RenderHost pure side)
@@ -140,7 +140,7 @@ STS1 implements full set used by current C1/C2. STS2 implements what the real ho
 | `spireui` package / modid / jar / console | **Removed** (breaking) |
 | `ArtFramework.open` / `bind` / `close` | Keep; aliases of mount/unmount where applicable |
 | `UiOps` / `UiProbe` names | Keep until Presentation Graph rename slice |
-| `UiNode` / `UiTree` | Keep as implementation names; no public rename scheduled |
+| `UiNode` / `NodeTree` | `UiNode` is immutable declaration input; `NodeTree`/`Node` are ECS-backed runtime API |
 | Probe `modId` | `artframework` |
 | Console root | `art` |
 

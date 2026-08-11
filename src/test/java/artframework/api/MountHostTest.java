@@ -5,7 +5,6 @@ import org.junit.Test;
 import artframework.c2.NativeTemplateIds;
 import artframework.core.HostBackend;
 import artframework.core.HostCapabilities;
-import artframework.core.UiTree;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,17 +81,17 @@ public class MountHostTest {
                     }
 
                     @Override
-                    public void attach(UiTree tree) {
-                        events.add("a:" + tree.windowId());
+                    public void attach(artframework.presentation.NodeTree tree) {
+                        events.add("a:" + tree.scope().replace("tree:", ""));
                     }
 
                     @Override
-                    public void detach(UiTree tree) {
-                        events.add("d:" + tree.windowId());
+                    public void detach(artframework.presentation.NodeTree tree) {
+                        events.add("d:" + tree.scope().replace("tree:", ""));
                     }
 
                     @Override
-                    public void applyLayout(UiTree tree) {}
+                    public void applyLayout(artframework.presentation.NodeTree tree) {}
                 });
         ArtFramework.register(
                 new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
@@ -114,13 +113,13 @@ public class MountHostTest {
                     }
 
                     @Override
-                    public void attach(UiTree tree) {}
+                    public void attach(artframework.presentation.NodeTree tree) {}
 
                     @Override
-                    public void detach(UiTree tree) {}
+                    public void detach(artframework.presentation.NodeTree tree) {}
 
                     @Override
-                    public void applyLayout(UiTree tree) {}
+                    public void applyLayout(artframework.presentation.NodeTree tree) {}
 
                     @Override
                     public void tick(float deltaSeconds) {

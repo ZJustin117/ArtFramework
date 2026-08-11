@@ -269,14 +269,21 @@ public class ArtCommand extends ConsoleCommand {
                 DevConsole.log("Usage: art profile set|project <sts|lightwave>");
                 return;
             }
+            String profileId = tokens[depth + 1];
             try {
-                ArtFramework.setProjectPresent(tokens[depth + 1]);
-                DevConsole.log(
-                        "project present "
+                ArtFramework.setProjectPresent(profileId);
+                commandResult(
+                        "art profile " + action + " " + profileId,
+                        "OK",
+                        "project="
                                 + ArtFramework.projectPresent()
-                                + " (hot restyle project-fallback windows)");
+                                + " pack="
+                                + ArtFramework.activePresentPack());
             } catch (RuntimeException e) {
-                DevConsole.log("profile set failed: " + e.getMessage());
+                commandResult(
+                        "art profile " + action + " " + profileId,
+                        "ERROR",
+                        message(e, "profile set failed"));
             }
             return;
         }

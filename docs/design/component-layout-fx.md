@@ -18,7 +18,7 @@ Builds on [`component-composition.md`](./component-composition.md).
 ## Public surface
 
 - `artframework.component.*` — composition AST + WidgetSession
-- `artframework.render.*` — `RenderHost`, targets, `tint` / `glow`, `ShaderRegistry`
+- `artframework.render.*` — `RenderHost` frame cache, `tint` / `glow`, `ShaderRegistry`
 - `ArtFramework.render()` — global host; `UiProbe` field `render`
 
 ## Not in ArtFramework

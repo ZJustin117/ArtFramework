@@ -88,7 +88,7 @@ Optional `states` prop:
 | Kind | Store |
 |------|--------|
 | Slider / text / checkbox | `WidgetSession` (flat) |
-| FX / anim props | `UiInstance` + effect bindings |
+| FX / anim props | `NodePropertiesComponent` + `EffectsComponent`, rendered from `PresentationFrame` |
 | Game / settings authority | Backend + frame / intent |
 
 ## Related APIs

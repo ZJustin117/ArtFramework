@@ -1,6 +1,8 @@
 package artframework.core;
 
 import artframework.component.ArtNodeTypes;
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,12 +18,12 @@ public final class PresentResolve {
 
     private PresentResolve() {}
 
-    public static PresentResolved forNode(UiInstance node) {
+    public static PresentResolved forNode(Node node) {
         if (node == null) {
             return ProjectPresent.resolved();
         }
         List<PresentBinding> layers = new ArrayList<PresentBinding>();
-        UiInstance cur = node;
+        Node cur = node;
         while (cur != null) {
             PresentBinding b = bindingOf(cur);
             if (b != null) {
@@ -47,12 +49,14 @@ public final class PresentResolve {
         return ProjectPresent.resolved();
     }
 
-    public static PresentResolved forTree(UiTree tree) {
+
+    public static PresentResolved forTree(NodeTree tree) {
         if (tree == null || tree.root() == null) {
             return ProjectPresent.resolved();
         }
         return forNode(tree.root());
     }
+
 
     /** C2 / no-tree consumers: project fallback. */
     public static PresentChromeStyle chrome() {
@@ -68,30 +72,37 @@ public final class PresentResolve {
         return SurfacePresent.resolve(surfaceId);
     }
 
-    public static PresentChromeStyle chromeFor(UiTree tree) {
+    public static PresentChromeStyle chromeFor(NodeTree tree) {
         return forTree(tree).chrome;
     }
 
-    public static PresentChromeStyle chromeFor(UiInstance node) {
+    public static PresentChromeStyle chromeFor(Node node) {
         return forNode(node).chrome;
     }
 
-    public static Theme themeFor(UiTree tree) {
+
+    public static Theme themeFor(NodeTree tree) {
         return forTree(tree).theme;
     }
 
-    public static Theme themeFor(UiInstance node) {
+    public static Theme themeFor(Node node) {
         return forNode(node).theme;
     }
 
-    static PresentBinding bindingOf(UiInstance inst) {
+
+    static PresentBinding bindingOf(Node inst) {
         if (inst == null) {
             return null;
         }
-        if (inst.presentBinding() != null) {
-            return inst.presentBinding();
+        Map<String, Object> props = new java.util.LinkedHashMap<String, Object>();
+        String[] keys = new String[] {
+            "profile", "present_profile", "presentProfile", "present_mode", "presentMode", "mode"
+        };
+        for (String key : keys) {
+            Object value = inst.get(key);
+            if (value != null) props.put(key, value);
         }
-        return parseBindingFromProps(inst.type(), inst.propsView());
+        return parseBindingFromProps(inst.type(), props);
     }
 
     /**
@@ -165,8 +176,8 @@ public final class PresentResolve {
         return s.isEmpty() ? null : s;
     }
 
-    private static Theme nearestNamedTheme(UiInstance node) {
-        UiInstance cur = node;
+    private static Theme nearestNamedTheme(Node node) {
+        Node cur = node;
         while (cur != null) {
             Object themeName = cur.prop("theme");
             if (themeName != null) {
@@ -182,4 +193,5 @@ public final class PresentResolve {
         }
         return null;
     }
+
 }

@@ -34,8 +34,8 @@ Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host 
 
 | Godot | ArtFramework target | Notes |
 |-------|----------------|-------|
-| Node / SceneTree | `UiInstance` + `UiTree` (per mount) | No global engine tree; one tree per open/mounted root |
-| Control | Control contract on `UiInstance` (bounds, minSize, focus, signals) | |
+| Node / SceneTree | `Node` + `NodeTree` over `PresentationWorld` (per scope) | No mutable facade-owned state |
+| Control | Control contract on `Node` with ECS bounds, visibility, interaction and signals | |
 | Container | Nest containers (`row`/`col`/…); container-first layout | Children do not self-position under containers |
 | Size flags / stretch ratio | Extended `LayoutSpec` | Today: `grow`; target: flags + ratio |
 | Anchors / offsets | Optional root / non-container presets | Complex UI prefers containers (Godot guidance) |
@@ -56,7 +56,7 @@ Caller
   → artframework.api.ArtFramework
        register | mount | unmount | tree | ops | probe | theme | render
   → artframework.core (suggested package)
-       UiNode (decl) → UiInstance (live)
+        UiNode (declaration) → NodeMaterializer → ECS entity → Node facade
        LayoutEngine · SignalHub · Theme · ComponentRegistry
   → host (implementation)
        host.sts1.c1     StageHost + ComponentActors + StsSkin
@@ -85,12 +85,12 @@ Existing immutable AST stays the declaration source (JSON layout). Evolve:
 | Theme type | — | optional `themeType` / variation |
 | Behavior in JSON | none (correct) | still none; signals named only if ever declared as metadata |
 
-### Runtime (`UiInstance` / `UiTree`)
+### Runtime (`Node` / `NodeTree`)
 
 | Concept | Role |
 |---------|------|
-| `UiInstance` | Live node: id, type, props overlay, parent/children, rect, minSize, focus/mouse flags |
-| `UiTree` | One mount root + id index + theme + host |
+| `Node` | State-free facade over `PresentationContext` + `EntityId` |
+| `NodeTree` | Scope, ECS hierarchy lookup, lifecycle, signals, materialization and frame snapshots |
 | `find(path)` | Simplified NodePath (`"panel/ok"`) |
 | Lifecycle | `onMount` → `onReady` (children first) → `onUnmount` |
 
@@ -100,7 +100,7 @@ Existing immutable AST stays the declaration source (JSON layout). Evolve:
 | ready | onReady |
 | exit_tree | onUnmount |
 
-`WidgetSession` merges into or becomes a view over instance state (avoid dual sources of truth long-term).
+`WidgetSession` is a host input/cache view; mutable presentation state remains in ECS components.
 
 ### Signals
 

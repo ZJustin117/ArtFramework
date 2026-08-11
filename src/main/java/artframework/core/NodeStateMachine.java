@@ -1,5 +1,8 @@
 package artframework.core;
 
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -56,14 +59,14 @@ public final class NodeStateMachine {
         }
     }
 
-    private final UiInstance owner;
+    private final Node owner;
     private final List<Transition> transitions = new ArrayList<Transition>();
     private final List<SignalSubscription> subscriptions = new ArrayList<SignalSubscription>();
     private String state;
     private final Map<String, List<Map<String, Object>>> enterByState =
             new LinkedHashMap<String, List<Map<String, Object>>>();
 
-    public NodeStateMachine(UiInstance owner, String initial) {
+    public NodeStateMachine(Node owner, String initial) {
         if (owner == null) {
             throw new IllegalArgumentException("owner required");
         }
@@ -75,7 +78,7 @@ public final class NodeStateMachine {
         return state;
     }
 
-    public UiInstance owner() {
+    public Node owner() {
         return owner;
     }
 
@@ -107,7 +110,7 @@ public final class NodeStateMachine {
         runEnter(state, null);
         if (emitChanged && owner.declaresSignal(SignalNames.STATE_CHANGED)) {
             try {
-                owner.emit(SignalNames.STATE_CHANGED, state);
+                owner.emitSignal(SignalNames.STATE_CHANGED, state);
             } catch (RuntimeException ignored) {
             }
         }
@@ -117,7 +120,7 @@ public final class NodeStateMachine {
         setState(next, true);
     }
 
-    public void wire(UiTree tree) {
+    public void wire(NodeTree tree) {
         clearSubscriptions();
         if (tree == null) {
             return;
@@ -165,7 +168,7 @@ public final class NodeStateMachine {
         runActionList(t.onEnter, event);
         if (owner.declaresSignal(SignalNames.STATE_CHANGED)) {
             try {
-                owner.emit(SignalNames.STATE_CHANGED, state);
+                owner.emitSignal(SignalNames.STATE_CHANGED, state);
             } catch (RuntimeException ignored) {
             }
         }
@@ -180,7 +183,7 @@ public final class NodeStateMachine {
         if (actions == null || actions.isEmpty()) {
             return;
         }
-        UiTree tree = owner.tree();
+        NodeTree tree = owner.tree();
         for (Map<String, Object> spec : actions) {
             if (spec == null) {
                 continue;
@@ -202,11 +205,11 @@ public final class NodeStateMachine {
     }
 
     @SuppressWarnings("unchecked")
-    public static NodeStateMachine fromDecl(UiInstance owner) {
+    public static NodeStateMachine fromDecl(Node owner) {
         if (owner == null) {
             return null;
         }
-        Object raw = owner.prop("states");
+        Object raw = owner.get("states");
         if (!(raw instanceof Map)) {
             return null;
         }

@@ -1,5 +1,7 @@
 package artframework.core;
 
+import artframework.presentation.NodeTree;
+
 /**
  * Host SPI for inflate / input / draw (STS1 Stage, future STS2).
  * Pure tests use a no-op or fake; production installs Stage-backed impl.
@@ -9,14 +11,14 @@ public interface HostBackend {
     /** Whether the host can attach trees (e.g. Stage ready). */
     boolean isReady();
 
-    void attach(UiTree tree);
+    default void attach(NodeTree tree) {}
 
-    void detach(UiTree tree);
+    default void detach(NodeTree tree) {}
 
     /**
      * Optional: push pure layout rects into host actors. Default no-op.
      */
-    void applyLayout(UiTree tree);
+    default void applyLayout(NodeTree tree) {}
 
     /** Capabilities available from this host. */
     default HostCapabilities capabilities() {

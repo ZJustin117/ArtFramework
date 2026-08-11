@@ -1,5 +1,8 @@
 package artframework.core;
 
+import artframework.presentation.Node;
+import artframework.presentation.NodeTree;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,11 +21,11 @@ public final class NodeConnections {
 
     private NodeConnections() {}
 
-    public static void syncTree(UiTree tree) {
+    public static void syncTree(NodeTree tree) {
         if (tree == null) {
             return;
         }
-        clearWindow(tree.windowId());
+        clearWindow(windowId(tree));
         UiActions.ensureBuiltins();
         walk(tree, tree.root());
     }
@@ -58,20 +61,20 @@ public final class NodeConnections {
         return list == null ? 0 : list.size();
     }
 
-    private static void walk(UiTree tree, UiInstance inst) {
+    private static void walk(NodeTree tree, Node inst) {
         if (inst == null) {
             return;
         }
         wireNode(tree, inst);
-        for (UiInstance c : inst.children()) {
+        for (Node c : inst.children()) {
             walk(tree, c);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static void wireNode(final UiTree tree, final UiInstance owner) {
+    private static void wireNode(final NodeTree tree, final Node owner) {
         List<Map<String, Object>> specs = new ArrayList<Map<String, Object>>();
-        Object connections = owner.prop("connections");
+        Object connections = owner.get("connections");
         if (connections instanceof List) {
             for (Object item : (List<?>) connections) {
                 if (item instanceof Map) {
@@ -79,7 +82,7 @@ public final class NodeConnections {
                 }
             }
         }
-        Object triggers = owner.prop("triggers");
+        Object triggers = owner.get("triggers");
         if (triggers instanceof List) {
             for (Object item : (List<?>) triggers) {
                 if (!(item instanceof Map)) {
@@ -97,7 +100,7 @@ public final class NodeConnections {
         }
     }
 
-    private static Map<String, Object> normalizeTrigger(UiInstance owner, Map<String, Object> m) {
+    private static Map<String, Object> normalizeTrigger(Node owner, Map<String, Object> m) {
         String source = stringVal(m.get("source"));
         String signal = stringVal(m.get("signal"));
         String play = stringVal(m.get("play"));
@@ -105,7 +108,7 @@ public final class NodeConnections {
             return null;
         }
         if (".".equals(source) || "self".equals(source)) {
-            source = owner.id();
+            source = owner.name();
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("match", SignalHub.name(source, signal));
@@ -124,8 +127,8 @@ public final class NodeConnections {
             args.put("name", play);
             args.put("play", play);
         }
-        if (!args.containsKey("player") && !owner.id().isEmpty()) {
-            args.put("player", owner.id());
+        if (!args.containsKey("player") && !owner.name().isEmpty()) {
+            args.put("player", owner.name());
         }
         Object player = m.get("player");
         if (player != null) {
@@ -136,7 +139,7 @@ public final class NodeConnections {
     }
 
     private static void wireSpec(
-            final UiTree tree, final UiInstance owner, Map<String, Object> spec) {
+            final NodeTree tree, final Node owner, Map<String, Object> spec) {
         final String actionId = stringVal(spec.get("action"));
         if (actionId.isEmpty()) {
             return;
@@ -181,7 +184,7 @@ public final class NodeConnections {
             String signal = stringVal(spec.get("signal"));
             if (!source.isEmpty() && !signal.isEmpty()) {
                 if (".".equals(source) || "self".equals(source)) {
-                    source = owner.id();
+                    source = owner.name();
                 }
                 match = SignalHub.name(source, signal);
             }
@@ -218,7 +221,7 @@ public final class NodeConnections {
         } else {
             sub = tree.connectBus(match, listener);
         }
-        track(tree.windowId(), sub);
+        track(windowId(tree), sub);
     }
 
     private static void promoteArg(
@@ -275,5 +278,9 @@ public final class NodeConnections {
 
     private static String stringVal(Object v) {
         return v == null ? "" : String.valueOf(v).trim();
+    }
+
+    private static String windowId(NodeTree tree) {
+        return tree.context().world().scope().replace("tree:", "");
     }
 }

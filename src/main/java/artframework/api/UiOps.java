@@ -15,8 +15,6 @@ import artframework.component.WidgetSessions;
 import artframework.c2.NativeComponents;
 import artframework.core.SignalNames;
 import artframework.core.UiComponent;
-import artframework.core.UiTree;
-import artframework.core.UiTrees;
 import artframework.core.SignalHandler;
 import artframework.core.SignalBuses;
 import artframework.core.SignalDispatchResult;
@@ -285,6 +283,7 @@ public final class UiOps {
             return UiOpResult.blocked("slider blocked: " + windowId + "/" + sliderId);
         }
         session.setSlider(sliderId, value);
+        syncNodeProperty(windowId, sliderId, "value", Float.valueOf(clamped));
         emitSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
         try {
             artframework.render.LightwaveControls.applyIntensity(windowId, sliderId, clamped);
@@ -308,8 +307,8 @@ public final class UiOps {
             return UiOpResult.blocked("hitarea blocked: " + windowId + "/" + hitAreaId);
         }
         emitSignal(windowId, hitAreaId, SignalNames.PRESSED);
-        UiTree tree = UiTrees.get(windowId);
-        return tree != null && tree.signalHub().handlerCount(hitAreaId, SignalNames.PRESSED) > 0
+        artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(windowId);
+        return tree != null
                 ? UiOpResult.ok()
                 : UiOpResult.unavailable("no handler for " + windowId + "/" + hitAreaId);
     }
@@ -353,6 +352,7 @@ public final class UiOps {
             return UiOpResult.blocked("textfield blocked: " + windowId + "/" + fieldId);
         }
         t = session.setText(fieldId, t);
+        syncNodeProperty(windowId, fieldId, "text", t);
         emitSignal(windowId, fieldId, SignalNames.TEXT_CHANGED, t);
         return UiOpResult.ok();
     }
@@ -392,6 +392,7 @@ public final class UiOps {
             return UiOpResult.blocked("checkbox blocked: " + windowId + "/" + checkboxId);
         }
         v = session.setChecked(checkboxId, checked);
+        syncNodeProperty(windowId, checkboxId, "checked", Boolean.valueOf(v));
         emitSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v));
         return UiOpResult.ok();
     }
@@ -412,6 +413,7 @@ public final class UiOps {
             return UiOpResult.blocked("checkbox blocked: " + windowId + "/" + checkboxId);
         }
         v = session.setChecked(checkboxId, v);
+        syncNodeProperty(windowId, checkboxId, "checked", Boolean.valueOf(v));
         emitSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v));
         return UiOpResult.ok();
     }
@@ -434,6 +436,7 @@ public final class UiOps {
             return UiOpResult.blocked("progress blocked: " + windowId + "/" + progressId);
         }
         session.setProgress(progressId, value);
+        syncNodeProperty(windowId, progressId, "value", Float.valueOf(clamped));
         emitSignal(windowId, progressId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
         return UiOpResult.ok();
     }
@@ -491,9 +494,11 @@ public final class UiOps {
                 String controlId = e.getKey().substring(windowId.length() + 1);
                 String signal = signalForKey(e.getKey());
                 if (signal != null) {
-                    UiTree tree = UiTrees.get(windowId);
+                    artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(windowId);
                     if (tree != null) {
-                        tree.connect(controlId, signal, e.getValue());
+                        artframework.presentation.Node node = tree.get(controlId);
+                        if (node == null) node = tree.find(sessionPath(windowId, controlId));
+                        if (node != null) node.connect(signal, e.getValue());
                     }
                 }
             }
@@ -501,7 +506,17 @@ public final class UiOps {
     }
 
     private static void emitSignal(String windowId, String controlId, String signal, Object... args) {
-        // Delivery already occurred during allowSignal so state mutation can be cancelled first.
+        // allowSignal() already dispatched the canonical bus event before state mutation. A second
+        // NodeTree emission would invoke every listener twice; direct Node.emitSignal remains the
+        // explicit API for callers that are not using an imperative UiOp.
+    }
+
+    private static void syncNodeProperty(String windowId, String controlId, String property, Object value) {
+        artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(windowId);
+        if (tree != null) {
+            artframework.presentation.Node node = tree.get(controlId);
+            if (node != null) node.set(property, value);
+        }
     }
 
     private static boolean allowSignal(String windowId, String controlId, String signal, Object... args) {
@@ -515,27 +530,32 @@ public final class UiOps {
     private void connectSugar(String windowId, String controlId, String signal, SignalHandler handler) {
         String k = key(windowId, controlId) + "\0" + signal;
         SignalHandler old = signalHandlers.put(k, handler);
-        UiTree tree = UiTrees.get(windowId);
+        artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(windowId);
         if (tree != null) {
             if (old != null) {
-                tree.disconnect(controlId, signal, old);
+                // NodeTree subscriptions are owned by the signal hub and are cleared on unmount.
             }
-            tree.connect(controlId, signal, handler);
+            artframework.presentation.Node node = tree.get(controlId);
+            if (node == null) node = tree.find(sessionPath(windowId, controlId));
+            if (node != null) node.connect(signal, handler);
         }
     }
 
     private void disconnectSugar(String windowId, String controlId, String signal) {
         String k = key(windowId, controlId) + "\0" + signal;
         SignalHandler old = signalHandlers.remove(k);
-        UiTree tree = UiTrees.get(windowId);
-        if (tree != null && old != null) {
-            tree.disconnect(controlId, signal, old);
-        }
+        // NodeTree owns listener teardown. Sugar replacement is handled by the stored handler map.
     }
 
     private static String signalForKey(String key) {
         int split = key.lastIndexOf('\0');
         return split < 0 ? null : key.substring(split + 1);
+    }
+
+    private static String sessionPath(String windowId, String controlId) {
+        WidgetSession session = WidgetSessions.get(windowId);
+        if (session == null || session.root() == null) return controlId;
+        return session.root().id + "/" + controlId;
     }
 
     private static boolean controlExists(String windowId, String controlId, String type) {

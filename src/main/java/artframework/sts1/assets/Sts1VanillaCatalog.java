@@ -48,7 +48,13 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_PREFIX + "endturn", "images/ui/topPanel/endTurnButton.png");
         put(m, ResourceIds.UI_BUTTON_END_TURN_HOVER, "images/ui/topPanel/endTurnHover.png");
         put(m, ResourceIds.energyOrb("red"), "images/ui/topPanel/red/layer1.png");
+        put(m, ResourceIds.energyOrbLayer("red", 1), "images/ui/topPanel/red/layer1.png");
+        put(m, ResourceIds.energyOrbLayer("red", 2), "images/ui/topPanel/red/layer2.png");
+        put(m, ResourceIds.energyOrbLayer("red", 3), "images/ui/topPanel/red/layer3.png");
         put(m, ResourceIds.energyOrb("green"), "images/ui/topPanel/green/layer1.png");
+        put(m, ResourceIds.energyOrbLayer("green", 1), "images/ui/topPanel/green/layer1.png");
+        put(m, ResourceIds.energyOrbLayer("green", 2), "images/ui/topPanel/green/layer2.png");
+        put(m, ResourceIds.energyOrbLayer("green", 3), "images/ui/topPanel/green/layer3.png");
         put(m, ResourceIds.energyOrb("blue"), "images/ui/topPanel/blue/layer1.png");
         put(m, ResourceIds.energyOrb("purple"), "images/ui/topPanel/purple/l1.png");
         put(m, ResourceIds.UI_EVENT_BUTTON_ENABLED, "images/ui/event/enabledButton.png");
@@ -69,13 +75,14 @@ public final class Sts1VanillaCatalog {
     }
 
     private static void putCardFrames(Map<String, String> m) {
-        put(m, ResourceIds.CARD_FRAME_RED, "images/512/frame_attack_red.png");
-        put(m, ResourceIds.CARD_FRAME_GREEN, "images/512/frame_attack_green.png");
-        put(m, ResourceIds.CARD_FRAME_BLUE, "images/512/frame_attack_blue.png");
-        put(m, ResourceIds.CARD_FRAME_PURPLE, "images/512/frame_attack_purple.png");
-        put(m, ResourceIds.CARD_FRAME_COLORLESS, "images/512/frame_attack_colorless.png");
-        put(m, ResourceIds.CARD_FRAME_PREFIX + "skill_red", "images/512/frame_skill_red.png");
-        put(m, ResourceIds.CARD_FRAME_PREFIX + "power_red", "images/512/frame_power_red.png");
+        // Card frames are regions in STS's cardui atlas, not files below images/.
+        put(m, ResourceIds.CARD_FRAME_RED, "cardui/frame");
+        put(m, ResourceIds.CARD_FRAME_GREEN, "cardui/frame");
+        put(m, ResourceIds.CARD_FRAME_BLUE, "cardui/frame");
+        put(m, ResourceIds.CARD_FRAME_PURPLE, "cardui/frame");
+        put(m, ResourceIds.CARD_FRAME_COLORLESS, "cardui/frame");
+        put(m, ResourceIds.CARD_FRAME_PREFIX + "skill_red", "cardui/frame");
+        put(m, ResourceIds.CARD_FRAME_PREFIX + "power_red", "cardui/frame");
     }
 
     private static void putMapNodes(Map<String, String> m) {

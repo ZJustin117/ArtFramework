@@ -20,4 +20,14 @@ public class Sts1AssetMaterializerTest {
         assertFalse(Sts1AssetMaterializer.isFileBacked("pack://custom/node.png"));
         assertFalse(Sts1AssetMaterializer.isFileBacked(""));
     }
+
+    @Test
+    public void recognizesCardUiAtlasFramesAndSelectsByTypeAndRarityWithoutGl() {
+        assertTrue(Sts1AssetMaterializer.isCardFrameAtlas("sts1:cardui/frame"));
+        assertFalse(Sts1AssetMaterializer.isFileBacked("sts1:cardui/frame"));
+        assertEquals("attack.common", Sts1AssetMaterializer.cardFrameAtlasKey("ATTACK", "BASIC"));
+        assertEquals("skill.uncommon", Sts1AssetMaterializer.cardFrameAtlasKey("SKILL", "UNCOMMON"));
+        assertEquals("power.rare", Sts1AssetMaterializer.cardFrameAtlasKey("POWER", "RARE"));
+        assertEquals("attack.common", Sts1AssetMaterializer.cardFrameAtlasKey("STATUS", "SPECIAL"));
+    }
 }

@@ -181,20 +181,20 @@ public final class EffectPulse {
 
     private static void mirrorTree(String windowId, String targetId, float intensity) {
         try {
-            UiTree tree = ArtFramework.tree(windowId);
+            artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
             if (tree == null) {
                 return;
             }
             String nodeId = nodeIdFromTarget(windowId, targetId);
-            UiInstance panel = tree.get(nodeId);
+            artframework.presentation.Node panel = tree.find("root/" + nodeId);
             if (panel == null) {
-                panel = tree.get("panel");
+                panel = tree.find("root/panel");
             }
             if (panel == null) {
-                panel = tree.get("p");
+                panel = tree.find("root/p");
             }
             if (panel != null) {
-                panel.setProp("fx_intensity", Float.valueOf(intensity));
+                panel.set("fx_intensity", Float.valueOf(intensity));
             }
         } catch (Throwable ignored) {
         }
@@ -230,14 +230,14 @@ public final class EffectPulse {
         } catch (Throwable ignored) {
         }
         try {
-            UiTree tree = ArtFramework.tree(windowId);
+            artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
             if (tree != null) {
-                UiInstance n = tree.get(targetNodeId);
+                artframework.presentation.Node n = tree.find("root/" + targetNodeId);
                 if (n == null) {
-                    n = tree.get("panel");
+                    n = tree.find("root/panel");
                 }
-                if (n != null && n.prop("fx_intensity") instanceof Number) {
-                    return clamp(((Number) n.prop("fx_intensity")).floatValue());
+                if (n != null && n.get("fx_intensity") instanceof Number) {
+                    return clamp(((Number) n.get("fx_intensity")).floatValue());
                 }
             }
         } catch (Throwable ignored) {

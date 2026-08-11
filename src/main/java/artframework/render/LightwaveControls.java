@@ -1,10 +1,7 @@
 package artframework.render;
 
 import artframework.api.ArtFramework;
-import artframework.component.WidgetSessions;
 import artframework.core.EffectPulse;
-import artframework.core.UiInstance;
-import artframework.core.UiTree;
 
 /**
  * Wire C1 slider to {@link LightwaveEffect}. Pulse/close FX delegate to {@link EffectPulse}
@@ -89,14 +86,14 @@ public final class LightwaveControls {
 
     private static void mirrorTreeProp(String windowId, float intensity) {
         try {
-            UiTree tree = ArtFramework.tree(windowId);
+            artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
             if (tree != null) {
-                UiInstance panel = tree.get("panel");
+                artframework.presentation.Node panel = tree.find("root/panel");
                 if (panel == null) {
-                    panel = tree.get("p");
+                    panel = tree.find("root/p");
                 }
                 if (panel != null) {
-                    panel.setProp("fx_intensity", Float.valueOf(intensity));
+                    panel.set("fx_intensity", Float.valueOf(intensity));
                 }
             }
         } catch (Throwable ignored) {

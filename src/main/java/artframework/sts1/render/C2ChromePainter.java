@@ -7,10 +7,10 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.megacrit.cardcrawl.helpers.ImageMaster;
 
 /** Small, shared chrome painter for ART-owned C2 surface regions. */
-final class C2ChromePainter {
+public final class C2ChromePainter {
     private C2ChromePainter() {}
 
-    static void panel(SpriteBatch sb, float x, float y, float w, float h, PresentChromeStyle chrome) {
+    public static void panel(SpriteBatch sb, float x, float y, float w, float h, PresentChromeStyle chrome) {
         if (sb == null || chrome == null || w <= 0f || h <= 0f) {
             return;
         }

@@ -96,10 +96,11 @@ public final class Sts1SurfaceRenderer {
 
     private static void disableInactiveSurfaceEffects(SurfaceDrawPlan plan) {
         String[] surfaces = {
-            SurfaceIds.COMBAT_HAND, SurfaceIds.COMBAT_CONTROLS, SurfaceIds.MAP, SurfaceIds.EVENT,
-            SurfaceIds.SELECT_GRID, SurfaceIds.REWARD_COMBAT, SurfaceIds.REST, SurfaceIds.SHOP,
-            SurfaceIds.TREASURE, SurfaceIds.COMBAT_PROCEED, SurfaceIds.TOP_PANEL,
-            SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_INTENTS
+            SurfaceIds.COMBAT_HAND, SurfaceIds.COMBAT_CARD_SLOTS, SurfaceIds.COMBAT_CONTROLS,
+            SurfaceIds.MAP, SurfaceIds.EVENT, SurfaceIds.SELECT_GRID, SurfaceIds.SELECT_HAND,
+            SurfaceIds.REWARD_COMBAT, SurfaceIds.REWARD_CARD, SurfaceIds.REWARD_BOSS_RELIC,
+            SurfaceIds.REST, SurfaceIds.SHOP, SurfaceIds.TREASURE, SurfaceIds.COMBAT_PROCEED,
+            SurfaceIds.TOP_PANEL, SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_INTENTS
         };
         for (String sid : surfaces) {
             boolean active = false;
@@ -129,7 +130,8 @@ public final class Sts1SurfaceRenderer {
         if (SurfaceIds.COMBAT_HAND.equals(surfaceId)) {
             x = 0f; y = 0f; w = sw; h = sh * 0.46f;
         } else if (SurfaceIds.COMBAT_CONTROLS.equals(surfaceId)) {
-            x = sw * 0.76f; y = sh * 0.06f; w = sw * 0.2f; h = sh * 0.14f;
+            artframework.component.Rect bounds = Sts1EndTurnChrome.bounds(sw, sh);
+            x = bounds.x; y = bounds.y; w = bounds.width; h = bounds.height;
         } else if (SurfaceIds.TOP_PANEL.equals(surfaceId)) {
             x = 20f; y = sh - 82f; w = sw * 0.48f; h = 58f;
         } else if (SurfaceIds.COMBAT_ENERGY.equals(surfaceId)) {
@@ -144,10 +146,9 @@ public final class Sts1SurfaceRenderer {
         try {
             RenderHost host = RenderHosts.get();
             host.syncC2Surface(surfaceId, x, y, w, h);
-            if (SurfaceIds.COMBAT_HAND.equals(surfaceId)
-                    || SurfaceIds.COMBAT_CONTROLS.equals(surfaceId)) {
-                host.setC2SurfaceEnabled(surfaceId, false);
-            }
+            // C2 surface bounds are layout regions, not pixel-precise chrome. Keep ambient
+            // effects on item targets so a surface cannot paint a large fallback rectangle.
+            host.setC2SurfaceEnabled(surfaceId, false);
         } catch (RuntimeException ignored) {
         }
     }
@@ -164,6 +165,9 @@ public final class Sts1SurfaceRenderer {
                 0f,
                 com.megacrit.cardcrawl.core.Settings.WIDTH,
                 com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.46f);
+        // The hand surface is only a parent for item-level effects. Drawing its ambient effect
+        // across the whole upper combat region produces large fallback rectangles on devices.
+        host.setC2SurfaceEnabled(SurfaceIds.COMBAT_HAND, false);
         // Draw in projection order; hard-sync pose onto live card before render (16.4).
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (HandDrawPath.DrawItem item : HandDrawPath.buildFromProjection()) {
@@ -171,6 +175,15 @@ public final class Sts1SurfaceRenderer {
                 continue;
             }
             artframework.component.Rect bounds = item.bounds();
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.COMBAT_HAND,
+                    item.instanceId,
+                    bounds,
+                    1f,
+                    "card",
+                    item.artResourceId,
+                    item.cardId,
+                    item.visible);
             host.syncC2Item(
                     SurfaceIds.COMBAT_HAND,
                     item.instanceId,
@@ -202,6 +215,15 @@ public final class Sts1SurfaceRenderer {
                 artframework.component.Rect bounds = Sts1EndTurnChrome.bounds(
                         com.megacrit.cardcrawl.core.Settings.WIDTH,
                         com.megacrit.cardcrawl.core.Settings.HEIGHT);
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        SurfaceIds.COMBAT_CONTROLS,
+                        item.id,
+                        bounds,
+                        2f,
+                        "control",
+                        item.iconSource,
+                        item.text,
+                        item.visible);
                 RenderHosts.get().syncC2Item(
                         SurfaceIds.COMBAT_CONTROLS,
                         item.id,
@@ -214,17 +236,16 @@ public final class Sts1SurfaceRenderer {
                 float y = bounds.y + bounds.height / 2f;
                 artframework.core.PresentChromeStyle chrome =
                         artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_CONTROLS);
+                C2ChromePainter.panel(sb, bounds.x, bounds.y, bounds.width, bounds.height, chrome);
                 Texture icon = Sts1AssetMaterializer.resolveTexture(item.iconSource);
                 if (icon != null) {
-                    float w = icon.getWidth() * 0.75f;
-                    float h = icon.getHeight() * 0.75f;
                     if (item.enabled) {
                         sb.setColor(chrome.labelR, chrome.labelG, chrome.labelB, chrome.labelA);
                     } else {
                         sb.setColor(
                                 chrome.disabledR, chrome.disabledG, chrome.disabledB, chrome.disabledA);
                     }
-                    sb.draw(icon, x - w / 2f, y - h / 2f, w, h);
+                    sb.draw(icon, bounds.x, bounds.y, bounds.width, bounds.height);
                     sb.setColor(Color.WHITE);
                 }
                 String nativeLabel = Sts1EndTurnChrome.label(item.text);
@@ -267,6 +288,12 @@ public final class Sts1SurfaceRenderer {
                     0f, 0f, com.megacrit.cardcrawl.core.Settings.WIDTH,
                     com.megacrit.cardcrawl.core.Settings.HEIGHT);
             for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
+                float nodeSize = item.highlighted ? 80f : 64f;
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        SurfaceIds.MAP, "node:" + item.row + ":" + item.col,
+                        new artframework.component.Rect(item.screenX - nodeSize / 2f,
+                                item.screenY - nodeSize / 2f, nodeSize, nodeSize), 1f,
+                        "map-node", item.artSource, item.symbol, true);
                 String label = item.symbol != null && !item.symbol.isEmpty() ? item.symbol : "?";
                 Texture art = Sts1AssetMaterializer.resolveTexture(item.artSource);
                 if (art != null) {
@@ -330,6 +357,12 @@ public final class Sts1SurfaceRenderer {
                     continue;
                 }
                 String label = item.enabled ? item.label : (item.label + " (disabled)");
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        SurfaceIds.EVENT, "option:" + item.index,
+                        new artframework.component.Rect(item.x - item.w / 2f,
+                                item.y - item.h / 2f, item.w, item.h), 1f,
+                        "event-option", artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED,
+                        item.label, item.visible);
                 Sts1VanillaDraw.draw(sb,
                         item.enabled ? artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED
                                 : artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED,
@@ -362,6 +395,10 @@ public final class Sts1SurfaceRenderer {
                         item.confirm
                                 ? item.cardId
                                 : (item.selected ? "[" + item.cardId + "]" : item.cardId);
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        SurfaceIds.SELECT_GRID, item.confirm ? "confirm" : "card:" + item.cardId,
+                        new artframework.component.Rect(item.x - 48f, item.y - 32f, 96f, 64f), 1f,
+                        item.confirm ? "select-confirm" : "select-card", "", label, item.visible);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
@@ -385,6 +422,12 @@ public final class Sts1SurfaceRenderer {
                 if (!item.visible) {
                     continue;
                 }
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        SurfaceIds.REWARD_COMBAT, "reward:" + item.index,
+                        new artframework.component.Rect(item.x - item.w / 2f,
+                                item.y - item.h / 2f, item.w, item.h), 1f,
+                        "reward-item", artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
+                        item.label, item.visible);
                 Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
                         item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
@@ -536,6 +579,10 @@ public final class Sts1SurfaceRenderer {
                 if (!item.visible) {
                     continue;
                 }
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        SurfaceIds.COMBAT_PROCEED, item.id,
+                        new artframework.component.Rect(x - 180f, y - i * 40f - 20f,
+                                360f, 40f), 1f, "proceed", "", item.text, item.visible);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
@@ -593,6 +640,16 @@ public final class Sts1SurfaceRenderer {
             int energy = ArtFramework.projection().controls().energy;
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.12f;
             float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.18f;
+            float size = 128f * Math.max(1f, com.megacrit.cardcrawl.core.Settings.scale);
+            for (int layer = 1; layer <= 3; layer++) {
+                Sts1VanillaDraw.draw(
+                        sb,
+                        artframework.assets.ResourceIds.energyOrbLayer("red", layer),
+                        x - size / 2f,
+                        y - size / 2f,
+                        size,
+                        size);
+            }
             com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                     sb,
                     com.megacrit.cardcrawl.helpers.FontHelper.energyNumFontRed,
@@ -610,6 +667,10 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.COMBAT_INTENTS, "intent:" + item.monsterId,
+                    new artframework.component.Rect(item.x - 32f, item.y - 32f, 64f, 64f), 1f,
+                    "intent", item.iconResourceId, String.valueOf(item.multiAmount), true);
             String key = item.iconResourceId == null || item.iconResourceId.isEmpty()
                     ? artframework.assets.ResourceIds.UI_COMBAT_INTENT_UNKNOWN
                     : item.iconResourceId;

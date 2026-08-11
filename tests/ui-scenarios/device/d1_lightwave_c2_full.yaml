@@ -25,7 +25,7 @@ steps:
       eq: lightwave
   - assert:
       path: presentPacks.apply.managedFullFrame
-      eq: true
+      eq: false
   - assert:
       path: presentPacks.apply.boundC2Effects
       contains: sts1.combat.hand
@@ -33,7 +33,18 @@ steps:
       path: presentPacks.apply.boundC2Effects
       contains: sts1.event
   - console: "art lab start-run IRONCLAD"
-  - wait_ms: 25000
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
   - console: "art present combat on"
   - console: "art present energy on"
   - console: "art present intents on"

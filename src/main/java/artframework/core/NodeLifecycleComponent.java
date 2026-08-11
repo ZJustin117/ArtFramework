@@ -1,6 +1,6 @@
 package artframework.core;
 
-/** Mounted state mirrored from the existing UiTree lifecycle. */
+/** Mounted and ready state for a presentation entity. */
 public final class NodeLifecycleComponent {
     public final boolean mounted;
 

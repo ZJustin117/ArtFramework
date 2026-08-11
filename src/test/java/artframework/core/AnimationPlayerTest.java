@@ -6,6 +6,7 @@ import artframework.api.ArtFramework;
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
+import artframework.presentation.NodeTree;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,7 +37,7 @@ public class AnimationPlayerTest {
                         .child(UiNode.of(UiTypes.PANEL).id("dialog").prop("opacity", Float.valueOf(0f)).build())
                         .child(animPlayerNode())
                         .build();
-        UiTree tree = UiTree.mount("win", root);
+        NodeTree tree = NodeTree.mount("tree:win", root, null);
         AtomicInteger started = new AtomicInteger();
         AtomicInteger finished = new AtomicInteger();
         tree.get("motion")
@@ -79,20 +80,19 @@ public class AnimationPlayerTest {
                         .child(UiNode.of(UiTypes.LABEL).id("l").build())
                         .child(animPlayerNode())
                         .build();
-        UiTrees.open("win", root);
+        artframework.presentation.NodeTrees.open("win", root, null);
         assertNotNull(ArtFramework.animation("win", "motion"));
-        UiTrees.close("win");
+        artframework.presentation.NodeTrees.close("win");
         assertTrue(ArtFramework.animation("win", "motion") == null);
     }
 
     @Test
     public void pauseAndResume() {
-        UiTree tree = UiTree.mount("win", rootWithPlayer(animOnce()));
+        NodeTree tree = NodeTree.mount("tree:win", rootWithPlayer(animOnce()), null);
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         AtomicInteger paused = new AtomicInteger();
         AtomicInteger resumed = new AtomicInteger();
-        tree.signalHub()
-                .connect(
+        tree.connect(
                         "motion",
                         AnimationPlayer.SIGNAL_PAUSED,
                         new SignalHandler() {
@@ -101,8 +101,7 @@ public class AnimationPlayerTest {
                                 paused.incrementAndGet();
                             }
                         });
-        tree.signalHub()
-                .connect(
+        tree.connect(
                         "motion",
                         AnimationPlayer.SIGNAL_RESUMED,
                         new SignalHandler() {
@@ -133,12 +132,11 @@ public class AnimationPlayerTest {
         anim.put("mode", "loop");
         anim.put("loop_count", Integer.valueOf(2));
         anim.put("duration", Float.valueOf(0.1f));
-        UiTree tree = UiTree.mount("win", rootWithPlayer(anim));
+        NodeTree tree = NodeTree.mount("tree:win", rootWithPlayer(anim), null);
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         AtomicInteger looped = new AtomicInteger();
         AtomicInteger finished = new AtomicInteger();
-        tree.signalHub()
-                .connect(
+        tree.connect(
                         "motion",
                         AnimationPlayer.SIGNAL_LOOPED,
                         new SignalHandler() {
@@ -147,8 +145,7 @@ public class AnimationPlayerTest {
                                 looped.incrementAndGet();
                             }
                         });
-        tree.signalHub()
-                .connect(
+        tree.connect(
                         "motion",
                         AnimationPlayer.SIGNAL_FINISHED,
                         new SignalHandler() {

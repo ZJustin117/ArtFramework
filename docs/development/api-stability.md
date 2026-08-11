@@ -36,7 +36,8 @@ Also stable: `WindowDef`, `WindowClass`, `WindowHandle`, `UiOps`, `UiOpResult`, 
 
 ### Core / context / assets
 
-- `artframework.core`: `UiTree`, `UiInstance`, `SignalHub`, `SignalBus`, `Theme`, `HostBackend`,
+- `artframework.presentation`: `NodeTree`, `Node`, `PresentationFrame`, `PresentationWorld`
+- `artframework.core`: `SignalHub`, `SignalBus`, `Theme`, `HostBackend`,
   `HostCapabilities`, `UiComponent`
 - `artframework.ecs`: `EntityId`, `PresentationWorld` for deterministic ART-owned presentation
   state. Scope/id semantics are stable; internal component classes remain package/domain owned.

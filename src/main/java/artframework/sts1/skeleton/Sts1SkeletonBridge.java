@@ -11,6 +11,7 @@ import artframework.skeleton.SkeletonSource;
 import artframework.sts1.assets.Sts2AssetBundle;
 import artframework.sts1.FullPresentMode;
 import artframework.ecs.PresentationWorld;
+import artframework.presentation.PresentationRegistry;
 import artframework.skeleton.SkeletonPresentationSystem;
 import artframework.skeleton.SkeletonPresentationView;
 import artframework.skeleton.SkeletonPresentationFrames;
@@ -44,7 +45,8 @@ public final class Sts1SkeletonBridge {
     private static String lastDevCommand = "";
     private static BoneTransform lastBoneTransform;
     private static final SkeletonPresentationSystem PRESENTATION =
-            new SkeletonPresentationSystem(new PresentationWorld("sts1-skeleton"), ArtFramework.skeletons());
+            new SkeletonPresentationSystem(
+                    PresentationRegistry.context("c2-skeleton").world(), ArtFramework.skeletons());
     private static SignalSubscription presentationSubscription;
     private static final Map<AbstractCreature, NativeCreature> NATIVE_CREATURES =
             new IdentityHashMap<AbstractCreature, NativeCreature>();

@@ -11,7 +11,7 @@ Complements [`ui-ops-probe.md`](./ui-ops-probe.md) (`art probe` / `art op`).
 | Need | Gap before this slice |
 |------|------------------------|
 | See mounted tree shape | `art probe` is coarse (button id lists, component slices) |
-| Fire declared signals | No console path to `UiTree.emit` / `UiComponent.emit` |
+| Fire declared signals | `NodeTree.emit` / `UiComponent.emit` |
 | Generic component action | `art op` is sugar-only for known gestures |
 | STS screen peek | Only ad-hoc reflection inside `StsNativeOps` |
 
@@ -19,7 +19,7 @@ Complements [`ui-ops-probe.md`](./ui-ops-probe.md) (`art probe` / `art op`).
 
 ```
 art ui …
-  ├─ list | tree | node     → pure UiInspect (UiTrees + UiComponent)
+  ├─ list | tree | node     → pure UiInspect (NodeTrees + UiComponent)
   ├─ emit | invoke | listen → SignalHub / UiOps.invoke
   └─ native dump | click    → StsUiReflect (whitelist only)
 ```

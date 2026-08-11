@@ -11,7 +11,7 @@ import artframework.component.UiNodeLoader;
 import artframework.component.UiTypes;
 import artframework.component.WidgetSession;
 import artframework.component.WidgetSessions;
-import artframework.core.UiTrees;
+import artframework.presentation.NodeTrees;
 import artframework.render.RenderHosts;
 
 /**
@@ -60,7 +60,7 @@ public final class SyntheticRuntime {
 
         try {
             WidgetSession session = WidgetSessions.openTree(def.id, uiRoot);
-            UiTrees.open(def.id, session.root());
+            NodeTrees.open(def.id, session.root(), null);
             SyntheticComponents.mount(def.id);
             LayoutNode legacy = LayoutNodeBridge.toLegacyOrNull(session.root());
             if (legacy == null) {
@@ -74,6 +74,11 @@ public final class SyntheticRuntime {
 
             WindowManager.put(def.id, legacy);
             RenderHosts.get().syncWidgetSession(session);
+            artframework.presentation.NodeTree presentationTree = NodeTrees.get(def.id);
+            if (presentationTree != null) {
+                RenderHosts.get().syncFrame(
+                        presentationTree.frame(), artframework.render.RenderTargetKind.SYNTHETIC_WIDGET);
+            }
             if (stageBackend != null && stageBackend.isReady()) {
                 // Always composition path so EffectTargetActors registers for FX stage sync.
                 // Legacy LayoutActors skipped the registry → demo Hello FX stayed at (0,32).
@@ -101,7 +106,7 @@ public final class SyntheticRuntime {
         }
         WindowManager.remove(id);
         WidgetSessions.close(id);
-        UiTrees.close(id);
+        NodeTrees.close(id);
         SyntheticComponents.unmount(id);
         RenderHosts.get().detachWidgetSession(id);
     }
@@ -136,7 +141,7 @@ public final class SyntheticRuntime {
         }
         WindowManager.remove(id);
         WidgetSessions.close(id);
-        UiTrees.close(id);
+        NodeTrees.close(id);
         SyntheticComponents.unmount(id);
         RenderHosts.get().detachWidgetSession(id);
     }
@@ -145,7 +150,7 @@ public final class SyntheticRuntime {
         stageBackend = null;
         WindowManager.resetForTests();
         WidgetSessions.resetForTests();
-        UiTrees.resetForTests();
+        NodeTrees.resetForTests();
         SyntheticComponents.resetForTests();
         RenderHosts.resetForTests();
     }

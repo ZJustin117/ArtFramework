@@ -109,7 +109,7 @@ public class SyntheticRuntimeTest {
         } catch (IllegalStateException expected) {
             assertFalse(WindowManager.contains("demo"));
             assertFalse(artframework.component.WidgetSessions.isOpen("demo"));
-            assertFalse(artframework.core.UiTrees.isOpen("demo"));
+            assertFalse(artframework.presentation.NodeTrees.isOpen("demo"));
             assertNull(ArtFramework.layoutRoot("demo"));
             assertEquals(0, artframework.render.RenderHosts.get().targetCount());
             return;

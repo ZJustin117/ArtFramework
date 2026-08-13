@@ -3,9 +3,9 @@ package artframework.inspect;
 import artframework.api.UiOpResult;
 import artframework.core.SignalHandler;
 import artframework.core.UiComponent;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
-import artframework.presentation.NodeTrees;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.ecs.EntityId;
 import artframework.api.ArtFramework;
 import artframework.core.SignalSubscription;
 
@@ -151,18 +151,15 @@ public final class UiLabListeners {
         if (slash > 0 && slash < target.length() - 1) {
             String windowId = target.substring(0, slash);
             String controlId = target.substring(slash + 1);
-            NodeTree tree = NodeTrees.get(windowId);
-            if (tree == null) {
+            PresentationContext context = PresentationRuntime.context(windowId);
+            if (context == null) {
                 return AttachResult.fail("window not open: " + windowId);
             }
-            if (tree.get(controlId) == null) {
+            EntityId entity = PresentationRuntime.find(context, controlId);
+            if (entity == null) {
                 return AttachResult.fail("control not found: " + controlId);
             }
-            final SignalSubscription subscription = tree.connect(controlId, signal, handler);
-            final String w = windowId;
-            final String c = controlId;
-            final String sig = signal;
-            final SignalHandler h = handler;
+            final SignalSubscription subscription = PresentationRuntime.connect(context, entity, signal, handler);
             return AttachResult.ok(
                     new Runnable() {
                         @Override
@@ -171,17 +168,10 @@ public final class UiLabListeners {
                         }
                     });
         }
-        NodeTree tree = NodeTrees.get(target);
-        if (tree != null) {
-            String rootId =
-                    tree.root() != null && !tree.root().name().isEmpty()
-                            ? tree.root().name()
-                            : target;
-            final SignalSubscription subscription = tree.connect(rootId, signal, handler);
-            final String w = target;
-            final String c = rootId;
-            final String sig = signal;
-            final SignalHandler h = handler;
+        PresentationContext context = PresentationRuntime.context(target);
+        if (context != null) {
+            EntityId root = PresentationRuntime.root(context);
+            final SignalSubscription subscription = PresentationRuntime.connect(context, root, signal, handler);
             return AttachResult.ok(
                     new Runnable() {
                         @Override

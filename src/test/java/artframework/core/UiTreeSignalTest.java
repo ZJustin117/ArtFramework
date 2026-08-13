@@ -3,11 +3,12 @@ package artframework.core;
 import artframework.component.UiNode;
 import artframework.component.UiNodeLoader;
 import artframework.component.UiTypes;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import artframework.ecs.EntityId;
+import artframework.presentation.NodeHierarchyComponent;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.presentation.NodeLifecycleComponent;
+import artframework.presentation.PresentationRuntime;
+import artframework.test.C1RuntimeFixture;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -17,51 +18,51 @@ import static org.junit.Assert.assertTrue;
 
 public class UiTreeSignalTest {
     @Test public void mountBuildsNodesAndStablePaths() {
-        NodeTree tree = NodeTree.mount("tree:w", sample(), null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("w", sample());
         try {
-            assertEquals("w", tree.windowId());
-            assertEquals(UiTypes.WINDOW, tree.root().type());
-            assertEquals(UiTypes.BUTTON, tree.get("ok").type());
-            assertEquals("ok", tree.find("comp_sample/main_col/actions/ok").id());
-        } finally { tree.close(); }
+            assertEquals("w", PresentationRuntime.windowId(fixture.context));
+            assertEquals(UiTypes.WINDOW,
+                    PresentationRuntime.identity(fixture.context, fixture.root).type);
+            EntityId ok = fixture.find("ok");
+            assertEquals(UiTypes.BUTTON, PresentationRuntime.identity(fixture.context, ok).type);
+            assertEquals(ok, fixture.find("comp_sample/main_col/actions/ok"));
+        } finally { fixture.close(); }
     }
 
     @Test public void hierarchyAndLifecycleAreEcsBacked() {
-        final List<String> events = new ArrayList<String>();
-        NodeTree tree = NodeTree.mount("tree:w", sample(), new artframework.presentation.NodeTreeLifecycle() {
-            public void onMount(Node n) { events.add("m:" + n.id()); }
-            public void onReady(Node n) { events.add("r:" + n.id()); }
-            public void onUnmount(Node n) { events.add("u:" + n.id()); }
-        });
-        Node ok = tree.get("ok");
-        assertTrue(ok.isMounted());
-        assertTrue(ok.isReady());
-        assertNotNull(ok.parent());
-        tree.close();
-        assertTrue(events.indexOf("m:comp_sample") < events.indexOf("m:ok"));
-        assertTrue(events.indexOf("r:ok") < events.indexOf("r:comp_sample"));
-        assertTrue(events.indexOf("u:ok") < events.indexOf("u:comp_sample"));
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("w", sample());
+        EntityId ok = fixture.find("ok");
+        NodeLifecycleComponent lifecycle = PresentationRuntime.component(
+                fixture.context, ok, NodeLifecycleComponent.class);
+        assertTrue(lifecycle.mounted);
+        assertTrue(lifecycle.ready);
+        NodeHierarchyComponent hierarchy = PresentationRuntime.hierarchy(fixture.context, ok);
+        assertNotNull(hierarchy.parent);
+        fixture.close();
+        assertFalse(fixture.context.world().contains(ok));
     }
 
     @Test public void signalConnectEmitDisconnect() {
-        NodeTree tree = NodeTree.mount("tree:w", sample(), null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("w", sample());
         AtomicInteger count = new AtomicInteger();
         artframework.core.SignalHandler handler = args -> count.incrementAndGet();
-        tree.connect("ok", SignalNames.PRESSED, handler);
-        tree.emit("ok", SignalNames.PRESSED);
-        tree.disconnect("ok", SignalNames.PRESSED, handler);
-        tree.emit("ok", SignalNames.PRESSED);
+        EntityId ok = fixture.find("ok");
+        SignalSubscription subscription = PresentationRuntime.connect(
+                fixture.context, ok, SignalNames.PRESSED, handler);
+        fixture.emit("ok", SignalNames.PRESSED);
+        subscription.disconnect();
+        fixture.emit("ok", SignalNames.PRESSED);
         assertEquals(1, count.get());
-        tree.close();
+        fixture.close();
     }
 
     @Test public void mutablePropsStayInEcs() {
-        NodeTree tree = NodeTree.mount("tree:w", sample(), null);
-        Node label = tree.get("hello");
-        label.set("text", "Hi");
-        assertEquals("Hi", label.propString("text", ""));
-        assertFalse(tree.frame().items == null);
-        tree.close();
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("w", sample());
+        EntityId label = fixture.find("hello");
+        PresentationRuntime.setProperty(fixture.context, label, "text", "Hi");
+        assertEquals("Hi", PresentationRuntime.property(fixture.context, label, "text"));
+        assertNotNull(PresentationRuntime.frame(fixture.context).items);
+        fixture.close();
     }
 
     private static UiNode sample() {

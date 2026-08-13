@@ -52,8 +52,8 @@ public class NewWidgetsTest {
         assertFalse(s.getChecked("agree"));
         assertTrue(s.hasProgress("load"));
         assertEquals(0.25f, s.getProgress("load"), 0.001f);
-        assertNotNull(ArtFramework.tree("w").get("body_scroll"));
-        assertNotNull(ArtFramework.tree("w").get("submit"));
+        assertNotNull(entity("body_scroll"));
+        assertNotNull(entity("submit"));
     }
 
     @Test
@@ -63,9 +63,7 @@ public class NewWidgetsTest {
         ArtFramework.open("w");
         final AtomicReference<String> changed = new AtomicReference<String>();
         final AtomicReference<String> submitted = new AtomicReference<String>();
-        ArtFramework.tree("w")
-                .connect(
-                        "name",
+        artframework.presentation.PresentationRuntime.connect(context(), entity("name"),
                         SignalNames.TEXT_CHANGED,
                         new SignalHandler() {
                             @Override
@@ -73,9 +71,7 @@ public class NewWidgetsTest {
                                 changed.set((String) args[0]);
                             }
                         });
-        ArtFramework.tree("w")
-                .connect(
-                        "name",
+        artframework.presentation.PresentationRuntime.connect(context(), entity("name"),
                         SignalNames.TEXT_SUBMITTED,
                         new SignalHandler() {
                             @Override
@@ -95,9 +91,7 @@ public class NewWidgetsTest {
                 new WindowDef("w", WindowClass.SYNTHETIC, "layouts/widgets_sample.json"));
         ArtFramework.open("w");
         final AtomicReference<Boolean> toggled = new AtomicReference<Boolean>();
-        ArtFramework.tree("w")
-                .connect(
-                        "agree",
+        artframework.presentation.PresentationRuntime.connect(context(), entity("agree"),
                         SignalNames.TOGGLED,
                         new SignalHandler() {
                             @Override
@@ -146,5 +140,13 @@ public class NewWidgetsTest {
         assertTrue(((java.util.List<?>) controls.get("textFieldIds")).contains("name"));
         assertTrue(((java.util.List<?>) controls.get("checkboxIds")).contains("agree"));
         assertTrue(((java.util.List<?>) controls.get("progressIds")).contains("load"));
+    }
+
+    private static artframework.presentation.PresentationContext context() {
+        return artframework.presentation.PresentationRuntime.context("w");
+    }
+
+    private static artframework.ecs.EntityId entity(String id) {
+        return artframework.presentation.PresentationRuntime.find(context(), id);
     }
 }

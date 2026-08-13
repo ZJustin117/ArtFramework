@@ -77,8 +77,11 @@ public class EffectTargetSyncTest {
         ArtFramework.register(
                 new WindowDef("lightwave_demo", WindowClass.SYNTHETIC, "layouts/lightwave_demo.json"));
         ArtFramework.open("lightwave_demo");
-        assertNotNull(ArtFramework.tree("lightwave_demo"));
-        assertEquals("lightwave", ArtFramework.tree("lightwave_demo").theme().name());
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context("lightwave_demo");
+        assertNotNull(context);
+        assertEquals("lightwave", artframework.core.PresentResolve.forEntity(context,
+                artframework.presentation.PresentationRuntime.root(context)).theme.name());
         // Process default may still be sts unless profile set
         assertEquals(PresentProfiles.STS, ProjectPresent.id());
     }

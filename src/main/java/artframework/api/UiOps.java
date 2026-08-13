@@ -12,6 +12,9 @@ import artframework.component.UiTypes;
 import artframework.presentation.ControlValueComponent;
 import artframework.presentation.ControlValueSystem;
 import artframework.presentation.NodePropertiesComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.ecs.EntityId;
 import artframework.c2.NativeComponents;
 import artframework.core.SignalNames;
 import artframework.core.UiComponent;
@@ -271,7 +274,7 @@ public final class UiOps {
         if (h == null || !h.isOpen() || h.windowClass() != WindowClass.SYNTHETIC) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        artframework.presentation.Node slider = control(windowId, sliderId, UiTypes.SLIDER);
+        EntityId slider = control(windowId, sliderId, UiTypes.SLIDER);
         if (slider == null) {
             return UiOpResult.unavailable("slider not in layout: " + sliderId);
         }
@@ -304,10 +307,7 @@ public final class UiOps {
             return UiOpResult.blocked("hitarea blocked: " + windowId + "/" + hitAreaId);
         }
         emitSignal(windowId, hitAreaId, SignalNames.PRESSED);
-        artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(windowId);
-        return tree != null
-                ? UiOpResult.ok()
-                : UiOpResult.unavailable("no handler for " + windowId + "/" + hitAreaId);
+        return UiOpResult.ok();
     }
 
     /**
@@ -336,7 +336,7 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        artframework.presentation.Node field = control(windowId, fieldId, UiTypes.TEXTFIELD);
+        EntityId field = control(windowId, fieldId, UiTypes.TEXTFIELD);
         if (field == null) {
             return UiOpResult.unavailable("textfield not in layout: " + fieldId);
         }
@@ -357,7 +357,7 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        artframework.presentation.Node field = control(windowId, fieldId, UiTypes.TEXTFIELD);
+        EntityId field = control(windowId, fieldId, UiTypes.TEXTFIELD);
         if (field == null) {
             return UiOpResult.unavailable("textfield not in layout: " + fieldId);
         }
@@ -376,7 +376,7 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        artframework.presentation.Node checkbox = control(windowId, checkboxId, UiTypes.CHECKBOX);
+        EntityId checkbox = control(windowId, checkboxId, UiTypes.CHECKBOX);
         if (checkbox == null) {
             return UiOpResult.unavailable("checkbox not in layout: " + checkboxId);
         }
@@ -397,7 +397,7 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        artframework.presentation.Node checkbox = control(windowId, checkboxId, UiTypes.CHECKBOX);
+        EntityId checkbox = control(windowId, checkboxId, UiTypes.CHECKBOX);
         if (checkbox == null) {
             return UiOpResult.unavailable("checkbox not in layout: " + checkboxId);
         }
@@ -418,7 +418,7 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        artframework.presentation.Node progress = control(windowId, progressId, UiTypes.PROGRESS);
+        EntityId progress = control(windowId, progressId, UiTypes.PROGRESS);
         if (progress == null) {
             return UiOpResult.unavailable("progress not in layout: " + progressId);
         }
@@ -437,25 +437,29 @@ public final class UiOps {
         return h != null && h.isOpen() && h.windowClass() == WindowClass.SYNTHETIC;
     }
 
-    private static artframework.presentation.Node control(String windowId, String controlId, String type) {
-        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
-        artframework.presentation.Node node = tree != null ? tree.get(controlId) : null;
-        return node != null && type.equals(node.type()) ? node : null;
+    private static EntityId control(String windowId, String controlId, String type) {
+        PresentationContext context = PresentationRuntime.context(windowId);
+        EntityId entity = PresentationRuntime.find(context, controlId);
+        artframework.presentation.NodeIdentityComponent identity =
+                PresentationRuntime.identity(context, entity);
+        return identity != null && type.equals(identity.type) ? entity : null;
     }
 
-    private static Object controlValue(artframework.presentation.Node node) {
-        ControlValueComponent value = node.tree().world().get(node.entityId(), ControlValueComponent.class);
+    private static Object controlValue(EntityId node) {
+        PresentationContext context = currentContext(node);
+        ControlValueComponent value = PresentationRuntime.component(context, node, ControlValueComponent.class);
         return value != null ? value.value : null;
     }
 
-    private static void setControlValue(artframework.presentation.Node node, Object value) {
-        node.tree().world().put(node.entityId(), ControlValueComponent.class,
+    private static void setControlValue(EntityId node, Object value) {
+        PresentationContext context = currentContext(node);
+        context.world().put(node, ControlValueComponent.class,
                 new ControlValueComponent(value));
     }
 
-    private static float normalizedNumber(artframework.presentation.Node node, float requested) {
-        NodePropertiesComponent props = node.tree().world().get(
-                node.entityId(), NodePropertiesComponent.class);
+    private static float normalizedNumber(EntityId node, float requested) {
+        PresentationContext context = currentContext(node);
+        NodePropertiesComponent props = PresentationRuntime.component(context, node, NodePropertiesComponent.class);
         float min = number(props != null ? props.get("min") : null, 0f);
         float max = number(props != null ? props.get("max") : null, 1f);
         if (min > max) {
@@ -464,6 +468,14 @@ public final class UiOps {
             max = swap;
         }
         return Math.max(min, Math.min(max, requested));
+    }
+
+    private static PresentationContext currentContext(EntityId entity) {
+        for (String windowId : PresentationRuntime.openWindowIds()) {
+            PresentationContext context = PresentationRuntime.context(windowId);
+            if (context != null && context.world().contains(entity)) return context;
+        }
+        throw new IllegalArgumentException("unknown presentation entity: " + entity);
     }
 
     private static float number(Object value, float fallback) {
@@ -511,12 +523,9 @@ public final class UiOps {
                 String controlId = e.getKey().substring(windowId.length() + 1);
                 String signal = signalForKey(e.getKey());
                 if (signal != null) {
-                    artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(windowId);
-                    if (tree != null) {
-                        artframework.presentation.Node node = tree.get(controlId);
-                        if (node == null) node = tree.find(sessionPath(windowId, controlId));
-                        if (node != null) node.connect(signal, e.getValue());
-                    }
+                    PresentationContext context = PresentationRuntime.context(windowId);
+                    EntityId node = PresentationRuntime.find(context, controlId);
+                    if (node != null) PresentationRuntime.connect(context, node, signal, e.getValue());
                 }
             }
         }
@@ -524,16 +533,14 @@ public final class UiOps {
 
     private static void emitSignal(String windowId, String controlId, String signal, Object... args) {
         // allowSignal() already dispatched the canonical bus event before state mutation. A second
-        // NodeTree emission would invoke every listener twice; direct Node.emitSignal remains the
+        // Context emission would invoke every listener twice; direct entity emission remains the
         // explicit API for callers that are not using an imperative UiOp.
     }
 
     private static void syncNodeProperty(String windowId, String controlId, String property, Object value) {
-        artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(windowId);
-        if (tree != null) {
-            artframework.presentation.Node node = tree.get(controlId);
-            if (node != null) node.set(property, value);
-        }
+        PresentationContext context = PresentationRuntime.context(windowId);
+        EntityId node = PresentationRuntime.find(context, controlId);
+        if (node != null) PresentationRuntime.setProperty(context, node, property, value);
     }
 
     private static boolean allowSignal(String windowId, String controlId, String signal, Object... args) {
@@ -547,21 +554,15 @@ public final class UiOps {
     private void connectSugar(String windowId, String controlId, String signal, SignalHandler handler) {
         String k = key(windowId, controlId) + "\0" + signal;
         SignalHandler old = signalHandlers.put(k, handler);
-        artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(windowId);
-        if (tree != null) {
-            if (old != null) {
-                // NodeTree subscriptions are owned by the signal hub and are cleared on unmount.
-            }
-            artframework.presentation.Node node = tree.get(controlId);
-            if (node == null) node = tree.find(sessionPath(windowId, controlId));
-            if (node != null) node.connect(signal, handler);
-        }
+        PresentationContext context = PresentationRuntime.context(windowId);
+        EntityId node = PresentationRuntime.find(context, controlId);
+        if (node != null) PresentationRuntime.connect(context, node, signal, handler);
     }
 
     private void disconnectSugar(String windowId, String controlId, String signal) {
         String k = key(windowId, controlId) + "\0" + signal;
         SignalHandler old = signalHandlers.remove(k);
-        // NodeTree owns listener teardown. Sugar replacement is handled by the stored handler map.
+        // Presentation context owns listener teardown. Sugar replacement uses the stored handler map.
     }
 
     private static String signalForKey(String key) {
@@ -570,8 +571,10 @@ public final class UiOps {
     }
 
     private static String sessionPath(String windowId, String controlId) {
-        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
-        return tree != null && tree.root() != null ? tree.root().name() + "/" + controlId : controlId;
+        EntityId root = PresentationRuntime.root(PresentationRuntime.context(windowId));
+        artframework.presentation.NodeIdentityComponent identity = PresentationRuntime.identity(
+                PresentationRuntime.context(windowId), root);
+        return identity != null ? identity.name + "/" + controlId : controlId;
     }
 
     private static boolean controlExists(String windowId, String controlId, String type) {
@@ -579,10 +582,11 @@ public final class UiOps {
     }
 
     private static boolean pressableControlExists(String windowId, String controlId) {
-        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
-        artframework.presentation.Node node = tree != null ? tree.get(controlId) : null;
-        return node != null && (UiTypes.BUTTON.equals(node.type())
-                || artframework.component.StsNodeTypes.isPressable(node.type()));
+        PresentationContext context = PresentationRuntime.context(windowId);
+        EntityId node = PresentationRuntime.find(context, controlId);
+        artframework.presentation.NodeIdentityComponent identity = PresentationRuntime.identity(context, node);
+        return identity != null && (UiTypes.BUTTON.equals(identity.type)
+                || artframework.component.StsNodeTypes.isPressable(identity.type));
     }
 
     private static SelectTemplate selectTemplate(SelectKind kind) {

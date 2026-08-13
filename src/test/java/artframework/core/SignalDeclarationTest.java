@@ -2,8 +2,10 @@ package artframework.core;
 
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
+import artframework.ecs.EntityId;
+import artframework.presentation.PresentationRuntime;
+import artframework.presentation.SignalPortsComponent;
+import artframework.test.C1RuntimeFixture;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -12,36 +14,39 @@ import static org.junit.Assert.fail;
 
 public class SignalDeclarationTest {
     @Test public void instanceExposesDeclaredSignals() {
-        NodeTree tree = mountButtonTree();
-        Node ok = tree.get("ok");
-        assertTrue(ok.declaresSignal(SignalNames.PRESSED));
-        assertFalse(ok.declaresSignal(SignalNames.VALUE_CHANGED));
-        assertEquals(1, ok.signals().size());
-        tree.close();
+        C1RuntimeFixture fixture = mountButtonTree();
+        SignalPortsComponent ports = PresentationRuntime.component(
+                fixture.context, fixture.find("ok"), SignalPortsComponent.class);
+        assertTrue(ports.canEmit(SignalNames.PRESSED));
+        assertFalse(ports.canEmit(SignalNames.VALUE_CHANGED));
+        assertEquals(1, ports.emits.size());
+        fixture.close();
     }
 
     @Test public void connectAndEmitAllowDeclaredSignal() {
-        NodeTree tree = mountButtonTree();
+        C1RuntimeFixture fixture = mountButtonTree();
         final int[] n = {0};
-        tree.connect("ok", SignalNames.PRESSED, args -> n[0]++);
-        tree.emit("ok", SignalNames.PRESSED);
-        tree.get("ok").emitSignal(SignalNames.PRESSED);
+        EntityId ok = fixture.find("ok");
+        PresentationRuntime.connect(fixture.context, ok, SignalNames.PRESSED, args -> n[0]++);
+        fixture.emit("ok", SignalNames.PRESSED);
+        PresentationRuntime.emit(fixture.context, ok, SignalNames.PRESSED);
         assertEquals(2, n[0]);
-        tree.close();
+        fixture.close();
     }
 
     @Test public void undeclaredPortsAreRejected() {
-        NodeTree tree = mountButtonTree();
-        try { tree.emit("ok", SignalNames.TOGGLED); fail(); }
+        C1RuntimeFixture fixture = mountButtonTree();
+        EntityId ok = fixture.find("ok");
+        try { fixture.emit("ok", SignalNames.TOGGLED); fail(); }
         catch (IllegalArgumentException expected) { assertTrue(expected.getMessage().contains(SignalNames.TOGGLED)); }
-        try { tree.get("ok").connect(SignalNames.VALUE_CHANGED, args -> {}); fail(); }
+        try { PresentationRuntime.connect(fixture.context, ok, SignalNames.VALUE_CHANGED, args -> {}); fail(); }
         catch (IllegalArgumentException expected) { assertTrue(expected.getMessage().contains(SignalNames.VALUE_CHANGED)); }
-        tree.close();
+        fixture.close();
     }
 
-    private static NodeTree mountButtonTree() {
+    private static C1RuntimeFixture mountButtonTree() {
         UiNode root = UiNode.of(UiTypes.WINDOW).id("w")
                 .child(UiNode.of(UiTypes.BUTTON).id("ok").build()).build();
-        return NodeTree.mount("tree:win", root, null);
+        return C1RuntimeFixture.mount("win", root);
     }
 }

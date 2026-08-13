@@ -5,8 +5,9 @@ import org.junit.Test;
 import artframework.api.ArtFramework;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
-import artframework.presentation.NodeTree;
 import artframework.presentation.NodeStateComponent;
+import artframework.presentation.PresentationRuntime;
+import artframework.test.C1RuntimeFixture;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,15 +31,15 @@ public class NodeStateMachineTest {
     @Test
     public void transitionOnExactMatch() {
         Map<String, Object> states = dualStateDecl("ui/open_btn/pressed", "ui/close_btn/pressed", false);
-        NodeTree tree = mountFsm(states);
+        C1RuntimeFixture fixture = mountFsm(states);
         NodeStateMachine fsm = NodeStateMachines.get("win", "gate");
         assertNotNull(fsm);
         assertEquals("closed", fsm.state());
-        tree.emit("open_btn", SignalNames.PRESSED);
+        fixture.emit("open_btn", SignalNames.PRESSED);
         assertEquals("open", fsm.state());
-        assertEquals("open", tree.world().get(tree.get("gate").entityId(),
+        assertEquals("open", fixture.context.world().get(fixture.find("gate"),
                 NodeStateComponent.class).value);
-        tree.emit("close_btn", SignalNames.PRESSED);
+        fixture.emit("close_btn", SignalNames.PRESSED);
         assertEquals("closed", fsm.state());
     }
 
@@ -61,12 +62,12 @@ public class NodeStateMachineTest {
         close.put("match_pattern", "ui/close_.*/pressed");
         transitions.add(close);
         states.put("transitions", transitions);
-        NodeTree tree = mountFsm(states);
+        C1RuntimeFixture fixture = mountFsm(states);
         NodeStateMachine fsm = ArtFramework.nodeState("win", "gate");
         assertEquals("closed", fsm.state());
-        tree.emit("open_btn", SignalNames.PRESSED);
+        fixture.emit("open_btn", SignalNames.PRESSED);
         assertEquals("open", fsm.state());
-        tree.emit("close_btn", SignalNames.PRESSED);
+        fixture.emit("close_btn", SignalNames.PRESSED);
         assertEquals("closed", fsm.state());
     }
 
@@ -74,10 +75,9 @@ public class NodeStateMachineTest {
     public void stateChangedSignal() {
         Map<String, Object> states = dualStateDecl("ui/open_btn/pressed", "ui/close_btn/pressed", false);
         UiNode root = fsmRoot(states, true);
-        NodeTree tree = NodeTree.mount("tree:win", root, null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
         final AtomicReference<String> last = new AtomicReference<String>();
-        tree.get("gate")
-                .connect(
+        PresentationRuntime.connect(fixture.context, fixture.find("gate"),
                         SignalNames.STATE_CHANGED,
                         new SignalHandler() {
                             @Override
@@ -87,7 +87,7 @@ public class NodeStateMachineTest {
                                 }
                             }
                         });
-        tree.emit("open_btn", SignalNames.PRESSED);
+        fixture.emit("open_btn", SignalNames.PRESSED);
         assertEquals("open", last.get());
     }
 
@@ -117,8 +117,8 @@ public class NodeStateMachineTest {
         t.put("on_enter", onEnter);
         transitions.add(t);
         states.put("transitions", transitions);
-        NodeTree tree = mountFsm(states);
-        tree.emit("go", SignalNames.PRESSED);
+        C1RuntimeFixture fixture = mountFsm(states);
+        fixture.emit("go", SignalNames.PRESSED);
         assertEquals("b", NodeStateMachines.get("win", "gate").state());
         assertEquals(1, hits.get());
     }
@@ -145,8 +145,8 @@ public class NodeStateMachineTest {
         return states;
     }
 
-    private static NodeTree mountFsm(Map<String, Object> states) {
-        return NodeTree.mount("tree:win", fsmRoot(states, false), null);
+    private static C1RuntimeFixture mountFsm(Map<String, Object> states) {
+        return C1RuntimeFixture.mount("win", fsmRoot(states, false));
     }
 
     private static UiNode fsmRoot(Map<String, Object> states, boolean stateChangedSignal) {

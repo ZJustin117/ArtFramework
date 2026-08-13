@@ -163,7 +163,8 @@ public class LmlUiNodeLoaderTest {
         try {
             artframework.component.UiNode root = artframework.api.ArtFramework.uiRoot("lml_demo");
             assertEquals("lml_sample", root.id);
-            assertTrue(artframework.api.ArtFramework.tree("lml_demo").get("ok") != null);
+            assertTrue(artframework.presentation.PresentationRuntime.find(
+                    artframework.presentation.PresentationRuntime.context("lml_demo"), "ok") != null);
         } finally {
             artframework.api.ArtFramework.close("lml_demo");
             artframework.api.ArtFramework.resetForTests();

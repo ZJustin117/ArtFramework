@@ -624,11 +624,11 @@ public final class ComponentActors {
     }
 
     private static Object controlValue(String windowId, String id, Object fallback) {
-        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
-        if (tree == null) return fallback;
-        artframework.presentation.Node node = tree.get(id);
-        if (node == null) return fallback;
-        ControlValueComponent value = tree.world().get(node.entityId(), ControlValueComponent.class);
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context(windowId);
+        artframework.ecs.EntityId entity = artframework.presentation.PresentationRuntime.find(context, id);
+        if (entity == null) return fallback;
+        ControlValueComponent value = context.world().get(entity, ControlValueComponent.class);
         return value != null && value.value != null ? value.value : fallback;
     }
 

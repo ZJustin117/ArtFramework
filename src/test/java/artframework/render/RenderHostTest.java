@@ -9,14 +9,14 @@ import artframework.component.EffectDecl;
 import artframework.component.LayoutSpec;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
-import artframework.component.WidgetSessions;
 import artframework.component.Rect;
 import artframework.ecs.EntityId;
 import artframework.presentation.BoundsComponent;
 import artframework.presentation.DrawComponent;
 import artframework.presentation.EffectAttachment;
 import artframework.presentation.EffectsComponent;
-import artframework.presentation.NodeTree;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.VisibilityComponent;
 
@@ -176,31 +176,30 @@ public class RenderHostTest {
                 .effect(new EffectDecl(TintEffect.ID, null))
                 .child(UiNode.of(UiTypes.BUTTON).id("b").prop("text", "X").build())
                 .build();
-        WidgetSessions.openTree("w", root);
-        ArtFramework.render().syncWidgetSession(WidgetSessions.get("w"));
+        ArtFramework.register(new artframework.api.WindowDef("w",
+                artframework.api.WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.render().syncWidgetSession(new artframework.component.WidgetSession("w", root));
         assertEquals(1, ArtFramework.render().effectsOf("c1:w").size());
-        WidgetSessions.close("w");
         ArtFramework.render().detachWidgetSession("w");
     }
 
     @Test
     public void syncFrameDerivesUiCacheFromPresentationEntities() {
-        NodeTree tree = new NodeTree("frame-test");
+        PresentationContext context = new PresentationContext("frame-test");
         try {
-            artframework.presentation.Node node = tree.create(
-                    new PresentationKey("ui", "panel"), "panel", "panel", "c1", null);
-            EntityId id = node.entityId();
-            tree.world().put(id, BoundsComponent.class,
+            EntityId id = context.create(
+                    new PresentationKey("ui", "panel"), "panel", "panel", "c1");
+            context.world().put(id, BoundsComponent.class,
                     new BoundsComponent(new Rect(4f, 5f, 60f, 20f), 3f));
-            tree.world().put(id, DrawComponent.class, new DrawComponent("panel", "", "P"));
-            tree.world().put(id, VisibilityComponent.class, new VisibilityComponent(true, 1f));
-            EffectsComponent effects = tree.world().get(id, EffectsComponent.class);
-            tree.world().put(id, EffectsComponent.class, effects.withAttachment(
+            context.world().put(id, DrawComponent.class, new DrawComponent("panel", "", "P"));
+            context.world().put(id, VisibilityComponent.class, new VisibilityComponent(true, 1f));
+            EffectsComponent effects = context.world().get(id, EffectsComponent.class);
+            context.world().put(id, EffectsComponent.class, effects.withAttachment(
                     new EffectAttachment(TintEffect.ID, "ambient",
                             Collections.<String, Object>singletonMap("alpha", 0.25f))));
 
             RenderHost host = new RenderHost();
-            artframework.presentation.PresentationFrame frame = tree.frame();
+            artframework.presentation.PresentationFrame frame = PresentationRuntime.frame(context);
             host.syncFrame(frame, RenderTargetKind.SYNTHETIC_WIDGET);
             RenderTarget target = host.getTarget("ui:panel");
             assertNotNull(target);
@@ -209,7 +208,7 @@ public class RenderHostTest {
             assertEquals(1, host.effectsOf("ui:panel").size());
             assertSame(frame, host.lastPresentationFrame());
         } finally {
-            tree.close();
+            context.close();
         }
     }
 

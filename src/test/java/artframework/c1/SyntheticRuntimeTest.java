@@ -49,6 +49,21 @@ public class SyntheticRuntimeTest {
         assertNull(ArtFramework.layoutRoot("demo"));
     }
 
+    @Test
+    public void closeClearsPresentationSystemsAndScope() {
+        ArtFramework.register(new WindowDef("lightwave_demo", WindowClass.SYNTHETIC,
+                "layouts/lightwave_demo.json"));
+        WindowHandle handle = ArtFramework.open("lightwave_demo");
+        assertNotNull(artframework.core.AnimationPlayers.get("lightwave_demo", "wave"));
+        assertTrue(artframework.core.NodeConnections.subscriptionCount("lightwave_demo") > 0);
+
+        handle.close();
+
+        assertNull(artframework.core.AnimationPlayers.get("lightwave_demo", "wave"));
+        assertEquals(0, artframework.core.NodeConnections.subscriptionCount("lightwave_demo"));
+        assertNull(artframework.presentation.PresentationRuntime.context("lightwave_demo"));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void openMissingLayoutLeavesNoOpen() {
         ArtFramework.register(new WindowDef("bad", WindowClass.SYNTHETIC, "layouts/missing.json"));
@@ -108,8 +123,7 @@ public class SyntheticRuntimeTest {
             ArtFramework.open("demo");
         } catch (IllegalStateException expected) {
             assertFalse(WindowManager.contains("demo"));
-            assertFalse(artframework.component.WidgetSessions.isOpen("demo"));
-            assertFalse(artframework.presentation.NodeTrees.isOpen("demo"));
+            assertFalse(artframework.presentation.PresentationRuntime.isOpen("demo"));
             assertNull(ArtFramework.layoutRoot("demo"));
             assertEquals(0, artframework.render.RenderHosts.get().targetCount());
             return;

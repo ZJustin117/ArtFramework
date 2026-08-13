@@ -13,7 +13,7 @@ art.present_profile | present_profile prop
   mode: override | attach
         │
 PresentResolve.forNode / forTree
-        ├─► Theme     → C1 StsSkin / NodeTree resolved chrome
+        ├─► Theme     → C1 StsSkin / entity-resolved chrome
         ├─► Chrome    → C2 hand / controls (project when no surface node)
         └─► packId    → HostAssets (optional)
 
@@ -120,7 +120,7 @@ Register syncs `Themes` under theme name (and profile id when needed). **Does no
 
 1. Instance color/constant override  
 2. Parent chain node themes (variation `themeType` → base type)  
-3. `NodeTree.resolvePresent()` from ECS declaration props / project fallback
+3. `PresentResolve.forEntity(context, entity)` from ECS declaration props / project fallback
 
 ## Surface present (C2)
 

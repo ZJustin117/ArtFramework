@@ -120,14 +120,13 @@ public final class PresentPackApply {
     }
 
     private static void resyncOpenC1Render() {
-        for (String winId : artframework.presentation.NodeTrees.listOpenIds()) {
-            artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(winId);
-            if (tree == null) {
-                continue;
-            }
+        for (String winId : artframework.presentation.PresentationRuntime.openWindowIds()) {
+            artframework.presentation.PresentationContext context =
+                    artframework.presentation.PresentationRuntime.context(winId);
             try {
                 RenderHosts.get().syncFrame(
-                        tree.frame(), artframework.render.RenderTargetKind.SYNTHETIC_WIDGET, winId);
+                        artframework.presentation.PresentationRuntime.frame(context),
+                        artframework.render.RenderTargetKind.SYNTHETIC_WIDGET, winId);
             } catch (Throwable ignored) {
             }
         }

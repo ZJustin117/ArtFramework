@@ -2,10 +2,10 @@ package artframework.core;
 
 import artframework.assets.HostAssetsHolder;
 import artframework.c1.SyntheticRuntime;
-import artframework.c1.WindowManager;
-import artframework.component.WidgetSessions;
-import artframework.presentation.NodeTree;
-import artframework.presentation.NodeTrees;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRegistry;
+import artframework.presentation.PresentationRuntime;
+import artframework.ecs.EntityId;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * Hot restyle after project present / open-tree present refresh (milestone 35.1).
  *
-     * <p>Re-applies cascade themes on open {@link NodeTree}s; re-attaches Stage for trees that still
+     * <p>Re-applies cascade themes on open ECS contexts; re-attaches Stage for contexts that still
  * resolve from project fallback (node override windows keep their skin until remount).
  */
 public final class PresentRestyle {
@@ -29,24 +29,18 @@ public final class PresentRestyle {
 
     /** Refresh all open trees from cascade (no Stage reattach). */
     public static void refreshOpenTrees() {
-        for (NodeTree tree : NodeTrees.listOpen()) {
-            if (tree != null) {
-                tree.refreshPresent();
-            }
+        for (String windowId : PresentationRuntime.openWindowIds()) {
+            artframework.render.RenderHosts.get().syncC1Window(windowId);
         }
     }
 
     public static void refreshOpenTreesAndReattachProjectFallback() {
         List<String> reattach = new ArrayList<String>();
-        for (NodeTree tree : NodeTrees.listOpen()) {
-            if (tree == null) {
-                continue;
-            }
-            tree.refreshPresent();
-            PresentResolved r = tree.resolvePresent();
-            if (r != null && r.fromProject) {
-                reattach.add(tree.scope().replace("tree:", ""));
-            }
+        for (String windowId : PresentationRuntime.openWindowIds()) {
+            PresentationContext context = PresentationRuntime.context(windowId);
+            EntityId root = PresentationRuntime.root(context);
+            PresentResolved r = PresentResolve.forEntity(context, root);
+            if (r != null && r.fromProject) reattach.add(windowId);
         }
         for (String id : reattach) {
             reattachStage(id);
@@ -58,7 +52,7 @@ public final class PresentRestyle {
         if (windowId == null || windowId.isEmpty()) {
             return;
         }
-        if (!WindowManager.contains(windowId) && WidgetSessions.get(windowId) == null) {
+        if (!PresentationRuntime.isOpen(windowId)) {
             return;
         }
         try {

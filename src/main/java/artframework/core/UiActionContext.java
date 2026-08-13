@@ -3,24 +3,24 @@ package artframework.core;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
+import artframework.ecs.EntityId;
+import artframework.presentation.PresentationContext;
 
 /**
  * Runtime context for a {@link UiAction} invocation.
  */
 public final class UiActionContext {
 
-    public final NodeTree tree;
-    /** Node that declared the connection (may be null for programmatic run). */
-    public final Node owner;
+    public final PresentationContext context;
+    /** Entity that declared the connection (may be null for programmatic run). */
+    public final EntityId ownerEntity;
     public final UiSignal signal;
     public final Map<String, Object> args;
 
     public UiActionContext(
-            NodeTree tree, Node owner, UiSignal signal, Map<String, Object> args) {
-        this.tree = tree;
-        this.owner = owner;
+            PresentationContext context, EntityId ownerEntity, UiSignal signal, Map<String, Object> args) {
+        this.context = context;
+        this.ownerEntity = ownerEntity;
         this.signal = signal;
         if (args == null || args.isEmpty()) {
             this.args = Collections.emptyMap();

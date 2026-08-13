@@ -10,23 +10,27 @@ import java.util.Map;
 
 /** One keyed presentation scope; all mutable node state belongs to its world. */
 public final class PresentationContext implements AutoCloseable {
+    private final String scope;
     private final PresentationWorld world;
     private final boolean ownsWorld;
     private final Map<PresentationKey, EntityId> entities = new LinkedHashMap<PresentationKey, EntityId>();
 
     public PresentationContext(String scope) {
-        this(new PresentationWorld(scope), true);
+        this(scope, new PresentationWorld(scope), true);
     }
 
     PresentationContext(String scope, PresentationWorld world) {
-        this(world, false);
+        this(scope, world, false);
     }
 
-    private PresentationContext(PresentationWorld world, boolean ownsWorld) {
+    private PresentationContext(String scope, PresentationWorld world, boolean ownsWorld) {
+        if (scope == null || scope.trim().isEmpty()) throw new IllegalArgumentException("scope required");
         if (world == null) throw new IllegalArgumentException("world required");
+        this.scope = scope;
         this.world = world;
         this.ownsWorld = ownsWorld;
     }
+    public String scope() { return scope; }
     public PresentationWorld world() { return world; }
 
     public EntityId create(PresentationKey key, String name, String type, String source) {

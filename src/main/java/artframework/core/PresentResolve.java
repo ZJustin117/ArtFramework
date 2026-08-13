@@ -1,10 +1,15 @@
 package artframework.core;
 
 import artframework.component.ArtNodeTypes;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.presentation.NodeHierarchyComponent;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.presentation.NodePropertiesComponent;
+import artframework.ecs.EntityId;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -18,43 +23,36 @@ public final class PresentResolve {
 
     private PresentResolve() {}
 
-    public static PresentResolved forNode(Node node) {
-        if (node == null) {
-            return ProjectPresent.resolved();
-        }
+    /** ECS-native present cascade for a presentation entity. */
+    public static PresentResolved forEntity(PresentationContext context, EntityId entity) {
+        if (context == null || entity == null) return ProjectPresent.resolved();
         List<PresentBinding> layers = new ArrayList<PresentBinding>();
-        Node cur = node;
-        while (cur != null) {
-            PresentBinding b = bindingOf(cur);
-            if (b != null) {
-                layers.add(b);
-                if (b.mode == PresentMode.OVERRIDE) {
-                    break;
-                }
+        EntityId current = entity;
+        while (current != null) {
+            NodeIdentityComponent identity = PresentationRuntime.identity(context, current);
+            NodePropertiesComponent props = PresentationRuntime.component(context, current, NodePropertiesComponent.class);
+            PresentBinding binding = parseBindingFromProps(identity != null ? identity.type : "",
+                    props != null ? props.view() : Collections.<String, Object>emptyMap());
+            if (binding != null) {
+                layers.add(binding);
+                if (binding.mode == PresentMode.OVERRIDE) break;
             }
-            cur = cur.parent();
+            NodeHierarchyComponent hierarchy = PresentationRuntime.hierarchy(context, current);
+            current = hierarchy != null ? hierarchy.parent : null;
         }
         if (!layers.isEmpty()) {
-            PresentBinding top = layers.get(0);
-            PresentProfile p = top.resolveResource();
-            if (p != null) {
-                return new PresentResolved(p.id, p.theme, p.chrome, p.packId, false);
-            }
+            PresentProfile profile = layers.get(0).resolveResource();
+            if (profile != null) return new PresentResolved(profile.id, profile.theme, profile.chrome, profile.packId, false);
         }
-        Theme named = nearestNamedTheme(node);
-        if (named != null) {
-            String name = named.name() != null ? named.name() : "theme";
-            return new PresentResolved(name, named, PresentChromeStyle.fromTheme(named), "", false);
+        current = entity;
+        while (current != null) {
+            Object themeName = PresentationRuntime.property(context, current, "theme");
+            Theme theme = themeName != null ? Themes.get(String.valueOf(themeName).trim()) : null;
+            if (theme != null) return new PresentResolved(theme.name(), theme, PresentChromeStyle.fromTheme(theme), "", false);
+            NodeHierarchyComponent hierarchy = PresentationRuntime.hierarchy(context, current);
+            current = hierarchy != null ? hierarchy.parent : null;
         }
         return ProjectPresent.resolved();
-    }
-
-
-    public static PresentResolved forTree(NodeTree tree) {
-        if (tree == null || tree.root() == null) {
-            return ProjectPresent.resolved();
-        }
-        return forNode(tree.root());
     }
 
 
@@ -70,39 +68,6 @@ public final class PresentResolve {
 
     public static PresentResolved forSurface(String surfaceId) {
         return SurfacePresent.resolve(surfaceId);
-    }
-
-    public static PresentChromeStyle chromeFor(NodeTree tree) {
-        return forTree(tree).chrome;
-    }
-
-    public static PresentChromeStyle chromeFor(Node node) {
-        return forNode(node).chrome;
-    }
-
-
-    public static Theme themeFor(NodeTree tree) {
-        return forTree(tree).theme;
-    }
-
-    public static Theme themeFor(Node node) {
-        return forNode(node).theme;
-    }
-
-
-    static PresentBinding bindingOf(Node inst) {
-        if (inst == null) {
-            return null;
-        }
-        Map<String, Object> props = new java.util.LinkedHashMap<String, Object>();
-        String[] keys = new String[] {
-            "profile", "present_profile", "presentProfile", "present_mode", "presentMode", "mode"
-        };
-        for (String key : keys) {
-            Object value = inst.get(key);
-            if (value != null) props.put(key, value);
-        }
-        return parseBindingFromProps(inst.type(), props);
     }
 
     /**
@@ -174,24 +139,6 @@ public final class PresentResolve {
         }
         String s = String.valueOf(v).trim();
         return s.isEmpty() ? null : s;
-    }
-
-    private static Theme nearestNamedTheme(Node node) {
-        Node cur = node;
-        while (cur != null) {
-            Object themeName = cur.prop("theme");
-            if (themeName != null) {
-                String name = String.valueOf(themeName).trim();
-                if (!name.isEmpty()) {
-                    Theme t = Themes.get(name);
-                    if (t != null) {
-                        return t;
-                    }
-                }
-            }
-            cur = cur.parent();
-        }
-        return null;
     }
 
 }

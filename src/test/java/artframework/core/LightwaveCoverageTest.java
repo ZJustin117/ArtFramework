@@ -100,9 +100,12 @@ public class LightwaveCoverageTest {
                 "layouts/lightwave_components_demo.json"));
         ArtFramework.open("lightwave_components_demo");
 
-        assertNotNull(ArtFramework.tree("lightwave_components_demo"));
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context("lightwave_components_demo");
+        assertNotNull(context);
         assertEquals(PresentProfiles.LIGHTWAVE,
-                ArtFramework.tree("lightwave_components_demo").resolvePresent().profileId);
+                PresentResolve.forEntity(context,
+                        artframework.presentation.PresentationRuntime.root(context)).profileId);
         RenderHost host = RenderHosts.get();
         assertNotNull(host.getTarget("c1:lightwave_components_demo:visuals"));
         assertFalse(host.effectsOf("c1:lightwave_components_demo:visuals").isEmpty());

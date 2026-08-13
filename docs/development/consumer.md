@@ -43,10 +43,10 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 
 | Entry | Role |
 |-------|------|
-| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `tree` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** / **`registerUiAction` / `nodeState`** / **`registerPresentProfile` / `presentProfiles()` / `setProjectPresent` / `bindSurfacePresent`** |
+| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** / **`registerUiAction` / `nodeState`** / **`registerPresentProfile` / `presentProfiles()` / `setProjectPresent` / `bindSurfacePresent`** |
 | `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
-| `artframework.presentation.*` | `NodeTree` / `Node` / `PresentationFrame` / `PresentationWorld` |
+| `artframework.presentation.*` | `PresentationContext` / `PresentationRuntime` / `PresentationFrame` |
 | `artframework.core.*` | `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
 | `artframework.ecs.*` | `EntityId` / `PresentationWorld` for ART-owned presentation state |
 | `artframework.context.*` | **Signal model:** `ContextSignals` / `ContextFrame` / `PresentProjections` / `FakeSignalBackend` / `SignalBackend` / `CardRef` / `PresentSurfaces` |
@@ -58,7 +58,7 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 | `artframework.c2.hooks.NativeUiHooks` | Pure patch entry (dispatch gates) |
 | `artframework.ops.NativeOpsBackend` / `StsNativeOps` | Engine gestures after ALLOW |
 | `artframework.component.*` | Composition AST + `WidgetSession` / layout size flags |
-| `ArtFramework.uiRoot` / `widgets` / `tree` | Expanded tree + control state + instance tree |
+| `ArtFramework.uiRoot` / `widgets` | Expanded declaration + ECS-derived control view |
 | `UiOps` C1 | `clickButton` / `setSlider` / `clickHitArea` / `setText` / `setChecked` / `setProgress` / … |
 | `ArtFramework.render()` / `artframework.render.*` | Effects + full-frame + blur/glass |
 | Layout types | `window`/`row`/`col`/… + `textfield`/`checkbox`/`progress`/`scroll`/`center`/`margin`/`glass` |

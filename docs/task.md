@@ -25,13 +25,13 @@ components are data only; systems are stateless and own all ART interaction hand
   ordered stateless system pipeline with JUnit
 - [x] 46.1 Registered presentation scopes share one ART world; scope close/reset now destroys only
   owned entities while preserving the registered context identity
-- [~] 46.2 Materialize C1 declarations through ECS systems; control current values now live on
-  ECS entities, control normalization runs during tree ticks, WidgetSession retains only immutable
+- [x] 46.2 Materialize C1 declarations through ECS systems; control current values now live on
+  ECS entities, control normalization runs during runtime ticks, WidgetSession is constructed as an immutable
   declaration/index compatibility data, C1 visual entities include ECS host-binding keys, and
   UiOps/probe/scene2d widgets/UiActions/FX read ECS values; WindowManager no longer owns a layout
   root map. C1 target/effect projection now consumes ECS frames only and StageHost reconciles its
-  actor cache from ECS host bindings; NodeTrees lifecycle queries now resolve registered ECS scope
-  data, while signal callback objects remain a disposable compatibility cache
+  actor cache from ECS host bindings; context/entity lifecycle queries resolve registered ECS scope
+  data, while signal callback objects remain a disposable host cache
 - [~] 46.3 Materialize STS observations and C2 surfaces through ECS systems; card projections now
   create/update/destroy shared-world entities and data-only card components, with frame lifecycle
   metadata, drag interaction metadata, and immutable frame snapshots on a projection root entity;
@@ -57,9 +57,9 @@ components are data only; systems are stateless and own all ART interaction hand
 
 - [x] 46.1.1 One ART World; context-owned entity index; scope close/reset isolation tests
 - [x] 46.2.1 C1 control values and normalization are ECS authoritative
-- [~] 46.2.2 C1 window/node lifecycle, visibility, hierarchy, and host actor bindings are ECS data;
-  StageHost reconciles actor objects through `HostBindingComponent`, while NodeTrees keeps signal and
-  lifecycle callback compatibility ownership
+- [x] 46.2.2 C1 window/entity lifecycle, visibility, hierarchy, and host actor bindings are ECS data;
+  StageHost reconciles actor objects through `HostBindingComponent`; scoped signals and callbacks
+  are disposable host caches
 - [x] 46.3.1 C2 card projection entities and card data components are ECS authoritative
 - [x] 46.3.2 Projection root stores frame lifecycle, interaction, and immutable snapshot data
 - [x] 46.3.3 C2 surface mount state and surface Entity identity are ECS authoritative
@@ -551,8 +551,9 @@ Design: [`docs/design/presentation-entity-runtime.md`](design/presentation-entit
 
 - [x] 45.1 Add dependency-neutral `presentation` runtime: context, stable keys, common entity
       components, immutable frame snapshots, and pure ECS tests.
-- [x] 45.2 Replace `UiInstance` with ECS-backed `Node` / `NodeTree`; migrate tree lifecycle,
-      NodePath, props, theme resolution, and public API.
+- [x] 45.2 Replace `UiInstance` and the temporary object-tree facade with
+      `PresentationContext` + `EntityId`; migrate lifecycle, path lookup, props, theme resolution,
+      and public API.
 - [x] 45.3 Migrate signals, declarative connections, state machines, and animation to node/entity
       identity while retaining declared-port and first-stop semantics.
 - [x] 45.4 Migrate C1 Stage materialization and render synchronization to presentation frames.

@@ -1,6 +1,6 @@
 package artframework.core;
 
-import artframework.presentation.NodeTree;
+import artframework.presentation.PresentationMount;
 
 /**
  * Host SPI for inflate / input / draw (STS1 Stage, future STS2).
@@ -8,17 +8,17 @@ import artframework.presentation.NodeTree;
  */
 public interface HostBackend {
 
-    /** Whether the host can attach trees (e.g. Stage ready). */
+    /** Whether the host can attach ECS presentation mounts (e.g. Stage ready). */
     boolean isReady();
 
-    default void attach(NodeTree tree) {}
+    default void attach(PresentationMount mount) {}
 
-    default void detach(NodeTree tree) {}
+    default void detach(PresentationMount mount) {}
 
     /**
      * Optional: push pure layout rects into host actors. Default no-op.
      */
-    default void applyLayout(NodeTree tree) {}
+    default void applyLayout(PresentationMount mount) {}
 
     /** Capabilities available from this host. */
     default HostCapabilities capabilities() {

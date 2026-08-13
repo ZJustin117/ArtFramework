@@ -30,13 +30,13 @@ the jar as a separate ModTheSpire dependency.
 | `render` | RenderHost |
 | `nodes` / `c1Nodes` / `animation` / `skeletons` | Presentation graph SPIs |
 | `entities` / `entityPresent` | EntityPresent slots |
-| `uiRoot` / `widgets` / `tree` / `tick` / `layoutRoot` | C1 runtime |
+| `uiRoot` / `widgets` / `tick` / `layoutRoot` | C1 runtime |
 
 Also stable: `WindowDef`, `WindowClass`, `WindowHandle`, `UiOps`, `UiOpResult`, `UiProbe`.
 
 ### Core / context / assets
 
-- `artframework.presentation`: `NodeTree`, `Node`, `PresentationFrame`, `PresentationWorld`
+- `artframework.presentation`: `PresentationContext`, `PresentationRuntime`, `PresentationFrame`
 - `artframework.core`: `SignalHub`, `SignalBus`, `Theme`, `HostBackend`,
   `HostCapabilities`, `UiComponent`
 - `artframework.ecs`: `EntityId`, `PresentationWorld` for deterministic ART-owned presentation

@@ -9,8 +9,10 @@ import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.render.LightwaveEffect;
 import artframework.render.RenderHosts;
-import artframework.presentation.NodeTree;
 import artframework.presentation.ConnectionDeclarationsComponent;
+import artframework.presentation.EffectsComponent;
+import artframework.presentation.PresentationRuntime;
+import artframework.test.C1RuntimeFixture;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,14 +38,13 @@ public class NodeConnectionsTest {
 
     @Test
     public void exactMatchPlaysAnimation() {
-        NodeTree tree = mountWithPlayConnection("ui/ok/pressed", false);
-        ConnectionDeclarationsComponent declarations = tree.world().get(
-                tree.root().entityId(), ConnectionDeclarationsComponent.class);
+        C1RuntimeFixture fixture = mountWithPlayConnection("ui/ok/pressed", false);
+        ConnectionDeclarationsComponent declarations = fixture.context.world().get(
+                fixture.root, ConnectionDeclarationsComponent.class);
         assertNotNull(declarations);
         assertEquals(1, declarations.connections.size());
         AtomicInteger started = new AtomicInteger();
-        tree.get("motion")
-                .connect(
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_STARTED,
                         new SignalHandler() {
                             @Override
@@ -52,17 +53,16 @@ public class NodeConnectionsTest {
                             }
                         });
         assertTrue(NodeConnections.subscriptionCount("win") >= 1);
-        tree.emit("ok", SignalNames.PRESSED);
+        fixture.emit("ok", SignalNames.PRESSED);
         assertEquals(1, started.get());
         assertTrue(AnimationPlayers.get("win", "motion").isPlaying());
     }
 
     @Test
     public void regexMatchPlaysAnimation() {
-        NodeTree tree = mountWithPlayConnection("ui/.+/pressed", true);
+        C1RuntimeFixture fixture = mountWithPlayConnection("ui/.+/pressed", true);
         AtomicInteger started = new AtomicInteger();
-        tree.get("motion")
-                .connect(
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_STARTED,
                         new SignalHandler() {
                             @Override
@@ -70,7 +70,7 @@ public class NodeConnectionsTest {
                                 started.incrementAndGet();
                             }
                         });
-        tree.emit("ok", SignalNames.PRESSED);
+        fixture.emit("ok", SignalNames.PRESSED);
         assertEquals(1, started.get());
     }
 
@@ -83,10 +83,9 @@ public class NodeConnectionsTest {
         UiNode root =
                 windowWithButtonAndPlayer(
                         Collections.singletonList(trigger), null);
-        NodeTree tree = NodeTree.mount("tree:win", root, null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
         AtomicInteger started = new AtomicInteger();
-        tree.get("motion")
-                .connect(
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_STARTED,
                         new SignalHandler() {
                             @Override
@@ -94,7 +93,7 @@ public class NodeConnectionsTest {
                                 started.incrementAndGet();
                             }
                         });
-        tree.emit("ok", SignalNames.PRESSED);
+        fixture.emit("ok", SignalNames.PRESSED);
         assertEquals(1, started.get());
     }
 
@@ -122,9 +121,9 @@ public class NodeConnectionsTest {
                                         .prop("value", 0.1f)
                                         .build())
                         .build();
-        NodeTree tree = artframework.presentation.NodeTrees.open("win", root, null);
-        tree.emit("wave", SignalNames.VALUE_CHANGED, Float.valueOf(0.8f));
-        assertEquals(0.8f, ((Number) tree.get("panel").prop("fx_intensity")).floatValue(), 0.001f);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
+        fixture.emit("wave", SignalNames.VALUE_CHANGED, Float.valueOf(0.8f));
+        assertEquals(0.8f, ((Number) fixture.property("panel", "fx_intensity")).floatValue(), 0.001f);
     }
 
     @Test
@@ -153,18 +152,18 @@ public class NodeConnectionsTest {
                                         .build())
                         .child(UiNode.of(UiTypes.BUTTON).id("ok").prop("text", "P").build())
                         .build();
-        NodeTree tree = artframework.presentation.NodeTrees.open("win", root, null);
-        tree.emit("ok", SignalNames.PRESSED);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
+        fixture.emit("ok", SignalNames.PRESSED);
         assertTrue(EffectPulse.isActive("win", "panel"));
         assertEquals(1, artframework.ecs.ArtEcs.world().query(EffectPulseComponent.class).size());
         artframework.render.LightwaveControls.tickPulses(0.1f);
-        artframework.presentation.EffectsComponent effects = tree.world().get(
-                tree.get("panel").entityId(), artframework.presentation.EffectsComponent.class);
+        EffectsComponent effects = fixture.context.world().get(
+                fixture.find("panel"), EffectsComponent.class);
         float intensity = effects.get(LightwaveEffect.ID, "ambient").floatParam("intensity", 0f);
         assertTrue(intensity > 0.55f);
         artframework.render.LightwaveControls.tickPulses(0.2f);
         assertFalse(EffectPulse.isActive("win", "panel"));
-        artframework.presentation.NodeTrees.close("win");
+        fixture.close();
     }
 
     @Test
@@ -179,7 +178,7 @@ public class NodeConnectionsTest {
                         .child(UiNode.of(UiTypes.BUTTON).id("ok").build())
                         .build();
         try {
-            NodeTree.mount("tree:win", root, null);
+            C1RuntimeFixture.mount("win", root);
             fail("expected unknown action");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("unknown ui action"));
@@ -207,17 +206,17 @@ public class NodeConnectionsTest {
                         .prop("connections", Collections.singletonList(conn))
                         .child(UiNode.of(UiTypes.BUTTON).id("ok").build())
                         .build();
-        NodeTree tree = NodeTree.mount("tree:win", root, null);
-        tree.emit("ok", SignalNames.PRESSED);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
+        fixture.emit("ok", SignalNames.PRESSED);
         assertEquals(1, hits.get());
         assertTrue(ArtFramework.uiActionIds().contains("mod.test_hit"));
     }
 
     @Test
     public void unmountClearsSubscriptions() {
-        NodeTree tree = mountWithPlayConnection("ui/ok/pressed", false);
+        C1RuntimeFixture fixture = mountWithPlayConnection("ui/ok/pressed", false);
         assertTrue(NodeConnections.subscriptionCount("win") >= 1);
-        tree.unmount();
+        fixture.close();
         assertEquals(0, NodeConnections.subscriptionCount("win"));
     }
 
@@ -232,7 +231,7 @@ public class NodeConnectionsTest {
         assertNotNull(ArtFramework.getUiAction(UiActions.PAUSE));
     }
 
-    private static NodeTree mountWithPlayConnection(String match, boolean pattern) {
+    private static C1RuntimeFixture mountWithPlayConnection(String match, boolean pattern) {
         Map<String, Object> conn = new LinkedHashMap<String, Object>();
         if (pattern) {
             conn.put("match_pattern", match);
@@ -244,7 +243,8 @@ public class NodeConnectionsTest {
         args.put("player", "motion");
         args.put("name", "enter");
         conn.put("args", args);
-        return NodeTree.mount("tree:win", windowWithButtonAndPlayer(null, Collections.singletonList(conn)), null);
+        return C1RuntimeFixture.mount(
+                "win", windowWithButtonAndPlayer(null, Collections.singletonList(conn)));
     }
 
     private static UiNode windowWithButtonAndPlayer(

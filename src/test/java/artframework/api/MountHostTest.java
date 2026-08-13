@@ -27,10 +27,10 @@ public class MountHostTest {
                 new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
         WindowHandle h = ArtFramework.mount("demo");
         assertTrue(h.isOpen());
-        assertNotNull(ArtFramework.tree("demo"));
+        assertNotNull(artframework.presentation.PresentationRuntime.context("demo"));
         ArtFramework.unmount("demo");
         assertNull(ArtFramework.find("demo"));
-        assertNull(ArtFramework.tree("demo"));
+        assertNull(artframework.presentation.PresentationRuntime.context("demo"));
     }
 
     @Test
@@ -81,17 +81,17 @@ public class MountHostTest {
                     }
 
                     @Override
-                    public void attach(artframework.presentation.NodeTree tree) {
-                        events.add("a:" + tree.scope().replace("tree:", ""));
+                    public void attach(artframework.presentation.PresentationMount mount) {
+                        events.add("a:" + mount.windowId());
                     }
 
                     @Override
-                    public void detach(artframework.presentation.NodeTree tree) {
-                        events.add("d:" + tree.scope().replace("tree:", ""));
+                    public void detach(artframework.presentation.PresentationMount mount) {
+                        events.add("d:" + mount.windowId());
                     }
 
                     @Override
-                    public void applyLayout(artframework.presentation.NodeTree tree) {}
+                    public void applyLayout(artframework.presentation.PresentationMount mount) {}
                 });
         ArtFramework.register(
                 new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
@@ -113,13 +113,13 @@ public class MountHostTest {
                     }
 
                     @Override
-                    public void attach(artframework.presentation.NodeTree tree) {}
+                    public void attach(artframework.presentation.PresentationMount mount) {}
 
                     @Override
-                    public void detach(artframework.presentation.NodeTree tree) {}
+                    public void detach(artframework.presentation.PresentationMount mount) {}
 
                     @Override
-                    public void applyLayout(artframework.presentation.NodeTree tree) {}
+                    public void applyLayout(artframework.presentation.PresentationMount mount) {}
 
                     @Override
                     public void tick(float deltaSeconds) {

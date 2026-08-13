@@ -132,7 +132,6 @@ public class WidgetSessionTest {
         ArtFramework.open("comp");
         ArtFramework.close("comp");
         assertNull(ArtFramework.widgets("comp"));
-        assertFalse(WidgetSessions.isOpen("comp"));
     }
 
     @Test

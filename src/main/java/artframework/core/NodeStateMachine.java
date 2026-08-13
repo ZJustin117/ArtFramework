@@ -1,8 +1,9 @@
 package artframework.core;
 
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
 import artframework.presentation.NodeStateComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.ecs.EntityId;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -60,29 +61,24 @@ public final class NodeStateMachine {
         }
     }
 
-    private final Node owner;
+    private final PresentationContext context;
+    private final EntityId ownerEntity;
     private final List<Transition> transitions = new ArrayList<Transition>();
     private final List<SignalSubscription> subscriptions = new ArrayList<SignalSubscription>();
     private final Map<String, List<Map<String, Object>>> enterByState =
             new LinkedHashMap<String, List<Map<String, Object>>>();
 
-    public NodeStateMachine(Node owner, String initial) {
-        if (owner == null) {
-            throw new IllegalArgumentException("owner required");
-        }
-        this.owner = owner;
-        owner.tree().world().put(owner.entityId(), NodeStateComponent.class,
+    public NodeStateMachine(PresentationContext context, EntityId owner, String initial) {
+        if (context == null || owner == null) throw new IllegalArgumentException("context and owner required");
+        this.context = context;
+        this.ownerEntity = owner;
+        context.world().put(owner, NodeStateComponent.class,
                 new NodeStateComponent(initial != null && !initial.isEmpty() ? initial : STATE_IDLE));
     }
 
     public String state() {
-        NodeStateComponent component = owner.tree().world()
-                .get(owner.entityId(), NodeStateComponent.class);
+        NodeStateComponent component = context.world().get(ownerEntity, NodeStateComponent.class);
         return component != null ? component.value : STATE_IDLE;
-    }
-
-    public Node owner() {
-        return owner;
     }
 
     public void addTransition(Transition t) {
@@ -111,9 +107,9 @@ public final class NodeStateMachine {
         }
         putState(next);
         runEnter(next, null);
-        if (emitChanged && owner.declaresSignal(SignalNames.STATE_CHANGED)) {
+        if (emitChanged && declares(SignalNames.STATE_CHANGED)) {
             try {
-                owner.emitSignal(SignalNames.STATE_CHANGED, next);
+                PresentationRuntime.emit(context, ownerEntity, SignalNames.STATE_CHANGED, next);
             } catch (RuntimeException ignored) {
             }
         }
@@ -123,32 +119,22 @@ public final class NodeStateMachine {
         setState(next, true);
     }
 
-    public void wire(NodeTree tree) {
+    public void wire(PresentationContext context) {
         clearSubscriptions();
-        if (tree == null) {
-            return;
-        }
-        for (final Transition t : transitions) {
-            if (t.match.isEmpty() && t.matchPattern == null) {
-                continue;
-            }
-            SignalListener listener =
-                    new SignalListener() {
-                        @Override
-                        public SignalDecision onSignal(UiSignal event) {
-                            if (t.fromAllows(state()) && t.matchesSignal(event.name)) {
-                                applyTransition(t, event);
-                            }
-                            return SignalDecision.continueSignal();
-                        }
-                    };
-            SignalSubscription sub;
-            if (t.matchPattern != null) {
-                sub = tree.connectBus(t.matchPattern, listener);
-            } else {
-                sub = tree.connectBus(t.match, listener);
-            }
-            subscriptions.add(sub);
+        if (context == null) return;
+        for (final Transition transition : transitions) {
+            if (transition.match.isEmpty() && transition.matchPattern == null) continue;
+            SignalListener listener = new SignalListener() {
+                @Override public SignalDecision onSignal(UiSignal event) {
+                    if (transition.fromAllows(state()) && transition.matchesSignal(event.name)) {
+                        applyTransition(transition, event);
+                    }
+                    return SignalDecision.continueSignal();
+                }
+            };
+            subscriptions.add(transition.matchPattern != null
+                    ? PresentationRuntime.connectBus(context, transition.matchPattern, listener)
+                    : PresentationRuntime.connectBus(context, transition.match, listener));
         }
     }
 
@@ -169,9 +155,9 @@ public final class NodeStateMachine {
         putState(t.to);
         runEnter(t.to, event);
         runActionList(t.onEnter, event);
-        if (owner.declaresSignal(SignalNames.STATE_CHANGED)) {
+        if (declares(SignalNames.STATE_CHANGED)) {
             try {
-                owner.emitSignal(SignalNames.STATE_CHANGED, t.to);
+                PresentationRuntime.emit(context, ownerEntity, SignalNames.STATE_CHANGED, t.to);
             } catch (RuntimeException ignored) {
             }
         }
@@ -183,7 +169,7 @@ public final class NodeStateMachine {
     }
 
     private void putState(String next) {
-        owner.tree().world().put(owner.entityId(), NodeStateComponent.class,
+        context.world().put(ownerEntity, NodeStateComponent.class,
                 new NodeStateComponent(next));
     }
 
@@ -191,7 +177,6 @@ public final class NodeStateMachine {
         if (actions == null || actions.isEmpty()) {
             return;
         }
-        NodeTree tree = owner.tree();
         for (Map<String, Object> spec : actions) {
             if (spec == null) {
                 continue;
@@ -206,91 +191,59 @@ public final class NodeStateMachine {
                             ? new LinkedHashMap<String, Object>((Map<String, Object>) spec.get("args"))
                             : new LinkedHashMap<String, Object>();
             try {
-                UiActions.run(actionId, new UiActionContext(tree, owner, event, args));
+                UiActions.run(actionId, new UiActionContext(context, ownerEntity, event, args));
             } catch (RuntimeException ignored) {
             }
         }
     }
 
+    private boolean declares(String signal) {
+        artframework.presentation.SignalPortsComponent ports = PresentationRuntime.component(
+                context, ownerEntity, artframework.presentation.SignalPortsComponent.class);
+        return ports != null && ports.canEmit(signal);
+    }
+
+    /** ECS-native declaration parser for state-machine entities. */
     @SuppressWarnings("unchecked")
-    public static NodeStateMachine fromDecl(Node owner) {
-        if (owner == null) {
-            return null;
-        }
-        Object raw = owner.get("states");
-        if (!(raw instanceof Map)) {
-            return null;
-        }
+    public static NodeStateMachine fromDecl(PresentationContext context, EntityId owner) {
+        Object raw = PresentationRuntime.property(context, owner, "states");
+        if (!(raw instanceof Map)) return null;
         Map<String, Object> root = (Map<String, Object>) raw;
         String initial = stringVal(root.get("initial"));
-        if (initial.isEmpty()) {
-            initial = STATE_IDLE;
-        }
-        NodeStateMachine fsm = new NodeStateMachine(owner, initial);
-        Object tr = root.get("transitions");
-        if (tr instanceof List) {
-            for (Object item : (List<?>) tr) {
-                if (!(item instanceof Map)) {
-                    continue;
-                }
-                Map<String, Object> m = (Map<String, Object>) item;
-                String from = stringVal(m.get("from"));
-                if (from.isEmpty()) {
-                    from = "*";
-                }
-                String to = stringVal(m.get("to"));
-                if (to.isEmpty()) {
-                    continue;
-                }
-                String match = stringVal(m.get("match"));
-                String on = stringVal(m.get("on"));
-                if (match.isEmpty() && !on.isEmpty()) {
-                    match = on;
-                }
-                Pattern pat = null;
-                String mp = stringVal(m.get("match_pattern"));
-                if (mp.isEmpty()) {
-                    mp = stringVal(m.get("matchPattern"));
-                }
-                if (!mp.isEmpty()) {
-                    try {
-                        pat = Pattern.compile(mp);
-                    } catch (PatternSyntaxException e) {
-                        throw new IllegalArgumentException("invalid states match_pattern: " + mp);
+        NodeStateMachine fsm = new NodeStateMachine(context, owner,
+                initial.isEmpty() ? STATE_IDLE : initial);
+        Object transitions = root.get("transitions");
+        if (transitions instanceof List) {
+            for (Object item : (List<?>) transitions) {
+                if (!(item instanceof Map)) continue;
+                Map<String, Object> spec = (Map<String, Object>) item;
+                String to = stringVal(spec.get("to"));
+                if (to.isEmpty()) continue;
+                String from = stringVal(spec.get("from"));
+                String match = stringVal(spec.get("match"));
+                if (match.isEmpty()) match = stringVal(spec.get("on"));
+                String expression = stringVal(spec.get("match_pattern"));
+                if (expression.isEmpty()) expression = stringVal(spec.get("matchPattern"));
+                Pattern pattern = expression.isEmpty() ? null : Pattern.compile(expression);
+                List<Map<String, Object>> onEnter = new ArrayList<Map<String, Object>>();
+                Object rawEnter = spec.get("on_enter") != null ? spec.get("on_enter") : spec.get("onEnter");
+                if (rawEnter instanceof List) {
+                    for (Object action : (List<?>) rawEnter) if (action instanceof Map) {
+                        onEnter.add((Map<String, Object>) action);
                     }
                 }
-                List<Map<String, Object>> onEnter = null;
-                Object oe = m.get("on_enter");
-                if (oe == null) {
-                    oe = m.get("onEnter");
-                }
-                if (oe instanceof List) {
-                    onEnter = new ArrayList<Map<String, Object>>();
-                    for (Object a : (List<?>) oe) {
-                        if (a instanceof Map) {
-                            onEnter.add((Map<String, Object>) a);
-                        }
-                    }
-                }
-                fsm.addTransition(new Transition(from, to, match, pat, onEnter));
+                fsm.addTransition(new Transition(from.isEmpty() ? "*" : from, to, match, pattern, onEnter));
             }
         }
-        Object enters = root.get("on_enter");
-        if (enters == null) {
-            enters = root.get("enter");
-        }
-        if (enters instanceof Map) {
-            Map<String, Object> em = (Map<String, Object>) enters;
-            for (Map.Entry<String, Object> e : em.entrySet()) {
-                if (e.getValue() instanceof List) {
-                    List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
-                    for (Object a : (List<?>) e.getValue()) {
-                        if (a instanceof Map) {
-                            list.add((Map<String, Object>) a);
-                        }
-                    }
-                    fsm.setEnterActions(e.getKey(), list);
+        Object enter = root.get("on_enter") != null ? root.get("on_enter") : root.get("enter");
+        if (enter instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) enter).entrySet()) {
+                if (!(entry.getValue() instanceof List)) continue;
+                List<Map<String, Object>> actions = new ArrayList<Map<String, Object>>();
+                for (Object action : (List<?>) entry.getValue()) if (action instanceof Map) {
+                    actions.add((Map<String, Object>) action);
                 }
+                fsm.setEnterActions(String.valueOf(entry.getKey()), actions);
             }
         }
         return fsm;

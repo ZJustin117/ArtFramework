@@ -9,7 +9,6 @@ import artframework.c2.NativeTemplateRuntime;
 import artframework.component.UiNode;
 import artframework.component.UiNodeRegistry;
 import artframework.component.WidgetSession;
-import artframework.component.WidgetSessions;
 import artframework.c2.NativeComponents;
 import artframework.core.AnimationPlayer;
 import artframework.core.AnimationPlayers;
@@ -18,8 +17,6 @@ import artframework.core.HostBackends;
 import artframework.core.Theme;
 import artframework.core.Themes;
 import artframework.core.UiComponent;
-import artframework.presentation.NodeTree;
-import artframework.presentation.NodeTrees;
 import artframework.core.SignalBus;
 import artframework.core.SignalBuses;
 import artframework.core.SignalDispatchResult;
@@ -133,10 +130,12 @@ public final class ArtFramework {
         LayoutNode root = SyntheticRuntime.open(def);
         WindowHandle handle = new TrackedHandle(def, root);
         OPEN.put(def.id, handle);
-        NodeTree tree = NodeTrees.get(def.id);
-        if (tree != null) {
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context(def.id);
+        artframework.ecs.EntityId rootEntity = artframework.presentation.PresentationRuntime.root(context);
+        if (context != null && rootEntity != null) {
             OPS.onTreeMounted(def.id);
-            HostBackends.get().attach(tree);
+            HostBackends.get().attach(new artframework.presentation.PresentationMount(context, rootEntity));
         }
         return handle;
     }
@@ -371,11 +370,10 @@ public final class ArtFramework {
     }
 
     public static artframework.core.PresentResolved resolvePresent(String windowId) {
-        NodeTree t = tree(windowId);
-        if (t == null) {
-            return artframework.core.ProjectPresent.resolved();
-        }
-        return artframework.core.ProjectPresent.resolved();
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context(windowId);
+        return artframework.core.PresentResolve.forEntity(context,
+                artframework.presentation.PresentationRuntime.root(context));
     }
 
     /** Bind a C2 full-present surface to a PresentProfile (35.2). */
@@ -516,26 +514,26 @@ public final class ArtFramework {
      * Composition tree for an open synthetic window (expanded), or null.
      */
     public static UiNode uiRoot(String id) {
-        WidgetSession s = WidgetSessions.get(id);
-        return s != null ? s.root() : null;
+        return artframework.presentation.PresentationRuntime.declaration(
+                artframework.presentation.PresentationRuntime.context(id));
     }
 
     /** Widget session (sliders / control index) for an open synthetic window. */
     public static WidgetSession widgets(String id) {
-        return WidgetSessions.get(id);
+        UiNode root = uiRoot(id);
+        return root != null ? new WidgetSession(id, root) : null;
     }
 
-    /** Mounted ECS-backed node tree for an open synthetic window, or null. */
-    public static NodeTree tree(String id) {
-        return NodeTrees.get(id);
-    }
 
     /** Advance all mounted synthetic trees and the configured host. */
     public static void tick(float deltaSeconds) {
         if (deltaSeconds < 0f) {
             throw new IllegalArgumentException("deltaSeconds must be non-negative");
         }
-        for (NodeTree tree : NodeTrees.listOpen()) tree.tick(deltaSeconds);
+        for (String windowId : artframework.presentation.PresentationRuntime.openWindowIds()) {
+            artframework.presentation.PresentationRuntime.tick(
+                    artframework.presentation.PresentationRuntime.context(windowId), deltaSeconds);
+        }
         artframework.core.EffectPulse.tick(deltaSeconds);
         HostBackends.get().tick(deltaSeconds);
     }
@@ -680,10 +678,11 @@ public final class ArtFramework {
             open = false;
             removeHandleAliases(this);
             if (def.windowClass == WindowClass.SYNTHETIC) {
-                NodeTree tree = NodeTrees.get(def.id);
-                if (tree != null) {
-                    HostBackends.get().detach(tree);
-                }
+                artframework.presentation.PresentationContext context =
+                        artframework.presentation.PresentationRuntime.context(def.id);
+                artframework.ecs.EntityId root = artframework.presentation.PresentationRuntime.root(context);
+                if (context != null && root != null) HostBackends.get().detach(
+                        new artframework.presentation.PresentationMount(context, root));
                 SyntheticRuntime.onClosed(def.id);
             } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
                 NativeTemplateRuntime.unbind(def);

@@ -294,7 +294,7 @@ public class ArtCommand extends ConsoleCommand {
             }
             String target = tokens[depth + 1];
             artframework.core.PresentResolved r;
-            if (ArtFramework.tree(target) != null) {
+            if (artframework.presentation.PresentationRuntime.context(target) != null) {
                 r = ArtFramework.resolvePresent(target);
             } else {
                 r = ArtFramework.resolveSurfacePresent(target);

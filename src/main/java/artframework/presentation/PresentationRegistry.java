@@ -56,7 +56,7 @@ public final class PresentationRegistry {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (PresentationContext context : CONTEXTS.values()) {
             Map<String, Object> scope = new LinkedHashMap<String, Object>();
-            scope.put("scope", context.world().scope());
+            scope.put("scope", context.scope());
             List<Map<String, Object>> entities = new ArrayList<Map<String, Object>>();
             for (EntityId entity : context.entities()) {
                 NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);

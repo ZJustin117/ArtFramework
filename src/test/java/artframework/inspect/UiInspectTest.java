@@ -71,9 +71,10 @@ public class UiInspectTest {
     public void emitFiresHandler() {
         openComp();
         final AtomicInteger presses = new AtomicInteger();
-        ArtFramework.tree("comp")
-                .connect(
-                        "ok",
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context("comp");
+        artframework.presentation.PresentationRuntime.connect(context,
+                        artframework.presentation.PresentationRuntime.find(context, "ok"),
                         SignalNames.PRESSED,
                         new SignalHandler() {
                             @Override

@@ -4,7 +4,6 @@ import org.junit.After;
 import org.junit.Test;
 import artframework.api.ArtFramework;
 import artframework.component.WidgetSession;
-import artframework.component.WidgetSessions;
 import artframework.render.RenderHost;
 import artframework.render.TintEffect;
 
@@ -45,7 +44,7 @@ public class ShaderEffectNodeTest {
                                                         .build())
                                         .build())
                         .build();
-        WidgetSession session = WidgetSessions.openTree("win", root);
+        WidgetSession session = new WidgetSession("win", root);
         RenderHost host = ArtFramework.render();
         host.syncWidgetSession(session);
         assertTrue(host.listTargetIds().contains("c1:win:fx"));

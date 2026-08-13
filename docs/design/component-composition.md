@@ -67,7 +67,7 @@ Rules: pure, no GL; window-local `id` uniqueness recommended for interactive lea
 ## Runtime
 
 - **Today:** expand → `WidgetSession` + Stage inflate (`ComponentActors`) + `RenderHost` from `effects`.
-- **Target:** `Node` / `NodeTree` per scope; signals for leaf interaction; layout truth in `BoundsComponent` ([`godot-aligned-ui.md`](./godot-aligned-ui.md)).
+- **Target:** `PresentationContext` + `EntityId` per scope; signals for leaf interaction; layout truth in `BoundsComponent` ([`godot-aligned-ui.md`](./godot-aligned-ui.md)).
 - C2 entity targets via Attach only (not window children); C2 screens as NativeControl components (same doc).
 
 ## Testing

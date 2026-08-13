@@ -4,6 +4,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.ecs.EntityId;
 
 /**
  * Attaches optional {@link NodeStateMachine} instances from node {@code states} decl.
@@ -15,12 +19,18 @@ public final class NodeStateMachines {
 
     private NodeStateMachines() {}
 
-    public static void syncTree(artframework.presentation.NodeTree tree) {
-        if (tree == null) {
-            return;
+    /** Rebuild state-machine host subscriptions from ECS entity declarations. */
+    public static void syncContext(PresentationContext context) {
+        if (context == null) return;
+        clearWindow(PresentationRuntime.windowId(context));
+        for (EntityId entity : context.entities()) {
+            NodeStateMachine fsm = NodeStateMachine.fromDecl(context, entity);
+            NodeIdentityComponent identity = PresentationRuntime.identity(context, entity);
+            if (fsm != null && identity != null && !identity.name.isEmpty()) {
+                BY_KEY.put(PresentationRuntime.windowId(context) + "/" + identity.name, fsm);
+                fsm.wire(context);
+            }
         }
-        clearWindow(tree.windowId());
-        walk(tree, tree.root());
     }
 
     public static NodeStateMachine get(String windowId, String nodeId) {
@@ -54,22 +64,4 @@ public final class NodeStateMachines {
         BY_KEY.clear();
     }
 
-    private static void walk(
-            artframework.presentation.NodeTree tree, artframework.presentation.Node inst) {
-        if (inst == null) {
-            return;
-        }
-        if (!inst.name().isEmpty() && inst.get("states") != null) {
-            NodeStateMachine fsm = NodeStateMachine.fromDecl(inst);
-            if (fsm != null) {
-                BY_KEY.put(
-                        tree.windowId() + "/" + inst.name(),
-                        fsm);
-                fsm.wire(tree);
-            }
-        }
-        for (artframework.presentation.Node c : inst.children()) {
-            walk(tree, c);
-        }
-    }
 }

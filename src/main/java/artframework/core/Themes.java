@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Process-global default theme for new {@link artframework.presentation.NodeTree} mounts, plus named theme registry.
+ * Process-global default theme for new presentation mounts, plus named theme registry.
  */
 public final class Themes {
 

@@ -1,8 +1,11 @@
 package artframework.core;
 
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
 import artframework.presentation.NodeStateComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.presentation.NodeHierarchyComponent;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.ecs.EntityId;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Pure timeline player for a behavior node. Drives target presentation Node props.
+ * Pure timeline player for a behavior entity. Drives target presentation properties.
  * States: idle / playing / paused via thin {@link NodeStateMachine} fields.
  */
 public final class AnimationPlayer {
@@ -86,17 +89,17 @@ public final class AnimationPlayer {
         }
     }
 
-    private final Node owner;
+    private final PresentationContext context;
+    private final EntityId owner;
     private final Map<String, Animation> animations = new LinkedHashMap<String, Animation>();
     private final NodeStateMachine fsm;
 
-    public AnimationPlayer(Node owner) {
-        if (owner == null) {
-            throw new IllegalArgumentException("owner required");
-        }
+    public AnimationPlayer(PresentationContext context, EntityId owner) {
+        if (context == null || owner == null) throw new IllegalArgumentException("context and owner required");
+        this.context = context;
         this.owner = owner;
-        this.fsm = new NodeStateMachine(owner, NodeStateMachine.STATE_IDLE);
-        owner.tree().world().put(owner.entityId(), AnimationPlaybackComponent.class,
+        this.fsm = new NodeStateMachine(context, owner, NodeStateMachine.STATE_IDLE);
+        context.world().put(owner, AnimationPlaybackComponent.class,
                 AnimationPlaybackComponent.idle());
     }
 
@@ -245,15 +248,18 @@ public final class AnimationPlayer {
 
     /** Behavior signals: hub emit so undeclared optional names (paused/looped) still propagate. */
     private void emitOwn(String signal, Object... args) {
-        if (signal == null || owner.name().isEmpty()) {
+        NodeIdentityComponent identity = PresentationRuntime.identity(context, owner);
+        if (signal == null || identity == null || identity.name.isEmpty()) {
             return;
         }
         try {
-            if (owner.declaresSignal(signal)) {
-                owner.emitSignal(signal, args);
+            artframework.presentation.SignalPortsComponent ports = PresentationRuntime.component(
+                    context, owner, artframework.presentation.SignalPortsComponent.class);
+            if (ports != null && ports.canEmit(signal)) {
+                PresentationRuntime.emit(context, owner, signal, args);
             } else {
                 artframework.core.SignalBuses.get().emit(
-                        new UiSignal(SignalHub.name(owner.name(), signal), owner.name(), args));
+                        new UiSignal(SignalHub.name(identity.name, signal), identity.name, args));
             }
         } catch (RuntimeException ignored) {
         }
@@ -261,7 +267,7 @@ public final class AnimationPlayer {
 
     private Map<String, Float> captureFromSnapshot(Animation anim) {
         Map<String, Float> snapshot = new LinkedHashMap<String, Float>();
-        Node target = resolveTarget(anim.targetId);
+        EntityId target = resolveTarget(anim.targetId);
         if (target == null) {
             return snapshot;
         }
@@ -269,7 +275,7 @@ public final class AnimationPlayer {
             if (!track.fromCurrent) {
                 continue;
             }
-            Object cur = target.get(track.property);
+            Object cur = PresentationRuntime.property(context, target, track.property);
             float f = track.from;
             if (cur instanceof Number) {
                 f = ((Number) cur).floatValue();
@@ -294,35 +300,31 @@ public final class AnimationPlayer {
         if (t > 1f) {
             t = 1f;
         }
-        Node target = resolveTarget(anim.targetId);
+        EntityId target = resolveTarget(anim.targetId);
         if (target == null) {
             return;
         }
         for (Track track : anim.tracks) {
             float from = trackFrom(track);
             float v = from + (track.to - from) * t;
-            PropEffectBridge.applyProp(owner.tree(), target, track.property, Float.valueOf(v));
+            PropEffectBridge.applyProp(context, target, track.property, Float.valueOf(v));
         }
     }
 
-    private Node resolveTarget(String targetId) {
+    private EntityId resolveTarget(String targetId) {
         if (targetId == null || targetId.isEmpty()) {
-            return owner.parent();
+            NodeHierarchyComponent hierarchy = PresentationRuntime.hierarchy(context, owner);
+            return hierarchy != null ? hierarchy.parent : null;
         }
-        Node found = owner.tree().get(targetId);
-        if (found != null) {
-            return found;
-        }
-        return owner.tree().find(targetId);
+        return PresentationRuntime.find(context, targetId);
     }
 
     private AnimationPlaybackComponent playback() {
-        AnimationPlaybackComponent state = owner.tree().world()
-                .get(owner.entityId(), AnimationPlaybackComponent.class);
+        AnimationPlaybackComponent state = context.world().get(owner, AnimationPlaybackComponent.class);
         return state != null ? state : AnimationPlaybackComponent.idle();
     }
 
     private void putPlayback(AnimationPlaybackComponent state) {
-        owner.tree().world().put(owner.entityId(), AnimationPlaybackComponent.class, state);
+        context.world().put(owner, AnimationPlaybackComponent.class, state);
     }
 }

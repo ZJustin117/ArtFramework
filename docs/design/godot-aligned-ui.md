@@ -34,13 +34,13 @@ Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host 
 
 | Godot | ArtFramework target | Notes |
 |-------|----------------|-------|
-| Node / SceneTree | `Node` + `NodeTree` over `PresentationWorld` (per scope) | No mutable facade-owned state |
-| Control | Control contract on `Node` with ECS bounds, visibility, interaction and signals | |
+| Node / SceneTree | `EntityId` + data-only components in `PresentationContext` | `PresentationRuntime` is the stateless operation surface |
+| Control | Entity with ECS bounds, visibility, interaction and signal ports | |
 | Container | Nest containers (`row`/`col`/…); container-first layout | Children do not self-position under containers |
 | Size flags / stretch ratio | Extended `LayoutSpec` | Today: `grow`; target: flags + ratio |
 | Anchors / offsets | Optional root / non-container presets | Complex UI prefers containers (Godot guidance) |
 | Theme | `Theme` + cascade; default `StsTheme` | `StsSkin` becomes scene2d realization of default theme |
-| signal / connect / emit | `SignalHub` on tree/instance | `UiOps.onButton` etc. become sugar |
+| signal / connect / emit | Scoped `SignalHub` through `PresentationRuntime` | `UiOps.onButton` etc. are sugar |
 | PackedScene instance | `ref` + `ComponentRegistry` + slots | Already present; elevate as ComponentDef |
 | `_get_minimum_size` | leaf/container preferred min size | Feeds pure `LayoutEngine` |
 | `_gui_input` | host input → signals / native actions | Pure tests own state machines without GL |
@@ -54,9 +54,9 @@ Complements [`art-framework.md`](./art-framework.md) (presentation graph / Host 
 ```
 Caller
   → artframework.api.ArtFramework
-       register | mount | unmount | tree | ops | probe | theme | render
+       register | mount | unmount | ops | probe | theme | render
   → artframework.core (suggested package)
-        UiNode (declaration) → NodeMaterializer → ECS entity → Node facade
+         UiNode (declaration) → C1Materializer → ECS entity/components
        LayoutEngine · SignalHub · Theme · ComponentRegistry
   → host (implementation)
        host.sts1.c1     StageHost + ComponentActors + StsSkin
@@ -66,7 +66,7 @@ Caller
 
 | Layer | Role |
 |-------|------|
-| **API single track** | Consumers use one mount/tree/signal/ops/probe surface |
+| **API single track** | Consumers use one mount/signal/ops/probe surface |
 | **Host dual track** | C1 synthetic draw vs C2 native intercept remain implementations |
 | **Dual-track today** | `WindowClass.SYNTHETIC` / `NATIVE_TEMPLATE` — keep as kind; evolve toward `ComponentKind` |
 
@@ -85,20 +85,21 @@ Existing immutable AST stays the declaration source (JSON layout). Evolve:
 | Theme type | — | optional `themeType` / variation |
 | Behavior in JSON | none (correct) | still none; signals named only if ever declared as metadata |
 
-### Runtime (`Node` / `NodeTree`)
+### Runtime (`PresentationContext` / `EntityId`)
 
 | Concept | Role |
 |---------|------|
-| `Node` | State-free facade over `PresentationContext` + `EntityId` |
-| `NodeTree` | Scope, ECS hierarchy lookup, lifecycle, signals, materialization and frame snapshots |
-| `find(path)` | Simplified NodePath (`"panel/ok"`) |
-| Lifecycle | `onMount` → `onReady` (children first) → `onUnmount` |
+| `PresentationContext` | Named scope and owned entity index in the shared ART world |
+| `EntityId` | Runtime identity; all mutable presentation data is component state |
+| `PresentationRuntime.find` | Simplified NodePath (`"panel/ok"`) |
+| `C1Materializer` | Declaration materialization and lifecycle component transitions |
+| `PresentationRuntime.frame` | Immutable render snapshot |
 
 | Godot | ArtFramework |
 |-------|---------|
-| enter_tree | onMount |
-| ready | onReady |
-| exit_tree | onUnmount |
+| enter_tree | `NodeLifecycleComponent.mounted` |
+| ready | `NodeLifecycleComponent.ready` |
+| exit_tree | context/entity destruction |
 
 `WidgetSession` is a host input/cache view; mutable presentation state remains in ECS components.
 

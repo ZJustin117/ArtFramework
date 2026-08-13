@@ -56,7 +56,7 @@ host hook or drawing path changes.
 | 4 | `PresentSurfaces` mounted flag and entity-ID map | `SurfaceLifecycleComponent` and stable surface key | Mount/unmount/reset/probe JUnit |
 | 5 | C2 surface action return path | Surface action, intent identity, and result components | Accepted, queued, rejected, and blocked SignalBus JUnit |
 | 6 | Native patch/router input decisions | Per-surface native input and intercept components | Hand, controls, map, event, select, and end-turn allow/block JUnit |
-| 7 | C1 declaration/session lifecycle | Hierarchy, lifecycle, properties, visibility, and host-binding components | In progress: WidgetSession contains only immutable declaration/index compatibility data; C1 visual entities carry `SCENE2D_C1` host-binding keys; UiOps and probe current control values are ECS-derived; StageHost reconciles actor cache entries by ECS binding. NodeTrees signal/lifecycle facade remains |
+| 7 | C1 declaration/session lifecycle | Hierarchy, lifecycle, properties, visibility, and host-binding components | Complete: C1 materializes directly into registered contexts; object-tree and session registries are deleted; `WidgetSession` is an on-demand immutable declaration view; StageHost actors are binding-derived caches |
 | 8 | C2 template active state and native-template mappings | Surface/template observation components | Native template facades no longer retain active flags; bind, map pin, and end-turn probe data query ECS. Scene/rebuild adapter cleanup remains |
 | 9 | Native intent execution and pending gestures | Intent lifecycle/result components; executor as host boundary only | In progress: requested/sent/queued/rejected/executed are ECS data; next available authority frame transitions executed intent to `CONFIRMED`, unavailable authority frame transitions it to `FAILED`. Domain-specific business confirmation remains |
 | 10 | Signal connection and state-machine registries | Declarative connection/state components; SignalBus subscriptions as host cache | Complete: `ConnectionDeclarationsComponent` and `NodeStateComponent` are ECS data; subscriptions are disposed/rebuilt cache with focused JUnit |
@@ -84,7 +84,7 @@ host hook or drawing path changes.
 
 | Current store | Classification during migration | Final treatment |
 |---|---|---|
-| `WidgetSessions`, `NodeTrees`, `PresentProjection`, `PresentSurfaces` | Transitional presentation authority | WidgetSession mutable control authority and WindowManager layout-root map removed; NodeTrees lifecycle queries and PresentProjection/PresentSurfaces data are ECS-derived; declaration indexes and callback subscriptions remain compatibility caches |
+| Removed C1 object/session registries; `PresentProjection`, `PresentSurfaces` remain | Transitional presentation authority | C1 declaration, hierarchy, lifecycle, controls, signals, animations, and state machines use context/entity APIs; disposable subscriptions and actor objects remain host caches |
 | `NativeTemplateRuntime`, template classes, native patch hooks | External-game observation/input adapter | Snapshot into components; do not store native objects |
 | `RenderHost`, `EffectTargetActors`, STS textures/shaders | Host render implementation/cache | C1/C2 item, surface, and full-frame plans derive from ECS; RenderTarget, EffectBinding, Actor, texture, shader, and capture objects remain non-authoritative host resources |
 | `Sts1IntentExecutor`, map gesture bridge, native skeleton bridge | Host action implementation | Read ECS request data, execute locally, write structured outcome components |
@@ -99,7 +99,7 @@ public reads with ECS queries; they must not be reclassified as ECS state merely
 
 | Container | Remaining responsibility | Required destination |
 |---|---|---|
-| `WidgetSessions`, `NodeTrees`, scene2d actor bindings | C1 window/session lookup and signal/lifecycle callback compatibility | ECS hierarchy/lifecycle/host-binding data with disposable actor cache; NodeTrees lifecycle queries and StageHost binding lookup are ECS-derived |
+| scene2d actor bindings | C1 host realization cache | ECS hierarchy/lifecycle/host-binding data with disposable actor cache; lookup is context/entity based |
 | `NativeTemplateRuntime`, `SyntheticComponents`, `PresentSurfaces` facades | Compatibility component lookup and native adapter dispatch | ECS-derived compatibility views and action/intent systems |
 | `UiOps` handler map, `UiInspect` registry reads | Imperative callback sugar and inspect routing | UiOps result history map removed; handler callbacks remain host cache; UiProbe C1 window controls/title/profile snapshot now reads registered ECS context. ECS business confirmation records card/map/event/reward/select evidence |
 | `RenderHost` targets/bindings, `EffectTargetActors` | Surface/full-frame target mutation and host actor lookup | `RenderSurfaceComponent`, `FullFrameRenderComponent`, and immutable per-frame ECS plans consumed by host cache; C1 and C2 item targets rebuild from ECS bindings/visuals |

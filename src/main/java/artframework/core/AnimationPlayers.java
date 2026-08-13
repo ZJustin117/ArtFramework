@@ -2,8 +2,10 @@ package artframework.core;
 
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.ecs.EntityId;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,12 +23,21 @@ public final class AnimationPlayers {
 
     private AnimationPlayers() {}
 
-    public static void syncTree(NodeTree tree) {
-        if (tree == null) {
-            return;
+    /** Build host-side player cache from ECS declaration entities. */
+    public static void syncContext(PresentationContext context) {
+        if (context == null) return;
+        String windowId = PresentationRuntime.windowId(context);
+        clearWindow(windowId);
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = PresentationRuntime.identity(context, entity);
+            if (identity == null || !ArtNodeTypes.ANIMATION_PLAYER.equals(identity.type)
+                    || identity.name.isEmpty()) continue;
+            AnimationPlayer player = new AnimationPlayer(context, entity);
+            loadFromProps(player, PresentationRuntime.property(context, entity, "animations"));
+            BY_KEY.put(key(windowId, identity.name), player);
+            maybeAutoPlay(PresentationRuntime.property(context, entity, "auto_play"),
+                    PresentationRuntime.property(context, entity, "autoPlay"), player);
         }
-        clearWindow(windowId(tree));
-        walk(tree, tree.root());
     }
 
     public static AnimationPlayer get(String windowId, String nodeId) {
@@ -69,24 +80,8 @@ public final class AnimationPlayers {
         BY_KEY.clear();
     }
 
-    private static void walk(NodeTree tree, Node inst) {
-        if (inst == null) {
-            return;
-        }
-        if (ArtNodeTypes.ANIMATION_PLAYER.equals(inst.type()) && !inst.name().isEmpty()) {
-            AnimationPlayer player = new AnimationPlayer(inst);
-            loadFromProps(player, inst);
-            BY_KEY.put(key(windowId(tree), inst.name()), player);
-            maybeAutoPlay(inst, player);
-        }
-        for (Node c : inst.children()) {
-            walk(tree, c);
-        }
-    }
-
     @SuppressWarnings("unchecked")
-    private static void loadFromProps(AnimationPlayer player, Node owner) {
-        Object raw = owner.get("animations");
+    private static void loadFromProps(AnimationPlayer player, Object raw) {
         if (!(raw instanceof List)) {
             return;
         }
@@ -143,11 +138,8 @@ public final class AnimationPlayers {
         }
     }
 
-    private static void maybeAutoPlay(Node owner, AnimationPlayer player) {
-        Object raw = owner.get("auto_play");
-        if (raw == null) {
-            raw = owner.get("autoPlay");
-        }
+    private static void maybeAutoPlay(Object raw, Object alternate, AnimationPlayer player) {
+        if (raw == null) raw = alternate;
         if (raw == null) {
             return;
         }
@@ -192,7 +184,4 @@ public final class AnimationPlayers {
         return def;
     }
 
-    private static String windowId(NodeTree tree) {
-        return tree.windowId();
-    }
 }

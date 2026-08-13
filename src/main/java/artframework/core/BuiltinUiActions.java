@@ -3,6 +3,10 @@ package artframework.core;
 import artframework.api.ArtFramework;
 import artframework.api.WindowHandle;
 import artframework.render.LightwaveEffect;
+import artframework.ecs.EntityId;
+import artframework.presentation.PresentationRuntime;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.presentation.ControlValueComponent;
 
 /**
  * Built-in {@link UiAction} implementations for declarative connections.
@@ -63,18 +67,19 @@ final class BuiltinUiActions {
     }
 
     private static boolean play(UiActionContext ctx) {
-        if (ctx.tree == null) {
+        if (ctx.context == null) {
             return false;
         }
         String playerId = ctx.argString("player", "");
-        if (playerId.isEmpty() && ctx.owner != null) {
-            playerId = ctx.owner.name();
+        if (playerId.isEmpty() && ctx.ownerEntity != null) {
+            NodeIdentityComponent owner = PresentationRuntime.identity(ctx.context, ctx.ownerEntity);
+            playerId = owner != null ? owner.name : "";
         }
         String name = ctx.argString("name", ctx.argString("play", ""));
         if (playerId.isEmpty() || name.isEmpty()) {
             return false;
         }
-        AnimationPlayer player = AnimationPlayers.get(windowId(ctx.tree), playerId);
+        AnimationPlayer player = AnimationPlayers.get(PresentationRuntime.windowId(ctx.context), playerId);
         if (player == null || !player.has(name)) {
             return false;
         }
@@ -88,17 +93,18 @@ final class BuiltinUiActions {
     }
 
     private static boolean pauseOrStop(UiActionContext ctx, boolean pause) {
-        if (ctx.tree == null) {
+        if (ctx.context == null) {
             return false;
         }
         String playerId = ctx.argString("player", "");
-        if (playerId.isEmpty() && ctx.owner != null) {
-            playerId = ctx.owner.name();
+        if (playerId.isEmpty() && ctx.ownerEntity != null) {
+            NodeIdentityComponent owner = PresentationRuntime.identity(ctx.context, ctx.ownerEntity);
+            playerId = owner != null ? owner.name : "";
         }
         if (playerId.isEmpty()) {
             return false;
         }
-        AnimationPlayer player = AnimationPlayers.get(windowId(ctx.tree), playerId);
+        AnimationPlayer player = AnimationPlayers.get(PresentationRuntime.windowId(ctx.context), playerId);
         if (player == null) {
             return false;
         }
@@ -111,17 +117,18 @@ final class BuiltinUiActions {
     }
 
     private static boolean resume(UiActionContext ctx) {
-        if (ctx.tree == null) {
+        if (ctx.context == null) {
             return false;
         }
         String playerId = ctx.argString("player", "");
-        if (playerId.isEmpty() && ctx.owner != null) {
-            playerId = ctx.owner.name();
+        if (playerId.isEmpty() && ctx.ownerEntity != null) {
+            NodeIdentityComponent owner = PresentationRuntime.identity(ctx.context, ctx.ownerEntity);
+            playerId = owner != null ? owner.name : "";
         }
         if (playerId.isEmpty()) {
             return false;
         }
-        AnimationPlayer player = AnimationPlayers.get(windowId(ctx.tree), playerId);
+        AnimationPlayer player = AnimationPlayers.get(PresentationRuntime.windowId(ctx.context), playerId);
         if (player == null) {
             return false;
         }
@@ -130,7 +137,7 @@ final class BuiltinUiActions {
     }
 
     private static boolean setProp(UiActionContext ctx) {
-        if (ctx.tree == null) {
+        if (ctx.context == null) {
             return false;
         }
         String targetId = ctx.argString("target", "");
@@ -138,10 +145,7 @@ final class BuiltinUiActions {
         if (targetId.isEmpty() || prop.isEmpty()) {
             return false;
         }
-        artframework.presentation.Node target = ctx.tree.get(targetId);
-        if (target == null) {
-                target = ctx.tree.find(targetId);
-        }
+        EntityId target = PresentationRuntime.find(ctx.context, targetId);
         if (target == null) {
             return false;
         }
@@ -149,12 +153,10 @@ final class BuiltinUiActions {
         String fromSlider = ctx.argString("from_slider", ctx.argString("fromSlider", ""));
         if (value == null && !fromSlider.isEmpty()) {
             try {
-                artframework.presentation.Node slider = ctx.tree.get(fromSlider);
-                if (slider != null) {
-                    artframework.presentation.ControlValueComponent control =
-                            ctx.tree.world().get(
-                                    slider.entityId(),
-                                    artframework.presentation.ControlValueComponent.class);
+                 EntityId slider = PresentationRuntime.find(ctx.context, fromSlider);
+                 if (slider != null) {
+                     ControlValueComponent control = PresentationRuntime.component(
+                             ctx.context, slider, ControlValueComponent.class);
                     if (control != null) value = control.value;
                 }
             } catch (Throwable ignored) {
@@ -163,23 +165,23 @@ final class BuiltinUiActions {
         if (value == null) {
             return false;
         }
-        PropEffectBridge.applyProp(ctx.tree, target, prop, value);
+        PropEffectBridge.applyProp(ctx.context, target, prop, value);
         return true;
     }
 
     private static boolean pulseEffect(UiActionContext ctx) {
-        if (ctx.tree == null) {
+        if (ctx.context == null) {
             return false;
         }
         String target = ctx.argString("target", "panel");
         String effect = ctx.argString("effect", LightwaveEffect.ID);
         float duration = ctx.argFloat("duration", 0.45f);
-        EffectPulse.pulse(windowId(ctx.tree), target, effect, duration);
+        EffectPulse.pulse(PresentationRuntime.windowId(ctx.context), target, effect, duration);
         return true;
     }
 
     private static boolean emit(UiActionContext ctx) {
-        if (ctx.tree == null) {
+        if (ctx.context == null) {
             return false;
         }
         String target = ctx.argString("target", "");
@@ -190,9 +192,11 @@ final class BuiltinUiActions {
         Object value = ctx.resolveValue();
         try {
             if (value != null) {
-                ctx.tree.emit(target, signal, value);
+                EntityId targetEntity = PresentationRuntime.find(ctx.context, target);
+                PresentationRuntime.emit(ctx.context, targetEntity, signal, value);
             } else {
-                ctx.tree.emit(target, signal);
+                EntityId targetEntity = PresentationRuntime.find(ctx.context, target);
+                PresentationRuntime.emit(ctx.context, targetEntity, signal);
             }
             return true;
         } catch (RuntimeException e) {
@@ -204,7 +208,7 @@ final class BuiltinUiActions {
         String win =
                 ctx.argString(
                         "window",
-                        ctx.tree != null ? windowId(ctx.tree) : "");
+                        ctx.context != null ? PresentationRuntime.windowId(ctx.context) : "");
         if (win.isEmpty()) {
             return false;
         }
@@ -231,7 +235,4 @@ final class BuiltinUiActions {
         return true;
     }
 
-    private static String windowId(artframework.presentation.NodeTree tree) {
-        return tree.windowId();
-    }
 }

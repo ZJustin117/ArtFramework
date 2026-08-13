@@ -8,7 +8,7 @@ projection, entity-present, and render-target stores with one runtime presentati
 ## Goals
 
 1. `PresentationWorld` is the sole owner of mutable ART presentation state.
-2. `NodeTree` and `Node` provide the Godot-shaped public scene-tree API over ECS entities.
+2. `PresentationRuntime` provides context/entity lookup, lifecycle, signal, and frame operations.
 3. C1 declarations and C2 host projections materialize the same entity/component vocabulary.
 4. Effects, including Lightwave, attach to visual entities rather than string render targets.
 5. Host implementations consume immutable frame snapshots and never become presentation-state
@@ -32,7 +32,7 @@ immutable declaration         host-derived source
                                        v
                          PresentationContext / PresentationWorld
                                        |
-                                  NodeTree / Node
+                               PresentationRuntime
                                        |
                              immutable PresentationFrame
                                        |
@@ -87,18 +87,18 @@ Lightwave band is an effect attachment on the same entity. Shader strips, border
 and atlas layers are renderer details, not entities. A cross-item sweep becomes a distinct entity
 only when it has independent transform, lifetime, or target scope.
 
-## Node API
+## Runtime API
 
-`Node` is a lightweight facade over `PresentationContext` and `EntityId`; it has no mutable
-hierarchy, props, bounds, or lifecycle copy. `NodeTree` is the Godot-shaped API over the ECS
-hierarchy and owns signal listener cleanup and lifecycle ordering.
+`PresentationContext` owns a keyed entity index within the shared ART world. `PresentationRuntime`
+is the stateless operation surface over a context and `EntityId`; it has no mutable hierarchy,
+props, bounds, or lifecycle copy. Signal subscriptions remain disposable host-side handles.
 
 ```text
-Node.parent()        -> NodeHierarchyComponent.parent
-Node.children()      -> NodeHierarchyComponent.children
-Node.get/set(prop)   -> NodePropertiesComponent
-Node.rect()          -> BoundsComponent
-Node.connect/emit()  -> NodeTree SignalHub
+PresentationRuntime.hierarchy(context, entity)  -> NodeHierarchyComponent
+PresentationRuntime.children(context, entity)   -> ordered child EntityIds
+PresentationRuntime.property/setProperty(...)   -> NodePropertiesComponent
+PresentationRuntime.bounds(context, entity)     -> BoundsComponent
+PresentationRuntime.connect/emit(...)            -> scoped SignalHub
 ```
 
 Godot alignment:
@@ -106,12 +106,12 @@ Godot alignment:
 | Godot | ART |
 |---|---|
 | `PackedScene` | `UiNode` / `NodeDef` |
-| `SceneTree` | `NodeTree` |
-| `Node` | ECS-backed `Node` facade |
-| `NodePath` | hierarchy lookup in `NodeTree` |
+| `SceneTree` | `PresentationContext` plus `PresentationRuntime` |
+| `Node` | `EntityId` plus data-only components |
+| `NodePath` | `PresentationRuntime.find(context, path)` |
 | `Control` | entity with bounds, draw, and interaction components |
 | `Theme` / `StyleBox` | immutable resource resolved into chrome component data |
-| signal | NodeTree API plus `SignalHub` service |
+| signal | `PresentationRuntime` plus scoped `SignalHub` service |
 
 ## Signals
 
@@ -119,7 +119,7 @@ Signals are node API, not listener-bearing ECS data.
 
 ```text
 host input / state transition
-  -> NodeTree.emit(entity, signal, payload)
+  -> PresentationRuntime.emit(context, entity, signal, payload)
   -> SignalHub dispatch
   -> declarative connection or UiAction
   -> ECS component mutation
@@ -175,7 +175,7 @@ execution types only; they must be derived from the frame and may not hold indep
 ## Acceptance Criteria
 
 - Every runtime node resolves to one `EntityId` and all node mutation is ECS mutation.
-- `NodeTree` reads hierarchy solely from ECS components.
+- `PresentationRuntime` reads hierarchy solely from ECS components.
 - C1 and C2 visual items use the same bounds/chrome/effect components.
 - C2 surface parents do not paint coarse Lightwave rectangles; exact visual children do.
 - C1/C2 signals share declared-port validation, dispatch, cleanup, and action semantics.

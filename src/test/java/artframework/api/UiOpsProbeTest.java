@@ -154,14 +154,15 @@ public class UiOpsProbeTest {
 
         assertEquals(UiOpResult.Status.OK,
                 ArtFramework.ops().setSlider("lightwave_demo", "wave_slider", 0.8f).status);
-        artframework.presentation.Node node = ArtFramework.tree("lightwave_demo").get("wave_slider");
-        artframework.presentation.ControlValueComponent value = node.tree().world().get(
-                node.entityId(), artframework.presentation.ControlValueComponent.class);
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context("lightwave_demo");
+        artframework.ecs.EntityId node = artframework.presentation.PresentationRuntime.find(
+                context, "wave_slider");
+        artframework.presentation.ControlValueComponent value = context.world().get(
+                node, artframework.presentation.ControlValueComponent.class);
 
         assertNotNull(value);
         assertEquals(0.8f, ((Number) value.value).floatValue(), 0.001f);
-        // The legacy session mirrors ECS only for existing stage consumers.
-        assertEquals(0.8f, ArtFramework.widgets("lightwave_demo").getSlider("wave_slider"), 0.001f);
     }
 
     @Test

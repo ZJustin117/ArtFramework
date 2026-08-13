@@ -34,11 +34,13 @@ public class EndTurnChromePilotTest {
                         WindowClass.SYNTHETIC,
                         "layouts/endturn_chrome_pilot.json"));
         ArtFramework.mount("endturn_chrome");
-        assertNotNull(ArtFramework.tree("endturn_chrome").get("end_turn"));
+        final artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context("endturn_chrome");
+        final artframework.ecs.EntityId endTurn =
+                artframework.presentation.PresentationRuntime.find(context, "end_turn");
+        assertNotNull(endTurn);
         final AtomicInteger n = new AtomicInteger();
-        ArtFramework.tree("endturn_chrome")
-                .connect(
-                        "end_turn",
+        artframework.presentation.PresentationRuntime.connect(context, endTurn,
                         SignalNames.PRESSED,
                         new SignalHandler() {
                             @Override

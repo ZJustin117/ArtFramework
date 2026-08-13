@@ -231,19 +231,21 @@ public final class WidgetSession {
     }
 
     private Object value(String id, Object fallback) {
-        artframework.presentation.NodeTree tree = artframework.api.ArtFramework.tree(windowId);
-        artframework.presentation.Node node = tree != null ? tree.get(id) : null;
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context(windowId);
+        artframework.ecs.EntityId node = artframework.presentation.PresentationRuntime.find(context, id);
         if (node == null) return fallback;
-        artframework.presentation.ControlValueComponent component = tree.world().get(
-                node.entityId(), artframework.presentation.ControlValueComponent.class);
+        artframework.presentation.ControlValueComponent component = context.world().get(
+                node, artframework.presentation.ControlValueComponent.class);
         return component != null ? component.value : fallback;
     }
 
     private void putValue(String id, Object value) {
-        artframework.presentation.NodeTree tree = artframework.api.ArtFramework.tree(windowId);
-        artframework.presentation.Node node = tree != null ? tree.get(id) : null;
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context(windowId);
+        artframework.ecs.EntityId node = artframework.presentation.PresentationRuntime.find(context, id);
         if (node != null) {
-            tree.world().put(node.entityId(), artframework.presentation.ControlValueComponent.class,
+            context.world().put(node, artframework.presentation.ControlValueComponent.class,
                     new artframework.presentation.ControlValueComponent(value));
         }
     }

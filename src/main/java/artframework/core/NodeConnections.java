@@ -1,8 +1,9 @@
 package artframework.core;
 
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
 import artframework.presentation.ConnectionDeclarationsComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.ecs.EntityId;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -22,13 +23,86 @@ public final class NodeConnections {
 
     private NodeConnections() {}
 
-    public static void syncTree(NodeTree tree) {
-        if (tree == null) {
-            return;
-        }
-        clearWindow(windowId(tree));
+    /** Rebuild disposable subscriptions from ECS declaration components. */
+    public static void syncContext(PresentationContext context) {
+        if (context == null) return;
+        String windowId = PresentationRuntime.windowId(context);
+        clearWindow(windowId);
         UiActions.ensureBuiltins();
-        walk(tree, tree.root());
+        for (EntityId entity : context.entities()) {
+            wireEntity(context, entity);
+        }
+    }
+
+    private static void wireEntity(final PresentationContext context, final EntityId owner) {
+        ConnectionDeclarationsComponent declarations = PresentationRuntime.component(
+                context, owner, ConnectionDeclarationsComponent.class);
+        if (declarations == null) return;
+        List<Map<String, Object>> specs = new ArrayList<Map<String, Object>>(declarations.connections);
+        for (Map<String, Object> legacy : declarations.legacyTriggers) {
+            Map<String, Object> norm = normalizeTrigger(context, owner, legacy);
+            if (norm != null) specs.add(norm);
+        }
+        for (Map<String, Object> spec : specs) wireSpec(context, owner, spec);
+    }
+
+    private static Map<String, Object> normalizeTrigger(PresentationContext context, EntityId owner,
+            Map<String, Object> declaration) {
+        artframework.presentation.NodeIdentityComponent identity = PresentationRuntime.identity(context, owner);
+        String source = stringVal(declaration.get("source"));
+        String signal = stringVal(declaration.get("signal"));
+        if (source.isEmpty() || signal.isEmpty()) return null;
+        if (".".equals(source) || "self".equals(source)) source = identity != null ? identity.name : "";
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("match", SignalHub.name(source, signal));
+        String action = stringVal(declaration.get("action"));
+        result.put("action", action.isEmpty() ? UiActions.PLAY : action);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        if (declaration.get("args") instanceof Map) {
+            @SuppressWarnings("unchecked") Map<String, Object> raw = (Map<String, Object>) declaration.get("args");
+            args.putAll(raw);
+        }
+        String play = stringVal(declaration.get("play"));
+        if (!play.isEmpty()) { args.put("name", play); args.put("play", play); }
+        if (!args.containsKey("player") && identity != null && !identity.name.isEmpty()) args.put("player", identity.name);
+        if (declaration.get("player") != null) args.put("player", String.valueOf(declaration.get("player")));
+        result.put("args", args);
+        return result;
+    }
+
+    private static void wireSpec(final PresentationContext context, final EntityId owner,
+            Map<String, Object> spec) {
+        final String actionId = stringVal(spec.get("action"));
+        if (actionId.isEmpty()) return;
+        if (!UiActions.contains(actionId)) throw new IllegalArgumentException("unknown ui action in connections: " + actionId);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> args = spec.get("args") instanceof Map
+                ? new LinkedHashMap<String, Object>((Map<String, Object>) spec.get("args"))
+                : new LinkedHashMap<String, Object>();
+        String match = stringVal(spec.get("match"));
+        String pattern = stringVal(spec.get("match_pattern"));
+        if (pattern.isEmpty()) pattern = stringVal(spec.get("matchPattern"));
+        if (match.isEmpty() && pattern.isEmpty()) {
+            String source = stringVal(spec.get("source"));
+            String signal = stringVal(spec.get("signal"));
+            if (".".equals(source) || "self".equals(source)) {
+                artframework.presentation.NodeIdentityComponent identity = PresentationRuntime.identity(context, owner);
+                source = identity != null ? identity.name : "";
+            }
+            if (!source.isEmpty() && !signal.isEmpty()) match = SignalHub.name(source, signal);
+        }
+        if (match.isEmpty() && pattern.isEmpty()) return;
+        final SignalListener listener = new SignalListener() {
+            @Override public SignalDecision onSignal(UiSignal event) {
+                if (payloadAllows(args, event)) UiActions.run(actionId,
+                        new UiActionContext(context, owner, event, args));
+                return SignalDecision.continueSignal();
+            }
+        };
+        SignalSubscription sub = pattern.isEmpty()
+                ? PresentationRuntime.connectBus(context, match, listener)
+                : PresentationRuntime.connectBus(context, Pattern.compile(pattern), listener);
+        track(PresentationRuntime.windowId(context), sub);
     }
 
     public static void clearWindow(String windowId) {
@@ -62,153 +136,6 @@ public final class NodeConnections {
         return list == null ? 0 : list.size();
     }
 
-    private static void walk(NodeTree tree, Node inst) {
-        if (inst == null) {
-            return;
-        }
-        wireNode(tree, inst);
-        for (Node c : inst.children()) {
-            walk(tree, c);
-        }
-    }
-
-    private static void wireNode(final NodeTree tree, final Node owner) {
-        ConnectionDeclarationsComponent declarations = tree.world().get(
-                owner.entityId(), ConnectionDeclarationsComponent.class);
-        if (declarations == null) return;
-        List<Map<String, Object>> specs = new ArrayList<Map<String, Object>>(declarations.connections);
-        for (Map<String, Object> legacy : declarations.legacyTriggers) {
-            Map<String, Object> norm = normalizeTrigger(owner, legacy);
-            if (norm != null) specs.add(norm);
-        }
-        for (Map<String, Object> spec : specs) {
-            wireSpec(tree, owner, spec);
-        }
-    }
-
-    private static Map<String, Object> normalizeTrigger(Node owner, Map<String, Object> m) {
-        String source = stringVal(m.get("source"));
-        String signal = stringVal(m.get("signal"));
-        String play = stringVal(m.get("play"));
-        if (source.isEmpty() || signal.isEmpty()) {
-            return null;
-        }
-        if (".".equals(source) || "self".equals(source)) {
-            source = owner.name();
-        }
-        Map<String, Object> out = new LinkedHashMap<String, Object>();
-        out.put("match", SignalHub.name(source, signal));
-        String action = stringVal(m.get("action"));
-        if (action.isEmpty()) {
-            action = UiActions.PLAY;
-        }
-        out.put("action", action);
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        if (m.get("args") instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> rawArgs = (Map<String, Object>) m.get("args");
-            args.putAll(rawArgs);
-        }
-        if (!play.isEmpty()) {
-            args.put("name", play);
-            args.put("play", play);
-        }
-        if (!args.containsKey("player") && !owner.name().isEmpty()) {
-            args.put("player", owner.name());
-        }
-        Object player = m.get("player");
-        if (player != null) {
-            args.put("player", String.valueOf(player));
-        }
-        out.put("args", args);
-        return out;
-    }
-
-    private static void wireSpec(
-            final NodeTree tree, final Node owner, Map<String, Object> spec) {
-        final String actionId = stringVal(spec.get("action"));
-        if (actionId.isEmpty()) {
-            return;
-        }
-        if (!UiActions.contains(actionId)) {
-            throw new IllegalArgumentException("unknown ui action in connections: " + actionId);
-        }
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> args =
-                spec.get("args") instanceof Map
-                        ? new LinkedHashMap<String, Object>((Map<String, Object>) spec.get("args"))
-                        : new LinkedHashMap<String, Object>();
-        promoteArg(spec, args, "name");
-        promoteArg(spec, args, "play");
-        promoteArg(spec, args, "player");
-        promoteArg(spec, args, "target");
-        promoteArg(spec, args, "prop");
-        promoteArg(spec, args, "property");
-        promoteArg(spec, args, "effect");
-        promoteArg(spec, args, "window");
-        promoteArg(spec, args, "duration");
-        promoteArg(spec, args, "mode");
-        promoteArg(spec, args, "from_payload");
-        promoteArg(spec, args, "value");
-        promoteArg(spec, args, "fx");
-        promoteArg(spec, args, "if_payload");
-        promoteArg(spec, args, "ifPayload");
-        promoteArg(spec, args, "from_slider");
-        promoteArg(spec, args, "fromSlider");
-        if (UiActions.EMIT.equals(actionId)) {
-            promoteArg(spec, args, "signal");
-        }
-
-        String match = stringVal(spec.get("match"));
-        String matchPattern = stringVal(spec.get("match_pattern"));
-        if (matchPattern.isEmpty()) {
-            matchPattern = stringVal(spec.get("matchPattern"));
-        }
-        // source+signal shorthand → exact bus name
-        if (match.isEmpty() && matchPattern.isEmpty()) {
-            String source = stringVal(spec.get("source"));
-            String signal = stringVal(spec.get("signal"));
-            if (!source.isEmpty() && !signal.isEmpty()) {
-                if (".".equals(source) || "self".equals(source)) {
-                    source = owner.name();
-                }
-                match = SignalHub.name(source, signal);
-            }
-        }
-        if (match.isEmpty() && matchPattern.isEmpty()) {
-            return;
-        }
-
-        final SignalListener listener =
-                new SignalListener() {
-                    @Override
-                    public SignalDecision onSignal(UiSignal event) {
-                        if (!payloadAllows(args, event)) {
-                            return SignalDecision.continueSignal();
-                        }
-                        try {
-                            UiActions.run(
-                                    actionId, new UiActionContext(tree, owner, event, args));
-                        } catch (RuntimeException ignored) {
-                        }
-                        return SignalDecision.continueSignal();
-                    }
-                };
-
-        SignalSubscription sub;
-        if (!matchPattern.isEmpty()) {
-            try {
-                Pattern p = Pattern.compile(matchPattern);
-                sub = tree.connectBus(p, listener);
-            } catch (PatternSyntaxException e) {
-                throw new IllegalArgumentException(
-                        "invalid match_pattern: " + matchPattern + " — " + e.getMessage());
-            }
-        } else {
-            sub = tree.connectBus(match, listener);
-        }
-        track(windowId(tree), sub);
-    }
 
     private static void promoteArg(
             Map<String, Object> spec, Map<String, Object> args, String key) {
@@ -266,7 +193,4 @@ public final class NodeConnections {
         return v == null ? "" : String.valueOf(v).trim();
     }
 
-    private static String windowId(NodeTree tree) {
-        return tree.windowId();
-    }
 }

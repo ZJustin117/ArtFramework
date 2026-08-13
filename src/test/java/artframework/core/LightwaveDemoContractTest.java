@@ -6,8 +6,6 @@ import artframework.api.ArtFramework;
 import artframework.api.UiOpResult;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
-import artframework.component.WidgetSessions;
-import artframework.presentation.NodeTree;
 import artframework.render.LightwaveEffect;
 import artframework.render.RenderHost;
 import artframework.render.RenderTarget;
@@ -78,13 +76,14 @@ public class LightwaveDemoContractTest {
     @Test
     public void treeThemeAndControls() {
         openDemo();
-        NodeTree tree = ArtFramework.tree("lightwave_demo");
-        assertNotNull(tree);
-        assertEquals("lightwave", tree.theme().name());
-        assertNotNull(WidgetSessions.get("lightwave_demo"));
-        assertTrue(WidgetSessions.get("lightwave_demo").buttonIds().contains("ok"));
-        assertTrue(WidgetSessions.get("lightwave_demo").buttonIds().contains("close"));
-        assertTrue(WidgetSessions.get("lightwave_demo").sliderIds().contains("wave_slider"));
+        artframework.presentation.PresentationContext context = context();
+        assertNotNull(context);
+        assertEquals("lightwave", artframework.core.PresentResolve.forEntity(context,
+                artframework.presentation.PresentationRuntime.root(context)).theme.name());
+        assertNotNull(ArtFramework.widgets("lightwave_demo"));
+        assertTrue(ArtFramework.widgets("lightwave_demo").buttonIds().contains("ok"));
+        assertTrue(ArtFramework.widgets("lightwave_demo").buttonIds().contains("close"));
+        assertTrue(ArtFramework.widgets("lightwave_demo").sliderIds().contains("wave_slider"));
 
         Map<String, Object> snap = ArtFramework.probe().asMap();
         @SuppressWarnings("unchecked")
@@ -104,11 +103,14 @@ public class LightwaveDemoContractTest {
     @Test
     public void tickAdvancesEnterFxIntensity() {
         openDemo();
-        NodeTree tree = ArtFramework.tree("lightwave_demo");
-        float start = ((Number) tree.get("panel").prop("fx_intensity")).floatValue();
+        artframework.presentation.PresentationContext context = context();
+        artframework.ecs.EntityId panel = artframework.presentation.PresentationRuntime.find(context, "panel");
+        float start = ((Number) artframework.presentation.PresentationRuntime.property(
+                context, panel, "fx_intensity")).floatValue();
         assertTrue(start < 0.55f);
         ArtFramework.tick(0.4f);
-        float end = ((Number) tree.get("panel").prop("fx_intensity")).floatValue();
+        float end = ((Number) artframework.presentation.PresentationRuntime.property(
+                context, panel, "fx_intensity")).floatValue();
         assertEquals(0.55f, end, 0.05f);
         // After enter, wave player loops ripple.
         AnimationPlayer wave = AnimationPlayers.get("lightwave_demo", "wave");
@@ -199,7 +201,7 @@ public class LightwaveDemoContractTest {
         ArtFramework.tick(0.5f);
         UiOpResult r = ArtFramework.ops().setSlider("lightwave_demo", "wave_slider", 0.8f);
         assertEquals(UiOpResult.Status.OK, r.status);
-        assertEquals(0.8f, WidgetSessions.get("lightwave_demo").getSlider("wave_slider"), 0.001f);
+        assertEquals(0.8f, ArtFramework.widgets("lightwave_demo").getSlider("wave_slider"), 0.001f);
         float intensity =
                 ArtFramework.render()
                         .effectsOf("c1:lightwave_demo:panel")
@@ -211,7 +213,9 @@ public class LightwaveDemoContractTest {
     @Test
     public void chromeBorderTokensPresent() {
         openDemo();
-        PresentResolved r = ArtFramework.tree("lightwave_demo").resolvePresent();
+        artframework.presentation.PresentationContext context = context();
+        PresentResolved r = PresentResolve.forEntity(context,
+                artframework.presentation.PresentationRuntime.root(context));
         assertTrue(r.chrome.borderWidth >= 1f);
         assertTrue(r.chrome.borderA > 0.5f);
         assertEquals("lightwave", r.profileId);
@@ -221,5 +225,9 @@ public class LightwaveDemoContractTest {
         ArtFramework.register(
                 new WindowDef("lightwave_demo", WindowClass.SYNTHETIC, "layouts/lightwave_demo.json"));
         ArtFramework.open("lightwave_demo");
+    }
+
+    private static artframework.presentation.PresentationContext context() {
+        return artframework.presentation.PresentationRuntime.context("lightwave_demo");
     }
 }

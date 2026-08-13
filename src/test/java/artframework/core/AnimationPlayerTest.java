@@ -6,8 +6,9 @@ import artframework.api.ArtFramework;
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
-import artframework.presentation.NodeTree;
 import artframework.presentation.NodeStateComponent;
+import artframework.presentation.PresentationRuntime;
+import artframework.test.C1RuntimeFixture;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,11 +39,10 @@ public class AnimationPlayerTest {
                         .child(UiNode.of(UiTypes.PANEL).id("dialog").prop("opacity", Float.valueOf(0f)).build())
                         .child(animPlayerNode())
                         .build();
-        NodeTree tree = NodeTree.mount("tree:win", root, null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
         AtomicInteger started = new AtomicInteger();
         AtomicInteger finished = new AtomicInteger();
-        tree.get("motion")
-                .connect(
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_STARTED,
                         new SignalHandler() {
                             @Override
@@ -50,8 +50,7 @@ public class AnimationPlayerTest {
                                 started.incrementAndGet();
                             }
                         });
-        tree.get("motion")
-                .connect(
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_FINISHED,
                         new SignalHandler() {
                             @Override
@@ -63,11 +62,11 @@ public class AnimationPlayerTest {
         assertNotNull(player);
         player.play("enter");
         assertEquals(1, started.get());
-        assertEquals(0f, ((Number) tree.get("dialog").prop("opacity")).floatValue(), 0.001f);
-        tree.tick(0.1f);
-        assertEquals(0.5f, ((Number) tree.get("dialog").prop("opacity")).floatValue(), 0.001f);
-        tree.tick(0.1f);
-        assertEquals(1f, ((Number) tree.get("dialog").prop("opacity")).floatValue(), 0.001f);
+        assertEquals(0f, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
+        fixture.tick(0.1f);
+        assertEquals(0.5f, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
+        fixture.tick(0.1f);
+        assertEquals(1f, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
         assertEquals(1, finished.get());
         assertFalse(player.isPlaying());
     }
@@ -81,20 +80,19 @@ public class AnimationPlayerTest {
                         .child(UiNode.of(UiTypes.LABEL).id("l").build())
                         .child(animPlayerNode())
                         .build();
-        artframework.presentation.NodeTrees.open("win", root, null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
         assertNotNull(ArtFramework.animation("win", "motion"));
-        artframework.presentation.NodeTrees.close("win");
+        fixture.close();
         assertTrue(ArtFramework.animation("win", "motion") == null);
     }
 
     @Test
     public void pauseAndResume() {
-        NodeTree tree = NodeTree.mount("tree:win", rootWithPlayer(animOnce()), null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", rootWithPlayer(animOnce()));
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         AtomicInteger paused = new AtomicInteger();
         AtomicInteger resumed = new AtomicInteger();
-        tree.connect(
-                        "motion",
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_PAUSED,
                         new SignalHandler() {
                             @Override
@@ -102,8 +100,7 @@ public class AnimationPlayerTest {
                                 paused.incrementAndGet();
                             }
                         });
-        tree.connect(
-                        "motion",
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_RESUMED,
                         new SignalHandler() {
                             @Override
@@ -113,17 +110,17 @@ public class AnimationPlayerTest {
                         });
         player.play("enter");
         assertEquals(NodeStateMachine.STATE_PLAYING, player.state());
-        tree.tick(0.05f);
-        float mid = ((Number) tree.get("dialog").prop("opacity")).floatValue();
+        fixture.tick(0.05f);
+        float mid = ((Number) fixture.property("dialog", "opacity")).floatValue();
         player.pause();
         assertEquals(1, paused.get());
         assertEquals(NodeStateMachine.STATE_PAUSED, player.state());
-        tree.tick(0.2f);
-        assertEquals(mid, ((Number) tree.get("dialog").prop("opacity")).floatValue(), 0.001f);
+        fixture.tick(0.2f);
+        assertEquals(mid, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
         player.resume();
         assertEquals(1, resumed.get());
-        tree.tick(0.2f);
-        assertEquals(1f, ((Number) tree.get("dialog").prop("opacity")).floatValue(), 0.001f);
+        fixture.tick(0.2f);
+        assertEquals(1f, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
         assertFalse(player.isPlaying());
     }
 
@@ -133,12 +130,11 @@ public class AnimationPlayerTest {
         anim.put("mode", "loop");
         anim.put("loop_count", Integer.valueOf(2));
         anim.put("duration", Float.valueOf(0.1f));
-        NodeTree tree = NodeTree.mount("tree:win", rootWithPlayer(anim), null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", rootWithPlayer(anim));
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         AtomicInteger looped = new AtomicInteger();
         AtomicInteger finished = new AtomicInteger();
-        tree.connect(
-                        "motion",
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_LOOPED,
                         new SignalHandler() {
                             @Override
@@ -146,8 +142,7 @@ public class AnimationPlayerTest {
                                 looped.incrementAndGet();
                             }
                         });
-        tree.connect(
-                        "motion",
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_FINISHED,
                         new SignalHandler() {
                             @Override
@@ -156,10 +151,10 @@ public class AnimationPlayerTest {
                             }
                         });
         player.play("enter");
-        tree.tick(0.1f);
+        fixture.tick(0.1f);
         assertEquals(1, looped.get());
         assertTrue(player.isPlaying());
-        tree.tick(0.1f);
+        fixture.tick(0.1f);
         assertEquals(2, looped.get());
         assertEquals(1, finished.get());
         assertFalse(player.isPlaying());
@@ -168,23 +163,23 @@ public class AnimationPlayerTest {
 
     @Test
     public void playbackStateIsStoredOnTheAnimationEntity() {
-        NodeTree tree = NodeTree.mount("tree:win", rootWithPlayer(animOnce()), null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", rootWithPlayer(animOnce()));
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         player.play("enter");
-        AnimationPlaybackComponent started = tree.world().get(
-                tree.get("motion").entityId(), AnimationPlaybackComponent.class);
+        AnimationPlaybackComponent started = fixture.context.world().get(
+                fixture.find("motion"), AnimationPlaybackComponent.class);
         assertEquals("enter", started.playing);
         assertTrue(started.active);
         assertFalse(started.paused);
-        tree.tick(0.1f);
-        AnimationPlaybackComponent advanced = tree.world().get(
-                tree.get("motion").entityId(), AnimationPlaybackComponent.class);
+        fixture.tick(0.1f);
+        AnimationPlaybackComponent advanced = fixture.context.world().get(
+                fixture.find("motion"), AnimationPlaybackComponent.class);
         assertEquals(0.1f, advanced.elapsed, 0.001f);
         player.pause();
-        assertTrue(tree.world().get(tree.get("motion").entityId(),
+        assertTrue(fixture.context.world().get(fixture.find("motion"),
                 AnimationPlaybackComponent.class).paused);
-        assertEquals(NodeStateMachine.STATE_PAUSED, tree.world().get(
-                tree.get("motion").entityId(), NodeStateComponent.class).value);
+        assertEquals(NodeStateMachine.STATE_PAUSED, fixture.context.world().get(
+                fixture.find("motion"), NodeStateComponent.class).value);
     }
 
     private static UiNode rootWithPlayer(Map<String, Object> anim) {

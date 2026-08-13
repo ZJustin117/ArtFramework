@@ -37,10 +37,11 @@ Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](.
 ```text
 Caller
   → artframework.api.ArtFramework
-       register | mount | unmount | tree | ops | probe | render | nodes
+       register | mount | unmount | ops | probe | render | nodes
   → Core (host-agnostic)
-       PresentationNode (decl AST; today UiNode)
-        NodeTree / Node facade over PresentationWorld entities
+        PresentationNode (decl AST; today UiNode)
+        PresentationContext + EntityId + data-only components
+        PresentationRuntime stateless operations
        SignalHub · LayoutEngine · Theme · ComponentRegistry · NodeRegistry
        PresentationWorld · EntityId (ART-owned presentation state)
        RenderGraph bookkeeping (today RenderHost pure side)
@@ -54,7 +55,7 @@ Caller
 | Layer | Role |
 |-------|------|
 | Declaration | Immutable tree: type, id, props, layout, effects, children, slots, **signals** |
-| Runtime tree | Per-mount index, lifecycle, prop overlay, rect, theme cascade, signal hub |
+| Runtime graph | Per-context entity index, lifecycle, properties, bounds, theme cascade, signal hub |
 | Render | Targets, effect bindings, shader registry; GL only on host backend |
 | Native | Observe/present STS1 screens via thin patches → pure hooks → `UiComponent` |
 | Consumer | Mount/bind, connect signals, UiOps, register templates/effects/node types |
@@ -73,7 +74,7 @@ Third-party types: **namespaced** (`my_mod.ripple_effect`). Registration via exp
 
 ## Signals
 
-- Godot-shaped: `connect` / `disconnect` / `emit` on tree/instance (`SignalHub`).
+- Godot-shaped: `connect` / `disconnect` / `emit` through scoped runtime operations (`SignalHub`).
 - Declaration lists allowed signal names on the node (LML requires explicit `signals="…"`; JSON may auto-fill built-in control defaults during migration).
 - Payload contracts documented per type (e.g. `pressed`, `value_changed(float)`).
 - No business methods in declaration; handlers stay in Java.
@@ -140,7 +141,7 @@ STS1 implements full set used by current C1/C2. STS2 implements what the real ho
 | `spireui` package / modid / jar / console | **Removed** (breaking) |
 | `ArtFramework.open` / `bind` / `close` | Keep; aliases of mount/unmount where applicable |
 | `UiOps` / `UiProbe` names | Keep until Presentation Graph rename slice |
-| `UiNode` / `NodeTree` | `UiNode` is immutable declaration input; `NodeTree`/`Node` are ECS-backed runtime API |
+| `UiNode` / presentation runtime | `UiNode` is immutable declaration input; runtime state is `PresentationContext` + `EntityId` + components |
 | Probe `modId` | `artframework` |
 | Console root | `art` |
 

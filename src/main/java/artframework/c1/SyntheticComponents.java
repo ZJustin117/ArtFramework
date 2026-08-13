@@ -5,9 +5,9 @@ import artframework.api.UiOps;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
 import artframework.core.UiComponent;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
-import artframework.presentation.NodeTrees;
+import artframework.ecs.EntityId;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,28 +20,28 @@ public final class SyntheticComponents {
     private SyntheticComponents() {}
 
     public static void mount(String windowId) {
-        // NodeTree lifecycle is authoritative; this facade has no registry.
+        // Presentation lifecycle is authoritative; this facade has no registry.
     }
 
     public static void unmount(String windowId) {
-        // NodeTree lifecycle is authoritative; this facade has no registry.
+        // Presentation lifecycle is authoritative; this facade has no registry.
     }
 
     public static UiComponent get(String windowId) {
-        return windowId != null && NodeTrees.isOpen(windowId)
+        return windowId != null && PresentationRuntime.isOpen(windowId)
                 ? new SyntheticComponent(windowId) : null;
     }
 
     public static List<Map<String, Object>> probeAll() {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
-        for (String windowId : NodeTrees.listOpenIds()) {
+        for (String windowId : PresentationRuntime.openWindowIds()) {
             out.add(new SyntheticComponent(windowId).probeSlice());
         }
         return out;
     }
 
     public static void resetForTests() {
-        // NodeTrees owns tree lifecycle and test cleanup.
+        // PresentationRegistry owns context lifecycle and test cleanup.
     }
 
     private static final class SyntheticComponent implements UiComponent {
@@ -63,7 +63,7 @@ public final class SyntheticComponents {
 
         @Override
         public boolean isMounted() {
-            return NodeTrees.isOpen(id);
+            return PresentationRuntime.isOpen(id);
         }
 
         @Override
@@ -78,20 +78,18 @@ public final class SyntheticComponents {
 
         @Override
         public void connect(String signal, SignalHandler handler) {
-            tree().connect(rootId(), signal, handler);
+            PresentationRuntime.connect(context(), rootEntity(), signal, handler);
         }
 
         @Override
         public void disconnect(String signal, SignalHandler handler) {
-            NodeTree tree = NodeTrees.get(id);
-            if (tree != null) {
-                // NodeTree owns subscription cleanup; the facade keeps no second listener store.
-            }
+            PresentationContext context = PresentationRuntime.context(id);
+            if (context != null) PresentationRuntime.clearSignals(context);
         }
 
         @Override
         public void emit(String signal, Object... args) {
-            tree().emit(rootId(), signal, args);
+            PresentationRuntime.emit(context(), rootEntity(), signal, args);
         }
 
         @Override
@@ -120,21 +118,20 @@ public final class SyntheticComponents {
             out.put("id", id);
             out.put("kind", kind().name());
             out.put("mounted", Boolean.valueOf(isMounted()));
-            out.put("controls", tree().probeControls());
+            out.put("controls", PresentationRuntime.probeControls(context()));
             return out;
         }
 
-        private NodeTree tree() {
-            NodeTree tree = NodeTrees.get(id);
-            if (tree == null) {
+        private PresentationContext context() {
+            PresentationContext context = PresentationRuntime.context(id);
+            if (context == null) {
                 throw new IllegalStateException("synthetic window not open: " + id);
             }
-            return tree;
+            return context;
         }
 
-        private String rootId() {
-            NodeTree tree = tree();
-            return tree.root() != null ? tree.root().name() : id;
+        private EntityId rootEntity() {
+            return PresentationRuntime.root(context());
         }
 
         private static String stringArg(Object[] args, int index) {

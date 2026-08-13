@@ -6,7 +6,8 @@ import artframework.api.ArtFramework;
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
-import artframework.presentation.NodeTree;
+import artframework.presentation.PresentationRuntime;
+import artframework.test.C1RuntimeFixture;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,28 +31,27 @@ public class AnimationTriggerTest {
 
     @Test
     public void autoPlayRunsOnMount() {
-        NodeTree tree = NodeTree.mount("tree:win", rootWithAutoPlay(), null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", rootWithAutoPlay());
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         assertNotNull(player);
         assertEquals("enter", player.playing());
-        assertEquals(0.2f, ((Number) tree.get("panel").prop("opacity")).floatValue(), 0.001f);
-        tree.tick(0.3f);
-        assertEquals(1f, ((Number) tree.get("panel").prop("opacity")).floatValue(), 0.001f);
+        assertEquals(0.2f, ((Number) fixture.property("panel", "opacity")).floatValue(), 0.001f);
+        fixture.tick(0.3f);
+        assertEquals(1f, ((Number) fixture.property("panel", "opacity")).floatValue(), 0.001f);
         assertFalse(player.isPlaying());
     }
 
     @Test
     public void triggerPlaysOnPressed() {
-        NodeTree tree = NodeTree.mount("tree:win", rootWithTrigger(), null);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", rootWithTrigger());
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         assertNotNull(player);
         // auto_play ran at sync (listener not yet attached)
-        assertTrue(player.isPlaying() || tree.get("panel").prop("opacity") != null);
-        tree.tick(0.5f);
+        assertTrue(player.isPlaying() || fixture.property("panel", "opacity") != null);
+        fixture.tick(0.5f);
         assertFalse(player.isPlaying());
         AtomicInteger started = new AtomicInteger();
-        tree.get("motion")
-                .connect(
+        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
                         AnimationPlayer.SIGNAL_STARTED,
                         new SignalHandler() {
                             @Override
@@ -59,11 +59,11 @@ public class AnimationTriggerTest {
                                 started.incrementAndGet();
                             }
                         });
-        tree.emit("ok", SignalNames.PRESSED);
+        fixture.emit("ok", SignalNames.PRESSED);
         assertEquals(1, started.get());
         assertEquals("flash", player.playing());
-        tree.tick(0.25f);
-        assertEquals(0.5f, ((Number) tree.get("panel").prop("opacity")).floatValue(), 0.05f);
+        fixture.tick(0.25f);
+        assertEquals(0.5f, ((Number) fixture.property("panel", "opacity")).floatValue(), 0.05f);
     }
 
     private static UiNode rootWithAutoPlay() {

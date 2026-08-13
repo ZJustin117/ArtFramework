@@ -9,9 +9,9 @@ import artframework.component.Rect;
 import artframework.context.PresentSurfaces;
 import artframework.core.SignalHub;
 import artframework.core.UiComponent;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
-import artframework.presentation.NodeTrees;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
+import artframework.ecs.EntityId;
 import artframework.presentation.NodeHierarchyComponent;
 import artframework.presentation.NodeIdentityComponent;
 import artframework.presentation.NodeLifecycleComponent;
@@ -62,15 +62,15 @@ public final class UiInspect {
             out.put("error", "windowId required");
             return out;
         }
-        NodeTree tree = NodeTrees.get(windowId);
-        if (tree == null) {
+        PresentationContext context = PresentationRuntime.context(windowId);
+        if (context == null) {
             out.put("error", "window not open: " + windowId);
             return out;
         }
         int depth = maxDepth > 0 ? maxDepth : DEFAULT_TREE_DEPTH;
         out.put("windowId", windowId);
         out.put("depth", Integer.valueOf(depth));
-        out.put("root", nodeTree(tree.root(), tree, 0, depth));
+        out.put("root", nodeTree(context, PresentationRuntime.root(context), 0, depth));
         return out;
     }
 
@@ -99,19 +99,18 @@ public final class UiInspect {
             out.put("error", "id or path required");
             return out;
         }
-        NodeTree tree = NodeTrees.get(windowId);
-        if (tree == null) {
+        PresentationContext context = PresentationRuntime.context(windowId);
+        if (context == null) {
             out.put("error", "window not open: " + windowId);
             return out;
         }
-        Node inst = tree.find(pathOrId);
-        if (inst == null) inst = tree.get(pathOrId);
+        EntityId inst = PresentationRuntime.find(context, pathOrId);
         if (inst == null) {
             out.put("error", "not found: " + pathOrId);
             return out;
         }
         out.put("windowId", windowId);
-        out.put("node", nodeDetail(inst, tree));
+        out.put("node", nodeDetail(context, inst));
         return out;
     }
 
@@ -129,15 +128,15 @@ public final class UiInspect {
         try {
             EmitTarget et = resolveEmitTarget(target);
             if (et.kind == EmitKind.C1) {
-                NodeTree tree = NodeTrees.get(et.windowId);
-                if (tree == null) {
+                PresentationContext context = PresentationRuntime.context(et.windowId);
+                if (context == null) {
                     return UiOpResult.notBound("window not open: " + et.windowId);
                 }
-                Node inst = tree.get(et.controlId);
+                EntityId inst = PresentationRuntime.find(context, et.controlId);
                 if (inst == null) {
                     return UiOpResult.notBound("control not found: " + et.controlId);
                 }
-                inst.emitSignal(signal, payload);
+                PresentationRuntime.emit(context, inst, signal, payload);
                 return UiOpResult.ok("emitted " + et.windowId + "/" + et.controlId + " " + signal);
             }
             UiComponent c = ArtFramework.component(et.componentId);
@@ -234,15 +233,15 @@ public final class UiInspect {
     }
 
     private static Map<String, Object> nodeTree(
-            Node inst, NodeTree tree, int depth, int maxDepth) {
-        Map<String, Object> m = nodeBrief(inst, tree);
+            PresentationContext context, EntityId inst, int depth, int maxDepth) {
+        Map<String, Object> m = nodeBrief(context, inst);
         if (depth >= maxDepth) {
             m.put("truncated", Boolean.TRUE);
             return m;
         }
         List<Map<String, Object>> children = new ArrayList<Map<String, Object>>();
-        for (Node child : inst.children()) {
-            children.add(nodeTree(child, tree, depth + 1, maxDepth));
+        for (EntityId child : PresentationRuntime.children(context, inst)) {
+            children.add(nodeTree(context, child, depth + 1, maxDepth));
         }
         if (!children.isEmpty()) {
             m.put("children", children);
@@ -250,15 +249,16 @@ public final class UiInspect {
         return m;
     }
 
-    private static Map<String, Object> nodeBrief(Node inst, NodeTree tree) {
+    private static Map<String, Object> nodeBrief(PresentationContext context, EntityId inst) {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
-        String id = inst.name();
+        NodeIdentityComponent identity = PresentationRuntime.identity(context, inst);
+        String id = identity != null ? identity.name : "";
         m.put("id", id);
         if (id.isEmpty()) {
             m.put("anon", Boolean.TRUE);
         }
-        m.put("type", inst.type());
-        SignalPortsComponent ports = tree.context().world().get(inst.entityId(), SignalPortsComponent.class);
+        m.put("type", identity != null ? identity.type : "");
+        SignalPortsComponent ports = context.world().get(inst, SignalPortsComponent.class);
         List<String> signals = ports != null ? ports.emits : java.util.Collections.<String>emptyList();
         if (signals != null && !signals.isEmpty()) {
             m.put("signals", new ArrayList<String>(signals));
@@ -273,10 +273,11 @@ public final class UiInspect {
         return m;
     }
 
-    private static Map<String, Object> nodeDetail(Node inst, NodeTree tree) {
-        Map<String, Object> m = nodeBrief(inst, tree);
-        m.put("mounted", Boolean.valueOf(inst.isMounted()));
-        NodePropertiesComponent properties = tree.context().world().get(inst.entityId(), NodePropertiesComponent.class);
+    private static Map<String, Object> nodeDetail(PresentationContext context, EntityId inst) {
+        Map<String, Object> m = nodeBrief(context, inst);
+        NodeLifecycleComponent lifecycle = context.world().get(inst, NodeLifecycleComponent.class);
+        m.put("mounted", Boolean.valueOf(lifecycle != null && lifecycle.mounted));
+        NodePropertiesComponent properties = context.world().get(inst, NodePropertiesComponent.class);
         Map<String, Object> props = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> e : properties.view().entrySet()) {
             Object v = e.getValue();
@@ -287,7 +288,7 @@ public final class UiInspect {
             }
         }
         m.put("props", props);
-        Rect r = inst.rect();
+        Rect r = PresentationRuntime.bounds(context, inst);
         if (r != null) {
             Map<String, Object> rect = new LinkedHashMap<String, Object>();
             rect.put("x", Float.valueOf(r.x));
@@ -297,8 +298,10 @@ public final class UiInspect {
             m.put("rect", rect);
         }
         List<String> childIds = new ArrayList<String>();
-        for (Node c : inst.children()) {
-            childIds.add(c.name().isEmpty() ? ("@" + c.type()) : c.name());
+        for (EntityId child : PresentationRuntime.children(context, inst)) {
+            NodeIdentityComponent identity = PresentationRuntime.identity(context, child);
+            childIds.add(identity == null || identity.name.isEmpty()
+                    ? ("@" + (identity != null ? identity.type : "")) : identity.name);
         }
         m.put("childIds", childIds);
         return m;
@@ -371,12 +374,11 @@ public final class UiInspect {
         if (slash > 0 && slash < target.length() - 1) {
             return new EmitTarget(target.substring(0, slash), target.substring(slash + 1));
         }
-        if (NodeTrees.get(target) != null) {
-            NodeTree tree = NodeTrees.get(target);
-            String rootId =
-                    tree.root() != null && !tree.root().name().isEmpty()
-                            ? tree.root().name()
-                            : target;
+        PresentationContext context = PresentationRuntime.context(target);
+        if (context != null) {
+            EntityId root = PresentationRuntime.root(context);
+            NodeIdentityComponent identity = PresentationRuntime.identity(context, root);
+            String rootId = identity != null && !identity.name.isEmpty() ? identity.name : target;
             return new EmitTarget(target, rootId);
         }
         return new EmitTarget(target);

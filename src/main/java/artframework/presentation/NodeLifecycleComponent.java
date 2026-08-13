@@ -1,6 +1,6 @@
 package artframework.presentation;
 
-/** NodeTree lifecycle state. */
+/** Presentation entity lifecycle state. */
 public final class NodeLifecycleComponent {
     public final boolean mounted;
     public final boolean ready;

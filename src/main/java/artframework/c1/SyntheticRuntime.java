@@ -9,13 +9,13 @@ import artframework.component.TemplateExpander;
 import artframework.component.UiNode;
 import artframework.component.UiNodeLoader;
 import artframework.component.UiTypes;
-import artframework.component.WidgetSession;
-import artframework.component.WidgetSessions;
-import artframework.presentation.NodeTrees;
+import artframework.presentation.C1Materializer;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRuntime;
 import artframework.render.RenderHosts;
 
 /**
- * C1: synthetic window runtime. Loads composition DSL, opens {@link WidgetSession},
+ * C1: synthetic window runtime. Loads composition DSL into ECS,
  * syncs {@link RenderHosts}, and attaches Stage via composition or legacy path.
  */
 public final class SyntheticRuntime {
@@ -59,28 +59,35 @@ public final class SyntheticRuntime {
         uiRoot = new TemplateExpander().expand(uiRoot);
 
         try {
-            WidgetSession session = WidgetSessions.openTree(def.id, uiRoot);
-            NodeTrees.open(def.id, session.root(), null);
+            PresentationContext existing = PresentationRuntime.context(def.id);
+            if (existing != null) {
+                PresentationRuntime.clearSignals(existing);
+                artframework.presentation.PresentationRegistry.close(PresentationRuntime.c1Scope(def.id));
+            }
+            PresentationContext context = artframework.presentation.PresentationRegistry.context(
+                    PresentationRuntime.c1Scope(def.id));
+            C1Materializer.mount(context, uiRoot);
+            artframework.core.NodeConnections.syncContext(context);
+            artframework.core.AnimationPlayers.syncContext(context);
+            artframework.core.NodeStateMachines.syncContext(context);
             SyntheticComponents.mount(def.id);
-            LayoutNode legacy = LayoutNodeBridge.toLegacyOrNull(session.root());
+            LayoutNode legacy = LayoutNodeBridge.toLegacyOrNull(uiRoot);
             if (legacy == null) {
                 legacy = LayoutNode.window(
-                        session.root().id,
-                        session.root().propString("title", def.id),
-                        session.root().layout.width,
-                        session.root().layout.height,
+                        uiRoot.id,
+                        uiRoot.propString("title", def.id),
+                        uiRoot.layout.width,
+                        uiRoot.layout.height,
                         java.util.Collections.<LayoutNode>emptyList());
             }
 
-            artframework.presentation.NodeTree presentationTree = NodeTrees.get(def.id);
-            if (presentationTree != null) {
-                RenderHosts.get().syncFrame(
-                        presentationTree.frame(), artframework.render.RenderTargetKind.SYNTHETIC_WIDGET, def.id);
-            }
+            PresentationContext presentationContext = PresentationRuntime.context(def.id);
+            RenderHosts.get().syncFrame(PresentationRuntime.frame(presentationContext),
+                    artframework.render.RenderTargetKind.SYNTHETIC_WIDGET, def.id);
             if (stageBackend != null && stageBackend.isReady()) {
                 // Always composition path so EffectTargetActors registers for FX stage sync.
                 // Legacy LayoutActors skipped the registry → demo Hello FX stayed at (0,32).
-                stageBackend.attachComposition(def.id, session.root());
+                stageBackend.attachComposition(def.id, uiRoot);
             }
             return legacy;
         } catch (RuntimeException e) {
@@ -89,21 +96,11 @@ public final class SyntheticRuntime {
         }
     }
 
-    public static WidgetSession openComposition(WindowDef def) {
-        open(def);
-        return WidgetSessions.get(def.id);
-    }
-
-    public static WidgetSession widgetSession(String id) {
-        return WidgetSessions.get(id);
-    }
-
     public static void onClosed(String id) {
         if (stageBackend != null) {
             stageBackend.detach(id);
         }
-        WidgetSessions.close(id);
-        NodeTrees.close(id);
+        closeContext(id);
         SyntheticComponents.unmount(id);
         RenderHosts.get().detachWidgetSession(id);
     }
@@ -116,10 +113,10 @@ public final class SyntheticRuntime {
         if (id == null || id.isEmpty() || stageBackend == null || !stageBackend.isReady()) {
             return;
         }
-        WidgetSession session = WidgetSessions.get(id);
-        if (session != null && session.root() != null) {
+        UiNode declaration = PresentationRuntime.declaration(PresentationRuntime.context(id));
+        if (declaration != null) {
             stageBackend.detach(id);
-            stageBackend.attachComposition(id, session.root());
+            stageBackend.attachComposition(id, declaration);
             return;
         }
         LayoutNode legacy = WindowManager.get(id);
@@ -136,22 +133,29 @@ public final class SyntheticRuntime {
             } catch (RuntimeException ignored) {
             }
         }
-        WidgetSessions.close(id);
-        NodeTrees.close(id);
+        closeContext(id);
         SyntheticComponents.unmount(id);
         RenderHosts.get().detachWidgetSession(id);
     }
 
     public static void resetForTests() {
         stageBackend = null;
-        WidgetSessions.resetForTests();
-        NodeTrees.resetForTests();
+        artframework.presentation.PresentationRegistry.resetForTests();
         SyntheticComponents.resetForTests();
         RenderHosts.resetForTests();
     }
 
     static UiNode loadLayout(String resource) {
         return loadLayoutResource(resource);
+    }
+
+    private static void closeContext(String id) {
+        artframework.core.NodeConnections.clearWindow(id);
+        artframework.core.AnimationPlayers.clearWindow(id);
+        artframework.core.NodeStateMachines.clearWindow(id);
+        PresentationContext context = PresentationRuntime.context(id);
+        if (context != null) PresentationRuntime.clearSignals(context);
+        artframework.presentation.PresentationRegistry.close(PresentationRuntime.c1Scope(id));
     }
 
     /** Public load for PresentPack templates/windows (JSON or LML). */

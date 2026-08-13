@@ -6,21 +6,34 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import artframework.ecs.EntityId;
+import artframework.ecs.ArtEcs;
+import artframework.ecs.PresentationWorld;
 
 /** Process-owned registry for named presentation scopes. */
 public final class PresentationRegistry {
     private static final Map<String, PresentationContext> CONTEXTS =
             new LinkedHashMap<String, PresentationContext>();
+    private static final PresentationWorld WORLD = ArtEcs.world();
 
     private PresentationRegistry() {}
 
     public static synchronized PresentationContext context(String scope) {
         PresentationContext current = CONTEXTS.get(scope);
         if (current == null || !current.world().isOpen()) {
-            current = new PresentationContext(scope);
+            current = new PresentationContext(scope, WORLD);
             CONTEXTS.put(scope, current);
         }
         return current;
+    }
+
+    /** Existing registered context only; does not create state for a closed scope. */
+    public static synchronized PresentationContext existingContext(String scope) {
+        return scope == null ? null : CONTEXTS.get(scope);
+    }
+
+    /** Read-only names of registered ECS scopes. */
+    public static synchronized List<String> scopes() {
+        return Collections.unmodifiableList(new ArrayList<String>(CONTEXTS.keySet()));
     }
 
     public static synchronized void close(String scope) {
@@ -30,7 +43,12 @@ public final class PresentationRegistry {
 
     public static synchronized void resetForTests() {
         for (PresentationContext context : CONTEXTS.values()) context.close();
-        CONTEXTS.clear();
+        WORLD.clear();
+    }
+
+    /** The sole ART-owned world for all registered scopes. */
+    public static PresentationWorld world() {
+        return WORLD;
     }
 
     /** Read-only diagnostic view of all open presentation scopes. */
@@ -40,7 +58,7 @@ public final class PresentationRegistry {
             Map<String, Object> scope = new LinkedHashMap<String, Object>();
             scope.put("scope", context.world().scope());
             List<Map<String, Object>> entities = new ArrayList<Map<String, Object>>();
-            for (EntityId entity : context.world().entities()) {
+            for (EntityId entity : context.entities()) {
                 NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
                 NodeHierarchyComponent hierarchy = context.world().get(entity, NodeHierarchyComponent.class);
                 NodeLifecycleComponent lifecycle = context.world().get(entity, NodeLifecycleComponent.class);

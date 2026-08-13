@@ -19,7 +19,7 @@ public final class NodeStateMachines {
         if (tree == null) {
             return;
         }
-        clearWindow(tree.context().world().scope().replace("tree:", ""));
+        clearWindow(tree.windowId());
         walk(tree, tree.root());
     }
 
@@ -63,7 +63,7 @@ public final class NodeStateMachines {
             NodeStateMachine fsm = NodeStateMachine.fromDecl(inst);
             if (fsm != null) {
                 BY_KEY.put(
-                        tree.context().world().scope().replace("tree:", "") + "/" + inst.name(),
+                        tree.windowId() + "/" + inst.name(),
                         fsm);
                 fsm.wire(tree);
             }

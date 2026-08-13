@@ -20,8 +20,7 @@ import artframework.c1.C1NodeFactory;
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
-import artframework.component.WidgetSession;
-import artframework.component.WidgetSessions;
+import artframework.presentation.ControlValueComponent;
 
 /**
  * Builds scene2d actors from a composition {@link UiNode} tree (Nest containers + leaves).
@@ -253,11 +252,7 @@ public final class ComponentActors {
             return buildHitArea(windowId, node, skin, scale);
         }
         if (UiTypes.TEXTFIELD.equals(node.type)) {
-            String text = node.propString("text", "");
-            WidgetSession session = WidgetSessions.get(windowId);
-            if (session != null && session.hasTextField(node.id)) {
-                text = session.getText(node.id);
-            }
+            String text = String.valueOf(controlValue(windowId, node.id, node.propString("text", "")));
             String ph = node.propString("placeholder", "");
             TextField field = new TextField(text, skin);
             if (!ph.isEmpty()) {
@@ -268,10 +263,6 @@ public final class ComponentActors {
                 @Override
                 public void changed(ChangeEvent event, Actor actor) {
                     TextField input = (TextField) actor;
-                    WidgetSession current = WidgetSessions.get(windowId);
-                    if (current != null && current.hasTextField(fieldId)) {
-                        current.setText(fieldId, input.getText());
-                    }
                     ArtFramework.ops().setText(windowId, fieldId, input.getText());
                 }
             });
@@ -281,11 +272,8 @@ public final class ComponentActors {
             return buildCheckbox(windowId, node, skin, scale);
         }
         if (UiTypes.PROGRESS.equals(node.type)) {
-            float v = node.propFloat("value", node.propFloat("progress", 0f));
-            WidgetSession session = WidgetSessions.get(windowId);
-            if (session != null && session.hasProgress(node.id)) {
-                v = session.getProgress(node.id);
-            }
+            float v = number(controlValue(windowId, node.id,
+                    Float.valueOf(node.propFloat("value", node.propFloat("progress", 0f)))));
             return buildStsLabelText(String.format("%.0f%%", Float.valueOf(v * 100f)), scale, false);
         }
         if (ArtNodeTypes.ANIMATION_PLAYER.equals(node.type)
@@ -358,10 +346,7 @@ public final class ComponentActors {
     private static Actor buildCheckbox(
             final String windowId, final UiNode node, Skin skin, float scale) {
         boolean checked = node.propBool("checked", false);
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session != null && session.hasCheckbox(node.id)) {
-            checked = session.getChecked(node.id);
-        }
+        checked = Boolean.TRUE.equals(controlValue(windowId, node.id, Boolean.valueOf(checked)));
         final String id = node.id;
         final String base = node.propString("text", "");
         String mark = checked ? "[x] " : "[ ] ";
@@ -381,11 +366,8 @@ public final class ComponentActors {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 ArtFramework.ops().toggleCheckbox(windowId, id);
-                WidgetSession s = WidgetSessions.get(windowId);
-                if (s != null && s.hasCheckbox(id)) {
-                    String m = s.getChecked(id) ? "[x] " : "[ ] ";
-                    caption.setText(m + base);
-                }
+                boolean current = Boolean.TRUE.equals(controlValue(windowId, id, Boolean.FALSE));
+                caption.setText((current ? "[x] " : "[ ] ") + base);
             }
         });
         return box;
@@ -619,13 +601,8 @@ public final class ComponentActors {
         if (step <= 0f) {
             step = 0.01f;
         }
-        float value = min;
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session != null && session.hasSlider(node.id)) {
-            value = session.getSlider(node.id);
-        } else {
-            value = node.propFloat("value", min);
-        }
+        float value = number(controlValue(windowId, node.id,
+                Float.valueOf(node.propFloat("value", min))));
         final Slider slider = new Slider(min, max, step, false, skin);
         slider.setValue(value);
         final String sliderId = node.id;
@@ -644,6 +621,21 @@ public final class ComponentActors {
         wrap.add(slider).growX().height(sh).minHeight(sh).prefHeight(sh).pad(4f * scale);
         wrap.setHeight(sh + 8f * scale);
         return wrap;
+    }
+
+    private static Object controlValue(String windowId, String id, Object fallback) {
+        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
+        if (tree == null) return fallback;
+        artframework.presentation.Node node = tree.get(id);
+        if (node == null) return fallback;
+        ControlValueComponent value = tree.world().get(node.entityId(), ControlValueComponent.class);
+        return value != null && value.value != null ? value.value : fallback;
+    }
+
+    private static float number(Object value) {
+        if (value instanceof Number) return ((Number) value).floatValue();
+        try { return Float.parseFloat(String.valueOf(value)); }
+        catch (RuntimeException ignored) { return 0f; }
     }
 
     private static Actor buildHitArea(

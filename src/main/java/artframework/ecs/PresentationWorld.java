@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Small, deterministic ECS store for ART-owned presentation state.
@@ -15,10 +16,10 @@ import java.util.Set;
  * long-lived entities and their component data.</p>
  */
 public final class PresentationWorld implements AutoCloseable {
+    private static final AtomicLong NEXT_ENTITY = new AtomicLong(1L);
     private final String scope;
     private final Map<EntityId, Map<Class<?>, Object>> entities =
             new LinkedHashMap<EntityId, Map<Class<?>, Object>>();
-    private long nextEntity = 1L;
     private boolean open = true;
 
     public PresentationWorld(String scope) {
@@ -38,7 +39,7 @@ public final class PresentationWorld implements AutoCloseable {
 
     public EntityId createEntity() {
         requireOpen();
-        EntityId id = new EntityId(scope, nextEntity++);
+        EntityId id = new EntityId(NEXT_ENTITY.getAndIncrement());
         entities.put(id, new LinkedHashMap<Class<?>, Object>());
         return id;
     }
@@ -89,6 +90,29 @@ public final class PresentationWorld implements AutoCloseable {
     public Set<Class<?>> componentTypes(EntityId id) {
         requireEntity(id);
         return Collections.unmodifiableSet(new LinkedHashSet<Class<?>>(entities.get(id).keySet()));
+    }
+
+    /**
+     * Returns entities containing every requested component type in creation order.
+     * Component values remain data owned by the world; systems must not retain them across ticks.
+     */
+    public List<EntityId> query(Class<?>... requiredTypes) {
+        requireOpen();
+        if (requiredTypes == null || requiredTypes.length == 0) {
+            return entities();
+        }
+        List<EntityId> result = new ArrayList<EntityId>();
+        for (Map.Entry<EntityId, Map<Class<?>, Object>> entry : entities.entrySet()) {
+            boolean matches = true;
+            for (Class<?> type : requiredTypes) {
+                if (type == null || !entry.getValue().containsKey(type)) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) result.add(entry.getKey());
+        }
+        return Collections.unmodifiableList(result);
     }
 
     public boolean destroyEntity(EntityId id) {

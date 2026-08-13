@@ -14,14 +14,31 @@ public final class NodeTrees {
 
     public static NodeTree open(String windowId, UiNode root, NodeTreeLifecycle lifecycle) {
         close(windowId);
-        NodeTree tree = NodeTree.mount("tree:" + windowId, root, lifecycle);
+        NodeTree tree = NodeTree.mountRegistered("tree:" + windowId, root, lifecycle);
         TREES.put(windowId, tree);
         return tree;
     }
 
     public static NodeTree get(String windowId) { return windowId == null ? null : TREES.get(windowId); }
-    public static boolean isOpen(String windowId) { return windowId != null && TREES.containsKey(windowId); }
-    public static List<String> listOpenIds() { return Collections.unmodifiableList(new ArrayList<String>(TREES.keySet())); }
+    public static boolean isOpen(String windowId) {
+        if (windowId == null || windowId.isEmpty()) return false;
+        PresentationContext context = PresentationRegistry.existingContext("tree:" + windowId);
+        if (context == null) return false;
+        for (artframework.ecs.EntityId entity : context.entities()) {
+            NodeLifecycleComponent lifecycle = context.world().get(entity, NodeLifecycleComponent.class);
+            if (lifecycle != null && lifecycle.mounted) return true;
+        }
+        return false;
+    }
+    public static List<String> listOpenIds() {
+        List<String> result = new ArrayList<String>();
+        for (String scope : PresentationRegistry.scopes()) {
+            if (scope.startsWith("tree:") && isOpen(scope.substring("tree:".length()))) {
+                result.add(scope.substring("tree:".length()));
+            }
+        }
+        return Collections.unmodifiableList(result);
+    }
     public static List<NodeTree> listOpen() { return Collections.unmodifiableList(new ArrayList<NodeTree>(TREES.values())); }
 
     public static void close(String windowId) {

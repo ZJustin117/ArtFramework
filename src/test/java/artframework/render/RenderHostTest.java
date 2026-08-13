@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -107,6 +108,35 @@ public class RenderHostTest {
     }
 
     @Test
+    public void entityPresentSyncRebuildsTargetCacheFromEcsSlots() {
+        artframework.c2.DefaultEntityPresent present = new artframework.c2.DefaultEntityPresent();
+        present.attach("hero", "player", "ironclad");
+        present.layout("hero", 12f, 34f, 1f);
+        RenderHost host = new RenderHost();
+        host.syncEntityPresent();
+        assertNotNull(host.getTarget("c2:entity:hero"));
+        present.detach("hero");
+        host.syncEntityPresent();
+        assertNull(host.getTarget("c2:entity:hero"));
+    }
+
+    @Test
+    public void c2VisualSyncRebuildsItemTargetsFromEcsVisualEntities() {
+        artframework.presentation.PresentationVisuals.syncC2Item(
+                "combat.hand", "card-1", new Rect(8f, 9f, 60f, 90f), 3f,
+                "card", "card.art", "Strike", true);
+        RenderHost host = new RenderHost();
+        host.syncC2Visuals();
+        String targetId = RenderHost.c2ItemTargetId("combat.hand", "card-1");
+        RenderTarget target = host.getTarget(targetId);
+        assertNotNull(target);
+        assertEquals(new Rect(8f, 9f, 60f, 90f), target.bounds());
+        artframework.presentation.PresentationVisuals.removeC2Item("combat.hand", "card-1");
+        host.syncC2Visuals();
+        assertNull(host.getTarget(targetId));
+    }
+
+    @Test
     public void manualBindOnEntityTarget() {
         ArtFramework.entities().attach("e2", "monster", "Hexaghost");
         ArtFramework.entities().layout("e2", 10f, 20f, 1.5f);
@@ -165,8 +195,9 @@ public class RenderHostTest {
             tree.world().put(id, DrawComponent.class, new DrawComponent("panel", "", "P"));
             tree.world().put(id, VisibilityComponent.class, new VisibilityComponent(true, 1f));
             EffectsComponent effects = tree.world().get(id, EffectsComponent.class);
-            effects.put(new EffectAttachment(TintEffect.ID, "ambient",
-                    Collections.<String, Object>singletonMap("alpha", 0.25f)));
+            tree.world().put(id, EffectsComponent.class, effects.withAttachment(
+                    new EffectAttachment(TintEffect.ID, "ambient",
+                            Collections.<String, Object>singletonMap("alpha", 0.25f))));
 
             RenderHost host = new RenderHost();
             artframework.presentation.PresentationFrame frame = tree.frame();

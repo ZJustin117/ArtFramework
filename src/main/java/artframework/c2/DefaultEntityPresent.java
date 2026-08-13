@@ -9,9 +9,7 @@ import artframework.presentation.PresentationRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -19,8 +17,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public final class DefaultEntityPresent implements EntityPresent {
 
-    private final Map<String, EntitySlot> slots = new LinkedHashMap<String, EntitySlot>();
-    private final Map<String, EntityId> entityIds = new LinkedHashMap<String, EntityId>();
     private final PresentationContext context = PresentationRegistry.context("c2-entity-present");
     private final PresentationWorld world = context.world();
     private final CopyOnWriteArrayList<EntityPresentListener> listeners =
@@ -32,20 +28,16 @@ public final class DefaultEntityPresent implements EntityPresent {
         if (slotId == null || slotId.isEmpty()) {
             throw new IllegalArgumentException("slotId required");
         }
-        EntitySlot previous = slots.get(slotId);
+        EntityId previous = entityId(slotId);
         if (previous != null) {
-            slots.remove(slotId);
-            world.destroyEntity(entityIds.remove(slotId));
+            context.destroy(previous);
             fireDetached(slotId);
         }
-        EntitySlot slot = new EntitySlot(slotId, k, refId);
-        slots.put(slotId, slot);
         PresentationKey key = new PresentationKey("entity.slot", slotId);
         EntityId entity = context.entity(key);
         if (entity == null) {
             entity = context.create(key, slotId, "entity-slot", "entity-present");
         }
-        entityIds.put(slotId, entity);
         world.put(entity, EntitySlotIdentityComponent.class,
                 new EntitySlotIdentityComponent(slotId, k, refId));
         world.put(entity, EntitySlotSnapshotComponent.class,
@@ -54,32 +46,26 @@ public final class DefaultEntityPresent implements EntityPresent {
                 new EntitySlotTransformComponent(0f, 0f, 1f, false));
         world.put(entity, HostBindingComponent.class,
                 new HostBindingComponent("STS1_ENTITY", slotId));
-        for (EntityPresentListener l : listeners) {
-            l.onAttached(slot);
-        }
+        fireAttached(view(entity));
     }
 
     @Override
     public void sync(String slotId, Object snapshotDto) {
-        EntitySlot slot = require(slotId);
-        slot.setSnapshot(snapshotDto);
-        EntityId entity = entityIds.get(slotId);
+        EntityId entity = requireEntity(slotId);
         world.put(entity, EntitySlotSnapshotComponent.class,
                 new EntitySlotSnapshotComponent(snapshotDto));
         for (EntityPresentListener l : listeners) {
-            l.onSynced(slot);
+            l.onSynced(view(entity));
         }
     }
 
     @Override
     public void layout(String slotId, float x, float y, float scale) {
-        EntitySlot slot = require(slotId);
-        slot.setLayout(x, y, scale);
-        EntityId entity = entityIds.get(slotId);
+        EntityId entity = requireEntity(slotId);
         world.put(entity, EntitySlotTransformComponent.class,
                 new EntitySlotTransformComponent(x, y, scale, true));
         for (EntityPresentListener l : listeners) {
-            l.onLaidOut(slot);
+            l.onLaidOut(view(entity));
         }
     }
 
@@ -88,41 +74,43 @@ public final class DefaultEntityPresent implements EntityPresent {
         if (slotId == null) {
             return;
         }
-        if (slots.remove(slotId) != null) {
-            world.destroyEntity(entityIds.remove(slotId));
+        EntityId entity = entityId(slotId);
+        if (entity != null) {
+            context.destroy(entity);
             fireDetached(slotId);
         }
     }
 
     @Override
     public boolean isAttached(String slotId) {
-        return slots.containsKey(slotId);
+        return entityId(slotId) != null;
     }
 
     @Override
     public EntitySlot get(String slotId) {
-        return slots.get(slotId);
+        EntityId entity = entityId(slotId);
+        return entity != null ? view(entity) : null;
     }
 
     @Override
     public List<String> listSlotIds() {
-        return Collections.unmodifiableList(new ArrayList<String>(slots.keySet()));
+        List<String> result = new ArrayList<String>();
+        for (EntityId entity : world.query(EntitySlotIdentityComponent.class)) {
+            result.add(world.get(entity, EntitySlotIdentityComponent.class).slotId);
+        }
+        return Collections.unmodifiableList(result);
     }
 
     @Override
     public int size() {
-        return slots.size();
+        return world.query(EntitySlotIdentityComponent.class).size();
     }
 
     @Override
     public void clear() {
-        if (slots.isEmpty()) {
-            return;
-        }
-        List<String> ids = new ArrayList<String>(slots.keySet());
-        slots.clear();
-        for (String id : ids) {
-            context.destroy(entityIds.remove(id));
+        for (String id : new ArrayList<String>(listSlotIds())) {
+            EntityId entity = entityId(id);
+            context.destroy(entity);
             fireDetached(id);
         }
     }
@@ -148,22 +136,41 @@ public final class DefaultEntityPresent implements EntityPresent {
     }
 
     public EntityId entityId(String slotId) {
-        return entityIds.get(slotId);
+        if (slotId == null) return null;
+        return context.entity(new PresentationKey("entity.slot", slotId));
     }
 
     void resetForTests() {
-        for (EntityId entity : new ArrayList<EntityId>(entityIds.values())) context.destroy(entity);
-        slots.clear();
-        entityIds.clear();
+        for (EntityId entity : new ArrayList<EntityId>(world.query(EntitySlotIdentityComponent.class))) {
+            context.destroy(entity);
+        }
         listeners.clear();
     }
 
-    private EntitySlot require(String slotId) {
-        EntitySlot slot = slots.get(slotId);
-        if (slot == null) {
+    private EntityId requireEntity(String slotId) {
+        EntityId entity = entityId(slotId);
+        if (entity == null) {
             throw new IllegalArgumentException("not attached: " + slotId);
         }
-        return slot;
+        return entity;
+    }
+
+    private EntitySlot view(EntityId entity) {
+        EntitySlotIdentityComponent identity = world.get(entity, EntitySlotIdentityComponent.class);
+        EntitySlotSnapshotComponent snapshot = world.get(entity, EntitySlotSnapshotComponent.class);
+        EntitySlotTransformComponent transform = world.get(entity, EntitySlotTransformComponent.class);
+        return new EntitySlot(identity.slotId, identity.kind, identity.refId,
+                snapshot != null ? snapshot.snapshot : null,
+                transform != null ? transform.x : 0f,
+                transform != null ? transform.y : 0f,
+                transform != null ? transform.scale : 1f,
+                transform != null && transform.laidOut);
+    }
+
+    private void fireAttached(EntitySlot slot) {
+        for (EntityPresentListener l : listeners) {
+            l.onAttached(slot);
+        }
     }
 
     private void fireDetached(String slotId) {

@@ -1,20 +1,32 @@
 package artframework.c2;
 
 /**
- * Mutable bookkeeping for one presenter slot. Snapshot is opaque (consumer DTO).
+ * Immutable compatibility view derived from one ECS-backed presenter slot.
  */
 public final class EntitySlot {
 
     public final String slotId;
     public final EntityKind kind;
     public final String refId;
-    private Object snapshot;
-    private float x;
-    private float y;
-    private float scale = 1f;
-    private boolean laidOut;
+    private final Object snapshot;
+    private final float x;
+    private final float y;
+    private final float scale;
+    private final boolean laidOut;
 
     public EntitySlot(String slotId, EntityKind kind, String refId) {
+        this(slotId, kind, refId, null, 0f, 0f, 1f, false);
+    }
+
+    public EntitySlot(
+            String slotId,
+            EntityKind kind,
+            String refId,
+            Object snapshot,
+            float x,
+            float y,
+            float scale,
+            boolean laidOut) {
         if (slotId == null || slotId.isEmpty()) {
             throw new IllegalArgumentException("slotId required");
         }
@@ -24,14 +36,15 @@ public final class EntitySlot {
         this.slotId = slotId;
         this.kind = kind;
         this.refId = refId != null ? refId : "";
+        this.snapshot = snapshot;
+        this.x = x;
+        this.y = y;
+        this.scale = scale;
+        this.laidOut = laidOut;
     }
 
     public Object snapshot() {
         return snapshot;
-    }
-
-    public void setSnapshot(Object snapshot) {
-        this.snapshot = snapshot;
     }
 
     public float x() {
@@ -50,10 +63,4 @@ public final class EntitySlot {
         return laidOut;
     }
 
-    public void setLayout(float x, float y, float scale) {
-        this.x = x;
-        this.y = y;
-        this.scale = scale;
-        this.laidOut = true;
-    }
 }

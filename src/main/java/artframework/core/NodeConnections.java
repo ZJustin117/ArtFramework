@@ -2,6 +2,7 @@ package artframework.core;
 
 import artframework.presentation.Node;
 import artframework.presentation.NodeTree;
+import artframework.presentation.ConnectionDeclarationsComponent;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -71,29 +72,14 @@ public final class NodeConnections {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static void wireNode(final NodeTree tree, final Node owner) {
-        List<Map<String, Object>> specs = new ArrayList<Map<String, Object>>();
-        Object connections = owner.get("connections");
-        if (connections instanceof List) {
-            for (Object item : (List<?>) connections) {
-                if (item instanceof Map) {
-                    specs.add((Map<String, Object>) item);
-                }
-            }
-        }
-        Object triggers = owner.get("triggers");
-        if (triggers instanceof List) {
-            for (Object item : (List<?>) triggers) {
-                if (!(item instanceof Map)) {
-                    continue;
-                }
-                Map<String, Object> legacy = (Map<String, Object>) item;
-                Map<String, Object> norm = normalizeTrigger(owner, legacy);
-                if (norm != null) {
-                    specs.add(norm);
-                }
-            }
+        ConnectionDeclarationsComponent declarations = tree.world().get(
+                owner.entityId(), ConnectionDeclarationsComponent.class);
+        if (declarations == null) return;
+        List<Map<String, Object>> specs = new ArrayList<Map<String, Object>>(declarations.connections);
+        for (Map<String, Object> legacy : declarations.legacyTriggers) {
+            Map<String, Object> norm = normalizeTrigger(owner, legacy);
+            if (norm != null) specs.add(norm);
         }
         for (Map<String, Object> spec : specs) {
             wireSpec(tree, owner, spec);
@@ -281,6 +267,6 @@ public final class NodeConnections {
     }
 
     private static String windowId(NodeTree tree) {
-        return tree.context().world().scope().replace("tree:", "");
+        return tree.windowId();
     }
 }

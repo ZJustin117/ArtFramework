@@ -152,13 +152,22 @@ public class LightwaveDemoContractTest {
         assertEquals("flash", pulse.playing());
         assertTrue(wave.isPlaying());
         assertEquals("ripple", wave.playing());
+        pulseBind = ArtFramework.render().findEffect(
+                "c1:lightwave_demo:panel", LightwaveEffect.ID,
+                artframework.render.EffectBinding.LAYER_PULSE);
         assertTrue(pulseBind.isEnabled());
         float pulsePhase0 = pulseBind.paramFloat("phase", -1f);
         ArtFramework.tick(0.15f);
+        pulseBind = ArtFramework.render().findEffect(
+                "c1:lightwave_demo:panel", LightwaveEffect.ID,
+                artframework.render.EffectBinding.LAYER_PULSE);
         float pulsePhaseMid = pulseBind.paramFloat("phase", -1f);
         assertTrue(pulsePhaseMid > pulsePhase0);
         // Ambient still advancing independently
         ArtFramework.tick(0.1f);
+        ambient = ArtFramework.render().findEffect(
+                "c1:lightwave_demo:panel", LightwaveEffect.ID,
+                artframework.render.EffectBinding.LAYER_AMBIENT);
         float ambientPhase1 = ambient.paramFloat("phase", -1f);
         assertTrue(
                 ambientPhase1 != ambientPhase0
@@ -168,6 +177,9 @@ public class LightwaveDemoContractTest {
         if (pulse.isPlaying()) {
             ArtFramework.tick(0.2f);
         }
+        ambient = ArtFramework.render().findEffect(
+                "c1:lightwave_demo:panel", LightwaveEffect.ID,
+                artframework.render.EffectBinding.LAYER_AMBIENT);
         assertTrue(!pulse.isPlaying());
         assertTrue(wave.isPlaying());
         assertEquals("ripple", wave.playing());
@@ -175,6 +187,9 @@ public class LightwaveDemoContractTest {
                 0.7f,
                 ambient.paramFloat("intensity", -1f),
                 0.12f);
+        pulseBind = ArtFramework.render().findEffect(
+                "c1:lightwave_demo:panel", LightwaveEffect.ID,
+                artframework.render.EffectBinding.LAYER_PULSE);
         assertTrue(pulseBind.paramFloat("intensity", 1f) < 0.05f || !pulseBind.isEnabled());
     }
 

@@ -37,9 +37,10 @@ public class EntityPresentTest {
 
         Object dto = new Object();
         p.sync("p1", dto);
-        assertSame(dto, slot.snapshot());
+        assertSame(dto, p.get("p1").snapshot());
 
         p.layout("p1", 10f, 20f, 0.5f);
+        slot = p.get("p1");
         assertTrue(slot.isLaidOut());
         assertEquals(10f, slot.x(), 0.001f);
         assertEquals(20f, slot.y(), 0.001f);
@@ -126,7 +127,7 @@ public class EntityPresentTest {
         p.attach("c1", "card", "Strike");
         EntityId entity = p.entityId("c1");
         assertNotNull(entity);
-        assertEquals(1, p.world().entities().size());
+        assertEquals(1, p.world().query(EntitySlotIdentityComponent.class).size());
         assertEquals(EntityKind.CARD, p.world().get(entity, EntitySlotIdentityComponent.class).kind);
         assertNull(p.world().get(entity, EntitySlotSnapshotComponent.class).snapshot);
         assertFalse(p.world().get(entity, EntitySlotTransformComponent.class).laidOut);

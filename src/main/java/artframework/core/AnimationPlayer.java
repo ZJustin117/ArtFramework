@@ -2,6 +2,7 @@ package artframework.core;
 
 import artframework.presentation.Node;
 import artframework.presentation.NodeTree;
+import artframework.presentation.NodeStateComponent;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -88,13 +89,6 @@ public final class AnimationPlayer {
     private final Node owner;
     private final Map<String, Animation> animations = new LinkedHashMap<String, Animation>();
     private final NodeStateMachine fsm;
-    private String playing;
-    private float elapsed;
-    private boolean active;
-    private boolean paused;
-    private String playMode = MODE_ONCE;
-    private int loopsDone;
-    private final Map<String, Float> fromSnapshot = new LinkedHashMap<String, Float>();
 
     public AnimationPlayer(Node owner) {
         if (owner == null) {
@@ -102,6 +96,8 @@ public final class AnimationPlayer {
         }
         this.owner = owner;
         this.fsm = new NodeStateMachine(owner, NodeStateMachine.STATE_IDLE);
+        owner.tree().world().put(owner.entityId(), AnimationPlaybackComponent.class,
+                AnimationPlaybackComponent.idle());
     }
 
     public NodeStateMachine stateMachine() {
@@ -124,15 +120,16 @@ public final class AnimationPlayer {
     }
 
     public String playing() {
-        return playing;
+        return playback().playing;
     }
 
     public boolean isPlaying() {
-        return active && !paused;
+        AnimationPlaybackComponent state = playback();
+        return state.active && !state.paused;
     }
 
     public boolean isPaused() {
-        return paused;
+        return playback().paused;
     }
 
     public void play(String name) {
@@ -144,21 +141,20 @@ public final class AnimationPlayer {
         if (anim == null) {
             throw new IllegalArgumentException("unknown animation: " + name);
         }
-        if (active && playing != null) {
-            emitOwn(SIGNAL_CANCELLED, playing);
+        AnimationPlaybackComponent state = playback();
+        if (state.active && state.playing != null) {
+            emitOwn(SIGNAL_CANCELLED, state.playing);
         }
-        playing = name;
-        elapsed = 0f;
-        active = true;
-        paused = false;
-        loopsDone = 0;
+        String playMode;
         if (modeOverride != null && !modeOverride.isEmpty()) {
             playMode =
                     MODE_LOOP.equals(modeOverride.trim().toLowerCase()) ? MODE_LOOP : MODE_ONCE;
         } else {
             playMode = anim.mode;
         }
-        captureFromSnapshot(anim);
+        Map<String, Float> fromSnapshot = captureFromSnapshot(anim);
+        putPlayback(new AnimationPlaybackComponent(
+                name, 0f, true, false, playMode, 0, fromSnapshot));
         fsm.setState(NodeStateMachine.STATE_PLAYING, false);
         apply(anim, 0f);
         emitOwn(SIGNAL_STARTED, name);
@@ -168,33 +164,34 @@ public final class AnimationPlayer {
     }
 
     public void pause() {
-        if (!active || paused || playing == null) {
+        AnimationPlaybackComponent state = playback();
+        if (!state.active || state.paused || state.playing == null) {
             return;
         }
-        paused = true;
+        putPlayback(new AnimationPlaybackComponent(state.playing, state.elapsed, true, true,
+                state.playMode, state.loopsDone, state.fromSnapshot));
         fsm.setState(NodeStateMachine.STATE_PAUSED, false);
-        emitOwn(SIGNAL_PAUSED, playing);
+        emitOwn(SIGNAL_PAUSED, state.playing);
     }
 
     public void resume() {
-        if (!active || !paused || playing == null) {
+        AnimationPlaybackComponent state = playback();
+        if (!state.active || !state.paused || state.playing == null) {
             return;
         }
-        paused = false;
+        putPlayback(new AnimationPlaybackComponent(state.playing, state.elapsed, true, false,
+                state.playMode, state.loopsDone, state.fromSnapshot));
         fsm.setState(NodeStateMachine.STATE_PLAYING, false);
-        emitOwn(SIGNAL_RESUMED, playing);
+        emitOwn(SIGNAL_RESUMED, state.playing);
     }
 
     public void stop() {
-        if (!active && !paused) {
+        AnimationPlaybackComponent state = playback();
+        if (!state.active && !state.paused) {
             return;
         }
-        String name = playing;
-        active = false;
-        paused = false;
-        playing = null;
-        elapsed = 0f;
-        loopsDone = 0;
+        String name = state.playing;
+        putPlayback(AnimationPlaybackComponent.idle());
         fsm.setState(NodeStateMachine.STATE_IDLE, false);
         if (name != null) {
             emitOwn(SIGNAL_CANCELLED, name);
@@ -202,46 +199,46 @@ public final class AnimationPlayer {
     }
 
     public void tick(float deltaSeconds) {
-        if (!active || paused || playing == null) {
+        AnimationPlaybackComponent state = playback();
+        if (!state.active || state.paused || state.playing == null) {
             return;
         }
-        Animation anim = animations.get(playing);
+        Animation anim = animations.get(state.playing);
         if (anim == null) {
-            active = false;
+            putPlayback(AnimationPlaybackComponent.idle());
             fsm.setState(NodeStateMachine.STATE_IDLE, false);
             return;
         }
         if (deltaSeconds < 0f) {
             deltaSeconds = 0f;
         }
-        elapsed += deltaSeconds;
+        float elapsed = state.elapsed + deltaSeconds;
         float t = elapsed / anim.duration;
         if (t >= 1f) {
             apply(anim, 1f);
-            if (MODE_LOOP.equals(playMode)) {
-                loopsDone++;
-                emitOwn(SIGNAL_LOOPED, playing, Integer.valueOf(loopsDone));
+            if (MODE_LOOP.equals(state.playMode)) {
+                int loopsDone = state.loopsDone + 1;
+                emitOwn(SIGNAL_LOOPED, state.playing, Integer.valueOf(loopsDone));
                 if (anim.loopCount > 0 && loopsDone >= anim.loopCount) {
                     finish(anim);
                 } else {
-                    elapsed = 0f;
+                    putPlayback(new AnimationPlaybackComponent(state.playing, 0f, true, false,
+                            state.playMode, loopsDone, state.fromSnapshot));
                     apply(anim, 0f);
                 }
             } else {
                 finish(anim);
             }
         } else {
+            putPlayback(new AnimationPlaybackComponent(state.playing, elapsed, true, false,
+                    state.playMode, state.loopsDone, state.fromSnapshot));
             apply(anim, t);
         }
     }
 
     private void finish(Animation anim) {
-        active = false;
-        paused = false;
         String name = anim.name;
-        playing = null;
-        elapsed = 0f;
-        loopsDone = 0;
+        putPlayback(AnimationPlaybackComponent.idle());
         fsm.setState(NodeStateMachine.STATE_IDLE, false);
         emitOwn(SIGNAL_FINISHED, name);
     }
@@ -262,11 +259,11 @@ public final class AnimationPlayer {
         }
     }
 
-    private void captureFromSnapshot(Animation anim) {
-        fromSnapshot.clear();
+    private Map<String, Float> captureFromSnapshot(Animation anim) {
+        Map<String, Float> snapshot = new LinkedHashMap<String, Float>();
         Node target = resolveTarget(anim.targetId);
         if (target == null) {
-            return;
+            return snapshot;
         }
         for (Track track : anim.tracks) {
             if (!track.fromCurrent) {
@@ -277,13 +274,15 @@ public final class AnimationPlayer {
             if (cur instanceof Number) {
                 f = ((Number) cur).floatValue();
             }
-            fromSnapshot.put(track.property, Float.valueOf(f));
+            snapshot.put(track.property, Float.valueOf(f));
         }
+        return snapshot;
     }
 
     private float trackFrom(Track track) {
-        if (track.fromCurrent && fromSnapshot.containsKey(track.property)) {
-            return fromSnapshot.get(track.property).floatValue();
+        Map<String, Float> snapshot = playback().fromSnapshot;
+        if (track.fromCurrent && snapshot.containsKey(track.property)) {
+            return snapshot.get(track.property).floatValue();
         }
         return track.from;
     }
@@ -315,5 +314,15 @@ public final class AnimationPlayer {
             return found;
         }
         return owner.tree().find(targetId);
+    }
+
+    private AnimationPlaybackComponent playback() {
+        AnimationPlaybackComponent state = owner.tree().world()
+                .get(owner.entityId(), AnimationPlaybackComponent.class);
+        return state != null ? state : AnimationPlaybackComponent.idle();
+    }
+
+    private void putPlayback(AnimationPlaybackComponent state) {
+        owner.tree().world().put(owner.entityId(), AnimationPlaybackComponent.class, state);
     }
 }

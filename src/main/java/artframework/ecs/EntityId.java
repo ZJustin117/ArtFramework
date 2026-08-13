@@ -1,17 +1,16 @@
 package artframework.ecs;
 
-/** Stable identity for an entity inside one presentation world. */
+/**
+ * ART-owned entity identity.
+ *
+ * <p>An entity deliberately has no type, source, scope, or behavior. Its components are the
+ * complete description of its presentation state.</p>
+ */
 public final class EntityId {
-    private final String scope;
     private final long value;
 
-    EntityId(String scope, long value) {
-        this.scope = scope;
+    EntityId(long value) {
         this.value = value;
-    }
-
-    public String scope() {
-        return scope;
     }
 
     public long value() {
@@ -23,16 +22,16 @@ public final class EntityId {
         if (this == other) return true;
         if (!(other instanceof EntityId)) return false;
         EntityId that = (EntityId) other;
-        return value == that.value && scope.equals(that.scope);
+        return value == that.value;
     }
 
     @Override
     public int hashCode() {
-        return 31 * scope.hashCode() + (int) (value ^ (value >>> 32));
+        return (int) (value ^ (value >>> 32));
     }
 
     @Override
     public String toString() {
-        return scope + ":" + value;
+        return Long.toString(value);
     }
 }

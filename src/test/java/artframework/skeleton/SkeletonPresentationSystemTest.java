@@ -1,6 +1,7 @@
 package artframework.skeleton;
 
 import artframework.ecs.PresentationWorld;
+import artframework.ecs.EntityId;
 import org.junit.Test;
 import java.util.Arrays;
 import static org.junit.Assert.*;
@@ -20,6 +21,10 @@ public class SkeletonPresentationSystemTest {
         assertEquals(1, fake.loadCount());
         assertEquals(20f, fake.x("hero"), 0.001f);
         assertEquals("attack", fake.currentAnimation(handle, 0));
+        EntityId id = worldEntity(system, "hero");
+        assertNotNull(id);
+        assertEquals(20f, systemWorld(system).get(id, SkeletonPoseComponent.class).x, 0.001f);
+        assertEquals(2L, systemWorld(system).get(id, SkeletonFrameComponent.class).frameId);
     }
 
     @Test public void removesMissingEntitiesAndRejectsStaleFrames() {
@@ -53,5 +58,16 @@ public class SkeletonPresentationSystemTest {
                 new SkeletonPoseComponent(x, 2f, 0f, 1f, 1f, false, false, 0),
                 new SkeletonAnimationComponent(0, animation, true),
                 new SkeletonVisualComponent(true));
+    }
+
+    private static EntityId worldEntity(SkeletonPresentationSystem system, String key) {
+        for (EntityId id : systemWorld(system).query(SkeletonIdentityComponent.class)) {
+            if (key.equals(systemWorld(system).get(id, SkeletonIdentityComponent.class).entityKey)) return id;
+        }
+        return null;
+    }
+
+    private static PresentationWorld systemWorld(SkeletonPresentationSystem system) {
+        return system.world();
     }
 }

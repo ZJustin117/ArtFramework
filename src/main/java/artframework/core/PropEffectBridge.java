@@ -1,9 +1,9 @@
 package artframework.core;
 
 import artframework.api.ArtFramework;
-import artframework.render.EffectBinding;
 import artframework.render.LightwaveEffect;
-import artframework.render.RenderHosts;
+import artframework.presentation.EffectAttachment;
+import artframework.presentation.EffectsComponent;
 
 /**
  * Maps node props to live {@link EffectBinding} params. Ambient {@code fx_*} drives the base
@@ -23,81 +23,75 @@ public final class PropEffectBridge {
             return;
         }
         float f = ((Number) value).floatValue();
-        String win = tree.context().world().scope().replace("tree:", "");
+        String win = tree.windowId();
         String nodeId = target.name();
         if (nodeId == null || nodeId.isEmpty()) {
             return;
         }
-        String tid = "c1:" + win + ":" + nodeId;
-
         if (prop.startsWith("fx_pulse_")) {
-            applyPulseProp(tid, prop.substring("fx_pulse_".length()), f);
+            applyPulseProp(target, prop.substring("fx_pulse_".length()), f);
             return;
         }
         if ("fx_intensity".equals(prop) || "intensity".equals(prop)) {
-            RenderHosts.get()
-                    .setEffectParam(
-                            tid,
-                            LightwaveEffect.ID,
-                            EffectBinding.LAYER_AMBIENT,
-                            "intensity",
-                            f);
+            applyAmbientProp(target, "intensity", f);
             try {
                 artframework.render.LightwaveControls.applyIntensity(win, nodeId, f);
             } catch (Throwable ignored) {
             }
         } else if ("fx_phase".equals(prop) || "phase".equals(prop)) {
-            RenderHosts.get()
-                    .setEffectParam(
-                            tid, LightwaveEffect.ID, EffectBinding.LAYER_AMBIENT, "phase", f);
-            RenderHosts.get()
-                    .setEffectParam(
-                            tid, LightwaveEffect.ID, EffectBinding.LAYER_AMBIENT, "freeze", 1f);
+            applyAmbientProp(target, "phase", f);
+            applyAmbientProp(target, "freeze", 1f);
             target.set("fx_freeze", Float.valueOf(1f));
         } else if ("fx_freeze".equals(prop) || "freeze".equals(prop)) {
-            RenderHosts.get()
-                    .setEffectParam(
-                            tid, LightwaveEffect.ID, EffectBinding.LAYER_AMBIENT, "freeze", f);
+            applyAmbientProp(target, "freeze", f);
         } else if ("fx_width".equals(prop)) {
-            RenderHosts.get()
-                    .setEffectParam(
-                            tid, LightwaveEffect.ID, EffectBinding.LAYER_AMBIENT, "width", f);
+            applyAmbientProp(target, "width", f);
         } else if (prop.startsWith("fx_")) {
             String key = prop.substring(3);
             if (!key.isEmpty()) {
-                RenderHosts.get()
-                        .setEffectParam(
-                                tid, LightwaveEffect.ID, EffectBinding.LAYER_AMBIENT, key, f);
+                applyAmbientProp(target, key, f);
             }
         }
     }
 
-    private static void applyPulseProp(String tid, String key, float f) {
+    private static void applyAmbientProp(artframework.presentation.Node target, String key, float value) {
+        replaceEffect(target, EffectBindingLayer.AMBIENT, key, value, true);
+    }
+
+    private static void applyPulseProp(artframework.presentation.Node target, String key, float f) {
         if (key == null || key.isEmpty()) {
             return;
         }
-        EffectBinding pulse =
-                RenderHosts.get().ensurePulseLightwave(tid);
-        if (pulse == null) {
-            return;
-        }
-        // Any non-zero intensity enables the overlay band; zero disables after settle.
         if ("intensity".equals(key)) {
-            pulse.setEnabled(f > 0.02f);
-            pulse.setParamFloat("intensity", f);
+            replaceEffect(target, EffectBindingLayer.PULSE, key, f, f > 0.02f);
             return;
         }
         if ("phase".equals(key)) {
-            pulse.setEnabled(true);
-            pulse.setParamFloat("phase", f);
-            pulse.setParamFloat("freeze", 1f);
+            replaceEffect(target, EffectBindingLayer.PULSE, key, f, true);
+            replaceEffect(target, EffectBindingLayer.PULSE, "freeze", 1f, true);
             return;
         }
-        if ("freeze".equals(key) || "width".equals(key) || "angle".equals(key)) {
-            pulse.setParamFloat(key, f);
-            return;
+        replaceEffect(target, EffectBindingLayer.PULSE, key, f, true);
+    }
+
+    private static void replaceEffect(
+            artframework.presentation.Node target, String layer, String key, float value, boolean enabled) {
+        EffectsComponent effects = target.tree().world().get(target.entityId(), EffectsComponent.class);
+        if (effects == null) return;
+        EffectAttachment attachment = effects.get(LightwaveEffect.ID, layer);
+        if (attachment == null) {
+            attachment = new EffectAttachment(LightwaveEffect.ID, layer, null);
+            effects = effects.withAttachment(attachment);
         }
-        pulse.setParamFloat(key, f);
+        effects = effects.withAttachment(attachment.withParam(key, Float.valueOf(value)).withEnabled(enabled));
+        target.tree().world().put(target.entityId(), EffectsComponent.class, effects);
+        artframework.render.RenderHosts.get().syncC1Window(target.tree().windowId());
+    }
+
+    private static final class EffectBindingLayer {
+        static final String AMBIENT = "ambient";
+        static final String PULSE = "pulse";
+        private EffectBindingLayer() {}
     }
 
     public static void applyProp(String windowId, String targetId, String prop, Object value) {

@@ -24,38 +24,38 @@ import java.util.Set;
  */
 public final class PresentProjection {
 
-    private final Map<String, CardEntity> byInstance = new LinkedHashMap<String, CardEntity>();
-    private final Map<String, EntityId> entityByInstance = new LinkedHashMap<String, EntityId>();
     private final PresentationContext context = PresentationRegistry.context("c2-projection");
     private final PresentationWorld world = context.world();
-    private long lastFrameId = -1L;
-    private long sceneEpoch = -1L;
-    private String scene = "";
-    private boolean available;
-    private boolean stale;
-    private String dragInstanceId;
-    private ContextFrame lastFrame = ContextFrame.unavailable(0L);
+    private final PresentationKey metadataKey = new PresentationKey("sts1.projection", "context");
+
+    public PresentProjection() {
+        ensureMetadataEntity();
+    }
 
     public FrameDiff applyFrame(ContextFrame frame) {
         if (frame == null) {
             return FrameDiff.skipped("frame required");
         }
+        ProjectionFrameComponent metadata = metadata();
+        ContextFrame previousFrame = snapshot().frame;
         if (!frame.available) {
-            available = false;
-            stale = lastFrameId >= 0;
-            lastFrame = frame;
+            observeNativeIntents(frame);
+            putMetadata(metadata.frameId, metadata.sceneEpoch, metadata.scene, false,
+                    metadata.frameId >= 0);
+            putSnapshot(frame);
             return FrameDiff.skipped("frame unavailable");
         }
-        if (sceneEpoch >= 0L && frame.sceneEpoch != sceneEpoch) {
+        if (metadata.sceneEpoch >= 0L && frame.sceneEpoch != metadata.sceneEpoch) {
             // Epoch is Backend authority. A new scene must never inherit card/drag state.
-            byInstance.clear();
-            dragInstanceId = null;
-            lastFrameId = -1L;
+            clearCards();
+            clearDrag();
+            metadata = new ProjectionFrameComponent(-1L, metadata.sceneEpoch, metadata.scene,
+                    metadata.available, metadata.stale);
         }
-        if (frame.frameId < lastFrameId) {
-            return FrameDiff.skipped("stale frameId " + frame.frameId + " < " + lastFrameId);
+        if (frame.frameId < metadata.frameId) {
+            return FrameDiff.skipped("stale frameId " + frame.frameId + " < " + metadata.frameId);
         }
-        if (frame.frameId == lastFrameId && lastFrameId >= 0) {
+        if (frame.frameId == metadata.frameId && metadata.frameId >= 0) {
             // same-frame reapply: last wins (replace projection from frame)
         }
 
@@ -66,30 +66,26 @@ public final class PresentProjection {
         for (CardView view : frame.cards) {
             String id = view.ref.instanceId;
             seen.add(id);
-            CardEntity entity = byInstance.get(id);
+            EntityId presentationEntity = cardEntity(id);
+            CardEntity entity = presentationEntity == null ? null : cardView(presentationEntity);
             if (entity == null) {
                 entity = new CardEntity(id);
-                byInstance.put(id, entity);
                 PresentationKey key = new PresentationKey("sts1.card", id);
-                EntityId presentationEntity = context.entity(key);
-                if (presentationEntity != null && !world.contains(presentationEntity)) {
-                    presentationEntity = null;
-                }
+                presentationEntity = context.entity(key);
                 if (presentationEntity == null) {
                     presentationEntity = context.create(key, id, "card", "c2-projection");
                 }
-                entityByInstance.put(id, presentationEntity);
                 int changes = CardEntity.IDENTITY_CHANGED
                         | CardEntity.PLACEMENT_CHANGED
                         | CardEntity.INTERACTION_CHANGED
                         | CardEntity.ASSETS_CHANGED;
                 entity.apply(view);
-                applyComponents(entityByInstance.get(id), view, changes);
+                applyComponents(presentationEntity, view, changes);
                 added.add(id);
             } else {
                 int changes = entity.apply(view);
                 if (changes != 0) {
-                    applyComponents(entityByInstance.get(id), view, changes);
+                    applyComponents(cardEntity(id), view, changes);
                     updated.add(id);
                 }
             }
@@ -97,64 +93,77 @@ public final class PresentProjection {
 
         List<String> removed = new ArrayList<String>();
         List<String> toRemove = new ArrayList<String>();
-        for (String id : byInstance.keySet()) {
-            if (!seen.contains(id)) {
-                toRemove.add(id);
+        for (EntityId entity : context.entities()) {
+            CardIdentityComponent identity = world.get(entity, CardIdentityComponent.class);
+            if (identity != null && !seen.contains(identity.instanceId)) {
+                toRemove.add(identity.instanceId);
             }
         }
         for (String id : toRemove) {
-            byInstance.remove(id);
-            world.destroyEntity(entityByInstance.remove(id));
+            context.destroy(cardEntity(id));
             removed.add(id);
-            if (id.equals(dragInstanceId)) {
-                dragInstanceId = null;
+            if (id.equals(dragInstanceId())) {
+                clearDrag();
             }
         }
 
-        lastFrameId = frame.frameId;
-        sceneEpoch = frame.sceneEpoch;
-        scene = frame.scene;
-        available = true;
-        stale = false;
-        lastFrame = frame;
+        putMetadata(frame.frameId, frame.sceneEpoch, frame.scene, true, false);
+        putSnapshot(frame);
+        confirmBusinessIntents(previousFrame, frame);
+        observeNativeIntents(frame);
         return new FrameDiff(added, removed, updated, true, "");
     }
 
+    private void confirmBusinessIntents(ContextFrame before, ContextFrame after) {
+        PresentationContext surfaces = PresentationRegistry.context("c2-surfaces");
+        for (EntityId entity : surfaces.entities()) {
+            BusinessConfirmationComponent request = world.get(entity, BusinessConfirmationComponent.class);
+            if (request == null || request.state != BusinessConfirmationComponent.State.PENDING) continue;
+            world.put(entity, BusinessConfirmationComponent.class,
+                    BusinessConfirmationSystem.evaluate(request, before, after));
+        }
+    }
+
     public long lastFrameId() {
-        return lastFrameId;
+        return metadata().frameId;
     }
 
     public String scene() {
-        return scene;
+        return metadata().scene;
     }
 
     public long sceneEpoch() {
-        return sceneEpoch;
+        return metadata().sceneEpoch;
     }
 
     public boolean isAvailable() {
-        return available;
+        return metadata().available;
     }
 
     public boolean isStale() {
-        return stale;
+        return metadata().stale;
     }
 
     public ContextFrame lastFrame() {
-        return lastFrame;
+        return snapshot().frame;
     }
 
     public CardEntity get(String instanceId) {
-        return byInstance.get(instanceId);
+        EntityId entity = cardEntity(instanceId);
+        return entity == null ? null : cardView(entity);
     }
 
     public List<CardEntity> list() {
-        return Collections.unmodifiableList(new ArrayList<CardEntity>(byInstance.values()));
+        List<CardEntity> result = new ArrayList<CardEntity>();
+        for (EntityId entity : context.entities()) {
+            if (world.get(entity, CardIdentityComponent.class) != null) result.add(cardView(entity));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     public List<CardEntity> listZone(CardZone zone) {
         List<CardEntity> out = new ArrayList<CardEntity>();
-        for (CardEntity e : byInstance.values()) {
+        for (CardEntity e : list()) {
             if (e.zone == zone) {
                 out.add(e);
             }
@@ -163,32 +172,103 @@ public final class PresentProjection {
     }
 
     public int size() {
-        return byInstance.size();
+        return list().size();
     }
 
     public String dragInstanceId() {
-        return dragInstanceId;
+        ProjectionInteractionComponent interaction = interaction();
+        return interaction.dragInstanceId;
     }
 
     public void setDragInstanceId(String instanceId) {
-        this.dragInstanceId = instanceId;
+        putInteraction(instanceId);
     }
 
     public void clearDrag() {
-        this.dragInstanceId = null;
+        putInteraction(null);
     }
 
     public void reset() {
-        for (EntityId entity : new ArrayList<EntityId>(entityByInstance.values())) context.destroy(entity);
-        byInstance.clear();
-        entityByInstance.clear();
-        lastFrameId = -1L;
-        scene = "";
-        sceneEpoch = -1L;
-        available = false;
-        stale = false;
-        dragInstanceId = null;
-        lastFrame = ContextFrame.unavailable(0L);
+        clearCards();
+        clearDrag();
+        putSnapshot(ContextFrame.unavailable(0L));
+        putMetadata(-1L, -1L, "", false, false);
+    }
+
+    private EntityId ensureMetadataEntity() {
+        EntityId entity = context.entity(metadataKey);
+        return entity != null ? entity : context.create(metadataKey, "context", "projection", "c2");
+    }
+
+    private ProjectionFrameComponent metadata() {
+        EntityId entity = ensureMetadataEntity();
+        ProjectionFrameComponent component = world.get(entity, ProjectionFrameComponent.class);
+        if (component == null) {
+            component = new ProjectionFrameComponent(-1L, -1L, "", false, false);
+            world.put(entity, ProjectionFrameComponent.class, component);
+        }
+        return component;
+    }
+
+    private void putMetadata(long frameId, long sceneEpoch, String scene,
+            boolean available, boolean stale) {
+        world.put(ensureMetadataEntity(), ProjectionFrameComponent.class,
+                new ProjectionFrameComponent(frameId, sceneEpoch, scene, available, stale));
+    }
+
+    private ProjectionInteractionComponent interaction() {
+        EntityId entity = ensureMetadataEntity();
+        ProjectionInteractionComponent component = world.get(entity, ProjectionInteractionComponent.class);
+        if (component == null) {
+            component = new ProjectionInteractionComponent(null);
+            world.put(entity, ProjectionInteractionComponent.class, component);
+        }
+        return component;
+    }
+
+    private void putInteraction(String dragInstanceId) {
+        world.put(ensureMetadataEntity(), ProjectionInteractionComponent.class,
+                new ProjectionInteractionComponent(dragInstanceId));
+    }
+
+    private ProjectionFrameSnapshotComponent snapshot() {
+        EntityId entity = ensureMetadataEntity();
+        ProjectionFrameSnapshotComponent component =
+                world.get(entity, ProjectionFrameSnapshotComponent.class);
+        if (component == null) {
+            component = new ProjectionFrameSnapshotComponent(ContextFrame.unavailable(0L));
+            world.put(entity, ProjectionFrameSnapshotComponent.class, component);
+        }
+        return component;
+    }
+
+    private void putSnapshot(ContextFrame frame) {
+        world.put(ensureMetadataEntity(), ProjectionFrameSnapshotComponent.class,
+                new ProjectionFrameSnapshotComponent(frame));
+    }
+
+    private void clearCards() {
+        for (EntityId entity : new ArrayList<EntityId>(context.entities())) {
+            if (world.get(entity, CardIdentityComponent.class) != null) context.destroy(entity);
+        }
+    }
+
+    private void observeNativeIntents(ContextFrame frame) {
+        for (EntityId entity : artframework.presentation.PresentationRegistry.context("sts1-input").entities()) {
+            NativeIntentLifecycleComponent lifecycle = world.get(entity, NativeIntentLifecycleComponent.class);
+            if (lifecycle != null) {
+                NativeInputComponent input = world.get(entity, NativeInputComponent.class);
+                if (input != null) {
+                    if (frame.available) {
+                        artframework.sts1.input.NativeInputRecords.observe(input.surfaceId,
+                                frame.frameId, frame.sceneEpoch, frame.scene);
+                    } else {
+                        artframework.sts1.input.NativeInputRecords.failed(
+                                input.surfaceId, "authority frame unavailable");
+                    }
+                }
+            }
+        }
     }
 
     /** Internal presentation ECS world; consumers should continue using this projection facade. */
@@ -198,7 +278,31 @@ public final class PresentProjection {
 
     /** Returns the ECS identity for a projected card, or null when absent. */
     public EntityId entityId(String instanceId) {
-        return entityByInstance.get(instanceId);
+        return cardEntity(instanceId);
+    }
+
+    private EntityId cardEntity(String instanceId) {
+        if (instanceId == null) return null;
+        return context.entity(new PresentationKey("sts1.card", instanceId));
+    }
+
+    private CardEntity cardView(EntityId entity) {
+        CardIdentityComponent identity = world.get(entity, CardIdentityComponent.class);
+        CardPlacementComponent placement = world.get(entity, CardPlacementComponent.class);
+        CardInteractionComponent interaction = world.get(entity, CardInteractionComponent.class);
+        CardAssetsComponent assets = world.get(entity, CardAssetsComponent.class);
+        CardEntity view = new CardEntity(identity.instanceId);
+        view.cardId = identity.cardId;
+        view.zone = placement != null ? placement.zone : CardZone.OTHER;
+        view.slotIndex = placement != null ? placement.slotIndex : 0;
+        view.pose = placement != null ? placement.pose : CardPose.at(0f, 0f);
+        view.playable = interaction != null && interaction.playable;
+        view.selected = interaction != null && interaction.selected;
+        view.hovered = interaction != null && interaction.hovered;
+        view.dragging = interaction != null && interaction.dragging;
+        view.artResourceId = assets != null ? assets.artResourceId : "";
+        view.frameResourceId = assets != null ? assets.frameResourceId : "";
+        return view;
     }
 
     private void applyComponents(EntityId entity, CardView view, int changes) {
@@ -234,73 +338,76 @@ public final class PresentProjection {
     }
 
     public ControlsView controls() {
-        return lastFrame.controlsView;
+        return snapshot().frame.controlsView;
     }
 
     public MapView map() {
-        return lastFrame.mapView;
+        return snapshot().frame.mapView;
     }
 
     public EventView event() {
-        return lastFrame.eventView;
+        return snapshot().frame.eventView;
     }
 
     public SelectView select() {
-        return lastFrame.selectView;
+        return snapshot().frame.selectView;
     }
 
     public RewardView reward() {
-        return lastFrame.rewardView;
+        return snapshot().frame.rewardView;
     }
 
     public RestView rest() {
-        return lastFrame.restView;
+        return snapshot().frame.restView;
     }
 
     public TreasureView treasure() {
-        return lastFrame.treasureView;
+        return snapshot().frame.treasureView;
     }
 
     public ShopView shop() {
-        return lastFrame.shopView;
+        return snapshot().frame.shopView;
     }
 
     public TopPanelView topPanel() {
-        return lastFrame.topPanelView;
+        return snapshot().frame.topPanelView;
     }
 
     public MonsterIntentView intents() {
-        return lastFrame.intentsView;
+        return snapshot().frame.intentsView;
     }
 
     public ViewportView viewport() {
-        return lastFrame.viewport;
+        return snapshot().frame.viewport;
     }
 
     public Map<String, Object> probeSlice() {
+        ProjectionFrameComponent metadata = metadata();
         Map<String, Object> m = new LinkedHashMap<String, Object>();
-        m.put("frameId", Long.valueOf(lastFrameId));
-        m.put("sceneEpoch", Long.valueOf(sceneEpoch));
-        m.put("scene", scene);
-        m.put("available", Boolean.valueOf(available));
-        m.put("stale", Boolean.valueOf(stale));
-        m.put("cardCount", Integer.valueOf(byInstance.size()));
+        m.put("frameId", Long.valueOf(metadata.frameId));
+        m.put("sceneEpoch", Long.valueOf(metadata.sceneEpoch));
+        m.put("scene", metadata.scene);
+        m.put("available", Boolean.valueOf(metadata.available));
+        m.put("stale", Boolean.valueOf(metadata.stale));
+        m.put("cardCount", Integer.valueOf(size()));
         m.put("handCount", Integer.valueOf(listZone(CardZone.HAND).size()));
+        String dragInstanceId = interaction().dragInstanceId;
         m.put("dragInstanceId", dragInstanceId != null ? dragInstanceId : "");
-        m.put("endTurnEnabled", Boolean.valueOf(lastFrame.controlsView.endTurnEnabled));
-        m.put("mapNodeCount", Integer.valueOf(lastFrame.mapView.nodeCount()));
-        m.put("eventOptionCount", Integer.valueOf(lastFrame.eventView.optionCount()));
-        m.put("selectPoolCount", Integer.valueOf(lastFrame.selectView.poolCount()));
-        m.put("selectKind", lastFrame.selectView.kind);
-        m.put("rewardItemCount", Integer.valueOf(lastFrame.rewardView.itemCount()));
-        m.put("rewardKind", lastFrame.rewardView.kind);
-        m.put("restOptionCount", Integer.valueOf(lastFrame.restView.optionCount()));
-        m.put("treasureAvailable", Boolean.valueOf(lastFrame.treasureView.available));
-        m.put("shopEntryCount", Integer.valueOf(lastFrame.shopView.entryCount()));
-        m.put("topPanelAvailable", Boolean.valueOf(lastFrame.topPanelView.available));
-        m.put("intentCount", Integer.valueOf(lastFrame.intentsView.entryCount()));
-        m.put("viewportWidth", Integer.valueOf(lastFrame.viewport.logicalWidth));
-        m.put("viewportHeight", Integer.valueOf(lastFrame.viewport.logicalHeight));
+        ContextFrame frame = snapshot().frame;
+        m.put("endTurnEnabled", Boolean.valueOf(frame.controlsView.endTurnEnabled));
+        m.put("mapNodeCount", Integer.valueOf(frame.mapView.nodeCount()));
+        m.put("eventOptionCount", Integer.valueOf(frame.eventView.optionCount()));
+        m.put("selectPoolCount", Integer.valueOf(frame.selectView.poolCount()));
+        m.put("selectKind", frame.selectView.kind);
+        m.put("rewardItemCount", Integer.valueOf(frame.rewardView.itemCount()));
+        m.put("rewardKind", frame.rewardView.kind);
+        m.put("restOptionCount", Integer.valueOf(frame.restView.optionCount()));
+        m.put("treasureAvailable", Boolean.valueOf(frame.treasureView.available));
+        m.put("shopEntryCount", Integer.valueOf(frame.shopView.entryCount()));
+        m.put("topPanelAvailable", Boolean.valueOf(frame.topPanelView.available));
+        m.put("intentCount", Integer.valueOf(frame.intentsView.entryCount()));
+        m.put("viewportWidth", Integer.valueOf(frame.viewport.logicalWidth));
+        m.put("viewportHeight", Integer.valueOf(frame.viewport.logicalHeight));
         return m;
     }
 }

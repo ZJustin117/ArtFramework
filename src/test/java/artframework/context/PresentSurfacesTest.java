@@ -85,7 +85,7 @@ public class PresentSurfacesTest {
         hand.mount();
         hand.probeSlice();
 
-        EntityId entity = PresentSurfaces.world().entities().get(0);
+        EntityId entity = PresentSurfaces.world().query(SurfaceIdentityComponent.class).get(0);
         assertEquals(SurfaceIds.COMBAT_HAND,
                 PresentSurfaces.world().get(entity, SurfaceIdentityComponent.class).id);
         assertTrue(PresentSurfaces.world().get(entity, SurfaceLifecycleComponent.class).mounted);
@@ -94,6 +94,39 @@ public class PresentSurfacesTest {
 
         hand.unmount();
         assertFalse(PresentSurfaces.world().contains(entity));
+    }
+
+    @Test
+    public void mountedFacadeStateIsDerivedFromSurfaceLifecycleComponent() {
+        UiComponent hand = ArtFramework.component(SurfaceIds.COMBAT_HAND);
+        hand.mount();
+        EntityId entity = PresentSurfaces.world().query(SurfaceIdentityComponent.class).get(0);
+
+        PresentSurfaces.world().put(entity, SurfaceLifecycleComponent.class,
+                new SurfaceLifecycleComponent(false));
+
+        assertFalse(hand.isMounted());
+    }
+
+    @Test
+    public void surfaceIntentAndResultAreStoredAsEcsData() {
+        UiComponent hand = ArtFramework.component(SurfaceIds.COMBAT_HAND);
+        hand.mount();
+        ArtFramework.publishFrame(ContextFrame.of(1L, "combat", Arrays.asList(
+                CardView.builder(new CardRef("card", "Strike_R")).build())));
+        ArtFramework.connect(ContextSignals.action(SurfaceIds.COMBAT_HAND, IntentNames.BEGIN_DRAG),
+                signal -> artframework.core.SignalDecision.stopRejected("blocked: test"));
+
+        UiOpResult result = hand.action("begin_drag", "card");
+        assertEquals(UiOpResult.Status.BLOCKED, result.status);
+        EntityId entity = PresentSurfaces.world().query(SurfaceIdentityComponent.class).get(0);
+        SurfaceActionComponent action = PresentSurfaces.world().get(entity, SurfaceActionComponent.class);
+        SurfaceIntentComponent intent = PresentSurfaces.world().get(entity, SurfaceIntentComponent.class);
+        SurfaceResultComponent outcome = PresentSurfaces.world().get(entity, SurfaceResultComponent.class);
+        assertEquals(IntentNames.BEGIN_DRAG, action.name);
+        assertEquals(IntentNames.BEGIN_DRAG, intent.name);
+        assertEquals(SurfaceIds.COMBAT_HAND, intent.surfaceId);
+        assertEquals(IntentResult.Status.REJECTED, outcome.status);
     }
 
     @Test

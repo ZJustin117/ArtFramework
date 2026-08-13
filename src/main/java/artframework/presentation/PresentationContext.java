@@ -3,14 +3,30 @@ package artframework.presentation;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /** One keyed presentation scope; all mutable node state belongs to its world. */
 public final class PresentationContext implements AutoCloseable {
     private final PresentationWorld world;
+    private final boolean ownsWorld;
     private final Map<PresentationKey, EntityId> entities = new LinkedHashMap<PresentationKey, EntityId>();
 
-    public PresentationContext(String scope) { world = new PresentationWorld(scope); }
+    public PresentationContext(String scope) {
+        this(new PresentationWorld(scope), true);
+    }
+
+    PresentationContext(String scope, PresentationWorld world) {
+        this(world, false);
+    }
+
+    private PresentationContext(PresentationWorld world, boolean ownsWorld) {
+        if (world == null) throw new IllegalArgumentException("world required");
+        this.world = world;
+        this.ownsWorld = ownsWorld;
+    }
     public PresentationWorld world() { return world; }
 
     public EntityId create(PresentationKey key, String name, String type, String source) {
@@ -33,6 +49,15 @@ public final class PresentationContext implements AutoCloseable {
         }
         return entity;
     }
+
+    /** Entity IDs owned by this named context, in creation order. */
+    public List<EntityId> entities() {
+        List<EntityId> result = new ArrayList<EntityId>();
+        for (EntityId entity : entities.values()) {
+            if (world.contains(entity)) result.add(entity);
+        }
+        return Collections.unmodifiableList(result);
+    }
     public PresentationKey key(EntityId entity) {
         NodeIdentityComponent identity = world.get(entity, NodeIdentityComponent.class);
         return identity.key;
@@ -44,5 +69,11 @@ public final class PresentationContext implements AutoCloseable {
         return world.destroyEntity(entity);
     }
 
-    @Override public void close() { entities.clear(); world.close(); }
+    @Override public void close() {
+        for (EntityId entity : new ArrayList<EntityId>(entities.values())) {
+            if (world.contains(entity)) world.destroyEntity(entity);
+        }
+        entities.clear();
+        if (ownsWorld) world.close();
+    }
 }

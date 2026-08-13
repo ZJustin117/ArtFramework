@@ -7,6 +7,7 @@ import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.presentation.NodeTree;
+import artframework.presentation.NodeStateComponent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -163,6 +164,27 @@ public class AnimationPlayerTest {
         assertEquals(1, finished.get());
         assertFalse(player.isPlaying());
         assertEquals(NodeStateMachine.STATE_IDLE, player.state());
+    }
+
+    @Test
+    public void playbackStateIsStoredOnTheAnimationEntity() {
+        NodeTree tree = NodeTree.mount("tree:win", rootWithPlayer(animOnce()), null);
+        AnimationPlayer player = AnimationPlayers.get("win", "motion");
+        player.play("enter");
+        AnimationPlaybackComponent started = tree.world().get(
+                tree.get("motion").entityId(), AnimationPlaybackComponent.class);
+        assertEquals("enter", started.playing);
+        assertTrue(started.active);
+        assertFalse(started.paused);
+        tree.tick(0.1f);
+        AnimationPlaybackComponent advanced = tree.world().get(
+                tree.get("motion").entityId(), AnimationPlaybackComponent.class);
+        assertEquals(0.1f, advanced.elapsed, 0.001f);
+        player.pause();
+        assertTrue(tree.world().get(tree.get("motion").entityId(),
+                AnimationPlaybackComponent.class).paused);
+        assertEquals(NodeStateMachine.STATE_PAUSED, tree.world().get(
+                tree.get("motion").entityId(), NodeStateComponent.class).value);
     }
 
     private static UiNode rootWithPlayer(Map<String, Object> anim) {

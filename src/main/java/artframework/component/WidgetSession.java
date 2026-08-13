@@ -14,10 +14,6 @@ public final class WidgetSession {
     private final String windowId;
     private final UiNode root;
     private final NodeIndex index;
-    private final Map<String, Float> sliderValues = new LinkedHashMap<String, Float>();
-    private final Map<String, String> textValues = new LinkedHashMap<String, String>();
-    private final Map<String, Boolean> checkboxValues = new LinkedHashMap<String, Boolean>();
-    private final Map<String, Float> progressValues = new LinkedHashMap<String, Float>();
 
     public WidgetSession(String windowId, UiNode root) {
         if (windowId == null || windowId.isEmpty()) {
@@ -29,30 +25,6 @@ public final class WidgetSession {
         this.windowId = windowId;
         this.root = root;
         this.index = NodeIndex.of(root);
-        seedControls(root);
-    }
-
-    private void seedControls(UiNode node) {
-        if (!node.id.isEmpty()) {
-            if (UiTypes.SLIDER.equals(node.type)) {
-                float min = node.propFloat("min", 0f);
-                float max = node.propFloat("max", 1f);
-                float value = node.propFloat("value", min);
-                sliderValues.put(node.id, Float.valueOf(clamp(value, min, max)));
-            } else if (UiTypes.TEXTFIELD.equals(node.type)) {
-                textValues.put(node.id, node.propString("text", ""));
-            } else if (UiTypes.CHECKBOX.equals(node.type)) {
-                checkboxValues.put(node.id, Boolean.valueOf(node.propBool("checked", false)));
-            } else if (UiTypes.PROGRESS.equals(node.type)) {
-                float min = node.propFloat("min", 0f);
-                float max = node.propFloat("max", 1f);
-                float value = node.propFloat("value", node.propFloat("progress", min));
-                progressValues.put(node.id, Float.valueOf(clamp(value, min, max)));
-            }
-        }
-        for (UiNode c : node.children) {
-            seedControls(c);
-        }
     }
 
     public String windowId() {
@@ -81,69 +53,55 @@ public final class WidgetSession {
     }
 
     public float getSlider(String sliderId) {
-        Float v = sliderValues.get(sliderId);
-        if (v == null) {
+        UiNode node = requireType(sliderId, UiTypes.SLIDER);
+        Object value = value(sliderId, Float.valueOf(node.propFloat("value", node.propFloat("min", 0f))));
+        if (!(value instanceof Number)) {
             throw new IllegalArgumentException("not a slider: " + sliderId);
         }
-        return v.floatValue();
+        return ((Number) value).floatValue();
     }
 
     public boolean hasSlider(String sliderId) {
-        return sliderValues.containsKey(sliderId);
+        return hasType(sliderId, UiTypes.SLIDER);
     }
 
     public float setSlider(String sliderId, float value) {
-        UiNode n = index.get(sliderId);
-        if (n == null || !UiTypes.SLIDER.equals(n.type)) {
-            throw new IllegalArgumentException("not a slider: " + sliderId);
-        }
+        UiNode n = requireType(sliderId, UiTypes.SLIDER);
         float min = n.propFloat("min", 0f);
         float max = n.propFloat("max", 1f);
         float clamped = clamp(value, min, max);
-        sliderValues.put(sliderId, Float.valueOf(clamped));
+        putValue(sliderId, Float.valueOf(clamped));
         return clamped;
     }
 
     public boolean hasTextField(String id) {
-        return textValues.containsKey(id);
+        return hasType(id, UiTypes.TEXTFIELD);
     }
 
     public String getText(String id) {
-        String v = textValues.get(id);
-        if (v == null) {
-            throw new IllegalArgumentException("not a textfield: " + id);
-        }
-        return v;
+        UiNode node = requireType(id, UiTypes.TEXTFIELD);
+        return String.valueOf(value(id, node.propString("text", "")));
     }
 
     public String setText(String id, String text) {
-        UiNode n = index.get(id);
-        if (n == null || !UiTypes.TEXTFIELD.equals(n.type)) {
-            throw new IllegalArgumentException("not a textfield: " + id);
-        }
+        requireType(id, UiTypes.TEXTFIELD);
         String t = text != null ? text : "";
-        textValues.put(id, t);
+        putValue(id, t);
         return t;
     }
 
     public boolean hasCheckbox(String id) {
-        return checkboxValues.containsKey(id);
+        return hasType(id, UiTypes.CHECKBOX);
     }
 
     public boolean getChecked(String id) {
-        Boolean v = checkboxValues.get(id);
-        if (v == null) {
-            throw new IllegalArgumentException("not a checkbox: " + id);
-        }
-        return v.booleanValue();
+        UiNode node = requireType(id, UiTypes.CHECKBOX);
+        return Boolean.TRUE.equals(value(id, Boolean.valueOf(node.propBool("checked", false))));
     }
 
     public boolean setChecked(String id, boolean checked) {
-        UiNode n = index.get(id);
-        if (n == null || !UiTypes.CHECKBOX.equals(n.type)) {
-            throw new IllegalArgumentException("not a checkbox: " + id);
-        }
-        checkboxValues.put(id, Boolean.valueOf(checked));
+        requireType(id, UiTypes.CHECKBOX);
+        putValue(id, Boolean.valueOf(checked));
         return checked;
     }
 
@@ -152,31 +110,26 @@ public final class WidgetSession {
     }
 
     public boolean hasProgress(String id) {
-        return progressValues.containsKey(id);
+        return hasType(id, UiTypes.PROGRESS);
     }
 
     public float getProgress(String id) {
-        Float v = progressValues.get(id);
-        if (v == null) {
-            throw new IllegalArgumentException("not a progress: " + id);
-        }
-        return v.floatValue();
+        UiNode node = requireType(id, UiTypes.PROGRESS);
+        Object current = value(id, Float.valueOf(node.propFloat("value", node.propFloat("progress", 0f))));
+        return current instanceof Number ? ((Number) current).floatValue() : 0f;
     }
 
     public float setProgress(String id, float value) {
-        UiNode n = index.get(id);
-        if (n == null || !UiTypes.PROGRESS.equals(n.type)) {
-            throw new IllegalArgumentException("not a progress: " + id);
-        }
+        UiNode n = requireType(id, UiTypes.PROGRESS);
         float min = n.propFloat("min", 0f);
         float max = n.propFloat("max", 1f);
         float clamped = clamp(value, min, max);
-        progressValues.put(id, Float.valueOf(clamped));
+        putValue(id, Float.valueOf(clamped));
         return clamped;
     }
 
     public List<String> sliderIds() {
-        return Collections.unmodifiableList(new ArrayList<String>(sliderValues.keySet()));
+        return index.idsOfType(UiTypes.SLIDER);
     }
 
     public List<String> buttonIds() {
@@ -200,15 +153,15 @@ public final class WidgetSession {
     }
 
     public List<String> textFieldIds() {
-        return Collections.unmodifiableList(new ArrayList<String>(textValues.keySet()));
+        return index.idsOfType(UiTypes.TEXTFIELD);
     }
 
     public List<String> checkboxIds() {
-        return Collections.unmodifiableList(new ArrayList<String>(checkboxValues.keySet()));
+        return index.idsOfType(UiTypes.CHECKBOX);
     }
 
     public List<String> progressIds() {
-        return Collections.unmodifiableList(new ArrayList<String>(progressValues.keySet()));
+        return index.idsOfType(UiTypes.PROGRESS);
     }
 
     public Map<String, Object> probeControls() {
@@ -220,23 +173,23 @@ public final class WidgetSession {
         out.put("checkboxIds", checkboxIds());
         out.put("progressIds", progressIds());
         Map<String, Object> sliders = new LinkedHashMap<String, Object>();
-        for (Map.Entry<String, Float> e : sliderValues.entrySet()) {
-            sliders.put(e.getKey(), e.getValue());
+        for (String id : sliderIds()) {
+            sliders.put(id, Float.valueOf(getSlider(id)));
         }
         out.put("sliders", sliders);
         Map<String, Object> texts = new LinkedHashMap<String, Object>();
-        for (Map.Entry<String, String> e : textValues.entrySet()) {
-            texts.put(e.getKey(), e.getValue());
+        for (String id : textFieldIds()) {
+            texts.put(id, getText(id));
         }
         out.put("texts", texts);
         Map<String, Object> checks = new LinkedHashMap<String, Object>();
-        for (Map.Entry<String, Boolean> e : checkboxValues.entrySet()) {
-            checks.put(e.getKey(), e.getValue());
+        for (String id : checkboxIds()) {
+            checks.put(id, Boolean.valueOf(getChecked(id)));
         }
         out.put("checkboxes", checks);
         Map<String, Object> progress = new LinkedHashMap<String, Object>();
-        for (Map.Entry<String, Float> e : progressValues.entrySet()) {
-            progress.put(e.getKey(), e.getValue());
+        for (String id : progressIds()) {
+            progress.put(id, Float.valueOf(getProgress(id)));
         }
         out.put("progress", progress);
         List<String> effectHosts = new ArrayList<String>();
@@ -267,5 +220,31 @@ public final class WidgetSession {
             return max;
         }
         return v;
+    }
+
+    private UiNode requireType(String id, String type) {
+        UiNode node = index.get(id);
+        if (node == null || !type.equals(node.type)) {
+            throw new IllegalArgumentException("not a " + type + ": " + id);
+        }
+        return node;
+    }
+
+    private Object value(String id, Object fallback) {
+        artframework.presentation.NodeTree tree = artframework.api.ArtFramework.tree(windowId);
+        artframework.presentation.Node node = tree != null ? tree.get(id) : null;
+        if (node == null) return fallback;
+        artframework.presentation.ControlValueComponent component = tree.world().get(
+                node.entityId(), artframework.presentation.ControlValueComponent.class);
+        return component != null ? component.value : fallback;
+    }
+
+    private void putValue(String id, Object value) {
+        artframework.presentation.NodeTree tree = artframework.api.ArtFramework.tree(windowId);
+        artframework.presentation.Node node = tree != null ? tree.get(id) : null;
+        if (node != null) {
+            tree.world().put(node.entityId(), artframework.presentation.ControlValueComponent.class,
+                    new artframework.presentation.ControlValueComponent(value));
+        }
     }
 }

@@ -52,13 +52,7 @@ public final class NativeComponents {
     public static List<Map<String, Object>> probeAll() {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
         for (UiComponent c : BY_ID.values()) {
-            Map<String, Object> slice = c.probeSlice();
-            artframework.api.UiOpResult last = artframework.api.ArtFramework.ops().lastResult(c.id());
-            if (last != null) {
-                slice.put("lastResult", last.status.name());
-                slice.put("lastMessage", last.message);
-            }
-            out.add(slice);
+            out.add(c.probeSlice());
         }
         return out;
     }
@@ -76,46 +70,18 @@ public final class NativeComponents {
 
     public static void resetForTests() {
         HUB.clear();
-        for (UiComponent c : BY_ID.values()) {
-            if (c.isMounted()) {
-                c.unmount();
-            }
-        }
+    }
+
+    static void clearSignals(String id) {
+        HUB.clearInstance(NativeTemplateIds.canonicalize(id));
     }
 
     public static void syncMountFromRuntime() {
-        for (UiComponent c : BY_ID.values()) {
-            boolean should = isTemplateActive(c.id());
-            if (should && !c.isMounted()) {
-                c.mount();
-            } else if (!should && c.isMounted()) {
-                c.unmount();
-            }
-        }
-    }
-
-    private static boolean isTemplateActive(String id) {
-        if (NativeTemplateIds.MAP.equals(id)) {
-            return NativeTemplateRuntime.isMapBound();
-        }
-        if (NativeTemplateIds.EVENT.equals(id)) {
-            return NativeTemplateRuntime.isEventBound();
-        }
-        if (NativeTemplateIds.SELECT_GRID.equals(id)) {
-            return NativeTemplateRuntime.isSelectGridBound();
-        }
-        if (NativeTemplateIds.SELECT_HAND.equals(id)) {
-            return NativeTemplateRuntime.isSelectHandBound();
-        }
-        if (NativeTemplateIds.END_TURN.equals(id)) {
-            return NativeTemplateRuntime.isEndTurnBound();
-        }
-        return false;
+        // Native template bind state is already represented by NativeTemplateStateComponent.
     }
 
     abstract static class BaseNative implements UiComponent {
         private final String id;
-        private boolean mounted;
 
         BaseNative(String id) {
             this.id = id;
@@ -133,17 +99,16 @@ public final class NativeComponents {
 
         @Override
         public boolean isMounted() {
-            return mounted;
+            return NativeTemplateRuntime.isBound(id);
         }
 
         @Override
         public void mount() {
-            mounted = true;
+            // Binding is owned by NativeTemplateRuntime and reflected in ECS state.
         }
 
         @Override
         public void unmount() {
-            mounted = false;
             HUB.clearInstance(id);
         }
 
@@ -190,7 +155,7 @@ public final class NativeComponents {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("id", id);
             m.put("kind", kind().name());
-            m.put("mounted", Boolean.valueOf(mounted));
+            m.put("mounted", Boolean.valueOf(isMounted()));
             m.put("bound", Boolean.valueOf(bound));
             return m;
         }
@@ -238,7 +203,7 @@ public final class NativeComponents {
             Map<String, Object> m = baseProbe(NativeTemplateRuntime.isMapBound());
             addContract(m, "click_node", SignalNames.NODE_CLICKED);
             if (NativeTemplateRuntime.isMapBound()) {
-                m.put("pinCount", Integer.valueOf(NativeTemplateRuntime.map().listPins().size()));
+                m.put("pinCount", Integer.valueOf(NativeTemplateRuntime.mapPins().size()));
             }
             return m;
         }
@@ -332,7 +297,7 @@ public final class NativeComponents {
             Map<String, Object> m = baseProbe(NativeTemplateRuntime.isEndTurnBound());
             addContract(m, "press", SignalNames.PRESSED);
             if (NativeTemplateRuntime.isEndTurnBound()) {
-                m.put("buttonEnabled", Boolean.valueOf(NativeTemplateRuntime.endTurn().isButtonEnabled()));
+                m.put("buttonEnabled", Boolean.valueOf(NativeTemplateRuntime.isEndTurnEnabled()));
             }
             return m;
         }

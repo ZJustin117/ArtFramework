@@ -1,14 +1,17 @@
 package artframework.api;
 
-import artframework.c1.layout.LayoutNode;
 import artframework.c2.MapPin;
 import artframework.c2.NativeTemplateRuntime;
-import artframework.component.WidgetSession;
-import artframework.component.WidgetSessions;
 import artframework.c2.NativeComponents;
 import artframework.core.Themes;
 import artframework.core.HostBackend;
 import artframework.render.RenderHosts;
+import artframework.ecs.EntityId;
+import artframework.presentation.ControlValueComponent;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.presentation.NodePropertiesComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRegistry;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -146,34 +149,27 @@ public final class UiProbe {
             }
             Map<String, Object> one = new LinkedHashMap<String, Object>();
             one.put("windowClass", h.windowClass().name());
-            LayoutNode root = ArtFramework.layoutRoot(id);
-            if (root != null) {
-                one.put("title", root.title);
-                List<String> buttons = new ArrayList<String>();
-                collectButtons(root, buttons);
-                one.put("buttonIds", buttons);
-            }
-            WidgetSession session = WidgetSessions.get(id);
-            if (session != null) {
-                Map<String, Object> controls = session.probeControls();
+            PresentationContext context = PresentationRegistry.existingContext("tree:" + id);
+            if (context != null) {
+                Map<String, Object> controls = controls(context);
                 one.put("controls", controls);
-                @SuppressWarnings("unchecked")
-                List<String> fromSession = (List<String>) controls.get("buttonIds");
-                if (fromSession != null && !fromSession.isEmpty()) {
-                    one.put("buttonIds", fromSession);
-                }
-                if (session.root() != null) {
-                    String title = session.root().propString("title", null);
-                    if (title != null && !title.isEmpty()) {
-                        one.put("title", title);
+                one.put("buttonIds", controls.get("buttonIds"));
+                for (EntityId entity : context.entities()) {
+                    NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+                    NodePropertiesComponent properties = context.world().get(
+                            entity, NodePropertiesComponent.class);
+                    if (identity != null && properties != null && "window".equals(identity.type)) {
+                        Object title = properties.get("title");
+                        if (title != null && !String.valueOf(title).isEmpty()) {
+                            one.put("title", String.valueOf(title));
+                        }
+                        break;
                     }
                 }
-            }
-            artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(id);
-            if (tree != null) {
-                one.put("presentationEntities", Integer.valueOf(tree.context().world().entities().size()));
-                one.put("theme", tree.theme().probeSummary());
-                one.put("present", tree.resolvePresent().probeSummary());
+                one.put("presentationEntities", Integer.valueOf(context.entities().size()));
+                artframework.core.PresentResolved present = present(context);
+                one.put("theme", present.theme.probeSummary());
+                one.put("present", present.probeSummary());
             }
             byId.put(id, one);
         }
@@ -181,16 +177,75 @@ public final class UiProbe {
         return w;
     }
 
-    private static void collectButtons(LayoutNode node, List<String> out) {
-        if (node == null) {
-            return;
+    private static Map<String, Object> controls(PresentationContext context) {
+        List<String> buttons = new ArrayList<String>();
+        List<String> sliders = new ArrayList<String>();
+        List<String> hitAreas = new ArrayList<String>();
+        List<String> textFields = new ArrayList<String>();
+        List<String> checkboxes = new ArrayList<String>();
+        List<String> progress = new ArrayList<String>();
+        Map<String, Object> values = new LinkedHashMap<String, Object>();
+        Map<String, Object> sliderValues = new LinkedHashMap<String, Object>();
+        Map<String, Object> textValues = new LinkedHashMap<String, Object>();
+        Map<String, Object> checkboxValues = new LinkedHashMap<String, Object>();
+        Map<String, Object> progressValues = new LinkedHashMap<String, Object>();
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity == null) continue;
+            String type = identity.type;
+            String name = identity.name;
+            if (artframework.component.UiTypes.BUTTON.equals(type)) buttons.add(name);
+            if (artframework.component.UiTypes.HITAREA.equals(type)) hitAreas.add(name);
+            if (artframework.component.UiTypes.SLIDER.equals(type)) sliders.add(name);
+            if (artframework.component.UiTypes.TEXTFIELD.equals(type)) textFields.add(name);
+            if (artframework.component.UiTypes.CHECKBOX.equals(type)) checkboxes.add(name);
+            if (artframework.component.UiTypes.PROGRESS.equals(type)) progress.add(name);
+            ControlValueComponent value = context.world().get(entity, ControlValueComponent.class);
+            if (value == null) continue;
+            values.put(name, value.value);
+            if (artframework.component.UiTypes.SLIDER.equals(type)) sliderValues.put(name, value.value);
+            if (artframework.component.UiTypes.TEXTFIELD.equals(type)) textValues.put(name, value.value);
+            if (artframework.component.UiTypes.CHECKBOX.equals(type)) checkboxValues.put(name, value.value);
+            if (artframework.component.UiTypes.PROGRESS.equals(type)) progressValues.put(name, value.value);
         }
-        if (node.type == LayoutNode.Type.BUTTON && node.id != null && !node.id.isEmpty()) {
-            out.add(node.id);
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        out.put("buttonIds", buttons);
+        out.put("sliderIds", sliders);
+        out.put("hitAreaIds", hitAreas);
+        out.put("textFieldIds", textFields);
+        out.put("checkboxIds", checkboxes);
+        out.put("progressIds", progress);
+        out.put("values", values);
+        out.put("sliders", sliderValues);
+        out.put("texts", textValues);
+        out.put("checkboxes", checkboxValues);
+        out.put("progress", progressValues);
+        return out;
+    }
+
+    /** Resolve root declaration profile data directly from the ECS context. */
+    private static artframework.core.PresentResolved present(PresentationContext context) {
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            NodePropertiesComponent properties = context.world().get(entity, NodePropertiesComponent.class);
+            if (identity == null || properties == null || !"window".equals(identity.type)) continue;
+            Object profileId = properties.get("present_profile");
+            if (profileId == null) profileId = properties.get("presentProfile");
+            if (profileId != null) {
+                artframework.core.PresentProfile profile = artframework.core.PresentProfiles.get(
+                        String.valueOf(profileId));
+                if (profile != null) return new artframework.core.PresentResolved(
+                        profile.id, profile.theme, profile.chrome, profile.packId, false);
+            }
+            Object themeName = properties.get("theme");
+            if (themeName != null) {
+                artframework.core.Theme theme = Themes.get(String.valueOf(themeName));
+                if (theme != null) return new artframework.core.PresentResolved(
+                        theme.name(), theme, artframework.core.PresentChromeStyle.fromTheme(theme), "", false);
+            }
+            break;
         }
-        for (LayoutNode c : node.children) {
-            collectButtons(c, out);
-        }
+        return artframework.core.ProjectPresent.resolved();
     }
 
     private static Map<String, Object> templatesMap() {
@@ -207,7 +262,7 @@ public final class UiProbe {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         List<Map<String, Object>> pins = new ArrayList<Map<String, Object>>();
         if (NativeTemplateRuntime.isMapBound()) {
-            for (MapPin pin : NativeTemplateRuntime.map().listPins()) {
+            for (MapPin pin : NativeTemplateRuntime.mapPins()) {
                 Map<String, Object> p = new LinkedHashMap<String, Object>();
                 p.put("pinId", pin.pinId);
                 p.put("nodeId", pin.node.row + "_" + pin.node.col);
@@ -223,7 +278,7 @@ public final class UiProbe {
         Map<String, Object> e = new LinkedHashMap<String, Object>();
         boolean enabled = true;
         if (NativeTemplateRuntime.isEndTurnBound()) {
-            enabled = NativeTemplateRuntime.endTurn().isButtonEnabled();
+            enabled = NativeTemplateRuntime.isEndTurnEnabled();
         }
         e.put("buttonEnabled", Boolean.valueOf(enabled));
         return e;
@@ -231,15 +286,10 @@ public final class UiProbe {
 
     private static Map<String, Object> entitiesMap() {
         Map<String, Object> e = new LinkedHashMap<String, Object>();
-        artframework.c2.EntityPresent present = NativeTemplateRuntime.entities();
-        List<String> ids = present.listSlotIds();
-        e.put("slotCount", Integer.valueOf(ids.size()));
+        List<artframework.c2.EntitySlot> entitySlots = artframework.c2.EntityPresentViews.list();
+        e.put("slotCount", Integer.valueOf(entitySlots.size()));
         List<Map<String, Object>> slots = new ArrayList<Map<String, Object>>();
-        for (String id : ids) {
-            artframework.c2.EntitySlot slot = present.get(id);
-            if (slot == null) {
-                continue;
-            }
+        for (artframework.c2.EntitySlot slot : entitySlots) {
             Map<String, Object> row = new LinkedHashMap<String, Object>();
             row.put("slotId", slot.slotId);
             row.put("kind", slot.kind.name());

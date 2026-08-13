@@ -36,7 +36,6 @@ public final class PresentSurfaces {
     private static final SignalHub HUB = new SignalHub();
     private static final PresentationContext CONTEXT = PresentationRegistry.context("c2-surfaces");
     private static final PresentationWorld WORLD = CONTEXT.world();
-    private static final Map<String, EntityId> ENTITY_IDS = new LinkedHashMap<String, EntityId>();
 
     static {
         register(new HandSurface());
@@ -102,11 +101,9 @@ public final class PresentSurfaces {
 
     public static void resetForTests() {
         HUB.clear();
-        for (EntityId entity : new ArrayList<EntityId>(ENTITY_IDS.values())) CONTEXT.destroy(entity);
-        ENTITY_IDS.clear();
-        for (UiComponent c : BY_ID.values()) {
-            if (c.isMounted()) {
-                c.unmount();
+        for (EntityId entity : new ArrayList<EntityId>(CONTEXT.entities())) {
+            if (WORLD.get(entity, SurfaceIdentityComponent.class) != null) {
+                CONTEXT.destroy(entity);
             }
         }
     }
@@ -126,7 +123,6 @@ public final class PresentSurfaces {
     abstract static class BaseSurface implements UiComponent {
         private final String id;
         private final Set<String> signals;
-        private boolean mounted;
 
         BaseSurface(String id, String... signalNames) {
             this.id = id;
@@ -145,20 +141,21 @@ public final class PresentSurfaces {
 
         @Override
         public boolean isMounted() {
-            return mounted;
+            EntityId entity = surfaceEntity();
+            if (entity == null) return false;
+            SurfaceLifecycleComponent lifecycle = WORLD.get(entity, SurfaceLifecycleComponent.class);
+            return lifecycle != null && lifecycle.mounted;
         }
 
         @Override
         public void mount() {
-            mounted = true;
-            syncComponents();
+            syncComponents(true);
         }
 
         @Override
         public void unmount() {
-            mounted = false;
-            EntityId entity = ENTITY_IDS.remove(id);
-            if (entity != null) WORLD.destroyEntity(entity);
+            EntityId entity = surfaceEntity();
+            if (entity != null) CONTEXT.destroy(entity);
             HUB.clearInstance(id);
             if (SurfaceIds.COMBAT_HAND.equals(id)) {
                 PresentProjections.get().clearDrag();
@@ -194,7 +191,7 @@ public final class PresentSurfaces {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("id", id);
             m.put("kind", kind().name());
-            m.put("mounted", Boolean.valueOf(mounted));
+            m.put("mounted", Boolean.valueOf(isMounted()));
             artframework.sts1.PresentLevel level = artframework.sts1.FullPresentMode.levelOf(id);
             m.put("presentLevel", level.name());
             m.put("fullPresent", Boolean.valueOf(level.allowsFullPresent()));
@@ -207,18 +204,14 @@ public final class PresentSurfaces {
         }
 
         private void syncComponents() {
-            EntityId entity = ENTITY_IDS.get(id);
-            if (entity != null && !WORLD.contains(entity)) {
-                ENTITY_IDS.remove(id);
-                entity = null;
-            }
+            syncComponents(isMounted());
+        }
+
+        private void syncComponents(boolean mounted) {
+            EntityId entity = surfaceEntity();
             if (entity == null) {
                 PresentationKey key = new PresentationKey("sts1.surface", id);
-                entity = CONTEXT.entity(key);
-                if (entity == null) {
-                    entity = CONTEXT.create(key, id, "surface", "c2");
-                }
-                ENTITY_IDS.put(id, entity);
+                entity = CONTEXT.create(key, id, "surface", "c2");
                 WORLD.put(entity, SurfaceIdentityComponent.class,
                         new SurfaceIdentityComponent(id, kind()));
             }
@@ -238,22 +231,46 @@ public final class PresentSurfaces {
                             level.allowsFullPresent()));
         }
 
+        private EntityId surfaceEntity() {
+            return CONTEXT.entity(new PresentationKey("sts1.surface", id));
+        }
+
         protected IntentResult submit(String intentName, Object... args) {
+            EntityId entity = surfaceEntity();
+            if (entity != null) {
+                WORLD.put(entity, SurfaceActionComponent.class,
+                        new SurfaceActionComponent(intentName));
+                WORLD.put(entity, SurfaceIntentComponent.class,
+                        new SurfaceIntentComponent(intentName, id));
+                WORLD.put(entity, BusinessConfirmationComponent.class,
+                        new BusinessConfirmationComponent(intentName,
+                                BusinessConfirmationComponent.domain(id, intentName),
+                                BusinessConfirmationComponent.State.PENDING,
+                                -1L, -1L, -1L, -1L, "awaiting authority snapshot"));
+            }
             artframework.core.SignalDispatchResult result = artframework.core.SignalBuses.get().emit(
                     new artframework.core.UiSignal(
                             ContextSignals.action(id, intentName), id,
                             UiIntent.of(intentName, id, args)));
             if (result == null) {
-                return IntentResult.rejected("no result");
+                return recordResult(entity, IntentResult.rejected("no result"));
             }
             if (result.isRejected()) {
-                return IntentResult.rejected(result.message);
+                return recordResult(entity, IntentResult.rejected(result.message));
             }
             // Host executors often queue STS gestures; preserve that as success for UiOps.
             if (result.message != null && result.message.startsWith("queued:")) {
-                return IntentResult.queued(result.message);
+                return recordResult(entity, IntentResult.queued(result.message));
             }
-            return IntentResult.accepted(result.message != null ? result.message : "");
+            return recordResult(entity, IntentResult.accepted(result.message != null ? result.message : ""));
+        }
+
+        private IntentResult recordResult(EntityId entity, IntentResult result) {
+            if (entity != null) {
+                WORLD.put(entity, SurfaceResultComponent.class,
+                        new SurfaceResultComponent(result.status, result.message));
+            }
+            return result;
         }
 
         protected static UiOpResult toOp(IntentResult r) {

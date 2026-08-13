@@ -10,7 +10,12 @@ import artframework.context.FakeSignalBackend;
 import artframework.context.IntentNames;
 import artframework.context.IntentResult;
 import artframework.context.MapView;
+import artframework.context.NativeInputComponent;
+import artframework.context.NativeInterceptComponent;
+import artframework.context.NativeIntentLifecycleComponent;
+import artframework.context.NativeIntentObservationComponent;
 import artframework.context.SurfaceIds;
+import artframework.ecs.EntityId;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import org.junit.After;
@@ -75,6 +80,28 @@ public class CombatInputRouterTest {
     }
 
     @Test
+    public void executorResultIsStoredOnItsSurfaceInputEntity() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        mountHand(backend);
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+
+        assertTrue(CombatInputRouter.executeIfOwned(artframework.context.UiIntent.of(
+                IntentNames.BEGIN_DRAG, SurfaceIds.COMBAT_HAND, "h1")).isAccepted());
+
+        EntityId entity = artframework.presentation.PresentationRegistry.context("sts1-input")
+                .entity(new artframework.presentation.PresentationKey("sts1.input", SurfaceIds.COMBAT_HAND));
+        NativeInterceptComponent intercept = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeInterceptComponent.class);
+        NativeIntentLifecycleComponent lifecycle = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeIntentLifecycleComponent.class);
+        assertTrue(intercept.processed);
+        assertEquals("executed", intercept.reason);
+        assertEquals(IntentNames.BEGIN_DRAG, lifecycle.name);
+        assertEquals(NativeIntentLifecycleComponent.State.EXECUTED, lifecycle.state);
+    }
+
+    @Test
     public void beginDragViaRouterWithFakeBackend() {
         FakeSignalBackend backend = new FakeSignalBackend();
         mountHand(backend);
@@ -105,6 +132,65 @@ public class CombatInputRouterTest {
     }
 
     @Test
+    public void routedInputAndInterceptDecisionAreStoredInEcs() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        mountHand(backend);
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        IntentResult result = CombatInputRouter.beginDrag("missing");
+        assertEquals(IntentResult.Status.REJECTED, result.status);
+        EntityId entity = artframework.presentation.PresentationRegistry.context("sts1-input")
+                .world().query(NativeInputComponent.class).get(0);
+        NativeInputComponent input = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeInputComponent.class);
+        NativeInterceptComponent intercept = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeInterceptComponent.class);
+        NativeIntentLifecycleComponent lifecycle = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeIntentLifecycleComponent.class);
+        assertEquals(IntentNames.BEGIN_DRAG, input.name);
+        assertFalse(intercept.processed);
+        assertEquals("unknown_card", intercept.reason);
+        assertEquals(NativeIntentLifecycleComponent.State.REJECTED, lifecycle.state);
+    }
+
+    @Test
+    public void nextAuthorityFrameIsRecordedAfterNativeIntent() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        mountHand(backend);
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        CombatInputRouter.beginDrag("h1");
+        ArtFramework.publishFrame(ContextFrame.of(2L, 1L, "combat", null,
+                ControlsView.empty(), MapView.empty(), null));
+
+        EntityId entity = artframework.presentation.PresentationRegistry.context("sts1-input")
+                .entity(new artframework.presentation.PresentationKey("sts1.input", SurfaceIds.COMBAT_HAND));
+        NativeIntentObservationComponent observation = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeIntentObservationComponent.class);
+        NativeIntentLifecycleComponent lifecycle = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeIntentLifecycleComponent.class);
+        assertEquals(2L, observation.frameId);
+        assertEquals("combat", observation.scene);
+        assertEquals(NativeIntentLifecycleComponent.State.CONFIRMED, lifecycle.state);
+    }
+
+    @Test
+    public void unavailableAuthorityFrameFailsExecutedIntent() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        mountHand(backend);
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        CombatInputRouter.beginDrag("h1");
+        ArtFramework.publishFrame(ContextFrame.unavailable(2L));
+
+        EntityId entity = artframework.presentation.PresentationRegistry.context("sts1-input")
+                .entity(new artframework.presentation.PresentationKey("sts1.input", SurfaceIds.COMBAT_HAND));
+        NativeIntentLifecycleComponent lifecycle = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeIntentLifecycleComponent.class);
+        assertEquals(NativeIntentLifecycleComponent.State.FAILED, lifecycle.state);
+    }
+
+    @Test
     public void suppressNativeInputRequiresFullMountCombat() {
         FakeSignalBackend backend = new FakeSignalBackend();
         mountHand(backend);
@@ -126,6 +212,24 @@ public class CombatInputRouterTest {
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         IntentResult on = CombatInputRouter.pressEndTurn();
         assertTrue(on.isAccepted());
+    }
+
+    @Test
+    public void endTurnInputAndInterceptAreStoredOnControlsEntity() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        mountHand(backend);
+        IntentResult result = CombatInputRouter.pressEndTurn();
+        assertEquals(IntentResult.Status.REJECTED, result.status);
+
+        EntityId entity = artframework.presentation.PresentationRegistry.context("sts1-input")
+                .entity(new artframework.presentation.PresentationKey("sts1.input", SurfaceIds.COMBAT_CONTROLS));
+        NativeInputComponent input = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeInputComponent.class);
+        NativeInterceptComponent intercept = artframework.presentation.PresentationRegistry.world()
+                .get(entity, NativeInterceptComponent.class);
+        assertEquals(IntentNames.PRESS_END_TURN, input.name);
+        assertEquals(SurfaceIds.COMBAT_CONTROLS, input.surfaceId);
+        assertEquals("controls_not_owned", intercept.reason);
     }
 
     @Test

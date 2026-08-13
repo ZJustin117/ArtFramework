@@ -16,6 +16,88 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 
 ## Product roadmap (from dual-track)
 
+### 46. Traditional ECS convergence
+
+Design: [`docs/design/traditional-ecs.md`](design/traditional-ecs.md). Entity IDs only;
+components are data only; systems are stateless and own all ART interaction handling.
+
+- [x] 46.0 Define strict ECS contract; add data-only entity identity, component query, and
+  ordered stateless system pipeline with JUnit
+- [x] 46.1 Registered presentation scopes share one ART world; scope close/reset now destroys only
+  owned entities while preserving the registered context identity
+- [~] 46.2 Materialize C1 declarations through ECS systems; control current values now live on
+  ECS entities, control normalization runs during tree ticks, WidgetSession retains only immutable
+  declaration/index compatibility data, C1 visual entities include ECS host-binding keys, and
+  UiOps/probe/scene2d widgets/UiActions/FX read ECS values; WindowManager no longer owns a layout
+  root map. C1 target/effect projection now consumes ECS frames only and StageHost reconciles its
+  actor cache from ECS host bindings; NodeTrees lifecycle queries now resolve registered ECS scope
+  data, while signal callback objects remain a disposable compatibility cache
+- [~] 46.3 Materialize STS observations and C2 surfaces through ECS systems; card projections now
+  create/update/destroy shared-world entities and data-only card components, with frame lifecycle
+  metadata, drag interaction metadata, and immutable frame snapshots on a projection root entity;
+  card lookup, listing, counts, and cleanup now resolve through ECS card components, while the
+  CardEntity compatibility view is derived on demand; C2 surface mount state and Entity lookup are
+  now ECS-derived; native template facades no longer retain local active flags and template probe
+  reads use ECS bind/pin/end-turn data
+- [~] 46.4 Route every native input/intercept through ECS input, action, intent, and result data;
+  C2 surface submissions now record data-only action/intent/result components before and after the
+  existing SignalBus compatibility executor, and the STS1 combat router records native input plus
+  intercept decisions per surface ECS entity for hand, controls, and executor paths; native map,
+  event, select, and end-turn hooks now record their unbound, emitted, disabled, and rejected paths
+  through the same model
+- [~] 46.5 Derive all rendering/effects/skeleton host caches from ECS data; animation playback,
+  pulse envelopes, and skeleton identity/snapshot state are ECS authoritative, while RenderHost
+  C1/C2 item target caches are ECS-frame-derived; surface/full-frame and host resource paths now
+  consume ECS render-state components; D1 `d1_full_present_combat_ready` passes
+- [~] 46.6 Derive Probe/API compatibility views from ECS only and remove legacy stores; C1 probe,
+  lifecycle queries, render-state projection, and business confirmation are ECS-derived, while
+  callback/resource caches remain explicit host boundaries
+
+#### 46.x completion checklist
+
+- [x] 46.1.1 One ART World; context-owned entity index; scope close/reset isolation tests
+- [x] 46.2.1 C1 control values and normalization are ECS authoritative
+- [~] 46.2.2 C1 window/node lifecycle, visibility, hierarchy, and host actor bindings are ECS data;
+  StageHost reconciles actor objects through `HostBindingComponent`, while NodeTrees keeps signal and
+  lifecycle callback compatibility ownership
+- [x] 46.3.1 C2 card projection entities and card data components are ECS authoritative
+- [x] 46.3.2 Projection root stores frame lifecycle, interaction, and immutable snapshot data
+- [x] 46.3.3 C2 surface mount state and surface Entity identity are ECS authoritative
+- [x] 46.3.4 Native template state is observed into ECS; bind, native component mounted state,
+  event ID, end-turn enabled state, and map pins are ECS data while adapter callbacks remain host cache
+- [x] 46.3.4a Native template bind/unbind state is stored in `NativeTemplateStateComponent` and
+  runtime bound queries read the shared ECS world
+- [x] 46.4.1 Surface action, intent identity, and immediate result are ECS recorded
+- [x] 46.4.2 Combat router input/intercept records are ECS data per surface
+- [x] 46.4.3 Map, event, select, and end-turn native hook records are ECS data per surface
+- [~] 46.4.4 Intent execution lifecycle records requested/sent/queued/rejected/confirmed in ECS;
+  combat router now records requested/sent/executed/queued/rejected and the next authority-frame
+  observation; business confirmation now records pending/confirmed/failed ECS data from card, map,
+  event, reward, select, and room snapshot evidence
+- [x] 46.4.5 Declarative signal connections/state-machine transitions are ECS data; subscriptions are cache-only,
+  node state is stored in `NodeStateComponent`, and connection/legacy-trigger declarations are immutable
+  `ConnectionDeclarationsComponent` data
+- [x] 46.4.6 Node properties and effect attachments are immutable ECS values; writes replace the
+  corresponding Component through `PresentationWorld`
+- [~] 46.5.1 C1/C2 render plans, effects, and profiles derive from ECS data only; animation
+  playback and pulse state are data-only components, C1 declarations now materialize draw/bounds/
+  visibility/effects into ECS frames, C1 and active C2 item targets rebuild in shared projections,
+  and EffectPulse, animation property effects, and Lightwave intensity replace ECS effect/property
+  components before a C1 frame reprojects the host cache; surface/full-frame host APIs now consume
+  `RenderSurfaceComponent` and `FullFrameRenderComponent`; D1 `d1_full_present_combat_ready` passes
+- [~] 46.5.2 Skeleton animation/pose/binding lifecycle derives from ECS data only; identity,
+  frame, asset, pose, animation, and visual state are ECS components, while native binding lookup
+  remains a provider cache pending D1 draw verification
+- [~] 46.5.3 EntityPresent slot identity, snapshot, and transform state are ECS components;
+  `EntitySlot` is an on-demand immutable compatibility view and listeners are host callbacks;
+  the RenderHost entity target cache rebuilds from ECS slot queries
+- [~] 46.6.1 UiProbe, UiOps, console, and inspect query ECS only; C1 UiOps control lookup and C1
+  window/component probe snapshots and native template pin/end-turn snapshots read ECS data, while
+  C2 EntityPresent snapshots also read ECS data; C1 window control/title/profile probe fields now
+  query registered context components directly, while console/render legacy paths remain; UiOps no
+  longer retains a second last-result map
+- [ ] 46.6.2 Remove or demote remaining legacy stores after each matching checklist row passes
+
 - [x] 0. Scaffold — registry API + tests
 - [x] 1a. C1 logic runtime + layout DSL + demo resource + open dispatch
 - [x] 1b. Stage host + StsSkin + StageBackend (optional on-device when D1 set)

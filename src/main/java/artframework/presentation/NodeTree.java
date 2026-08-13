@@ -1,6 +1,9 @@
 package artframework.presentation;
 
 import artframework.component.EffectDecl;
+import artframework.component.LayoutEngine;
+import artframework.component.LayoutResult;
+import artframework.component.Rect;
 import artframework.component.UiNode;
 import artframework.core.SignalHandler;
 import artframework.core.SignalHub;
@@ -27,14 +30,19 @@ import java.util.regex.Pattern;
 /** ECS-backed scene tree with Godot-style Node access and signal lifecycle. */
 public final class NodeTree implements AutoCloseable {
     private final PresentationContext context;
+    private final String treeScope;
     private final SignalHub signals = new SignalHub();
     private final Map<String, EntityId> paths = new LinkedHashMap<String, EntityId>();
     private EntityId root;
     private PresentResolved resolvedPresent;
     private NodeTreeLifecycle lifecycle;
-    private boolean mounted;
 
-    public NodeTree(String scope) { context = new PresentationContext(scope); }
+    public NodeTree(String scope) { this(scope, new PresentationContext(scope)); }
+
+    private NodeTree(String scope, PresentationContext context) {
+        this.treeScope = scope;
+        this.context = context;
+    }
     public PresentationContext context() { return context; }
     public Node root() { return node(root); }
     public Node find(String path) { return node(paths.get(path)); }
@@ -52,7 +60,7 @@ public final class NodeTree implements AutoCloseable {
         return node(entity);
     }
 
-    public String scope() { return context.world().scope(); }
+    public String scope() { return treeScope; }
     public String windowId() { return scope().replace("tree:", ""); }
     public artframework.ecs.PresentationWorld world() { return context.world(); }
     public artframework.core.Theme theme() { return resolvePresent().theme; }
@@ -87,6 +95,11 @@ public final class NodeTree implements AutoCloseable {
     NodeIdentityComponent identity(EntityId entity) { return context.world().get(entity, NodeIdentityComponent.class); }
     NodeHierarchyComponent hierarchy(EntityId entity) { return context.world().get(entity, NodeHierarchyComponent.class); }
     NodePropertiesComponent properties(EntityId entity) { return context.world().get(entity, NodePropertiesComponent.class); }
+    void setProperty(EntityId entity, String property, Object value) {
+        NodePropertiesComponent properties = properties(entity);
+        if (properties == null) throw new IllegalStateException("node properties unavailable");
+        context.world().put(entity, NodePropertiesComponent.class, properties.with(property, value));
+    }
 
     public Node create(PresentationKey key, String name, String type, String source, EntityId parent) {
         EntityId entity = context.create(key, name, type, source);
@@ -100,6 +113,19 @@ public final class NodeTree implements AutoCloseable {
         if (declaration == null) throw new IllegalArgumentException("declaration required");
         NodeTree tree = new NodeTree(scope);
         tree.materialize(declaration, null, "", "c1");
+        tree.materializeVisuals(declaration);
+        tree.mount(lifecycle);
+        artframework.core.NodeConnections.syncTree(tree);
+        artframework.core.AnimationPlayers.syncTree(tree);
+        artframework.core.NodeStateMachines.syncTree(tree);
+        return tree;
+    }
+
+    static NodeTree mountRegistered(String scope, UiNode declaration, NodeTreeLifecycle lifecycle) {
+        if (declaration == null) throw new IllegalArgumentException("declaration required");
+        NodeTree tree = new NodeTree(scope, PresentationRegistry.context(scope));
+        tree.materialize(declaration, null, "", "c1");
+        tree.materializeVisuals(declaration);
         tree.mount(lifecycle);
         artframework.core.NodeConnections.syncTree(tree);
         artframework.core.AnimationPlayers.syncTree(tree);
@@ -114,12 +140,26 @@ public final class NodeTree implements AutoCloseable {
         EntityId entity = node.entityId();
         context.world().put(entity, NodePropertiesComponent.class,
                 new NodePropertiesComponent(declaration.props));
+        List<Map<String, Object>> connections = mapList(declaration.props.get("connections"));
+        List<Map<String, Object>> triggers = mapList(declaration.props.get("triggers"));
+        if (!connections.isEmpty() || !triggers.isEmpty()) {
+            context.world().put(entity, ConnectionDeclarationsComponent.class,
+                    new ConnectionDeclarationsComponent(connections, triggers));
+        }
+        Object initialControlValue = ControlValueSystem.initialValue(
+                declaration.type, context.world().get(entity, NodePropertiesComponent.class));
+        if (initialControlValue != null) {
+            context.world().put(entity, ControlValueComponent.class,
+                    new ControlValueComponent(initialControlValue));
+        }
         List<String> declaredSignals = new ArrayList<String>(declaration.signals);
         setPorts(entity, declaredSignals, declaredSignals);
         EffectsComponent effects = context.world().get(entity, EffectsComponent.class);
-        for (EffectDecl effect : declaration.effects) {
-            effects.put(new EffectAttachment(effect.id, "ambient", effect.params));
+        for (EffectDecl effect : resolvedEffects(declaration)) {
+            effects = effects.withAttachment(new EffectAttachment(
+                    effect.id, effectLayer(effect), effect.params));
         }
+        context.world().put(entity, EffectsComponent.class, effects);
         if (ArtNodeTypes.SKELETON.equals(declaration.type)) {
             Object entityKey = declaration.props.get("entity");
             if (entityKey == null) entityKey = declaration.props.get("entity_key");
@@ -143,6 +183,75 @@ public final class NodeTree implements AutoCloseable {
         return entity;
     }
 
+    /** Resolve declaration/default effects once into ECS data; host renderers only consume it. */
+    private static List<EffectDecl> resolvedEffects(UiNode declaration) {
+        if (declaration == null) return Collections.emptyList();
+        List<EffectDecl> result = declaration.effects;
+        if (result == null || result.isEmpty()) {
+            try {
+                result = artframework.core.PresentPackApply.effectDefaultsForType(declaration.type);
+            } catch (Throwable ignored) {
+                result = Collections.emptyList();
+            }
+        }
+        if (!ArtNodeTypes.SHADER_EFFECT.equals(declaration.type)) {
+            return result != null ? result : Collections.<EffectDecl>emptyList();
+        }
+        String effectId = declaration.propString("effect", "");
+        if (effectId.isEmpty()) return result != null ? result : Collections.<EffectDecl>emptyList();
+        Map<String, Object> params = new LinkedHashMap<String, Object>(declaration.props);
+        params.remove("effect");
+        List<EffectDecl> withShader = new ArrayList<EffectDecl>(
+                result != null ? result : Collections.<EffectDecl>emptyList());
+        withShader.add(new EffectDecl(effectId, params));
+        return withShader;
+    }
+
+    private static String effectLayer(EffectDecl effect) {
+        if (effect == null || effect.params == null) return "ambient";
+        Object layer = effect.params.get("layer");
+        return layer != null && !String.valueOf(layer).trim().isEmpty()
+                ? String.valueOf(layer).trim() : "ambient";
+    }
+
+    /** Converts the immutable C1 declaration layout into host-neutral visual component data. */
+    private void materializeVisuals(UiNode declaration) {
+        LayoutResult layout = LayoutEngine.layout(declaration);
+        materializeVisuals(declaration, "", "", 0, 0f, layout);
+    }
+
+    private void materializeVisuals(
+            UiNode declaration,
+            String parentPath,
+            String parentKey,
+            int siblingIndex,
+            float z,
+            LayoutResult layout) {
+        if (declaration == null) return;
+        String name = declaration.id.isEmpty() ? "@" + siblingIndex : declaration.id;
+        String path = parentPath.isEmpty() ? name : parentPath + "/" + name;
+        EntityId entity = paths.get(path);
+        if (entity != null) {
+            String key = LayoutEngine.effectKey(declaration, parentKey, siblingIndex);
+            Rect bounds = layout.boundsOf(key);
+            if (bounds != null) {
+                context.world().put(entity, BoundsComponent.class, new BoundsComponent(bounds, z));
+            }
+            String text = declaration.propString("text", declaration.propString("title", ""));
+            context.world().put(entity, DrawComponent.class,
+                    new DrawComponent(declaration.type, declaration.propString("resource", ""), text));
+            context.world().put(entity, VisibilityComponent.class,
+                    new VisibilityComponent(booleanProp(declaration, "visible", true),
+                            floatProp(declaration, "opacity", 1f)));
+            context.world().put(entity, HostBindingComponent.class,
+                    new HostBindingComponent("SCENE2D_C1", windowId() + ":" + key));
+        }
+        String key = LayoutEngine.effectKey(declaration, parentKey, siblingIndex);
+        for (int i = 0; i < declaration.children.size(); i++) {
+            materializeVisuals(declaration.children.get(i), path, key, i, z + 0.01f, layout);
+        }
+    }
+
     public void attach(EntityId child, EntityId parent) {
         if (child == null || !context.world().contains(child)) throw new IllegalArgumentException("known child required");
         NodeHierarchyComponent childHierarchy = hierarchy(child);
@@ -157,11 +266,16 @@ public final class NodeTree implements AutoCloseable {
 
     public void mount() { mount(null); }
     public void mount(NodeTreeLifecycle lifecycle) {
-        if (mounted) return;
+        if (isMounted()) return;
         this.lifecycle = lifecycle;
         transitionMount(root, lifecycle);
         transitionReady(root, lifecycle);
-        mounted = root != null;
+    }
+
+    private boolean isMounted() {
+        if (root == null || !context.world().contains(root)) return false;
+        NodeLifecycleComponent state = context.world().get(root, NodeLifecycleComponent.class);
+        return state != null && state.mounted;
     }
     private void transitionMount(EntityId entity, NodeTreeLifecycle lifecycle) {
         if (entity == null) return;
@@ -227,18 +341,68 @@ public final class NodeTree implements AutoCloseable {
 
     public PresentationFrame frame() { return PresentationFrame.from(context); }
 
+    /** ECS-derived C1 control compatibility snapshot. */
+    public Map<String, Object> probeControls() {
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        List<String> buttons = new ArrayList<String>();
+        List<String> sliders = new ArrayList<String>();
+        List<String> hitAreas = new ArrayList<String>();
+        List<String> textFields = new ArrayList<String>();
+        List<String> checkboxes = new ArrayList<String>();
+        List<String> progress = new ArrayList<String>();
+        Map<String, Object> values = new LinkedHashMap<String, Object>();
+        Map<String, Object> sliderValues = new LinkedHashMap<String, Object>();
+        Map<String, Object> textValues = new LinkedHashMap<String, Object>();
+        Map<String, Object> checkboxValues = new LinkedHashMap<String, Object>();
+        Map<String, Object> progressValues = new LinkedHashMap<String, Object>();
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = identity(entity);
+            if (identity == null) continue;
+            String type = identity.type;
+            String name = identity.name;
+            if (artframework.component.UiTypes.BUTTON.equals(type)) buttons.add(name);
+            if (artframework.component.UiTypes.HITAREA.equals(type)) hitAreas.add(name);
+            if (artframework.component.UiTypes.SLIDER.equals(type)) sliders.add(name);
+            if (artframework.component.UiTypes.TEXTFIELD.equals(type)) textFields.add(name);
+            if (artframework.component.UiTypes.CHECKBOX.equals(type)) checkboxes.add(name);
+            if (artframework.component.UiTypes.PROGRESS.equals(type)) progress.add(name);
+            ControlValueComponent value = context.world().get(entity, ControlValueComponent.class);
+            if (value != null) {
+                values.put(name, value.value);
+                if (artframework.component.UiTypes.SLIDER.equals(type)) sliderValues.put(name, value.value);
+                if (artframework.component.UiTypes.TEXTFIELD.equals(type)) textValues.put(name, value.value);
+                if (artframework.component.UiTypes.CHECKBOX.equals(type)) checkboxValues.put(name, value.value);
+                if (artframework.component.UiTypes.PROGRESS.equals(type)) progressValues.put(name, value.value);
+            }
+        }
+        out.put("buttonIds", buttons);
+        out.put("sliderIds", sliders);
+        out.put("hitAreaIds", hitAreas);
+        out.put("textFieldIds", textFields);
+        out.put("checkboxIds", checkboxes);
+        out.put("progressIds", progress);
+        out.put("values", values);
+        out.put("sliders", sliderValues);
+        out.put("texts", textValues);
+        out.put("checkboxes", checkboxValues);
+        out.put("progress", progressValues);
+        return out;
+    }
+
     /** Advance behavior nodes owned by this tree. */
     public void tick(float deltaSeconds) {
         if (deltaSeconds < 0f) throw new IllegalArgumentException("deltaSeconds must be non-negative");
+        artframework.ecs.EcsPipeline.run(context.world(),
+                new artframework.ecs.EcsTick(deltaSeconds, 0L),
+                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(new ControlValueSystem()));
         artframework.core.AnimationPlayers.tick(windowId(), deltaSeconds);
     }
 
     public void unmount() { close(); }
 
     @Override public void close() {
-        if (mounted) {
+        if (isMounted()) {
             transitionUnmount(root, lifecycle);
-            mounted = false;
         }
         String windowId = windowId();
         artframework.core.AnimationPlayers.clearWindow(windowId);
@@ -280,5 +444,15 @@ public final class NodeTree implements AutoCloseable {
     private static boolean booleanProp(UiNode node, String key, boolean fallback) {
         Object value = node.props.get(key);
         return value == null ? fallback : Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> mapList(Object raw) {
+        if (!(raw instanceof List)) return Collections.emptyList();
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (Object item : (List<?>) raw) {
+            if (item instanceof Map) result.add((Map<String, Object>) item);
+        }
+        return result;
     }
 }

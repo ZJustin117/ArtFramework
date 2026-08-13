@@ -1,47 +1,36 @@
 package artframework.c1;
 
 import artframework.c1.layout.LayoutNode;
+import artframework.c1.layout.LayoutNodeBridge;
+import artframework.component.WidgetSession;
+import artframework.component.WidgetSessions;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
- * Pure C1 open-window bookkeeping (layout roots). Scene2d Stage attach is later.
+ * Legacy layout adapter over the immutable C1 declaration cache. It owns no window state.
  */
 public final class WindowManager {
-
-    private static final Map<String, LayoutNode> ROOTS = new LinkedHashMap<String, LayoutNode>();
 
     private WindowManager() {}
 
     public static void put(String id, LayoutNode root) {
-        if (id == null || id.isEmpty()) {
-            throw new IllegalArgumentException("id required");
-        }
-        if (root == null) {
-            throw new IllegalArgumentException("root required");
-        }
-        ROOTS.put(id, root);
+        // Kept for source compatibility. WidgetSessions/NodeTree own the declaration lifecycle.
     }
 
     public static LayoutNode get(String id) {
-        return ROOTS.get(id);
+        WidgetSession session = WidgetSessions.get(id);
+        return session != null ? LayoutNodeBridge.toLegacyOrNull(session.root()) : null;
     }
 
     public static void remove(String id) {
-        ROOTS.remove(id);
+        // WidgetSessions/NodeTree own the declaration lifecycle.
     }
 
     public static boolean contains(String id) {
-        return ROOTS.containsKey(id);
-    }
-
-    public static Map<String, LayoutNode> snapshot() {
-        return Collections.unmodifiableMap(new LinkedHashMap<String, LayoutNode>(ROOTS));
+        return WidgetSessions.isOpen(id);
     }
 
     public static void resetForTests() {
-        ROOTS.clear();
+        // WidgetSessions owns test cleanup.
     }
 }

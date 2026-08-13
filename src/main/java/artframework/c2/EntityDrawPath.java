@@ -111,20 +111,26 @@ public final class EntityDrawPath {
     }
 
     public static List<DrawItem> buildFromPresent() {
-        return buildFromPresent(ArtFramework.entities());
+        return buildFromSlots(EntityPresentViews.list());
     }
 
     public static List<DrawItem> buildFromPresent(EntityPresent present) {
-        List<DrawItem> out = new ArrayList<DrawItem>();
         if (present == null) {
-            return out;
+            return new ArrayList<DrawItem>();
         }
-        boolean cardOverlay = cardOverlayOnly();
+        List<EntitySlot> slots = new ArrayList<EntitySlot>();
         for (String id : present.listSlotIds()) {
             EntitySlot slot = present.get(id);
-            if (slot == null || !slot.isLaidOut()) {
-                continue;
-            }
+            if (slot != null) slots.add(slot);
+        }
+        return buildFromSlots(slots);
+    }
+
+    private static List<DrawItem> buildFromSlots(List<EntitySlot> slots) {
+        List<DrawItem> out = new ArrayList<DrawItem>();
+        boolean cardOverlay = cardOverlayOnly();
+        for (EntitySlot slot : slots) {
+            if (!slot.isLaidOut()) continue;
             EntitySnapshot snap = EntitySnapshot.from(slot.snapshot());
             float scale = slot.scale() > 0f ? slot.scale() : (snap.scale > 0f ? snap.scale : 1f);
             float[] size = defaultSize(slot.kind, scale);

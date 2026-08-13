@@ -1,10 +1,10 @@
 package artframework.core;
 
 import artframework.component.EffectDecl;
-import artframework.component.WidgetSession;
-import artframework.component.WidgetSessions;
 import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
+import artframework.render.RenderStateEcs;
+import artframework.presentation.EffectAttachment;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,14 +63,18 @@ public final class PresentPackApply {
             if (h <= 0f) {
                 h = 1080f;
             }
-            host.enableFullFrame(w, h);
+            List<EffectAttachment> effects = new ArrayList<EffectAttachment>();
             for (EffectDecl d : pack.fullFrameEffects) {
                 Map<String, Object> params = new LinkedHashMap<String, Object>();
                 if (d.params != null) {
                     params.putAll(d.params);
                 }
-                host.bindFullFrameEffect(d.id, params);
+                String layer = params.get("layer") != null
+                        ? String.valueOf(params.get("layer")) : "ambient";
+                effects.add(new EffectAttachment(d.id, layer, params));
             }
+            RenderStateEcs.fullFrame(w, h, true, effects);
+            host.syncRenderState();
             managedFullFrame = true;
         } catch (Throwable ignored) {
         }
@@ -95,19 +99,20 @@ public final class PresentPackApply {
         if (pack.surfaceEffects.isEmpty()) {
             return;
         }
-        RenderHost host = RenderHosts.get();
         for (Map.Entry<String, List<artframework.component.EffectDecl>> entry
                 : pack.surfaceEffects.entrySet()) {
             if (entry.getValue() == null || entry.getValue().isEmpty()) {
                 continue;
             }
-            String targetId = RenderHost.c2SurfaceTargetId(entry.getKey());
             try {
-                host.ensureTarget(targetId, artframework.render.RenderTargetKind.C2_SURFACE);
-                host.clearEffects(targetId);
+                List<EffectAttachment> effects = new ArrayList<EffectAttachment>();
                 for (artframework.component.EffectDecl d : entry.getValue()) {
-                    host.bindEffect(targetId, d.id, d.params);
+                    String layer = d.params != null && d.params.get("layer") != null
+                            ? String.valueOf(d.params.get("layer")) : "ambient";
+                    effects.add(new EffectAttachment(d.id, layer, d.params));
                 }
+                RenderStateEcs.surfaceEffects(entry.getKey(), effects);
+                RenderHosts.get().syncRenderState();
                 BOUND_C2_EFFECTS.add(entry.getKey());
             } catch (RuntimeException ignored) {
             }
@@ -115,13 +120,14 @@ public final class PresentPackApply {
     }
 
     private static void resyncOpenC1Render() {
-        for (String winId : WidgetSessions.listOpenIds()) {
-            WidgetSession session = WidgetSessions.get(winId);
-            if (session == null) {
+        for (String winId : artframework.presentation.NodeTrees.listOpenIds()) {
+            artframework.presentation.NodeTree tree = artframework.presentation.NodeTrees.get(winId);
+            if (tree == null) {
                 continue;
             }
             try {
-                RenderHosts.get().syncWidgetSession(session);
+                RenderHosts.get().syncFrame(
+                        tree.frame(), artframework.render.RenderTargetKind.SYNTHETIC_WIDGET, winId);
             } catch (Throwable ignored) {
             }
         }
@@ -135,19 +141,14 @@ public final class PresentPackApply {
             }
         }
         BOUND_SURFACES.clear();
-        RenderHost host = RenderHosts.get();
         for (String sid : new ArrayList<String>(BOUND_C2_EFFECTS)) {
-            try {
-                host.removeC2Surface(sid);
-            } catch (RuntimeException ignored) {
-            }
+            RenderStateEcs.removeSurface(sid);
         }
         BOUND_C2_EFFECTS.clear();
+        RenderHosts.get().syncRenderState();
         if (managedFullFrame) {
-            try {
-                RenderHosts.get().disableFullFrame();
-            } catch (Throwable ignored) {
-            }
+            RenderStateEcs.removeFullFrame();
+            RenderHosts.get().syncRenderState();
             managedFullFrame = false;
         }
     }

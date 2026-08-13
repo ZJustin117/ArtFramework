@@ -11,6 +11,14 @@ import artframework.component.WidgetSession;
 import artframework.c2.EntitySlot;
 import artframework.presentation.PresentationFrame;
 import artframework.presentation.PresentationDrawItem;
+import artframework.presentation.BoundsComponent;
+import artframework.presentation.EffectAttachment;
+import artframework.presentation.EffectsComponent;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.presentation.HostBindingComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRegistry;
+import artframework.presentation.VisibilityComponent;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,6 +46,8 @@ public final class RenderHost {
     private final Map<String, RenderTarget> targets = new ConcurrentHashMap<String, RenderTarget>();
     private final Map<String, List<EffectBinding>> bindings =
             new ConcurrentHashMap<String, List<EffectBinding>>();
+    private final Map<String, List<String>> frameTargetIdsByWindow =
+            new ConcurrentHashMap<String, List<String>>();
     private HostRenderBackend hostBackend = DirectHostRenderBackend.INSTANCE;
     private boolean fullFrameEnabled;
     private boolean captureEnabled;
@@ -131,18 +141,13 @@ public final class RenderHost {
     public static final String FULL_FRAME_ID = "full_frame";
 
     public void setFullFrameEnabled(boolean enabled) {
-        this.fullFrameEnabled = enabled;
-        if (enabled) {
-            RenderTarget t = ensureTarget(FULL_FRAME_ID, RenderTargetKind.FULL_FRAME);
-            t.setEnabled(true);
-            t.setZ(1000f);
-        } else {
-            RenderTarget t = targets.get(FULL_FRAME_ID);
-            if (t != null) {
-                t.setEnabled(false);
-            }
-            clearEffects(FULL_FRAME_ID);
-        }
+        FullFrameRenderComponent current = RenderStateEcs.fullFrameState();
+        RenderStateEcs.fullFrame(
+                current != null ? current.bounds.width : screenW,
+                current != null ? current.bounds.height : screenH,
+                enabled,
+                current != null ? current.effects() : Collections.<EffectAttachment>emptyList());
+        syncRenderState();
     }
 
     public boolean isFullFrameEnabled() {
@@ -174,14 +179,15 @@ public final class RenderHost {
         }
         this.screenW = width;
         this.screenH = height;
-        if (!fullFrameEnabled) {
-            return targets.get(FULL_FRAME_ID);
+        if (RenderStateEcs.fullFrameState() == null && !fullFrameEnabled) {
+            return null;
         }
-        RenderTarget t = ensureTarget(FULL_FRAME_ID, RenderTargetKind.FULL_FRAME);
-        t.setBounds(0f, 0f, width, height);
-        t.setZ(1000f);
-        t.setEnabled(true);
-        return t;
+        FullFrameRenderComponent current = RenderStateEcs.fullFrameState();
+        if (current != null) {
+            RenderStateEcs.fullFrame(width, height, current.enabled, current.effects());
+            syncRenderState();
+        }
+        return targets.get(FULL_FRAME_ID);
     }
 
     public float screenWidth() {
@@ -197,11 +203,16 @@ public final class RenderHost {
      * of bounds, z and effect attachment identity; RenderTarget/EffectBinding remain draw caches.
      */
     public void syncFrame(PresentationFrame frame, RenderTargetKind kind) {
+        syncFrame(frame, kind, null);
+    }
+
+    /** Rebuild host targets from an ECS frame, optionally tracking its C1 window for cleanup. */
+    public void syncFrame(PresentationFrame frame, RenderTargetKind kind, String windowId) {
         if (frame == null) return;
         lastPresentationFrame = frame;
         java.util.Set<String> live = new java.util.LinkedHashSet<String>();
         for (PresentationDrawItem item : frame.items) {
-            String id = item.key.toString();
+            String id = targetIdFor(item);
             live.add(id);
             RenderTarget target = ensureTarget(id, kind == null ? RenderTargetKind.SYNTHETIC_WIDGET : kind);
             target.setBounds(item.bounds);
@@ -211,13 +222,69 @@ public final class RenderHost {
             for (artframework.presentation.EffectAttachment attachment : item.effects) {
                 if (effects.contains(attachment.effectId)) bindEffect(id, attachment.effectId, attachment.params());
             }
+            if (item.root) {
+                syncC1TitleTarget(item, live);
+            }
         }
-        for (String id : new ArrayList<String>(targetIdsWithPrefix("ui:"))) {
-            if (!live.contains(id)) removeTarget(id);
+        if (windowId != null && !windowId.isEmpty()) {
+            List<String> previous = frameTargetIdsByWindow.put(windowId, new ArrayList<String>(live));
+            if (previous != null) {
+                for (String id : previous) {
+                    if (!live.contains(id)) removeTarget(id);
+                }
+            }
+        } else {
+            for (String id : new ArrayList<String>(targetIdsWithPrefix("ui:"))) {
+                if (!live.contains(id)) removeTarget(id);
+            }
+        }
+    }
+
+    private static String targetIdFor(PresentationDrawItem item) {
+        HostBindingComponent binding = item.hostBinding;
+        if (binding != null && "SCENE2D_C1".equals(binding.hostKind)) {
+            String local = binding.localKey;
+            int separator = local.indexOf(':');
+            if (separator > 0 && separator < local.length() - 1) {
+                String windowId = local.substring(0, separator);
+                String effectKey = local.substring(separator + 1);
+                return item.root ? "c1:" + windowId : "c1:" + windowId + ":" + effectKey;
+            }
+        }
+        return item.key.toString();
+    }
+
+    /** The scene2d title is host chrome, projected from its root entity and immutable pack data. */
+    private void syncC1TitleTarget(PresentationDrawItem item, java.util.Set<String> live) {
+        HostBindingComponent binding = item.hostBinding;
+        if (binding == null || !"SCENE2D_C1".equals(binding.hostKind)) return;
+        String local = binding.localKey;
+        int separator = local.indexOf(':');
+        if (separator <= 0) return;
+        String targetId = "c1:" + local.substring(0, separator) + ":__art_title";
+        live.add(targetId);
+        RenderTarget target = ensureTarget(targetId, RenderTargetKind.SYNTHETIC_WIDGET);
+        target.setBounds(item.bounds);
+        target.setZ(item.z + 0.001f);
+        target.setEnabled(true);
+        clearEffects(targetId);
+        for (EffectDecl effect : artframework.core.PresentPackApply.effectDefaultsForType(UiTypes.LABEL)) {
+            if (effect != null && effects.contains(effect.id)) {
+                bindEffect(targetId, effect.id, effect.params);
+            }
         }
     }
 
     public PresentationFrame lastPresentationFrame() { return lastPresentationFrame; }
+
+    /** Re-project one registered C1 window from ECS without consulting its compatibility tree. */
+    public void syncC1Window(String windowId) {
+        if (windowId == null || windowId.trim().isEmpty()) return;
+        PresentationContext context = PresentationRegistry.existingContext("tree:" + windowId);
+        if (context != null) {
+            syncFrame(PresentationFrame.from(context), RenderTargetKind.SYNTHETIC_WIDGET, windowId);
+        }
+    }
 
     public boolean needsCapture() {
         if (captureEnabled) {
@@ -248,11 +315,18 @@ public final class RenderHost {
      * Bind effect on full-frame target (enables full-frame if needed).
      */
     public EffectBinding bindFullFrameEffect(String effectId, Map<String, Object> params) {
-        if (!fullFrameEnabled) {
-            setFullFrameEnabled(true);
-        }
-        ensureTarget(FULL_FRAME_ID, RenderTargetKind.FULL_FRAME);
-        return bindEffect(FULL_FRAME_ID, effectId, params);
+        FullFrameRenderComponent current = RenderStateEcs.fullFrameState();
+        List<EffectAttachment> next = new ArrayList<EffectAttachment>();
+        if (current != null) next.addAll(current.effects());
+        next.add(new EffectAttachment(effectId,
+                params != null && params.get("layer") != null
+                        ? String.valueOf(params.get("layer")) : EffectBinding.LAYER_AMBIENT,
+                params));
+        RenderStateEcs.fullFrame(screenW, screenH, true, next);
+        syncRenderState();
+        return findEffect(FULL_FRAME_ID, effectId,
+                params != null && params.get("layer") != null
+                        ? String.valueOf(params.get("layer")) : EffectBinding.LAYER_AMBIENT);
     }
 
     public RenderTarget ensureTarget(String id, RenderTargetKind kind) {
@@ -289,18 +363,62 @@ public final class RenderHost {
     /** Create or update the render region used by a C2 surface effect. */
     public RenderTarget syncC2Surface(
             String surfaceId, float x, float y, float width, float height) {
-        RenderTarget target =
-                ensureTarget(c2SurfaceTargetId(surfaceId), RenderTargetKind.C2_SURFACE);
-        target.setBounds(x, y, width, height);
-        target.setEnabled(width > 0f && height > 0f);
-        target.setZ(-10f);
-        return target;
+        RenderStateEcs.surface(surfaceId, x, y, width, height, width > 0f && height > 0f);
+        syncRenderState();
+        return getTarget(c2SurfaceTargetId(surfaceId));
     }
 
     public void setC2SurfaceEnabled(String surfaceId, boolean enabled) {
-        RenderTarget target = getTarget(c2SurfaceTargetId(surfaceId));
-        if (target != null) {
-            target.setEnabled(enabled);
+        RenderSurfaceComponent current = RenderStateEcs.surfaceState(surfaceId);
+        if (current != null) {
+            RenderStateEcs.surface(surfaceId, current.bounds.x, current.bounds.y,
+                    current.bounds.width, current.bounds.height, enabled);
+            RenderStateEcs.surfaceEffects(surfaceId, current.effects());
+            syncRenderState();
+        }
+    }
+
+    /** Rebuild host targets from ECS render-state entities. */
+    public void syncRenderState() {
+        FullFrameRenderComponent full = RenderStateEcs.fullFrameState();
+        fullFrameEnabled = full != null && full.enabled;
+        if (full == null || !full.enabled) {
+            removeTarget(FULL_FRAME_ID);
+        } else {
+            RenderTarget target = ensureTarget(FULL_FRAME_ID, RenderTargetKind.FULL_FRAME);
+            target.setBounds(full.bounds);
+            target.setZ(1000f);
+            target.setEnabled(true);
+            clearEffects(FULL_FRAME_ID);
+            for (EffectAttachment attachment : full.effects()) {
+                if (effects.contains(attachment.effectId)) {
+                    bindEffect(FULL_FRAME_ID, attachment.effectId, attachment.params());
+                }
+            }
+        }
+        java.util.Set<String> liveSurfaces = new java.util.LinkedHashSet<String>();
+        for (artframework.ecs.EntityId entity : RenderStateEcs.context().entities()) {
+            RenderSurfaceComponent surface = RenderStateEcs.context().world().get(
+                    entity, RenderSurfaceComponent.class);
+            if (surface == null) continue;
+            liveSurfaces.add(surface.surfaceId);
+            RenderTarget target = ensureTarget(c2SurfaceTargetId(surface.surfaceId),
+                    RenderTargetKind.C2_SURFACE);
+            target.setBounds(surface.bounds);
+            target.setZ(surface.z);
+            target.setEnabled(surface.enabled);
+            clearEffects(target.id);
+            for (EffectAttachment attachment : surface.effects()) {
+                if (effects.contains(attachment.effectId)) {
+                    bindEffect(target.id, attachment.effectId, attachment.params());
+                }
+            }
+        }
+        for (String id : new ArrayList<String>(targetIdsWithPrefix(C2_SURFACE_PREFIX))) {
+            if (id.indexOf(":item:") < 0) {
+                String surfaceId = id.substring(C2_SURFACE_PREFIX.length());
+                if (!liveSurfaces.contains(surfaceId)) removeTarget(id);
+            }
         }
     }
 
@@ -318,6 +436,49 @@ public final class RenderHost {
             }
         }
         return target;
+    }
+
+    /** Rebuild exact C2 item target cache from ECS visual entities. */
+    public void syncC2Visuals() {
+        syncC2Visuals(null);
+    }
+
+    /**
+     * Rebuild exact C2 item target cache from ECS visual entities for active surfaces only.
+     * A null set includes every visual entity, primarily for standalone host tests.
+     */
+    public void syncC2Visuals(java.util.Set<String> activeSurfaceIds) {
+        PresentationContext context = PresentationRegistry.context("c2-surfaces");
+        java.util.Set<String> live = new java.util.LinkedHashSet<String>();
+        for (artframework.ecs.EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity == null || !identity.key.scope.startsWith("sts1.visual.")) continue;
+            BoundsComponent bounds = context.world().get(entity, BoundsComponent.class);
+            VisibilityComponent visibility = context.world().get(entity, VisibilityComponent.class);
+            if (bounds == null || visibility == null) continue;
+            String surfaceId = identity.key.scope.substring("sts1.visual.".length());
+            if (activeSurfaceIds != null && !activeSurfaceIds.contains(surfaceId)) continue;
+            String targetId = c2ItemTargetId(surfaceId, identity.key.localId);
+            live.add(targetId);
+            RenderTarget target = ensureTarget(targetId, RenderTargetKind.C2_SURFACE);
+            target.setBounds(bounds.rect);
+            target.setZ(bounds.z);
+            target.setEnabled(visibility.visible && bounds.rect.width > 0f && bounds.rect.height > 0f);
+            clearEffects(targetId);
+            EffectsComponent effects = context.world().get(entity, EffectsComponent.class);
+            if (effects != null) {
+                for (EffectAttachment attachment : effects.attachments()) {
+                    if (this.effects.contains(attachment.effectId)) {
+                        bindEffect(targetId, attachment.effectId, attachment.params());
+                    }
+                }
+            }
+        }
+        for (String id : new ArrayList<String>(targets.keySet())) {
+            if (id.startsWith(C2_SURFACE_PREFIX) && id.indexOf(":item:") >= 0 && !live.contains(id)) {
+                removeTarget(id);
+            }
+        }
     }
 
     public void removeC2Items(String surfaceId) {
@@ -374,6 +535,7 @@ public final class RenderHost {
     public void clearTargets() {
         targets.clear();
         bindings.clear();
+        frameTargetIdsByWindow.clear();
     }
 
     /**
@@ -736,6 +898,10 @@ public final class RenderHost {
         }
         removeTargetsWithPrefix("c1:" + windowId + ":");
         removeTarget("c1:" + windowId);
+        List<String> frameTargets = frameTargetIdsByWindow.remove(windowId);
+        if (frameTargets != null) {
+            for (String id : frameTargets) removeTarget(id);
+        }
     }
 
     /**
@@ -754,6 +920,14 @@ public final class RenderHost {
         t.setBounds(slot.x() - w * 0.5f, slot.y() - h * 0.5f, w, h);
         t.setZ(10f);
         t.setEnabled(slot.isLaidOut());
+    }
+
+    /** Rebuild EntityPresent target cache from ECS-backed slot views. */
+    public void syncEntityPresent() {
+        removeTargetsWithPrefix("c2:entity:");
+        for (EntitySlot slot : artframework.c2.EntityPresentViews.list()) {
+            syncEntitySlot(slot);
+        }
     }
 
     public void detachEntitySlot(String slotId) {
@@ -1110,6 +1284,7 @@ public final class RenderHost {
     }
 
     public void resetForTests() {
+        RenderStateEcs.resetForTests();
         clearTargets();
         shaderRuntime.disposeAll();
         frameCapture.dispose();

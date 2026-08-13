@@ -2,6 +2,11 @@ package artframework.c2;
 
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
+import artframework.ecs.EntityId;
+import artframework.ecs.PresentationWorld;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationKey;
+import artframework.presentation.PresentationRegistry;
 import artframework.render.RenderHosts;
 
 /**
@@ -24,6 +29,9 @@ public final class NativeTemplateRuntime {
             new SelectTemplate(SelectKind.HAND, NativeTemplateIds.SELECT_HAND);
     private static final EndTurnTemplate END_TURN_TEMPLATE = new EndTurnTemplate();
     private static final DefaultEntityPresent ENTITY_PRESENT = new DefaultEntityPresent();
+    private static final PresentationContext TEMPLATE_CONTEXT =
+            PresentationRegistry.context("c2-templates");
+    private static final PresentationWorld TEMPLATE_WORLD = TEMPLATE_CONTEXT.world();
     private static boolean renderBridgeInstalled;
 
     private NativeTemplateRuntime() {}
@@ -41,22 +49,22 @@ public final class NativeTemplateRuntime {
         ENTITY_PRESENT.addListener(new EntityPresentListener() {
             @Override
             public void onAttached(EntitySlot slot) {
-                RenderHosts.get().syncEntitySlot(slot);
+                RenderHosts.get().syncEntityPresent();
             }
 
             @Override
             public void onSynced(EntitySlot slot) {
-                RenderHosts.get().syncEntitySlot(slot);
+                RenderHosts.get().syncEntityPresent();
             }
 
             @Override
             public void onLaidOut(EntitySlot slot) {
-                RenderHosts.get().syncEntitySlot(slot);
+                RenderHosts.get().syncEntityPresent();
             }
 
             @Override
             public void onDetached(String slotId) {
-                RenderHosts.get().detachEntitySlot(slotId);
+                RenderHosts.get().syncEntityPresent();
             }
         });
     }
@@ -102,6 +110,7 @@ public final class NativeTemplateRuntime {
         if (slot == null) {
             throw new IllegalArgumentException("unknown native template: " + key);
         }
+        putBound(key, true);
         slot.activate();
         NativeComponents.syncMountFromRuntime();
     }
@@ -112,34 +121,40 @@ public final class NativeTemplateRuntime {
         }
         TemplateSlot slot = slotFor(resolveKey(def));
         if (slot != null) {
+            putBound(resolveKey(def), false);
             slot.deactivate();
+            NativeComponents.clearSignals(resolveKey(def));
         }
         NativeComponents.syncMountFromRuntime();
     }
 
     public static boolean isMapBound() {
-        return MAP_TEMPLATE.isActive();
+        return isBound(NativeTemplateIds.MAP);
     }
 
     public static boolean isEventBound() {
-        return EVENT_TEMPLATE.isActive();
+        return isBound(NativeTemplateIds.EVENT);
     }
 
     public static boolean isSelectGridBound() {
-        return GRID_SELECT.isActive();
+        return isBound(NativeTemplateIds.SELECT_GRID);
     }
 
     public static boolean isSelectHandBound() {
-        return HAND_SELECT.isActive();
+        return isBound(NativeTemplateIds.SELECT_HAND);
     }
 
     public static boolean isEndTurnBound() {
-        return END_TURN_TEMPLATE.isActive();
+        return isBound(NativeTemplateIds.END_TURN);
     }
 
     public static boolean isBound(String resourceOrId) {
-        TemplateSlot slot = slotFor(resourceOrId);
-        return slot != null && slot.isActive();
+        String key = NativeTemplateIds.canonicalize(resourceOrId);
+        if (slotFor(key) == null) return false;
+        EntityId entity = TEMPLATE_CONTEXT.entity(new PresentationKey("sts1.template", key));
+        if (entity == null) return false;
+        NativeTemplateStateComponent state = TEMPLATE_WORLD.get(entity, NativeTemplateStateComponent.class);
+        return state != null && state.bound;
     }
 
     public static void resetForTests() {
@@ -149,8 +164,50 @@ public final class NativeTemplateRuntime {
         HAND_SELECT.resetForTests();
         END_TURN_TEMPLATE.resetForTests();
         ENTITY_PRESENT.resetForTests();
+        for (EntityId entity : new java.util.ArrayList<EntityId>(TEMPLATE_CONTEXT.entities())) {
+            if (TEMPLATE_WORLD.get(entity, NativeTemplateStateComponent.class) != null) {
+                TEMPLATE_CONTEXT.destroy(entity);
+            }
+        }
         renderBridgeInstalled = false;
         NativeComponents.resetForTests();
+    }
+
+    static void setEventId(String eventId) {
+        TEMPLATE_WORLD.put(templateEntity(NativeTemplateIds.EVENT), EventTemplateDataComponent.class,
+                new EventTemplateDataComponent(eventId));
+    }
+
+    static String eventId() {
+        EventTemplateDataComponent state = TEMPLATE_WORLD.get(
+                templateEntity(NativeTemplateIds.EVENT), EventTemplateDataComponent.class);
+        return state != null ? state.eventId : "";
+    }
+
+    static void setEndTurnEnabled(boolean enabled) {
+        TEMPLATE_WORLD.put(templateEntity(NativeTemplateIds.END_TURN), EndTurnTemplateDataComponent.class,
+                new EndTurnTemplateDataComponent(enabled));
+    }
+
+    static boolean endTurnEnabled() {
+        EndTurnTemplateDataComponent state = TEMPLATE_WORLD.get(
+                templateEntity(NativeTemplateIds.END_TURN), EndTurnTemplateDataComponent.class);
+        return state == null || state.buttonEnabled;
+    }
+
+    /** ECS-derived map pin compatibility view. */
+    public static java.util.List<MapPin> mapPins() {
+        java.util.List<MapPin> pins = new java.util.ArrayList<MapPin>();
+        for (EntityId entity : TEMPLATE_CONTEXT.entities()) {
+            MapPinComponent pin = TEMPLATE_WORLD.get(entity, MapPinComponent.class);
+            if (pin != null) pins.add(pin.toPin());
+        }
+        return java.util.Collections.unmodifiableList(pins);
+    }
+
+    /** ECS-derived end-turn enabled compatibility query. */
+    public static boolean isEndTurnEnabled() {
+        return endTurnEnabled();
     }
 
     private static String resolveKey(WindowDef def) {
@@ -161,6 +218,21 @@ public final class NativeTemplateRuntime {
             key = def.id;
         }
         return NativeTemplateIds.canonicalize(key);
+    }
+
+    private static void putBound(String resourceOrId, boolean bound) {
+        String key = NativeTemplateIds.canonicalize(resourceOrId);
+        EntityId entity = templateEntity(key);
+        TEMPLATE_WORLD.put(entity, NativeTemplateStateComponent.class,
+                new NativeTemplateStateComponent(key, bound));
+    }
+
+    private static EntityId templateEntity(String resourceOrId) {
+        String key = NativeTemplateIds.canonicalize(resourceOrId);
+        PresentationKey presentationKey = new PresentationKey("sts1.template", key);
+        EntityId entity = TEMPLATE_CONTEXT.entity(presentationKey);
+        return entity != null ? entity : TEMPLATE_CONTEXT.create(presentationKey, key,
+                "native-template", "c2");
     }
 
     private static TemplateSlot slotFor(String key) {

@@ -2,6 +2,7 @@ package artframework.core;
 
 import artframework.presentation.Node;
 import artframework.presentation.NodeTree;
+import artframework.presentation.NodeStateComponent;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,7 +63,6 @@ public final class NodeStateMachine {
     private final Node owner;
     private final List<Transition> transitions = new ArrayList<Transition>();
     private final List<SignalSubscription> subscriptions = new ArrayList<SignalSubscription>();
-    private String state;
     private final Map<String, List<Map<String, Object>>> enterByState =
             new LinkedHashMap<String, List<Map<String, Object>>>();
 
@@ -71,11 +71,14 @@ public final class NodeStateMachine {
             throw new IllegalArgumentException("owner required");
         }
         this.owner = owner;
-        this.state = initial != null && !initial.isEmpty() ? initial : STATE_IDLE;
+        owner.tree().world().put(owner.entityId(), NodeStateComponent.class,
+                new NodeStateComponent(initial != null && !initial.isEmpty() ? initial : STATE_IDLE));
     }
 
     public String state() {
-        return state;
+        NodeStateComponent component = owner.tree().world()
+                .get(owner.entityId(), NodeStateComponent.class);
+        return component != null ? component.value : STATE_IDLE;
     }
 
     public Node owner() {
@@ -103,14 +106,14 @@ public final class NodeStateMachine {
 
     /** Force state without signal (AnimationPlayer internal). */
     public void setState(String next, boolean emitChanged) {
-        if (next == null || next.isEmpty() || next.equals(state)) {
+        if (next == null || next.isEmpty() || next.equals(state())) {
             return;
         }
-        state = next;
-        runEnter(state, null);
+        putState(next);
+        runEnter(next, null);
         if (emitChanged && owner.declaresSignal(SignalNames.STATE_CHANGED)) {
             try {
-                owner.emitSignal(SignalNames.STATE_CHANGED, state);
+                owner.emitSignal(SignalNames.STATE_CHANGED, next);
             } catch (RuntimeException ignored) {
             }
         }
@@ -133,7 +136,7 @@ public final class NodeStateMachine {
                     new SignalListener() {
                         @Override
                         public SignalDecision onSignal(UiSignal event) {
-                            if (t.fromAllows(state) && t.matchesSignal(event.name)) {
+                            if (t.fromAllows(state()) && t.matchesSignal(event.name)) {
                                 applyTransition(t, event);
                             }
                             return SignalDecision.continueSignal();
@@ -159,16 +162,16 @@ public final class NodeStateMachine {
     }
 
     private void applyTransition(Transition t, UiSignal event) {
-        if (t.to.equals(state)) {
+        if (t.to.equals(state())) {
             runActionList(t.onEnter, event);
             return;
         }
-        state = t.to;
-        runEnter(state, event);
+        putState(t.to);
+        runEnter(t.to, event);
         runActionList(t.onEnter, event);
         if (owner.declaresSignal(SignalNames.STATE_CHANGED)) {
             try {
-                owner.emitSignal(SignalNames.STATE_CHANGED, state);
+                owner.emitSignal(SignalNames.STATE_CHANGED, t.to);
             } catch (RuntimeException ignored) {
             }
         }
@@ -177,6 +180,11 @@ public final class NodeStateMachine {
     private void runEnter(String stateName, UiSignal event) {
         List<Map<String, Object>> actions = enterByState.get(stateName);
         runActionList(actions, event);
+    }
+
+    private void putState(String next) {
+        owner.tree().world().put(owner.entityId(), NodeStateComponent.class,
+                new NodeStateComponent(next));
     }
 
     private void runActionList(List<Map<String, Object>> actions, UiSignal event) {

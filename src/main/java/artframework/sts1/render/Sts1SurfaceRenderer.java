@@ -88,6 +88,11 @@ public final class Sts1SurfaceRenderer {
                     renderProceed(sb);
                 }
             }
+            Set<String> activeSurfaces = new LinkedHashSet<String>();
+            for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+                activeSurfaces.add(entry.surfaceId);
+            }
+            RenderHosts.get().syncC2Visuals(activeSurfaces);
             renderEntityChrome(sb);
         } finally {
             guard.endCapture();
@@ -155,6 +160,7 @@ public final class Sts1SurfaceRenderer {
 
     private static void renderHand(SpriteBatch sb) {
         if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_HAND);
             RenderHosts.get().removeC2Items(SurfaceIds.COMBAT_HAND);
             return;
         }
@@ -184,17 +190,10 @@ public final class Sts1SurfaceRenderer {
                     item.artResourceId,
                     item.cardId,
                     item.visible);
-            host.syncC2Item(
-                    SurfaceIds.COMBAT_HAND,
-                    item.instanceId,
-                    bounds.x,
-                    bounds.y,
-                    bounds.width,
-                    bounds.height);
             visibleItems.add(item.instanceId);
             Sts1HandCardRenderer.render(sb, item, find(item.instanceId));
         }
-        host.retainC2Items(SurfaceIds.COMBAT_HAND, visibleItems);
+        artframework.presentation.PresentationVisuals.retainC2Items(SurfaceIds.COMBAT_HAND, visibleItems);
     }
 
     /**
@@ -207,7 +206,6 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         try {
-            Set<String> visibleItems = new LinkedHashSet<String>();
             for (ControlsDrawPath.DrawItem item : ControlsDrawPath.buildFromProjection()) {
                 if (!item.visible || !ControlsViewIdEndTurn(item.id)) {
                     continue;
@@ -224,14 +222,6 @@ public final class Sts1SurfaceRenderer {
                         item.iconSource,
                         item.text,
                         item.visible);
-                RenderHosts.get().syncC2Item(
-                        SurfaceIds.COMBAT_CONTROLS,
-                        item.id,
-                        bounds.x,
-                        bounds.y,
-                        bounds.width,
-                        bounds.height);
-                visibleItems.add(item.id);
                 float x = bounds.x + bounds.width / 2f;
                 float y = bounds.y + bounds.height / 2f;
                 artframework.core.PresentChromeStyle chrome =
@@ -267,7 +257,6 @@ public final class Sts1SurfaceRenderer {
                         y,
                         fontColor);
             }
-            RenderHosts.get().retainC2Items(SurfaceIds.COMBAT_CONTROLS, visibleItems);
         } catch (Throwable ignored) {
         }
     }

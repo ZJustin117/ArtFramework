@@ -13,6 +13,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class BackendContextTest {
@@ -59,11 +60,14 @@ public class BackendContextTest {
     @Test public void sceneEpochClearsCardsAndDrag() {
         ArtFramework.publishFrame(ContextFrame.of(5L, 1L, "combat", Arrays.asList(
                 CardView.builder(new CardRef("card", "Strike_R")).build()), ControlsView.empty(), MapView.empty(), null));
+        EntityId entity = ArtFramework.projection().entityId("card");
         ArtFramework.projection().setDragInstanceId("card");
         assertTrue(ArtFramework.publishFrame(ContextFrame.of(1L, 2L, "map", null,
                 ControlsView.empty(), MapView.empty(), null)).applied);
         assertEquals(0, ArtFramework.projection().size());
         assertNull(ArtFramework.projection().dragInstanceId());
+        assertNull(ArtFramework.projection().entityId("card"));
+        assertFalse(ArtFramework.projection().world().contains(entity));
     }
 
     @Test public void cardProjectionStoresLongLivedStateInPresentationComponents() {
@@ -73,7 +77,7 @@ public class BackendContextTest {
 
         EntityId entity = ArtFramework.projection().entityId("instance");
         assertNotNull(entity);
-        assertEquals(1, ArtFramework.projection().world().entities().size());
+        assertEquals(2, ArtFramework.projection().world().entities().size());
         assertEquals("Strike_R", ArtFramework.projection().world()
                 .get(entity, CardIdentityComponent.class).cardId);
         assertEquals(2, ArtFramework.projection().world()
@@ -82,6 +86,44 @@ public class BackendContextTest {
                 .get(entity, CardInteractionComponent.class).selected);
         assertEquals("card-art", ArtFramework.projection().world()
                 .get(entity, CardAssetsComponent.class).artResourceId);
+    }
+
+    @Test public void projectionFrameLifecycleIsStoredOnItsRootEntity() {
+        assertTrue(ArtFramework.publishFrame(ContextFrame.of(7L, 3L, "combat", null,
+                ControlsView.empty(), MapView.empty(), null)).applied);
+
+        EntityId root = ArtFramework.projection().world().query(ProjectionFrameComponent.class).get(0);
+        ProjectionFrameComponent metadata = ArtFramework.projection().world()
+                .get(root, ProjectionFrameComponent.class);
+        assertEquals(7L, metadata.frameId);
+        assertEquals(3L, metadata.sceneEpoch);
+        assertEquals("combat", metadata.scene);
+        assertTrue(metadata.available);
+        assertFalse(metadata.stale);
+    }
+
+    @Test public void projectionDragLifecycleIsStoredOnItsRootEntity() {
+        ArtFramework.projection().setDragInstanceId("card");
+
+        EntityId root = ArtFramework.projection().world().query(ProjectionInteractionComponent.class).get(0);
+        assertEquals("card", ArtFramework.projection().world()
+                .get(root, ProjectionInteractionComponent.class).dragInstanceId);
+
+        ArtFramework.projection().clearDrag();
+        assertNull(ArtFramework.projection().world()
+                .get(root, ProjectionInteractionComponent.class).dragInstanceId);
+    }
+
+    @Test public void projectionFrameSnapshotIsStoredOnItsRootEntity() {
+        ContextFrame frame = ContextFrame.of(8L, 4L, "event", null,
+                ControlsView.empty(), MapView.empty(), null);
+        assertTrue(ArtFramework.publishFrame(frame).applied);
+
+        EntityId root = ArtFramework.projection().world()
+                .query(ProjectionFrameSnapshotComponent.class).get(0);
+        assertSame(frame, ArtFramework.projection().world()
+                .get(root, ProjectionFrameSnapshotComponent.class).frame);
+        assertSame(frame, ArtFramework.projection().lastFrame());
     }
 
     @Test public void removedCardDestroysItsPresentationEntity() {
@@ -93,6 +135,15 @@ public class BackendContextTest {
         assertTrue(ArtFramework.publishFrame(ContextFrame.of(2L, "combat", null)).applied);
         assertNull(ArtFramework.projection().entityId("instance"));
         assertFalse(ArtFramework.projection().world().contains(entity));
-        assertEquals(0, ArtFramework.projection().world().entities().size());
+        assertEquals(1, ArtFramework.projection().world().entities().size());
+    }
+
+    @Test public void cardEntityLookupUsesPresentationIdentityAfterProjectionSync() {
+        assertTrue(ArtFramework.publishFrame(ContextFrame.of(1L, "combat", Arrays.asList(
+                CardView.builder(new CardRef("lookup", "Strike_R")).build()))).applied);
+
+        EntityId entity = ArtFramework.projection().entityId("lookup");
+        assertNotNull(entity);
+        assertEquals(entity, ArtFramework.projection().world().query(CardIdentityComponent.class).get(0));
     }
 }

@@ -8,6 +8,7 @@ import artframework.core.PresentPacks;
 import artframework.core.PresentResolve;
 import artframework.ecs.EntityId;
 import java.util.List;
+import java.util.Set;
 
 /** Materializes exact C2 visual items below their policy surface entity. */
 public final class PresentationVisuals {
@@ -59,8 +60,9 @@ public final class PresentationVisuals {
                         style.borderR, style.borderG, style.borderB, style.borderA, style.borderWidth));
         EffectsComponent effects = context.world().get(entity, EffectsComponent.class);
         for (EffectDecl effect : effectsFor(surfaceId)) {
-            effects.put(new EffectAttachment(effect.id, "ambient", effect.params));
+            effects = effects.withAttachment(new EffectAttachment(effect.id, "ambient", effect.params));
         }
+        context.world().put(entity, EffectsComponent.class, effects);
         return entity;
     }
 
@@ -68,6 +70,29 @@ public final class PresentationVisuals {
         PresentationContext context = PresentationRegistry.context(CONTEXT);
         EntityId entity = context.entity(new PresentationKey("sts1.visual." + surfaceId, itemId));
         if (entity != null) context.destroy(entity);
+    }
+
+    /** Remove every visual item owned by one C2 surface. */
+    public static void removeC2Items(String surfaceId) {
+        PresentationContext context = PresentationRegistry.context(CONTEXT);
+        String scope = "sts1.visual." + surfaceId;
+        for (EntityId entity : new java.util.ArrayList<EntityId>(context.entities())) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity != null && scope.equals(identity.key.scope)) context.destroy(entity);
+        }
+    }
+
+    /** Keep exactly the supplied visual item IDs for a C2 surface. */
+    public static void retainC2Items(String surfaceId, Set<String> itemIds) {
+        PresentationContext context = PresentationRegistry.context(CONTEXT);
+        String scope = "sts1.visual." + surfaceId;
+        for (EntityId entity : new java.util.ArrayList<EntityId>(context.entities())) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity != null && scope.equals(identity.key.scope)
+                    && (itemIds == null || !itemIds.contains(identity.key.localId))) {
+                context.destroy(entity);
+            }
+        }
     }
 
     private static List<EffectDecl> effectsFor(String surfaceId) {

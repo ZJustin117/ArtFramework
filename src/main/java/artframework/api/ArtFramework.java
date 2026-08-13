@@ -535,10 +535,7 @@ public final class ArtFramework {
         if (deltaSeconds < 0f) {
             throw new IllegalArgumentException("deltaSeconds must be non-negative");
         }
-        for (NodeTree tree : NodeTrees.listOpen()) {
-            artframework.core.AnimationPlayers.tick(
-                    tree.scope().replace("tree:", ""), deltaSeconds);
-        }
+        for (NodeTree tree : NodeTrees.listOpen()) tree.tick(deltaSeconds);
         artframework.core.EffectPulse.tick(deltaSeconds);
         HostBackends.get().tick(deltaSeconds);
     }

@@ -149,10 +149,13 @@ final class BuiltinUiActions {
         String fromSlider = ctx.argString("from_slider", ctx.argString("fromSlider", ""));
         if (value == null && !fromSlider.isEmpty()) {
             try {
-                artframework.component.WidgetSession session =
-                        artframework.component.WidgetSessions.get(windowId(ctx.tree));
-                if (session != null && session.hasSlider(fromSlider)) {
-                    value = Float.valueOf(session.getSlider(fromSlider));
+                artframework.presentation.Node slider = ctx.tree.get(fromSlider);
+                if (slider != null) {
+                    artframework.presentation.ControlValueComponent control =
+                            ctx.tree.world().get(
+                                    slider.entityId(),
+                                    artframework.presentation.ControlValueComponent.class);
+                    if (control != null) value = control.value;
                 }
             } catch (Throwable ignored) {
             }
@@ -229,6 +232,6 @@ final class BuiltinUiActions {
     }
 
     private static String windowId(artframework.presentation.NodeTree tree) {
-        return tree.context().world().scope().replace("tree:", "");
+        return tree.windowId();
     }
 }

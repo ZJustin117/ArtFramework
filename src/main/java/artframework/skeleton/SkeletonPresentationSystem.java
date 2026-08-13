@@ -15,9 +15,9 @@ import artframework.core.UiSignal;
 public final class SkeletonPresentationSystem {
     private final PresentationWorld world;
     private final SkeletonProviders providers;
-    private final Map<String, SkeletonRuntimeBinding> bindings =
-            new LinkedHashMap<String, SkeletonRuntimeBinding>();
-    private long lastFrameId = -1L;
+    // Native handles are provider-owned implementation cache, keyed solely by ART entity identity.
+    private final Map<EntityId, SkeletonRuntimeBinding> bindings =
+            new LinkedHashMap<EntityId, SkeletonRuntimeBinding>();
 
     public SkeletonPresentationSystem(PresentationWorld world, SkeletonProviders providers) {
         if (world == null || providers == null) throw new IllegalArgumentException("world and providers required");
@@ -25,16 +25,32 @@ public final class SkeletonPresentationSystem {
     }
 
     public void sync(long frameId, List<SkeletonPresentationView> views) {
-        if (frameId < lastFrameId) return;
+        EntityId syncEntity = syncEntity();
+        SkeletonSyncFrameComponent last = world.get(syncEntity, SkeletonSyncFrameComponent.class);
+        if (last != null && frameId < last.frameId) return;
+        world.put(syncEntity, SkeletonSyncFrameComponent.class, new SkeletonSyncFrameComponent(frameId));
         List<SkeletonPresentationView> safe = views != null ? views : new ArrayList<SkeletonPresentationView>();
-        Set<String> seen = new HashSet<String>();
+        Set<EntityId> seen = new HashSet<EntityId>();
         for (SkeletonPresentationView view : safe) {
-            seen.add(view.entityKey);
-            SkeletonRuntimeBinding binding = bindings.get(view.entityKey);
+            EntityId id = entity(view.entityKey);
+            SkeletonFrameComponent previous = id != null
+                    ? world.get(id, SkeletonFrameComponent.class) : null;
+            if (previous != null && frameId < previous.frameId) continue;
+            if (id == null) {
+                id = world.createEntity();
+                world.put(id, SkeletonIdentityComponent.class,
+                        new SkeletonIdentityComponent(view.entityKey));
+            }
+            seen.add(id);
+            world.put(id, SkeletonAssetComponent.class, view.asset);
+            world.put(id, SkeletonPoseComponent.class, view.pose);
+            world.put(id, SkeletonAnimationComponent.class, view.animation);
+            world.put(id, SkeletonVisualComponent.class, view.visual);
+            world.put(id, SkeletonFrameComponent.class, new SkeletonFrameComponent(frameId));
+            SkeletonRuntimeBinding binding = bindings.get(id);
             String assetKey = view.asset.providerId + "|" + view.asset.atlasResource + "|" + view.asset.skeletonResource;
             if (binding == null || !assetKey.equals(binding.assetKey) || !binding.handle.isAlive()) {
-                if (binding != null) unload(view.entityKey, binding);
-                EntityId id = world.createEntity();
+                if (binding != null) release(binding);
                 SkeletonProvider provider = providers.get(view.asset.providerId);
                 if (provider == null) throw new IllegalStateException("skeleton provider not registered: " + view.asset.providerId);
                 Map<String, Object> params = new LinkedHashMap<String, Object>();
@@ -42,19 +58,18 @@ public final class SkeletonPresentationSystem {
                 SkeletonHandle handle = provider.load(new SkeletonSource(
                         view.entityKey, view.asset.atlasResource, view.asset.skeletonResource, params));
                 binding = new SkeletonRuntimeBinding(id, handle, assetKey);
-                bindings.put(view.entityKey, binding);
+                bindings.put(id, binding);
                 emit(SkeletonSignals.CREATED, view.entityKey, "created");
                 emit(SkeletonSignals.LOADED, view.entityKey, "loaded");
             }
             apply(view, binding);
         }
-        for (String key : new ArrayList<String>(bindings.keySet())) {
-            if (!seen.contains(key)) {
-                SkeletonRuntimeBinding binding = bindings.remove(key);
-                unload(key, binding);
+        for (EntityId id : new ArrayList<EntityId>(bindings.keySet())) {
+            if (!seen.contains(id)) {
+                SkeletonRuntimeBinding binding = bindings.remove(id);
+                unload(id, binding);
             }
         }
-        lastFrameId = frameId;
     }
 
     private void apply(SkeletonPresentationView view, SkeletonRuntimeBinding binding) {
@@ -80,16 +95,31 @@ public final class SkeletonPresentationSystem {
         return provider instanceof SkeletonCommandProvider ? (SkeletonCommandProvider) provider : null;
     }
 
-    private void unload(String key, SkeletonRuntimeBinding binding) {
-        SkeletonProvider provider = providers.get(binding.handle.providerId);
-        if (provider != null) provider.unload(binding.handle);
-        if (world.contains(binding.entityId)) world.destroyEntity(binding.entityId);
-        emit(SkeletonSignals.REMOVED, key, "removed");
+    private void unload(EntityId id, SkeletonRuntimeBinding binding) {
+        release(binding);
+        SkeletonIdentityComponent identity = world.contains(id)
+                ? world.get(id, SkeletonIdentityComponent.class) : null;
+        if (world.contains(id)) world.destroyEntity(id);
+        emit(SkeletonSignals.REMOVED, identity != null ? identity.entityKey : binding.handle.skeletonId, "removed");
     }
 
-    public SkeletonRuntimeBinding binding(String entityKey) { return bindings.get(entityKey); }
+    private void release(SkeletonRuntimeBinding binding) {
+        SkeletonProvider provider = providers.get(binding.handle.providerId);
+        if (provider != null) provider.unload(binding.handle);
+    }
+
+    public SkeletonRuntimeBinding binding(String entityKey) {
+        EntityId id = entity(entityKey);
+        return id != null ? bindings.get(id) : null;
+    }
+    PresentationWorld world() { return world; }
     public int size() { return bindings.size(); }
-    public long lastFrameId() { return lastFrameId; }
+    public long lastFrameId() {
+        for (EntityId id : world.query(SkeletonSyncFrameComponent.class)) {
+            return world.get(id, SkeletonSyncFrameComponent.class).frameId;
+        }
+        return -1L;
+    }
 
     public void renderAll(Object batch) {
         renderAllExcept(batch, java.util.Collections.<String>emptySet());
@@ -120,11 +150,27 @@ public final class SkeletonPresentationSystem {
     }
 
     public void clear() {
-        for (Map.Entry<String, SkeletonRuntimeBinding> entry : new ArrayList<Map.Entry<String, SkeletonRuntimeBinding>>(bindings.entrySet())) {
+        for (Map.Entry<EntityId, SkeletonRuntimeBinding> entry : new ArrayList<Map.Entry<EntityId, SkeletonRuntimeBinding>>(bindings.entrySet())) {
             unload(entry.getKey(), entry.getValue());
         }
         bindings.clear();
-        lastFrameId = -1L;
+        for (EntityId id : new ArrayList<EntityId>(world.query(SkeletonSyncFrameComponent.class))) {
+            world.destroyEntity(id);
+        }
+    }
+
+    private EntityId entity(String entityKey) {
+        if (entityKey == null) return null;
+        for (EntityId id : world.query(SkeletonIdentityComponent.class)) {
+            SkeletonIdentityComponent identity = world.get(id, SkeletonIdentityComponent.class);
+            if (entityKey.equals(identity.entityKey)) return id;
+        }
+        return null;
+    }
+
+    private EntityId syncEntity() {
+        for (EntityId id : world.query(SkeletonSyncFrameComponent.class)) return id;
+        return world.createEntity();
     }
 
     private static void emit(String name, String entityKey, String detail) {

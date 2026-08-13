@@ -54,7 +54,7 @@ public final class Node {
         return out;
     }
     public Object get(String property) { return tree.properties(entity).get(property); }
-    public void set(String property, Object value) { tree.properties(entity).set(property, value); }
+    public void set(String property, Object value) { tree.setProperty(entity, property, value); }
     public void setProp(String property, Object value) { set(property, value); }
     public Rect rect() { BoundsComponent bounds = tree.context().world().get(entity, BoundsComponent.class); return bounds != null ? bounds.rect : Rect.ZERO; }
     public SignalSubscription connect(String signal, SignalHandler handler) { return tree.connect(entity, signal, handler); }

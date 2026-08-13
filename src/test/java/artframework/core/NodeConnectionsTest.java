@@ -2,6 +2,7 @@ package artframework.core;
 
 import org.junit.After;
 import org.junit.Test;
+import artframework.presentation.EffectPulseComponent;
 import artframework.api.ArtFramework;
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
@@ -9,6 +10,7 @@ import artframework.component.UiTypes;
 import artframework.render.LightwaveEffect;
 import artframework.render.RenderHosts;
 import artframework.presentation.NodeTree;
+import artframework.presentation.ConnectionDeclarationsComponent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +37,10 @@ public class NodeConnectionsTest {
     @Test
     public void exactMatchPlaysAnimation() {
         NodeTree tree = mountWithPlayConnection("ui/ok/pressed", false);
+        ConnectionDeclarationsComponent declarations = tree.world().get(
+                tree.root().entityId(), ConnectionDeclarationsComponent.class);
+        assertNotNull(declarations);
+        assertEquals(1, declarations.connections.size());
         AtomicInteger started = new AtomicInteger();
         tree.get("motion")
                 .connect(
@@ -116,7 +122,7 @@ public class NodeConnectionsTest {
                                         .prop("value", 0.1f)
                                         .build())
                         .build();
-        NodeTree tree = NodeTree.mount("tree:win", root, null);
+        NodeTree tree = artframework.presentation.NodeTrees.open("win", root, null);
         tree.emit("wave", SignalNames.VALUE_CHANGED, Float.valueOf(0.8f));
         assertEquals(0.8f, ((Number) tree.get("panel").prop("fx_intensity")).floatValue(), 0.001f);
     }
@@ -140,26 +146,25 @@ public class NodeConnectionsTest {
                                 UiNode.of(UiTypes.PANEL)
                                         .id("panel")
                                         .prop("fx_intensity", 0.55f)
+                                        .effect(new artframework.component.EffectDecl(
+                                                LightwaveEffect.ID,
+                                                Collections.<String, Object>singletonMap(
+                                                        "intensity", Float.valueOf(0.55f))))
                                         .build())
                         .child(UiNode.of(UiTypes.BUTTON).id("ok").prop("text", "P").build())
                         .build();
-        NodeTree tree = NodeTree.mount("tree:win", root, null);
-        RenderHosts.get()
-                .ensureTarget("c1:win:panel", artframework.render.RenderTargetKind.SYNTHETIC_WIDGET);
-        Map<String, Object> params = new LinkedHashMap<String, Object>();
-        params.put("intensity", Float.valueOf(0.55f));
-        RenderHosts.get().bindEffect("c1:win:panel", LightwaveEffect.ID, params);
+        NodeTree tree = artframework.presentation.NodeTrees.open("win", root, null);
         tree.emit("ok", SignalNames.PRESSED);
         assertTrue(EffectPulse.isActive("win", "panel"));
+        assertEquals(1, artframework.ecs.ArtEcs.world().query(EffectPulseComponent.class).size());
         artframework.render.LightwaveControls.tickPulses(0.1f);
-        float intensity =
-                RenderHosts.get()
-                        .effectsOf("c1:win:panel")
-                        .get(0)
-                        .paramFloat("intensity", 0f);
+        artframework.presentation.EffectsComponent effects = tree.world().get(
+                tree.get("panel").entityId(), artframework.presentation.EffectsComponent.class);
+        float intensity = effects.get(LightwaveEffect.ID, "ambient").floatParam("intensity", 0f);
         assertTrue(intensity > 0.55f);
         artframework.render.LightwaveControls.tickPulses(0.2f);
         assertFalse(EffectPulse.isActive("win", "panel"));
+        artframework.presentation.NodeTrees.close("win");
     }
 
     @Test

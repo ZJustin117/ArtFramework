@@ -6,6 +6,7 @@ import artframework.api.ArtFramework;
 import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.presentation.NodeTree;
+import artframework.presentation.NodeStateComponent;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +36,8 @@ public class NodeStateMachineTest {
         assertEquals("closed", fsm.state());
         tree.emit("open_btn", SignalNames.PRESSED);
         assertEquals("open", fsm.state());
+        assertEquals("open", tree.world().get(tree.get("gate").entityId(),
+                NodeStateComponent.class).value);
         tree.emit("close_btn", SignalNames.PRESSED);
         assertEquals("closed", fsm.state());
     }

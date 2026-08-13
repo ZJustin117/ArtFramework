@@ -2,6 +2,14 @@ package artframework.render;
 
 import artframework.api.ArtFramework;
 import artframework.core.EffectPulse;
+import artframework.ecs.ArtEcs;
+import artframework.ecs.EntityId;
+import artframework.presentation.EffectsComponent;
+import artframework.presentation.HostBindingComponent;
+import artframework.presentation.NodePropertiesComponent;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRegistry;
 
 /**
  * Wire C1 slider to {@link LightwaveEffect}. Pulse/close FX delegate to {@link EffectPulse}
@@ -21,13 +29,7 @@ public final class LightwaveControls {
         float intensity = clampIntensity(sliderValue);
         boolean any = setPanelIntensity(windowId, intensity);
         if (!any && sliderId != null && !sliderId.isEmpty()) {
-            any =
-                    ArtFramework.render()
-                            .setEffectParam(
-                                    "c1:" + windowId + ":" + sliderId,
-                                    LightwaveEffect.ID,
-                                    "intensity",
-                                    intensity);
+            any = setIntensity(windowId, sliderId, intensity);
         }
         if (any) {
             mirrorTreeProp(windowId, intensity);
@@ -70,14 +72,8 @@ public final class LightwaveControls {
                     "c1:" + windowId + ":p",
                 };
         for (int i = 0; i < candidates.length; i++) {
-            // Ambient band only — pulse overlay is a separate layer.
-            if (ArtFramework.render()
-                    .setEffectParam(
-                            candidates[i],
-                            LightwaveEffect.ID,
-                            artframework.render.EffectBinding.LAYER_AMBIENT,
-                            "intensity",
-                            intensity)) {
+            if (setIntensity(windowId, candidates[i].substring(("c1:" + windowId + ":").length()),
+                    intensity)) {
                 return true;
             }
         }
@@ -85,19 +81,44 @@ public final class LightwaveControls {
     }
 
     private static void mirrorTreeProp(String windowId, float intensity) {
-        try {
-            artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
-            if (tree != null) {
-                artframework.presentation.Node panel = tree.find("root/panel");
-                if (panel == null) {
-                    panel = tree.find("root/p");
-                }
-                if (panel != null) {
-                    panel.set("fx_intensity", Float.valueOf(intensity));
-                }
-            }
-        } catch (Throwable ignored) {
+        EntityId panel = entity(windowId, "panel");
+        if (panel == null) panel = entity(windowId, "p");
+        if (panel != null) {
+            NodePropertiesComponent properties = ArtEcs.world().get(panel, NodePropertiesComponent.class);
+            if (properties != null) ArtEcs.world().put(panel, NodePropertiesComponent.class,
+                    properties.with("fx_intensity", Float.valueOf(intensity)));
         }
+    }
+
+    private static boolean setIntensity(String windowId, String effectKey, float intensity) {
+        EntityId entity = entity(windowId, effectKey);
+        if (entity == null) return false;
+        EffectsComponent effects = ArtEcs.world().get(entity, EffectsComponent.class);
+        if (effects == null || effects.get(LightwaveEffect.ID, "ambient") == null) return false;
+        ArtEcs.world().put(entity, EffectsComponent.class, effects.withParam(
+                LightwaveEffect.ID, "ambient", "intensity", Float.valueOf(intensity)));
+        ArtFramework.render().syncC1Window(windowId);
+        return true;
+    }
+
+    private static EntityId entity(String windowId, String effectKey) {
+        if (windowId == null || effectKey == null || effectKey.isEmpty()) return null;
+        PresentationContext context = PresentationRegistry.existingContext("tree:" + windowId);
+        if (context != null) {
+            for (EntityId entity : context.entities()) {
+                NodeIdentityComponent identity = ArtEcs.world().get(entity, NodeIdentityComponent.class);
+                if (identity != null && effectKey.equals(identity.name)) return entity;
+            }
+        }
+        String localKey = windowId + ":" + effectKey;
+        for (EntityId entity : ArtEcs.world().query(HostBindingComponent.class)) {
+            HostBindingComponent binding = ArtEcs.world().get(entity, HostBindingComponent.class);
+            if (binding != null && "SCENE2D_C1".equals(binding.hostKind)
+                    && (localKey.equals(binding.localKey)
+                    || binding.localKey.endsWith(":" + effectKey)
+                    || binding.localKey.endsWith("/" + effectKey))) return entity;
+        }
+        return null;
     }
 
     private static float clampIntensity(float v) {

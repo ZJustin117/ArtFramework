@@ -193,6 +193,6 @@ public final class AnimationPlayers {
     }
 
     private static String windowId(NodeTree tree) {
-        return tree.context().world().scope().replace("tree:", "");
+        return tree.windowId();
     }
 }

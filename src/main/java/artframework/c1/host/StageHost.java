@@ -24,8 +24,10 @@ import artframework.c1.skin.StsSkin;
 import artframework.component.UiNode;
 import artframework.core.Theme;
 import artframework.core.Themes;
-import artframework.presentation.Node;
-import artframework.presentation.NodeTree;
+import artframework.ecs.EntityId;
+import artframework.presentation.HostBindingComponent;
+import artframework.presentation.NodePropertiesComponent;
+import artframework.presentation.PresentationRegistry;
 import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
 import artframework.render.RenderTarget;
@@ -309,75 +311,48 @@ public final class StageHost
     private Skin skinForWindow(String windowId) {
         Theme theme = artframework.core.ProjectPresent.theme();
         try {
-            NodeTree tree = ArtFramework.tree(windowId);
-            if (tree != null) {
-                theme = artframework.core.ProjectPresent.theme();
-            }
-        } catch (Throwable ignored) {
-        }
-        try {
             return StsSkin.create(theme);
         } catch (Throwable t) {
             return skin != null ? skin : null;
         }
     }
 
-    /** Push ECS-backed Node props (e.g. opacity from animation_player) onto named stage actors. */
+    /** Push ECS-backed visual properties to the corresponding host actor cache. */
     private void syncActorPropsFromTree() {
-        for (Map.Entry<String, Actor> e : actors.entrySet()) {
-            String winId = e.getKey();
-            Actor root = e.getValue();
-            if (root == null) {
+        for (EntityId entity : PresentationRegistry.world().query(
+                HostBindingComponent.class, NodePropertiesComponent.class)) {
+            HostBindingComponent binding = PresentationRegistry.world().get(
+                    entity, HostBindingComponent.class);
+            if (binding == null || !"SCENE2D_C1".equals(binding.hostKind)) {
                 continue;
             }
-            NodeTree tree = null;
-            try {
-                tree = ArtFramework.tree(winId);
-            } catch (Throwable ignored) {
-            }
-            if (tree == null) {
+            String[] key = splitC1Binding(binding.localKey);
+            if (key == null || !actors.containsKey(key[0])) {
                 continue;
             }
-            syncNamedActorProps(tree, root);
+            Actor actor = EffectTargetActors.get(key[0], key[1]);
+            if (actor == null) {
+                continue;
+            }
+            NodePropertiesComponent properties = PresentationRegistry.world().get(
+                    entity, NodePropertiesComponent.class);
+            syncFxIntensity(key[0], key[1], properties);
         }
     }
 
-    private static void syncNamedActorProps(NodeTree tree, Actor actor) {
-        if (actor == null || tree == null) {
-            return;
-        }
-        String name = null;
-        try {
-            name = actor.getName();
-        } catch (Throwable ignored) {
-        }
-        if (name != null && !name.isEmpty()) {
-            Node inst = tree.find("root/" + name);
-            if (inst != null) {
-                // Drive lightwave intensity from anim/slider props — do NOT setColor on Groups
-                // (multiplies child Label/TextButton glyphs and looks like missing letters).
-                syncFxIntensity(tree.context().world().scope().replace("tree:", ""), name, inst);
-            }
-        }
-        if (actor instanceof Group) {
-            for (Actor child : ((Group) actor).getChildren()) {
-                syncNamedActorProps(tree, child);
-            }
-        }
-    }
-
-    private static void syncFxIntensity(String windowId, String nodeId, Node inst) {
+    private static void syncFxIntensity(
+            String windowId, String effectKey, NodePropertiesComponent properties) {
         // Ambient intensity only — pulse overlay is a separate binding layer.
         if (artframework.core.EffectPulse.isActive(windowId, null)) {
             return;
         }
-        Object raw = inst.get("fx_intensity");
+        Object raw = properties != null ? properties.get("fx_intensity") : null;
         if (!(raw instanceof Number)) {
             return;
         }
         float v = ((Number) raw).floatValue();
         try {
-            artframework.render.LightwaveControls.applyIntensity(windowId, "panel", v);
+            artframework.render.LightwaveControls.applyIntensity(windowId, effectKey, v);
         } catch (Throwable ignored) {
         }
     }
@@ -393,30 +368,46 @@ public final class StageHost
         }
         RenderHost host = RenderHosts.get();
         Vector2 tmp = new Vector2();
-        for (Map.Entry<String, Actor> e : actors.entrySet()) {
-            String winId = e.getKey();
-            Actor root = e.getValue();
-            if (root == null) {
+        java.util.Set<String> synced = new java.util.LinkedHashSet<String>();
+        for (EntityId entity : PresentationRegistry.world().query(HostBindingComponent.class)) {
+            HostBindingComponent binding = PresentationRegistry.world().get(
+                    entity, HostBindingComponent.class);
+            if (binding == null || !"SCENE2D_C1".equals(binding.hostKind)) {
                 continue;
             }
-            updateTargetFromActor(host, "c1:" + winId, root, tmp);
-            java.util.Map<String, Actor> mapped = EffectTargetActors.entriesForWindow(winId);
-            for (Map.Entry<String, Actor> me : mapped.entrySet()) {
-                String effectKey = me.getKey();
-                Actor a = me.getValue();
-                if (effectKey == null || a == null) {
-                    continue;
-                }
-                try {
-                    if (a.getStage() == null) {
-                        continue;
-                    }
-                } catch (Throwable ignored) {
-                }
-                // Title uses dedicated key; still sync so pack can frame it.
-                updateTargetFromActor(host, "c1:" + winId + ":" + effectKey, a, tmp);
+            String[] key = splitC1Binding(binding.localKey);
+            if (key == null || !actors.containsKey(key[0])) {
+                continue;
+            }
+            Actor actor = EffectTargetActors.get(key[0], key[1]);
+            if (actor == null || !synced.add(binding.localKey)) {
+                continue;
+            }
+            updateTargetFromActor(host, c1TargetId(key[0], key[1]), actor, tmp);
+        }
+        // The title actor is generated by scene2d Window chrome, not an ART presentation entity.
+        // It remains a disposable host-only realization of the window title styling.
+        for (String windowId : actors.keySet()) {
+            Actor title = EffectTargetActors.get(windowId, "__art_title");
+            if (title != null) {
+                updateTargetFromActor(host, "c1:" + windowId + ":__art_title", title, tmp);
             }
         }
+    }
+
+    private static String[] splitC1Binding(String localKey) {
+        if (localKey == null) {
+            return null;
+        }
+        int separator = localKey.indexOf(':');
+        if (separator <= 0 || separator == localKey.length() - 1) {
+            return null;
+        }
+        return new String[] {localKey.substring(0, separator), localKey.substring(separator + 1)};
+    }
+
+    private static String c1TargetId(String windowId, String effectKey) {
+        return "c1:" + windowId + ":" + effectKey;
     }
 
     private static void updateTargetFromActor(

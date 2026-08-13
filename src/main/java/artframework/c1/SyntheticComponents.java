@@ -2,8 +2,6 @@ package artframework.c1;
 
 import artframework.api.UiOpResult;
 import artframework.api.UiOps;
-import artframework.component.WidgetSession;
-import artframework.component.WidgetSessions;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
 import artframework.core.UiComponent;
@@ -11,40 +9,39 @@ import artframework.presentation.Node;
 import artframework.presentation.NodeTree;
 import artframework.presentation.NodeTrees;
 
-import java.util.LinkedHashMap;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /** Mounted C1 windows exposed through the same component surface as native templates. */
 public final class SyntheticComponents {
 
-    private static final Map<String, UiComponent> BY_ID = new LinkedHashMap<String, UiComponent>();
-
     private SyntheticComponents() {}
 
     public static void mount(String windowId) {
-        BY_ID.put(windowId, new SyntheticComponent(windowId));
+        // NodeTree lifecycle is authoritative; this facade has no registry.
     }
 
     public static void unmount(String windowId) {
-        BY_ID.remove(windowId);
+        // NodeTree lifecycle is authoritative; this facade has no registry.
     }
 
     public static UiComponent get(String windowId) {
-        return windowId == null ? null : BY_ID.get(windowId);
+        return windowId != null && NodeTrees.isOpen(windowId)
+                ? new SyntheticComponent(windowId) : null;
     }
 
     public static List<Map<String, Object>> probeAll() {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
-        for (UiComponent component : BY_ID.values()) {
-            out.add(component.probeSlice());
+        for (String windowId : NodeTrees.listOpenIds()) {
+            out.add(new SyntheticComponent(windowId).probeSlice());
         }
         return out;
     }
 
     public static void resetForTests() {
-        BY_ID.clear();
+        // NodeTrees owns tree lifecycle and test cleanup.
     }
 
     private static final class SyntheticComponent implements UiComponent {
@@ -123,10 +120,7 @@ public final class SyntheticComponents {
             out.put("id", id);
             out.put("kind", kind().name());
             out.put("mounted", Boolean.valueOf(isMounted()));
-            WidgetSession session = WidgetSessions.get(id);
-            if (session != null) {
-                out.put("controls", session.probeControls());
-            }
+            out.put("controls", tree().probeControls());
             return out;
         }
 
@@ -153,6 +147,7 @@ public final class SyntheticComponents {
                     ? (Number) args[index] : null;
         }
     }
+
 
     private static final class UiOpsResult {
         private UiOpsResult() {}

@@ -1,8 +1,18 @@
 package artframework.core;
 
 import artframework.api.ArtFramework;
+import artframework.ecs.ArtEcs;
+import artframework.ecs.EntityId;
 import artframework.render.LightwaveEffect;
 import artframework.render.RenderHosts;
+import artframework.presentation.EffectPulseComponent;
+import artframework.presentation.HostBindingComponent;
+import artframework.presentation.NodePropertiesComponent;
+import artframework.presentation.ControlValueComponent;
+import artframework.presentation.EffectsComponent;
+import artframework.presentation.NodeIdentityComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRegistry;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -15,40 +25,9 @@ import java.util.Map;
  */
 public final class EffectPulse {
 
-    private static final Map<String, PulseState> PULSES = new LinkedHashMap<String, PulseState>();
-
-    private static final class PulseState {
-        final String windowId;
-        final String targetId;
-        final String effectId;
-        final float baseline;
-        final float duration;
-        final boolean closeAfter;
-        final Runnable onDone;
-        float elapsed;
-
-        PulseState(
-                String windowId,
-                String targetId,
-                String effectId,
-                float baseline,
-                float duration,
-                boolean closeAfter,
-                Runnable onDone) {
-            this.windowId = windowId;
-            this.targetId = targetId;
-            this.effectId = effectId != null && !effectId.isEmpty() ? effectId : LightwaveEffect.ID;
-            this.baseline = baseline;
-            this.duration = duration > 0.05f ? duration : 0.4f;
-            this.closeAfter = closeAfter;
-            this.onDone = onDone;
-            this.elapsed = 0f;
-        }
-
-        String key() {
-            return windowId + "\0" + targetId + "\0" + effectId;
-        }
-    }
+    // Completion callbacks are host notifications, never presentation authority or component data.
+    private static final Map<EntityId, Runnable> CLOSE_CALLBACKS =
+            new LinkedHashMap<EntityId, Runnable>();
 
     private EffectPulse() {}
 
@@ -56,19 +35,13 @@ public final class EffectPulse {
         if (windowId == null) {
             return false;
         }
-        String prefix = windowId + "\0";
-        for (String k : PULSES.keySet()) {
-            if (k.startsWith(prefix)) {
-                if (targetNodeId == null || targetNodeId.isEmpty()) {
-                    return true;
-                }
-                if (k.contains("\0" + targetNodeId + "\0") || k.contains("\0c1:" + windowId + ":" + targetNodeId + "\0")) {
-                    return true;
-                }
-                // also match bare panel target ids used as c1:win:panel
-                if (k.indexOf(targetNodeId) >= 0) {
-                    return true;
-                }
+        for (EntityId entity : ArtEcs.world().query(EffectPulseComponent.class)) {
+            EffectPulseComponent pulse = ArtEcs.world().get(entity, EffectPulseComponent.class);
+            if (!windowId.equals(pulse.windowId)) continue;
+            if (targetNodeId == null || targetNodeId.isEmpty()
+                    || pulse.targetId.equals(targetNodeId)
+                    || pulse.targetId.endsWith(":" + targetNodeId)) {
+                return true;
             }
         }
         return false;
@@ -80,10 +53,9 @@ public final class EffectPulse {
         }
         float baseline = baselineIntensity(windowId, targetNodeId);
         String tid = renderTargetId(windowId, targetNodeId);
-        PulseState st =
-                new PulseState(windowId, tid, effectId, baseline, duration, false, null);
-        PULSES.put(st.key(), st);
-        applyFrame(st);
+        start(new EffectPulseComponent(windowId, tid,
+                effectId != null && !effectId.isEmpty() ? effectId : LightwaveEffect.ID,
+                baseline, duration, 0f, false));
     }
 
     public static void closeWithFx(String windowId, String targetNodeId, Runnable onClose) {
@@ -96,39 +68,52 @@ public final class EffectPulse {
         String node = targetNodeId != null && !targetNodeId.isEmpty() ? targetNodeId : "panel";
         float baseline = baselineIntensity(windowId, node);
         String tid = renderTargetId(windowId, node);
-        PulseState st =
-                new PulseState(windowId, tid, LightwaveEffect.ID, baseline, 0.35f, true, onClose);
-        PULSES.put(st.key(), st);
-        applyFrame(st);
+        EntityId entity = start(new EffectPulseComponent(windowId, tid, LightwaveEffect.ID,
+                baseline, 0.35f, 0f, true));
+        if (onClose != null) CLOSE_CALLBACKS.put(entity, onClose);
     }
 
     /** Advance active pulses. Call from host after {@code ArtFramework.tick}. */
     public static void tick(float dt) {
-        if (PULSES.isEmpty() || dt <= 0f) {
+        if (dt <= 0f) {
             return;
         }
-        List<String> done = new ArrayList<String>();
-        for (Map.Entry<String, PulseState> e : PULSES.entrySet()) {
-            PulseState st = e.getValue();
-            st.elapsed += dt;
-            if (st.elapsed >= st.duration) {
-                st.elapsed = st.duration;
-                applyFrame(st);
-                done.add(e.getKey());
+        List<EntityId> done = new ArrayList<EntityId>();
+        for (EntityId entity : ArtEcs.world().query(EffectPulseComponent.class)) {
+            EffectPulseComponent pulse = ArtEcs.world().get(entity, EffectPulseComponent.class);
+            float elapsed = pulse.elapsed + dt;
+            if (elapsed >= pulse.duration) {
+                pulse = new EffectPulseComponent(pulse.windowId, pulse.targetId, pulse.effectId,
+                        pulse.baseline, pulse.duration, pulse.duration, pulse.closeAfter);
+                applyFrame(pulse);
+                done.add(entity);
             } else {
-                applyFrame(st);
+                pulse = new EffectPulseComponent(pulse.windowId, pulse.targetId, pulse.effectId,
+                        pulse.baseline, pulse.duration, elapsed, pulse.closeAfter);
+                ArtEcs.world().put(entity, EffectPulseComponent.class, pulse);
+                applyFrame(pulse);
             }
         }
-        for (String k : done) {
-            finish(k);
+        for (EntityId entity : done) {
+            finish(entity);
         }
     }
 
     public static void resetForTests() {
-        PULSES.clear();
+        for (EntityId entity : new ArrayList<EntityId>(ArtEcs.world().query(EffectPulseComponent.class))) {
+            ArtEcs.world().destroyEntity(entity);
+        }
+        CLOSE_CALLBACKS.clear();
     }
 
-    private static void applyFrame(PulseState st) {
+    private static EntityId start(EffectPulseComponent pulse) {
+        EntityId entity = ArtEcs.world().createEntity();
+        ArtEcs.world().put(entity, EffectPulseComponent.class, pulse);
+        applyFrame(pulse);
+        return entity;
+    }
+
+    private static void applyFrame(EffectPulseComponent st) {
         float t = st.elapsed / st.duration;
         if (t < 0f) {
             t = 0f;
@@ -147,56 +132,44 @@ public final class EffectPulse {
             float u = (t - 0.85f) / 0.15f;
             intensity = intensity * (1f - u) + st.baseline * u;
         }
-        try {
-            RenderHosts.get().setEffectParam(st.targetId, st.effectId, "freeze", 1f);
-            RenderHosts.get().setEffectParam(st.targetId, st.effectId, "phase", phase);
-            RenderHosts.get().setEffectParam(st.targetId, st.effectId, "intensity", intensity);
-            RenderHosts.get()
-                    .setEffectParam(st.targetId, st.effectId, "width", 0.32f + 0.1f * envelope);
-        } catch (Throwable ignored) {
-        }
+        updateEffect(st.windowId, st.targetId, st.effectId, "freeze", Float.valueOf(1f));
+        updateEffect(st.windowId, st.targetId, st.effectId, "phase", Float.valueOf(phase));
+        updateEffect(st.windowId, st.targetId, st.effectId, "intensity", Float.valueOf(intensity));
+        updateEffect(st.windowId, st.targetId, st.effectId, "width",
+                Float.valueOf(0.32f + 0.1f * envelope));
         mirrorTree(st.windowId, st.targetId, intensity);
     }
 
-    private static void finish(String key) {
-        PulseState st = PULSES.remove(key);
-        if (st == null) {
-            return;
-        }
-        try {
-            RenderHosts.get().setEffectParam(st.targetId, st.effectId, "freeze", 0f);
-            RenderHosts.get().setEffectParam(st.targetId, st.effectId, "width", 0.28f);
-            RenderHosts.get()
-                    .setEffectParam(st.targetId, st.effectId, "intensity", st.baseline);
-        } catch (Throwable ignored) {
-        }
+    private static void finish(EntityId entity) {
+        EffectPulseComponent st = ArtEcs.world().get(entity, EffectPulseComponent.class);
+        updateEffect(st.windowId, st.targetId, st.effectId, "freeze", Float.valueOf(0f));
+        updateEffect(st.windowId, st.targetId, st.effectId, "width", Float.valueOf(0.28f));
+        updateEffect(st.windowId, st.targetId, st.effectId, "intensity", Float.valueOf(st.baseline));
         mirrorTree(st.windowId, st.targetId, st.baseline);
-        if (st.closeAfter && st.onDone != null) {
+        Runnable callback = CLOSE_CALLBACKS.remove(entity);
+        ArtEcs.world().destroyEntity(entity);
+        if (st.closeAfter) {
             try {
-                st.onDone.run();
+                if (callback != null) callback.run(); else ArtFramework.close(st.windowId);
             } catch (Throwable ignored) {
             }
         }
     }
 
     private static void mirrorTree(String windowId, String targetId, float intensity) {
-        try {
-            artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
-            if (tree == null) {
-                return;
+        EntityId entity = findC1Entity(windowId, nodeIdFromTarget(windowId, targetId));
+        if (entity == null) {
+            entity = findC1Entity(windowId, "panel");
+        }
+        if (entity == null) {
+            entity = findC1Entity(windowId, "p");
+        }
+        if (entity != null) {
+            NodePropertiesComponent properties = ArtEcs.world().get(entity, NodePropertiesComponent.class);
+            if (properties != null) {
+                ArtEcs.world().put(entity, NodePropertiesComponent.class,
+                        properties.with("fx_intensity", Float.valueOf(intensity)));
             }
-            String nodeId = nodeIdFromTarget(windowId, targetId);
-            artframework.presentation.Node panel = tree.find("root/" + nodeId);
-            if (panel == null) {
-                panel = tree.find("root/panel");
-            }
-            if (panel == null) {
-                panel = tree.find("root/p");
-            }
-            if (panel != null) {
-                panel.set("fx_intensity", Float.valueOf(intensity));
-            }
-        } catch (Throwable ignored) {
         }
     }
 
@@ -216,33 +189,68 @@ public final class EffectPulse {
     }
 
     private static float baselineIntensity(String windowId, String targetNodeId) {
-        try {
-            artframework.component.WidgetSession session =
-                    artframework.component.WidgetSessions.get(windowId);
-            if (session != null) {
-                if (session.hasSlider("wave_slider")) {
-                    return clamp(session.getSlider("wave_slider"));
-                }
-                if (session.hasSlider("wave")) {
-                    return clamp(session.getSlider("wave"));
-                }
-            }
-        } catch (Throwable ignored) {
+        EntityId slider = findC1Entity(windowId, "wave_slider");
+        if (slider == null) {
+            slider = findC1Entity(windowId, "wave");
         }
-        try {
-            artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
-            if (tree != null) {
-                artframework.presentation.Node n = tree.find("root/" + targetNodeId);
-                if (n == null) {
-                    n = tree.find("root/panel");
-                }
-                if (n != null && n.get("fx_intensity") instanceof Number) {
-                    return clamp(((Number) n.get("fx_intensity")).floatValue());
-                }
+        if (slider != null) {
+            ControlValueComponent value = ArtEcs.world().get(slider, ControlValueComponent.class);
+            if (value != null && value.value instanceof Number) {
+                return clamp(((Number) value.value).floatValue());
             }
-        } catch (Throwable ignored) {
+        }
+        EntityId target = findC1Entity(windowId, targetNodeId);
+        if (target == null) {
+            target = findC1Entity(windowId, "panel");
+        }
+        if (target != null) {
+            NodePropertiesComponent properties = ArtEcs.world().get(target, NodePropertiesComponent.class);
+            Object intensity = properties != null ? properties.get("fx_intensity") : null;
+            if (intensity instanceof Number) {
+                return clamp(((Number) intensity).floatValue());
+            }
         }
         return 0.55f;
+    }
+
+    /** Find a C1 visual entity by its host realization key, never through a tree facade. */
+    private static EntityId findC1Entity(String windowId, String effectKey) {
+        if (windowId == null || effectKey == null || effectKey.isEmpty()) {
+            return null;
+        }
+        PresentationContext context = PresentationRegistry.existingContext("tree:" + windowId);
+        if (context != null) {
+            for (EntityId entity : context.entities()) {
+                NodeIdentityComponent identity = ArtEcs.world().get(entity, NodeIdentityComponent.class);
+                if (identity != null && effectKey.equals(identity.name)) return entity;
+            }
+        }
+        String key = windowId + ":" + effectKey;
+        for (EntityId entity : ArtEcs.world().query(HostBindingComponent.class)) {
+            HostBindingComponent binding = ArtEcs.world().get(entity, HostBindingComponent.class);
+            if (binding != null && "SCENE2D_C1".equals(binding.hostKind)
+                    && (key.equals(binding.localKey)
+                    || binding.localKey.endsWith(":" + effectKey)
+                    || binding.localKey.endsWith("/" + effectKey))) {
+                return entity;
+            }
+        }
+        return null;
+    }
+
+    private static void updateEffect(
+            String windowId, String targetId, String effectId, String name, Object value) {
+        EntityId entity = findC1Entity(windowId, nodeIdFromTarget(windowId, targetId));
+        if (entity == null) {
+            entity = findC1Entity(windowId, "panel");
+        }
+        if (entity == null) return;
+        EffectsComponent effects = ArtEcs.world().get(entity, EffectsComponent.class);
+        if (effects == null) return;
+        String layer = effects.get(effectId, "pulse") != null ? "pulse" : "ambient";
+        ArtEcs.world().put(entity, EffectsComponent.class,
+                effects.withParam(effectId, layer, name, value));
+        RenderHosts.get().syncC1Window(windowId);
     }
 
     private static float clamp(float v) {

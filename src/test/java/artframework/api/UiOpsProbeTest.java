@@ -147,6 +147,24 @@ public class UiOpsProbeTest {
     }
 
     @Test
+    public void syntheticControlOpsStoreTheirCurrentValueOnTheEcsEntity() {
+        ArtFramework.register(new WindowDef("lightwave_demo", WindowClass.SYNTHETIC,
+                "layouts/lightwave_demo.json"));
+        ArtFramework.open("lightwave_demo");
+
+        assertEquals(UiOpResult.Status.OK,
+                ArtFramework.ops().setSlider("lightwave_demo", "wave_slider", 0.8f).status);
+        artframework.presentation.Node node = ArtFramework.tree("lightwave_demo").get("wave_slider");
+        artframework.presentation.ControlValueComponent value = node.tree().world().get(
+                node.entityId(), artframework.presentation.ControlValueComponent.class);
+
+        assertNotNull(value);
+        assertEquals(0.8f, ((Number) value.value).floatValue(), 0.001f);
+        // The legacy session mirrors ECS only for existing stage consumers.
+        assertEquals(0.8f, ArtFramework.widgets("lightwave_demo").getSlider("wave_slider"), 0.001f);
+    }
+
+    @Test
     public void invokeSyntheticComponentAction() {
         final AtomicInteger hits = new AtomicInteger();
         ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));

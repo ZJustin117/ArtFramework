@@ -16,7 +16,7 @@ public final class PresentationFrame {
 
     public static PresentationFrame from(PresentationContext context) {
         List<PresentationDrawItem> items = new ArrayList<PresentationDrawItem>();
-        for (EntityId entity : context.world().entities()) {
+        for (EntityId entity : context.entities()) {
             VisibilityComponent visibility = context.world().get(entity, VisibilityComponent.class);
             BoundsComponent bounds = context.world().get(entity, BoundsComponent.class);
             DrawComponent draw = context.world().get(entity, DrawComponent.class);
@@ -24,9 +24,12 @@ public final class PresentationFrame {
             NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
             ChromeComponent chrome = context.world().get(entity, ChromeComponent.class);
             EffectsComponent effects = context.world().get(entity, EffectsComponent.class);
+            HostBindingComponent hostBinding = context.world().get(entity, HostBindingComponent.class);
+            NodeHierarchyComponent hierarchy = context.world().get(entity, NodeHierarchyComponent.class);
             items.add(new PresentationDrawItem(entity, identity.key, bounds.rect, bounds.z, draw, chrome,
                     effects != null ? new ArrayList<EffectAttachment>(effects.attachments())
-                            : Collections.<EffectAttachment>emptyList()));
+                            : Collections.<EffectAttachment>emptyList(), hostBinding,
+                    hierarchy != null && hierarchy.parent == null));
         }
         Collections.sort(items, new Comparator<PresentationDrawItem>() {
             @Override public int compare(PresentationDrawItem a, PresentationDrawItem b) {

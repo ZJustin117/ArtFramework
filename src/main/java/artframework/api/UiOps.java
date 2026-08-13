@@ -1,6 +1,5 @@
 package artframework.api;
 
-import artframework.c1.layout.LayoutNode;
 import artframework.c2.EventOptionRef;
 import artframework.c2.MapNodeRef;
 import artframework.c2.NativeTemplateRuntime;
@@ -10,8 +9,9 @@ import artframework.c2.SelectKind;
 import artframework.c2.SelectTemplate;
 import artframework.component.SliderHandler;
 import artframework.component.UiTypes;
-import artframework.component.WidgetSession;
-import artframework.component.WidgetSessions;
+import artframework.presentation.ControlValueComponent;
+import artframework.presentation.ControlValueSystem;
+import artframework.presentation.NodePropertiesComponent;
 import artframework.c2.NativeComponents;
 import artframework.core.SignalNames;
 import artframework.core.UiComponent;
@@ -33,7 +33,6 @@ public final class UiOps {
 
     private final Map<String, SignalHandler> signalHandlers =
             new LinkedHashMap<String, SignalHandler>();
-    private final Map<String, UiOpResult> lastResults = new LinkedHashMap<String, UiOpResult>();
 
     UiOps() {}
 
@@ -272,17 +271,15 @@ public final class UiOps {
         if (h == null || !h.isOpen() || h.windowClass() != WindowClass.SYNTHETIC) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session == null || !session.hasSlider(sliderId)) {
+        artframework.presentation.Node slider = control(windowId, sliderId, UiTypes.SLIDER);
+        if (slider == null) {
             return UiOpResult.unavailable("slider not in layout: " + sliderId);
         }
-        float previous = session.getSlider(sliderId);
-        float clamped = session.setSlider(sliderId, value);
-        session.setSlider(sliderId, previous);
+        float clamped = normalizedNumber(slider, value);
         if (!allowSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped))) {
             return UiOpResult.blocked("slider blocked: " + windowId + "/" + sliderId);
         }
-        session.setSlider(sliderId, value);
+        setControlValue(slider, Float.valueOf(clamped));
         syncNodeProperty(windowId, sliderId, "value", Float.valueOf(clamped));
         emitSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
         try {
@@ -320,20 +317,16 @@ public final class UiOps {
         if (windowId == null || controlId == null) {
             return UiOpResult.unavailable("windowId and controlId required");
         }
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session != null) {
-            if (session.hasType(controlId, UiTypes.BUTTON)) {
-                return clickButton(windowId, controlId);
-            }
-            if (session.hasType(controlId, UiTypes.HITAREA)) {
-                return clickHitArea(windowId, controlId);
-            }
-            if (session.hasType(controlId, UiTypes.CHECKBOX)) {
-                return toggleCheckbox(windowId, controlId);
-            }
-            return UiOpResult.unavailable("not clickable: " + controlId);
+        if (control(windowId, controlId, UiTypes.BUTTON) != null) {
+            return clickButton(windowId, controlId);
         }
-        return clickButton(windowId, controlId);
+        if (control(windowId, controlId, UiTypes.HITAREA) != null) {
+            return clickHitArea(windowId, controlId);
+        }
+        if (control(windowId, controlId, UiTypes.CHECKBOX) != null) {
+            return toggleCheckbox(windowId, controlId);
+        }
+        return UiOpResult.unavailable("not clickable: " + controlId);
     }
 
     public UiOpResult setText(String windowId, String fieldId, String text) {
@@ -343,15 +336,15 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session == null || !session.hasTextField(fieldId)) {
+        artframework.presentation.Node field = control(windowId, fieldId, UiTypes.TEXTFIELD);
+        if (field == null) {
             return UiOpResult.unavailable("textfield not in layout: " + fieldId);
         }
         String t = text != null ? text : "";
         if (!allowSignal(windowId, fieldId, SignalNames.TEXT_CHANGED, t)) {
             return UiOpResult.blocked("textfield blocked: " + windowId + "/" + fieldId);
         }
-        t = session.setText(fieldId, t);
+        setControlValue(field, t);
         syncNodeProperty(windowId, fieldId, "text", t);
         emitSignal(windowId, fieldId, SignalNames.TEXT_CHANGED, t);
         return UiOpResult.ok();
@@ -364,11 +357,11 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session == null || !session.hasTextField(fieldId)) {
+        artframework.presentation.Node field = control(windowId, fieldId, UiTypes.TEXTFIELD);
+        if (field == null) {
             return UiOpResult.unavailable("textfield not in layout: " + fieldId);
         }
-        String text = session.getText(fieldId);
+        String text = String.valueOf(controlValue(field));
         if (!allowSignal(windowId, fieldId, SignalNames.TEXT_SUBMITTED, text)) {
             return UiOpResult.blocked("textfield blocked: " + windowId + "/" + fieldId);
         }
@@ -383,15 +376,15 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session == null || !session.hasCheckbox(checkboxId)) {
+        artframework.presentation.Node checkbox = control(windowId, checkboxId, UiTypes.CHECKBOX);
+        if (checkbox == null) {
             return UiOpResult.unavailable("checkbox not in layout: " + checkboxId);
         }
         boolean v = checked;
         if (!allowSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v))) {
             return UiOpResult.blocked("checkbox blocked: " + windowId + "/" + checkboxId);
         }
-        v = session.setChecked(checkboxId, checked);
+        setControlValue(checkbox, Boolean.valueOf(v));
         syncNodeProperty(windowId, checkboxId, "checked", Boolean.valueOf(v));
         emitSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v));
         return UiOpResult.ok();
@@ -404,15 +397,15 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session == null || !session.hasCheckbox(checkboxId)) {
+        artframework.presentation.Node checkbox = control(windowId, checkboxId, UiTypes.CHECKBOX);
+        if (checkbox == null) {
             return UiOpResult.unavailable("checkbox not in layout: " + checkboxId);
         }
-        boolean v = !session.getChecked(checkboxId);
+        boolean v = !Boolean.TRUE.equals(controlValue(checkbox));
         if (!allowSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v))) {
             return UiOpResult.blocked("checkbox blocked: " + windowId + "/" + checkboxId);
         }
-        v = session.setChecked(checkboxId, v);
+        setControlValue(checkbox, Boolean.valueOf(v));
         syncNodeProperty(windowId, checkboxId, "checked", Boolean.valueOf(v));
         emitSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v));
         return UiOpResult.ok();
@@ -425,17 +418,15 @@ public final class UiOps {
         if (!isOpenSynthetic(windowId)) {
             return UiOpResult.notBound("synthetic window not open: " + windowId);
         }
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session == null || !session.hasProgress(progressId)) {
+        artframework.presentation.Node progress = control(windowId, progressId, UiTypes.PROGRESS);
+        if (progress == null) {
             return UiOpResult.unavailable("progress not in layout: " + progressId);
         }
-        float previous = session.getProgress(progressId);
-        float clamped = session.setProgress(progressId, value);
-        session.setProgress(progressId, previous);
+        float clamped = normalizedNumber(progress, value);
         if (!allowSignal(windowId, progressId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped))) {
             return UiOpResult.blocked("progress blocked: " + windowId + "/" + progressId);
         }
-        session.setProgress(progressId, value);
+        setControlValue(progress, Float.valueOf(clamped));
         syncNodeProperty(windowId, progressId, "value", Float.valueOf(clamped));
         emitSignal(windowId, progressId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
         return UiOpResult.ok();
@@ -446,16 +437,54 @@ public final class UiOps {
         return h != null && h.isOpen() && h.windowClass() == WindowClass.SYNTHETIC;
     }
 
+    private static artframework.presentation.Node control(String windowId, String controlId, String type) {
+        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
+        artframework.presentation.Node node = tree != null ? tree.get(controlId) : null;
+        return node != null && type.equals(node.type()) ? node : null;
+    }
+
+    private static Object controlValue(artframework.presentation.Node node) {
+        ControlValueComponent value = node.tree().world().get(node.entityId(), ControlValueComponent.class);
+        return value != null ? value.value : null;
+    }
+
+    private static void setControlValue(artframework.presentation.Node node, Object value) {
+        node.tree().world().put(node.entityId(), ControlValueComponent.class,
+                new ControlValueComponent(value));
+    }
+
+    private static float normalizedNumber(artframework.presentation.Node node, float requested) {
+        NodePropertiesComponent props = node.tree().world().get(
+                node.entityId(), NodePropertiesComponent.class);
+        float min = number(props != null ? props.get("min") : null, 0f);
+        float max = number(props != null ? props.get("max") : null, 1f);
+        if (min > max) {
+            float swap = min;
+            min = max;
+            max = swap;
+        }
+        return Math.max(min, Math.min(max, requested));
+    }
+
+    private static float number(Object value, float fallback) {
+        if (value instanceof Number) return ((Number) value).floatValue();
+        if (value != null) {
+            try { return Float.parseFloat(String.valueOf(value)); }
+            catch (NumberFormatException ignored) { }
+        }
+        return fallback;
+    }
+
     /**
      * Route an action to a {@link UiComponent} (C2 native host or future synthetic).
      * Named C2 methods remain sugar that implement the real gate + gesture path.
      */
     public UiOpResult invoke(String componentId, String action, Object... args) {
         if (componentId == null || componentId.isEmpty()) {
-            return remember(componentId, UiOpResult.unavailable("componentId required"));
+            return UiOpResult.unavailable("componentId required");
         }
         if (action == null || action.isEmpty()) {
-            return remember(componentId, UiOpResult.unavailable("action required"));
+            return UiOpResult.unavailable("action required");
         }
         UiComponent c = ArtFramework.component(componentId);
         if (c == null) {
@@ -463,13 +492,9 @@ public final class UiOps {
             c = ArtFramework.component(canon);
         }
         if (c == null) {
-            return remember(componentId, UiOpResult.unavailable("unknown component: " + componentId));
+            return UiOpResult.unavailable("unknown component: " + componentId);
         }
-        return remember(c.id(), c.action(action, args != null ? args : new Object[0]));
-    }
-
-    public UiOpResult lastResult(String componentId) {
-        return lastResults.get(componentId);
+        return c.action(action, args != null ? args : new Object[0]);
     }
 
     public UiComponent component(String componentId) {
@@ -478,14 +503,6 @@ public final class UiOps {
 
     void resetForTests() {
         signalHandlers.clear();
-        lastResults.clear();
-    }
-
-    private UiOpResult remember(String componentId, UiOpResult result) {
-        if (componentId != null && result != null) {
-            lastResults.put(componentId, result);
-        }
-        return result;
     }
 
     void onTreeMounted(String windowId) {
@@ -553,29 +570,19 @@ public final class UiOps {
     }
 
     private static String sessionPath(String windowId, String controlId) {
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session == null || session.root() == null) return controlId;
-        return session.root().id + "/" + controlId;
+        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
+        return tree != null && tree.root() != null ? tree.root().name() + "/" + controlId : controlId;
     }
 
     private static boolean controlExists(String windowId, String controlId, String type) {
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session != null) {
-            return session.hasType(controlId, type);
-        }
-        if (UiTypes.BUTTON.equals(type)) {
-            LayoutNode root = ArtFramework.layoutRoot(windowId);
-            return root != null && hasButton(root, controlId);
-        }
-        return false;
+        return control(windowId, controlId, type) != null;
     }
 
     private static boolean pressableControlExists(String windowId, String controlId) {
-        WidgetSession session = WidgetSessions.get(windowId);
-        if (session != null) {
-            return session.isPressable(controlId);
-        }
-        return controlExists(windowId, controlId, UiTypes.BUTTON);
+        artframework.presentation.NodeTree tree = ArtFramework.tree(windowId);
+        artframework.presentation.Node node = tree != null ? tree.get(controlId) : null;
+        return node != null && (UiTypes.BUTTON.equals(node.type())
+                || artframework.component.StsNodeTypes.isPressable(node.type()));
     }
 
     private static SelectTemplate selectTemplate(SelectKind kind) {
@@ -607,18 +614,4 @@ public final class UiOps {
         return windowId + "\0" + buttonId;
     }
 
-    private static boolean hasButton(LayoutNode node, String buttonId) {
-        if (node == null) {
-            return false;
-        }
-        if (node.type == LayoutNode.Type.BUTTON && buttonId.equals(node.id)) {
-            return true;
-        }
-        for (LayoutNode c : node.children) {
-            if (hasButton(c, buttonId)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

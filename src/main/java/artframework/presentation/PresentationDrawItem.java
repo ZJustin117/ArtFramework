@@ -14,9 +14,12 @@ public final class PresentationDrawItem {
     public final DrawComponent draw;
     public final ChromeComponent chrome;
     public final List<EffectAttachment> effects;
+    public final HostBindingComponent hostBinding;
+    public final boolean root;
 
     PresentationDrawItem(EntityId entity, PresentationKey key, Rect bounds, float z,
-            DrawComponent draw, ChromeComponent chrome, List<EffectAttachment> effects) {
+            DrawComponent draw, ChromeComponent chrome, List<EffectAttachment> effects,
+            HostBindingComponent hostBinding, boolean root) {
         this.entity = entity;
         this.key = key;
         this.bounds = bounds;
@@ -24,5 +27,7 @@ public final class PresentationDrawItem {
         this.draw = draw;
         this.chrome = chrome;
         this.effects = Collections.unmodifiableList(effects);
+        this.hostBinding = hostBinding;
+        this.root = root;
     }
 }

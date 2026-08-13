@@ -72,12 +72,10 @@ public final class SyntheticRuntime {
                         java.util.Collections.<LayoutNode>emptyList());
             }
 
-            WindowManager.put(def.id, legacy);
-            RenderHosts.get().syncWidgetSession(session);
             artframework.presentation.NodeTree presentationTree = NodeTrees.get(def.id);
             if (presentationTree != null) {
                 RenderHosts.get().syncFrame(
-                        presentationTree.frame(), artframework.render.RenderTargetKind.SYNTHETIC_WIDGET);
+                        presentationTree.frame(), artframework.render.RenderTargetKind.SYNTHETIC_WIDGET, def.id);
             }
             if (stageBackend != null && stageBackend.isReady()) {
                 // Always composition path so EffectTargetActors registers for FX stage sync.
@@ -104,7 +102,6 @@ public final class SyntheticRuntime {
         if (stageBackend != null) {
             stageBackend.detach(id);
         }
-        WindowManager.remove(id);
         WidgetSessions.close(id);
         NodeTrees.close(id);
         SyntheticComponents.unmount(id);
@@ -139,7 +136,6 @@ public final class SyntheticRuntime {
             } catch (RuntimeException ignored) {
             }
         }
-        WindowManager.remove(id);
         WidgetSessions.close(id);
         NodeTrees.close(id);
         SyntheticComponents.unmount(id);
@@ -148,7 +144,6 @@ public final class SyntheticRuntime {
 
     public static void resetForTests() {
         stageBackend = null;
-        WindowManager.resetForTests();
         WidgetSessions.resetForTests();
         NodeTrees.resetForTests();
         SyntheticComponents.resetForTests();

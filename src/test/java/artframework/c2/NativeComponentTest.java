@@ -10,6 +10,7 @@ import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
 import artframework.core.SignalNames;
 import artframework.core.UiComponent;
+import artframework.ecs.EntityId;
 import artframework.ops.FakeNativeOps;
 
 import java.util.List;

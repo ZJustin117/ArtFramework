@@ -4,6 +4,7 @@ import artframework.api.ArtFramework;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
 import artframework.core.SignalDecision;
+import artframework.ecs.EntityId;
 import org.junit.After;
 import org.junit.Test;
 
@@ -17,6 +18,10 @@ public class CombatTemplatesTest {
         bind(NativeTemplateIds.EVENT);
         NativeTemplateRuntime.event().setEventId("event");
         assertTrue(NativeTemplateRuntime.isEventBound());
+        EntityId entity = artframework.presentation.PresentationRegistry.context("c2-templates")
+                .entity(new artframework.presentation.PresentationKey("sts1.template", NativeTemplateIds.EVENT));
+        assertTrue("event".equals(artframework.presentation.PresentationRegistry.world()
+                .get(entity, EventTemplateDataComponent.class).eventId));
         ArtFramework.close(NativeTemplateIds.EVENT);
         assertFalse(NativeTemplateRuntime.isEventBound());
         assertTrue(NativeTemplateRuntime.event().getEventId().isEmpty());
@@ -36,6 +41,10 @@ public class CombatTemplatesTest {
     @Test public void endTurnEnabledHintRemainsPresentationState() {
         bind(NativeTemplateIds.END_TURN);
         NativeTemplateRuntime.endTurn().setButtonEnabled(false);
+        EntityId entity = artframework.presentation.PresentationRegistry.context("c2-templates")
+                .entity(new artframework.presentation.PresentationKey("sts1.template", NativeTemplateIds.END_TURN));
+        assertFalse(artframework.presentation.PresentationRegistry.world()
+                .get(entity, EndTurnTemplateDataComponent.class).buttonEnabled);
         assertFalse(
                 artframework.c2.hooks.HostPatchResults.allowsNative(
                         artframework.c2.hooks.NativeUiHooks.onEndTurnPress()));

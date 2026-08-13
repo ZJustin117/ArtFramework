@@ -6,6 +6,8 @@ import artframework.context.CardRef;
 import artframework.context.CardZone;
 import artframework.context.IntentNames;
 import artframework.context.IntentResult;
+import artframework.context.NativeIntentLifecycleComponent;
+import artframework.context.NativeInputComponent;
 import artframework.context.PresentProjection;
 import artframework.context.SurfaceIds;
 import artframework.context.UiIntent;
@@ -106,7 +108,10 @@ public final class CombatInputRouter {
     }
 
     public static boolean shouldSuppressNativeInput() {
-        return suppressNativeInput && capability(SurfaceIds.COMBAT_HAND).ownsInput();
+        boolean suppress = nativeInputSuppressed();
+        NativeInputRecords.intercept(SurfaceIds.COMBAT_HAND, suppress, suppress,
+                suppress ? "full_present" : "native_allowed");
+        return suppress;
     }
 
     public static IntentResult beginDrag(String instanceId) {
@@ -133,22 +138,31 @@ public final class CombatInputRouter {
     }
 
     public static IntentResult pressEndTurn() {
+        NativeInputRecords.input(IntentNames.PRESS_END_TURN, SurfaceIds.COMBAT_CONTROLS);
         if (!capability(SurfaceIds.COMBAT_CONTROLS).ownsInput()) {
-            return IntentResult.rejected("controls full-present input not enabled");
+            return recordInterceptResult(SurfaceIds.COMBAT_CONTROLS,
+                    IntentResult.rejected("controls full-present input not enabled"), "controls_not_owned");
         }
         UiIntent intent = UiIntent.of(IntentNames.PRESS_END_TURN, SurfaceIds.COMBAT_CONTROLS);
-        return toIntentResult(artframework.core.SignalBuses.get().emit(
+        NativeInputRecords.intent(SurfaceIds.COMBAT_CONTROLS, intent.name,
+                NativeIntentLifecycleComponent.State.SENT, "");
+        return recordInterceptResult(SurfaceIds.COMBAT_CONTROLS,
+                toIntentResult(artframework.core.SignalBuses.get().emit(
                 new artframework.core.UiSignal(ContextSignals.action(SurfaceIds.COMBAT_CONTROLS, intent.name),
-                        SurfaceIds.COMBAT_CONTROLS, intent)));
+                        SurfaceIds.COMBAT_CONTROLS, intent))), "routed");
     }
 
     public static IntentResult route(String intentName, Object... args) {
+        NativeInputRecords.input(intentName, SurfaceIds.COMBAT_HAND);
         if (!capability(SurfaceIds.COMBAT_HAND).ownsInput()) {
-            return IntentResult.rejected("hand full-present input not enabled");
+            return recordInterceptResult(SurfaceIds.COMBAT_HAND,
+                    IntentResult.rejected("hand full-present input not enabled"),
+                    "hand_not_owned");
         }
         if (ArtFramework.component(SurfaceIds.COMBAT_HAND) == null
                 || !ArtFramework.component(SurfaceIds.COMBAT_HAND).isMounted()) {
-            return IntentResult.rejected("hand surface not mounted");
+            return recordInterceptResult(SurfaceIds.COMBAT_HAND,
+                    IntentResult.rejected("hand surface not mounted"), "not_mounted");
         }
         PresentProjection proj = ArtFramework.projection();
         if (IntentNames.BEGIN_DRAG.equals(intentName)
@@ -162,18 +176,25 @@ public final class CombatInputRouter {
                 if (e == null) {
                     // allow type-id play via CardRef in args[0]
                     if (!(args != null && args.length > 0 && args[0] instanceof CardRef)) {
-                        return IntentResult.rejected("unknown card instance: " + instanceId);
+                        return recordInterceptResult(SurfaceIds.COMBAT_HAND,
+                                IntentResult.rejected("unknown card instance: " + instanceId),
+                                "unknown_card");
                     }
                 } else if (e.zone != CardZone.HAND
                         && !IntentNames.CANCEL_DRAG.equals(intentName)) {
-                    return IntentResult.rejected("card not in hand: " + instanceId);
+                    return recordInterceptResult(SurfaceIds.COMBAT_HAND,
+                            IntentResult.rejected("card not in hand: " + instanceId),
+                            "card_not_in_hand");
                 }
             }
         }
         UiIntent intent = UiIntent.of(intentName, SurfaceIds.COMBAT_HAND, args);
-        return toIntentResult(artframework.core.SignalBuses.get().emit(
+        NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, intent.name,
+                NativeIntentLifecycleComponent.State.SENT, "");
+        return recordInterceptResult(SurfaceIds.COMBAT_HAND,
+                toIntentResult(artframework.core.SignalBuses.get().emit(
                 new artframework.core.UiSignal(ContextSignals.action(SurfaceIds.COMBAT_HAND, intent.name),
-                        SurfaceIds.COMBAT_HAND, intent)));
+                        SurfaceIds.COMBAT_HAND, intent))), "routed");
     }
 
     /**
@@ -183,14 +204,20 @@ public final class CombatInputRouter {
         if (intent == null) {
             return IntentResult.rejected("intent required");
         }
+        NativeInputRecords.input(intent.name, intent.surfaceId);
+        NativeInputRecords.intent(intent.surfaceId, intent.name,
+                NativeIntentLifecycleComponent.State.REQUESTED, "");
         if (!capability(intent.surfaceId).ownsInput()) {
-            return IntentResult.rejected("sts1 full-present input is not enabled for " + intent.surfaceId);
+            return recordInterceptResult(intent.surfaceId,
+                    IntentResult.rejected("sts1 full-present input is not enabled for " + intent.surfaceId),
+                    "surface_not_owned");
         }
         IntentResult r = executor.execute(intent);
         if (r == null) {
-            return IntentResult.rejected("executor declined: " + intent.name);
+            return recordInterceptResult(intent.surfaceId,
+                    IntentResult.rejected("executor declined: " + intent.name), "executor_declined");
         }
-        return r;
+        return recordInterceptResult(intent.surfaceId, r, "executed");
     }
 
     public static Map<String, Object> probeSlice() {
@@ -246,6 +273,29 @@ public final class CombatInputRouter {
     public static void resetForTests() {
         executor = new RejectingExecutor();
         suppressNativeInput = false;
+        NativeInputRecords.resetForTests();
+    }
+
+    private static IntentResult recordInterceptResult(String surfaceId, IntentResult result, String reason) {
+        NativeIntentLifecycleComponent.State state = result != null
+                && result.status == IntentResult.Status.QUEUED
+                ? NativeIntentLifecycleComponent.State.QUEUED
+                : result != null && result.status == IntentResult.Status.REJECTED
+                        ? NativeIntentLifecycleComponent.State.REJECTED
+                        : NativeIntentLifecycleComponent.State.EXECUTED;
+        NativeInputComponent input = artframework.presentation.PresentationRegistry.world().get(
+                artframework.presentation.PresentationRegistry.context("sts1-input").entity(
+                        new artframework.presentation.PresentationKey("sts1.input", surfaceId)),
+                NativeInputComponent.class);
+        NativeInputRecords.intent(surfaceId, input != null ? input.name : "", state,
+                result != null ? result.message : "no result");
+        NativeInputRecords.intercept(surfaceId, result != null && result.status != IntentResult.Status.REJECTED,
+                nativeInputSuppressed(), reason);
+        return result;
+    }
+
+    private static boolean nativeInputSuppressed() {
+        return suppressNativeInput && capability(SurfaceIds.COMBAT_HAND).ownsInput();
     }
 
     private static String instanceFromArgs(Object[] args) {

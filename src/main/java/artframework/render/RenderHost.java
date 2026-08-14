@@ -1,24 +1,7 @@
 package artframework.render;
 
-import artframework.component.ArtNodeTypes;
-import artframework.component.EffectDecl;
-import artframework.component.LayoutEngine;
-import artframework.component.LayoutResult;
 import artframework.component.Rect;
-import artframework.component.UiNode;
-import artframework.component.UiTypes;
-import artframework.component.WidgetSession;
-import artframework.c2.EntitySlot;
-import artframework.presentation.PresentationFrame;
-import artframework.presentation.PresentationDrawItem;
-import artframework.presentation.BoundsComponent;
 import artframework.presentation.EffectAttachment;
-import artframework.presentation.EffectsComponent;
-import artframework.presentation.NodeIdentityComponent;
-import artframework.presentation.HostBindingComponent;
-import artframework.presentation.PresentationContext;
-import artframework.presentation.PresentationRegistry;
-import artframework.presentation.VisibilityComponent;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,8 +29,6 @@ public final class RenderHost {
     private final Map<String, RenderTarget> targets = new ConcurrentHashMap<String, RenderTarget>();
     private final Map<String, List<EffectBinding>> bindings =
             new ConcurrentHashMap<String, List<EffectBinding>>();
-    private final Map<String, List<String>> frameTargetIdsByWindow =
-            new ConcurrentHashMap<String, List<String>>();
     private HostRenderBackend hostBackend = DirectHostRenderBackend.INSTANCE;
     private boolean fullFrameEnabled;
     private boolean captureEnabled;
@@ -55,7 +36,6 @@ public final class RenderHost {
     private float timeSeconds;
     private float screenW = 1920f;
     private float screenH = 1080f;
-    private PresentationFrame lastPresentationFrame;
 
     public RenderHost() {
         installBuiltins();
@@ -147,7 +127,7 @@ public final class RenderHost {
                 current != null ? current.bounds.height : screenH,
                 enabled,
                 current != null ? current.effects() : Collections.<EffectAttachment>emptyList());
-        syncRenderState();
+        rebuildFromEcsPlan();
     }
 
     public boolean isFullFrameEnabled() {
@@ -185,7 +165,7 @@ public final class RenderHost {
         FullFrameRenderComponent current = RenderStateEcs.fullFrameState();
         if (current != null) {
             RenderStateEcs.fullFrame(width, height, current.enabled, current.effects());
-            syncRenderState();
+            rebuildFromEcsPlan();
         }
         return targets.get(FULL_FRAME_ID);
     }
@@ -196,94 +176,6 @@ public final class RenderHost {
 
     public float screenHeight() {
         return screenH;
-    }
-
-    /**
-     * Rebuild the host-side render cache from the immutable ECS snapshot. The frame is the source
-     * of bounds, z and effect attachment identity; RenderTarget/EffectBinding remain draw caches.
-     */
-    public void syncFrame(PresentationFrame frame, RenderTargetKind kind) {
-        syncFrame(frame, kind, null);
-    }
-
-    /** Rebuild host targets from an ECS frame, optionally tracking its C1 window for cleanup. */
-    public void syncFrame(PresentationFrame frame, RenderTargetKind kind, String windowId) {
-        if (frame == null) return;
-        lastPresentationFrame = frame;
-        java.util.Set<String> live = new java.util.LinkedHashSet<String>();
-        for (PresentationDrawItem item : frame.items) {
-            String id = targetIdFor(item);
-            live.add(id);
-            RenderTarget target = ensureTarget(id, kind == null ? RenderTargetKind.SYNTHETIC_WIDGET : kind);
-            target.setBounds(item.bounds);
-            target.setZ(item.z);
-            target.setEnabled(true);
-            clearEffects(id);
-            for (artframework.presentation.EffectAttachment attachment : item.effects) {
-                if (effects.contains(attachment.effectId)) bindEffect(id, attachment.effectId, attachment.params());
-            }
-            if (item.root) {
-                syncC1TitleTarget(item, live);
-            }
-        }
-        if (windowId != null && !windowId.isEmpty()) {
-            List<String> previous = frameTargetIdsByWindow.put(windowId, new ArrayList<String>(live));
-            if (previous != null) {
-                for (String id : previous) {
-                    if (!live.contains(id)) removeTarget(id);
-                }
-            }
-        } else {
-            for (String id : new ArrayList<String>(targetIdsWithPrefix("ui:"))) {
-                if (!live.contains(id)) removeTarget(id);
-            }
-        }
-    }
-
-    private static String targetIdFor(PresentationDrawItem item) {
-        HostBindingComponent binding = item.hostBinding;
-        if (binding != null && "SCENE2D_C1".equals(binding.hostKind)) {
-            String local = binding.localKey;
-            int separator = local.indexOf(':');
-            if (separator > 0 && separator < local.length() - 1) {
-                String windowId = local.substring(0, separator);
-                String effectKey = local.substring(separator + 1);
-                return item.root ? "c1:" + windowId : "c1:" + windowId + ":" + effectKey;
-            }
-        }
-        return item.key.toString();
-    }
-
-    /** The scene2d title is host chrome, projected from its root entity and immutable pack data. */
-    private void syncC1TitleTarget(PresentationDrawItem item, java.util.Set<String> live) {
-        HostBindingComponent binding = item.hostBinding;
-        if (binding == null || !"SCENE2D_C1".equals(binding.hostKind)) return;
-        String local = binding.localKey;
-        int separator = local.indexOf(':');
-        if (separator <= 0) return;
-        String targetId = "c1:" + local.substring(0, separator) + ":__art_title";
-        live.add(targetId);
-        RenderTarget target = ensureTarget(targetId, RenderTargetKind.SYNTHETIC_WIDGET);
-        target.setBounds(item.bounds);
-        target.setZ(item.z + 0.001f);
-        target.setEnabled(true);
-        clearEffects(targetId);
-        for (EffectDecl effect : artframework.core.PresentPackApply.effectDefaultsForType(UiTypes.LABEL)) {
-            if (effect != null && effects.contains(effect.id)) {
-                bindEffect(targetId, effect.id, effect.params);
-            }
-        }
-    }
-
-    public PresentationFrame lastPresentationFrame() { return lastPresentationFrame; }
-
-    /** Re-project one registered C1 window from ECS without consulting its compatibility tree. */
-    public void syncC1Window(String windowId) {
-        if (windowId == null || windowId.trim().isEmpty()) return;
-        PresentationContext context = PresentationRegistry.existingContext("tree:" + windowId);
-        if (context != null) {
-            syncFrame(PresentationFrame.from(context), RenderTargetKind.SYNTHETIC_WIDGET, windowId);
-        }
     }
 
     public boolean needsCapture() {
@@ -323,13 +215,13 @@ public final class RenderHost {
                         ? String.valueOf(params.get("layer")) : EffectBinding.LAYER_AMBIENT,
                 params));
         RenderStateEcs.fullFrame(screenW, screenH, true, next);
-        syncRenderState();
+        rebuildFromEcsPlan();
         return findEffect(FULL_FRAME_ID, effectId,
                 params != null && params.get("layer") != null
                         ? String.valueOf(params.get("layer")) : EffectBinding.LAYER_AMBIENT);
     }
 
-    public RenderTarget ensureTarget(String id, RenderTargetKind kind) {
+    RenderTarget ensureTarget(String id, RenderTargetKind kind) {
         RenderTarget t = targets.get(id);
         if (t == null) {
             t = new RenderTarget(id, kind);
@@ -360,159 +252,32 @@ public final class RenderHost {
         return c2SurfaceTargetId(surfaceId) + ":item:" + itemId.trim();
     }
 
-    /** Create or update the render region used by a C2 surface effect. */
-    public RenderTarget syncC2Surface(
-            String surfaceId, float x, float y, float width, float height) {
-        RenderStateEcs.surface(surfaceId, x, y, width, height, width > 0f && height > 0f);
-        syncRenderState();
-        return getTarget(c2SurfaceTargetId(surfaceId));
+    /** Rebuild all ECS-owned C2/full-frame/entity targets from one immutable render plan. */
+    public void rebuildFromEcsPlan() {
+        rebuildFromEcsPlan(null);
     }
 
-    public void setC2SurfaceEnabled(String surfaceId, boolean enabled) {
-        RenderSurfaceComponent current = RenderStateEcs.surfaceState(surfaceId);
-        if (current != null) {
-            RenderStateEcs.surface(surfaceId, current.bounds.x, current.bounds.y,
-                    current.bounds.width, current.bounds.height, enabled);
-            RenderStateEcs.surfaceEffects(surfaceId, current.effects());
-            syncRenderState();
-        }
-    }
-
-    /** Rebuild host targets from ECS render-state entities. */
-    public void syncRenderState() {
+    public void rebuildFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
+        RenderPlan plan = RenderPlan.fromEcs(activeSurfaceIds);
         FullFrameRenderComponent full = RenderStateEcs.fullFrameState();
         fullFrameEnabled = full != null && full.enabled;
-        if (full == null || !full.enabled) {
-            removeTarget(FULL_FRAME_ID);
-        } else {
-            RenderTarget target = ensureTarget(FULL_FRAME_ID, RenderTargetKind.FULL_FRAME);
-            target.setBounds(full.bounds);
-            target.setZ(1000f);
-            target.setEnabled(true);
-            clearEffects(FULL_FRAME_ID);
-            for (EffectAttachment attachment : full.effects()) {
-                if (effects.contains(attachment.effectId)) {
-                    bindEffect(FULL_FRAME_ID, attachment.effectId, attachment.params());
-                }
-            }
-        }
-        java.util.Set<String> liveSurfaces = new java.util.LinkedHashSet<String>();
-        for (artframework.ecs.EntityId entity : RenderStateEcs.context().entities()) {
-            RenderSurfaceComponent surface = RenderStateEcs.context().world().get(
-                    entity, RenderSurfaceComponent.class);
-            if (surface == null) continue;
-            liveSurfaces.add(surface.surfaceId);
-            RenderTarget target = ensureTarget(c2SurfaceTargetId(surface.surfaceId),
-                    RenderTargetKind.C2_SURFACE);
-            target.setBounds(surface.bounds);
-            target.setZ(surface.z);
-            target.setEnabled(surface.enabled);
-            clearEffects(target.id);
-            for (EffectAttachment attachment : surface.effects()) {
-                if (effects.contains(attachment.effectId)) {
-                    bindEffect(target.id, attachment.effectId, attachment.params());
-                }
-            }
-        }
-        for (String id : new ArrayList<String>(targetIdsWithPrefix(C2_SURFACE_PREFIX))) {
-            if (id.indexOf(":item:") < 0) {
-                String surfaceId = id.substring(C2_SURFACE_PREFIX.length());
-                if (!liveSurfaces.contains(surfaceId)) removeTarget(id);
+        clearTargets();
+        for (RenderPlan.Entry entry : plan.entries()) {
+            RenderTarget target = ensureTarget(entry.id, entry.kind);
+            target.setBounds(entry.bounds);
+            target.setZ(entry.z);
+            target.setEnabled(entry.enabled);
+            clearEffects(entry.id);
+            for (EffectAttachment attachment : entry.effects) {
+                if (!effects.contains(attachment.effectId)) continue;
+                bindEffect(entry.id, attachment.effectId, attachment.params());
+                EffectBinding binding = findEffect(entry.id, attachment.effectId, attachment.layer);
+                if (binding != null) binding.setEnabled(attachment.isEnabled());
             }
         }
     }
 
-    /** Sync an exact C2 item region and copy the owning surface's ambient effects once. */
-    public RenderTarget syncC2Item(
-            String surfaceId, String itemId, float x, float y, float width, float height) {
-        String targetId = c2ItemTargetId(surfaceId, itemId);
-        RenderTarget target = ensureTarget(targetId, RenderTargetKind.C2_SURFACE);
-        target.setBounds(x, y, width, height);
-        target.setEnabled(width > 0f && height > 0f);
-        target.setZ(-5f);
-        if (effectsOf(targetId).isEmpty()) {
-            for (EffectBinding binding : effectsOf(c2SurfaceTargetId(surfaceId))) {
-                bindEffect(targetId, binding.effectId, binding.paramsView());
-            }
-        }
-        return target;
-    }
-
-    /** Rebuild exact C2 item target cache from ECS visual entities. */
-    public void syncC2Visuals() {
-        syncC2Visuals(null);
-    }
-
-    /**
-     * Rebuild exact C2 item target cache from ECS visual entities for active surfaces only.
-     * A null set includes every visual entity, primarily for standalone host tests.
-     */
-    public void syncC2Visuals(java.util.Set<String> activeSurfaceIds) {
-        PresentationContext context = PresentationRegistry.context("c2-surfaces");
-        java.util.Set<String> live = new java.util.LinkedHashSet<String>();
-        for (artframework.ecs.EntityId entity : context.entities()) {
-            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
-            if (identity == null || !identity.key.scope.startsWith("sts1.visual.")) continue;
-            BoundsComponent bounds = context.world().get(entity, BoundsComponent.class);
-            VisibilityComponent visibility = context.world().get(entity, VisibilityComponent.class);
-            if (bounds == null || visibility == null) continue;
-            String surfaceId = identity.key.scope.substring("sts1.visual.".length());
-            if (activeSurfaceIds != null && !activeSurfaceIds.contains(surfaceId)) continue;
-            String targetId = c2ItemTargetId(surfaceId, identity.key.localId);
-            live.add(targetId);
-            RenderTarget target = ensureTarget(targetId, RenderTargetKind.C2_SURFACE);
-            target.setBounds(bounds.rect);
-            target.setZ(bounds.z);
-            target.setEnabled(visibility.visible && bounds.rect.width > 0f && bounds.rect.height > 0f);
-            clearEffects(targetId);
-            EffectsComponent effects = context.world().get(entity, EffectsComponent.class);
-            if (effects != null) {
-                for (EffectAttachment attachment : effects.attachments()) {
-                    if (this.effects.contains(attachment.effectId)) {
-                        bindEffect(targetId, attachment.effectId, attachment.params());
-                    }
-                }
-            }
-        }
-        for (String id : new ArrayList<String>(targets.keySet())) {
-            if (id.startsWith(C2_SURFACE_PREFIX) && id.indexOf(":item:") >= 0 && !live.contains(id)) {
-                removeTarget(id);
-            }
-        }
-    }
-
-    public void removeC2Items(String surfaceId) {
-        if (surfaceId != null && !surfaceId.trim().isEmpty()) {
-            removeTargetsWithPrefix(c2SurfaceTargetId(surfaceId) + ":item:");
-        }
-    }
-
-    /** Keep the current item targets and remove only items absent from the current projection. */
-    public void retainC2Items(String surfaceId, java.util.Set<String> itemIds) {
-        if (surfaceId == null || surfaceId.trim().isEmpty()) {
-            return;
-        }
-        String prefix = c2SurfaceTargetId(surfaceId) + ":item:";
-        List<String> ids = new ArrayList<String>(targets.keySet());
-        for (String id : ids) {
-            if (!id.startsWith(prefix)) {
-                continue;
-            }
-            String itemId = id.substring(prefix.length());
-            if (itemIds == null || !itemIds.contains(itemId)) {
-                removeTarget(id);
-            }
-        }
-    }
-
-    public void removeC2Surface(String surfaceId) {
-        if (surfaceId != null && !surfaceId.trim().isEmpty()) {
-            removeTarget(c2SurfaceTargetId(surfaceId));
-            removeC2Items(surfaceId);
-        }
-    }
-
-    public void removeTarget(String id) {
+    private void removeTarget(String id) {
         if (id == null) {
             return;
         }
@@ -520,7 +285,7 @@ public final class RenderHost {
         bindings.remove(id);
     }
 
-    public void removeTargetsWithPrefix(String prefix) {
+    private void removeTargetsWithPrefix(String prefix) {
         if (prefix == null) {
             return;
         }
@@ -532,16 +297,15 @@ public final class RenderHost {
         }
     }
 
-    public void clearTargets() {
+    void clearTargets() {
         targets.clear();
         bindings.clear();
-        frameTargetIdsByWindow.clear();
     }
 
     /**
      * Bind effect to target. Unknown effect id → IllegalArgumentException.
      */
-    public EffectBinding bindEffect(String targetId, String effectId, Map<String, Object> params) {
+    EffectBinding bindEffect(String targetId, String effectId, Map<String, Object> params) {
         RenderTarget target = targets.get(targetId);
         if (target == null) {
             throw new IllegalArgumentException("unknown target: " + targetId);
@@ -564,70 +328,11 @@ public final class RenderHost {
         return binding;
     }
 
-    public void clearEffects(String targetId) {
+    void clearEffects(String targetId) {
         List<EffectBinding> list = bindings.get(targetId);
         if (list != null) {
             list.clear();
         }
-    }
-
-    /**
-     * Update a live effect param. Prefer ambient layer when multiple lightwave bindings exist
-     * (pulse overlay is addressed via layer overload).
-     */
-    public boolean setEffectParam(String targetId, String effectId, String key, float value) {
-        if (targetId == null || effectId == null || key == null) {
-            return false;
-        }
-        List<EffectBinding> list = bindings.get(targetId);
-        if (list == null) {
-            return false;
-        }
-        // Prefer ambient when present so slider/anim do not stomp pulse overlay.
-        EffectBinding ambient = findEffect(targetId, effectId, EffectBinding.LAYER_AMBIENT);
-        if (ambient != null) {
-            ambient.setParamFloat(key, value);
-            return true;
-        }
-        boolean any = false;
-        for (EffectBinding b : list) {
-            if (effectId.equals(b.effectId)) {
-                b.setParamFloat(key, value);
-                any = true;
-            }
-        }
-        return any;
-    }
-
-    /**
-     * Update param only on bindings whose {@link EffectBinding#layer()} equals {@code layer}.
-     * Null/empty layer falls back to {@link #setEffectParam(String, String, String, float)}.
-     */
-    public boolean setEffectParam(
-            String targetId, String effectId, String layer, String key, float value) {
-        if (layer == null || layer.trim().isEmpty()) {
-            return setEffectParam(targetId, effectId, key, value);
-        }
-        if (targetId == null || effectId == null || key == null) {
-            return false;
-        }
-        List<EffectBinding> list = bindings.get(targetId);
-        if (list == null) {
-            return false;
-        }
-        boolean any = false;
-        String want = layer.trim();
-        for (EffectBinding b : list) {
-            if (!effectId.equals(b.effectId)) {
-                continue;
-            }
-            if (!want.equals(b.layer())) {
-                continue;
-            }
-            b.setParamFloat(key, value);
-            any = true;
-        }
-        return any;
     }
 
     /** First binding for effect+layer, or null. */
@@ -647,39 +352,6 @@ public final class RenderHost {
             }
         }
         return null;
-    }
-
-    /**
-     * Ensure a pulse-layer lightwave binding exists (overlay band). Returns the binding or null.
-     */
-    public EffectBinding ensurePulseLightwave(String targetId) {
-        if (targetId == null) {
-            return null;
-        }
-        EffectBinding existing =
-                findEffect(targetId, LightwaveEffect.ID, EffectBinding.LAYER_PULSE);
-        if (existing != null) {
-            return existing;
-        }
-        if (targets.get(targetId) == null) {
-            return null;
-        }
-        Map<String, Object> params = new LinkedHashMap<String, Object>();
-        params.put("layer", EffectBinding.LAYER_PULSE);
-        params.put("intensity", Float.valueOf(0f));
-        params.put("phase", Float.valueOf(0f));
-        params.put("freeze", Float.valueOf(1f));
-        params.put("width", Float.valueOf(0.22f));
-        params.put("angle", Float.valueOf(35f));
-        params.put("border", Float.valueOf(0f));
-        params.put("speed", Float.valueOf(0f));
-        try {
-            EffectBinding b = bindEffect(targetId, LightwaveEffect.ID, params);
-            b.setEnabled(false);
-            return b;
-        } catch (RuntimeException e) {
-            return null;
-        }
     }
 
     public List<EffectBinding> effectsOf(String targetId) {
@@ -717,223 +389,6 @@ public final class RenderHost {
             }
         }
         return out;
-    }
-
-    /**
-     * Sync C1 widget session: window + nodes with effects / interactive ids.
-     */
-    public void syncWidgetSession(WidgetSession session) {
-        if (session == null) {
-            return;
-        }
-        String win = session.windowId();
-        removeTargetsWithPrefix("c1:" + win + ":");
-        removeTarget("c1:" + win);
-
-        LayoutResult layout = LayoutEngine.layout(session.root());
-        String winTargetId = "c1:" + win;
-        RenderTarget winTarget = ensureTarget(winTargetId, RenderTargetKind.SYNTHETIC_WINDOW);
-        winTarget.setBounds(layout.rootBounds);
-        winTarget.setZ(0f);
-        clearEffects(winTargetId);
-        applyNodeEffects(winTargetId, session.root());
-        // Title chrome (not in UiNode tree) — pack label defaults via synthetic type "label".
-        ensureTitleEffectTarget(win);
-
-        syncNodeTargets(session.root(), win, layout, 1f, "", 0);
-    }
-
-    private void ensureTitleEffectTarget(String windowId) {
-        String tid = "c1:" + windowId + ":__art_title";
-        RenderTarget t = ensureTarget(tid, RenderTargetKind.SYNTHETIC_WIDGET);
-        t.setZ(0.5f);
-        clearEffects(tid);
-        // Reuse label effectDefaults (pack table) for title bar chrome.
-        try {
-            java.util.List<artframework.component.EffectDecl> decls =
-                    artframework.core.PresentPackApply.effectDefaultsForType(UiTypes.LABEL);
-            if (decls != null) {
-                for (artframework.component.EffectDecl decl : decls) {
-                    if (decl == null || !effects.contains(decl.id)) {
-                        continue;
-                    }
-                    java.util.Map<String, Object> params =
-                            new LinkedHashMap<String, Object>();
-                    if (decl.params != null) {
-                        params.putAll(decl.params);
-                    }
-                    // Slightly stronger title frame
-                    if (!params.containsKey("borderWidth")) {
-                        params.put("borderWidth", Float.valueOf(2f));
-                    }
-                    bindEffect(tid, decl.id, params);
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-    }
-
-    private void syncNodeTargets(
-            UiNode node, String windowId, LayoutResult layout, float zBase, String parentKey, int index) {
-        if (node == null) {
-            return;
-        }
-        boolean shaderNode = ArtNodeTypes.SHADER_EFFECT.equals(node.type);
-        String key = LayoutEngine.effectKey(node, parentKey, index);
-        boolean hasDefaults = false;
-        try {
-            hasDefaults =
-                    !artframework.core.PresentPackApply.effectDefaultsForType(node.type).isEmpty();
-        } catch (Throwable ignored) {
-        }
-        boolean track =
-                UiTypes.isLeaf(node.type)
-                        || !node.effects.isEmpty()
-                        || hasDefaults
-                        || shaderNode
-                        || UiTypes.GLASS.equals(node.type)
-                        || UiTypes.PANEL.equals(node.type)
-                        || UiTypes.BUTTON.equals(node.type)
-                        || UiTypes.SLIDER.equals(node.type)
-                        || UiTypes.LABEL.equals(node.type)
-                        || UiTypes.ROW.equals(node.type)
-                        || UiTypes.COL.equals(node.type)
-                        || UiTypes.STACK.equals(node.type)
-                        || UiTypes.SCROLL.equals(node.type)
-                        || UiTypes.GRID.equals(node.type)
-                        || UiTypes.TABS.equals(node.type)
-                        || UiTypes.CENTER.equals(node.type)
-                        || UiTypes.MARGIN.equals(node.type)
-                        || UiTypes.TEXTFIELD.equals(node.type)
-                        || UiTypes.CHECKBOX.equals(node.type)
-                        || UiTypes.PROGRESS.equals(node.type)
-                        || UiTypes.HITAREA.equals(node.type);
-        // Skip pure structural fragment without defaults/effects
-        if (UiTypes.FRAGMENT.equals(node.type) && node.effects.isEmpty() && !hasDefaults) {
-            track = false;
-        }
-        if (track && key != null && !key.isEmpty()) {
-            String tid = "c1:" + windowId + ":" + key;
-            RenderTarget t = ensureTarget(tid, RenderTargetKind.SYNTHETIC_WIDGET);
-            Rect b = layout.boundsOf(key);
-            if (b == null && !node.id.isEmpty()) {
-                b = layout.boundsOf(node.id);
-            }
-            if (b != null) {
-                t.setBounds(b);
-            }
-            t.setZ(zBase);
-            clearEffects(tid);
-            applyNodeEffects(tid, node);
-            if (shaderNode) {
-                applyShaderEffectNode(tid, node);
-            }
-        }
-        List<UiNode> kids = node.children;
-        for (int i = 0; i < kids.size(); i++) {
-            syncNodeTargets(kids.get(i), windowId, layout, zBase + 0.01f, key, i);
-        }
-    }
-
-    private void applyNodeEffects(String targetId, UiNode node) {
-        List<EffectDecl> decls = node.effects;
-        if (decls == null || decls.isEmpty()) {
-            try {
-                decls = artframework.core.PresentPackApply.effectDefaultsForType(node.type);
-            } catch (Throwable t) {
-                decls = java.util.Collections.emptyList();
-            }
-        }
-        if (decls == null) {
-            return;
-        }
-        for (EffectDecl decl : decls) {
-            if (decl == null || !effects.contains(decl.id)) {
-                continue;
-            }
-            Map<String, Object> params = new LinkedHashMap<String, Object>();
-            if (decl.params != null) {
-                params.putAll(decl.params);
-            }
-            if (!params.containsKey("screenW")) {
-                params.put("screenW", Float.valueOf(screenW));
-            }
-            if (!params.containsKey("screenH")) {
-                params.put("screenH", Float.valueOf(screenH));
-            }
-            bindEffect(targetId, decl.id, params);
-        }
-    }
-
-    /**
-     * {@code art.shader_effect} uses prop {@code effect} (+ other props as params).
-     */
-    private void applyShaderEffectNode(String targetId, UiNode node) {
-        String effectId = node.propString("effect", "");
-        if (effectId.isEmpty()) {
-            return;
-        }
-        if (!effects.contains(effectId)) {
-            return;
-        }
-        Map<String, Object> params = new LinkedHashMap<String, Object>();
-        for (Map.Entry<String, Object> e : node.props.entrySet()) {
-            if ("effect".equals(e.getKey())) {
-                continue;
-            }
-            params.put(e.getKey(), e.getValue());
-        }
-        if (!params.containsKey("screenW")) {
-            params.put("screenW", Float.valueOf(screenW));
-        }
-        if (!params.containsKey("screenH")) {
-            params.put("screenH", Float.valueOf(screenH));
-        }
-        bindEffect(targetId, effectId, params);
-    }
-
-    public void detachWidgetSession(String windowId) {
-        if (windowId == null) {
-            return;
-        }
-        removeTargetsWithPrefix("c1:" + windowId + ":");
-        removeTarget("c1:" + windowId);
-        List<String> frameTargets = frameTargetIdsByWindow.remove(windowId);
-        if (frameTargets != null) {
-            for (String id : frameTargets) removeTarget(id);
-        }
-    }
-
-    /**
-     * Sync C2 entity slot as overlay target (kind-aware default bounds, milestone 24).
-     */
-    public void syncEntitySlot(EntitySlot slot) {
-        if (slot == null) {
-            return;
-        }
-        String tid = "c2:entity:" + slot.slotId;
-        RenderTarget t = ensureTarget(tid, RenderTargetKind.ENTITY_SLOT);
-        float scale = slot.scale() > 0f ? slot.scale() : 1f;
-        float[] size = artframework.c2.EntityDrawPath.defaultSize(slot.kind, scale);
-        float w = size[0];
-        float h = size[1];
-        t.setBounds(slot.x() - w * 0.5f, slot.y() - h * 0.5f, w, h);
-        t.setZ(10f);
-        t.setEnabled(slot.isLaidOut());
-    }
-
-    /** Rebuild EntityPresent target cache from ECS-backed slot views. */
-    public void syncEntityPresent() {
-        removeTargetsWithPrefix("c2:entity:");
-        for (EntitySlot slot : artframework.c2.EntityPresentViews.list()) {
-            syncEntitySlot(slot);
-        }
-    }
-
-    public void detachEntitySlot(String slotId) {
-        if (slotId != null) {
-            removeTarget("c2:entity:" + slotId);
-        }
     }
 
     public void tick(float deltaSeconds) {

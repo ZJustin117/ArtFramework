@@ -4,7 +4,6 @@ import artframework.api.ArtFramework;
 import artframework.ecs.ArtEcs;
 import artframework.ecs.EntityId;
 import artframework.render.LightwaveEffect;
-import artframework.render.RenderHosts;
 import artframework.presentation.EffectPulseComponent;
 import artframework.presentation.HostBindingComponent;
 import artframework.presentation.NodePropertiesComponent;
@@ -250,7 +249,7 @@ public final class EffectPulse {
         String layer = effects.get(effectId, "pulse") != null ? "pulse" : "ambient";
         ArtEcs.world().put(entity, EffectsComponent.class,
                 effects.withParam(effectId, layer, name, value));
-        RenderHosts.get().syncC1Window(windowId);
+        artframework.render.RenderProjectionQueue.request(windowId);
     }
 
     private static float clamp(float v) {

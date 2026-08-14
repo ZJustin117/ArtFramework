@@ -1,4 +1,4 @@
-# D1: entity probe shape after cold start (slots may be empty until consumer attaches).
+# D1: EntityPresent ECS query, draw projection, and cleanup after a fresh host lifecycle.
 name: d1_entity_present_smoke
 schemaVersion: 1
 mode: device
@@ -9,17 +9,53 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
-  - console: "art lab ensure-fresh-menu"
-  - wait_ms: 5000
+  - console: "art present clear-panic"
+  - console: "art lab entity-detach"
   - wait_probe:
       timeout_ms: 15000
       interval_ms: 1000
       assert:
         path: schemaVersion
         eq: 1
+  - console: "art lab entity-attach"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.entityDraw.count
+        eq: 1
   - assert:
       path: entities.slotCount
-      gte: 0
+      eq: 1
+  - assert:
+      path: backend.entityDraw.items[0].slotId
+      eq: art-lab-entity
+  - assert:
+      path: render.targetsById.c2_entity_art-lab-entity.enabled
+      eq: true
+  - console: "art lab host-recreate"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.safety.recreationCount
+        gte: 1
   - assert:
       path: backend.entityDraw.count
-      gte: 0
+      eq: 1
+  - assert:
+      path: render.targetsById.c2_entity_art-lab-entity.enabled
+      eq: true
+  - console: "art lab entity-detach"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.entityDraw.count
+        eq: 0
+  - assert:
+      path: entities.slotCount
+      eq: 0
+  - assert:
+      path: render.targetsById.c2_entity_art-lab-entity
+      exists: false

@@ -1,0 +1,38 @@
+package artframework.render;
+
+import artframework.api.ArtFramework;
+import artframework.component.Rect;
+import artframework.presentation.EffectAttachment;
+import java.util.Collections;
+import org.junit.After;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+
+public class RenderPlanRebuildTest {
+    @After public void tearDown() { ArtFramework.resetForTests(); }
+
+    @Test public void ecsPlanRebuildRestoresSurfaceFullFrameAndItemCache() {
+        RenderStateEcs.surface("sts1.test", 1f, 2f, 30f, 40f, true);
+        RenderStateEcs.surfaceEffects("sts1.test", Collections.singletonList(
+                new EffectAttachment(TintEffect.ID, "ambient",
+                        Collections.<String, Object>singletonMap("alpha", 0.2f))));
+        RenderStateEcs.fullFrame(1920f, 1080f, true, Collections.singletonList(
+                new EffectAttachment(TintEffect.ID, "ambient", null)));
+        artframework.presentation.PresentationVisuals.syncC2Item(
+                "sts1.test", "item", new Rect(5f, 6f, 7f, 8f), 2f,
+                "card", "", "", true);
+
+        RenderHost host = new RenderHost();
+        host.rebuildFromEcsPlan(Collections.singleton("sts1.test"));
+        host.clearTargets();
+        host.rebuildFromEcsPlan(Collections.singleton("sts1.test"));
+
+        assertNotNull(host.getTarget(RenderHost.FULL_FRAME_ID));
+        assertNotNull(host.getTarget(RenderHost.c2SurfaceTargetId("sts1.test")));
+        assertNotNull(host.getTarget(RenderHost.c2ItemTargetId("sts1.test", "item")));
+        assertEquals(3, host.targetCount());
+        assertEquals(3, host.bindingCount());
+    }
+}

@@ -18,6 +18,7 @@ import artframework.presentation.EffectsComponent;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationRuntime;
 import artframework.presentation.PresentationKey;
+import artframework.presentation.PresentationRegistry;
 import artframework.presentation.VisibilityComponent;
 
 import java.util.Collections;
@@ -113,10 +114,10 @@ public class RenderHostTest {
         present.attach("hero", "player", "ironclad");
         present.layout("hero", 12f, 34f, 1f);
         RenderHost host = new RenderHost();
-        host.syncEntityPresent();
+        host.rebuildFromEcsPlan();
         assertNotNull(host.getTarget("c2:entity:hero"));
         present.detach("hero");
-        host.syncEntityPresent();
+        host.rebuildFromEcsPlan();
         assertNull(host.getTarget("c2:entity:hero"));
     }
 
@@ -126,13 +127,13 @@ public class RenderHostTest {
                 "combat.hand", "card-1", new Rect(8f, 9f, 60f, 90f), 3f,
                 "card", "card.art", "Strike", true);
         RenderHost host = new RenderHost();
-        host.syncC2Visuals();
+        host.rebuildFromEcsPlan();
         String targetId = RenderHost.c2ItemTargetId("combat.hand", "card-1");
         RenderTarget target = host.getTarget(targetId);
         assertNotNull(target);
         assertEquals(new Rect(8f, 9f, 60f, 90f), target.bounds());
         artframework.presentation.PresentationVisuals.removeC2Item("combat.hand", "card-1");
-        host.syncC2Visuals();
+        host.rebuildFromEcsPlan();
         assertNull(host.getTarget(targetId));
     }
 
@@ -158,12 +159,18 @@ public class RenderHostTest {
     }
 
     @Test
-    public void retainC2ItemsPreservesExistingTargets() {
+    public void removingC2VisualRemovesTargetOnRebuild() {
         RenderHost host = ArtFramework.render();
-        RenderTarget first = host.syncC2Item("hand", "a", 1f, 2f, 3f, 4f);
-        host.syncC2Item("hand", "b", 5f, 6f, 7f, 8f);
-        host.retainC2Items("hand", new HashSet<String>(Collections.singletonList("a")));
-        assertSame(first, host.getTarget(RenderHost.c2ItemTargetId("hand", "a")));
+        artframework.presentation.PresentationVisuals.syncC2Item(
+                "hand", "a", new Rect(1f, 2f, 3f, 4f), 1f, "item", "", "", true);
+        artframework.presentation.PresentationVisuals.syncC2Item(
+                "hand", "b", new Rect(5f, 6f, 7f, 8f), 1f, "item", "", "", true);
+        host.rebuildFromEcsPlan();
+        RenderTarget first = host.getTarget(RenderHost.c2ItemTargetId("hand", "a"));
+        artframework.presentation.PresentationVisuals.removeC2Item("hand", "b");
+        host.rebuildFromEcsPlan();
+        assertNotNull(first);
+        assertNotNull(host.getTarget(RenderHost.c2ItemTargetId("hand", "a")));
         assertNullTarget(host, RenderHost.c2ItemTargetId("hand", "b"));
     }
 
@@ -178,14 +185,17 @@ public class RenderHostTest {
                 .build();
         ArtFramework.register(new artframework.api.WindowDef("w",
                 artframework.api.WindowClass.SYNTHETIC, "layouts/demo.json"));
-        ArtFramework.render().syncWidgetSession(new artframework.component.WidgetSession("w", root));
+        PresentationContext context = PresentationRegistry.context("tree:w");
+        artframework.presentation.C1Materializer.mount(context, root);
+        ArtFramework.render().rebuildFromEcsPlan();
         assertEquals(1, ArtFramework.render().effectsOf("c1:w").size());
-        ArtFramework.render().detachWidgetSession("w");
+        PresentationRegistry.close("tree:w");
+        ArtFramework.render().rebuildFromEcsPlan();
     }
 
     @Test
     public void syncFrameDerivesUiCacheFromPresentationEntities() {
-        PresentationContext context = new PresentationContext("frame-test");
+        PresentationContext context = PresentationRegistry.context("tree:frame-test");
         try {
             EntityId id = context.create(
                     new PresentationKey("ui", "panel"), "panel", "panel", "c1");
@@ -199,16 +209,14 @@ public class RenderHostTest {
                             Collections.<String, Object>singletonMap("alpha", 0.25f))));
 
             RenderHost host = new RenderHost();
-            artframework.presentation.PresentationFrame frame = PresentationRuntime.frame(context);
-            host.syncFrame(frame, RenderTargetKind.SYNTHETIC_WIDGET);
+            host.rebuildFromEcsPlan();
             RenderTarget target = host.getTarget("ui:panel");
             assertNotNull(target);
             assertEquals(new Rect(4f, 5f, 60f, 20f), target.bounds());
             assertEquals(3f, target.z(), 0.001f);
             assertEquals(1, host.effectsOf("ui:panel").size());
-            assertSame(frame, host.lastPresentationFrame());
         } finally {
-            context.close();
+            PresentationRegistry.close("tree:frame-test");
         }
     }
 

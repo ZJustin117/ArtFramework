@@ -159,6 +159,34 @@ public final class SkeletonPresentationSystem {
         }
     }
 
+    /** Release provider handles and rebuild them from the authoritative ECS snapshot. */
+    public void recreateHostBindings() {
+        List<SkeletonPresentationView> views = views();
+        for (SkeletonRuntimeBinding binding
+                : new ArrayList<SkeletonRuntimeBinding>(bindings.values())) {
+            release(binding);
+        }
+        bindings.clear();
+        if (!views.isEmpty()) sync(lastFrameId(), views);
+    }
+
+    public List<SkeletonPresentationView> views() {
+        List<SkeletonPresentationView> result = new ArrayList<SkeletonPresentationView>();
+        for (EntityId id : world.query(SkeletonIdentityComponent.class)) {
+            SkeletonIdentityComponent identity = world.get(id, SkeletonIdentityComponent.class);
+            SkeletonAssetComponent asset = world.get(id, SkeletonAssetComponent.class);
+            SkeletonPoseComponent pose = world.get(id, SkeletonPoseComponent.class);
+            SkeletonAnimationComponent animation = world.get(id, SkeletonAnimationComponent.class);
+            SkeletonVisualComponent visual = world.get(id, SkeletonVisualComponent.class);
+            if (identity != null && asset != null && pose != null && animation != null
+                    && visual != null) {
+                result.add(new SkeletonPresentationView(
+                        identity.entityKey, asset, pose, animation, visual));
+            }
+        }
+        return result;
+    }
+
     private EntityId entity(String entityKey) {
         if (entityKey == null) return null;
         for (EntityId id : world.query(SkeletonIdentityComponent.class)) {

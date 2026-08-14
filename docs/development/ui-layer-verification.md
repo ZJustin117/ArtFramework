@@ -35,6 +35,10 @@ default:  pure JUnit (@junit-test) + offline/art-verify offline unittest
 9. **C2 Lightwave chrome/FX (43)** — `C2LightwaveSurfaceTest` + f18 surface effect contract + D1
    `d1_lightwave_c2_full`: profile activation, C2 effect targets, combat FULL readiness, and cleanup
    after returning to `sts`. Visual correctness remains manual on D1.
+10. **Skeleton + EntityPresent lifecycle (46.5)** — D1 `d1_spine34_native_takeover` proves a real
+    creature skeleton is claimed and rendered without provider errors, then panic cleanup releases
+    runtime bindings/claims. `d1_entity_present_smoke` proves an ECS slot reaches the draw path and
+    RenderPlan target, then detach removes all three views.
 
 ## Out of scope
 

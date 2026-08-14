@@ -81,9 +81,7 @@ public final class SyntheticRuntime {
                         java.util.Collections.<LayoutNode>emptyList());
             }
 
-            PresentationContext presentationContext = PresentationRuntime.context(def.id);
-            RenderHosts.get().syncFrame(PresentationRuntime.frame(presentationContext),
-                    artframework.render.RenderTargetKind.SYNTHETIC_WIDGET, def.id);
+            RenderHosts.get().rebuildFromEcsPlan();
             if (stageBackend != null && stageBackend.isReady()) {
                 // Always composition path so EffectTargetActors registers for FX stage sync.
                 // Legacy LayoutActors skipped the registry → demo Hello FX stayed at (0,32).
@@ -102,7 +100,7 @@ public final class SyntheticRuntime {
         }
         closeContext(id);
         SyntheticComponents.unmount(id);
-        RenderHosts.get().detachWidgetSession(id);
+        RenderHosts.get().rebuildFromEcsPlan();
     }
 
     /**
@@ -135,7 +133,7 @@ public final class SyntheticRuntime {
         }
         closeContext(id);
         SyntheticComponents.unmount(id);
-        RenderHosts.get().detachWidgetSession(id);
+        RenderHosts.get().rebuildFromEcsPlan();
     }
 
     public static void resetForTests() {

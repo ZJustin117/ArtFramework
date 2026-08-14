@@ -34,8 +34,6 @@ public final class PresentSurfaces {
 
     private static final Map<String, UiComponent> BY_ID = new LinkedHashMap<String, UiComponent>();
     private static final SignalHub HUB = new SignalHub();
-    private static final PresentationContext CONTEXT = PresentationRegistry.context("c2-surfaces");
-    private static final PresentationWorld WORLD = CONTEXT.world();
 
     static {
         register(new HandSurface());
@@ -101,9 +99,11 @@ public final class PresentSurfaces {
 
     public static void resetForTests() {
         HUB.clear();
-        for (EntityId entity : new ArrayList<EntityId>(CONTEXT.entities())) {
-            if (WORLD.get(entity, SurfaceIdentityComponent.class) != null) {
-                CONTEXT.destroy(entity);
+        PresentationContext context = context();
+        PresentationWorld world = context.world();
+        for (EntityId entity : new ArrayList<EntityId>(context.entities())) {
+            if (world.get(entity, SurfaceIdentityComponent.class) != null) {
+                context.destroy(entity);
             }
         }
     }
@@ -117,7 +117,11 @@ public final class PresentSurfaces {
 
     /** Internal ECS world for durable surface state; surface APIs remain the compatibility facade. */
     public static PresentationWorld world() {
-        return WORLD;
+        return context().world();
+    }
+
+    private static PresentationContext context() {
+        return PresentationRegistry.context("c2-surfaces");
     }
 
     abstract static class BaseSurface implements UiComponent {
@@ -143,7 +147,7 @@ public final class PresentSurfaces {
         public boolean isMounted() {
             EntityId entity = surfaceEntity();
             if (entity == null) return false;
-            SurfaceLifecycleComponent lifecycle = WORLD.get(entity, SurfaceLifecycleComponent.class);
+            SurfaceLifecycleComponent lifecycle = world().get(entity, SurfaceLifecycleComponent.class);
             return lifecycle != null && lifecycle.mounted;
         }
 
@@ -155,7 +159,7 @@ public final class PresentSurfaces {
         @Override
         public void unmount() {
             EntityId entity = surfaceEntity();
-            if (entity != null) CONTEXT.destroy(entity);
+            if (entity != null) context().destroy(entity);
             HUB.clearInstance(id);
             if (SurfaceIds.COMBAT_HAND.equals(id)) {
                 PresentProjections.get().clearDrag();
@@ -211,38 +215,38 @@ public final class PresentSurfaces {
             EntityId entity = surfaceEntity();
             if (entity == null) {
                 PresentationKey key = new PresentationKey("sts1.surface", id);
-                entity = CONTEXT.create(key, id, "surface", "c2");
-                WORLD.put(entity, SurfaceIdentityComponent.class,
+                entity = context().create(key, id, "surface", "c2");
+                world().put(entity, SurfaceIdentityComponent.class,
                         new SurfaceIdentityComponent(id, kind()));
             }
             artframework.sts1.PresentLevel level = artframework.sts1.FullPresentMode.levelOf(id);
-            WORLD.put(entity, SurfaceLifecycleComponent.class,
+            world().put(entity, SurfaceLifecycleComponent.class,
                     new SurfaceLifecycleComponent(mounted));
-            WORLD.put(entity, SurfacePolicyComponent.class,
+            world().put(entity, SurfacePolicyComponent.class,
                     new SurfacePolicyComponent(level, level.allowsFullPresent(),
                             level.allowsObserve(), artframework.sts1.FullPresentMode.maySuppressNative(id)));
-            WORLD.put(entity, HostBindingComponent.class, new HostBindingComponent("STS1_C2", id));
-            WORLD.put(entity, SignalPortsComponent.class,
+            world().put(entity, HostBindingComponent.class, new HostBindingComponent("STS1_C2", id));
+            world().put(entity, SignalPortsComponent.class,
                     new SignalPortsComponent(new ArrayList<String>(signals), Collections.<String>emptyList()));
-            WORLD.put(entity, NodePropertiesComponent.class,
+            world().put(entity, NodePropertiesComponent.class,
                     new NodePropertiesComponent(Collections.<String, Object>singletonMap("surfaceId", id)));
-            WORLD.put(entity, PresentPolicyComponent.class,
+            world().put(entity, PresentPolicyComponent.class,
                     new PresentPolicyComponent(level.name(), level.allowsFullPresent(),
                             level.allowsFullPresent()));
         }
 
         private EntityId surfaceEntity() {
-            return CONTEXT.entity(new PresentationKey("sts1.surface", id));
+            return context().entity(new PresentationKey("sts1.surface", id));
         }
 
         protected IntentResult submit(String intentName, Object... args) {
             EntityId entity = surfaceEntity();
             if (entity != null) {
-                WORLD.put(entity, SurfaceActionComponent.class,
+                world().put(entity, SurfaceActionComponent.class,
                         new SurfaceActionComponent(intentName));
-                WORLD.put(entity, SurfaceIntentComponent.class,
+                world().put(entity, SurfaceIntentComponent.class,
                         new SurfaceIntentComponent(intentName, id));
-                WORLD.put(entity, BusinessConfirmationComponent.class,
+                world().put(entity, BusinessConfirmationComponent.class,
                         new BusinessConfirmationComponent(intentName,
                                 BusinessConfirmationComponent.domain(id, intentName),
                                 BusinessConfirmationComponent.State.PENDING,
@@ -267,7 +271,7 @@ public final class PresentSurfaces {
 
         private IntentResult recordResult(EntityId entity, IntentResult result) {
             if (entity != null) {
-                WORLD.put(entity, SurfaceResultComponent.class,
+                world().put(entity, SurfaceResultComponent.class,
                         new SurfaceResultComponent(result.status, result.message));
             }
             return result;

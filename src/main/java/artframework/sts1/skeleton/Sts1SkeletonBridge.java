@@ -266,6 +266,13 @@ public final class Sts1SkeletonBridge {
         Sts1NativeSkeletonRenderPolicy.clear();
     }
 
+    /** Recreate provider-owned handles from ECS without discarding presentation state. */
+    public static synchronized void onHostRecreated() {
+        for (String id : new ArrayList<String>(LIVE.keySet())) stop(id);
+        PRESENTATION.recreateHostBindings();
+        reconcileNativeClaims(PRESENTATION.views());
+    }
+
     public static int liveCount() {
         return LIVE.size();
     }

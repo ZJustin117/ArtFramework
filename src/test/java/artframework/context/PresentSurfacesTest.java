@@ -9,6 +9,7 @@ import artframework.core.SignalHandler;
 import artframework.core.SignalNames;
 import artframework.core.UiComponent;
 import artframework.ecs.EntityId;
+import artframework.presentation.PresentationRegistry;
 import org.junit.After;
 import org.junit.Test;
 
@@ -106,6 +107,22 @@ public class PresentSurfacesTest {
                 new SurfaceLifecycleComponent(false));
 
         assertFalse(hand.isMounted());
+    }
+
+    @Test
+    public void facadeRebindsToCurrentEcsContextAfterRegistryRecreation() {
+        UiComponent hand = ArtFramework.component(SurfaceIds.COMBAT_HAND);
+        hand.mount();
+        EntityId oldEntity = PresentSurfaces.world().query(SurfaceIdentityComponent.class).get(0);
+
+        PresentationRegistry.close("c2-surfaces");
+
+        UiComponent current = ArtFramework.component(SurfaceIds.COMBAT_HAND);
+        current.mount();
+        EntityId currentEntity = PresentSurfaces.world().query(SurfaceIdentityComponent.class).get(0);
+        assertFalse(oldEntity.equals(currentEntity));
+        assertTrue(current.isMounted());
+        assertTrue(PresentSurfaces.world().contains(currentEntity));
     }
 
     @Test

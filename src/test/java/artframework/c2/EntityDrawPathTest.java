@@ -4,6 +4,7 @@ import artframework.api.ArtFramework;
 import artframework.context.SurfaceIds;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
+import artframework.render.RenderPlan;
 import org.junit.After;
 import org.junit.Test;
 
@@ -14,6 +15,8 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class EntityDrawPathTest {
 
@@ -85,5 +88,30 @@ public class EntityDrawPathTest {
         List<Map<String, Object>> slots = (List<Map<String, Object>>) entities.get("slots");
         assertEquals(1, slots.size());
         assertEquals("PLAYER", slots.get(0).get("kind"));
+    }
+
+    @Test
+    public void detachRemovesSlotFromDrawPathAndRenderPlan() {
+        EntityPresent p = ArtFramework.entities();
+        p.attach("p1", "player", "ironclad");
+        p.sync("p1", EntitySnapshot.playerChrome("Ironclad", 70, 80, 0));
+        p.layout("p1", 100f, 120f, 1f);
+
+        RenderPlan before = RenderPlan.fromEcs(null);
+        assertEquals(1, EntityDrawPath.buildFromPresent().size());
+        assertNotNull(findPlanEntry(before, "c2:entity:p1"));
+
+        p.detach("p1");
+
+        assertEquals(0, EntityDrawPath.buildFromPresent().size());
+        assertEquals(0, ArtFramework.entities().size());
+        assertNull(findPlanEntry(RenderPlan.fromEcs(null), "c2:entity:p1"));
+    }
+
+    private static RenderPlan.Entry findPlanEntry(RenderPlan plan, String id) {
+        for (RenderPlan.Entry entry : plan.entries()) {
+            if (id.equals(entry.id)) return entry;
+        }
+        return null;
     }
 }

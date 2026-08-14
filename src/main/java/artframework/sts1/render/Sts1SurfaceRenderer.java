@@ -92,7 +92,7 @@ public final class Sts1SurfaceRenderer {
             for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
                 activeSurfaces.add(entry.surfaceId);
             }
-            RenderHosts.get().syncC2Visuals(activeSurfaces);
+            RenderHosts.get().rebuildFromEcsPlan(activeSurfaces);
             renderEntityChrome(sb);
         } finally {
             guard.endCapture();
@@ -115,9 +115,15 @@ public final class Sts1SurfaceRenderer {
                     break;
                 }
             }
-            RenderHosts.get().setC2SurfaceEnabled(sid, active);
+            artframework.render.RenderSurfaceComponent current =
+                    artframework.render.RenderStateEcs.surfaceState(sid);
+            if (current != null) {
+                artframework.render.RenderStateEcs.surface(sid, current.bounds.x, current.bounds.y,
+                        current.bounds.width, current.bounds.height, active);
+                artframework.render.RenderStateEcs.surfaceEffects(sid, current.effects());
+            }
             if (!active) {
-                RenderHosts.get().removeC2Items(sid);
+                artframework.presentation.PresentationVisuals.removeC2Items(sid);
             }
         }
     }
@@ -149,11 +155,9 @@ public final class Sts1SurfaceRenderer {
         artframework.core.PresentChromeStyle chrome =
                 artframework.core.PresentResolve.chromeForSurface(surfaceId);
         try {
-            RenderHost host = RenderHosts.get();
-            host.syncC2Surface(surfaceId, x, y, w, h);
+            artframework.render.RenderStateEcs.surface(surfaceId, x, y, w, h, false);
             // C2 surface bounds are layout regions, not pixel-precise chrome. Keep ambient
             // effects on item targets so a surface cannot paint a large fallback rectangle.
-            host.setC2SurfaceEnabled(surfaceId, false);
         } catch (RuntimeException ignored) {
         }
     }
@@ -161,19 +165,17 @@ public final class Sts1SurfaceRenderer {
     private static void renderHand(SpriteBatch sb) {
         if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_HAND);
-            RenderHosts.get().removeC2Items(SurfaceIds.COMBAT_HAND);
             return;
         }
-        RenderHost host = RenderHosts.get();
-        host.syncC2Surface(
+        artframework.render.RenderStateEcs.surface(
                 SurfaceIds.COMBAT_HAND,
                 0f,
                 0f,
                 com.megacrit.cardcrawl.core.Settings.WIDTH,
-                com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.46f);
+                com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.46f,
+                false);
         // The hand surface is only a parent for item-level effects. Drawing its ambient effect
         // across the whole upper combat region produces large fallback rectangles on devices.
-        host.setC2SurfaceEnabled(SurfaceIds.COMBAT_HAND, false);
         // Draw in projection order; hard-sync pose onto live card before render (16.4).
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (HandDrawPath.DrawItem item : HandDrawPath.buildFromProjection()) {
@@ -202,7 +204,8 @@ public final class Sts1SurfaceRenderer {
      */
     private static void renderControls(SpriteBatch sb) {
         if (!ControlsDrawPath.shouldSuppressNativeEndTurn()) {
-            RenderHosts.get().removeC2Items(SurfaceIds.COMBAT_CONTROLS);
+            artframework.presentation.PresentationVisuals.removeC2Items(
+                    SurfaceIds.COMBAT_CONTROLS);
             return;
         }
         try {

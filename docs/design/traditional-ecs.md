@@ -5,6 +5,22 @@
 This is the target implementation model for the ART runtime refactor. It supersedes the
 multi-runtime interpretation of C1, C2, projection, render-target, and host state.
 
+## Current Checkpoint
+
+As of 2026-08-14, the refactor is approximately 70% complete against the full traditional-ECS
+target. ECS is authoritative for most persistent presentation data: C1/C2 entities, projection
+frames, surface/template observations, native input and intent records, render-plan inputs,
+Skeleton state, EntityPresent slots, and diagnostic snapshots. A single production
+`PresentationSchedule` now defines the frame order, and D1 verifies EntityPresent draw/recreation/
+cleanup plus Spine34 native takeover/recreation/cleanup.
+
+The remaining gap is architectural rather than primarily structural: several production phases are
+still coordinated by imperative services instead of independently registered `EcsSystem` instances,
+the surface intent executor still crosses a compatibility SignalBus boundary, and `RenderHost`
+retains a wider public mutation surface than the final immutable-plan design allows. Legacy maps
+have been classified; only fixed catalogs, callback hubs, asset catalogs, host resources, and
+provider caches remain intentionally outside ECS authority.
+
 ## Rules
 
 1. An ART entity has only an ID. It exists only when ART gives it an independent lifecycle.
@@ -35,6 +51,23 @@ component updates     native intent execution
 rendered ART presentation
 ```
 
+Production advances that flow through one `PresentationSchedule` in this fixed order:
+
+1. authority projection and confirmation
+2. shared-world normalization
+3. C1 animation playback
+4. effect envelopes
+5. host-specific presentation advancement, including skeleton provider caches
+6. coalesced render projection
+7. render clock
+8. host backend tick
+
+`ArtFramework.advanceFrame(delta, authorityFrame)` is the production entry. Compatibility
+`tick(delta)` delegates to the same schedule without an authority frame; `publishFrame(frame)`
+remains an immediate signal-compatible ingestion API. Property/effect writes made during a
+scheduled update mark C1 windows dirty and rebuild each host render cache once at the render
+projection phase.
+
 ## Migration
 
 The refactor is incremental. A legacy store may remain only until its corresponding entities and
@@ -58,11 +91,11 @@ host hook or drawing path changes.
 | 6 | Native patch/router input decisions | Per-surface native input and intercept components | Hand, controls, map, event, select, and end-turn allow/block JUnit |
 | 7 | C1 declaration/session lifecycle | Hierarchy, lifecycle, properties, visibility, and host-binding components | Complete: C1 materializes directly into registered contexts; object-tree and session registries are deleted; `WidgetSession` is an on-demand immutable declaration view; StageHost actors are binding-derived caches |
 | 8 | C2 template active state and native-template mappings | Surface/template observation components | Native template facades no longer retain active flags; bind, map pin, and end-turn probe data query ECS. Scene/rebuild adapter cleanup remains |
-| 9 | Native intent execution and pending gestures | Intent lifecycle/result components; executor as host boundary only | In progress: requested/sent/queued/rejected/executed are ECS data; next available authority frame transitions executed intent to `CONFIRMED`, unavailable authority frame transitions it to `FAILED`. Domain-specific business confirmation remains |
+| 9 | Native intent execution and pending gestures | Intent lifecycle/result components; executor as host boundary only | Complete: router/executor outcomes are one-shot ECS events consumed by `NativeIntentLifecycleSystem`; the next available authority frame transitions executed intent to `CONFIRMED`, and an unavailable frame transitions it to `FAILED`. Domain-specific business confirmation remains separate |
 | 10 | Signal connection and state-machine registries | Declarative connection/state components; SignalBus subscriptions as host cache | Complete: `ConnectionDeclarationsComponent` and `NodeStateComponent` are ECS data; subscriptions are disposed/rebuilt cache with focused JUnit |
-| 11 | Render target/effect/animation authority | Draw, effect, animation, profile, and resource-description components | In progress: `AnimationPlaybackComponent` and `EffectPulseComponent` own cross-frame state; C1 and C2 item targets rebuild from ECS visual frames; `EffectPulse`, animation property effects, and Lightwave controls replace C1 effect data before frame projection; surface/full-frame/C1 actor target APIs still require conversion. Pure JUnit and D1 `d1_full_present_combat_ready` pass |
-| 12 | Skeleton and EntityPresent lifecycle/native bindings | Skeleton descriptor, pose, animation, effect, and host-binding components | In progress: skeleton identity/snapshot frame/asset/pose/animation/visual state and EntityPresent slot identity/snapshot/transform state are ECS data; native handles/listeners are host caches and EntityPresent RenderHost targets rebuild from ECS slot queries. D1 draw smoke and broader target-plan migration remain |
-| 13 | Probe/API/console compatibility stores | ECS-only query adapters | In progress: C1 controls, native template state, and EntityPresent probes query ECS. Console and render diagnostic legacy reads remain |
+| 11 | Render target/effect/animation authority | Draw, effect, animation, profile, and resource-description components | In progress: one `PresentationSchedule` orders authority projection/confirmation, normalization, animation, effects, host presentation, and immutable `RenderPlan` rebuild before clocks/host tick. `RenderHost` target/effect mutation APIs and `RenderTarget` setters are internal; C1/C2/surface/full-frame/entity targets rebuild from ECS. D1 `d1_full_present_combat_ready` remains required after host/render changes |
+| 12 | Skeleton and EntityPresent lifecycle/native bindings | Skeleton descriptor, pose, animation, effect, and host-binding components | In progress: skeleton identity/snapshot frame/asset/pose/animation/visual state and EntityPresent slot identity/snapshot/transform state are ECS data; native handles/listeners are host caches. EntityPresent RenderHost targets and skeleton provider handles rebuild from retained ECS state after host recreation. D1 EntityPresent draw/cleanup and Spine34 native takeover/recreation smoke are covered; broader target-plan migration remains |
+| 13 | Probe/API/console compatibility stores | ECS-only query adapters | Complete: C1 controls, native template state, EntityPresent, and window-open probe data query ECS; fixed catalogs, signal hubs, and host/provider caches remain explicitly non-authoritative |
 
 ### Per-Slice Procedure
 
@@ -86,7 +119,7 @@ host hook or drawing path changes.
 |---|---|---|
 | Removed C1 object/session registries; `PresentProjection`, `PresentSurfaces` remain | Transitional presentation authority | C1 declaration, hierarchy, lifecycle, controls, signals, animations, and state machines use context/entity APIs; disposable subscriptions and actor objects remain host caches |
 | `NativeTemplateRuntime`, template classes, native patch hooks | External-game observation/input adapter | Snapshot into components; do not store native objects |
-| `RenderHost`, `EffectTargetActors`, STS textures/shaders | Host render implementation/cache | C1/C2 item, surface, and full-frame plans derive from ECS; RenderTarget, EffectBinding, Actor, texture, shader, and capture objects remain non-authoritative host resources |
+| `RenderHost`, `EffectTargetActors`, STS textures/shaders | Host render implementation/cache | `RenderPlan.fromEcs()` is the sole target/effect cache input; RenderTarget, EffectBinding, Actor, texture, shader, and capture objects remain non-authoritative host resources |
 | `Sts1IntentExecutor`, map gesture bridge, native skeleton bridge | Host action implementation | Read ECS request data, execute locally, write structured outcome components |
 | `SignalBus`, scene2d listeners, subscriptions | External callback mechanism | Store declarative ports/connections in ECS; rebuild subscriptions as disposable cache |
 | Pack/profile/theme catalogs | Immutable configuration source | Resolve to runtime style/resource-description components |
@@ -100,7 +133,7 @@ public reads with ECS queries; they must not be reclassified as ECS state merely
 | Container | Remaining responsibility | Required destination |
 |---|---|---|
 | scene2d actor bindings | C1 host realization cache | ECS hierarchy/lifecycle/host-binding data with disposable actor cache; lookup is context/entity based |
-| `NativeTemplateRuntime`, `SyntheticComponents`, `PresentSurfaces` facades | Compatibility component lookup and native adapter dispatch | ECS-derived compatibility views and action/intent systems |
+| `NativeTemplateRuntime`, `SyntheticComponents`, `PresentSurfaces` facades | Compatibility component lookup and native adapter dispatch | ECS-derived compatibility views and action/intent systems; `PresentSurfaces` resolves its context/world on demand |
 | `UiOps` handler map, `UiInspect` registry reads | Imperative callback sugar and inspect routing | UiOps result history map removed; handler callbacks remain host cache; UiProbe C1 window controls/title/profile snapshot now reads registered ECS context. ECS business confirmation records card/map/event/reward/select evidence |
 | `RenderHost` targets/bindings, `EffectTargetActors` | Surface/full-frame target mutation and host actor lookup | `RenderSurfaceComponent`, `FullFrameRenderComponent`, and immutable per-frame ECS plans consumed by host cache; C1 and C2 item targets rebuild from ECS bindings/visuals |
 | `NodeConnections` declaration maps | Parsed connection declaration retention | Dedicated immutable connection component plus rebuilt disposable subscriptions |

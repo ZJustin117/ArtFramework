@@ -55,7 +55,7 @@ public final class PropEffectBridge {
         if (attachment == null) attachment = new EffectAttachment(LightwaveEffect.ID, layer, null);
         effects = effects.withAttachment(attachment.withParam(key, Float.valueOf(value)).withEnabled(enabled));
         context.world().put(target, EffectsComponent.class, effects);
-        artframework.render.RenderHosts.get().syncC1Window(PresentationRuntime.windowId(context));
+        artframework.render.RenderProjectionQueue.request(PresentationRuntime.windowId(context));
     }
 
     private static final class EffectBindingLayer {

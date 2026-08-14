@@ -18,6 +18,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import artframework.ecs.EcsPipeline;
+import artframework.ecs.EcsTick;
 
 /**
  * ART-owned hard-sync projection of card entities from context frames.
@@ -39,6 +41,7 @@ public final class PresentProjection {
         ProjectionFrameComponent metadata = metadata();
         ContextFrame previousFrame = snapshot().frame;
         if (!frame.available) {
+            confirmBusinessIntents(previousFrame, frame);
             observeNativeIntents(frame);
             putMetadata(metadata.frameId, metadata.sceneEpoch, metadata.scene, false,
                     metadata.frameId >= 0);
@@ -115,13 +118,12 @@ public final class PresentProjection {
     }
 
     private void confirmBusinessIntents(ContextFrame before, ContextFrame after) {
-        PresentationContext surfaces = PresentationRegistry.context("c2-surfaces");
-        for (EntityId entity : surfaces.entities()) {
-            BusinessConfirmationComponent request = world.get(entity, BusinessConfirmationComponent.class);
-            if (request == null || request.state != BusinessConfirmationComponent.State.PENDING) continue;
-            world.put(entity, BusinessConfirmationComponent.class,
-                    BusinessConfirmationSystem.evaluate(request, before, after));
-        }
+        EntityId metadata = ensureMetadataEntity();
+        world.put(metadata, BusinessConfirmationFrameComponent.class,
+                new BusinessConfirmationFrameComponent(before, after));
+        EcsPipeline.run(world, new EcsTick(0f, Math.max(0L, after.frameId)),
+                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(
+                        new BusinessConfirmationSystem()));
     }
 
     public long lastFrameId() {
@@ -264,7 +266,7 @@ public final class PresentProjection {
                                 frame.frameId, frame.sceneEpoch, frame.scene);
                     } else {
                         artframework.sts1.input.NativeInputRecords.failed(
-                                input.surfaceId, "authority frame unavailable");
+                                input.surfaceId, frame.frameId, "authority frame unavailable");
                     }
                 }
             }

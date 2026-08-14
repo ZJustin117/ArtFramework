@@ -49,22 +49,22 @@ public final class NativeTemplateRuntime {
         ENTITY_PRESENT.addListener(new EntityPresentListener() {
             @Override
             public void onAttached(EntitySlot slot) {
-                RenderHosts.get().syncEntityPresent();
+                RenderHosts.get().rebuildFromEcsPlan();
             }
 
             @Override
             public void onSynced(EntitySlot slot) {
-                RenderHosts.get().syncEntityPresent();
+                RenderHosts.get().rebuildFromEcsPlan();
             }
 
             @Override
             public void onLaidOut(EntitySlot slot) {
-                RenderHosts.get().syncEntityPresent();
+                RenderHosts.get().rebuildFromEcsPlan();
             }
 
             @Override
             public void onDetached(String slotId) {
-                RenderHosts.get().syncEntityPresent();
+                RenderHosts.get().rebuildFromEcsPlan();
             }
         });
     }

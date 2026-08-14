@@ -3,9 +3,11 @@ package artframework.component;
 import org.junit.After;
 import org.junit.Test;
 import artframework.api.ArtFramework;
-import artframework.component.WidgetSession;
 import artframework.render.RenderHost;
 import artframework.render.TintEffect;
+import artframework.presentation.C1Materializer;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRegistry;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -44,9 +46,10 @@ public class ShaderEffectNodeTest {
                                                         .build())
                                         .build())
                         .build();
-        WidgetSession session = new WidgetSession("win", root);
+        PresentationContext context = PresentationRegistry.context("tree:win");
+        C1Materializer.mount(context, root);
         RenderHost host = ArtFramework.render();
-        host.syncWidgetSession(session);
+        host.rebuildFromEcsPlan();
         assertTrue(host.listTargetIds().contains("c1:win:fx"));
         assertEquals(1, host.effectsOf("c1:win:fx").size());
         assertEquals(TintEffect.ID, host.effectsOf("c1:win:fx").get(0).effectId);

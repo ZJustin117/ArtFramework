@@ -12,6 +12,7 @@ import artframework.presentation.NodeIdentityComponent;
 import artframework.presentation.NodePropertiesComponent;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationRegistry;
+import artframework.presentation.PresentationRuntime;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -139,16 +140,19 @@ public final class UiProbe {
 
     private static Map<String, Object> windowsMap() {
         Map<String, Object> w = new LinkedHashMap<String, Object>();
-        List<String> openIds = new ArrayList<String>(ArtFramework.listOpenIds());
+        List<String> openIds = new ArrayList<String>(PresentationRuntime.openWindowIds());
+        for (String id : NativeComponents.ids()) {
+            if (!openIds.contains(id) && NativeComponents.get(id) != null
+                    && NativeComponents.get(id).isMounted()) {
+                openIds.add(id);
+            }
+        }
         w.put("openIds", openIds);
         Map<String, Object> byId = new LinkedHashMap<String, Object>();
         for (String id : openIds) {
-            WindowHandle h = ArtFramework.find(id);
-            if (h == null) {
-                continue;
-            }
             Map<String, Object> one = new LinkedHashMap<String, Object>();
-            one.put("windowClass", h.windowClass().name());
+            one.put("windowClass", PresentationRuntime.isOpen(id)
+                    ? WindowClass.SYNTHETIC.name() : WindowClass.NATIVE_TEMPLATE.name());
             PresentationContext context = PresentationRegistry.existingContext("tree:" + id);
             if (context != null) {
                 Map<String, Object> controls = controls(context);

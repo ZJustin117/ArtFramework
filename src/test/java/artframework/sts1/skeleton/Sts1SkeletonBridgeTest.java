@@ -74,4 +74,29 @@ public class Sts1SkeletonBridgeTest {
         assertEquals(Float.valueOf(0.1f), fake.mix("hero", "idle_loop", "attack"));
         assertTrue(fake.events("hero").contains("add:attack:false:0.2"));
     }
+
+    @Test
+    public void hostRecreationReleasesPresentationBindingsAndNativeClaims() {
+        FakeSkeletonProvider fake = new FakeSkeletonProvider();
+        ArtFramework.skeletons().register(fake);
+        Sts1SkeletonBridge.setProviderId(FakeSkeletonProvider.ID);
+        Sts1SkeletonBridge.play("hero", "", "");
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(
+                new artframework.skeleton.SkeletonPresentationView(
+                        "hero",
+                        new artframework.skeleton.SkeletonAssetComponent(FakeSkeletonProvider.ID, "a", "s", "", 1f),
+                        new artframework.skeleton.SkeletonPoseComponent(1f, 2f, 0f, 1f, 1f, false, false, 0),
+                        new artframework.skeleton.SkeletonAnimationComponent(0, "idle", true),
+                        new artframework.skeleton.SkeletonVisualComponent(true))));
+        SkeletonHandle before = Sts1SkeletonBridge.presentationSystem().binding("hero").handle;
+
+        PresentSafety.onHostRecreated();
+
+        assertEquals(0, Sts1SkeletonBridge.liveCount());
+        assertEquals(1, Sts1SkeletonBridge.presentationSystem().size());
+        assertFalse(before.isAlive());
+        assertTrue(Sts1SkeletonBridge.presentationSystem().binding("hero").handle.isAlive());
+        assertEquals(1, fake.liveCount());
+        assertEquals(1, PresentSafety.recreationCount());
+    }
 }

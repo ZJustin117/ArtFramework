@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -222,6 +223,25 @@ def scrape_probe_sidecar(serial: Optional[str] = None) -> Optional[Any]:
     return parsed
 
 
+def clear_probe_sidecar(serial: Optional[str] = None) -> bool:
+    """Remove the previous probe snapshot so a later read proves command freshness."""
+    ser = serial or serial_d1()
+    cmd = [
+        "adb",
+        "-s",
+        ser,
+        "shell",
+        "rm",
+        "-f",
+        DEFAULT_STS_PROBE_SIDECAR,
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except Exception:
+        return False
+    return proc.returncode == 0
+
+
 def probe_after_console(
     client: Any,
     *,
@@ -229,6 +249,7 @@ def probe_after_console(
     command: str = "art probe",
 ) -> Any:
     """Run art probe; prefer console body, else scrape STS latest.log for ART_PROBE."""
+    sidecar_cleared = clear_probe_sidecar(serial)
     raw = console_exec(client, command)
     text = console_output_text(raw) if raw else ""
     parsed = parse_probe_line(text) if text else None
@@ -236,9 +257,18 @@ def probe_after_console(
         parsed = last_probe_from_text(text)
     if parsed is not None:
         return parsed
-    sidecar = scrape_probe_sidecar(serial)
-    if sidecar is not None:
-        return sidecar
+    for _ in range(10 if sidecar_cleared else 1):
+        sidecar = scrape_probe_sidecar(serial)
+        if sidecar is not None:
+            return sidecar
+        if sidecar_cleared:
+            time.sleep(0.05)
+    if sidecar_cleared:
+        err = (raw or {}).get("error")
+        raise RuntimeError(
+            "art probe did not write a fresh sidecar"
+            + (f" (console error: {err})" if err else "")
+        )
     # Always scrape log: game-probe often returns only "ok"
     scraped = scrape_probe_log(serial)
     if scraped is not None:

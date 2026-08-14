@@ -54,6 +54,7 @@ public final class ArtFramework {
     private static final Map<String, WindowHandle> OPEN = new LinkedHashMap<String, WindowHandle>();
     private static final UiOps OPS = new UiOps();
     private static final UiProbe PROBE = new UiProbe();
+    private static final PresentationSchedule SCHEDULE = new PresentationSchedule();
     private static NativeOpsBackend nativeOpsBackend = NoOpNativeOps.INSTANCE;
 
     private ArtFramework() {}
@@ -220,6 +221,7 @@ public final class ArtFramework {
 
     public static void resetForTests() {
         artframework.core.SignalBuses.resetForTests();
+        SCHEDULE.resetForTests();
         GateLab.resetForTests();
         OPEN.clear();
         DEFS.clear();
@@ -527,15 +529,17 @@ public final class ArtFramework {
 
     /** Advance all mounted synthetic trees and the configured host. */
     public static void tick(float deltaSeconds) {
-        if (deltaSeconds < 0f) {
-            throw new IllegalArgumentException("deltaSeconds must be non-negative");
-        }
-        for (String windowId : artframework.presentation.PresentationRuntime.openWindowIds()) {
-            artframework.presentation.PresentationRuntime.tick(
-                    artframework.presentation.PresentationRuntime.context(windowId), deltaSeconds);
-        }
-        artframework.core.EffectPulse.tick(deltaSeconds);
-        HostBackends.get().tick(deltaSeconds);
+        advanceFrame(deltaSeconds, null);
+    }
+
+    /** Advance one production presentation frame, optionally ingesting an authority snapshot first. */
+    public static void advanceFrame(float deltaSeconds, ContextFrame authorityFrame) {
+        SCHEDULE.advance(deltaSeconds, authorityFrame);
+    }
+
+    /** Install the host-specific presentation phase used by the production frame schedule. */
+    public static void setHostPresentationSystem(HostPresentationSystem system) {
+        SCHEDULE.setHostPresentationSystem(system);
     }
 
     /**

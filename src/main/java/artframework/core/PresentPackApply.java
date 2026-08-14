@@ -74,7 +74,7 @@ public final class PresentPackApply {
                 effects.add(new EffectAttachment(d.id, layer, params));
             }
             RenderStateEcs.fullFrame(w, h, true, effects);
-            host.syncRenderState();
+            host.rebuildFromEcsPlan();
             managedFullFrame = true;
         } catch (Throwable ignored) {
         }
@@ -112,7 +112,7 @@ public final class PresentPackApply {
                     effects.add(new EffectAttachment(d.id, layer, d.params));
                 }
                 RenderStateEcs.surfaceEffects(entry.getKey(), effects);
-                RenderHosts.get().syncRenderState();
+                RenderHosts.get().rebuildFromEcsPlan();
                 BOUND_C2_EFFECTS.add(entry.getKey());
             } catch (RuntimeException ignored) {
             }
@@ -124,9 +124,7 @@ public final class PresentPackApply {
             artframework.presentation.PresentationContext context =
                     artframework.presentation.PresentationRuntime.context(winId);
             try {
-                RenderHosts.get().syncFrame(
-                        artframework.presentation.PresentationRuntime.frame(context),
-                        artframework.render.RenderTargetKind.SYNTHETIC_WIDGET, winId);
+                RenderHosts.get().rebuildFromEcsPlan();
             } catch (Throwable ignored) {
             }
         }
@@ -144,10 +142,10 @@ public final class PresentPackApply {
             RenderStateEcs.removeSurface(sid);
         }
         BOUND_C2_EFFECTS.clear();
-        RenderHosts.get().syncRenderState();
+        RenderHosts.get().rebuildFromEcsPlan();
         if (managedFullFrame) {
             RenderStateEcs.removeFullFrame();
-            RenderHosts.get().syncRenderState();
+            RenderHosts.get().rebuildFromEcsPlan();
             managedFullFrame = false;
         }
     }

@@ -242,6 +242,8 @@ Log prefix **`ART_LAB`**.
 | `art lab return-menu` | Death/victory return-to-menu |
 | `art lab proceed` | Overlay proceed hitbox |
 | `art lab tick` | One debug step toward run |
+| `art lab entity-attach` / `entity-detach` | Attach or detach the fixed EntityPresent D1 verification slot |
+| `art lab host-recreate` | Recreate Skeleton and RenderHost caches from current ECS state |
 
 ### L2 recipes
 

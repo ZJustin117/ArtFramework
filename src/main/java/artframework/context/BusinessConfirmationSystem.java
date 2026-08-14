@@ -1,10 +1,29 @@
 package artframework.context;
 
+import artframework.ecs.EcsSystem;
+import artframework.ecs.EcsTick;
+import artframework.ecs.EntityId;
+import artframework.ecs.PresentationWorld;
 import java.util.List;
 
 /** Stateless snapshot comparison system for native business intent confirmation. */
-public final class BusinessConfirmationSystem {
-    private BusinessConfirmationSystem() {}
+public final class BusinessConfirmationSystem implements EcsSystem {
+    @Override
+    public void run(PresentationWorld world, EcsTick tick) {
+        for (EntityId frameEntity : world.query(BusinessConfirmationFrameComponent.class)) {
+            BusinessConfirmationFrameComponent frames =
+                    world.get(frameEntity, BusinessConfirmationFrameComponent.class);
+            for (EntityId entity : world.query(BusinessConfirmationComponent.class)) {
+                BusinessConfirmationComponent request =
+                        world.get(entity, BusinessConfirmationComponent.class);
+                if (request.state == BusinessConfirmationComponent.State.PENDING) {
+                    world.put(entity, BusinessConfirmationComponent.class,
+                            evaluate(request, frames.before, frames.after));
+                }
+            }
+            world.remove(frameEntity, BusinessConfirmationFrameComponent.class);
+        }
+    }
 
     public static BusinessConfirmationComponent evaluate(
             BusinessConfirmationComponent request, ContextFrame before, ContextFrame after) {

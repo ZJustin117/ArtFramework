@@ -51,25 +51,25 @@ public final class RenderTarget {
         return enabled;
     }
 
-    public void setEnabled(boolean enabled) {
+    void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
 
-    public void setBounds(float x, float y, float width, float height) {
+    void setBounds(float x, float y, float width, float height) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
     }
 
-    public void setBounds(Rect rect) {
+    void setBounds(Rect rect) {
         if (rect == null) {
             return;
         }
         setBounds(rect.x, rect.y, rect.width, rect.height);
     }
 
-    public void setZ(float z) {
+    void setZ(float z) {
         this.z = z;
     }
 

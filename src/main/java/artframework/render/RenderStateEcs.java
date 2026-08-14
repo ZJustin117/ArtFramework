@@ -4,6 +4,8 @@ import artframework.component.Rect;
 import artframework.ecs.EntityId;
 import artframework.presentation.EffectAttachment;
 import artframework.presentation.EffectsComponent;
+import artframework.presentation.BoundsComponent;
+import artframework.presentation.HostBindingComponent;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.PresentationRegistry;
@@ -55,6 +57,21 @@ public final class RenderStateEcs {
     public static FullFrameRenderComponent fullFrameState() {
         EntityId entity = CONTEXT.entity(new PresentationKey("render.full-frame", "full_frame"));
         return entity == null ? null : CONTEXT.world().get(entity, FullFrameRenderComponent.class);
+    }
+
+    /** Replace C1 geometry observed from the disposable scene2d realization. */
+    public static void updateC1Bounds(String windowId, String effectKey, Rect bounds) {
+        if (windowId == null || effectKey == null || bounds == null) return;
+        String localKey = windowId + ":" + effectKey;
+        for (EntityId entity : PresentationRegistry.world().query(HostBindingComponent.class)) {
+            HostBindingComponent binding = PresentationRegistry.world().get(entity, HostBindingComponent.class);
+            if (binding != null && "SCENE2D_C1".equals(binding.hostKind)
+                    && localKey.equals(binding.localKey)) {
+                BoundsComponent current = PresentationRegistry.world().get(entity, BoundsComponent.class);
+                PresentationRegistry.world().put(entity, BoundsComponent.class,
+                        new BoundsComponent(bounds, current != null ? current.z : 0f));
+            }
+        }
     }
 
     public static RenderSurfaceComponent surfaceState(String surfaceId) {

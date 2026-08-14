@@ -145,6 +145,20 @@ public class EntityPresentTest {
         assertFalse(p.world().contains(entity));
     }
 
+    @Test
+    public void facadeRebindsAfterPresentationContextRecreation() {
+        DefaultEntityPresent p = ArtFramework.entityPresent();
+        artframework.presentation.PresentationRegistry.close("c2-entity-present");
+
+        p.attach("p1", "player", "ironclad");
+        p.sync("p1", EntitySnapshot.playerChrome("Ironclad", 70, 80, 0));
+        p.layout("p1", 10f, 20f, 1f);
+
+        assertEquals(1, p.size());
+        assertEquals(1, EntityPresentViews.list().size());
+        assertEquals(1, EntityDrawPath.buildFromPresent().size());
+    }
+
     private static final class RecordingListener implements EntityPresentListener {
         private final List<String> attached;
         private final List<String> detached;

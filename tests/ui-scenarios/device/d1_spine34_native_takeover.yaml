@@ -9,6 +9,7 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
+  - console: "art present clear-panic"
   - console: "art lab ensure-fresh-menu"
   - wait_ms: 8000
   - console: "art lab start-run IRONCLAD"
@@ -39,3 +40,29 @@ steps:
   - assert:
       path: backend.skeleton.spine34LastRenderError
       eq: ""
+  - console: "art lab host-recreate"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.safety.recreationCount
+        gte: 1
+  - assert:
+      path: backend.skeleton.nativeClaimedCount
+      gte: 1
+  - assert:
+      path: backend.skeleton.spine34LastRenderError
+      eq: ""
+  - console: "art present panic native-takeover-cleanup"
+  - wait_ms: 500
+  - probe: all
+  - assert:
+      path: backend.skeleton.liveCount
+      eq: 0
+  - assert:
+      path: backend.skeleton.nativeClaimedCount
+      eq: 0
+  - assert:
+      path: backend.safety.panic
+      eq: true
+  - console: "art present clear-panic"

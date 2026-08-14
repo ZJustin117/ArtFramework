@@ -454,7 +454,8 @@ public class ArtCommand extends ConsoleCommand {
             DevConsole.log(
                     "Usage: art lab dump|clear-saves|strip-resume|open-char-select|char <id>|embark|"
                             + "seed [text]|menu-click <R>|abandon|abandon-confirm|return-menu|proceed|"
-                            + "ensure-menu|ensure-fresh-menu|start-run [char] [seed=…]|reset|tick");
+                            + "ensure-menu|ensure-fresh-menu|start-run [char] [seed=…]|entity-attach|"
+                            + "entity-detach|host-recreate|reset|tick");
             return;
         }
         String action = tokens[depth].toLowerCase();
@@ -543,6 +544,22 @@ public class ArtCommand extends ConsoleCommand {
                                     + " "
                                     + artframework.sts1.lab.LabRecipeRunner.statusMap()
                                             .get("message"));
+        } else if ("entity-attach".equals(action)) {
+            artframework.c2.EntityPresent entities = ArtFramework.entities();
+            entities.attach("art-lab-entity", "player", "ironclad");
+            entities.sync("art-lab-entity",
+                    artframework.c2.EntitySnapshot.playerChrome("ART Entity", 70, 80, 0));
+            entities.layout("art-lab-entity", 320f, 720f, 1f);
+            r = UiOpResult.ok("entity attached slots=" + entities.size()
+                    + " draw=" + artframework.c2.EntityDrawPath.buildFromPresent().size()
+                    + " target=" + (artframework.render.RenderHosts.get()
+                            .getTarget("c2:entity:art-lab-entity") != null));
+        } else if ("entity-detach".equals(action)) {
+            ArtFramework.entities().detach("art-lab-entity");
+            r = UiOpResult.ok("entity detached");
+        } else if ("host-recreate".equals(action)) {
+            artframework.sts1.PresentSafety.onHostRecreated();
+            r = UiOpResult.ok("host caches recreated");
         } else {
             DevConsole.log("Unknown lab action: " + action);
             return;
@@ -555,6 +572,10 @@ public class ArtCommand extends ConsoleCommand {
                         + (r.message.isEmpty() ? "" : " " + r.message);
         DevConsole.log(line);
         BaseMod.logger.info(line);
+        if ("entity-attach".equals(action) || "entity-detach".equals(action)
+                || "host-recreate".equals(action)) {
+            commandResult("art lab " + action, r.isOk() ? "OK" : "ERROR", r.message);
+        }
     }
 
     private void cmdPresent(String[] tokens, int depth) {
@@ -948,7 +969,9 @@ public class ArtCommand extends ConsoleCommand {
                 p.put("r", Float.valueOf(1f));
                 p.put("g", Float.valueOf(1f));
                 p.put("b", Float.valueOf(1f));
-                ArtFramework.render().clearEffects(artframework.render.RenderHost.FULL_FRAME_ID);
+                artframework.render.RenderStateEcs.fullFrameEffects(
+                        java.util.Collections.<artframework.presentation.EffectAttachment>emptyList());
+                ArtFramework.render().rebuildFromEcsPlan();
                 ArtFramework.render()
                         .bindFullFrameEffect(artframework.render.LightwaveEffect.ID, p);
                 DevConsole.log("full_frame lightwave diagnostic: fixed high-contrast band");
@@ -960,7 +983,9 @@ public class ArtCommand extends ConsoleCommand {
                 ArtFramework.render().setCaptureEnabled(on);
                 DevConsole.log("capture " + (on ? "on" : "off"));
             } else if ("clear".equals(action)) {
-                ArtFramework.render().clearEffects(artframework.render.RenderHost.FULL_FRAME_ID);
+                artframework.render.RenderStateEcs.fullFrameEffects(
+                        java.util.Collections.<artframework.presentation.EffectAttachment>emptyList());
+                ArtFramework.render().rebuildFromEcsPlan();
                 DevConsole.log("full_frame effects cleared");
             } else {
                 DevConsole.log("unknown fx action: " + action);

@@ -7,6 +7,9 @@ import artframework.render.LightwaveEffect;
 import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
 import artframework.render.RenderTargetKind;
+import artframework.render.RenderStateEcs;
+import artframework.presentation.EffectAttachment;
+import artframework.presentation.PresentationVisuals;
 import org.junit.After;
 import org.junit.Test;
 
@@ -44,11 +47,11 @@ public class C2LightwaveSurfaceTest {
     @Test
     public void c2SurfaceTargetUsesStableBoundsAndEffect() {
         RenderHost host = RenderHosts.get();
-        host.syncC2Surface(SurfaceIds.EVENT, 10f, 20f, 300f, 200f);
-        host.bindEffect(
-                RenderHost.c2SurfaceTargetId(SurfaceIds.EVENT),
-                LightwaveEffect.ID,
-                java.util.Collections.<String, Object>singletonMap("intensity", Float.valueOf(0.3f)));
+        RenderStateEcs.surface(SurfaceIds.EVENT, 10f, 20f, 300f, 200f, true);
+        RenderStateEcs.surfaceEffects(SurfaceIds.EVENT, java.util.Collections.singletonList(
+                new EffectAttachment(LightwaveEffect.ID, "ambient",
+                        java.util.Collections.<String, Object>singletonMap("intensity", Float.valueOf(0.3f)))));
+        host.rebuildFromEcsPlan();
 
         artframework.render.RenderTarget target =
                 host.getTarget(RenderHost.c2SurfaceTargetId(SurfaceIds.EVENT));
@@ -62,42 +65,42 @@ public class C2LightwaveSurfaceTest {
     @Test
     public void c2ItemTargetCopiesSurfaceEffectWithExactBounds() {
         RenderHost host = RenderHosts.get();
-        host.syncC2Surface(SurfaceIds.COMBAT_HAND, 0f, 0f, 1000f, 400f);
-        host.bindEffect(
-                RenderHost.c2SurfaceTargetId(SurfaceIds.COMBAT_HAND),
-                LightwaveEffect.ID,
-                java.util.Collections.<String, Object>singletonMap("intensity", Float.valueOf(0.3f)));
+        RenderStateEcs.surface(SurfaceIds.COMBAT_HAND, 0f, 0f, 1000f, 400f, true);
+        RenderStateEcs.surfaceEffects(SurfaceIds.COMBAT_HAND, java.util.Collections.singletonList(
+                new EffectAttachment(LightwaveEffect.ID, "ambient",
+                        java.util.Collections.<String, Object>singletonMap("intensity", Float.valueOf(0.3f)))));
+        PresentationVisuals.syncC2Item(SurfaceIds.COMBAT_HAND, "card-1",
+                new Rect(200f, 30f, 250f, 350f), 1f, "card", "", "", true);
+        host.rebuildFromEcsPlan();
         artframework.render.RenderTarget item =
-                host.syncC2Item(SurfaceIds.COMBAT_HAND, "card-1", 200f, 30f, 250f, 350f);
+                host.getTarget(RenderHost.c2ItemTargetId(SurfaceIds.COMBAT_HAND, "card-1"));
 
         assertEquals(RenderTargetKind.C2_SURFACE, item.kind);
         assertEquals(200f, item.x(), 0.01f);
         assertEquals(350f, item.height(), 0.01f);
         assertEquals(1, host.effectsOf(item.id).size());
         assertEquals(LightwaveEffect.ID, host.effectsOf(item.id).get(0).effectId);
-        host.removeC2Items(SurfaceIds.COMBAT_HAND);
+        PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_HAND);
+        host.rebuildFromEcsPlan();
         assertTrue(host.getTarget(item.id) == null);
     }
 
     @Test
     public void c2ItemTargetTracksHandDrawItemBounds() {
         RenderHost host = RenderHosts.get();
-        host.syncC2Surface(SurfaceIds.COMBAT_HAND, 0f, 0f, 1000f, 400f);
-        host.bindEffect(
-                RenderHost.c2SurfaceTargetId(SurfaceIds.COMBAT_HAND),
-                LightwaveEffect.ID,
-                java.util.Collections.<String, Object>emptyMap());
+        RenderStateEcs.surface(SurfaceIds.COMBAT_HAND, 0f, 0f, 1000f, 400f, true);
+        RenderStateEcs.surfaceEffects(SurfaceIds.COMBAT_HAND, java.util.Collections.singletonList(
+                new EffectAttachment(LightwaveEffect.ID, "ambient",
+                        java.util.Collections.<String, Object>emptyMap())));
         artframework.sts1.render.HandDrawPath.DrawItem item =
                 new artframework.sts1.render.HandDrawPath.DrawItem(
                         "card-1", "Strike_R", 300f, 250f, 0f, 0.8f, true, "", "", true, "", "");
         Rect bounds = item.bounds();
-        host.syncC2Item(
+        PresentationVisuals.syncC2Item(
                 SurfaceIds.COMBAT_HAND,
                 item.instanceId,
-                bounds.x,
-                bounds.y,
-                bounds.width,
-                bounds.height);
+                bounds, 1f, "card", "", "", true);
+        host.rebuildFromEcsPlan();
 
         artframework.render.RenderTarget target =
                 host.getTarget(RenderHost.c2ItemTargetId(SurfaceIds.COMBAT_HAND, item.instanceId));

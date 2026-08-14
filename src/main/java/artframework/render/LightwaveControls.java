@@ -97,7 +97,7 @@ public final class LightwaveControls {
         if (effects == null || effects.get(LightwaveEffect.ID, "ambient") == null) return false;
         ArtEcs.world().put(entity, EffectsComponent.class, effects.withParam(
                 LightwaveEffect.ID, "ambient", "intensity", Float.valueOf(intensity)));
-        ArtFramework.render().syncC1Window(windowId);
+        RenderProjectionQueue.request(windowId);
         return true;
     }
 

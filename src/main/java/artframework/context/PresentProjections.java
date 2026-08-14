@@ -29,6 +29,13 @@ public final class PresentProjections {
         return result.isRejected() ? FrameDiff.skipped(result.message) : last;
     }
 
+    /** ECS schedule entry point; bypasses the compatibility frame signal. */
+    static FrameDiff publishDirect(ContextFrame frame) {
+        if (frame == null) return FrameDiff.skipped("frame required");
+        last = PROJECTION.applyFrame(frame, false);
+        return last;
+    }
+
     public static void resetForTests() {
         PROJECTION.reset();
         subscription = null;

@@ -35,13 +35,18 @@ public final class PresentProjection {
     }
 
     public FrameDiff applyFrame(ContextFrame frame) {
+        return applyFrame(frame, true);
+    }
+
+    FrameDiff applyFrame(ContextFrame frame, boolean runConfirmation) {
         if (frame == null) {
             return FrameDiff.skipped("frame required");
         }
         ProjectionFrameComponent metadata = metadata();
         ContextFrame previousFrame = snapshot().frame;
         if (!frame.available) {
-            confirmBusinessIntents(previousFrame, frame);
+            recordBusinessConfirmationFrame(previousFrame, frame);
+            if (runConfirmation) runBusinessConfirmation();
             observeNativeIntents(frame);
             putMetadata(metadata.frameId, metadata.sceneEpoch, metadata.scene, false,
                     metadata.frameId >= 0);
@@ -112,16 +117,26 @@ public final class PresentProjection {
 
         putMetadata(frame.frameId, frame.sceneEpoch, frame.scene, true, false);
         putSnapshot(frame);
-        confirmBusinessIntents(previousFrame, frame);
+        recordBusinessConfirmationFrame(previousFrame, frame);
+        if (runConfirmation) runBusinessConfirmation();
         observeNativeIntents(frame);
         return new FrameDiff(added, removed, updated, true, "");
     }
 
     private void confirmBusinessIntents(ContextFrame before, ContextFrame after) {
+        recordBusinessConfirmationFrame(before, after);
+        runBusinessConfirmation();
+    }
+
+    private void recordBusinessConfirmationFrame(ContextFrame before, ContextFrame after) {
         EntityId metadata = ensureMetadataEntity();
         world.put(metadata, BusinessConfirmationFrameComponent.class,
                 new BusinessConfirmationFrameComponent(before, after));
-        EcsPipeline.run(world, new EcsTick(0f, Math.max(0L, after.frameId)),
+    }
+
+    private void runBusinessConfirmation() {
+        EntityId metadata = ensureMetadataEntity();
+        EcsPipeline.run(world, new EcsTick(0f, 0L),
                 java.util.Collections.<artframework.ecs.EcsSystem>singletonList(
                         new BusinessConfirmationSystem()));
     }

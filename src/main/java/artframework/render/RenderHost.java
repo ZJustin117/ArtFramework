@@ -253,6 +253,15 @@ public final class RenderHost {
     }
 
     /** Rebuild all ECS-owned C2/full-frame/entity targets from one immutable render plan. */
+    public void recreateFromEcs() {
+        rebuildFromEcsPlan();
+    }
+
+    /** Drop disposable host targets and bindings; retained presentation data stays in ECS. */
+    public void clearHostCacheForRecreation() {
+        clearTargets();
+    }
+
     void rebuildFromEcsPlan() {
         rebuildFromEcsPlan(null);
     }

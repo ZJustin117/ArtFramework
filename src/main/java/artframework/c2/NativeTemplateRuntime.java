@@ -158,6 +158,16 @@ public final class NativeTemplateRuntime {
         return state != null && state.bound;
     }
 
+    /** Native template ids whose bound state is currently authoritative in ECS. */
+    public static java.util.List<String> boundIds() {
+        java.util.List<String> result = new java.util.ArrayList<String>();
+        for (EntityId entity : TEMPLATE_CONTEXT.entities()) {
+            NativeTemplateStateComponent state = TEMPLATE_WORLD.get(entity, NativeTemplateStateComponent.class);
+            if (state != null && state.bound) result.add(state.templateId);
+        }
+        return java.util.Collections.unmodifiableList(result);
+    }
+
     public static void resetForTests() {
         MAP_TEMPLATE.resetForTests();
         EVENT_TEMPLATE.resetForTests();

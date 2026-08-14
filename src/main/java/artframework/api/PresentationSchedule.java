@@ -1,6 +1,11 @@
 package artframework.api;
 
 import artframework.context.ContextFrame;
+import artframework.context.AuthorityFrameComponent;
+import artframework.context.AuthorityProjectionSystem;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationKey;
+import artframework.presentation.PresentationRegistry;
 import artframework.core.AnimationPlaybackSystem;
 import artframework.core.EffectPulseSystem;
 import artframework.core.HostBackendTickSystem;
@@ -11,6 +16,8 @@ import artframework.presentation.ControlValueSystem;
 import artframework.render.RenderClockSystem;
 import artframework.render.RenderProjectionQueue;
 import artframework.render.RenderProjectionSystem;
+import artframework.skeleton.SkeletonHostTickSystem;
+import artframework.sts1.skeleton.Sts1SkeletonBridge;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -43,11 +50,13 @@ public final class PresentationSchedule {
             Phase.RENDER_CLOCK,
             Phase.HOST_BACKEND));
     private final ControlValueSystem controls = new ControlValueSystem();
+    private final AuthorityProjectionSystem authority = new AuthorityProjectionSystem();
     private final AnimationPlaybackSystem animation = new AnimationPlaybackSystem();
     private final EffectPulseSystem effects = new EffectPulseSystem();
     private final RenderClockSystem renderClock = new RenderClockSystem();
     private final RenderProjectionSystem renderProjection = new RenderProjectionSystem();
     private final HostBackendTickSystem hostBackend = new HostBackendTickSystem();
+    private SkeletonHostTickSystem skeleton;
     private HostPresentationSystem hostPresentationSystem;
     private long sequence;
 
@@ -69,7 +78,9 @@ public final class PresentationSchedule {
             for (Phase phase : PHASES) {
                 switch (phase) {
                     case AUTHORITY_PROJECTION_AND_CONFIRMATION:
-                        if (authorityFrame != null) ArtFramework.publishFrame(authorityFrame);
+                        if (authorityFrame != null) queueAuthorityFrame(authorityFrame);
+                        EcsPipeline.run(ArtEcs.world(), tick,
+                                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(authority));
                         break;
                     case WORLD_NORMALIZATION:
                         // World systems run once. All registered scopes share ArtEcs.world().
@@ -88,6 +99,12 @@ public final class PresentationSchedule {
                         if (hostPresentationSystem != null) {
                             hostPresentationSystem.tick(deltaSeconds);
                         }
+                        if (skeleton == null) {
+                            skeleton = new SkeletonHostTickSystem(
+                                    Sts1SkeletonBridge.presentationSystem());
+                        }
+                        EcsPipeline.run(ArtEcs.world(), tick,
+                                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(skeleton));
                         break;
                     case RENDER_PROJECTION:
                         EcsPipeline.run(ArtEcs.world(), tick,
@@ -110,9 +127,18 @@ public final class PresentationSchedule {
         }
     }
 
+    private static void queueAuthorityFrame(ContextFrame frame) {
+        PresentationContext context = PresentationRegistry.context("authority-input");
+        PresentationKey key = new PresentationKey("authority.frame", "pending");
+        artframework.ecs.EntityId entity = context.entity(key);
+        if (entity == null) entity = context.create(key, "pending", "authority-frame", "context");
+        context.world().put(entity, AuthorityFrameComponent.class, new AuthorityFrameComponent(frame));
+    }
+
     public void resetForTests() {
         sequence = 0L;
         hostPresentationSystem = null;
+        skeleton = null;
         RenderProjectionQueue.resetForTests();
     }
 }

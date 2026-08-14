@@ -21,14 +21,14 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 Design: [`docs/design/traditional-ecs.md`](design/traditional-ecs.md). Entity IDs only;
 components are data only; systems are stateless and own all ART interaction handling.
 
-**Current checkpoint (2026-08-14):** ECS data authority migration is substantially complete,
-including C1/C2 state, native input records, intent lifecycle records, render-plan inputs,
-Skeleton/EntityPresent state, and diagnostic projections. The production schedule and the D1
-draw/recreation gates are also in place. The remaining work is strict system ownership for every
-production phase, narrowing the last public render mutation boundaries, and removing only legacy
-stores that still have a concrete duplicate responsibility. This is approximately 70% of the
-broader traditional-ECS convergence: the data migration is ahead of the system/host-boundary
-migration.
+**Current checkpoint (2026-08-14):** ECS data authority migration and the six planned convergence
+slices are complete. C1/C2 state, native input records, intent lifecycle records, authority-frame
+projection, render-plan inputs, Skeleton/EntityPresent state, and diagnostic projections are ECS
+authoritative. The production schedule now owns authority projection, confirmation, animation,
+effects, host presentation, render projection, render clock, and backend advancement. Window
+handles, SignalBus subscriptions, provider handles, scene2d actors, and RenderHost targets remain
+explicit disposable compatibility or host caches. Remaining work is limited to future native
+adapter simplification and device verification for newly changed host paths.
 
 - [x] 46.0 Define strict ECS contract; add data-only entity identity, component query, and
   ordered stateless system pipeline with JUnit
@@ -41,36 +41,37 @@ migration.
   root map. C1 target/effect projection now consumes ECS frames only and StageHost reconciles its
   actor cache from ECS host bindings; context/entity lifecycle queries resolve registered ECS scope
   data, while signal callback objects remain a disposable host cache
-- [~] 46.3 Materialize STS observations and C2 surfaces through ECS systems; card projections now
+- [x] 46.3 Materialize STS observations and C2 surfaces through ECS systems; card projections now
   create/update/destroy shared-world entities and data-only card components, with frame lifecycle
   metadata, drag interaction metadata, and immutable frame snapshots on a projection root entity;
   card lookup, listing, counts, and cleanup now resolve through ECS card components, while the
   CardEntity compatibility view is derived on demand; C2 surface mount state and Entity lookup are
   now ECS-derived; native template facades no longer retain local active flags and template probe
   reads use ECS bind/pin/end-turn data
-- [~] 46.4 Route every native input/intercept through ECS input, action, intent, and result data;
+- [x] 46.4 Route every native input/intercept through ECS input, action, intent, and result data;
   C2 surface submissions now record data-only action/intent/result components before and after the
   existing SignalBus compatibility executor, and the STS1 combat router records native input plus
   intercept decisions per surface ECS entity for hand, controls, and executor paths; native map,
   event, select, and end-turn hooks now record their unbound, emitted, disabled, and rejected paths
   through the same model. Intent lifecycle transitions are centralized in
-  `NativeIntentLifecycleSystem`; `PresentSurfaces.submit()` still has a compatibility SignalBus
-  executor boundary and is the remaining convergence point for surface intent execution.
-- [~] 46.5 Derive all rendering/effects/skeleton host caches from ECS data; animation playback,
+  `NativeIntentLifecycleSystem`; `PresentSurfaces.submit()` now writes a one-shot ECS execution
+  request consumed by `SurfaceIntentExecutionSystem`, with SignalBus retained as the host executor
+  boundary.
+- [x] 46.5 Derive all rendering/effects/skeleton host caches from ECS data; animation playback,
   pulse envelopes, and skeleton identity/snapshot state are ECS authoritative, while RenderHost
   C1/C2 item target caches are ECS-frame-derived; surface/full-frame and host resource paths now
   consume ECS render-state components; D1 `d1_full_present_combat_ready`, EntityPresent draw/
   recreation/cleanup, and Spine34 native takeover/recreation/cleanup pass. Remaining strict work is
-  to make every render/effect phase a first-class scheduled system and to narrow the final public
-  `RenderHost` mutation surface. Animation playback, effect pulses, coalesced render projection,
+  `RenderHost.recreateFromEcs()` is the explicit host recreation boundary. Animation playback, effect pulses, coalesced render projection,
   the render clock, and the host backend tick now advance through stateless production ECS systems; `RenderHost.tick` and
   immutable-plan rebuilds are render-package-only, while lifecycle and STS filtered projections use
   explicit `RenderProjectionQueue` APIs.
-- [~] 46.6 Derive Probe/API compatibility views from ECS only and remove legacy stores; C1 probe,
+- [x] 46.6 Derive Probe/API compatibility views from ECS only and remove legacy stores; C1 probe,
   lifecycle queries, render-state projection, and business confirmation are ECS-derived, while
   callback/resource caches remain explicit host boundaries. UiProbe, UiInspect, console/probe
   reads, and PresentSurfaces registry recreation have been audited; remaining cleanup is limited
-  to concrete duplicate stores discovered by subsequent ownership audits.
+  to concrete duplicate stores discovered by subsequent ownership audits. `ArtFramework.OPEN` is
+  now handle/alias cache only; open ids and handle status query ECS lifecycle/template state.
 
 #### 46.x completion checklist
 
@@ -104,17 +105,17 @@ migration.
 - [x] 46.5.0 `RenderPlan.fromEcs()` is the sole target/effect cache input; C1/C2/surface/full-frame/
   EntityPresent targets rebuild after host cache clearing, direct RenderHost mutation APIs and
   RenderTarget setters are internal, and StageHost writes actor geometry back to ECS bounds
-- [~] 46.5.1 C1/C2 render plans, effects, and profiles derive from ECS data only; animation
+- [x] 46.5.1 C1/C2 render plans, effects, and profiles derive from ECS data only; animation
   playback and pulse state are data-only components, C1 declarations now materialize draw/bounds/
   visibility/effects into ECS frames, C1 and active C2 item targets rebuild in shared projections,
   while scheduled EffectPulse, animation property effects, and Lightwave writes are coalesced into
   one C1 host-cache projection per dirty window; surface/full-frame host APIs now consume
   `RenderSurfaceComponent` and `FullFrameRenderComponent`; D1 `d1_full_present_combat_ready` passes
-- [~] 46.5.2 Skeleton animation/pose/binding lifecycle derives from ECS data only; identity,
+- [x] 46.5.2 Skeleton animation/pose/binding lifecycle derives from ECS data only; identity,
   frame, asset, pose, animation, and visual state are ECS components, while native binding lookup
   remains a provider cache rebuilt from retained ECS state; D1 native takeover and cleanup are
   covered, including repeatable device-side recreation capture
-- [~] 46.5.3 EntityPresent slot identity, snapshot, and transform state are ECS components;
+- [x] 46.5.3 EntityPresent slot identity, snapshot, and transform state are ECS components;
   `EntitySlot` is an on-demand immutable compatibility view and listeners are host callbacks;
   the RenderHost entity target cache rebuilds from ECS slot queries; D1 attach/draw/detach and
   cache cleanup are covered, and pure tests cover host recreation rebuilding retained slot state

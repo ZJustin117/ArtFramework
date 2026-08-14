@@ -196,18 +196,10 @@ public final class ArtFramework {
     }
 
     public static List<String> listOpenIds() {
-        List<String> ids = new ArrayList<String>();
-        List<WindowHandle> handles = new ArrayList<WindowHandle>();
-        for (WindowHandle handle : OPEN.values()) {
-            if (handles.contains(handle)) {
-                continue;
-            }
-            handles.add(handle);
-            if (handle instanceof TrackedHandle) {
-                ids.add(((TrackedHandle) handle).openId);
-            } else {
-                ids.add(handle.id());
-            }
+        List<String> ids = new ArrayList<String>(
+                artframework.presentation.PresentationRuntime.openWindowIds());
+        for (String id : NativeTemplateRuntime.boundIds()) {
+            if (!ids.contains(id)) ids.add(id);
         }
         return Collections.unmodifiableList(ids);
     }
@@ -671,7 +663,11 @@ public final class ArtFramework {
 
         @Override
         public boolean isOpen() {
-            return open;
+            if (!open) return false;
+            if (def.windowClass == WindowClass.SYNTHETIC) {
+                return artframework.presentation.PresentationRuntime.isOpen(def.id);
+            }
+            return NativeTemplateRuntime.isBound(openId);
         }
 
         @Override

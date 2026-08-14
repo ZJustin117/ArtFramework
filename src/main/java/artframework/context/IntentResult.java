@@ -35,6 +35,10 @@ public final class IntentResult {
         return new IntentResult(Status.QUEUED, message);
     }
 
+    static IntentResult of(Status status, String message) {
+        return new IntentResult(status, message);
+    }
+
     public boolean isAccepted() {
         return status == Status.ACCEPTED;
     }

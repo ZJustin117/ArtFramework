@@ -44,4 +44,18 @@ public class RenderPlanRebuildTest {
 
         assertNotNull(RenderHosts.get().getTarget(RenderHost.c2SurfaceTargetId("sts1.visible")));
     }
+
+    @Test public void publicRecreationApiRestoresOnlyFromEcsState() {
+        RenderStateEcs.surface("sts1.recreate", 2f, 3f, 20f, 30f, true);
+        RenderHost host = new RenderHost();
+        host.recreateFromEcs();
+        assertNotNull(host.getTarget(RenderHost.c2SurfaceTargetId("sts1.recreate")));
+
+        host.clearHostCacheForRecreation();
+        assertEquals(0, host.targetCount());
+        host.recreateFromEcs();
+        assertEquals(1, host.targetCount());
+        assertEquals(new Rect(2f, 3f, 20f, 30f),
+                host.getTarget(RenderHost.c2SurfaceTargetId("sts1.recreate")).bounds());
+    }
 }

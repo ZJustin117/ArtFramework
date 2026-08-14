@@ -1,0 +1,38 @@
+package artframework.context;
+
+import artframework.core.SignalBuses;
+import artframework.core.SignalDispatchResult;
+import artframework.core.UiSignal;
+import artframework.ecs.EcsSystem;
+import artframework.ecs.EcsTick;
+import artframework.ecs.EntityId;
+import artframework.ecs.PresentationWorld;
+
+/** Executes one-shot surface requests and records their immediate ECS result. */
+public final class SurfaceIntentExecutionSystem implements EcsSystem {
+    @Override
+    public void run(PresentationWorld world, EcsTick tick) {
+        for (EntityId entity : world.query(SurfaceIntentExecutionComponent.class)) {
+            SurfaceIntentExecutionComponent request =
+                    world.get(entity, SurfaceIntentExecutionComponent.class);
+            SignalDispatchResult result = SignalBuses.get().emit(new UiSignal(
+                    ContextSignals.action(request.surfaceId, request.name),
+                    request.surfaceId,
+                    UiIntent.of(request.name, request.surfaceId,
+                            request.args.toArray(new Object[request.args.size()]))));
+            IntentResult outcome;
+            if (result == null) {
+                outcome = IntentResult.rejected("no result");
+            } else if (result.isRejected()) {
+                outcome = IntentResult.rejected(result.message);
+            } else if (result.message != null && result.message.startsWith("queued:")) {
+                outcome = IntentResult.queued(result.message);
+            } else {
+                outcome = IntentResult.accepted(result.message != null ? result.message : "");
+            }
+            world.put(entity, SurfaceResultComponent.class,
+                    new SurfaceResultComponent(outcome.status, outcome.message));
+            world.remove(entity, SurfaceIntentExecutionComponent.class);
+        }
+    }
+}

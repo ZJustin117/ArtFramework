@@ -17,6 +17,8 @@ import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.PresentationRegistry;
 import artframework.presentation.SignalPortsComponent;
+import artframework.ecs.EcsPipeline;
+import artframework.ecs.EcsTick;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -246,27 +248,21 @@ public final class PresentSurfaces {
                         new SurfaceActionComponent(intentName));
                 world().put(entity, SurfaceIntentComponent.class,
                         new SurfaceIntentComponent(intentName, id));
+                world().put(entity, SurfaceIntentExecutionComponent.class,
+                        new SurfaceIntentExecutionComponent(intentName, id, args));
                 world().put(entity, BusinessConfirmationComponent.class,
                         new BusinessConfirmationComponent(intentName,
                                 BusinessConfirmationComponent.domain(id, intentName),
                                 BusinessConfirmationComponent.State.PENDING,
                                 -1L, -1L, -1L, -1L, "awaiting authority snapshot"));
             }
-            artframework.core.SignalDispatchResult result = artframework.core.SignalBuses.get().emit(
-                    new artframework.core.UiSignal(
-                            ContextSignals.action(id, intentName), id,
-                            UiIntent.of(intentName, id, args)));
-            if (result == null) {
-                return recordResult(entity, IntentResult.rejected("no result"));
-            }
-            if (result.isRejected()) {
-                return recordResult(entity, IntentResult.rejected(result.message));
-            }
-            // Host executors often queue STS gestures; preserve that as success for UiOps.
-            if (result.message != null && result.message.startsWith("queued:")) {
-                return recordResult(entity, IntentResult.queued(result.message));
-            }
-            return recordResult(entity, IntentResult.accepted(result.message != null ? result.message : ""));
+            EcsPipeline.run(world(), new EcsTick(0f, 0L),
+                    java.util.Collections.<artframework.ecs.EcsSystem>singletonList(
+                            new SurfaceIntentExecutionSystem()));
+            SurfaceResultComponent result = entity != null
+                    ? world().get(entity, SurfaceResultComponent.class) : null;
+            if (result == null) return IntentResult.rejected("no result");
+            return IntentResult.of(result.status, result.message);
         }
 
         private IntentResult recordResult(EntityId entity, IntentResult result) {

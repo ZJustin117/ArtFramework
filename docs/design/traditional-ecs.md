@@ -7,20 +7,18 @@ multi-runtime interpretation of C1, C2, projection, render-target, and host stat
 
 ## Current Checkpoint
 
-As of 2026-08-14, the refactor is approximately 70% complete against the full traditional-ECS
-target. ECS is authoritative for most persistent presentation data: C1/C2 entities, projection
-frames, surface/template observations, native input and intent records, render-plan inputs,
-Skeleton state, EntityPresent slots, and diagnostic snapshots. A single production
-`PresentationSchedule` now defines the frame order, and D1 verifies EntityPresent draw/recreation/
-cleanup plus Spine34 native takeover/recreation/cleanup.
+As of 2026-08-14, the six planned convergence slices are complete. ECS is authoritative for
+persistent presentation data: C1/C2 entities, projection frames, surface/template observations,
+native input and intent records, scheduled authority projection, render-plan inputs, Skeleton
+state, EntityPresent slots, and diagnostic snapshots. A single production `PresentationSchedule`
+defines the frame order, and D1 verifies EntityPresent draw/recreation/cleanup plus Spine34 native
+takeover/recreation/cleanup.
 
-The remaining gap is architectural rather than primarily structural: several production phases are
-still coordinated by imperative services instead of independently registered `EcsSystem` instances,
-the surface intent executor still crosses a compatibility SignalBus boundary. `RenderHost` plan
-rebuilds and its render clock are render-package internals; explicit lifecycle and active-surface
-projection requests go through `RenderProjectionQueue`. Legacy maps
-have been classified; only fixed catalogs, callback hubs, asset catalogs, host resources, and
-provider caches remain intentionally outside ECS authority.
+The remaining compatibility boundaries are deliberate: the surface intent executor uses SignalBus
+as a host adapter after a one-shot ECS request is written, while WindowHandle aliases, callbacks,
+scene2d actors, RenderHost targets, asset resources, and provider handles remain disposable host
+caches. `RenderHost.recreateFromEcs()` and `SkeletonHostTickSystem` make host recreation and
+advancement explicit without introducing a second presentation authority.
 
 ## Rules
 

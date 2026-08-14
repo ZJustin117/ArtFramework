@@ -10,9 +10,26 @@ require:
     - SLAY_THE_AMETHYST_ROOT
 steps:
   - console: "art lab ensure-fresh-menu"
-  - wait_ms: 8000
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
   - console: "art lab start-run IRONCLAD"
-  - wait_ms: 25000
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  # Player assignment can precede the completed embark fade; fight only from a live dungeon.
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
   # Arm FULL before transition so the first combat hand frame is ART-owned.
   - console: "art present combat on"
   - console: "fight Cultist"

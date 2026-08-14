@@ -112,7 +112,10 @@ public final class StsLabState {
         try {
             Class<?> dungeon = Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon");
             Object player = field(dungeon, null, "player");
-            if (player != null) {
+            // STS retains AbstractDungeon.player after returning to the main menu. The menu mode
+            // is authoritative there; treating that stale reference as an active run prevents
+            // fresh-menu recipes from completing.
+            if (player != null && !"MAIN_MENU".equals(menuScreen)) {
                 inGame = true;
             }
             Object screen = field(dungeon, null, "screen");

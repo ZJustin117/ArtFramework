@@ -397,4 +397,57 @@ public class StsLabRecipesTest {
         assertEquals("ok", LabRecipeRunner.statusMap().get("status"));
         assertFalse(host.dump().hasResume);
     }
+
+    @Test
+    public void asyncRunnerEnsureFreshAbandonsRunWithStaleCharSelectFade() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .menuScreen("CHAR_SELECT")
+                                .inGame(true)
+                                .inCombat(true)
+                                .fading(true)
+                                .charSelectOpen(true)
+                                .roomPhase("COMBAT")
+                                .selectedCharacter("IRONCLAD")
+                                .build());
+        StsLabNav.install(host);
+
+        assertTrue(LabRecipeRunner.armEnsureFresh(12).isOk());
+        for (int i = 0; i < 12 && LabRecipeRunner.isBusy(); i++) {
+            LabRecipeRunner.tick();
+        }
+
+        assertEquals("ok", LabRecipeRunner.statusMap().get("status"));
+        assertTrue(host.actions.contains("abandon"));
+        assertTrue(host.dump().onMainMenu());
+        assertFalse(host.dump().hasResume);
+    }
+
+    @Test
+    public void asyncRunnerEnsureFreshTreatsStableMainMenuAsAuthoritative() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("CHAR_SELECT")
+                                .menuScreen("MAIN_MENU")
+                                .inGame(true)
+                                .hasResume(true)
+                                .hasAbandon(true)
+                                .hasPlay(true)
+                                .buttons(Arrays.asList("RESUME_GAME", "ABANDON_RUN", "PLAY"))
+                                .build());
+        StsLabNav.install(host);
+
+        assertTrue(LabRecipeRunner.armEnsureFresh(12).isOk());
+        for (int i = 0; i < 12 && LabRecipeRunner.isBusy(); i++) {
+            LabRecipeRunner.tick();
+        }
+
+        assertEquals("ok", LabRecipeRunner.statusMap().get("status"));
+        assertFalse(host.actions.contains("abandon"));
+        assertTrue(host.dump().onMainMenu());
+        assertFalse(host.dump().hasResume);
+    }
 }

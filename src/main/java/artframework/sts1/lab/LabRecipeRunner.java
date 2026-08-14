@@ -131,15 +131,21 @@ public final class LabRecipeRunner {
     private static void stepEnsureMenu(boolean fresh) {
         LabHost host = StsLabNav.host();
         LabStateSnapshot s = host.dump();
-        if (s.fading) {
-            return;
-        }
-        if (s.onMainMenu()) {
+        if ("MAIN_MENU".equals(s.menuScreen) && !s.fading) {
             if (!fresh) {
                 succeed("on main menu");
                 return;
             }
             finishFresh(host, s);
+            return;
+        }
+        // MainMenuScreen can retain CHAR_SELECT/fade fields after a usable dungeon begins.
+        // A fresh-menu request must abandon that run instead of waiting on stale menu state.
+        if (s.inGame || s.hasAbandon) {
+            host.abandon();
+            return;
+        }
+        if (s.fading) {
             return;
         }
         if (s.onCharSelect() && !fresh) {
@@ -157,9 +163,6 @@ public final class LabRecipeRunner {
         if (s.endScreen) {
             host.returnToMenu();
             return;
-        }
-        if (s.inGame || s.hasAbandon) {
-            host.abandon();
         }
     }
 

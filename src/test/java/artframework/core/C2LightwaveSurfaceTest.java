@@ -8,6 +8,7 @@ import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
 import artframework.render.RenderTargetKind;
 import artframework.render.RenderStateEcs;
+import artframework.render.RenderProjectionQueue;
 import artframework.presentation.EffectAttachment;
 import artframework.presentation.PresentationVisuals;
 import org.junit.After;
@@ -51,7 +52,7 @@ public class C2LightwaveSurfaceTest {
         RenderStateEcs.surfaceEffects(SurfaceIds.EVENT, java.util.Collections.singletonList(
                 new EffectAttachment(LightwaveEffect.ID, "ambient",
                         java.util.Collections.<String, Object>singletonMap("intensity", Float.valueOf(0.3f)))));
-        host.rebuildFromEcsPlan();
+        RenderProjectionQueue.projectNow();
 
         artframework.render.RenderTarget target =
                 host.getTarget(RenderHost.c2SurfaceTargetId(SurfaceIds.EVENT));
@@ -71,7 +72,7 @@ public class C2LightwaveSurfaceTest {
                         java.util.Collections.<String, Object>singletonMap("intensity", Float.valueOf(0.3f)))));
         PresentationVisuals.syncC2Item(SurfaceIds.COMBAT_HAND, "card-1",
                 new Rect(200f, 30f, 250f, 350f), 1f, "card", "", "", true);
-        host.rebuildFromEcsPlan();
+        RenderProjectionQueue.projectNow();
         artframework.render.RenderTarget item =
                 host.getTarget(RenderHost.c2ItemTargetId(SurfaceIds.COMBAT_HAND, "card-1"));
 
@@ -81,7 +82,7 @@ public class C2LightwaveSurfaceTest {
         assertEquals(1, host.effectsOf(item.id).size());
         assertEquals(LightwaveEffect.ID, host.effectsOf(item.id).get(0).effectId);
         PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_HAND);
-        host.rebuildFromEcsPlan();
+        RenderProjectionQueue.projectNow();
         assertTrue(host.getTarget(item.id) == null);
     }
 
@@ -100,7 +101,7 @@ public class C2LightwaveSurfaceTest {
                 SurfaceIds.COMBAT_HAND,
                 item.instanceId,
                 bounds, 1f, "card", "", "", true);
-        host.rebuildFromEcsPlan();
+        RenderProjectionQueue.projectNow();
 
         artframework.render.RenderTarget target =
                 host.getTarget(RenderHost.c2ItemTargetId(SurfaceIds.COMBAT_HAND, item.instanceId));

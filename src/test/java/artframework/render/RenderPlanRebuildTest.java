@@ -35,4 +35,13 @@ public class RenderPlanRebuildTest {
         assertEquals(3, host.targetCount());
         assertEquals(3, host.bindingCount());
     }
+
+    @Test public void queueProjectsRequestedActiveSurface() {
+        RenderStateEcs.surface("sts1.visible", 0f, 0f, 10f, 10f, true);
+        RenderStateEcs.surface("sts1.hidden", 0f, 0f, 10f, 10f, true);
+
+        RenderProjectionQueue.projectActiveSurfaces(Collections.singleton("sts1.visible"));
+
+        assertNotNull(RenderHosts.get().getTarget(RenderHost.c2SurfaceTargetId("sts1.visible")));
+    }
 }

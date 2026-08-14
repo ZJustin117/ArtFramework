@@ -56,7 +56,7 @@ public final class PresentSafety {
         artframework.sts1.render.MapDrawPath.resetForTests();
         artframework.sts1.audio.ArtAudioBridge.resetForTests();
         artframework.sts1.skeleton.Sts1SkeletonBridge.onHostRecreated();
-        artframework.render.RenderHosts.get().rebuildFromEcsPlan();
+        artframework.render.RenderProjectionQueue.projectNow();
         if (panic) {
             // stay safe
             CombatInputRouter.setSuppressNativeInput(false);

@@ -30,7 +30,7 @@ public final class PresentRestyle {
     /** Refresh all open trees from cascade (no Stage reattach). */
     public static void refreshOpenTrees() {
         for (String windowId : PresentationRuntime.openWindowIds()) {
-            artframework.render.RenderHosts.get().rebuildFromEcsPlan();
+            artframework.render.RenderProjectionQueue.projectNow();
         }
     }
 

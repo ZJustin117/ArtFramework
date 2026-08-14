@@ -8,6 +8,7 @@ import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.PresentationRegistry;
 import artframework.render.RenderHosts;
+import artframework.render.RenderProjectionQueue;
 
 /**
  * C2: native STS UI templates. Logic registry for bind/unbind; hooks live on per-template
@@ -49,22 +50,22 @@ public final class NativeTemplateRuntime {
         ENTITY_PRESENT.addListener(new EntityPresentListener() {
             @Override
             public void onAttached(EntitySlot slot) {
-                RenderHosts.get().rebuildFromEcsPlan();
+                RenderProjectionQueue.projectNow();
             }
 
             @Override
             public void onSynced(EntitySlot slot) {
-                RenderHosts.get().rebuildFromEcsPlan();
+                RenderProjectionQueue.projectNow();
             }
 
             @Override
             public void onLaidOut(EntitySlot slot) {
-                RenderHosts.get().rebuildFromEcsPlan();
+                RenderProjectionQueue.projectNow();
             }
 
             @Override
             public void onDetached(String slotId) {
-                RenderHosts.get().rebuildFromEcsPlan();
+                RenderProjectionQueue.projectNow();
             }
         });
     }

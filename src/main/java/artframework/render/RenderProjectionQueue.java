@@ -24,6 +24,16 @@ public final class RenderProjectionQueue {
         }
     }
 
+    /** Immediately project the complete immutable ECS render plan for a lifecycle boundary. */
+    public static void projectNow() {
+        RenderHosts.get().rebuildFromEcsPlan();
+    }
+
+    /** Immediately project only active C2 surfaces for an STS render pass. */
+    public static void projectActiveSurfaces(Set<String> activeSurfaceIds) {
+        RenderHosts.get().rebuildFromEcsPlan(activeSurfaceIds);
+    }
+
     public static void flush() {
         try {
             if (!DIRTY_WINDOWS.isEmpty()) RenderHosts.get().rebuildFromEcsPlan();

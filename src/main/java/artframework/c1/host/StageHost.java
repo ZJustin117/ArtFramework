@@ -389,7 +389,7 @@ public final class StageHost
             }
             updateTargetFromActor(key[0], key[1], actor, tmp);
         }
-        RenderHosts.get().rebuildFromEcsPlan();
+        artframework.render.RenderProjectionQueue.projectNow();
     }
 
     private static String[] splitC1Binding(String localKey) {

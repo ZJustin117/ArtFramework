@@ -62,7 +62,10 @@ migration.
   consume ECS render-state components; D1 `d1_full_present_combat_ready`, EntityPresent draw/
   recreation/cleanup, and Spine34 native takeover/recreation/cleanup pass. Remaining strict work is
   to make every render/effect phase a first-class scheduled system and to narrow the final public
-  `RenderHost` mutation surface.
+  `RenderHost` mutation surface. Animation playback, effect pulses, coalesced render projection,
+  the render clock, and the host backend tick now advance through stateless production ECS systems; `RenderHost.tick` and
+  immutable-plan rebuilds are render-package-only, while lifecycle and STS filtered projections use
+  explicit `RenderProjectionQueue` APIs.
 - [~] 46.6 Derive Probe/API compatibility views from ECS only and remove legacy stores; C1 probe,
   lifecycle queries, render-state projection, and business confirmation are ECS-derived, while
   callback/resource caches remain explicit host boundaries. UiProbe, UiInspect, console/probe

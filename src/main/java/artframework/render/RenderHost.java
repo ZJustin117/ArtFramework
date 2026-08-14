@@ -253,11 +253,11 @@ public final class RenderHost {
     }
 
     /** Rebuild all ECS-owned C2/full-frame/entity targets from one immutable render plan. */
-    public void rebuildFromEcsPlan() {
+    void rebuildFromEcsPlan() {
         rebuildFromEcsPlan(null);
     }
 
-    public void rebuildFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
+    void rebuildFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
         RenderPlan plan = RenderPlan.fromEcs(activeSurfaceIds);
         FullFrameRenderComponent full = RenderStateEcs.fullFrameState();
         fullFrameEnabled = full != null && full.enabled;
@@ -391,7 +391,7 @@ public final class RenderHost {
         return out;
     }
 
-    public void tick(float deltaSeconds) {
+    void tick(float deltaSeconds) {
         if (deltaSeconds > 0f) {
             timeSeconds += deltaSeconds;
         }

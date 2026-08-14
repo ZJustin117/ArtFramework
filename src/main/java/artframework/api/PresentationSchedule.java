@@ -1,15 +1,16 @@
 package artframework.api;
 
 import artframework.context.ContextFrame;
-import artframework.core.AnimationPlayers;
-import artframework.core.EffectPulse;
-import artframework.core.HostBackends;
+import artframework.core.AnimationPlaybackSystem;
+import artframework.core.EffectPulseSystem;
+import artframework.core.HostBackendTickSystem;
 import artframework.ecs.ArtEcs;
 import artframework.ecs.EcsPipeline;
 import artframework.ecs.EcsTick;
 import artframework.presentation.ControlValueSystem;
-import artframework.render.RenderHosts;
+import artframework.render.RenderClockSystem;
 import artframework.render.RenderProjectionQueue;
+import artframework.render.RenderProjectionSystem;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -42,6 +43,11 @@ public final class PresentationSchedule {
             Phase.RENDER_CLOCK,
             Phase.HOST_BACKEND));
     private final ControlValueSystem controls = new ControlValueSystem();
+    private final AnimationPlaybackSystem animation = new AnimationPlaybackSystem();
+    private final EffectPulseSystem effects = new EffectPulseSystem();
+    private final RenderClockSystem renderClock = new RenderClockSystem();
+    private final RenderProjectionSystem renderProjection = new RenderProjectionSystem();
+    private final HostBackendTickSystem hostBackend = new HostBackendTickSystem();
     private HostPresentationSystem hostPresentationSystem;
     private long sequence;
 
@@ -57,6 +63,7 @@ public final class PresentationSchedule {
         if (deltaSeconds < 0f) {
             throw new IllegalArgumentException("deltaSeconds must be non-negative");
         }
+        EcsTick tick = new EcsTick(deltaSeconds, sequence++);
         RenderProjectionQueue.begin();
         try {
             for (Phase phase : PHASES) {
@@ -66,17 +73,16 @@ public final class PresentationSchedule {
                         break;
                     case WORLD_NORMALIZATION:
                         // World systems run once. All registered scopes share ArtEcs.world().
-                        EcsPipeline.run(ArtEcs.world(), new EcsTick(deltaSeconds, sequence++),
+                        EcsPipeline.run(ArtEcs.world(), tick,
                                 java.util.Collections.<artframework.ecs.EcsSystem>singletonList(controls));
                         break;
                     case ANIMATION:
-                        for (String windowId :
-                                artframework.presentation.PresentationRuntime.openWindowIds()) {
-                            AnimationPlayers.tick(windowId, deltaSeconds);
-                        }
+                        EcsPipeline.run(ArtEcs.world(), tick,
+                                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(animation));
                         break;
                     case EFFECTS:
-                        EffectPulse.tick(deltaSeconds);
+                        EcsPipeline.run(ArtEcs.world(), tick,
+                                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(effects));
                         break;
                     case HOST_PRESENTATION:
                         if (hostPresentationSystem != null) {
@@ -84,13 +90,16 @@ public final class PresentationSchedule {
                         }
                         break;
                     case RENDER_PROJECTION:
-                        RenderProjectionQueue.flush();
+                        EcsPipeline.run(ArtEcs.world(), tick,
+                                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(renderProjection));
                         break;
                     case RENDER_CLOCK:
-                        RenderHosts.get().tick(deltaSeconds);
+                        EcsPipeline.run(ArtEcs.world(), tick,
+                                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(renderClock));
                         break;
                     case HOST_BACKEND:
-                        HostBackends.get().tick(deltaSeconds);
+                        EcsPipeline.run(ArtEcs.world(), tick,
+                                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(hostBackend));
                         break;
                     default:
                         throw new IllegalStateException("unknown presentation phase: " + phase);

@@ -92,7 +92,7 @@ public final class Sts1SurfaceRenderer {
             for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
                 activeSurfaces.add(entry.surfaceId);
             }
-            RenderHosts.get().rebuildFromEcsPlan(activeSurfaces);
+            artframework.render.RenderProjectionQueue.projectActiveSurfaces(activeSurfaces);
             renderEntityChrome(sb);
         } finally {
             guard.endCapture();

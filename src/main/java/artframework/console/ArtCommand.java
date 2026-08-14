@@ -971,7 +971,7 @@ public class ArtCommand extends ConsoleCommand {
                 p.put("b", Float.valueOf(1f));
                 artframework.render.RenderStateEcs.fullFrameEffects(
                         java.util.Collections.<artframework.presentation.EffectAttachment>emptyList());
-                ArtFramework.render().rebuildFromEcsPlan();
+                artframework.render.RenderProjectionQueue.projectNow();
                 ArtFramework.render()
                         .bindFullFrameEffect(artframework.render.LightwaveEffect.ID, p);
                 DevConsole.log("full_frame lightwave diagnostic: fixed high-contrast band");
@@ -985,7 +985,7 @@ public class ArtCommand extends ConsoleCommand {
             } else if ("clear".equals(action)) {
                 artframework.render.RenderStateEcs.fullFrameEffects(
                         java.util.Collections.<artframework.presentation.EffectAttachment>emptyList());
-                ArtFramework.render().rebuildFromEcsPlan();
+                artframework.render.RenderProjectionQueue.projectNow();
                 DevConsole.log("full_frame effects cleared");
             } else {
                 DevConsole.log("unknown fx action: " + action);

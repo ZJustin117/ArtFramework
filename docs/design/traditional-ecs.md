@@ -16,8 +16,9 @@ cleanup plus Spine34 native takeover/recreation/cleanup.
 
 The remaining gap is architectural rather than primarily structural: several production phases are
 still coordinated by imperative services instead of independently registered `EcsSystem` instances,
-the surface intent executor still crosses a compatibility SignalBus boundary, and `RenderHost`
-retains a wider public mutation surface than the final immutable-plan design allows. Legacy maps
+the surface intent executor still crosses a compatibility SignalBus boundary. `RenderHost` plan
+rebuilds and its render clock are render-package internals; explicit lifecycle and active-surface
+projection requests go through `RenderProjectionQueue`. Legacy maps
 have been classified; only fixed catalogs, callback hubs, asset catalogs, host resources, and
 provider caches remain intentionally outside ECS authority.
 
@@ -55,12 +56,12 @@ Production advances that flow through one `PresentationSchedule` in this fixed o
 
 1. authority projection and confirmation
 2. shared-world normalization
-3. C1 animation playback
-4. effect envelopes
+3. C1 animation playback via `AnimationPlaybackSystem`
+4. effect envelopes via `EffectPulseSystem`
 5. host-specific presentation advancement, including skeleton provider caches
-6. coalesced render projection
-7. render clock
-8. host backend tick
+6. coalesced render projection via `RenderProjectionSystem`
+7. render clock via `RenderClockSystem`
+8. host backend tick via `HostBackendTickSystem`
 
 `ArtFramework.advanceFrame(delta, authorityFrame)` is the production entry. Compatibility
 `tick(delta)` delegates to the same schedule without an authority frame; `publishFrame(frame)`

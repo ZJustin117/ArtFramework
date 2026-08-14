@@ -421,6 +421,7 @@ public class StsLabRecipesTest {
 
         assertEquals("ok", LabRecipeRunner.statusMap().get("status"));
         assertTrue(host.actions.contains("abandon"));
+        assertEquals(1, countActions(host.actions, "abandon"));
         assertTrue(host.dump().onMainMenu());
         assertFalse(host.dump().hasResume);
     }
@@ -449,5 +450,15 @@ public class StsLabRecipesTest {
         assertFalse(host.actions.contains("abandon"));
         assertTrue(host.dump().onMainMenu());
         assertFalse(host.dump().hasResume);
+    }
+
+    private static int countActions(java.util.List<String> actions, String wanted) {
+        int count = 0;
+        for (String action : actions) {
+            if (wanted.equals(action)) {
+                count++;
+            }
+        }
+        return count;
     }
 }

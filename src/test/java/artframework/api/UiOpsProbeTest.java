@@ -147,6 +147,43 @@ public class UiOpsProbeTest {
     }
 
     @Test
+    public void replacingAndRemovingC1SugarHandlersDisconnectsPriorSubscriptions() {
+        final AtomicInteger first = new AtomicInteger();
+        final AtomicInteger second = new AtomicInteger();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.open("demo");
+
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { first.incrementAndGet(); }
+        });
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { second.incrementAndGet(); }
+        });
+        ArtFramework.ops().clickButton("demo", "close");
+        assertEquals(0, first.get());
+        assertEquals(1, second.get());
+
+        ArtFramework.ops().removeButtonHandler("demo", "close");
+        ArtFramework.ops().clickButton("demo", "close");
+        assertEquals(0, first.get());
+        assertEquals(1, second.get());
+    }
+
+    @Test
+    public void c1SugarHandlerRegisteredBeforeMountBindsWhenTheTreeOpens() {
+        final AtomicInteger hits = new AtomicInteger();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { hits.incrementAndGet(); }
+        });
+
+        ArtFramework.open("demo");
+        ArtFramework.ops().clickButton("demo", "close");
+
+        assertEquals(1, hits.get());
+    }
+
+    @Test
     public void syntheticControlOpsStoreTheirCurrentValueOnTheEcsEntity() {
         ArtFramework.register(new WindowDef("lightwave_demo", WindowClass.SYNTHETIC,
                 "layouts/lightwave_demo.json"));

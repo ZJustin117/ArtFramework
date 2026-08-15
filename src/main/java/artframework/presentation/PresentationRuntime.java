@@ -148,12 +148,12 @@ public final class PresentationRuntime {
     public static SignalSubscription connect(PresentationContext context, EntityId entity,
             String signal, SignalHandler handler) {
         requirePort(context, entity, signal);
-        final String name = identity(context, entity).name;
+        final String nodePath = identity(context, entity).key.localId;
         final SignalHub hub = signals(context);
-        hub.connect(name, signal, handler);
+        hub.connect(nodePath, signal, handler);
         return new SignalSubscription() {
-            @Override public void disconnect() { hub.disconnect(name, signal, handler); }
-            @Override public boolean isConnected() { return hub.handlerCount(name, signal) > 0; }
+            @Override public void disconnect() { hub.disconnect(nodePath, signal, handler); }
+            @Override public boolean isConnected() { return hub.handlerCount(nodePath, signal) > 0; }
         };
     }
 
@@ -169,8 +169,13 @@ public final class PresentationRuntime {
 
     public static void emit(PresentationContext context, EntityId entity, String signal,
             Object... payload) {
+        dispatch(context, entity, signal, payload);
+    }
+
+    public static artframework.core.SignalDispatchResult dispatch(
+            PresentationContext context, EntityId entity, String signal, Object... payload) {
         requirePort(context, entity, signal);
-        signals(context).emit(identity(context, entity).name, signal, payload);
+        return signals(context).dispatch(identity(context, entity).key.localId, signal, payload);
     }
 
     public static void clearSignals(PresentationContext context) {
@@ -191,7 +196,7 @@ public final class PresentationRuntime {
         String scope = context.scope();
         SignalHub hub = SIGNALS.get(scope);
         if (hub == null) {
-            hub = new SignalHub();
+            hub = new SignalHub(windowId(context));
             SIGNALS.put(scope, hub);
         }
         return hub;

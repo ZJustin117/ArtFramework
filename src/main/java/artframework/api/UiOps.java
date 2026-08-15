@@ -20,6 +20,8 @@ import artframework.core.SignalNames;
 import artframework.core.UiComponent;
 import artframework.core.SignalHandler;
 import artframework.core.SignalDispatchResult;
+import artframework.core.SignalPaths;
+import artframework.core.SignalSubscription;
 import artframework.core.UiSignal;
 import artframework.ops.NativeOpsBackend;
 import artframework.ops.NoOpNativeOps;
@@ -35,6 +37,8 @@ public final class UiOps {
 
     private final Map<String, SignalHandler> signalHandlers =
             new LinkedHashMap<String, SignalHandler>();
+    private final Map<String, SignalSubscription> signalSubscriptions =
+            new LinkedHashMap<String, SignalSubscription>();
 
     UiOps() {}
 
@@ -257,7 +261,6 @@ public final class UiOps {
         if (!allowSignal(windowId, buttonId, SignalNames.PRESSED)) {
             return UiOpResult.blocked("button blocked: " + windowId + "/" + buttonId);
         }
-        emitSignal(windowId, buttonId, SignalNames.PRESSED);
         // Declared buttons always succeed after emit (animation triggers / labs may be sole listeners).
         return UiOpResult.ok();
     }
@@ -283,7 +286,6 @@ public final class UiOps {
         }
         setControlValue(slider, Float.valueOf(clamped));
         syncNodeProperty(windowId, sliderId, "value", Float.valueOf(clamped));
-        emitSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
         try {
             artframework.render.LightwaveControls.applyIntensity(windowId, sliderId, clamped);
         } catch (Throwable ignored) {
@@ -305,7 +307,6 @@ public final class UiOps {
         if (!allowSignal(windowId, hitAreaId, SignalNames.PRESSED)) {
             return UiOpResult.blocked("hitarea blocked: " + windowId + "/" + hitAreaId);
         }
-        emitSignal(windowId, hitAreaId, SignalNames.PRESSED);
         return UiOpResult.ok();
     }
 
@@ -345,7 +346,6 @@ public final class UiOps {
         }
         setControlValue(field, t);
         syncNodeProperty(windowId, fieldId, "text", t);
-        emitSignal(windowId, fieldId, SignalNames.TEXT_CHANGED, t);
         return UiOpResult.ok();
     }
 
@@ -364,7 +364,6 @@ public final class UiOps {
         if (!allowSignal(windowId, fieldId, SignalNames.TEXT_SUBMITTED, text)) {
             return UiOpResult.blocked("textfield blocked: " + windowId + "/" + fieldId);
         }
-        emitSignal(windowId, fieldId, SignalNames.TEXT_SUBMITTED, text);
         return UiOpResult.ok();
     }
 
@@ -385,7 +384,6 @@ public final class UiOps {
         }
         setControlValue(checkbox, Boolean.valueOf(v));
         syncNodeProperty(windowId, checkboxId, "checked", Boolean.valueOf(v));
-        emitSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v));
         return UiOpResult.ok();
     }
 
@@ -406,7 +404,6 @@ public final class UiOps {
         }
         setControlValue(checkbox, Boolean.valueOf(v));
         syncNodeProperty(windowId, checkboxId, "checked", Boolean.valueOf(v));
-        emitSignal(windowId, checkboxId, SignalNames.TOGGLED, Boolean.valueOf(v));
         return UiOpResult.ok();
     }
 
@@ -427,7 +424,6 @@ public final class UiOps {
         }
         setControlValue(progress, Float.valueOf(clamped));
         syncNodeProperty(windowId, progressId, "value", Float.valueOf(clamped));
-        emitSignal(windowId, progressId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped));
         return UiOpResult.ok();
     }
 
@@ -513,27 +509,30 @@ public final class UiOps {
     }
 
     void resetForTests() {
+        for (SignalSubscription subscription : signalSubscriptions.values()) {
+            subscription.disconnect();
+        }
+        signalSubscriptions.clear();
         signalHandlers.clear();
     }
 
     void onTreeMounted(String windowId) {
         for (Map.Entry<String, SignalHandler> e : signalHandlers.entrySet()) {
             if (e.getKey().startsWith(windowId + "\0")) {
-                String controlId = e.getKey().substring(windowId.length() + 1);
+                String controlId = controlForKey(e.getKey());
                 String signal = signalForKey(e.getKey());
                 if (signal != null) {
                     PresentationContext context = PresentationRuntime.context(windowId);
                     EntityId node = PresentationRuntime.find(context, controlId);
-                    if (node != null) PresentationRuntime.connect(context, node, signal, e.getValue());
+                    if (node != null) {
+                        SignalSubscription previous = signalSubscriptions.remove(e.getKey());
+                        if (previous != null) previous.disconnect();
+                        signalSubscriptions.put(e.getKey(),
+                                PresentationRuntime.connect(context, node, signal, e.getValue()));
+                    }
                 }
             }
         }
-    }
-
-    private static void emitSignal(String windowId, String controlId, String signal, Object... args) {
-        // allowSignal() already dispatched the canonical bus event before state mutation. A second
-        // Context emission would invoke every listener twice; direct entity emission remains the
-        // explicit API for callers that are not using an imperative UiOp.
     }
 
     private static void syncNodeProperty(String windowId, String controlId, String property, Object value) {
@@ -543,30 +542,44 @@ public final class UiOps {
     }
 
     private static boolean allowSignal(String windowId, String controlId, String signal, Object... args) {
-        artframework.core.SignalDispatchResult result = artframework.core.SignalGroups.nativeGroup().emit(
-                new artframework.core.UiSignal(
-                        artframework.core.SignalHub.name(controlId, signal), controlId,
-                        args != null ? args : new Object[0]));
+        PresentationContext context = PresentationRuntime.context(windowId);
+        EntityId node = PresentationRuntime.find(context, controlId);
+        if (node == null) {
+            return false;
+        }
+        SignalDispatchResult result = PresentationRuntime.dispatch(
+                context, node, signal, args != null ? args : new Object[0]);
         return !result.isRejected();
     }
 
     private void connectSugar(String windowId, String controlId, String signal, SignalHandler handler) {
         String k = key(windowId, controlId) + "\0" + signal;
-        SignalHandler old = signalHandlers.put(k, handler);
+        SignalSubscription oldSubscription = signalSubscriptions.remove(k);
+        if (oldSubscription != null) oldSubscription.disconnect();
+        signalHandlers.put(k, handler);
         PresentationContext context = PresentationRuntime.context(windowId);
         EntityId node = PresentationRuntime.find(context, controlId);
-        if (node != null) PresentationRuntime.connect(context, node, signal, handler);
+        if (node != null) {
+            signalSubscriptions.put(k, PresentationRuntime.connect(context, node, signal, handler));
+        }
     }
 
     private void disconnectSugar(String windowId, String controlId, String signal) {
         String k = key(windowId, controlId) + "\0" + signal;
-        SignalHandler old = signalHandlers.remove(k);
-        // Presentation context owns listener teardown. Sugar replacement uses the stored handler map.
+        signalHandlers.remove(k);
+        SignalSubscription subscription = signalSubscriptions.remove(k);
+        if (subscription != null) subscription.disconnect();
     }
 
     private static String signalForKey(String key) {
         int split = key.lastIndexOf('\0');
         return split < 0 ? null : key.substring(split + 1);
+    }
+
+    private static String controlForKey(String key) {
+        int first = key.indexOf('\0');
+        int last = key.lastIndexOf('\0');
+        return first < 0 || last <= first ? null : key.substring(first + 1, last);
     }
 
     private static String sessionPath(String windowId, String controlId) {
@@ -604,7 +617,7 @@ public final class UiOps {
 
     private static boolean rejected(String componentId, String signal, Object payload) {
         SignalDispatchResult result = artframework.core.SignalGroups.nativeGroup().emit(
-                new UiSignal("ui/" + componentId + "/" + signal, componentId, payload));
+                new UiSignal(SignalPaths.component(componentId, signal), componentId, payload));
         return result.isRejected();
     }
 

@@ -38,7 +38,7 @@ public class NodeConnectionsTest {
 
     @Test
     public void exactMatchPlaysAnimation() {
-        C1RuntimeFixture fixture = mountWithPlayConnection("ui/ok/pressed", false);
+        C1RuntimeFixture fixture = mountWithPlayConnection("ui/win/w/ok/pressed", false);
         ConnectionDeclarationsComponent declarations = fixture.context.world().get(
                 fixture.root, ConnectionDeclarationsComponent.class);
         assertNotNull(declarations);
@@ -50,7 +50,7 @@ public class NodeConnectionsTest {
 
     @Test
     public void regexMatchPlaysAnimation() {
-        C1RuntimeFixture fixture = mountWithPlayConnection("ui/.+/pressed", true);
+        C1RuntimeFixture fixture = mountWithPlayConnection("ui/win/.+/pressed", true);
         fixture.emit("ok", SignalNames.PRESSED);
         assertTrue(AnimationPlayers.get("win", "motion").isPlaying());
     }
@@ -70,9 +70,26 @@ public class NodeConnectionsTest {
     }
 
     @Test
+    public void sourceShorthandResolvesTheScopedNodePath() {
+        Map<String, Object> connection = new LinkedHashMap<String, Object>();
+        connection.put("source", "ok");
+        connection.put("signal", SignalNames.PRESSED);
+        connection.put("action", UiActions.PLAY);
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("player", "motion");
+        args.put("name", "enter");
+        connection.put("args", args);
+
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount(
+                "win", windowWithButtonAndPlayer(null, Collections.singletonList(connection)));
+        fixture.emit("ok", SignalNames.PRESSED);
+        assertTrue(AnimationPlayers.get("win", "motion").isPlaying());
+    }
+
+    @Test
     public void setPropFromPayload() {
         Map<String, Object> conn = new LinkedHashMap<String, Object>();
-        conn.put("match", "ui/wave/value_changed");
+        conn.put("match", "ui/win/w/wave/value_changed");
         conn.put("action", UiActions.SET_PROP);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("target", "panel");
@@ -101,7 +118,7 @@ public class NodeConnectionsTest {
     @Test
     public void pulseEffectUpdatesBinding() {
         Map<String, Object> conn = new LinkedHashMap<String, Object>();
-        conn.put("match", "ui/ok/pressed");
+        conn.put("match", "ui/win/w/ok/pressed");
         conn.put("action", UiActions.PULSE_EFFECT);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("target", "panel");
@@ -141,7 +158,7 @@ public class NodeConnectionsTest {
     @Test
     public void unknownActionFailsMount() {
         Map<String, Object> conn = new LinkedHashMap<String, Object>();
-        conn.put("match", "ui/ok/pressed");
+        conn.put("match", "ui/win/w/ok/pressed");
         conn.put("action", "not.a.real.action");
         UiNode root =
                 UiNode.of(UiTypes.WINDOW)
@@ -170,7 +187,7 @@ public class NodeConnectionsTest {
                     }
                 });
         Map<String, Object> conn = new LinkedHashMap<String, Object>();
-        conn.put("match_pattern", "ui/ok/.*");
+        conn.put("match_pattern", "ui/win/w/ok/.*");
         conn.put("action", "mod.test_hit");
         UiNode root =
                 UiNode.of(UiTypes.WINDOW)
@@ -186,7 +203,7 @@ public class NodeConnectionsTest {
 
     @Test
     public void unmountClearsSubscriptions() {
-        C1RuntimeFixture fixture = mountWithPlayConnection("ui/ok/pressed", false);
+        C1RuntimeFixture fixture = mountWithPlayConnection("ui/win/w/ok/pressed", false);
         assertTrue(NodeConnections.subscriptionCount("win") >= 1);
         fixture.close();
         assertEquals(0, NodeConnections.subscriptionCount("win"));

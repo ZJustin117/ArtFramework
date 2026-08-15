@@ -12,6 +12,13 @@ import static org.junit.Assert.assertTrue;
 
 public class SignalBusTest {
     @Test
+    public void signalPathsSeparateComponentsFromScopedC1Nodes() {
+        assertEquals("ui/sts1.map/node_clicked", SignalPaths.component("sts1.map", "node_clicked"));
+        assertEquals("ui/demo/root/actions/ok/pressed",
+                SignalPaths.node("demo", "root/actions/ok", "pressed"));
+    }
+
+    @Test
     public void exactAndRegexListenersShareRegistrationOrderAndSeeReplacement() {
         SignalBus bus = new SignalBus();
         final List<String> seen = new ArrayList<String>();

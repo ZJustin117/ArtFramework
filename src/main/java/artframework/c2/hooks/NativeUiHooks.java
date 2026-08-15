@@ -9,6 +9,7 @@ import artframework.c2.SelectKind;
 import artframework.core.SignalGroups;
 import artframework.core.SignalDispatchResult;
 import artframework.core.SignalNames;
+import artframework.core.SignalPaths;
 import artframework.core.UiSignal;
 import artframework.context.NativeInputComponent;
 import artframework.context.IntentNames;
@@ -118,7 +119,7 @@ public final class NativeUiHooks {
 
     private static SignalDispatchResult emit(String componentId, String signal, Object payload) {
         return SignalGroups.nativeGroup()
-                .emit(new UiSignal(signalName(componentId, signal), componentId, payload));
+                .emit(new UiSignal(SignalPaths.component(componentId, signal), componentId, payload));
     }
 
     private static SignalDispatchResult record(String surfaceId, SignalDispatchResult result) {
@@ -132,7 +133,4 @@ public final class NativeUiHooks {
         return kind == SelectKind.HAND ? SurfaceIds.SELECT_HAND : SurfaceIds.SELECT_GRID;
     }
 
-    private static String signalName(String componentId, String signal) {
-        return "ui/" + componentId + "/" + signal;
-    }
 }

@@ -52,9 +52,9 @@ public final class NodeConnections {
         String source = stringVal(declaration.get("source"));
         String signal = stringVal(declaration.get("signal"));
         if (source.isEmpty() || signal.isEmpty()) return null;
-        if (".".equals(source) || "self".equals(source)) source = identity != null ? identity.name : "";
+        source = sourcePath(context, source, identity);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("match", SignalHub.name(source, signal));
+        result.put("match", SignalHub.name(PresentationRuntime.windowId(context), source, signal));
         String action = stringVal(declaration.get("action"));
         result.put("action", action.isEmpty() ? UiActions.PLAY : action);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -85,11 +85,10 @@ public final class NodeConnections {
         if (match.isEmpty() && pattern.isEmpty()) {
             String source = stringVal(spec.get("source"));
             String signal = stringVal(spec.get("signal"));
-            if (".".equals(source) || "self".equals(source)) {
-                artframework.presentation.NodeIdentityComponent identity = PresentationRuntime.identity(context, owner);
-                source = identity != null ? identity.name : "";
+            source = sourcePath(context, source, PresentationRuntime.identity(context, owner));
+            if (!source.isEmpty() && !signal.isEmpty()) {
+                match = SignalHub.name(PresentationRuntime.windowId(context), source, signal);
             }
-            if (!source.isEmpty() && !signal.isEmpty()) match = SignalHub.name(source, signal);
         }
         if (match.isEmpty() && pattern.isEmpty()) return;
         final SignalListener listener = new SignalListener() {
@@ -191,6 +190,19 @@ public final class NodeConnections {
 
     private static String stringVal(Object v) {
         return v == null ? "" : String.valueOf(v).trim();
+    }
+
+    private static String sourcePath(
+            PresentationContext context,
+            String source,
+            artframework.presentation.NodeIdentityComponent ownerIdentity) {
+        if (".".equals(source) || "self".equals(source)) {
+            return ownerIdentity != null ? ownerIdentity.key.localId : "";
+        }
+        artframework.ecs.EntityId sourceEntity = PresentationRuntime.find(context, source);
+        artframework.presentation.NodeIdentityComponent sourceIdentity =
+                PresentationRuntime.identity(context, sourceEntity);
+        return sourceIdentity != null ? sourceIdentity.key.localId : source;
     }
 
 }

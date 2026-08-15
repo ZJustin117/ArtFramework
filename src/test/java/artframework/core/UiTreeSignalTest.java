@@ -56,6 +56,30 @@ public class UiTreeSignalTest {
         fixture.close();
     }
 
+    @Test public void c1SignalsAreScopedByWindowAndNodePath() {
+        C1RuntimeFixture first = C1RuntimeFixture.mount("first", sample());
+        C1RuntimeFixture second = C1RuntimeFixture.mount("second", sample());
+        AtomicInteger firstHits = new AtomicInteger();
+        AtomicInteger secondHits = new AtomicInteger();
+        try {
+            PresentationRuntime.connect(first.context, first.find("ok"), SignalNames.PRESSED,
+                    args -> firstHits.incrementAndGet());
+            PresentationRuntime.connect(second.context, second.find("ok"), SignalNames.PRESSED,
+                    args -> secondHits.incrementAndGet());
+
+            first.emit("ok", SignalNames.PRESSED);
+            assertEquals(1, firstHits.get());
+            assertEquals(0, secondHits.get());
+
+            second.emit("ok", SignalNames.PRESSED);
+            assertEquals(1, firstHits.get());
+            assertEquals(1, secondHits.get());
+        } finally {
+            first.close();
+            second.close();
+        }
+    }
+
     @Test public void mutablePropsStayInEcs() {
         C1RuntimeFixture fixture = C1RuntimeFixture.mount("w", sample());
         EntityId label = fixture.find("hello");

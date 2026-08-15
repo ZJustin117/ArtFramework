@@ -4,6 +4,7 @@ import artframework.c2.NativeTemplateIds;
 import artframework.c2.SelectKind;
 import artframework.core.SignalDecision;
 import artframework.core.SignalListener;
+import artframework.core.SignalPaths;
 import artframework.core.SignalGroups;
 import artframework.core.SignalSubscription;
 import artframework.core.UiSignal;
@@ -101,7 +102,7 @@ public final class GateLab {
 
     private static void setMap(boolean block) {
         if (block && !mapOn) {
-            mapSubscription = block("ui/" + NativeTemplateIds.MAP + "/node_clicked");
+            mapSubscription = block(SignalPaths.component(NativeTemplateIds.MAP, "node_clicked"));
             mapOn = true;
         } else if (!block && mapOn) {
             mapSubscription.disconnect();
@@ -111,7 +112,7 @@ public final class GateLab {
 
     private static void setEvent(boolean block) {
         if (block && !eventOn) {
-            eventSubscription = block("ui/" + NativeTemplateIds.EVENT + "/option_chosen");
+            eventSubscription = block(SignalPaths.component(NativeTemplateIds.EVENT, "option_chosen"));
             eventOn = true;
         } else if (!block && eventOn) {
             eventSubscription.disconnect();
@@ -121,7 +122,7 @@ public final class GateLab {
 
     private static void setEndTurn(boolean block) {
         if (block && !endTurnOn) {
-            endTurnSubscription = block("ui/" + NativeTemplateIds.END_TURN + "/pressed");
+            endTurnSubscription = block(SignalPaths.component(NativeTemplateIds.END_TURN, "pressed"));
             endTurnOn = true;
         } else if (!block && endTurnOn) {
             endTurnSubscription.disconnect();
@@ -132,8 +133,8 @@ public final class GateLab {
     private static void setSelect(SelectKind kind, boolean block) {
         if (kind == SelectKind.GRID) {
             if (block && !selectGridOn) {
-                selectGridCardSubscription = block("ui/" + NativeTemplateIds.SELECT_GRID + "/card_selected");
-                selectGridConfirmSubscription = block("ui/" + NativeTemplateIds.SELECT_GRID + "/confirmed");
+                selectGridCardSubscription = block(SignalPaths.component(NativeTemplateIds.SELECT_GRID, "card_selected"));
+                selectGridConfirmSubscription = block(SignalPaths.component(NativeTemplateIds.SELECT_GRID, "confirmed"));
                 selectGridOn = true;
             } else if (!block && selectGridOn) {
                 selectGridCardSubscription.disconnect();
@@ -142,8 +143,8 @@ public final class GateLab {
             }
         } else if (kind == SelectKind.HAND) {
             if (block && !selectHandOn) {
-                selectHandCardSubscription = block("ui/" + NativeTemplateIds.SELECT_HAND + "/card_selected");
-                selectHandConfirmSubscription = block("ui/" + NativeTemplateIds.SELECT_HAND + "/confirmed");
+                selectHandCardSubscription = block(SignalPaths.component(NativeTemplateIds.SELECT_HAND, "card_selected"));
+                selectHandConfirmSubscription = block(SignalPaths.component(NativeTemplateIds.SELECT_HAND, "confirmed"));
                 selectHandOn = true;
             } else if (!block && selectHandOn) {
                 selectHandCardSubscription.disconnect();

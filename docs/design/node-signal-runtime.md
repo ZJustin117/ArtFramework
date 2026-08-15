@@ -34,18 +34,18 @@ On any node props (typically window or behavior node):
 
 ```json
 "connections": [
-  { "match": "ui/ok/pressed", "action": "pulse_effect",
+  { "match": "ui/<window>/<node-path>/pressed", "action": "pulse_effect",
     "args": { "target": "panel", "effect": "lightwave", "duration": 0.45 } },
-  { "match_pattern": "ui/wave/value_changed", "action": "set_prop",
+  { "match_pattern": "ui/<window>/<node-path>/value_changed", "action": "set_prop",
     "args": { "target": "panel", "prop": "fx_intensity", "from_payload": 0 } }
 ]
 ```
 
 | Field | Role |
 |-------|------|
-| `match` | Exact group-local signal name |
-| `match_pattern` | Java regex on full bus name |
-| `source` + `signal` | Shorthand → `ui/<source>/<signal>` |
+| `match` | Exact group-local signal name; C1 uses `ui/<window>/<node-path>/<signal>` |
+| `match_pattern` | Java regex on the full bus name |
+| `source` + `signal` | C1 shorthand → scoped `ui/<window>/<node-path>/<signal>` |
 | `action` | Registered id |
 | `args` | Pure data; `from_payload` indexes emit payload; `if_payload` gates on first payload (e.g. anim name); `from_slider` reads WidgetSession |
 
@@ -73,8 +73,8 @@ Optional `states` prop:
 "states": {
   "initial": "closed",
   "transitions": [
-    { "from": "closed", "to": "open", "match": "ui/open_btn/pressed" },
-    { "from": "open", "to": "closed", "match_pattern": "ui/close_.*/pressed",
+    { "from": "closed", "to": "open", "match": "ui/<window>/<node-path>/open_btn/pressed" },
+    { "from": "open", "to": "closed", "match_pattern": "ui/<window>/<node-path>/close_.*/pressed",
       "on_enter": [{ "action": "mod.enter_hit" }] }
   ]
 }

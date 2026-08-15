@@ -30,7 +30,7 @@ public class NodeStateMachineTest {
 
     @Test
     public void transitionOnExactMatch() {
-        Map<String, Object> states = dualStateDecl("ui/open_btn/pressed", "ui/close_btn/pressed", false);
+        Map<String, Object> states = dualStateDecl("ui/win/w/open_btn/pressed", "ui/win/w/close_btn/pressed", false);
         C1RuntimeFixture fixture = mountFsm(states);
         NodeStateMachine fsm = NodeStateMachines.get("win", "gate");
         assertNotNull(fsm);
@@ -45,7 +45,7 @@ public class NodeStateMachineTest {
 
     @Test
     public void transitionOnRegex() {
-        Map<String, Object> states = dualStateDecl("ui/open_btn/pressed", "ui/.+/pressed", true);
+        Map<String, Object> states = dualStateDecl("ui/win/w/open_btn/pressed", "ui/win/.+/pressed", true);
         // close uses regex that also matches open — order: first matching transition with from
         // Allow close only from open via separate transitions in dualStateDecl close pattern
         states = new LinkedHashMap<String, Object>();
@@ -54,12 +54,12 @@ public class NodeStateMachineTest {
         Map<String, Object> open = new LinkedHashMap<String, Object>();
         open.put("from", "closed");
         open.put("to", "open");
-        open.put("match_pattern", "ui/open_.*/pressed");
+        open.put("match_pattern", "ui/win/w/open_.*/pressed");
         transitions.add(open);
         Map<String, Object> close = new LinkedHashMap<String, Object>();
         close.put("from", "open");
         close.put("to", "closed");
-        close.put("match_pattern", "ui/close_.*/pressed");
+        close.put("match_pattern", "ui/win/w/close_.*/pressed");
         transitions.add(close);
         states.put("transitions", transitions);
         C1RuntimeFixture fixture = mountFsm(states);
@@ -73,7 +73,7 @@ public class NodeStateMachineTest {
 
     @Test
     public void stateChangedIsStoredWithoutSignal() {
-        Map<String, Object> states = dualStateDecl("ui/open_btn/pressed", "ui/close_btn/pressed", false);
+        Map<String, Object> states = dualStateDecl("ui/win/w/open_btn/pressed", "ui/win/w/close_btn/pressed", false);
         UiNode root = fsmRoot(states, true);
         C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
         fixture.emit("open_btn", SignalNames.PRESSED);
@@ -98,7 +98,7 @@ public class NodeStateMachineTest {
         Map<String, Object> t = new LinkedHashMap<String, Object>();
         t.put("from", "a");
         t.put("to", "b");
-        t.put("match", "ui/go/pressed");
+        t.put("match", "ui/win/w/go/pressed");
         List<Object> onEnter = new ArrayList<Object>();
         Map<String, Object> act = new LinkedHashMap<String, Object>();
         act.put("action", "mod.enter_hit");

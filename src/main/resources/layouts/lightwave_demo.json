@@ -10,12 +10,12 @@
   "theme": "lightwave",
   "connections": [
     {
-      "match": "ui/ok/pressed",
+      "match": "ui/lightwave_demo/lightwave_demo/panel/actions/ok/pressed",
       "action": "play",
       "args": { "player": "pulse", "name": "flash" }
     },
     {
-      "match_pattern": "ui/wave_slider/value_changed",
+      "match_pattern": "ui/lightwave_demo/lightwave_demo/panel/wave_slider/value_changed",
       "action": "set_prop",
       "args": { "target": "panel", "prop": "fx_intensity", "from_payload": 0 }
     }

@@ -10,20 +10,34 @@ import java.util.regex.Pattern;
  */
 public final class SignalHub {
 
+    private final String windowId;
     private final List<Registration> registrations = new ArrayList<Registration>();
 
-    public void connect(String instanceId, String signal, SignalHandler handler) {
-        if (instanceId == null || signal == null || handler == null) {
-            throw new IllegalArgumentException("instanceId, signal, handler required");
+    /** Component-level hub using {@code ui/<component>/<signal>} names. */
+    public SignalHub() {
+        this.windowId = null;
+    }
+
+    /** C1 window hub using {@code ui/<window>/<node-path>/<signal>} names. */
+    public SignalHub(String windowId) {
+        if (windowId == null || windowId.trim().isEmpty()) {
+            throw new IllegalArgumentException("windowId required");
+        }
+        this.windowId = windowId;
+    }
+
+    public void connect(String nodePath, String signal, SignalHandler handler) {
+        if (nodePath == null || signal == null || handler == null) {
+            throw new IllegalArgumentException("nodePath, signal, handler required");
         }
         registrations.add(
                 new Registration(
-                        instanceId,
+                        nodePath,
                         signal,
                         handler,
                         SignalGroups.nativeGroup()
                                 .connect(
-                                        name(instanceId, signal),
+                                        routeName(nodePath, signal),
                                         wrapHandler(handler))));
     }
 
@@ -53,12 +67,12 @@ public final class SignalHub {
         return sub;
     }
 
-    public void disconnect(String instanceId, String signal, SignalHandler handler) {
-        if (instanceId == null || signal == null || handler == null) {
+    public void disconnect(String nodePath, String signal, SignalHandler handler) {
+        if (nodePath == null || signal == null || handler == null) {
             return;
         }
         for (Registration registration : new ArrayList<Registration>(registrations)) {
-            if (registration.instanceId.equals(instanceId)
+            if (registration.instanceId.equals(nodePath)
                     && registration.signal.equals(signal)
                     && registration.handler == handler) {
                 registration.subscription.disconnect();
@@ -67,12 +81,17 @@ public final class SignalHub {
         }
     }
 
-    public void emit(String instanceId, String signal, Object... args) {
-        if (instanceId == null || signal == null) {
-            return;
+    public void emit(String nodePath, String signal, Object... args) {
+        dispatch(nodePath, signal, args);
+    }
+
+    public SignalDispatchResult dispatch(String nodePath, String signal, Object... args) {
+        if (nodePath == null || signal == null) {
+            throw new IllegalArgumentException("nodePath and signal required");
         }
         Object[] payload = args != null ? args : new Object[0];
-        SignalGroups.nativeGroup().emit(new UiSignal(name(instanceId, signal), instanceId, payload));
+        return SignalGroups.nativeGroup().emit(
+                new UiSignal(routeName(nodePath, signal), nodePath, payload));
     }
 
     public void clear() {
@@ -107,8 +126,18 @@ public final class SignalHub {
         return total;
     }
 
-    public static String name(String instanceId, String signal) {
-        return "ui/" + instanceId + "/" + signal;
+    /** Canonical external/C2 component signal name. */
+    public static String name(String componentId, String signal) {
+        return SignalPaths.component(componentId, signal);
+    }
+
+    /** Canonical C1 node signal name. */
+    public static String name(String windowId, String nodePath, String signal) {
+        return SignalPaths.node(windowId, nodePath, signal);
+    }
+
+    private String routeName(String source, String signal) {
+        return windowId != null ? name(windowId, source, signal) : name(source, signal);
     }
 
     private static SignalListener wrapHandler(final SignalHandler handler) {

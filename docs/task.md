@@ -21,14 +21,14 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 Design: [`docs/design/traditional-ecs.md`](design/traditional-ecs.md). Entity IDs only;
 components are data only; systems are stateless and own all ART interaction handling.
 
-**Current checkpoint (2026-08-14):** ECS data authority migration is substantially complete,
+**Current checkpoint (2026-08-15):** ECS data authority migration is substantially complete,
 including C1/C2 state, native input records, intent lifecycle records, render-plan inputs,
 Skeleton/EntityPresent state, and diagnostic projections. The production schedule and the D1
 draw/recreation gates are also in place. The remaining work is strict system ownership for every
 production phase, narrowing the last public render mutation boundaries, and removing only legacy
-stores that still have a concrete duplicate responsibility. This is approximately 70% of the
-broader traditional-ECS convergence: the data migration is ahead of the system/host-boundary
-migration.
+stores that still have a concrete duplicate responsibility. This is approximately 80% of the
+broader traditional-ECS convergence: the remaining work is primarily strict schedule ownership
+and narrowing host execution boundaries.
 
 - [x] 46.0 Define strict ECS contract; add data-only entity identity, component query, and
   ordered stateless system pipeline with JUnit
@@ -41,14 +41,14 @@ migration.
   root map. C1 target/effect projection now consumes ECS frames only and StageHost reconciles its
   actor cache from ECS host bindings; context/entity lifecycle queries resolve registered ECS scope
   data, while signal callback objects remain a disposable host cache
-- [~] 46.3 Materialize STS observations and C2 surfaces through ECS systems; card projections now
+- [x] 46.3 Materialize STS observations and C2 surfaces through ECS systems; card projections now
   create/update/destroy shared-world entities and data-only card components, with frame lifecycle
   metadata, drag interaction metadata, and immutable frame snapshots on a projection root entity;
   card lookup, listing, counts, and cleanup now resolve through ECS card components, while the
   CardEntity compatibility view is derived on demand; C2 surface mount state and Entity lookup are
   now ECS-derived; native template facades no longer retain local active flags and template probe
   reads use ECS bind/pin/end-turn data
-- [~] 46.4 Route every native input/intercept through ECS input, action, intent, and result data;
+- [x] 46.4 Route every native input/intercept through ECS input, action, intent, and result data;
   C2 surface submissions now record data-only action/intent/result components before and after the
   existing SignalBus compatibility executor, and the STS1 combat router records native input plus
   intercept decisions per surface ECS entity for hand, controls, and executor paths; native map,
@@ -66,7 +66,7 @@ migration.
   the render clock, and the host backend tick now advance through stateless production ECS systems; `RenderHost.tick` and
   immutable-plan rebuilds are render-package-only, while lifecycle and STS filtered projections use
   explicit `RenderProjectionQueue` APIs.
-- [~] 46.6 Derive Probe/API compatibility views from ECS only and remove legacy stores; C1 probe,
+- [x] 46.6 Derive Probe/API compatibility views from ECS only and remove legacy stores; C1 probe,
   lifecycle queries, render-state projection, and business confirmation are ECS-derived, while
   callback/resource caches remain explicit host boundaries. UiProbe, UiInspect, console/probe
   reads, and PresentSurfaces registry recreation have been audited; remaining cleanup is limited

@@ -59,6 +59,19 @@ public final class RenderStateEcs {
         return entity == null ? null : CONTEXT.world().get(entity, FullFrameRenderComponent.class);
     }
 
+    public static void captureEnabled(boolean enabled) {
+        EntityId entity = entity("capture", "screen");
+        CONTEXT.world().put(entity, RenderCaptureComponent.class,
+                new RenderCaptureComponent(enabled));
+    }
+
+    public static boolean captureEnabled() {
+        EntityId entity = CONTEXT.entity(new PresentationKey("render.capture", "screen"));
+        RenderCaptureComponent value = entity == null ? null
+                : CONTEXT.world().get(entity, RenderCaptureComponent.class);
+        return value != null && value.enabled;
+    }
+
     /** Replace C1 geometry observed from the disposable scene2d realization. */
     public static void updateC1Bounds(String windowId, String effectKey, Rect bounds) {
         if (windowId == null || effectKey == null || bounds == null) return;

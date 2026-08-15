@@ -5,8 +5,10 @@ import artframework.assets.AssetResolveResult;
 import artframework.assets.HostAssetsHolder;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
+import artframework.core.SignalDispatchResult;
 import artframework.core.SignalHub;
 import artframework.core.SignalNames;
+import artframework.core.SignalSubscription;
 import artframework.core.UiComponent;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
@@ -36,6 +38,7 @@ public final class PresentSurfaces {
 
     private static final Map<String, UiComponent> BY_ID = new LinkedHashMap<String, UiComponent>();
     private static final SignalHub HUB = new SignalHub();
+    private static final SurfaceLifecycleSystem LIFECYCLE = new SurfaceLifecycleSystem();
 
     static {
         register(new HandSurface());
@@ -161,7 +164,13 @@ public final class PresentSurfaces {
         @Override
         public void unmount() {
             EntityId entity = surfaceEntity();
-            if (entity != null) context().destroy(entity);
+            if (entity != null) {
+                world().put(entity, SurfaceLifecycleRequestComponent.class,
+                        new SurfaceLifecycleRequestComponent(false));
+                EcsPipeline.run(world(), new EcsTick(0f, 0L),
+                        Collections.<artframework.ecs.EcsSystem>singletonList(LIFECYCLE));
+                context().destroy(entity);
+            }
             HUB.clearInstance(id);
             if (SurfaceIds.COMBAT_HAND.equals(id)) {
                 PresentProjections.get().clearDrag();
@@ -169,20 +178,21 @@ public final class PresentSurfaces {
         }
 
         @Override
-        public void connect(String signal, SignalHandler handler) {
+        public SignalSubscription connect(String signal, SignalHandler handler) {
             requireSignal(signal);
-            HUB.connect(id, signal, handler);
+            return HUB.connect(id, signal, handler);
         }
 
         @Override
         public void disconnect(String signal, SignalHandler handler) {
+            requireSignal(signal);
             HUB.disconnect(id, signal, handler);
         }
 
         @Override
-        public void emit(String signal, Object... args) {
+        public SignalDispatchResult emit(String signal, Object... args) {
             requireSignal(signal);
-            HUB.emit(id, signal, args);
+            return HUB.dispatch(id, signal, args);
         }
 
         private void requireSignal(String signal) {
@@ -222,8 +232,10 @@ public final class PresentSurfaces {
                         new SurfaceIdentityComponent(id, kind()));
             }
             artframework.sts1.PresentLevel level = artframework.sts1.FullPresentMode.levelOf(id);
-            world().put(entity, SurfaceLifecycleComponent.class,
-                    new SurfaceLifecycleComponent(mounted));
+            world().put(entity, SurfaceLifecycleRequestComponent.class,
+                    new SurfaceLifecycleRequestComponent(mounted));
+            EcsPipeline.run(world(), new EcsTick(0f, 0L),
+                    Collections.<artframework.ecs.EcsSystem>singletonList(LIFECYCLE));
             world().put(entity, SurfacePolicyComponent.class,
                     new SurfacePolicyComponent(level, level.allowsFullPresent(),
                             level.allowsObserve(), artframework.sts1.FullPresentMode.maySuppressNative(id)));

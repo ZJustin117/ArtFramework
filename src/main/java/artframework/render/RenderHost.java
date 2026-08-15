@@ -30,7 +30,6 @@ public final class RenderHost {
     private final Map<String, List<EffectBinding>> bindings =
             new ConcurrentHashMap<String, List<EffectBinding>>();
     private HostRenderBackend hostBackend = DirectHostRenderBackend.INSTANCE;
-    private boolean captureEnabled;
     private boolean shadersReady;
     private float timeSeconds;
     private float screenW = 1920f;
@@ -78,14 +77,14 @@ public final class RenderHost {
     }
 
     public boolean isCaptureEnabled() {
-        return captureEnabled;
+        return RenderStateEcs.captureEnabled();
     }
 
     /**
      * When true (or when any bound effect requires capture), screen is sampled before post FX.
      */
     public void setCaptureEnabled(boolean enabled) {
-        this.captureEnabled = enabled;
+        RenderStateEcs.captureEnabled(enabled);
     }
 
     public EffectRegistry effects() {
@@ -179,7 +178,7 @@ public final class RenderHost {
     }
 
     public boolean needsCapture() {
-        if (captureEnabled) {
+        if (RenderStateEcs.captureEnabled()) {
             return true;
         }
         for (List<EffectBinding> list : bindings.values()) {
@@ -548,7 +547,7 @@ public final class RenderHost {
         out.put("targetCount", Integer.valueOf(targetCount()));
         out.put("bindingCount", Integer.valueOf(bindingCount()));
         out.put("fullFrameEnabled", Boolean.valueOf(isFullFrameEnabled()));
-        out.put("captureEnabled", Boolean.valueOf(captureEnabled));
+        out.put("captureEnabled", Boolean.valueOf(isCaptureEnabled()));
         out.put("needsCapture", Boolean.valueOf(needsCapture()));
         out.put("hostSupportsCapture", Boolean.valueOf(hostBackend.supportsCapture()));
         out.put("hostSupportsShaders", Boolean.valueOf(hostBackend.supportsShaders()));
@@ -753,7 +752,7 @@ public final class RenderHost {
         effects.clear();
         shaders.clear();
         hostBackend = DirectHostRenderBackend.INSTANCE;
-        captureEnabled = false;
+        RenderStateEcs.captureEnabled(false);
         shadersReady = false;
         timeSeconds = 0f;
         screenW = 1920f;

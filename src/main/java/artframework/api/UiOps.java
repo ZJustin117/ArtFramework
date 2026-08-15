@@ -25,6 +25,9 @@ import artframework.core.SignalSubscription;
 import artframework.core.UiSignal;
 import artframework.ops.NativeOpsBackend;
 import artframework.ops.NoOpNativeOps;
+import artframework.context.IntentNames;
+import artframework.context.NativeIntentLifecycleComponent;
+import artframework.sts1.input.NativeInputRecords;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -52,16 +55,22 @@ public final class UiOps {
 
     /** Internal C2 dispatch called exclusively by the native component action path. */
     public UiOpResult dispatchSelectCard(SelectKind kind, String cardId, int index) {
+        String surfaceId = selectSurface(kind);
+        NativeInputRecords.input(IntentNames.SELECT_CARD, surfaceId);
         if (kind == null) {
-            return UiOpResult.unavailable("kind required");
+            return nativeResult(surfaceId, IntentNames.SELECT_CARD,
+                    UiOpResult.unavailable("kind required"), false, "kind_required");
         }
         if (selectTemplate(kind) == null || !selectTemplate(kind).isActive()) {
-            return UiOpResult.notBound("select " + kind + " not bound");
+            return nativeResult(surfaceId, IntentNames.SELECT_CARD,
+                    UiOpResult.notBound("select " + kind + " not bound"), false, "select_unbound");
         }
         if (rejected(selectName(kind), SignalNames.CARD_SELECTED, new SelectCardRef(cardId, index))) {
-            return UiOpResult.blocked("select card blocked");
+            return nativeResult(surfaceId, IntentNames.SELECT_CARD,
+                    UiOpResult.blocked("select card blocked"), false, "signal_blocked");
         }
-        return backend().selectCard(kind, cardId != null ? cardId : "", index);
+        return nativeResult(surfaceId, IntentNames.SELECT_CARD,
+                backend().selectCard(kind, cardId != null ? cardId : "", index), true, "allowed");
     }
 
     public UiOpResult confirmSelect(SelectKind kind) {
@@ -74,17 +83,23 @@ public final class UiOps {
 
     /** Internal C2 dispatch called exclusively by the native component action path. */
     public UiOpResult dispatchConfirmSelect(SelectKind kind) {
+        String surfaceId = selectSurface(kind);
+        NativeInputRecords.input(IntentNames.CONFIRM_SELECT, surfaceId);
         if (kind == null) {
-            return UiOpResult.unavailable("kind required");
+            return nativeResult(surfaceId, IntentNames.CONFIRM_SELECT,
+                    UiOpResult.unavailable("kind required"), false, "kind_required");
         }
         SelectTemplate t = selectTemplate(kind);
         if (t == null || !t.isActive()) {
-            return UiOpResult.notBound("select " + kind + " not bound");
+            return nativeResult(surfaceId, IntentNames.CONFIRM_SELECT,
+                    UiOpResult.notBound("select " + kind + " not bound"), false, "select_unbound");
         }
         if (rejected(selectName(kind), SignalNames.CONFIRMED, kind)) {
-            return UiOpResult.blocked("confirm blocked");
+            return nativeResult(surfaceId, IntentNames.CONFIRM_SELECT,
+                    UiOpResult.blocked("confirm blocked"), false, "signal_blocked");
         }
-        return backend().confirmSelect(kind);
+        return nativeResult(surfaceId, IntentNames.CONFIRM_SELECT,
+                backend().confirmSelect(kind), true, "allowed");
     }
 
     public UiOpResult clickMapNode(MapNodeRef node) {
@@ -100,16 +115,21 @@ public final class UiOps {
 
     /** Internal C2 dispatch called exclusively by the native component action path. */
     public UiOpResult dispatchMapNode(MapNodeRef node) {
+        NativeInputRecords.input(IntentNames.CLICK_MAP_NODE, artframework.context.SurfaceIds.MAP);
         if (node == null) {
-            return UiOpResult.unavailable("node required");
+            return nativeResult(artframework.context.SurfaceIds.MAP, IntentNames.CLICK_MAP_NODE,
+                    UiOpResult.unavailable("node required"), false, "node_required");
         }
         if (!NativeTemplateRuntime.isMapBound()) {
-            return UiOpResult.notBound("sts1.map not bound");
+            return nativeResult(artframework.context.SurfaceIds.MAP, IntentNames.CLICK_MAP_NODE,
+                    UiOpResult.notBound("sts1.map not bound"), false, "map_unbound");
         }
         if (rejected(NativeTemplateIds.MAP, SignalNames.NODE_CLICKED, node)) {
-            return UiOpResult.blocked("map node blocked");
+            return nativeResult(artframework.context.SurfaceIds.MAP, IntentNames.CLICK_MAP_NODE,
+                    UiOpResult.blocked("map node blocked"), false, "signal_blocked");
         }
-        return backend().clickMapNode(node);
+        return nativeResult(artframework.context.SurfaceIds.MAP, IntentNames.CLICK_MAP_NODE,
+                backend().clickMapNode(node), true, "allowed");
     }
 
     public UiOpResult chooseEventOption(int index, String label) {
@@ -118,14 +138,18 @@ public final class UiOps {
 
     /** Internal C2 dispatch called exclusively by the native component action path. */
     public UiOpResult dispatchEventOption(int index, String label) {
+        NativeInputRecords.input(IntentNames.CHOOSE_EVENT_OPTION, artframework.context.SurfaceIds.EVENT);
         if (!NativeTemplateRuntime.isEventBound()) {
-            return UiOpResult.notBound("sts1.event not bound");
+            return nativeResult(artframework.context.SurfaceIds.EVENT, IntentNames.CHOOSE_EVENT_OPTION,
+                    UiOpResult.notBound("sts1.event not bound"), false, "event_unbound");
         }
         if (rejected(NativeTemplateIds.EVENT, SignalNames.OPTION_CHOSEN,
                 new EventOptionRef(index, label))) {
-            return UiOpResult.blocked("event option blocked");
+            return nativeResult(artframework.context.SurfaceIds.EVENT, IntentNames.CHOOSE_EVENT_OPTION,
+                    UiOpResult.blocked("event option blocked"), false, "signal_blocked");
         }
-        return backend().chooseEventOption(index, label != null ? label : "");
+        return nativeResult(artframework.context.SurfaceIds.EVENT, IntentNames.CHOOSE_EVENT_OPTION,
+                backend().chooseEventOption(index, label != null ? label : ""), true, "allowed");
     }
 
     public UiOpResult pressEndTurn() {
@@ -134,14 +158,18 @@ public final class UiOps {
 
     /** Internal C2 dispatch called exclusively by the native component action path. */
     public UiOpResult dispatchEndTurn() {
+        NativeInputRecords.input(IntentNames.PRESS_END_TURN, artframework.context.SurfaceIds.END_TURN);
         if (!NativeTemplateRuntime.isEndTurnBound()) {
-            return UiOpResult.notBound("sts1.endturn not bound");
+            return nativeResult(artframework.context.SurfaceIds.END_TURN, IntentNames.PRESS_END_TURN,
+                    UiOpResult.notBound("sts1.endturn not bound"), false, "endturn_unbound");
         }
         if (!NativeTemplateRuntime.endTurn().isButtonEnabled()
                 || rejected(NativeTemplateIds.END_TURN, SignalNames.PRESSED, null)) {
-            return UiOpResult.blocked("end turn blocked");
+            return nativeResult(artframework.context.SurfaceIds.END_TURN, IntentNames.PRESS_END_TURN,
+                    UiOpResult.blocked("end turn blocked"), false, "endturn_blocked");
         }
-        return backend().pressEndTurn();
+        return nativeResult(artframework.context.SurfaceIds.END_TURN, IntentNames.PRESS_END_TURN,
+                backend().pressEndTurn(), true, "allowed");
     }
 
     /**
@@ -613,6 +641,32 @@ public final class UiOps {
 
     private static String selectName(SelectKind kind) {
         return kind == SelectKind.GRID ? NativeTemplateIds.SELECT_GRID : NativeTemplateIds.SELECT_HAND;
+    }
+
+    private static String selectSurface(SelectKind kind) {
+        return kind == SelectKind.GRID
+                ? artframework.context.SurfaceIds.SELECT_GRID
+                : kind == SelectKind.HAND
+                        ? artframework.context.SurfaceIds.SELECT_HAND
+                        : "";
+    }
+
+    /** Record the legacy native path while preserving its synchronous compatibility result. */
+    private static UiOpResult nativeResult(String surfaceId, String intentName, UiOpResult result,
+            boolean allowed, String reason) {
+        String sid = surfaceId != null ? surfaceId : "";
+        UiOpResult outcome = result != null ? result : UiOpResult.unavailable("no result");
+        NativeInputRecords.intercept(sid, allowed && outcome.status == UiOpResult.Status.OK,
+                allowed && outcome.status == UiOpResult.Status.OK, reason);
+        NativeIntentLifecycleComponent.State state = !allowed
+                ? NativeIntentLifecycleComponent.State.REJECTED
+                : outcome.status == UiOpResult.Status.OK
+                        ? (outcome.message.startsWith("queued:")
+                                ? NativeIntentLifecycleComponent.State.QUEUED
+                                : NativeIntentLifecycleComponent.State.EXECUTED)
+                        : NativeIntentLifecycleComponent.State.REJECTED;
+        NativeInputRecords.intent(sid, intentName, state, outcome.message);
+        return outcome;
     }
 
     private static boolean rejected(String componentId, String signal, Object payload) {

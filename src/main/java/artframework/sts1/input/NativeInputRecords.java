@@ -54,13 +54,7 @@ public final class NativeInputRecords {
 
     public static void resetForTests() {
         for (EntityId entity : new java.util.ArrayList<EntityId>(CONTEXT.entities())) {
-            if (WORLD.get(entity, NativeInputComponent.class) != null
-                    || WORLD.get(entity, NativeInterceptComponent.class) != null
-                    || WORLD.get(entity, NativeIntentLifecycleComponent.class) != null
-                    || WORLD.get(entity, NativeIntentLifecycleEventComponent.class) != null
-                    || WORLD.get(entity, NativeIntentObservationComponent.class) != null) {
-                CONTEXT.destroy(entity);
-            }
+            CONTEXT.destroy(entity);
         }
     }
 

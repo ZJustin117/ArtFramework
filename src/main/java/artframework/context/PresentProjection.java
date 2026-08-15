@@ -190,7 +190,10 @@ public final class PresentProjection {
     }
 
     public void reset() {
-        clearCards();
+        EntityId metadata = ensureMetadataEntity();
+        for (EntityId entity : new ArrayList<EntityId>(context.entities())) {
+            if (!metadata.equals(entity)) context.destroy(entity);
+        }
         clearDrag();
         putSnapshot(ContextFrame.unavailable(0L));
         putMetadata(-1L, -1L, "", false, false);

@@ -258,6 +258,8 @@ public final class ArtFramework {
         artframework.skeleton.SkeletonProviders.global().resetForTests();
         PresentSurfaces.resetForTests();
         PresentProjections.resetForTests();
+        artframework.sts1.input.NativeInputRecords.resetForTests();
+        artframework.sts1.input.Sts1MapIntentBridge.resetForTests();
         HostAssetsHolder.resetForTests();
         artframework.sts1.FullPresentMode.resetForTests();
         artframework.sts1.assets.Sts1HostAssets.resetForTests();
@@ -268,6 +270,8 @@ public final class ArtFramework {
         artframework.sts1.skeleton.Sts1SkeletonBridge.resetForTests();
         artframework.sts1.PresentSafety.resetForTests();
         artframework.inspect.UiLabListeners.resetForTests();
+        // All presentation scopes share one world; reset must remove cross-scope test residue.
+        artframework.presentation.PresentationRegistry.world().clear();
     }
 
     /** The default native operation group. */

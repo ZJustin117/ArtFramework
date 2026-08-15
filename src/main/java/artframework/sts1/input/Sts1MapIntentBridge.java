@@ -7,6 +7,12 @@ import com.megacrit.cardcrawl.helpers.input.InputHelper;
 import artframework.c2.MapNodeRef;
 import artframework.context.IntentNames;
 import artframework.context.IntentResult;
+import artframework.context.MapGestureComponent;
+import artframework.ecs.EntityId;
+import artframework.ecs.PresentationWorld;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationKey;
+import artframework.presentation.PresentationRegistry;
 
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -21,12 +27,8 @@ import java.util.Map;
  */
 public final class Sts1MapIntentBridge {
 
-    private static volatile MapNodeRef pending;
-    private static volatile int pendingFrames;
-    private static volatile MapNodeRef lastTarget;
-    private static volatile String lastStatus = "idle";
-    private static volatile String lastEligibility = "";
-    private static volatile int attempts;
+    private static final PresentationContext CONTEXT =
+            PresentationRegistry.context("sts1-input");
 
     private Sts1MapIntentBridge() {}
 
@@ -39,7 +41,7 @@ public final class Sts1MapIntentBridge {
     public static IntentResult clickFirstPresentable(String roomKind) {
         try {
             if (AbstractDungeon.map == null) {
-                lastStatus = "no_map";
+                update("no_map", "", null, 0, 0);
                 return IntentResult.rejected("no map");
             }
             MapNodeRef best = null;
@@ -59,7 +61,7 @@ public final class Sts1MapIntentBridge {
                 }
             }
             if (best == null) {
-                lastStatus = "no_presentable_node";
+                update("no_presentable_node", "", null, 0, 0);
                 return IntentResult.rejected("no native-selectable map node");
             }
             return click(best);
@@ -104,27 +106,21 @@ public final class Sts1MapIntentBridge {
 
     public static IntentResult click(final MapNodeRef ref) {
         if (ref == null) {
-            lastStatus = "missing_ref";
+            update("missing_ref", "", null, 0, 0);
             return IntentResult.rejected("MapNodeRef required");
         }
         if (findNode(ref) == null) {
-            lastStatus = "node_unavailable";
+            update("node_unavailable", "", ref, 0, 0);
             return IntentResult.rejected("map node unavailable: " + ref.row + "," + ref.col);
         }
         MapRoomNode target = findNode(ref);
         String reason = eligibilityOf(target);
         if (!"".equals(reason)) {
-            lastEligibility = reason;
-            lastStatus = "native_target_ineligible";
+            update("native_target_ineligible", reason, ref, 0, 0);
             return IntentResult.rejected("map node is not selectable: " + reason);
         }
-        lastEligibility = "selectable";
-        pending = ref;
-        lastTarget = ref;
-        lastStatus = "queued";
-        attempts = 0;
+        update("queued", "selectable", ref, 60, 0);
         // Several frames: first-pick path waits on animWaitTimer before nextRoom.
-        pendingFrames = 60;
         // Also queue once on GL thread in case Postfix ordering differs.
         Runnable nudge =
                 new Runnable() {
@@ -148,13 +144,14 @@ public final class Sts1MapIntentBridge {
 
     public static Map<String, Object> probeSlice() {
         Map<String, Object> out = new LinkedHashMap<String, Object>();
-        MapNodeRef ref = lastTarget;
-        out.put("status", lastStatus);
-        out.put("pending", Boolean.valueOf(pending != null));
-        out.put("attempts", Integer.valueOf(attempts));
-        out.put("pendingFrames", Integer.valueOf(pendingFrames));
-        if (!lastEligibility.isEmpty()) {
-            out.put("eligibility", lastEligibility);
+        MapGestureComponent gesture = state();
+        MapNodeRef ref = gesture.lastTarget;
+        out.put("status", gesture.status);
+        out.put("pending", Boolean.valueOf(gesture.pending != null));
+        out.put("attempts", Integer.valueOf(gesture.attempts));
+        out.put("pendingFrames", Integer.valueOf(gesture.pendingFrames));
+        if (!gesture.eligibility.isEmpty()) {
+            out.put("eligibility", gesture.eligibility);
         }
         if (ref != null) {
             out.put("row", Integer.valueOf(ref.row));
@@ -194,19 +191,15 @@ public final class Sts1MapIntentBridge {
     }
 
     public static void resetForTests() {
-        pending = null;
-        pendingFrames = 0;
-        lastTarget = null;
-        lastStatus = "idle";
-        lastEligibility = "";
-        attempts = 0;
+        world().put(entity(), MapGestureComponent.class, MapGestureComponent.idle());
     }
 
     private static void applyPendingGesture() {
-        MapNodeRef ref = pending;
+        MapGestureComponent gesture = state();
+        MapNodeRef ref = gesture.pending;
+        int pendingFrames = gesture.pendingFrames;
         if (ref == null || pendingFrames <= 0) {
-            pending = null;
-            pendingFrames = 0;
+            update(gesture.status, gesture.eligibility, gesture.lastTarget, 0, gesture.attempts);
             return;
         }
         try {
@@ -215,22 +208,17 @@ public final class Sts1MapIntentBridge {
                     || AbstractDungeon.dungeonMapScreen == null
                     || AbstractDungeon.nextRoom != null) {
                 if (AbstractDungeon.nextRoom != null) {
-                    lastStatus = "next_room_selected";
+                    update("next_room_selected", gesture.eligibility, ref, pendingFrames - 1, gesture.attempts);
                 } else {
-                    lastStatus = "target_unavailable";
+                    update("target_unavailable", gesture.eligibility, ref, pendingFrames - 1, gesture.attempts);
                 }
                 pendingFrames--;
-                if (pendingFrames <= 0) {
-                    pending = null;
-                }
+                if (pendingFrames <= 0) update("target_unavailable", gesture.eligibility, ref, 0, gesture.attempts);
                 return;
             }
             String reason = eligibilityOf(target);
             if (!"".equals(reason)) {
-                lastEligibility = reason;
-                lastStatus = "native_target_ineligible";
-                pending = null;
-                pendingFrames = 0;
+                update("native_target_ineligible", reason, ref, 0, gesture.attempts);
                 return;
             }
             if (target.hb != null) {
@@ -241,19 +229,44 @@ public final class Sts1MapIntentBridge {
             }
             AbstractDungeon.dungeonMapScreen.clicked = true;
             AbstractDungeon.dungeonMapScreen.clickTimer = 0f;
-            attempts++;
-            lastStatus = "gesture_injected";
+            int attempts = gesture.attempts + 1;
+            update("gesture_injected", gesture.eligibility, ref, pendingFrames - 1, attempts);
             // Keep sticky for a couple of frames so MapRoomNode.update can observe it.
             pendingFrames--;
             if (pendingFrames <= 0 || AbstractDungeon.nextRoom != null) {
-                pending = null;
-                pendingFrames = 0;
+                update("gesture_injected", gesture.eligibility, ref, 0, attempts);
             }
         } catch (Throwable ignored) {
-            lastStatus = "gesture_error";
-            pending = null;
-            pendingFrames = 0;
+            update("gesture_error", gesture.eligibility, ref, 0, gesture.attempts);
         }
+    }
+
+    private static PresentationWorld world() {
+        return CONTEXT.world();
+    }
+
+    private static EntityId entity() {
+        PresentationKey key = new PresentationKey("sts1.map", "gesture");
+        EntityId entity = CONTEXT.entity(key);
+        return entity != null ? entity : CONTEXT.create(key, "gesture", "map-input", "sts1");
+    }
+
+    private static MapGestureComponent state() {
+        EntityId entity = entity();
+        MapGestureComponent value = world().get(entity, MapGestureComponent.class);
+        if (value == null) {
+            value = MapGestureComponent.idle();
+            world().put(entity, MapGestureComponent.class, value);
+        }
+        return value;
+    }
+
+    private static void update(String status, String eligibility, MapNodeRef target,
+            int pendingFrames, int attempts) {
+        MapGestureComponent current = state();
+        world().put(entity(), MapGestureComponent.class,
+                new MapGestureComponent(pendingFrames > 0 ? target : null, pendingFrames,
+                        target != null ? target : current.lastTarget, status, eligibility, attempts));
     }
 
     /**

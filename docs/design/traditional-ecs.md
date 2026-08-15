@@ -7,12 +7,12 @@ multi-runtime interpretation of C1, C2, projection, render-target, and host stat
 
 ## Current Checkpoint
 
-As of 2026-08-14, the refactor is approximately 70% complete against the full traditional-ECS
-target. ECS is authoritative for most persistent presentation data: C1/C2 entities, projection
-frames, surface/template observations, native input and intent records, render-plan inputs,
-Skeleton state, EntityPresent slots, and diagnostic snapshots. A single production
-`PresentationSchedule` now defines the frame order, and D1 verifies EntityPresent draw/recreation/
-cleanup plus Spine34 native takeover/recreation/cleanup.
+As of 2026-08-15, the refactor is approximately 80% complete against the full traditional-ECS
+target. ECS is authoritative for persistent presentation data: C1/C2 entities, projection
+frames, surface/template observations, native input and intent records, map gesture state,
+profile selections, render-plan inputs, capture policy, Skeleton state, EntityPresent slots, and
+diagnostic snapshots. A single production `PresentationSchedule` defines the frame order, and D1
+verifies EntityPresent draw/recreation/cleanup plus Spine34 native takeover/recreation/cleanup.
 
 The production schedule owns fixed instances for surface intent execution, authority projection,
 business confirmation, native intent lifecycle, normalization, animation, effects, render
@@ -90,16 +90,16 @@ host hook or drawing path changes.
 | 1 | `PresentationRegistry` scope worlds | One `ArtEcs` world, context-owned entity index | Scope close/reset destroys only owned entities; shared-world JUnit |
 | 2 | `WidgetSession` control values | `ControlValueComponent` | UiOps, probe, actor materialization, actions, and FX read ECS values |
 | 3 | `PresentProjection` card maps and frame fields | Card components plus projection-root frame, interaction, and snapshot components | Add/update/remove/epoch/reset and compatibility lookup JUnit |
-| 4 | `PresentSurfaces` mounted flag and entity-ID map | `SurfaceLifecycleComponent` and stable surface key | Mount/unmount/reset/probe JUnit |
+| 4 | `PresentSurfaces` mounted flag and entity-ID map | `SurfaceLifecycleComponent` and stable surface key | Mount/unmount/reset/probe JUnit; lifecycle facade submits a one-shot ECS request |
 | 5 | C2 surface action return path | Surface action, intent identity, and result components | Accepted, queued, rejected, and blocked SignalBus JUnit; synchronous compatibility calls use the schedule-owned execution system |
-| 6 | Native patch/router input decisions | Per-surface native input and intercept components | Hand, controls, map, event, select, and end-turn allow/block JUnit |
+| 6 | Native patch/router input decisions | Per-surface native input and intercept components | Hand, controls, map, event, select, end-turn, and legacy UiOps allow/block records |
 | 7 | C1 declaration/session lifecycle | Hierarchy, lifecycle, properties, visibility, and host-binding components | Complete: C1 materializes directly into registered contexts; object-tree and session registries are deleted; `WidgetSession` is an on-demand immutable declaration view; StageHost actors are binding-derived caches |
 | 8 | C2 template active state and native-template mappings | Surface/template observation components | Native template facades no longer retain active flags; bind, map pin, and end-turn probe data query ECS. Scene/rebuild adapter cleanup remains |
 | 9 | Native intent execution and pending gestures | Intent lifecycle/result components; executor as host boundary only | Complete: router/executor outcomes are one-shot ECS events consumed by `NativeIntentLifecycleSystem`; the next available authority frame transitions executed intent to `CONFIRMED`, and an unavailable frame transitions it to `FAILED`. Domain-specific business confirmation remains separate |
 | 10 | Signal connection and state-machine registries | Declarative connection/state components; SignalBus subscriptions as host cache | Complete: `ConnectionDeclarationsComponent` and `NodeStateComponent` are ECS data; subscriptions are disposed/rebuilt cache with focused JUnit |
 | 11 | Render target/effect/animation authority | Draw, effect, animation, profile, and resource-description components | `PresentationSchedule` orders all production systems; C1/C2/surface/full-frame/entity targets rebuild from ECS. `FullFrameRenderComponent` is the sole enabled-state authority. D1 `d1_full_present_combat_ready` passes |
 | 12 | Skeleton and EntityPresent lifecycle/native bindings | Skeleton descriptor, pose, animation, effect, and host-binding components | Skeleton identity/snapshot frame/asset/pose/animation/visual state and EntityPresent slot identity/snapshot/transform state are ECS data; native handles/listeners are host caches. `SkeletonPresentationFrames.publish()` notifies the bridge to build ECS-backed provider bindings and native claims. Pure tests prove host cache recreation from retained ECS state; D1 EntityPresent draw/cleanup, Spine34 lifecycle, native takeover, recreation, and cleanup pass |
-| 13 | Probe/API/console compatibility stores | ECS-only query adapters | Complete: C1 controls, native template state, EntityPresent, and window-open probe data query ECS; fixed catalogs, signal hubs, and host/provider caches remain explicitly non-authoritative |
+| 13 | Probe/API/console compatibility stores | ECS-only query adapters | C1 controls, native template state, EntityPresent, window-open, profile selection, and render capture queries read ECS; fixed catalogs, signal hubs, and host/provider caches remain explicitly non-authoritative |
 
 ### Per-Slice Procedure
 

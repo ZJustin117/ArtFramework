@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * One ordered broadcast bus. Exact and regular-expression subscriptions share a registration
  * sequence; the matching set is captured when emit begins.
  */
-public final class SignalBus {
+final class SignalBus {
     private final List<Entry> entries = new ArrayList<Entry>();
     private long sequence;
 

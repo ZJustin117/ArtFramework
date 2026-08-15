@@ -33,19 +33,22 @@ public class BackendContextTest {
         assertEquals(IntentNames.PLAY_CARD, ((UiIntent) backend.signalLog().get(0).payload).name);
     }
 
-    @Test public void frameReplacementReachesLaterProjectionListener() {
-        ArtFramework.connect(ContextSignals.FRAME_UPDATED, signal -> SignalDecision.replace(signal.replace(
-                ContextFrame.of(((ContextFrame) signal.payload).frameId, "combat", Arrays.asList(
-                        CardView.builder(new CardRef("shown", "Bash")).build())))));
+    @Test public void framePublishDirectlyUpdatesProjectionWithoutSignalDispatch() {
+        final int[] calls = new int[1];
+        ArtFramework.connect(ContextSignals.FRAME_UPDATED, signal -> {
+            calls[0]++;
+            return SignalDecision.continueSignal();
+        });
         PresentProjections.resetForTests();
         assertTrue(ArtFramework.publishFrame(ContextFrame.of(1L, "combat", null)).applied);
-        assertNotNull(ArtFramework.projection().get("shown"));
+        assertEquals(0, ArtFramework.projection().size());
+        org.junit.Assert.assertEquals(0, calls[0]);
     }
 
-    @Test public void stopRejectedPreventsLaterProjectionListener() {
+    @Test public void framePublishCannotBeBlockedBySignalListener() {
         ArtFramework.connect(ContextSignals.FRAME_UPDATED, signal -> SignalDecision.stopRejected("blocked"));
         PresentProjections.resetForTests();
-        assertFalse(ArtFramework.publishFrame(ContextFrame.of(1L, "combat", null)).applied);
+        assertTrue(ArtFramework.publishFrame(ContextFrame.of(1L, "combat", null)).applied);
     }
 
     @Test public void staleAndUnavailableFramesPreserveProjectionRules() {

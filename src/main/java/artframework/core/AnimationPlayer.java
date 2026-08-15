@@ -60,9 +60,12 @@ public final class AnimationPlayer {
         public final String mode;
         /** 0 = infinite when mode=loop */
         public final int loopCount;
+        /** Optional animation started directly when this animation completes. */
+        public final String next;
+        public final String nextMode;
 
         public Animation(String name, String targetId, float duration, List<Track> tracks) {
-            this(name, targetId, duration, tracks, MODE_ONCE, 0);
+            this(name, targetId, duration, tracks, MODE_ONCE, 0, "", "");
         }
 
         public Animation(
@@ -72,6 +75,18 @@ public final class AnimationPlayer {
                 List<Track> tracks,
                 String mode,
                 int loopCount) {
+            this(name, targetId, duration, tracks, mode, loopCount, "", "");
+        }
+
+        public Animation(
+                String name,
+                String targetId,
+                float duration,
+                List<Track> tracks,
+                String mode,
+                int loopCount,
+                String next,
+                String nextMode) {
             if (name == null || name.isEmpty()) {
                 throw new IllegalArgumentException("animation name required");
             }
@@ -86,6 +101,8 @@ public final class AnimationPlayer {
             String m = mode != null ? mode.trim().toLowerCase() : MODE_ONCE;
             this.mode = MODE_LOOP.equals(m) ? MODE_LOOP : MODE_ONCE;
             this.loopCount = loopCount > 0 ? loopCount : 0;
+            this.next = next != null ? next.trim() : "";
+            this.nextMode = nextMode != null ? nextMode.trim() : "";
         }
     }
 
@@ -135,6 +152,11 @@ public final class AnimationPlayer {
         return playback().paused;
     }
 
+    /** Current completed loop count from the ECS-backed playback state. */
+    public int loopsDone() {
+        return playback().loopsDone;
+    }
+
     public void play(String name) {
         play(name, null);
     }
@@ -146,7 +168,6 @@ public final class AnimationPlayer {
         }
         AnimationPlaybackComponent state = playback();
         if (state.active && state.playing != null) {
-            emitOwn(SIGNAL_CANCELLED, state.playing);
         }
         String playMode;
         if (modeOverride != null && !modeOverride.isEmpty()) {
@@ -160,7 +181,6 @@ public final class AnimationPlayer {
                 name, 0f, true, false, playMode, 0, fromSnapshot));
         fsm.setState(NodeStateMachine.STATE_PLAYING, false);
         apply(anim, 0f);
-        emitOwn(SIGNAL_STARTED, name);
         if (anim.duration <= 0.001f && anim.tracks.isEmpty() && !MODE_LOOP.equals(playMode)) {
             finish(anim);
         }
@@ -174,7 +194,6 @@ public final class AnimationPlayer {
         putPlayback(new AnimationPlaybackComponent(state.playing, state.elapsed, true, true,
                 state.playMode, state.loopsDone, state.fromSnapshot));
         fsm.setState(NodeStateMachine.STATE_PAUSED, false);
-        emitOwn(SIGNAL_PAUSED, state.playing);
     }
 
     public void resume() {
@@ -185,7 +204,6 @@ public final class AnimationPlayer {
         putPlayback(new AnimationPlaybackComponent(state.playing, state.elapsed, true, false,
                 state.playMode, state.loopsDone, state.fromSnapshot));
         fsm.setState(NodeStateMachine.STATE_PLAYING, false);
-        emitOwn(SIGNAL_RESUMED, state.playing);
     }
 
     public void stop() {
@@ -197,7 +215,6 @@ public final class AnimationPlayer {
         putPlayback(AnimationPlaybackComponent.idle());
         fsm.setState(NodeStateMachine.STATE_IDLE, false);
         if (name != null) {
-            emitOwn(SIGNAL_CANCELLED, name);
         }
     }
 
@@ -221,7 +238,6 @@ public final class AnimationPlayer {
             apply(anim, 1f);
             if (MODE_LOOP.equals(state.playMode)) {
                 int loopsDone = state.loopsDone + 1;
-                emitOwn(SIGNAL_LOOPED, state.playing, Integer.valueOf(loopsDone));
                 if (anim.loopCount > 0 && loopsDone >= anim.loopCount) {
                     finish(anim);
                 } else {
@@ -240,28 +256,10 @@ public final class AnimationPlayer {
     }
 
     private void finish(Animation anim) {
-        String name = anim.name;
         putPlayback(AnimationPlaybackComponent.idle());
         fsm.setState(NodeStateMachine.STATE_IDLE, false);
-        emitOwn(SIGNAL_FINISHED, name);
-    }
-
-    /** Behavior signals: hub emit so undeclared optional names (paused/looped) still propagate. */
-    private void emitOwn(String signal, Object... args) {
-        NodeIdentityComponent identity = PresentationRuntime.identity(context, owner);
-        if (signal == null || identity == null || identity.name.isEmpty()) {
-            return;
-        }
-        try {
-            artframework.presentation.SignalPortsComponent ports = PresentationRuntime.component(
-                    context, owner, artframework.presentation.SignalPortsComponent.class);
-            if (ports != null && ports.canEmit(signal)) {
-                PresentationRuntime.emit(context, owner, signal, args);
-            } else {
-                artframework.core.SignalBuses.get().emit(
-                        new UiSignal(SignalHub.name(identity.name, signal), identity.name, args));
-            }
-        } catch (RuntimeException ignored) {
+        if (!anim.next.isEmpty()) {
+            play(anim.next, anim.nextMode);
         }
     }
 

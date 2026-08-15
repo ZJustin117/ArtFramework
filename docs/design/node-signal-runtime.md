@@ -1,15 +1,16 @@
 # Node ↔ Signal runtime (connections, actions, FSM)
 
-Architecture: **Backend ↔ SignalBus ↔ Node**. Complements
+Architecture: **external operation ↔ SignalGroup ↔ Node/backend consumer**. Complements
 [`backend-context.md`](./backend-context.md), [`art-framework.md`](./art-framework.md),
 [`component-composition.md`](./component-composition.md).
 
 ## Principles
 
 1. LML/JSON declares structure, signal **capability**, and **data-only** wiring — never scripts.
-2. Program and declaration share one bus: exact names and **regex** on full bus ids
-   (`ui/<instanceId>/<signal>`).
-3. Behaviors are **registered actions** (`UiActions`) or Java `connect` / Backend listeners.
+2. Every signal belongs to a `SignalGroup`; the default `native` group routes external operations.
+   Exact names and **regex** never cross a group boundary.
+3. Backend listeners consume operations from `native`; they do not emit operations. Internal component
+   writes use ECS directly and never publish a signal.
 4. Host `tick(dt)` advances AnimationPlayer / EffectPulse — **not** `context/frame/updated`
    (authority snapshot only).
 5. C1 control values stay in thin **WidgetSession**; domain authority stays Backend.
@@ -17,8 +18,8 @@ Architecture: **Backend ↔ SignalBus ↔ Node**. Complements
 ## Layers
 
 ```text
-Backend (ContextFrame / intent)
-        ↕  SignalBus  (exact + Pattern)
+External operation / native hook
+        ↕  SignalGroup `native` (exact + Pattern, interceptable)
 Node
   connections[]  →  UiActions
   states{}       →  NodeStateMachine
@@ -42,7 +43,7 @@ On any node props (typically window or behavior node):
 
 | Field | Role |
 |-------|------|
-| `match` | Exact full bus name (`SignalBus.connect(String)`) |
+| `match` | Exact group-local signal name |
 | `match_pattern` | Java regex on full bus name |
 | `source` + `signal` | Shorthand → `ui/<source>/<signal>` |
 | `action` | Registered id |
@@ -80,8 +81,8 @@ Optional `states` prop:
 ```
 
 - Finite string states; no expression guards / hierarchical regions (v1).
-- AnimationPlayer uses internal idle/playing/paused; signals `started` / `finished` /
-  `cancelled` / `paused` / `resumed` / `looped`.
+- AnimationPlayer uses ECS-backed idle/playing/paused state. Completion chaining is declaration data
+  (`next`, optional `next_mode`), not an internal lifecycle signal.
 
 ## Widget data
 
@@ -93,10 +94,11 @@ Optional `states` prop:
 
 ## Related APIs
 
-- `UiTree.connectBus(name|Pattern, listener)`
+- `SignalGroups.nativeGroup().connect(name|Pattern, listener)`
 - `ArtFramework.registerUiAction` / `uiActionIds` / `nodeState`
 - `EffectPulse.tick` via `ArtFramework.tick`
 
 ## Non-goals
 
-- Executable LML, per-frame `_update` bus spam, frame-signal as GL clock, frontend domain store.
+- Executable LML, per-frame `_update` bus spam, frame-signal as GL clock, frontend domain store,
+  component-change lifecycle signals.

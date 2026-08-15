@@ -17,8 +17,8 @@ import artframework.core.HostBackends;
 import artframework.core.Theme;
 import artframework.core.Themes;
 import artframework.core.UiComponent;
-import artframework.core.SignalBus;
-import artframework.core.SignalBuses;
+import artframework.core.SignalGroup;
+import artframework.core.SignalGroups;
 import artframework.core.SignalDispatchResult;
 import artframework.core.SignalListener;
 import artframework.core.SignalSubscription;
@@ -212,7 +212,7 @@ public final class ArtFramework {
     }
 
     public static void resetForTests() {
-        artframework.core.SignalBuses.resetForTests();
+        artframework.core.SignalGroups.resetForTests();
         SCHEDULE.resetForTests();
         GateLab.resetForTests();
         OPEN.clear();
@@ -259,9 +259,9 @@ public final class ArtFramework {
         artframework.inspect.UiLabListeners.resetForTests();
     }
 
-    /** The shared broadcast bus for UI, host, backend, and presentation signals. */
-    public static SignalBus signals() {
-        return SignalBuses.get();
+    /** The default native operation group. */
+    public static SignalGroup signals() {
+        return SignalGroups.nativeGroup();
     }
 
     public static SignalSubscription connect(String name, SignalListener listener) {

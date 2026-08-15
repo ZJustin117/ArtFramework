@@ -219,7 +219,7 @@ public final class Sts1SkeletonBridge {
     /** Subscribe once to the host-neutral backend snapshot signal. */
     public static synchronized void installPresentationSignals() {
         if (presentationSubscription != null && presentationSubscription.isConnected()) return;
-        presentationSubscription = artframework.core.SignalBuses.get().connect(
+        presentationSubscription = artframework.core.SignalGroups.nativeGroup().connect(
                 SkeletonPresentationFrames.UPDATED, new SignalListener() {
                     @Override public SignalDecision onSignal(UiSignal signal) {
                         if (!(signal.payload instanceof SkeletonPresentationFrames.Frame)) {

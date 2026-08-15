@@ -19,7 +19,6 @@ import artframework.c2.NativeComponents;
 import artframework.core.SignalNames;
 import artframework.core.UiComponent;
 import artframework.core.SignalHandler;
-import artframework.core.SignalBuses;
 import artframework.core.SignalDispatchResult;
 import artframework.core.UiSignal;
 import artframework.ops.NativeOpsBackend;
@@ -544,7 +543,7 @@ public final class UiOps {
     }
 
     private static boolean allowSignal(String windowId, String controlId, String signal, Object... args) {
-        artframework.core.SignalDispatchResult result = artframework.core.SignalBuses.get().emit(
+        artframework.core.SignalDispatchResult result = artframework.core.SignalGroups.nativeGroup().emit(
                 new artframework.core.UiSignal(
                         artframework.core.SignalHub.name(controlId, signal), controlId,
                         args != null ? args : new Object[0]));
@@ -604,7 +603,7 @@ public final class UiOps {
     }
 
     private static boolean rejected(String componentId, String signal, Object payload) {
-        SignalDispatchResult result = SignalBuses.get().emit(
+        SignalDispatchResult result = artframework.core.SignalGroups.nativeGroup().emit(
                 new UiSignal("ui/" + componentId + "/" + signal, componentId, payload));
         return result.isRejected();
     }

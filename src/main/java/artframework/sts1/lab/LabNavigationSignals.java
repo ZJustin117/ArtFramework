@@ -1,7 +1,7 @@
 package artframework.sts1.lab;
 
 import artframework.api.UiOpResult;
-import artframework.core.SignalBuses;
+import artframework.core.SignalGroups;
 import artframework.core.SignalDecision;
 import artframework.core.SignalDispatchResult;
 import artframework.core.UiSignal;
@@ -19,7 +19,7 @@ public final class LabNavigationSignals {
             return UiOpResult.unavailable("lab intent required");
         }
         SignalDispatchResult result =
-                SignalBuses.get().emit(new UiSignal(REQUEST, SOURCE, intent));
+                SignalGroups.nativeGroup().emit(new UiSignal(REQUEST, SOURCE, intent));
         if (result == null || result.terminal == SignalDecision.Kind.CONTINUE) {
             return UiOpResult.unavailable("no lab navigator installed: " + intent.name);
         }

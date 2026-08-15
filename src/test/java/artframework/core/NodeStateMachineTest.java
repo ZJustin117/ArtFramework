@@ -72,23 +72,12 @@ public class NodeStateMachineTest {
     }
 
     @Test
-    public void stateChangedSignal() {
+    public void stateChangedIsStoredWithoutSignal() {
         Map<String, Object> states = dualStateDecl("ui/open_btn/pressed", "ui/close_btn/pressed", false);
         UiNode root = fsmRoot(states, true);
         C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
-        final AtomicReference<String> last = new AtomicReference<String>();
-        PresentationRuntime.connect(fixture.context, fixture.find("gate"),
-                        SignalNames.STATE_CHANGED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                if (args != null && args.length > 0) {
-                                    last.set(String.valueOf(args[0]));
-                                }
-                            }
-                        });
         fixture.emit("open_btn", SignalNames.PRESSED);
-        assertEquals("open", last.get());
+        assertEquals("open", ArtFramework.nodeState("win", "gate").state());
     }
 
     @Test

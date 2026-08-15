@@ -1,7 +1,7 @@
 package artframework.sts1.lab;
 
 import artframework.context.IntentResult;
-import artframework.core.SignalBuses;
+import artframework.core.SignalGroups;
 import artframework.core.SignalDecision;
 import artframework.core.SignalListener;
 import artframework.core.SignalSubscription;
@@ -19,7 +19,7 @@ public final class StsLabNativeNavigator {
             return;
         }
         subscription =
-                SignalBuses.get()
+                SignalGroups.nativeGroup()
                         .connect(
                                 LabNavigationSignals.REQUEST,
                                 new SignalListener() {

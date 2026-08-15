@@ -2,9 +2,9 @@ package artframework.ops;
 
 import artframework.c2.NativeTemplateIds;
 import artframework.c2.SelectKind;
-import artframework.core.SignalBuses;
 import artframework.core.SignalDecision;
 import artframework.core.SignalListener;
+import artframework.core.SignalGroups;
 import artframework.core.SignalSubscription;
 import artframework.core.UiSignal;
 
@@ -154,7 +154,7 @@ public final class GateLab {
     }
 
     private static SignalSubscription block(String name) {
-        return SignalBuses.get().connect(name, new SignalListener() {
+        return SignalGroups.nativeGroup().connect(name, new SignalListener() {
             @Override public SignalDecision onSignal(UiSignal signal) {
                 return SignalDecision.stopRejected("blocked by gate lab");
             }

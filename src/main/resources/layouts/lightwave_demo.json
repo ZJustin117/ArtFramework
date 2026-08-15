@@ -15,16 +15,6 @@
       "args": { "player": "pulse", "name": "flash" }
     },
     {
-      "match": "ui/pulse/finished",
-      "action": "play",
-      "args": { "player": "pulse", "name": "fade", "if_payload": "flash" }
-    },
-    {
-      "match": "ui/wave/finished",
-      "action": "play",
-      "args": { "player": "wave", "name": "ripple", "mode": "loop", "if_payload": "enter" }
-    },
-    {
       "match_pattern": "ui/wave_slider/value_changed",
       "action": "set_prop",
       "args": { "target": "panel", "prop": "fx_intensity", "from_payload": 0 }
@@ -124,6 +114,8 @@
           "target": "panel",
           "duration": 0.3,
           "mode": "once",
+          "next": "ripple",
+          "next_mode": "loop",
           "tracks": [
             { "property": "fx_intensity", "from": 0.2, "to": 0.55 },
             { "property": "fx_freeze", "from": 1, "to": 1 },
@@ -151,6 +143,7 @@
           "target": "panel",
           "duration": 0.35,
           "mode": "once",
+          "next": "fade",
           "tracks": [
             { "property": "fx_pulse_intensity", "from": 1.6, "to": 1.2 },
             { "property": "fx_pulse_phase", "from": 0, "to": 1 },

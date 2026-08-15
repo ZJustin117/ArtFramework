@@ -1,6 +1,6 @@
 package artframework.context;
 
-import artframework.core.SignalBuses;
+import artframework.core.SignalGroups;
 import artframework.core.SignalDecision;
 import artframework.core.SignalListener;
 import artframework.core.UiSignal;
@@ -15,14 +15,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public class SurfaceIntentExecutionSystemTest {
-    @After public void tearDown() { SignalBuses.resetForTests(); }
+    @After public void tearDown() { SignalGroups.resetForTests(); }
 
     @Test public void consumesOneShotRequestAndRecordsResult() {
         PresentationWorld world = new PresentationWorld("surface-intent-test");
         EntityId entity = world.createEntity();
         world.put(entity, SurfaceIntentExecutionComponent.class,
                 new SurfaceIntentExecutionComponent("play_card", "sts1.surface", "card-1"));
-        SignalBuses.get().connect("ui/sts1.surface/action/play_card", new SignalListener() {
+        SignalGroups.nativeGroup().connect("ui/sts1.surface/action/play_card", new SignalListener() {
             @Override public SignalDecision onSignal(UiSignal signal) {
                 return SignalDecision.continueSignal();
             }

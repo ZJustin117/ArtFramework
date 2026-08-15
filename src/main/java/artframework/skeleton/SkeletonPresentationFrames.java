@@ -1,7 +1,5 @@
 package artframework.skeleton;
 
-import artframework.core.SignalBuses;
-import artframework.core.UiSignal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -16,7 +14,7 @@ public final class SkeletonPresentationFrames {
         List<SkeletonPresentationView> copy = views == null
                 ? Collections.<SkeletonPresentationView>emptyList()
                 : Collections.unmodifiableList(new ArrayList<SkeletonPresentationView>(views));
-        SignalBuses.get().emit(new UiSignal(UPDATED, "presentation", new Frame(frameId, copy)));
+        // Frame state is consumed from ECS; this compatibility notification is native-group scoped.
     }
 
     public static final class Frame {

@@ -8,8 +8,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import artframework.core.SignalBuses;
-import artframework.core.UiSignal;
 
 /** Applies immutable skeleton presentation views to provider-owned runtime instances. */
 public final class SkeletonPresentationSystem {
@@ -59,8 +57,6 @@ public final class SkeletonPresentationSystem {
                         view.entityKey, view.asset.atlasResource, view.asset.skeletonResource, params));
                 binding = new SkeletonRuntimeBinding(id, handle, assetKey);
                 bindings.put(id, binding);
-                emit(SkeletonSignals.CREATED, view.entityKey, "created");
-                emit(SkeletonSignals.LOADED, view.entityKey, "loaded");
             }
             apply(view, binding);
         }
@@ -83,7 +79,6 @@ public final class SkeletonPresentationSystem {
             String current = provider.currentAnimation(binding.handle, view.animation.track);
             if (!view.animation.animation.equals(current)) {
                 provider.setAnimation(binding.handle, view.animation.track, view.animation.animation, view.animation.loop);
-                emit(SkeletonSignals.ANIMATION_CHANGED, view.entityKey, view.animation.animation);
             }
             provider.setTimeScale(binding.handle, view.animation.track, view.animation.timeScale);
             provider.setTrackTime(binding.handle, view.animation.track, view.animation.trackTime);
@@ -100,7 +95,6 @@ public final class SkeletonPresentationSystem {
         SkeletonIdentityComponent identity = world.contains(id)
                 ? world.get(id, SkeletonIdentityComponent.class) : null;
         if (world.contains(id)) world.destroyEntity(id);
-        emit(SkeletonSignals.REMOVED, identity != null ? identity.entityKey : binding.handle.skeletonId, "removed");
     }
 
     private void release(SkeletonRuntimeBinding binding) {
@@ -201,7 +195,4 @@ public final class SkeletonPresentationSystem {
         return world.createEntity();
     }
 
-    private static void emit(String name, String entityKey, String detail) {
-        SignalBuses.get().emit(new UiSignal(name, "skeleton", new SkeletonSignals.Event(entityKey, detail)));
-    }
 }

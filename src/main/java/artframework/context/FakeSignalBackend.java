@@ -1,6 +1,6 @@
 package artframework.context;
 
-import artframework.core.SignalBuses;
+import artframework.core.SignalGroups;
 import artframework.core.SignalDecision;
 import artframework.core.SignalListener;
 import artframework.core.SignalSubscription;
@@ -34,7 +34,7 @@ public final class FakeSignalBackend implements SignalBackend {
 
     @Override public void installSignals() {
         if (subscription != null && subscription.isConnected()) return;
-        subscription = SignalBuses.get().connect(Pattern.compile("^ui/.+/.+$"), new SignalListener() {
+        subscription = SignalGroups.nativeGroup().connect(Pattern.compile("^ui/.+/.+$"), new SignalListener() {
             @Override public SignalDecision onSignal(UiSignal signal) {
                 if (!(signal.payload instanceof UiIntent)) return SignalDecision.continueSignal();
                 signalLog.add(signal);

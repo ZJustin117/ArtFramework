@@ -24,6 +24,11 @@ import artframework.context.TopPanelView;
 import artframework.context.TreasureView;
 import artframework.context.UiIntent;
 import artframework.context.ViewportView;
+import artframework.core.SignalGroups;
+import artframework.core.SignalDecision;
+import artframework.core.SignalListener;
+import artframework.core.SignalSubscription;
+import artframework.core.UiSignal;
 
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.cards.CardGroup;
@@ -41,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * STS1 read-only authority adapter. Observation-only until the matching full-present surface owns
@@ -120,10 +126,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
     @Override
     public void installSignals() {
         if (actionSubscription != null && actionSubscription.isConnected()) return;
-        actionSubscription = artframework.core.SignalBuses.get().connect(
-                java.util.regex.Pattern.compile("^ui/.+/.+$"),
-                new artframework.core.SignalListener() {
-                    @Override public artframework.core.SignalDecision onSignal(artframework.core.UiSignal signal) {
+        actionSubscription = SignalGroups.nativeGroup().connect(
+                Pattern.compile("^ui/(combat_hand|combat_controls|map|event|select_grid|select_hand|end_turn)/"
+                        + "(begin_drag|move_drag|drop_card|cancel_drag|play_card|press_end_turn|"
+                        + "click_map_node|choose_event_option|select_card|confirm_select|pressed)$"),
+                new SignalListener() {
+                    @Override public SignalDecision onSignal(UiSignal signal) {
                         if (!(signal.payload instanceof UiIntent)) {
                             return artframework.core.SignalDecision.continueSignal();
                         }

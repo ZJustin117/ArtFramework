@@ -50,17 +50,7 @@ public class AnimationTriggerTest {
         assertTrue(player.isPlaying() || fixture.property("panel", "opacity") != null);
         fixture.tick(0.5f);
         assertFalse(player.isPlaying());
-        AtomicInteger started = new AtomicInteger();
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_STARTED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                started.incrementAndGet();
-                            }
-                        });
         fixture.emit("ok", SignalNames.PRESSED);
-        assertEquals(1, started.get());
         assertEquals("flash", player.playing());
         fixture.tick(0.25f);
         assertEquals(0.5f, ((Number) fixture.property("panel", "opacity")).floatValue(), 0.05f);

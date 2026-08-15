@@ -11,7 +11,7 @@ import artframework.context.NativeInputComponent;
 import artframework.context.PresentProjection;
 import artframework.context.SurfaceIds;
 import artframework.context.UiIntent;
-import artframework.context.ContextSignals;
+import artframework.context.NativeOperationDispatcher;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.FullPresentCapability;
 
@@ -147,9 +147,7 @@ public final class CombatInputRouter {
         NativeInputRecords.intent(SurfaceIds.COMBAT_CONTROLS, intent.name,
                 NativeIntentLifecycleComponent.State.SENT, "");
         return recordInterceptResult(SurfaceIds.COMBAT_CONTROLS,
-                toIntentResult(artframework.core.SignalBuses.get().emit(
-                new artframework.core.UiSignal(ContextSignals.action(SurfaceIds.COMBAT_CONTROLS, intent.name),
-                        SurfaceIds.COMBAT_CONTROLS, intent))), "routed");
+                toIntentResult(NativeOperationDispatcher.dispatch(intent)), "routed");
     }
 
     public static IntentResult route(String intentName, Object... args) {
@@ -192,9 +190,7 @@ public final class CombatInputRouter {
         NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, intent.name,
                 NativeIntentLifecycleComponent.State.SENT, "");
         return recordInterceptResult(SurfaceIds.COMBAT_HAND,
-                toIntentResult(artframework.core.SignalBuses.get().emit(
-                new artframework.core.UiSignal(ContextSignals.action(SurfaceIds.COMBAT_HAND, intent.name),
-                        SurfaceIds.COMBAT_HAND, intent))), "routed");
+                toIntentResult(NativeOperationDispatcher.dispatch(intent)), "routed");
     }
 
     /**

@@ -11,9 +11,9 @@ public final class HostPatchResults {
 
     private HostPatchResults() {}
 
-    /** True when the native STS path should continue (not rejected by ART policy). */
+    /** True when no native operation listener consumed or rejected the operation. */
     public static boolean allowsNative(SignalDispatchResult result) {
-        return result == null || !result.isRejected();
+        return result == null || !result.isStopped();
     }
 
     /** Prefix-patch helper: continue native method or return early when blocked. */

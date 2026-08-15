@@ -101,6 +101,8 @@ public final class AnimationPlayers {
                 mode = stringVal(m.get("playback"));
             }
             int loopCount = intVal(m.get("loop_count"), intVal(m.get("loopCount"), 0));
+            String next = stringVal(m.get("next"));
+            String nextMode = stringVal(m.get("next_mode"));
             List<AnimationPlayer.Track> tracks = new ArrayList<AnimationPlayer.Track>();
             Object tr = m.get("tracks");
             if (tr instanceof List) {
@@ -128,13 +130,8 @@ public final class AnimationPlayers {
                     tracks.add(new AnimationPlayer.Track(prop, from, to, fromCurrent));
                 }
             }
-            if (mode.isEmpty()) {
-                player.register(new AnimationPlayer.Animation(name, target, duration, tracks));
-            } else {
-                player.register(
-                        new AnimationPlayer.Animation(
-                                name, target, duration, tracks, mode, loopCount));
-            }
+            player.register(new AnimationPlayer.Animation(name, target, duration, tracks,
+                    mode, loopCount, next, nextMode));
         }
     }
 

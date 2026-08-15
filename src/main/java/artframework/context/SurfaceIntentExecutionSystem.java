@@ -1,8 +1,6 @@
 package artframework.context;
 
-import artframework.core.SignalBuses;
 import artframework.core.SignalDispatchResult;
-import artframework.core.UiSignal;
 import artframework.ecs.EcsSystem;
 import artframework.ecs.EcsTick;
 import artframework.ecs.EntityId;
@@ -15,11 +13,9 @@ public final class SurfaceIntentExecutionSystem implements EcsSystem {
         for (EntityId entity : world.query(SurfaceIntentExecutionComponent.class)) {
             SurfaceIntentExecutionComponent request =
                     world.get(entity, SurfaceIntentExecutionComponent.class);
-            SignalDispatchResult result = SignalBuses.get().emit(new UiSignal(
-                    ContextSignals.action(request.surfaceId, request.name),
-                    request.surfaceId,
-                    UiIntent.of(request.name, request.surfaceId,
-                            request.args.toArray(new Object[request.args.size()]))));
+            SignalDispatchResult result = NativeOperationDispatcher.dispatch(UiIntent.of(
+                    request.name, request.surfaceId,
+                    request.args.toArray(new Object[request.args.size()])));
             IntentResult outcome;
             if (result == null) {
                 outcome = IntentResult.rejected("no result");

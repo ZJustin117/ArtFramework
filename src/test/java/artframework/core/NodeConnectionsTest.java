@@ -43,35 +43,16 @@ public class NodeConnectionsTest {
                 fixture.root, ConnectionDeclarationsComponent.class);
         assertNotNull(declarations);
         assertEquals(1, declarations.connections.size());
-        AtomicInteger started = new AtomicInteger();
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_STARTED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                started.incrementAndGet();
-                            }
-                        });
         assertTrue(NodeConnections.subscriptionCount("win") >= 1);
         fixture.emit("ok", SignalNames.PRESSED);
-        assertEquals(1, started.get());
         assertTrue(AnimationPlayers.get("win", "motion").isPlaying());
     }
 
     @Test
     public void regexMatchPlaysAnimation() {
         C1RuntimeFixture fixture = mountWithPlayConnection("ui/.+/pressed", true);
-        AtomicInteger started = new AtomicInteger();
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_STARTED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                started.incrementAndGet();
-                            }
-                        });
         fixture.emit("ok", SignalNames.PRESSED);
-        assertEquals(1, started.get());
+        assertTrue(AnimationPlayers.get("win", "motion").isPlaying());
     }
 
     @Test
@@ -84,17 +65,8 @@ public class NodeConnectionsTest {
                 windowWithButtonAndPlayer(
                         Collections.singletonList(trigger), null);
         C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
-        AtomicInteger started = new AtomicInteger();
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_STARTED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                started.incrementAndGet();
-                            }
-                        });
         fixture.emit("ok", SignalNames.PRESSED);
-        assertEquals(1, started.get());
+        assertTrue(AnimationPlayers.get("win", "motion").isPlaying());
     }
 
     @Test

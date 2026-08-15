@@ -1,7 +1,7 @@
 package artframework.sts1.lab;
 
 import artframework.api.UiOpResult;
-import artframework.core.SignalBuses;
+import artframework.core.SignalGroups;
 import artframework.core.SignalDecision;
 import artframework.core.SignalListener;
 import artframework.core.UiSignal;
@@ -19,7 +19,7 @@ public class StsLabRecipesTest {
     @After
     public void tearDown() {
         StsLabNav.resetForTests();
-        SignalBuses.resetForTests();
+        SignalGroups.resetForTests();
     }
 
     @Test
@@ -228,7 +228,7 @@ public class StsLabRecipesTest {
 
     @Test
     public void fakeHostQueuesEventNavigationWithoutMutatingState() {
-        SignalBuses.get()
+        SignalGroups.nativeGroup()
                 .connect(
                         LabNavigationSignals.REQUEST,
                         new SignalListener() {

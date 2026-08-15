@@ -21,7 +21,7 @@ public final class SignalHub {
                         instanceId,
                         signal,
                         handler,
-                        SignalBuses.get()
+                        SignalGroups.nativeGroup()
                                 .connect(
                                         name(instanceId, signal),
                                         wrapHandler(handler))));
@@ -35,7 +35,7 @@ public final class SignalHub {
         if (busName == null || busName.isEmpty() || listener == null) {
             throw new IllegalArgumentException("busName and listener required");
         }
-        SignalSubscription sub = SignalBuses.get().connect(busName, listener);
+        SignalSubscription sub = SignalGroups.nativeGroup().connect(busName, listener);
         registrations.add(new Registration("", busName, null, sub));
         return sub;
     }
@@ -48,7 +48,7 @@ public final class SignalHub {
         if (pattern == null || listener == null) {
             throw new IllegalArgumentException("pattern and listener required");
         }
-        SignalSubscription sub = SignalBuses.get().connect(pattern, listener);
+        SignalSubscription sub = SignalGroups.nativeGroup().connect(pattern, listener);
         registrations.add(new Registration("", pattern.pattern(), null, sub));
         return sub;
     }
@@ -72,7 +72,7 @@ public final class SignalHub {
             return;
         }
         Object[] payload = args != null ? args : new Object[0];
-        SignalBuses.get().emit(new UiSignal(name(instanceId, signal), instanceId, payload));
+        SignalGroups.nativeGroup().emit(new UiSignal(name(instanceId, signal), instanceId, payload));
     }
 
     public void clear() {

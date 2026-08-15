@@ -107,12 +107,6 @@ public final class NodeStateMachine {
         }
         putState(next);
         runEnter(next, null);
-        if (emitChanged && declares(SignalNames.STATE_CHANGED)) {
-            try {
-                PresentationRuntime.emit(context, ownerEntity, SignalNames.STATE_CHANGED, next);
-            } catch (RuntimeException ignored) {
-            }
-        }
     }
 
     public void setState(String next) {
@@ -155,12 +149,6 @@ public final class NodeStateMachine {
         putState(t.to);
         runEnter(t.to, event);
         runActionList(t.onEnter, event);
-        if (declares(SignalNames.STATE_CHANGED)) {
-            try {
-                PresentationRuntime.emit(context, ownerEntity, SignalNames.STATE_CHANGED, t.to);
-            } catch (RuntimeException ignored) {
-            }
-        }
     }
 
     private void runEnter(String stateName, UiSignal event) {

@@ -40,34 +40,16 @@ public class AnimationPlayerTest {
                         .child(animPlayerNode())
                         .build();
         C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", root);
-        AtomicInteger started = new AtomicInteger();
-        AtomicInteger finished = new AtomicInteger();
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_STARTED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                started.incrementAndGet();
-                            }
-                        });
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_FINISHED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                finished.incrementAndGet();
-                            }
-                        });
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
         assertNotNull(player);
         player.play("enter");
-        assertEquals(1, started.get());
+        assertEquals(NodeStateMachine.STATE_PLAYING, player.state());
         assertEquals(0f, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
         fixture.tick(0.1f);
         assertEquals(0.5f, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
         fixture.tick(0.1f);
         assertEquals(1f, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
-        assertEquals(1, finished.get());
+        assertEquals(NodeStateMachine.STATE_IDLE, player.state());
         assertFalse(player.isPlaying());
     }
 
@@ -90,73 +72,34 @@ public class AnimationPlayerTest {
     public void pauseAndResume() {
         C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", rootWithPlayer(animOnce()));
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
-        AtomicInteger paused = new AtomicInteger();
-        AtomicInteger resumed = new AtomicInteger();
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_PAUSED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                paused.incrementAndGet();
-                            }
-                        });
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_RESUMED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                resumed.incrementAndGet();
-                            }
-                        });
         player.play("enter");
         assertEquals(NodeStateMachine.STATE_PLAYING, player.state());
         fixture.tick(0.05f);
         float mid = ((Number) fixture.property("dialog", "opacity")).floatValue();
         player.pause();
-        assertEquals(1, paused.get());
         assertEquals(NodeStateMachine.STATE_PAUSED, player.state());
         fixture.tick(0.2f);
         assertEquals(mid, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
         player.resume();
-        assertEquals(1, resumed.get());
         fixture.tick(0.2f);
         assertEquals(1f, ((Number) fixture.property("dialog", "opacity")).floatValue(), 0.001f);
         assertFalse(player.isPlaying());
     }
 
     @Test
-    public void loopModeEmitsLoopedThenFinishesOnCount() {
+    public void loopModeTracksLoopsThenFinishesOnCount() {
         Map<String, Object> anim = animOnce();
         anim.put("mode", "loop");
         anim.put("loop_count", Integer.valueOf(2));
         anim.put("duration", Float.valueOf(0.1f));
         C1RuntimeFixture fixture = C1RuntimeFixture.mount("win", rootWithPlayer(anim));
         AnimationPlayer player = AnimationPlayers.get("win", "motion");
-        AtomicInteger looped = new AtomicInteger();
-        AtomicInteger finished = new AtomicInteger();
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_LOOPED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                looped.incrementAndGet();
-                            }
-                        });
-        PresentationRuntime.connect(fixture.context, fixture.find("motion"),
-                        AnimationPlayer.SIGNAL_FINISHED,
-                        new SignalHandler() {
-                            @Override
-                            public void handle(Object... args) {
-                                finished.incrementAndGet();
-                            }
-                        });
         player.play("enter");
         fixture.tick(0.1f);
-        assertEquals(1, looped.get());
+        assertEquals(1, player.loopsDone());
         assertTrue(player.isPlaying());
         fixture.tick(0.1f);
-        assertEquals(2, looped.get());
-        assertEquals(1, finished.get());
+        assertEquals(0, player.loopsDone());
         assertFalse(player.isPlaying());
         assertEquals(NodeStateMachine.STATE_IDLE, player.state());
     }

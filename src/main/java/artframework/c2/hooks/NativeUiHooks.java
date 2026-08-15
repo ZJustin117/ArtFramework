@@ -6,7 +6,7 @@ import artframework.c2.NativeTemplateRuntime;
 import artframework.c2.NativeTemplateIds;
 import artframework.c2.SelectCardRef;
 import artframework.c2.SelectKind;
-import artframework.core.SignalBuses;
+import artframework.core.SignalGroups;
 import artframework.core.SignalDispatchResult;
 import artframework.core.SignalNames;
 import artframework.core.UiSignal;
@@ -117,7 +117,7 @@ public final class NativeUiHooks {
     }
 
     private static SignalDispatchResult emit(String componentId, String signal, Object payload) {
-        return SignalBuses.get()
+        return SignalGroups.nativeGroup()
                 .emit(new UiSignal(signalName(componentId, signal), componentId, payload));
     }
 

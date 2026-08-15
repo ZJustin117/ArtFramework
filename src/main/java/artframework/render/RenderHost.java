@@ -30,7 +30,6 @@ public final class RenderHost {
     private final Map<String, List<EffectBinding>> bindings =
             new ConcurrentHashMap<String, List<EffectBinding>>();
     private HostRenderBackend hostBackend = DirectHostRenderBackend.INSTANCE;
-    private boolean fullFrameEnabled;
     private boolean captureEnabled;
     private boolean shadersReady;
     private float timeSeconds;
@@ -131,7 +130,8 @@ public final class RenderHost {
     }
 
     public boolean isFullFrameEnabled() {
-        return fullFrameEnabled;
+        FullFrameRenderComponent state = RenderStateEcs.fullFrameState();
+        return state != null && state.enabled;
     }
 
     /**
@@ -159,7 +159,7 @@ public final class RenderHost {
         }
         this.screenW = width;
         this.screenH = height;
-        if (RenderStateEcs.fullFrameState() == null && !fullFrameEnabled) {
+        if (RenderStateEcs.fullFrameState() == null) {
             return null;
         }
         FullFrameRenderComponent current = RenderStateEcs.fullFrameState();
@@ -268,8 +268,6 @@ public final class RenderHost {
 
     void rebuildFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
         RenderPlan plan = RenderPlan.fromEcs(activeSurfaceIds);
-        FullFrameRenderComponent full = RenderStateEcs.fullFrameState();
-        fullFrameEnabled = full != null && full.enabled;
         clearTargets();
         for (RenderPlan.Entry entry : plan.entries()) {
             RenderTarget target = ensureTarget(entry.id, entry.kind);
@@ -319,7 +317,7 @@ public final class RenderHost {
         if (target == null) {
             throw new IllegalArgumentException("unknown target: " + targetId);
         }
-        if (target.kind == RenderTargetKind.FULL_FRAME && !fullFrameEnabled) {
+        if (target.kind == RenderTargetKind.FULL_FRAME && !isFullFrameEnabled()) {
             throw new IllegalArgumentException("FULL_FRAME disabled");
         }
         Effect effect = effects.get(effectId);
@@ -456,7 +454,7 @@ public final class RenderHost {
                     && !LightwaveDiagnostics.c2EffectsEnabled()) {
                 continue;
             }
-            if (target.kind == RenderTargetKind.FULL_FRAME && !fullFrameEnabled) {
+            if (target.kind == RenderTargetKind.FULL_FRAME && !isFullFrameEnabled()) {
                 continue;
             }
             List<EffectBinding> list = bindings.get(target.id);
@@ -549,7 +547,7 @@ public final class RenderHost {
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("targetCount", Integer.valueOf(targetCount()));
         out.put("bindingCount", Integer.valueOf(bindingCount()));
-        out.put("fullFrameEnabled", Boolean.valueOf(fullFrameEnabled));
+        out.put("fullFrameEnabled", Boolean.valueOf(isFullFrameEnabled()));
         out.put("captureEnabled", Boolean.valueOf(captureEnabled));
         out.put("needsCapture", Boolean.valueOf(needsCapture()));
         out.put("hostSupportsCapture", Boolean.valueOf(hostBackend.supportsCapture()));
@@ -755,7 +753,6 @@ public final class RenderHost {
         effects.clear();
         shaders.clear();
         hostBackend = DirectHostRenderBackend.INSTANCE;
-        fullFrameEnabled = false;
         captureEnabled = false;
         shadersReady = false;
         timeSeconds = 0f;

@@ -18,6 +18,10 @@ public final class PresentProjections {
         return last;
     }
 
+    public static FrameDiff last() {
+        return last;
+    }
+
     /** ECS schedule entry point; bypasses the compatibility frame signal. */
     static FrameDiff publishDirect(ContextFrame frame) {
         if (frame == null) return FrameDiff.skipped("frame required");

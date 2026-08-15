@@ -189,10 +189,11 @@ public final class ArtFramework {
 
     public static WindowHandle find(String id) {
         WindowHandle h = OPEN.get(id);
-        if (h != null) {
+        if (h != null && h.isOpen()) {
             return h;
         }
-        return OPEN.get(artframework.c2.NativeTemplateIds.canonicalize(id));
+        h = OPEN.get(artframework.c2.NativeTemplateIds.canonicalize(id));
+        return h != null && h.isOpen() ? h : null;
     }
 
     public static List<String> listOpenIds() {
@@ -205,9 +206,19 @@ public final class ArtFramework {
     }
 
     public static void close(String id) {
-        WindowHandle h = OPEN.get(id);
+        WindowHandle h = find(id);
         if (h != null) {
             h.close();
+            return;
+        }
+        WindowDef def = defOf(id);
+        if (def == null) return;
+        if (def.windowClass == WindowClass.SYNTHETIC
+                && artframework.presentation.PresentationRuntime.isOpen(def.id)) {
+            closeSynthetic(def.id);
+        } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
+            String nativeId = artframework.c2.NativeTemplateIds.canonicalize(def.resource);
+            if (NativeTemplateRuntime.isBound(nativeId)) NativeTemplateRuntime.unbind(def);
         }
     }
 
@@ -497,7 +508,7 @@ public final class ArtFramework {
      * Layout root for an open synthetic window, or null if not synthetic / not tracked.
      */
     public static LayoutNode layoutRoot(String id) {
-        WindowHandle h = OPEN.get(id);
+        WindowHandle h = find(id);
         if (h instanceof TrackedHandle) {
             return ((TrackedHandle) h).root;
         }
@@ -527,6 +538,16 @@ public final class ArtFramework {
     /** Advance one production presentation frame, optionally ingesting an authority snapshot first. */
     public static void advanceFrame(float deltaSeconds, ContextFrame authorityFrame) {
         SCHEDULE.advance(deltaSeconds, authorityFrame);
+    }
+
+    /** Internal compatibility bridge to the schedule-owned surface command phase. */
+    public static void executeSurfaceIntents() {
+        SCHEDULE.executeSurfaceIntents();
+    }
+
+    /** Internal compatibility bridge for synchronous native host hooks. */
+    public static void processNativeIntentLifecycle() {
+        SCHEDULE.processNativeIntentLifecycle();
     }
 
     /** Install the host-specific presentation phase used by the production frame schedule. */
@@ -568,7 +589,7 @@ public final class ArtFramework {
 
     /** Publishes an ordinary context-frame signal. */
     public static FrameDiff publishFrame(ContextFrame frame) {
-        return PresentProjections.publish(frame);
+        return SCHEDULE.publishFrame(frame);
     }
 
     /** Host-managed unified asset library. */
@@ -636,7 +657,6 @@ public final class ArtFramework {
         private final WindowDef def;
         private final LayoutNode root;
         private final String openId;
-        private boolean open = true;
 
         TrackedHandle(WindowDef def, LayoutNode root) {
             this.def = def;
@@ -663,7 +683,7 @@ public final class ArtFramework {
 
         @Override
         public boolean isOpen() {
-            if (!open) return false;
+            if (!isCurrentHandle(this)) return false;
             if (def.windowClass == WindowClass.SYNTHETIC) {
                 return artframework.presentation.PresentationRuntime.isOpen(def.id);
             }
@@ -672,18 +692,10 @@ public final class ArtFramework {
 
         @Override
         public void close() {
-            if (!open) {
-                return;
-            }
-            open = false;
+            if (!isCurrentHandle(this)) return;
             removeHandleAliases(this);
             if (def.windowClass == WindowClass.SYNTHETIC) {
-                artframework.presentation.PresentationContext context =
-                        artframework.presentation.PresentationRuntime.context(def.id);
-                artframework.ecs.EntityId root = artframework.presentation.PresentationRuntime.root(context);
-                if (context != null && root != null) HostBackends.get().detach(
-                        new artframework.presentation.PresentationMount(context, root));
-                SyntheticRuntime.onClosed(def.id);
+                closeSynthetic(def.id);
             } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
                 NativeTemplateRuntime.unbind(def);
             }
@@ -700,5 +712,21 @@ public final class ArtFramework {
                 OPEN.remove(alias);
             }
         }
+    }
+
+    private static boolean isCurrentHandle(WindowHandle handle) {
+        for (WindowHandle current : OPEN.values()) {
+            if (current == handle) return true;
+        }
+        return false;
+    }
+
+    private static void closeSynthetic(String id) {
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context(id);
+        artframework.ecs.EntityId root = artframework.presentation.PresentationRuntime.root(context);
+        if (context != null && root != null) HostBackends.get().detach(
+                new artframework.presentation.PresentationMount(context, root));
+        SyntheticRuntime.onClosed(id);
     }
 }

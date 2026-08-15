@@ -18,8 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import artframework.ecs.EcsPipeline;
-import artframework.ecs.EcsTick;
 
 /**
  * ART-owned hard-sync projection of card entities from context frames.
@@ -46,7 +44,6 @@ public final class PresentProjection {
         ContextFrame previousFrame = snapshot().frame;
         if (!frame.available) {
             recordBusinessConfirmationFrame(previousFrame, frame);
-            if (runConfirmation) runBusinessConfirmation();
             observeNativeIntents(frame);
             putMetadata(metadata.frameId, metadata.sceneEpoch, metadata.scene, false,
                     metadata.frameId >= 0);
@@ -118,27 +115,14 @@ public final class PresentProjection {
         putMetadata(frame.frameId, frame.sceneEpoch, frame.scene, true, false);
         putSnapshot(frame);
         recordBusinessConfirmationFrame(previousFrame, frame);
-        if (runConfirmation) runBusinessConfirmation();
         observeNativeIntents(frame);
         return new FrameDiff(added, removed, updated, true, "");
-    }
-
-    private void confirmBusinessIntents(ContextFrame before, ContextFrame after) {
-        recordBusinessConfirmationFrame(before, after);
-        runBusinessConfirmation();
     }
 
     private void recordBusinessConfirmationFrame(ContextFrame before, ContextFrame after) {
         EntityId metadata = ensureMetadataEntity();
         world.put(metadata, BusinessConfirmationFrameComponent.class,
                 new BusinessConfirmationFrameComponent(before, after));
-    }
-
-    private void runBusinessConfirmation() {
-        EntityId metadata = ensureMetadataEntity();
-        EcsPipeline.run(world, new EcsTick(0f, 0L),
-                java.util.Collections.<artframework.ecs.EcsSystem>singletonList(
-                        new BusinessConfirmationSystem()));
     }
 
     public long lastFrameId() {

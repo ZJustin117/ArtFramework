@@ -4,23 +4,18 @@ import artframework.context.NativeInputComponent;
 import artframework.context.NativeInterceptComponent;
 import artframework.context.NativeIntentLifecycleComponent;
 import artframework.context.NativeIntentLifecycleEventComponent;
-import artframework.context.NativeIntentLifecycleSystem;
 import artframework.context.NativeIntentObservationComponent;
 import artframework.context.SurfaceIds;
-import artframework.ecs.EcsPipeline;
-import artframework.ecs.EcsTick;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.PresentationRegistry;
-import java.util.Collections;
 
 /** Stateless writer for native input records owned by the shared ART ECS world. */
 public final class NativeInputRecords {
     private static final PresentationContext CONTEXT = PresentationRegistry.context("sts1-input");
     private static final PresentationWorld WORLD = CONTEXT.world();
-    private static final NativeIntentLifecycleSystem INTENT_SYSTEM = new NativeIntentLifecycleSystem();
 
     private NativeInputRecords() {}
 
@@ -77,7 +72,6 @@ public final class NativeInputRecords {
     }
 
     private static void runIntentSystem() {
-        EcsPipeline.run(WORLD, new EcsTick(0f, 0L),
-                Collections.singletonList(INTENT_SYSTEM));
+        artframework.api.ArtFramework.processNativeIntentLifecycle();
     }
 }

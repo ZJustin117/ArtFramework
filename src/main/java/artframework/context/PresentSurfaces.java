@@ -256,9 +256,7 @@ public final class PresentSurfaces {
                                 BusinessConfirmationComponent.State.PENDING,
                                 -1L, -1L, -1L, -1L, "awaiting authority snapshot"));
             }
-            EcsPipeline.run(world(), new EcsTick(0f, 0L),
-                    java.util.Collections.<artframework.ecs.EcsSystem>singletonList(
-                            new SurfaceIntentExecutionSystem()));
+            artframework.api.ArtFramework.executeSurfaceIntents();
             SurfaceResultComponent result = entity != null
                     ? world().get(entity, SurfaceResultComponent.class) : null;
             if (result == null) return IntentResult.rejected("no result");

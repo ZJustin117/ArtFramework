@@ -140,9 +140,7 @@ public final class PresentationRuntime {
     public static void tick(PresentationContext context, float deltaSeconds) {
         if (context == null) return;
         if (deltaSeconds < 0f) throw new IllegalArgumentException("deltaSeconds must be non-negative");
-        EcsPipeline.run(context.world(), new EcsTick(deltaSeconds, 0L),
-                Collections.<EcsSystem>singletonList(new ControlValueSystem()));
-        artframework.core.AnimationPlayers.tick(windowId(context), deltaSeconds);
+        artframework.api.ArtFramework.tick(deltaSeconds);
     }
 
     public static SignalSubscription connect(PresentationContext context, EntityId entity,

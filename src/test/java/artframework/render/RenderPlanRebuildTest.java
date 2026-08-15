@@ -9,6 +9,8 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class RenderPlanRebuildTest {
     @After public void tearDown() { ArtFramework.resetForTests(); }
@@ -57,5 +59,37 @@ public class RenderPlanRebuildTest {
         assertEquals(1, host.targetCount());
         assertEquals(new Rect(2f, 3f, 20f, 30f),
                 host.getTarget(RenderHost.c2SurfaceTargetId("sts1.recreate")).bounds());
+    }
+
+    @Test public void fullFrameEnabledQueryReadsEcsWithoutHostMirror() {
+        RenderHost host = new RenderHost();
+        assertFalse(host.isFullFrameEnabled());
+
+        RenderStateEcs.fullFrame(320f, 180f, true,
+                Collections.<EffectAttachment>emptyList());
+
+        assertTrue(host.isFullFrameEnabled());
+        host.recreateFromEcs();
+        assertNotNull(host.fullFrameTarget());
+
+        RenderStateEcs.fullFrame(320f, 180f, false,
+                Collections.<EffectAttachment>emptyList());
+        assertFalse(host.isFullFrameEnabled());
+    }
+
+    @Test public void entityPresentTargetRebuildsFromRetainedSlotComponents() {
+        ArtFramework.entities().attach("player", "player", "ironclad");
+        ArtFramework.entities().layout("player", 100f, 200f, 0.5f);
+        RenderHost host = new RenderHost();
+        String targetId = "c2:entity:player";
+        host.recreateFromEcs();
+        Rect before = host.getTarget(targetId).bounds();
+
+        host.clearHostCacheForRecreation();
+
+        assertEquals(1, ArtFramework.entities().size());
+        host.recreateFromEcs();
+        assertNotNull(host.getTarget(targetId));
+        assertEquals(before, host.getTarget(targetId).bounds());
     }
 }

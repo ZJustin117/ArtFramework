@@ -90,18 +90,6 @@ public final class StageHost
             ready = true;
             artframework.sts1.StsRuntimeReady.setReady(true);
             SyntheticRuntime.installStageBackend(this);
-            ArtFramework.setHostPresentationSystem(new artframework.api.HostPresentationSystem() {
-                @Override public void tick(float deltaSeconds) {
-                    try {
-                        artframework.sts1.skeleton.Sts1SkeletonBridge.tick(deltaSeconds);
-                    } catch (Throwable t) {
-                        try {
-                            BaseMod.logger.warn("ArtFramework skeleton tick skipped: " + t.getMessage());
-                        } catch (Throwable ignored) {
-                        }
-                    }
-                }
-            });
             int shaders = 0;
             try {
                 shaders = RenderHosts.get().compileShaders();

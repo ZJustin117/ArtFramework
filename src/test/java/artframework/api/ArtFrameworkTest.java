@@ -100,6 +100,19 @@ public class ArtFrameworkTest {
     }
 
     @Test
+    public void closeUsesEcsLifecycleWhenHandleCacheIsMissing() throws Exception {
+        ArtFramework.register(new WindowDef("w", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.open("w");
+        java.lang.reflect.Field field = ArtFramework.class.getDeclaredField("OPEN");
+        field.setAccessible(true);
+        ((java.util.Map<?, ?>) field.get(null)).clear();
+
+        ArtFramework.close("w");
+
+        assertTrue(ArtFramework.listOpenIds().isEmpty());
+    }
+
+    @Test
     public void resetForTestsClearsDefsAndOpen() {
         ArtFramework.register(new WindowDef("w", WindowClass.SYNTHETIC, "layouts/demo.json"));
         ArtFramework.open("w");

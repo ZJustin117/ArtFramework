@@ -20,6 +20,7 @@ public class PresentationScheduleTest {
 
     @Test public void productionPhasesHaveOneDeclaredOrder() {
         assertEquals(Arrays.asList(
+                PresentationSchedule.Phase.SURFACE_INTENT_EXECUTION,
                 PresentationSchedule.Phase.AUTHORITY_PROJECTION_AND_CONFIRMATION,
                 PresentationSchedule.Phase.WORLD_NORMALIZATION,
                 PresentationSchedule.Phase.ANIMATION,

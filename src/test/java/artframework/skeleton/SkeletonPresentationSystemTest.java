@@ -52,6 +52,27 @@ public class SkeletonPresentationSystemTest {
         assertTrue(fake.applied("hero"));
     }
 
+    @Test public void recreationRebuildsHostHandleFromRetainedEcsState() {
+        SkeletonProviders providers = new SkeletonProviders();
+        FakeSkeletonProvider fake = new FakeSkeletonProvider();
+        providers.register(fake);
+        SkeletonPresentationSystem system = new SkeletonPresentationSystem(
+                new PresentationWorld("test"), providers);
+        system.sync(7L, Arrays.asList(view("hero", 12f, "idle_loop")));
+        EntityId entity = worldEntity(system, "hero");
+        SkeletonHandle previous = system.binding("hero").handle;
+
+        system.recreateHostBindings();
+
+        assertTrue(systemWorld(system).contains(entity));
+        assertEquals(7L, systemWorld(system).get(entity, SkeletonFrameComponent.class).frameId);
+        assertFalse(previous.isAlive());
+        assertNotSame(previous, system.binding("hero").handle);
+        assertEquals(2, fake.loadCount());
+        assertEquals(1, fake.liveCount());
+        assertEquals(12f, fake.x("hero"), 0.001f);
+    }
+
     private static SkeletonPresentationView view(String id, float x, String animation) {
         return new SkeletonPresentationView(id,
                 new SkeletonAssetComponent("fake", "hero.atlas", "hero.json", "", 1f),

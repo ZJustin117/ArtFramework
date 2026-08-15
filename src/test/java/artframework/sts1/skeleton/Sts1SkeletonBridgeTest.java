@@ -4,6 +4,7 @@ import artframework.api.ArtFramework;
 import artframework.context.SurfaceIds;
 import artframework.skeleton.FakeSkeletonProvider;
 import artframework.skeleton.SkeletonHandle;
+import artframework.skeleton.SkeletonPresentationFrames;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.PresentSafety;
@@ -98,5 +99,25 @@ public class Sts1SkeletonBridgeTest {
         assertTrue(Sts1SkeletonBridge.presentationSystem().binding("hero").handle.isAlive());
         assertEquals(1, fake.liveCount());
         assertEquals(1, PresentSafety.recreationCount());
+    }
+
+    @Test
+    public void publishedSkeletonFrameReachesBridgePresentationSystem() {
+        FakeSkeletonProvider fake = new FakeSkeletonProvider();
+        ArtFramework.skeletons().register(fake);
+        Sts1SkeletonBridge.installPresentationSignals();
+        SkeletonPresentationFrames.publish(4L, java.util.Arrays.asList(
+                new artframework.skeleton.SkeletonPresentationView(
+                        "hero",
+                        new artframework.skeleton.SkeletonAssetComponent(FakeSkeletonProvider.ID,
+                                "a", "s", "", 1f),
+                        new artframework.skeleton.SkeletonPoseComponent(1f, 2f, 0f, 1f, 1f,
+                                false, false, 0),
+                        new artframework.skeleton.SkeletonAnimationComponent(0, "idle", true),
+                        new artframework.skeleton.SkeletonVisualComponent(true))));
+
+        assertEquals(1, Sts1SkeletonBridge.presentationSystem().size());
+        assertNotNull(Sts1SkeletonBridge.presentationSystem().binding("hero"));
+        assertEquals(4L, Sts1SkeletonBridge.presentationSystem().lastFrameId());
     }
 }

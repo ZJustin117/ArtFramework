@@ -237,12 +237,6 @@ public final class Sts1SkeletonBridge {
         return PRESENTATION;
     }
 
-    public static void tick(float deltaSeconds) {
-        new SkeletonHostTickSystem(PRESENTATION).run(
-                PresentationRegistry.context("c2-skeleton").world(),
-                new artframework.ecs.EcsTick(deltaSeconds, 0L));
-    }
-
     public static void stop(String skeletonId) {
         SkeletonHandle h = LIVE.remove(skeletonId);
         if (h == null) {

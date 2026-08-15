@@ -5,7 +5,7 @@ import artframework.ecs.EcsTick;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
 
-/** Projects pending authority observations and then advances confirmation systems. */
+/** Projects pending authority observations into ECS component data. */
 public final class AuthorityProjectionSystem implements EcsSystem {
     @Override
     public void run(PresentationWorld world, EcsTick tick) {
@@ -14,10 +14,5 @@ public final class AuthorityProjectionSystem implements EcsSystem {
             PresentProjections.publishDirect(pending.frame);
             world.remove(entity, AuthorityFrameComponent.class);
         }
-        for (EntityId entity : world.query(BusinessConfirmationFrameComponent.class)) {
-            new BusinessConfirmationSystem().run(world, tick);
-            break;
-        }
-        new NativeIntentLifecycleSystem().run(world, tick);
     }
 }

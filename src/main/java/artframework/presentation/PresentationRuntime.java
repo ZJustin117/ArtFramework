@@ -148,13 +148,8 @@ public final class PresentationRuntime {
     public static SignalSubscription connect(PresentationContext context, EntityId entity,
             String signal, SignalHandler handler) {
         requirePort(context, entity, signal);
-        final String nodePath = identity(context, entity).key.localId;
-        final SignalHub hub = signals(context);
-        hub.connect(nodePath, signal, handler);
-        return new SignalSubscription() {
-            @Override public void disconnect() { hub.disconnect(nodePath, signal, handler); }
-            @Override public boolean isConnected() { return hub.handlerCount(nodePath, signal) > 0; }
-        };
+        String nodePath = identity(context, entity).key.localId;
+        return signals(context).connect(nodePath, signal, handler);
     }
 
     public static SignalSubscription connectBus(PresentationContext context, String name,
@@ -170,6 +165,13 @@ public final class PresentationRuntime {
     public static void emit(PresentationContext context, EntityId entity, String signal,
             Object... payload) {
         dispatch(context, entity, signal, payload);
+    }
+
+    public static void disconnect(PresentationContext context, EntityId entity,
+            String signal, SignalHandler handler) {
+        if (context == null || entity == null || signal == null || handler == null) return;
+        requirePort(context, entity, signal);
+        signals(context).disconnect(identity(context, entity).key.localId, signal, handler);
     }
 
     public static artframework.core.SignalDispatchResult dispatch(

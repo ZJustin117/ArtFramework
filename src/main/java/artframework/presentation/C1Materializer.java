@@ -49,7 +49,7 @@ public final class C1Materializer {
         if (initial != null) context.world().put(entity, ControlValueComponent.class,
                 new ControlValueComponent(initial));
         context.world().put(entity, SignalPortsComponent.class,
-                new SignalPortsComponent(declaration.signals, declaration.signals));
+                new SignalPortsComponent(declaration.signals));
         EffectsComponent effects = context.world().get(entity, EffectsComponent.class);
         for (EffectDecl effect : resolvedEffects(declaration)) {
             effects = effects.withAttachment(new EffectAttachment(effect.id, effectLayer(effect), effect.params));

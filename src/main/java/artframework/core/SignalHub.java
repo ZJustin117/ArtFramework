@@ -26,19 +26,14 @@ public final class SignalHub {
         this.windowId = windowId;
     }
 
-    public void connect(String nodePath, String signal, SignalHandler handler) {
+    public SignalSubscription connect(String nodePath, String signal, SignalHandler handler) {
         if (nodePath == null || signal == null || handler == null) {
             throw new IllegalArgumentException("nodePath, signal, handler required");
         }
-        registrations.add(
-                new Registration(
-                        nodePath,
-                        signal,
-                        handler,
-                        SignalGroups.nativeGroup()
-                                .connect(
-                                        routeName(nodePath, signal),
-                                        wrapHandler(handler))));
+        SignalSubscription subscription = SignalGroups.nativeGroup()
+                .connect(routeName(nodePath, signal), wrapHandler(handler));
+        registrations.add(new Registration(nodePath, signal, handler, subscription));
+        return subscription;
     }
 
     /**

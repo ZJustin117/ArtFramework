@@ -229,7 +229,7 @@ public final class PresentSurfaces {
                             level.allowsObserve(), artframework.sts1.FullPresentMode.maySuppressNative(id)));
             world().put(entity, HostBindingComponent.class, new HostBindingComponent("STS1_C2", id));
             world().put(entity, SignalPortsComponent.class,
-                    new SignalPortsComponent(new ArrayList<String>(signals), Collections.<String>emptyList()));
+                    new SignalPortsComponent(new ArrayList<String>(signals)));
             world().put(entity, NodePropertiesComponent.class,
                     new NodePropertiesComponent(Collections.<String, Object>singletonMap("surfaceId", id)));
             world().put(entity, PresentPolicyComponent.class,

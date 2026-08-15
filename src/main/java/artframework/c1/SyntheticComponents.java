@@ -84,7 +84,9 @@ public final class SyntheticComponents {
         @Override
         public void disconnect(String signal, SignalHandler handler) {
             PresentationContext context = PresentationRuntime.context(id);
-            if (context != null) PresentationRuntime.clearSignals(context);
+            if (context != null) {
+                PresentationRuntime.disconnect(context, rootEntity(), signal, handler);
+            }
         }
 
         @Override

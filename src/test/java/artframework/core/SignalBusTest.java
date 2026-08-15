@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SignalBusTest {
@@ -59,5 +60,27 @@ public class SignalBusTest {
         SignalDispatchResult result = bus.emit(new UiSignal("ui/button/clicked", "button", null));
         assertEquals(Arrays.asList("first"), seen);
         assertTrue(result.isRejected());
+    }
+
+    @Test
+    public void subscriptionsDisconnectIndependently() {
+        SignalHub hub = new SignalHub();
+        final int[] seen = new int[2];
+        SignalHandler first = new SignalHandler() {
+            @Override public void handle(Object... args) { seen[0]++; }
+        };
+        SignalHandler second = new SignalHandler() {
+            @Override public void handle(Object... args) { seen[1]++; }
+        };
+
+        SignalSubscription firstSubscription = hub.connect("button", "pressed", first);
+        SignalSubscription secondSubscription = hub.connect("button", "pressed", second);
+        firstSubscription.disconnect();
+        hub.emit("button", "pressed");
+
+        assertEquals(0, seen[0]);
+        assertEquals(1, seen[1]);
+        assertFalse(firstSubscription.isConnected());
+        assertTrue(secondSubscription.isConnected());
     }
 }

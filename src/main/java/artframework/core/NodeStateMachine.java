@@ -101,16 +101,12 @@ public final class NodeStateMachine {
     }
 
     /** Force state without signal (AnimationPlayer internal). */
-    public void setState(String next, boolean emitChanged) {
+    public void setState(String next) {
         if (next == null || next.isEmpty() || next.equals(state())) {
             return;
         }
         putState(next);
         runEnter(next, null);
-    }
-
-    public void setState(String next) {
-        setState(next, true);
     }
 
     public void wire(PresentationContext context) {

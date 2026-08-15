@@ -3,6 +3,7 @@ package artframework.core;
 import artframework.component.UiNode;
 import artframework.component.UiNodeLoader;
 import artframework.component.UiTypes;
+import artframework.c1.SyntheticComponents;
 import artframework.ecs.EntityId;
 import artframework.presentation.NodeHierarchyComponent;
 import artframework.presentation.NodeIdentityComponent;
@@ -77,6 +78,30 @@ public class UiTreeSignalTest {
         } finally {
             first.close();
             second.close();
+        }
+    }
+
+    @Test public void syntheticComponentDisconnectRemovesOnlyRequestedHandler() {
+        UiNode root = UiNode.of(UiTypes.WINDOW).id("w")
+                .signals(java.util.Collections.singletonList(SignalNames.PRESSED))
+                .build();
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("w", root);
+        try {
+            final AtomicInteger firstHits = new AtomicInteger();
+            final AtomicInteger secondHits = new AtomicInteger();
+            artframework.core.SignalHandler first = args -> firstHits.incrementAndGet();
+            artframework.core.SignalHandler second = args -> secondHits.incrementAndGet();
+            artframework.core.UiComponent component = SyntheticComponents.get("w");
+
+            component.connect(SignalNames.PRESSED, first);
+            component.connect(SignalNames.PRESSED, second);
+            component.disconnect(SignalNames.PRESSED, first);
+            fixture.emit("w", SignalNames.PRESSED);
+
+            assertEquals(0, firstHits.get());
+            assertEquals(1, secondHits.get());
+        } finally {
+            fixture.close();
         }
     }
 

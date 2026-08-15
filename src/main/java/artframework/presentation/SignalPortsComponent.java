@@ -5,14 +5,12 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-/** Serializable declaration of signals an entity may emit or accept. */
+/** Serializable declaration of signals an entity may emit. */
 public final class SignalPortsComponent {
     public final List<String> emits;
-    public final List<String> accepts;
 
-    public SignalPortsComponent(List<String> emits, List<String> accepts) {
+    public SignalPortsComponent(List<String> emits) {
         this.emits = unique(emits);
-        this.accepts = unique(accepts);
     }
 
     public boolean canEmit(String signal) { return emits.contains(signal); }

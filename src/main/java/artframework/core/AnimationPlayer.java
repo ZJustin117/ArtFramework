@@ -179,7 +179,7 @@ public final class AnimationPlayer {
         Map<String, Float> fromSnapshot = captureFromSnapshot(anim);
         putPlayback(new AnimationPlaybackComponent(
                 name, 0f, true, false, playMode, 0, fromSnapshot));
-        fsm.setState(NodeStateMachine.STATE_PLAYING, false);
+        fsm.setState(NodeStateMachine.STATE_PLAYING);
         apply(anim, 0f);
         if (anim.duration <= 0.001f && anim.tracks.isEmpty() && !MODE_LOOP.equals(playMode)) {
             finish(anim);
@@ -193,7 +193,7 @@ public final class AnimationPlayer {
         }
         putPlayback(new AnimationPlaybackComponent(state.playing, state.elapsed, true, true,
                 state.playMode, state.loopsDone, state.fromSnapshot));
-        fsm.setState(NodeStateMachine.STATE_PAUSED, false);
+        fsm.setState(NodeStateMachine.STATE_PAUSED);
     }
 
     public void resume() {
@@ -203,7 +203,7 @@ public final class AnimationPlayer {
         }
         putPlayback(new AnimationPlaybackComponent(state.playing, state.elapsed, true, false,
                 state.playMode, state.loopsDone, state.fromSnapshot));
-        fsm.setState(NodeStateMachine.STATE_PLAYING, false);
+        fsm.setState(NodeStateMachine.STATE_PLAYING);
     }
 
     public void stop() {
@@ -213,7 +213,7 @@ public final class AnimationPlayer {
         }
         String name = state.playing;
         putPlayback(AnimationPlaybackComponent.idle());
-        fsm.setState(NodeStateMachine.STATE_IDLE, false);
+        fsm.setState(NodeStateMachine.STATE_IDLE);
         if (name != null) {
         }
     }
@@ -226,7 +226,7 @@ public final class AnimationPlayer {
         Animation anim = animations.get(state.playing);
         if (anim == null) {
             putPlayback(AnimationPlaybackComponent.idle());
-            fsm.setState(NodeStateMachine.STATE_IDLE, false);
+            fsm.setState(NodeStateMachine.STATE_IDLE);
             return;
         }
         if (deltaSeconds < 0f) {
@@ -257,7 +257,7 @@ public final class AnimationPlayer {
 
     private void finish(Animation anim) {
         putPlayback(AnimationPlaybackComponent.idle());
-        fsm.setState(NodeStateMachine.STATE_IDLE, false);
+        fsm.setState(NodeStateMachine.STATE_IDLE);
         if (!anim.next.isEmpty()) {
             play(anim.next, anim.nextMode);
         }

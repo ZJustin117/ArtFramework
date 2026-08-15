@@ -68,8 +68,7 @@ public final class UiNodeRegistry {
                                         artframework.core.AnimationPlayer.SIGNAL_CANCELLED,
                                         artframework.core.AnimationPlayer.SIGNAL_PAUSED,
                                         artframework.core.AnimationPlayer.SIGNAL_RESUMED,
-                                        artframework.core.AnimationPlayer.SIGNAL_LOOPED,
-                                        artframework.core.SignalNames.STATE_CHANGED))
+                                        artframework.core.AnimationPlayer.SIGNAL_LOOPED))
                         .build());
         registerBuiltin(
                 UiNodeType.builder(ArtNodeTypes.SHADER_EFFECT)

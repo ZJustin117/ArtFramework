@@ -135,6 +135,31 @@ raise SystemExit(0 if snapshot.get("observedState") == "READY" else 1)
 PY
 }
 
+probe_ready() {
+  PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 - "$ART_D1_SERIAL" "$ART_GAME_PROBE_PORT" <<'PY'
+import sys
+
+from scripts.tools.connector.client import ConnectorClient
+from scripts.tools.lib.agent_client import AgentClient
+
+serial, port = sys.argv[1], int(sys.argv[2])
+conn = ConnectorClient(auto_start=False)
+client = None
+try:
+    conn.connect()
+    conn.select(serial)
+    client = AgentClient(stream=conn.connect_stream(port=port))
+    raise SystemExit(0 if client.send("OBSERVE").startswith("STATE ") else 1)
+except Exception:
+    raise SystemExit(1)
+finally:
+    if client is not None:
+        client.close()
+    conn.close()
+PY
+}
+
 ready() {
   local timeout=120
   local interval=2
@@ -150,8 +175,12 @@ ready() {
   local payload
   if payload="$(status_payload)"; then
     print_result "$payload"
-    if is_ready "$payload"; then
+    if is_ready "$payload" && probe_ready; then
       return 0
+    fi
+    if is_ready "$payload"; then
+      # READY alone may be a non-debug launch, which has no game-probe server.
+      harness -Command stop >/dev/null
     fi
   fi
 

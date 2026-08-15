@@ -3,8 +3,10 @@ package artframework.c2;
 import artframework.api.UiOpResult;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
+import artframework.core.SignalDispatchResult;
 import artframework.core.SignalHub;
 import artframework.core.SignalNames;
+import artframework.core.SignalSubscription;
 import artframework.core.UiComponent;
 
 import java.util.ArrayList;
@@ -113,20 +115,21 @@ public final class NativeComponents {
         }
 
         @Override
-        public void connect(String signal, SignalHandler handler) {
+        public SignalSubscription connect(String signal, SignalHandler handler) {
             requireSignal(signal);
-            HUB.connect(id, signal, handler);
+            return HUB.connect(id, signal, handler);
         }
 
         @Override
         public void disconnect(String signal, SignalHandler handler) {
+            requireSignal(signal);
             HUB.disconnect(id, signal, handler);
         }
 
         @Override
-        public void emit(String signal, Object... args) {
+        public SignalDispatchResult emit(String signal, Object... args) {
             requireSignal(signal);
-            HUB.emit(id, signal, args);
+            return HUB.dispatch(id, signal, args);
         }
 
         private void requireSignal(String signal) {

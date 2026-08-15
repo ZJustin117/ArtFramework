@@ -19,11 +19,11 @@ public interface UiComponent {
 
     void unmount();
 
-    void connect(String signal, SignalHandler handler);
+    SignalSubscription connect(String signal, SignalHandler handler);
 
     void disconnect(String signal, SignalHandler handler);
 
-    void emit(String signal, Object... args);
+    SignalDispatchResult emit(String signal, Object... args);
 
     UiOpResult action(String name, Object... args);
 

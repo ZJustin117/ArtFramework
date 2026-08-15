@@ -7,8 +7,10 @@ import artframework.api.UiOpResult;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
 import artframework.core.ComponentKind;
+import artframework.core.SignalDispatchResult;
 import artframework.core.SignalHandler;
 import artframework.core.SignalNames;
+import artframework.core.SignalSubscription;
 import artframework.core.UiComponent;
 import artframework.ecs.EntityId;
 import artframework.ops.FakeNativeOps;
@@ -115,7 +117,7 @@ public class NativeComponentTest {
     public void nativeSignalConnect() {
         UiComponent map = ArtFramework.component(NativeTemplateIds.MAP);
         AtomicInteger n = new AtomicInteger();
-        map.connect(
+        SignalSubscription subscription = map.connect(
                 SignalNames.NODE_CLICKED,
                 new SignalHandler() {
                     @Override
@@ -123,8 +125,10 @@ public class NativeComponentTest {
                         n.incrementAndGet();
                     }
                 });
-        map.emit(SignalNames.NODE_CLICKED, new MapNodeRef(0, 0, "a"));
+        SignalDispatchResult result = map.emit(SignalNames.NODE_CLICKED, new MapNodeRef(0, 0, "a"));
         assertEquals(1, n.get());
+        assertFalse(result.isStopped());
+        subscription.disconnect();
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -133,6 +137,11 @@ public class NativeComponentTest {
             @Override
             public void handle(Object... args) {}
         });
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void nativeSignalDisconnectRejectsUndeclaredSignal() {
+        ArtFramework.component(NativeTemplateIds.MAP).disconnect("custom", args -> {});
     }
 
     private static void registerBind(String id) {

@@ -46,10 +46,11 @@ final class SignalBus {
             SignalDecision decision = entry.listener.onSignal(current);
             if (decision == null || decision.kind == SignalDecision.Kind.CONTINUE) continue;
             if (decision.kind == SignalDecision.Kind.REPLACE) {
-                if (decision.signal == null || !current.id.equals(decision.signal.id)
+                if (decision.signal == null || !current.group.equals(decision.signal.group)
+                        || !current.id.equals(decision.signal.id)
                         || !current.name.equals(decision.signal.name)) {
                     return new SignalDispatchResult(current, SignalDecision.Kind.STOP_REJECTED,
-                            "replacement must preserve signal id and name");
+                            "replacement must preserve signal group, id and name");
                 }
                 current = decision.signal;
                 continue;

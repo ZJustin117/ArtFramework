@@ -30,10 +30,11 @@ public final class SignalHub {
         if (nodePath == null || signal == null || handler == null) {
             throw new IllegalArgumentException("nodePath, signal, handler required");
         }
-        SignalSubscription subscription = SignalGroups.nativeGroup()
+        SignalSubscription busSubscription = SignalGroups.nativeGroup()
                 .connect(routeName(nodePath, signal), wrapHandler(handler));
-        registrations.add(new Registration(nodePath, signal, handler, subscription));
-        return subscription;
+        Registration registration = new Registration(nodePath, signal, handler, busSubscription);
+        registrations.add(registration);
+        return new ManagedSubscription(registration);
     }
 
     /**
@@ -44,9 +45,10 @@ public final class SignalHub {
         if (busName == null || busName.isEmpty() || listener == null) {
             throw new IllegalArgumentException("busName and listener required");
         }
-        SignalSubscription sub = SignalGroups.nativeGroup().connect(busName, listener);
-        registrations.add(new Registration("", busName, null, sub));
-        return sub;
+        SignalSubscription busSubscription = SignalGroups.nativeGroup().connect(busName, listener);
+        Registration registration = new Registration("", busName, null, busSubscription);
+        registrations.add(registration);
+        return new ManagedSubscription(registration);
     }
 
     /**
@@ -57,9 +59,10 @@ public final class SignalHub {
         if (pattern == null || listener == null) {
             throw new IllegalArgumentException("pattern and listener required");
         }
-        SignalSubscription sub = SignalGroups.nativeGroup().connect(pattern, listener);
-        registrations.add(new Registration("", pattern.pattern(), null, sub));
-        return sub;
+        SignalSubscription busSubscription = SignalGroups.nativeGroup().connect(pattern, listener);
+        Registration registration = new Registration("", pattern.pattern(), null, busSubscription);
+        registrations.add(registration);
+        return new ManagedSubscription(registration);
     }
 
     public void disconnect(String nodePath, String signal, SignalHandler handler) {
@@ -147,6 +150,23 @@ public final class SignalHub {
                 return SignalDecision.continueSignal();
             }
         };
+    }
+
+    private final class ManagedSubscription implements SignalSubscription {
+        private final Registration registration;
+
+        ManagedSubscription(Registration registration) {
+            this.registration = registration;
+        }
+
+        @Override public void disconnect() {
+            registration.subscription.disconnect();
+            registrations.remove(registration);
+        }
+
+        @Override public boolean isConnected() {
+            return registration.subscription.isConnected();
+        }
     }
 
     private static final class Registration {

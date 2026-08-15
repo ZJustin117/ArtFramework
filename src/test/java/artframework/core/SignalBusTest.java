@@ -83,4 +83,31 @@ public class SignalBusTest {
         assertFalse(firstSubscription.isConnected());
         assertTrue(secondSubscription.isConnected());
     }
+
+    @Test
+    public void directDisconnectRemovesHubRegistration() {
+        SignalHub hub = new SignalHub();
+        SignalSubscription subscription = hub.connect("button", "pressed", args -> {});
+        assertEquals(1, hub.handlerCount("button", "pressed"));
+
+        subscription.disconnect();
+
+        assertEquals(0, hub.handlerCount("button", "pressed"));
+        assertFalse(subscription.isConnected());
+    }
+
+    @Test
+    public void replacementMustStayInTheOriginalGroup() {
+        SignalGroup group = SignalGroups.get("group-a");
+        group.connect("op", signal -> SignalDecision.replace(
+                new UiSignal("group-b", signal.id, signal.name, signal.source,
+                        signal.payload, signal.metadata)));
+
+        SignalDispatchResult result = group.emit(new UiSignal(
+                "group-a", "id", "op", "source", null,
+                java.util.Collections.<String, Object>emptyMap()));
+
+        assertTrue(result.isRejected());
+        assertTrue(result.message.contains("group"));
+    }
 }

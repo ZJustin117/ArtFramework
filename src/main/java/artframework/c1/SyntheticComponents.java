@@ -4,6 +4,8 @@ import artframework.api.UiOpResult;
 import artframework.api.UiOps;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
+import artframework.core.SignalDispatchResult;
+import artframework.core.SignalSubscription;
 import artframework.core.UiComponent;
 import artframework.ecs.EntityId;
 import artframework.presentation.PresentationContext;
@@ -77,8 +79,8 @@ public final class SyntheticComponents {
         }
 
         @Override
-        public void connect(String signal, SignalHandler handler) {
-            PresentationRuntime.connect(context(), rootEntity(), signal, handler);
+        public SignalSubscription connect(String signal, SignalHandler handler) {
+            return PresentationRuntime.connect(context(), rootEntity(), signal, handler);
         }
 
         @Override
@@ -90,8 +92,8 @@ public final class SyntheticComponents {
         }
 
         @Override
-        public void emit(String signal, Object... args) {
-            PresentationRuntime.emit(context(), rootEntity(), signal, args);
+        public SignalDispatchResult emit(String signal, Object... args) {
+            return PresentationRuntime.dispatch(context(), rootEntity(), signal, args);
         }
 
         @Override

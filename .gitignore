@@ -46,10 +46,12 @@ debug-artifacts/
 /.codex_tmp/
 /.codenomad/
 
-# OpenCode: ignore caches/deps; keep shared agents + plugins
+# OpenCode: ignore caches/deps; keep shared agents, skills, and plugins
 /.opencode/*
 !/.opencode/agent/
 !/.opencode/agent/**
+!/.opencode/skills/
+!/.opencode/skills/**
 !/.opencode/plugins/
 !/.opencode/plugins/**
 !/.opencode/package.json

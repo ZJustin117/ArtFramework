@@ -63,6 +63,7 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 | `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist; scenarios other than `scripts/art-lab combat verify-full` | Pure API rules (junit); standard `ready` / `status` / `console` / `combat verify-full` wrapper operations; out-of-repo life/co-op |
 | `android-arthas` | Explicit bounded Android JVM diagnosis: threads, classloading, methods, traces, or bridge failures; default `start -> query -> stop` cleanup | Default gate; UI semantics; jar deploy; connector lifecycle; out-of-repo life/co-op |
 | `android-harness` | D1 logs/screenshots, `doctor` / `mods` / `set-mods`, or a bounded Harness command not exposed by `scripts/art-lab` | Standard `scripts/art-lab ready/status/stop/console/combat verify-full`; source edits; jar deploy; connector lifecycle; Arthas; out-of-repo life/co-op |
+| `art-reviewer` | Read-only, explicitly scoped refactor/diff review through the `refacter` skill; reports evidence-based findings | Source edits; task/ledger ownership; test/deploy gates; recursive delegation |
 
 **Do not add** dual-device **life** suites or protocol assertions here. Arthas is optional read-only JVM diagnostics, not a default ArtFramework gate; connector lifecycle and dual-device life stay outside this repository's default workflow. ArtFramework may run **single-device UI** smoke via `@art-verify`.
 
@@ -75,6 +76,18 @@ Read-only verification agents live in `.opencode/agent/*.md`. The **main agent w
 5. Prefer not running full suites in the parent session when subagents are available.
 6. Task resume: `task_id` only from a real `ses…` id; **omit `task_id` on new tasks** (do not invent UUIDs). Plugin strips non-`ses` ids.
 7. Missing env: scripts and subagents stop and list **key names**; parent must not invent absolute paths.
+
+### Refacter supervision
+
+- Long-running refactor state lives under `docs/refacter/<project-name>/`. Supplying that directory
+  with `@` resumes the project; read its project Markdown files before planning or editing.
+- Load the `refacter` skill for incomplete refactors, architecture migrations, ownership cleanup,
+  or explicit refactor review. The primary agent owns the depth-first review queue, edits, ledger,
+  and completion decisions.
+- `art-reviewer` is advisory and read-only. It reviews one frozen scope at a time and may not
+  delegate. A reviewer `PASS` never replaces JUnit, art-verify, deploy, or device evidence.
+- Persist before/after evidence, review session IDs, finding disposition, exact tests, blockers, and
+  the next action in the project directory before ending a refactor session.
 
 ## Code
 

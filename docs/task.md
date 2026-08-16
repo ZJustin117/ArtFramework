@@ -13,6 +13,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 - [x] `tools/art-verify` scaffold + offline unittest + `@art-verify` agent
 - [x] Design: `ui-ops-probe.md` + `ui-layer-verification.md` + dual-track roadmap 6–8
 - [x] Optional `@android-arthas` + `android-arthas.md` + `ART_ARTHAS_PORT` (not a default gate)
+- [x] OpenCode `refacter` supervision skill + read-only `@art-reviewer` + persistent project ledgers
 
 ## Product roadmap (from dual-track)
 
@@ -29,6 +30,9 @@ production phase, narrowing the last public render mutation boundaries, and remo
 stores that still have a concrete duplicate responsibility. This is approximately 80% of the
 broader traditional-ECS convergence: the remaining work is primarily strict schedule ownership
 and narrowing host execution boundaries.
+
+Persistent recursive review, before/after evidence, findings, and verification progress:
+[`docs/refacter/traditional-ecs/`](refacter/traditional-ecs/).
 
 - [x] 46.0 Define strict ECS contract; add data-only entity identity, component query, and
   ordered stateless system pipeline with JUnit

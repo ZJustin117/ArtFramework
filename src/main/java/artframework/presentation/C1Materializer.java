@@ -56,7 +56,7 @@ public final class C1Materializer {
         context.world().put(entity, SignalPortsComponent.class,
                 new SignalPortsComponent(declaration.signals));
         EffectsComponent effects = context.world().get(entity, EffectsComponent.class);
-        for (EffectDecl effect : resolvedEffects(declaration)) {
+        for (EffectDecl effect : resolvedEffects(context, declaration)) {
             effects = effects.withAttachment(new EffectAttachment(effect.id, effectLayer(effect), effect.params));
         }
         context.world().put(entity, EffectsComponent.class, effects);
@@ -125,9 +125,15 @@ public final class C1Materializer {
                         booleanProp(declaration, "owner", false) || booleanProp(declaration, "node_owned", false))));
     }
 
-    private static List<EffectDecl> resolvedEffects(UiNode declaration) {
+    private static List<EffectDecl> resolvedEffects(PresentationContext context, UiNode declaration) {
         List<EffectDecl> result = declaration.effects;
-        if (result == null || result.isEmpty()) result = artframework.core.PresentPackApply.effectDefaultsForType(declaration.type);
+        if (result == null || result.isEmpty()) {
+            result = artframework.core.PackEffectDefaults.forNodeType(context.world(), declaration.type);
+        }
+        if ((result == null || result.isEmpty())
+                && !artframework.core.PackEffectDefaults.hasContribution(context.world())) {
+            result = artframework.core.PresentPackApply.effectDefaultsForType(declaration.type);
+        }
         if (!ArtNodeTypes.SHADER_EFFECT.equals(declaration.type)) return result != null ? result : Collections.<EffectDecl>emptyList();
         String effectId = declaration.propString("effect", "");
         if (effectId.isEmpty()) return result != null ? result : Collections.<EffectDecl>emptyList();

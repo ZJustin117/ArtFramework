@@ -33,6 +33,8 @@ public final class PresentPack {
     public final boolean unregisterTemplatesOnDeactivate;
     public final boolean unregisterWindowsOnDeactivate;
     public final boolean autoCloseOnDeactivate;
+    /** Reversible runtime mutations contributed by this pack. */
+    public final List<PackOperation> operations;
 
     public PresentPack(
             String id,
@@ -49,11 +51,33 @@ public final class PresentPack {
             boolean unregisterTemplatesOnDeactivate,
             boolean unregisterWindowsOnDeactivate,
             boolean autoCloseOnDeactivate) {
+        this(id, profileId, version, provider, templates, windows, autoOpen, effectDefaults,
+                fullFrameEffects, bindSurfaces, surfaceEffects, unregisterTemplatesOnDeactivate,
+                unregisterWindowsOnDeactivate, autoCloseOnDeactivate,
+                Collections.<PackOperation>emptyList());
+    }
+
+    public PresentPack(
+            String id,
+            String profileId,
+            String version,
+            String provider,
+            List<TemplateEntry> templates,
+            List<WindowEntry> windows,
+            List<String> autoOpen,
+            Map<String, List<EffectDecl>> effectDefaults,
+            List<EffectDecl> fullFrameEffects,
+            List<String> bindSurfaces,
+            Map<String, List<EffectDecl>> surfaceEffects,
+            boolean unregisterTemplatesOnDeactivate,
+            boolean unregisterWindowsOnDeactivate,
+            boolean autoCloseOnDeactivate,
+            List<PackOperation> operations) {
         if (id == null || id.isEmpty()) {
             throw new IllegalArgumentException("pack id required");
         }
         this.id = id;
-        this.profileId = profileId != null ? profileId : "";
+        this.profileId = profileId == null ? "" : profileId.trim();
         this.version = version != null ? version : "";
         this.provider = provider != null ? provider : "";
         this.templates =
@@ -81,6 +105,9 @@ public final class PresentPack {
         this.unregisterTemplatesOnDeactivate = unregisterTemplatesOnDeactivate;
         this.unregisterWindowsOnDeactivate = unregisterWindowsOnDeactivate;
         this.autoCloseOnDeactivate = autoCloseOnDeactivate;
+        this.operations = normalizeOperations(id, this.effectDefaults, this.surfaceEffects,
+                this.fullFrameEffects, this.bindSurfaces, this.profileId, this.templates, this.windows,
+                unregisterTemplatesOnDeactivate, unregisterWindowsOnDeactivate, operations);
     }
 
     private static Map<String, List<EffectDecl>> freezeDefaults(
@@ -98,6 +125,111 @@ public final class PresentPack {
                     Collections.unmodifiableList(new ArrayList<EffectDecl>(e.getValue())));
         }
         return Collections.unmodifiableMap(m);
+    }
+
+    private static List<PackOperation> normalizeOperations(String packId,
+            Map<String, List<EffectDecl>> effectDefaults,
+            Map<String, List<EffectDecl>> surfaceEffects,
+            List<EffectDecl> fullFrameEffects,
+            List<String> bindSurfaces,
+            String profileId,
+            List<TemplateEntry> templates,
+            List<WindowEntry> windows,
+            boolean restoreTemplatesOnDisable,
+            boolean restoreWindowsOnDisable,
+            List<PackOperation> supplied) {
+        List<PackOperation> result = supplied != null
+                ? new ArrayList<PackOperation>(supplied) : new ArrayList<PackOperation>();
+        boolean hasDefaults = false;
+        boolean hasSurfaceEffects = false;
+        boolean hasFullFrameEffects = false;
+        boolean hasSurfaceBindings = false;
+        for (PackOperation operation : result) {
+            if (operation instanceof PackOperations.EffectDefaultsOperation) {
+                PackOperations.EffectDefaultsOperation effectOperation =
+                        (PackOperations.EffectDefaultsOperation) operation;
+                if (!packId.equals(effectOperation.packId)) {
+                    throw new IllegalArgumentException("effect-default operation pack id must match: " + packId);
+                }
+                if (hasDefaults) {
+                    throw new IllegalArgumentException("duplicate effect-default operation: " + packId);
+                }
+                hasDefaults = true;
+            }
+            if (operation instanceof PackOperations.SurfaceEffectsOperation) {
+                PackOperations.SurfaceEffectsOperation surfaceOperation =
+                        (PackOperations.SurfaceEffectsOperation) operation;
+                if (!packId.equals(surfaceOperation.packId)) {
+                    throw new IllegalArgumentException("surface-effects operation pack id must match: " + packId);
+                }
+                if (hasSurfaceEffects) {
+                    throw new IllegalArgumentException("duplicate surface-effects operation: " + packId);
+                }
+                hasSurfaceEffects = true;
+            }
+            if (operation instanceof PackOperations.FullFrameEffectsOperation) {
+                PackOperations.FullFrameEffectsOperation fullFrameOperation =
+                        (PackOperations.FullFrameEffectsOperation) operation;
+                if (!packId.equals(fullFrameOperation.packId)) {
+                    throw new IllegalArgumentException("full-frame operation pack id must match: " + packId);
+                }
+                if (hasFullFrameEffects) {
+                    throw new IllegalArgumentException("duplicate full-frame operation: " + packId);
+                }
+                hasFullFrameEffects = true;
+            }
+            if (operation instanceof PackOperations.SurfaceBindingsOperation) {
+                PackOperations.SurfaceBindingsOperation bindingOperation =
+                        (PackOperations.SurfaceBindingsOperation) operation;
+                if (!packId.equals(bindingOperation.packId)) {
+                    throw new IllegalArgumentException("surface-bind operation pack id must match: " + packId);
+                }
+                if (hasSurfaceBindings) {
+                    throw new IllegalArgumentException("duplicate surface-bind operation: " + packId);
+                }
+                hasSurfaceBindings = true;
+            }
+        }
+        if (!effectDefaults.isEmpty()) {
+            if (hasDefaults) {
+                throw new IllegalArgumentException("effectDefaults cannot accompany an explicit effect-default operation");
+            }
+            result.add(PackOperations.createEffectDefaults(
+                    packId + ".effect-defaults", packId, effectDefaults));
+        }
+        if (!surfaceEffects.isEmpty()) {
+            if (hasSurfaceEffects) {
+                throw new IllegalArgumentException("surfaceEffects cannot accompany an explicit surface-effects operation");
+            }
+            result.add(PackOperations.createSurfaceEffects(
+                    packId + ".surface-effects", packId, surfaceEffects));
+        }
+        if (!fullFrameEffects.isEmpty()) {
+            if (hasFullFrameEffects) {
+                throw new IllegalArgumentException("fullFrameEffects cannot accompany an explicit full-frame operation");
+            }
+            result.add(PackOperations.createFullFrameEffects(
+                    packId + ".full-frame-effects", packId, fullFrameEffects));
+        }
+        if (!bindSurfaces.isEmpty()) {
+            if (hasSurfaceBindings) {
+                throw new IllegalArgumentException("bindSurfaces cannot accompany an explicit surface-bind operation");
+            }
+            String resolvedProfile = profileId != null && !profileId.isEmpty() ? profileId : packId;
+            result.add(PackOperations.createSurfaceBindings(
+                    packId + ".surface-bindings", packId, resolvedProfile, bindSurfaces));
+        }
+        for (TemplateEntry template : templates) {
+            result.add(PackOperations.registerTemplateResource(
+                    packId + ".template." + template.name, template.name, template.resource,
+                    restoreTemplatesOnDisable));
+        }
+        for (WindowEntry window : windows) {
+            result.add(PackOperations.registerWindowResource(
+                    packId + ".window." + window.id, window.id, window.resource,
+                    restoreWindowsOnDisable));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     public List<EffectDecl> effectDefaultsFor(String type) {
@@ -187,6 +319,7 @@ public final class PresentPack {
         private boolean unregisterTemplatesOnDeactivate = true;
         private boolean unregisterWindowsOnDeactivate = false;
         private boolean autoCloseOnDeactivate = false;
+        private final List<PackOperation> operations = new ArrayList<PackOperation>();
 
         public Builder(String id) {
             this.id = id;
@@ -279,6 +412,13 @@ public final class PresentPack {
             return this;
         }
 
+        /** Adds a built-in reversible ECS/runtime operation contributed on enable. */
+        public Builder operation(PackOperation operation) {
+            if (operation == null) throw new IllegalArgumentException("operation required");
+            operations.add(operation);
+            return this;
+        }
+
         public PresentPack build() {
             return new PresentPack(
                     id,
@@ -294,7 +434,8 @@ public final class PresentPack {
                     surfaceEffects,
                     unregisterTemplatesOnDeactivate,
                     unregisterWindowsOnDeactivate,
-                    autoCloseOnDeactivate);
+                    autoCloseOnDeactivate,
+                    operations);
         }
     }
 }

@@ -118,9 +118,15 @@ public final class RenderPlan {
                         item.bounds, item.z, true, item.effects));
                 if (item.root) {
                     List<EffectAttachment> titleEffects = new ArrayList<EffectAttachment>();
-                    for (artframework.component.EffectDecl effect
-                            : artframework.core.PresentPackApply.effectDefaultsForType(
-                                    artframework.component.UiTypes.LABEL)) {
+                    List<artframework.component.EffectDecl> defaults =
+                            artframework.core.PackEffectDefaults.forNodeType(
+                                    visuals.world(), artframework.component.UiTypes.LABEL);
+                    if (defaults.isEmpty()
+                            && !artframework.core.PackEffectDefaults.hasContribution(visuals.world())) {
+                        defaults = artframework.core.PresentPackApply.effectDefaultsForType(
+                                artframework.component.UiTypes.LABEL);
+                    }
+                    for (artframework.component.EffectDecl effect : defaults) {
                         titleEffects.add(new EffectAttachment(effect.id, "ambient", effect.params));
                     }
                     entries.add(new Entry(c1TitleTargetId(item),

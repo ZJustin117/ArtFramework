@@ -1,6 +1,7 @@
 package artframework.core;
 
 import artframework.component.EffectDecl;
+import artframework.presentation.PresentationRegistry;
 import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
 import artframework.render.RenderStateEcs;
@@ -19,6 +20,8 @@ import java.util.Map;
 public final class PresentPackApply {
 
     private static final List<String> BOUND_SURFACES = new ArrayList<String>();
+    private static final Map<String, String> PREVIOUS_SURFACE_BINDINGS =
+            new LinkedHashMap<String, String>();
     private static final List<String> BOUND_C2_EFFECTS = new ArrayList<String>();
     private static boolean managedFullFrame;
 
@@ -51,7 +54,12 @@ public final class PresentPackApply {
     }
 
     private static void applyFullFrame(PresentPack pack) {
-        if (pack.fullFrameEffects.isEmpty()) {
+        List<EffectDecl> declarations = PackFullFrameEffects.effects(
+                PresentationRegistry.world(), pack.id);
+        if (!PackFullFrameEffects.hasContribution(PresentationRegistry.world(), pack.id)) {
+            declarations = pack.fullFrameEffects;
+        }
+        if (declarations.isEmpty()) {
             return;
         }
         try {
@@ -65,7 +73,7 @@ public final class PresentPackApply {
                 h = 1080f;
             }
             List<EffectAttachment> effects = new ArrayList<EffectAttachment>();
-            for (EffectDecl d : pack.fullFrameEffects) {
+            for (EffectDecl d : declarations) {
                 Map<String, Object> params = new LinkedHashMap<String, Object>();
                 if (d.params != null) {
                     params.putAll(d.params);
@@ -81,6 +89,19 @@ public final class PresentPackApply {
     }
 
     private static void applySurfaceBinds(PresentPack pack) {
+        Map<String, String> bindings = PackSurfaceBindings.forPack(
+                PresentationRegistry.world(), pack.id);
+        if (PackSurfaceBindings.hasContribution(PresentationRegistry.world(), pack.id)) {
+            for (Map.Entry<String, String> entry : bindings.entrySet()) {
+                try {
+                    rememberPreviousBinding(entry.getKey());
+                    SurfacePresent.bind(entry.getKey(), entry.getValue());
+                    BOUND_SURFACES.add(entry.getKey());
+                } catch (RuntimeException ignored) {
+                }
+            }
+            return;
+        }
         String profile =
                 pack.profileId != null && !pack.profileId.isEmpty() ? pack.profileId : pack.id;
         if (!PresentProfiles.contains(profile)) {
@@ -88,7 +109,8 @@ public final class PresentPackApply {
         }
         for (String sid : pack.bindSurfaces) {
             try {
-                SurfacePresent.bind(sid, profile);
+                    rememberPreviousBinding(sid);
+                    SurfacePresent.bind(sid, profile);
                 BOUND_SURFACES.add(sid);
             } catch (RuntimeException ignored) {
             }
@@ -96,6 +118,17 @@ public final class PresentPackApply {
     }
 
     private static void applyC2SurfaceEffects(PresentPack pack) {
+        if (PackSurfaceEffects.hasContribution(PresentationRegistry.world())) {
+            for (String surfaceId : PackSurfaceEffects.surfaceIds(PresentationRegistry.world())) {
+                List<EffectAttachment> effects = toAttachments(
+                        PackSurfaceEffects.forSurface(PresentationRegistry.world(), surfaceId));
+                if (!effects.isEmpty()) {
+                    RenderStateEcs.surfaceEffects(surfaceId, effects);
+                    BOUND_C2_EFFECTS.add(surfaceId);
+                }
+            }
+            return;
+        }
         if (pack.surfaceEffects.isEmpty()) {
             return;
         }
@@ -105,17 +138,22 @@ public final class PresentPackApply {
                 continue;
             }
             try {
-                List<EffectAttachment> effects = new ArrayList<EffectAttachment>();
-                for (artframework.component.EffectDecl d : entry.getValue()) {
-                    String layer = d.params != null && d.params.get("layer") != null
-                            ? String.valueOf(d.params.get("layer")) : "ambient";
-                    effects.add(new EffectAttachment(d.id, layer, d.params));
-                }
+                List<EffectAttachment> effects = toAttachments(entry.getValue());
                 RenderStateEcs.surfaceEffects(entry.getKey(), effects);
                 BOUND_C2_EFFECTS.add(entry.getKey());
             } catch (RuntimeException ignored) {
             }
         }
+    }
+
+    private static List<EffectAttachment> toAttachments(List<artframework.component.EffectDecl> declarations) {
+        List<EffectAttachment> effects = new ArrayList<EffectAttachment>();
+        for (artframework.component.EffectDecl d : declarations) {
+            String layer = d.params != null && d.params.get("layer") != null
+                    ? String.valueOf(d.params.get("layer")) : "ambient";
+            effects.add(new EffectAttachment(d.id, layer, d.params));
+        }
+        return effects;
     }
 
     private static void resyncOpenC1Render() {
@@ -125,11 +163,14 @@ public final class PresentPackApply {
     private static void clearManagedAmbient() {
         for (String sid : new ArrayList<String>(BOUND_SURFACES)) {
             try {
-                SurfacePresent.unbind(sid);
+                String previous = PREVIOUS_SURFACE_BINDINGS.get(sid);
+                if (previous == null) SurfacePresent.unbind(sid);
+                else SurfacePresent.bind(sid, previous);
             } catch (RuntimeException ignored) {
             }
         }
         BOUND_SURFACES.clear();
+        PREVIOUS_SURFACE_BINDINGS.clear();
         for (String sid : new ArrayList<String>(BOUND_C2_EFFECTS)) {
             RenderStateEcs.removeSurface(sid);
         }
@@ -137,6 +178,12 @@ public final class PresentPackApply {
         if (managedFullFrame) {
             RenderStateEcs.removeFullFrame();
             managedFullFrame = false;
+        }
+    }
+
+    private static void rememberPreviousBinding(String surfaceId) {
+        if (!PREVIOUS_SURFACE_BINDINGS.containsKey(surfaceId)) {
+            PREVIOUS_SURFACE_BINDINGS.put(surfaceId, SurfacePresent.profileId(surfaceId));
         }
     }
 

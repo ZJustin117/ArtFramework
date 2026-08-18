@@ -404,3 +404,153 @@ Use stable IDs and preserve rejected findings with evidence:
   immutable property values; TE-13 only closes the additional runtime declaration retention
   boundary. Broader lifecycle, recreation, serialization, host-adapter, and device behavior remain
   outside this focused scope.
+
+## Round R15 - PresentPack operation runtime
+
+- Ledger row: `TE-14`
+- Sessions: baseline/fix closure `ses_fec6dfe63ffeOjw8psACMBg7WM`; JUnit gates
+  `ses_fec6dfe8bffe8hT94heG91gMie`, `ses_fec67c140ffeGbAqqwGpl7CDAc`, and
+  `ses_fec6134e9ffeMMw1SjQmr1atbp`
+- Scope: `PackWorld` operation transaction foundation; fixed-phase `PackSystems`; reversible
+  ECS component, HostAssets, template/window operation adapters; `PresentPacks` runtime bridge;
+  compatibility constructor; focused pack/runtime tests
+- Result: PASS after TE-14-01 through TE-14-04 fixes and closure review
+- Governing claim: a pack enables through one reversible, dependency-checked operation boundary.
+  Components remain ECS data, systems run only through fixed schedule phases, and HostAssets plus
+  registration domains retain their own authority while participating in the same transaction.
+- Findings:
+  - `TE-14-01` high, accepted, fixed, verified: failed activation formerly left templates/windows
+    installed. Legacy load now snapshots and restores replacement registrations, including an
+    existing host or pack registration, on failure.
+  - `TE-14-02` high, accepted, fixed, verified: rollback now attempts every undo in reverse order,
+    preserves the first cleanup failure with later failures suppressed, and retains the operation
+    record until disable succeeds.
+  - `TE-14-03` medium, accepted, fixed, verified: duplicate phase/system IDs reject regardless of
+    Java instance identity, preserving the original enabled system.
+  - `TE-14-04` medium, accepted, fixed, verified: the former public `PresentPack` constructor is
+    retained and delegates with an empty immutable operation list.
+- Verification: focused `PackWorldTest` passed seven cases; focused `PresentPackTest` passed,
+  including failed replacement restoration and compatibility construction. Final
+  `./scripts/with-art-env.sh test` passed 643/643 with 0 failures, errors, or ignored tests.
+- Closure review: resumed session `ses_fec6dfe63ffeOjw8psACMBg7WM` returned PASS.
+- Residual risk: templates, windows, and ambient legacy fields are snapshot-reversible but still
+  execute through `PresentPacks` / `PresentPackApply`, not direct `PackWorld` operation entries.
+  Their incremental migration is independently tracked as TE-15; no device gate applies to this
+  pure runtime/API foundation.
+
+## Round R16 - Lightwave C1 default-effect declaration migration
+
+- Ledger row: `TE-15`
+- Session: initial review and pending closure `ses_fec440784ffeq6ueWYJWoYzX6Y`
+- Scope: `PackEffectDefaultsComponent`, `PackEffectDefaults`, normalized PresentPack operation
+  creation, C1 materialization, title render planning, and focused tests
+- Result: PASS after TE-15-01 through TE-15-04 fixes
+- Governing claim: enabled pack C1 defaults are immutable ECS contributions, not an independent
+  `PresentPackApply` authority; every construction path has one matching reversible contribution.
+- Findings:
+  - `TE-15-01` high, accepted, fixed, verified: the legacy public `PresentPack` constructor did not
+    compile non-empty defaults into an operation. Both constructors now normalize defaults into one
+    matching contribution; lifecycle coverage is in `PackEffectDefaultsTest`.
+  - `TE-15-02` high, accepted, fixed, verified: explicit default operations could duplicate the
+    builder-generated contribution or claim another owner. The dedicated operation is normalized and
+    duplicate/foreign-owner declarations are rejected.
+  - `TE-15-03` high, accepted, fixed, verified: generic Component CRUD could bypass the dedicated
+    contribution boundary. `PackOperations.createComponent/updateComponent` now reject the reserved
+    `PackEffectDefaultsComponent` type; focused tests cover both writers.
+  - `TE-15-04` medium, accepted, fixed, verified: an empty ECS contribution previously could still
+    trigger the legacy facade fallback. `PackEffectDefaults.hasContribution` now separates
+    contribution presence from matching values; C1 materialization and RenderPlan only use legacy
+    fallback when no migrated contribution exists. Consumer-level tests cover both paths.
+- Verification: focused tests passed; final `./scripts/with-art-env.sh test` passed 648/648 with
+  0 failures, errors, or ignored tests. Focused consumer tests and `git diff --check` passed.
+- Closure review: independent focused session `ses_fec046d66ffeJyPY9JKXGRlqYL` returned PASS.
+- Residual risk: broader pack declarations (`surfaceEffects`, `fullFrameEffects`, `bindSurfaces`,
+  templates, and windows) still use legacy field-specific activation paths and are tracked for TE-16.
+  No device gate applies to this pure ECS/API slice.
+
+## Round R17 - C2 surface-effect declaration migration
+
+- Ledger row: `TE-16`
+- Session: initial/fix review `ses_febe8845cffeRibFYWggCODumL`
+- Scope: `PackSurfaceEffectsComponent`, `PackSurfaceEffects`, normalized `PresentPack.surfaceEffects`
+  operation creation, `PresentationVisuals`, `PresentPackApply`, and focused C2 surface tests
+- Result: PASS after TE-16-01 and stale-effect lifecycle fixes
+- Governing claim: enabled C2 surface effects are immutable ECS contributions created and removed by
+  PackWorld, and legacy `pack.surfaceEffects` is only a fallback when no migrated contribution exists.
+- Findings:
+  - `TE-16-01` high, accepted, fixed, verified: ECS-first projection iterated legacy
+    `pack.surfaceEffects.keySet()`, so explicit migrated operations with empty legacy fields would
+    not project to `RenderStateEcs`. `PackSurfaceEffects` now exposes ECS-contributed surface IDs and
+    `PresentPackApply` iterates those IDs.
+- Additional closure finding, medium, accepted, fixed, verified: existing C2 item entities could retain
+  stale prior pack ambient effects across contribution switches. `PresentationVisuals` now tracks and
+  removes prior pack surface-effect IDs before applying the current contribution.
+- Verification: focused `PackSurfaceEffectsTest`, `C2LightwaveSurfaceTest`, and
+  `PresentationVisualsTest` passed after the fixes. Final `./scripts/with-art-env.sh test` passed
+  653/653 with 0 failures, errors, or ignored tests. `git diff --check` passed.
+- Closure review: independent focused session `ses_febccdc99ffezoyu6y3HBfq1Uv` returned PASS.
+- Residual risk: broader pack declarations (`fullFrameEffects`, `bindSurfaces`, templates, and windows)
+  still use field-specific activation paths and are tracked for TE-17. No device gate applies to this
+  pure ECS/API slice.
+
+## Round R18 - Full-frame effect declaration migration
+
+- Ledger row: `TE-17`
+- Sessions: initial review `ses_feb7459e1ffeD5uau4E9RQa3cI`; closure `ses_feb688398ffeUrHe3cHiRN6j4f`
+- Scope: `PackFullFrameEffectsComponent`, `PackFullFrameEffects`, normalized full-frame operation,
+  `PresentPackApply.applyFullFrame`, and focused full-frame tests
+- Result: PASS after TE-17-01/02 fixes
+- Governing claim: enabled pack full-frame effects are immutable ECS contributions and the host-facing
+  `FullFrameRenderComponent` is projected from current ECS contribution data.
+- Findings:
+  - `TE-17-01` high, accepted, fixed, verified: deactivation now clears active identity and the
+    host-facing full-frame projection in `finally`, while failed undo state remains recoverable and
+    reset can discard irrecoverable test residue.
+  - `TE-17-02` medium, accepted, fixed, verified: full-frame resolution and projection filter by
+    active pack owner and no longer aggregate unrelated enabled pack contributions.
+- Verification: focused `PackFullFrameEffectsTest`, `PresentPackFullFrameLifecycleTest`,
+  `PresentPackTest`, and `FullFrameTest` passed; final `./scripts/with-art-env.sh test` passed
+  656/656 with 0 failures, errors, or ignored tests.
+- Closure review: independent focused session `ses_feb688398ffeUrHe3cHiRN6j4f` returned PASS.
+- Residual risk: `bindSurfaces`, templates, and windows remain outside this slice and are tracked as
+  TE-18 and TE-19.
+
+## Round R19 - Bind-surface declaration migration
+
+- Ledger row: `TE-18`
+- Session: pending focused review
+- Scope: `PackSurfaceBindingsComponent`, `PackSurfaceBindings`, normalized bind-surface operation,
+  `PresentPackApply.applySurfaceBinds`, and focused binding/C2 tests
+- Result: PASS
+- Governing claim: pack surface profile bindings are immutable owner-scoped ECS contributions;
+  `SurfacePresent` is the host-facing ECS projection and legacy field fallback is transitional only.
+- Findings:
+  - `R19-01` high, accepted, fixed, verified: empty owner contributions now count as present and
+    suppress legacy fallback independently of resolved binding values.
+  - `R19-02` medium, accepted, fixed, verified: `PresentPack.profileId` is trimmed at construction,
+    keeping migrated and fallback projection paths consistent.
+  - `R19-03` medium, accepted, fixed, verified: cleanup now snapshots and restores pre-existing
+    `SurfacePresent` bindings instead of blindly unbinding them.
+- Verification: focused `PackSurfaceBindingsTest`, `PresentPackTest`, `C2LightwaveSurfaceTest`,
+  and `LightwaveCoverageTest` passed; `PackSurfaceBindingsTest` now covers both reserved generic
+  create and update paths; final `./scripts/with-art-env.sh test` passed 665/665 with
+  0 failures, errors, or ignored tests.
+- Closure review: `ses_feaf2772fffefqWiEkMCH89Rt4` returned PASS with no findings.
+- Residual risk: templates/windows were migrated separately under TE-19.
+
+## Round R20 - Template/window registration migration
+
+- Ledger row: `TE-19`
+- Session: pending focused review
+- Scope: resource-backed template/window registration, unified PackWorld operation log, and
+  normal deactivation versus failed-enable restoration policies
+- Result: PASS
+- Findings:
+  - `TE-19-01` high, fixed: activation failures after operation enable now use `PackWorld.abort`,
+    forcing template/window restoration even when normal deactivation flags retain registrations.
+  - `TE-19-02` medium, fixed: abort removes the enabled record in `finally` and appends rollback
+    failures as suppressed exceptions to the original activation failure.
+- Verification: `PresentPackTest.declarationsBecomeOperationsAndRespectDeactivateRegistrationPolicies`
+  passed; final `./scripts/with-art-env.sh test` passed 665/665 with 0 failures, errors, or ignored.
+- Closure review: independent session `ses_feb0dfa7cffe9xW4r6c5u1WOtY` returned PASS with no
+  findings.

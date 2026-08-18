@@ -1,17 +1,10 @@
 package artframework.core;
 
 import artframework.api.ArtFramework;
-import artframework.api.WindowClass;
-import artframework.api.WindowDef;
-import artframework.component.ComponentRegistry;
-import artframework.component.LmlUiNodeLoader;
-import artframework.component.UiNode;
-import artframework.component.UiNodeLoader;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,10 +17,6 @@ import java.util.regex.Pattern;
 public final class PresentPacks {
 
     private static final Map<String, PresentPack> BY_ID = new LinkedHashMap<String, PresentPack>();
-    private static final Map<String, Set<String>> OWNED_TEMPLATES =
-            new LinkedHashMap<String, Set<String>>();
-    private static final Map<String, Set<String>> OWNED_WINDOWS =
-            new LinkedHashMap<String, Set<String>>();
     private static String activePackId = "";
 
     private PresentPacks() {}
@@ -84,16 +73,25 @@ public final class PresentPacks {
             throw new IllegalArgumentException("unknown present pack: " + packId);
         }
         if (packId.equals(activePackId)) {
-            ensureLoaded(pack);
             PresentPackApply.syncFromActivePack();
             return;
         }
         if (!activePackId.isEmpty()) {
             deactivate(activePackId);
         }
-        ensureLoaded(pack);
-        activePackId = pack.id;
-        PresentPackApply.syncFromActivePack();
+        try {
+            activePackId = pack.id;
+            PresentPackRuntime.enable(pack);
+            PresentPackApply.syncFromActivePack();
+        } catch (RuntimeException e) {
+            activePackId = "";
+            try {
+                PresentPackRuntime.abort(pack.id);
+            } catch (RuntimeException rollbackFailure) {
+                e.addSuppressed(rollbackFailure);
+            }
+            throw e;
+        }
         for (String win : pack.autoOpen) {
             try {
                 if (ArtFramework.isRegistered(win) && !ArtFramework.listOpenIds().contains(win)) {
@@ -142,84 +140,39 @@ public final class PresentPacks {
             }
             return;
         }
-        if (pack.autoCloseOnDeactivate) {
-            for (String win : pack.autoOpen) {
-                try {
-                    ArtFramework.close(win);
-                } catch (RuntimeException ignored) {
-                }
-            }
-            Set<String> ownedW = OWNED_WINDOWS.get(packId);
-            if (ownedW != null) {
-                for (String win : ownedW) {
+        RuntimeException failure = null;
+        try {
+            PresentPackRuntime.disable(packId);
+        } catch (RuntimeException e) {
+            failure = e;
+        } finally {
+            if (pack.autoCloseOnDeactivate) {
+                for (String win : pack.autoOpen) {
                     try {
                         ArtFramework.close(win);
                     } catch (RuntimeException ignored) {
                     }
                 }
-            }
-        }
-        if (pack.unregisterTemplatesOnDeactivate) {
-            Set<String> owned = OWNED_TEMPLATES.get(packId);
-            if (owned != null) {
-                ComponentRegistry reg = ComponentRegistry.global();
-                for (String name : owned) {
-                    reg.unregister(name);
+                for (PresentPack.WindowEntry window : pack.windows) {
+                    try {
+                        ArtFramework.close(window.id);
+                    } catch (RuntimeException ignored) {
+                    }
                 }
             }
-            OWNED_TEMPLATES.remove(packId);
-        }
-        if (pack.unregisterWindowsOnDeactivate) {
-            Set<String> owned = OWNED_WINDOWS.get(packId);
-            if (owned != null) {
-                for (String win : owned) {
-                    ArtFramework.unregisterWindow(win);
+            if (packId.equals(activePackId)) {
+                activePackId = "";
+                try {
+                    PresentPackApply.syncFromActivePack();
+                } catch (RuntimeException e) {
+                    if (failure == null) failure = e;
+                    else failure.addSuppressed(e);
                 }
             }
-            OWNED_WINDOWS.remove(packId);
         }
-        if (packId.equals(activePackId)) {
-            activePackId = "";
-            PresentPackApply.syncFromActivePack();
-        }
+        if (failure != null) throw failure;
     }
 
-    private static void ensureLoaded(PresentPack pack) {
-        Set<String> tOwned = OWNED_TEMPLATES.get(pack.id);
-        if (tOwned == null) {
-            tOwned = new LinkedHashSet<String>();
-            OWNED_TEMPLATES.put(pack.id, tOwned);
-        }
-        ComponentRegistry reg = ComponentRegistry.global();
-        for (PresentPack.TemplateEntry te : pack.templates) {
-            UiNode root = loadLayoutResource(te.resource);
-            reg.register(te.name, root);
-            tOwned.add(te.name);
-        }
-        Set<String> wOwned = OWNED_WINDOWS.get(pack.id);
-        if (wOwned == null) {
-            wOwned = new LinkedHashSet<String>();
-            OWNED_WINDOWS.put(pack.id, wOwned);
-        }
-        for (PresentPack.WindowEntry we : pack.windows) {
-            ArtFramework.register(new WindowDef(we.id, WindowClass.SYNTHETIC, we.resource));
-            wOwned.add(we.id);
-        }
-    }
-
-    private static UiNode loadLayoutResource(String resource) {
-        if (resource == null || resource.isEmpty()) {
-            throw new IllegalArgumentException("layout resource required");
-        }
-        String lower = resource.toLowerCase();
-        if (lower.endsWith(".lml") || lower.endsWith(".xml")) {
-            return LmlUiNodeLoader.loadClasspath(resource);
-        }
-        if (lower.endsWith(".json") || !resource.contains(".")) {
-            return UiNodeLoader.loadClasspath(resource);
-        }
-        throw new IllegalArgumentException("unsupported layout format: " + resource);
-    }
 
     public static List<String> idsMatching(String regex) {
         Pattern p = compile(regex);
@@ -243,10 +196,7 @@ public final class PresentPacks {
             one.put("active", Boolean.valueOf(pack.id.equals(activePackId)));
             one.put(
                     "templatesLoaded",
-                    Integer.valueOf(
-                            OWNED_TEMPLATES.containsKey(pack.id)
-                                    ? OWNED_TEMPLATES.get(pack.id).size()
-                                    : 0));
+                    Integer.valueOf(PresentPackRuntime.isEnabled(pack.id) ? pack.templates.size() : 0));
             byId.put(pack.id, one);
         }
         m.put("byId", byId);
@@ -304,10 +254,9 @@ public final class PresentPacks {
             }
         }
         BY_ID.clear();
-        OWNED_TEMPLATES.clear();
-        OWNED_WINDOWS.clear();
         activePackId = "";
         PresentPackApply.resetForTests();
+        PresentPackRuntime.resetForTests();
     }
 
     private static Pattern compile(String regex) {

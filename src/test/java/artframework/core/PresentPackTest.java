@@ -71,6 +71,93 @@ public class PresentPackTest {
     }
 
     @Test
+    public void declarationsBecomeOperationsAndRespectDeactivateRegistrationPolicies() {
+        PresentPack retained = PresentPack.builder("mod.retained")
+                .template("mod.retained.t", "present-packs/lightwave/panel_chrome.json")
+                .window("mod_retained_window", "layouts/demo.json")
+                .unregisterTemplatesOnDeactivate(false)
+                .unregisterWindowsOnDeactivate(false)
+                .build();
+        assertEquals(2, retained.operations.size());
+
+        PresentPacks.register(retained);
+        PresentPacks.activate(retained.id);
+        PresentPacks.deactivate(retained.id);
+        assertTrue(ComponentRegistry.global().contains("mod.retained.t"));
+        assertTrue(ArtFramework.isRegistered("mod_retained_window"));
+
+        PresentPack removable = PresentPack.builder("mod.removable")
+                .template("mod.removable.t", "present-packs/lightwave/panel_chrome.json")
+                .window("mod_removable_window", "layouts/demo.json")
+                .unregisterTemplatesOnDeactivate(true)
+                .unregisterWindowsOnDeactivate(true)
+                .build();
+        PresentPacks.register(removable);
+        PresentPacks.activate(removable.id);
+        PresentPacks.deactivate(removable.id);
+        assertFalse(ComponentRegistry.global().contains("mod.removable.t"));
+        assertFalse(ArtFramework.isRegistered("mod_removable_window"));
+    }
+
+    @Test
+    public void failedActivationRestoresLegacyTemplateAndWindowRegistrations() {
+        PresentPack pack = PresentPack.builder("mod.failed")
+                .template("mod.failed.t", "present-packs/lightwave/panel_chrome.json")
+                .window("mod_failed_window", "layouts/demo.json")
+                .operation(PackOperations.fail("mod.failed.operation", "reject activation"))
+                .build();
+        PresentPacks.register(pack);
+
+        try {
+            PresentPacks.activate(pack.id);
+            fail("expected activation failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("reject activation"));
+        }
+        assertEquals("", PresentPacks.activeId());
+        assertFalse(PresentPackRuntime.isEnabled(pack.id));
+        assertFalse(ComponentRegistry.global().contains("mod.failed.t"));
+        assertFalse(ArtFramework.isRegistered("mod_failed_window"));
+    }
+
+    @Test
+    public void failedActivationRestoresReplacedTemplateAndWindowRegistrations() {
+        UiNode originalTemplate = UiNode.of(UiTypes.LABEL).id("original").build();
+        ComponentRegistry.global().register("mod.shared.template", originalTemplate);
+        WindowDef originalWindow = new WindowDef("mod_shared_window", WindowClass.SYNTHETIC,
+                "layouts/demo.json");
+        ArtFramework.register(originalWindow);
+        PresentPack pack = PresentPack.builder("mod.replace-failed")
+                .template("mod.shared.template", "present-packs/lightwave/panel_chrome.json")
+                .window("mod_shared_window", "layouts/lightwave_demo.json")
+                .operation(PackOperations.fail("mod.replace-failed.operation", "reject replacement"))
+                .build();
+        PresentPacks.register(pack);
+
+        try {
+            PresentPacks.activate(pack.id);
+            fail("expected activation failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("reject replacement"));
+        }
+        assertEquals(originalTemplate, ComponentRegistry.global().get("mod.shared.template"));
+        assertEquals(originalWindow, ArtFramework.registeredWindow("mod_shared_window"));
+    }
+
+    @Test
+    public void legacyConstructorCompilesEffectDefaultsIntoOneOperation() {
+        PresentPack pack = new PresentPack("mod.compat", "", "", "",
+                Collections.<PresentPack.TemplateEntry>emptyList(),
+                Collections.<PresentPack.WindowEntry>emptyList(), Collections.<String>emptyList(),
+                Collections.singletonMap("panel", Collections.singletonList(
+                        new artframework.component.EffectDecl("lightwave", Collections.<String, Object>emptyMap()))),
+                Collections.<artframework.component.EffectDecl>emptyList(), Collections.<String>emptyList(),
+                Collections.<String, List<artframework.component.EffectDecl>>emptyMap(),
+                true, false, false);
+        assertEquals(1, pack.operations.size());
+    }
+
+    @Test
     public void projectPresentActivatesPackByPackId() {
         Theme t = LightwaveTheme.createDefault();
         t.setName("mod.linked");

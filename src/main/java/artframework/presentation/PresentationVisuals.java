@@ -2,6 +2,7 @@ package artframework.presentation;
 
 import artframework.component.EffectDecl;
 import artframework.component.Rect;
+import artframework.core.PackSurfaceEffects;
 import artframework.core.PresentChromeStyle;
 import artframework.core.PresentPack;
 import artframework.core.PresentPacks;
@@ -59,10 +60,21 @@ public final class PresentationVisuals {
                 new ChromeComponent(style.panelR, style.panelG, style.panelB, style.panelAlpha,
                         style.borderR, style.borderG, style.borderB, style.borderA, style.borderWidth));
         EffectsComponent effects = context.world().get(entity, EffectsComponent.class);
+        PackSurfaceEffectIdsComponent previous =
+                context.world().get(entity, PackSurfaceEffectIdsComponent.class);
+        if (previous != null) {
+            for (String effectId : previous.effectIds()) {
+                effects = effects.without(effectId, "ambient");
+            }
+        }
+        java.util.List<String> appliedIds = new java.util.ArrayList<String>();
         for (EffectDecl effect : effectsFor(surfaceId)) {
             effects = effects.withAttachment(new EffectAttachment(effect.id, "ambient", effect.params));
+            appliedIds.add(effect.id);
         }
         context.world().put(entity, EffectsComponent.class, effects);
+        context.world().put(entity, PackSurfaceEffectIdsComponent.class,
+                new PackSurfaceEffectIdsComponent(appliedIds));
         return entity;
     }
 
@@ -96,9 +108,12 @@ public final class PresentationVisuals {
     }
 
     private static List<EffectDecl> effectsFor(String surfaceId) {
+        PresentationContext context = PresentationRegistry.context(CONTEXT);
+        List<EffectDecl> effects = PackSurfaceEffects.forSurface(context.world(), surfaceId);
+        if (!effects.isEmpty() || PackSurfaceEffects.hasContribution(context.world())) return effects;
         PresentPack pack = PresentPacks.active();
         if (pack == null) return java.util.Collections.emptyList();
-        List<EffectDecl> effects = pack.surfaceEffects.get(surfaceId);
-        return effects != null ? effects : java.util.Collections.<EffectDecl>emptyList();
+        List<EffectDecl> legacy = pack.surfaceEffects.get(surfaceId);
+        return legacy != null ? legacy : java.util.Collections.<EffectDecl>emptyList();
     }
 }

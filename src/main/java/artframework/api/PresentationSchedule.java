@@ -15,6 +15,8 @@ import artframework.presentation.PresentationRegistry;
 import artframework.core.AnimationPlaybackSystem;
 import artframework.core.EffectPulseSystem;
 import artframework.core.HostBackendTickSystem;
+import artframework.core.PackSystemPhase;
+import artframework.core.PackSystems;
 import artframework.ecs.ArtEcs;
 import artframework.ecs.EcsPipeline;
 import artframework.ecs.EcsTick;
@@ -106,21 +108,26 @@ public final class PresentationSchedule {
                     case WORLD_NORMALIZATION:
                         // World systems run once. All registered scopes share ArtEcs.world().
                         run(tick, controls);
+                        runAll(tick, PackSystemPhase.WORLD_NORMALIZATION);
                         break;
                     case ANIMATION:
                         run(tick, animation);
+                        runAll(tick, PackSystemPhase.ANIMATION);
                         break;
                     case EFFECTS:
                         run(tick, effects);
+                        runAll(tick, PackSystemPhase.EFFECTS);
                         break;
                     case HOST_PRESENTATION:
                         if (hostPresentationSystem != null) {
                             hostPresentationSystem.tick(deltaSeconds);
                         }
                         run(tick, skeletonSystem());
+                        runAll(tick, PackSystemPhase.HOST_PRESENTATION);
                         break;
                     case RENDER_PROJECTION:
                         run(tick, renderProjection);
+                        runAll(tick, PackSystemPhase.RENDER_PROJECTION);
                         break;
                     case RENDER_CLOCK:
                         run(tick, renderClock);
@@ -168,6 +175,10 @@ public final class PresentationSchedule {
                 java.util.Collections.singletonList(system));
     }
 
+    private static void runAll(EcsTick tick, PackSystemPhase phase) {
+        EcsPipeline.run(ArtEcs.world(), tick, PackSystems.systemsFor(phase));
+    }
+
     private void runAuthorityProjection(EcsTick tick, EntityId authorityEntity) {
         try {
             run(tick, authority);
@@ -201,5 +212,6 @@ public final class PresentationSchedule {
         sequence = 0L;
         hostPresentationSystem = null;
         RenderProjectionQueue.resetForTests();
+        PackSystems.resetForTests();
     }
 }

@@ -86,6 +86,11 @@ public final class ArtFramework {
         return canon != null && DEFS.containsKey(canon);
     }
 
+    /** Registered definition lookup for reversible host registration operations. */
+    public static WindowDef registeredWindow(String id) {
+        return defOf(id);
+    }
+
     /** Remove a window def (PresentPack deactivate). Closes if open. */
     public static void unregisterWindow(String id) {
         if (id == null || id.isEmpty()) {
@@ -237,6 +242,7 @@ public final class ArtFramework {
         RenderHosts.resetForTests();
         Themes.resetForTests();
         artframework.core.PresentPackApply.resetForTests();
+        artframework.core.PresentPackRuntime.resetForTests();
         artframework.core.PresentPacks.resetForTests();
         artframework.core.EnabledPresents.resetForTests();
         try {

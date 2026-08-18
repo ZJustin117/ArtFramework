@@ -1,6 +1,6 @@
 package artframework.context;
 
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 
 /**
  * Canonical full-present surface ids (milestone 15) plus legacy aliases.

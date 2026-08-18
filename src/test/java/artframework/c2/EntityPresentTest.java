@@ -4,9 +4,12 @@ import org.junit.After;
 import org.junit.Test;
 import artframework.api.ArtFramework;
 import artframework.ecs.EntityId;
+import artframework.render.RenderProjectionQueue;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -35,9 +38,10 @@ public class EntityPresentTest {
         assertEquals("ironclad", slot.refId);
         assertFalse(slot.isLaidOut());
 
-        Object dto = new Object();
+        Map<String, Object> dto = new HashMap<String, Object>();
+        dto.put("label", "Ironclad");
         p.sync("p1", dto);
-        assertSame(dto, p.get("p1").snapshot());
+        assertEquals("Ironclad", p.get("p1").snapshot().label);
 
         p.layout("p1", 10f, 20f, 0.5f);
         slot = p.get("p1");
@@ -53,6 +57,93 @@ public class EntityPresentTest {
     }
 
     @Test
+    public void presentBuildsACompleteSlot() {
+        EntityPresent p = ArtFramework.entities();
+        EntitySnapshot snapshot = EntitySnapshot.playerChrome("Ironclad", 70, 80, 0);
+
+        p.present("p1", "player", "ironclad", snapshot, 10f, 20f, 0.5f);
+
+        EntitySlot slot = p.get("p1");
+        assertNotNull(slot);
+        assertEquals("Ironclad", slot.snapshot().label);
+        assertTrue(slot.isLaidOut());
+        assertEquals(10f, slot.x(), 0.001f);
+        assertEquals(20f, slot.y(), 0.001f);
+        assertEquals(0.5f, slot.scale(), 0.001f);
+    }
+
+    @Test
+    public void presentNotifiesCompleteLifecycleAndProjectsOnce() {
+        DefaultEntityPresent p = ArtFramework.entityPresent();
+        final List<String> events = new ArrayList<String>();
+        p.addListener(new EntityPresentListener() {
+            @Override public void onAttached(EntitySlot slot) {
+                events.add("attached:" + slot.isLaidOut());
+            }
+            @Override public void onSynced(EntitySlot slot) {
+                events.add("synced:" + (slot.snapshot() != null));
+            }
+            @Override public void onLaidOut(EntitySlot slot) {
+                events.add("laidout:" + slot.isLaidOut());
+            }
+            @Override public void onDetached(String slotId) {
+                events.add("detached:" + slotId);
+            }
+        });
+        int before = RenderProjectionQueue.rebuildCountForTests();
+
+        p.present("p1", "player", "ironclad",
+                EntitySnapshot.playerChrome("Ironclad", 70, 80, 0), 10f, 20f, 1f);
+
+        assertEquals(java.util.Arrays.asList("attached:false", "synced:true", "laidout:true"), events);
+        assertEquals(before + 1, RenderProjectionQueue.rebuildCountForTests());
+    }
+
+    @Test
+    public void replacementPresentNotifiesDetachThenCompleteLifecycle() {
+        DefaultEntityPresent p = ArtFramework.entityPresent();
+        final List<String> events = new ArrayList<String>();
+        p.attach("p1", "player", "ironclad");
+        p.addListener(new EntityPresentListener() {
+            @Override public void onAttached(EntitySlot slot) {
+                events.add("attached:" + slot.refId + ":" + (slot.snapshot() == null)
+                        + ":" + slot.isLaidOut());
+            }
+            @Override public void onSynced(EntitySlot slot) {
+                events.add("synced:" + slot.refId + ":" + slot.snapshot().label);
+            }
+            @Override public void onLaidOut(EntitySlot slot) {
+                events.add("laidout:" + slot.refId + ":" + slot.x() + ":" + slot.y()
+                        + ":" + slot.scale() + ":" + slot.isLaidOut());
+            }
+            @Override public void onDetached(String slotId) { events.add("detached:" + slotId); }
+        });
+
+        p.present("p1", "player", "silent",
+                EntitySnapshot.playerChrome("Silent", 70, 80, 0), 10f, 20f, 1f);
+
+        assertEquals(java.util.Arrays.asList(
+                "detached:p1",
+                "attached:silent:true:false",
+                "synced:silent:Silent",
+                "laidout:silent:10.0:20.0:1.0:true"), events);
+    }
+
+    @Test
+    public void presentDefersItsSingleProjectionUntilOuterBatchFlushes() {
+        EntityPresent p = ArtFramework.entities();
+        int before = RenderProjectionQueue.rebuildCountForTests();
+
+        RenderProjectionQueue.begin();
+        p.present("p1", "player", "ironclad",
+                EntitySnapshot.playerChrome("Ironclad", 70, 80, 0), 10f, 20f, 1f);
+        assertEquals(before, RenderProjectionQueue.rebuildCountForTests());
+
+        RenderProjectionQueue.flush();
+        assertEquals(before + 1, RenderProjectionQueue.rebuildCountForTests());
+    }
+
+    @Test
     public void reattachReplacesSlotAndNotifies() {
         DefaultEntityPresent p = ArtFramework.entityPresent();
         final List<String> detached = new ArrayList<String>();
@@ -60,7 +151,7 @@ public class EntityPresentTest {
         p.addListener(new RecordingListener(attached, detached));
 
         p.attach("c1", "card", "Strike");
-        p.sync("c1", "v1");
+        p.sync("c1", EntitySnapshot.ofArt("card.art.Strike_R"));
         p.attach("c1", "CARD", "Defend");
 
         assertEquals(2, attached.size());
@@ -132,10 +223,10 @@ public class EntityPresentTest {
         assertNull(p.world().get(entity, EntitySlotSnapshotComponent.class).snapshot);
         assertFalse(p.world().get(entity, EntitySlotTransformComponent.class).laidOut);
 
-        Object snapshot = new Object();
+        EntitySnapshot snapshot = EntitySnapshot.playerChrome("Ironclad", 70, 80, 0);
         p.sync("c1", snapshot);
         p.layout("c1", 10f, 20f, 0.5f);
-        assertSame(snapshot, p.world().get(entity, EntitySlotSnapshotComponent.class).snapshot);
+        assertEquals("Ironclad", p.world().get(entity, EntitySlotSnapshotComponent.class).snapshot.label);
         EntitySlotTransformComponent transform = p.world().get(entity, EntitySlotTransformComponent.class);
         assertTrue(transform.laidOut);
         assertEquals(10f, transform.x, 0.001f);
@@ -143,6 +234,61 @@ public class EntityPresentTest {
 
         p.detach("c1");
         assertFalse(p.world().contains(entity));
+    }
+
+    @Test
+    public void syncNormalizesMutableMapIntoAnImmutableSnapshot() {
+        EntityPresent p = ArtFramework.entities();
+        p.attach("p1", "player", "ironclad");
+        Map<String, Object> nested = new HashMap<String, Object>();
+        nested.put("tone", "red");
+        List<Object> badges = new ArrayList<Object>();
+        badges.add(nested);
+        Map<String, Object> raw = new HashMap<String, Object>();
+        raw.put("label", "Ironclad");
+        raw.put("badges", badges);
+
+        p.sync("p1", raw);
+        nested.put("tone", "green");
+        badges.add("mutated");
+        raw.put("label", "Silent");
+
+        EntitySnapshot snapshot = p.get("p1").snapshot();
+        assertEquals("Ironclad", snapshot.label);
+        assertEquals("red", ((Map<?, ?>) ((List<?>) snapshot.extras.get("badges")).get(0)).get("tone"));
+        try {
+            snapshot.extras.put("new", "value");
+            throw new AssertionError("extras must be immutable");
+        } catch (UnsupportedOperationException expected) {
+        }
+        assertEquals(snapshot, ArtFramework.entityPresent().world()
+                .get(ArtFramework.entityPresent().entityId("p1"), EntitySlotSnapshotComponent.class).snapshot);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void syncRejectsUnsupportedSnapshotValues() {
+        EntityPresent p = ArtFramework.entities();
+        p.attach("p1", "player", "ironclad");
+        Map<String, Object> raw = new HashMap<String, Object>();
+        raw.put("extension", new Object());
+        p.sync("p1", raw);
+    }
+
+    @Test
+    public void syncCopiesTypedSnapshotExtras() {
+        EntityPresent p = ArtFramework.entities();
+        p.attach("p1", "player", "ironclad");
+        Map<String, Object> nested = new HashMap<String, Object>();
+        nested.put("tone", "red");
+        EntitySnapshot input = new EntitySnapshot(
+                0f, 0f, 1f, true, "", "", "Ironclad", 70, 80, 0, "", nested);
+
+        p.sync("p1", input);
+        nested.put("tone", "green");
+
+        EntitySnapshot stored = p.get("p1").snapshot();
+        assertEquals("red", stored.extras.get("tone"));
+        assertFalse(input == stored);
     }
 
     @Test

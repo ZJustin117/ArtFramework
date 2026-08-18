@@ -51,6 +51,12 @@ public final class StageHost
     private int probeSidecarTicks;
     private boolean probeSidecarWarned;
     private final Map<String, Actor> actors = new LinkedHashMap<String, Actor>();
+    private final SkinOwnership skinOwnership = new SkinOwnership(new SkinOwnership.Releaser() {
+        @Override
+        public void release(Object skin) {
+            disposeSkin((Skin) skin);
+        }
+    });
     private InputProcessor previousInput;
     private boolean inputCaptured;
 
@@ -61,6 +67,17 @@ public final class StageHost
             instance = new StageHost();
             BaseMod.subscribe(instance);
         }
+        artframework.core.PresentRestyleHost.install(new artframework.core.PresentRestyleHost.Adapter() {
+            @Override
+            public void reattach(String windowId) {
+                artframework.c1.SyntheticRuntime.reattach(windowId);
+            }
+
+            @Override
+            public void refreshDefaultSkin() {
+                if (instance != null) instance.refreshDefaultSkin();
+            }
+        });
         return instance;
     }
 
@@ -68,11 +85,82 @@ public final class StageHost
         return instance;
     }
 
+    /** Rebuild the disposable Stage/actor cache from still-open C1 ECS declarations. */
+    public boolean recreateHost() {
+        if (!ready) return false;
+        java.util.List<String> openIds = new java.util.ArrayList<String>(
+                artframework.presentation.PresentationRuntime.openWindowIds());
+        for (String id : new java.util.ArrayList<String>(actors.keySet())) detach(id);
+        EffectTargetActors.clearAll();
+        if (stage != null) {
+            try {
+                stage.dispose();
+            } catch (Throwable ignored) {
+                discardRecreatedHost();
+                return false;
+            }
+        }
+        if (skin != null) {
+            disposeSkin(skin);
+            skin = null;
+        }
+        try {
+            skin = StsSkin.create(Themes.getDefault());
+            stage = new Stage(new ScreenViewport());
+        } catch (Throwable e) {
+            if (stage != null) {
+                try { stage.dispose(); } catch (Throwable ignored) {}
+            }
+            if (skin != null) disposeSkin(skin);
+            stage = null;
+            skin = null;
+            ready = false;
+            return false;
+        }
+        for (String id : openIds) {
+            UiNode declaration = artframework.presentation.PresentationRuntime.declaration(
+                    artframework.presentation.PresentationRuntime.context(id));
+            if (declaration == null) {
+                discardRecreatedHost();
+                return false;
+            }
+            try {
+                attachComposition(id, declaration);
+                if (!isAttached(id)) {
+                    discardRecreatedHost();
+                    return false;
+                }
+            } catch (Throwable ignored) {
+                discardRecreatedHost();
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void discardRecreatedHost() {
+        for (String id : new java.util.ArrayList<String>(actors.keySet())) detach(id);
+        EffectTargetActors.clearAll();
+        skinOwnership.clear(skin);
+        if (stage != null) {
+            try { stage.dispose(); } catch (Throwable ignored) {}
+        }
+        if (skin != null) disposeSkin(skin);
+        stage = null;
+        skin = null;
+        ready = false;
+    }
+
     /** Test / shutdown helper — not for normal game flow. */
     public static void resetInstanceForTests() {
         if (instance != null) {
             instance.releaseInput();
             instance.actors.clear();
+            instance.skinOwnership.clear(instance.skin);
+            if (instance.stage != null) {
+                try { instance.stage.dispose(); } catch (Throwable ignored) {}
+            }
+            if (instance.skin != null) disposeSkin(instance.skin);
             instance.ready = false;
             artframework.sts1.StsRuntimeReady.setReady(false);
             artframework.sts1.StsRuntimeReady.setStarted(false);
@@ -80,6 +168,7 @@ public final class StageHost
             instance.skin = null;
         }
         instance = null;
+        artframework.core.PresentRestyleHost.resetForTests();
     }
 
     @Override
@@ -229,16 +318,19 @@ public final class StageHost
         if (useSkin == null) {
             return;
         }
-        Actor actor = LayoutActors.toActor(windowId, root, useSkin, new Runnable() {
-            @Override
-            public void run() {
-                ArtFramework.close(windowId);
-            }
-        });
-        actors.put(id, actor);
-        stage.addActor(actor);
-        captureInput();
-        layoutAndSyncFx();
+        Actor actor;
+        try {
+            actor = LayoutActors.toActor(windowId, root, useSkin, new Runnable() {
+                @Override
+                public void run() {
+                    ArtFramework.close(windowId);
+                }
+            });
+        } catch (Throwable t) {
+            releaseUnattachedSkin(useSkin);
+            throw t;
+        }
+        attachActor(id, actor, useSkin);
     }
 
     @Override
@@ -255,16 +347,19 @@ public final class StageHost
         if (useSkin == null) {
             return;
         }
-        Actor actor = ComponentActors.toActor(windowId, root, useSkin, new Runnable() {
-            @Override
-            public void run() {
-                ArtFramework.close(windowId);
-            }
-        });
-        actors.put(id, actor);
-        stage.addActor(actor);
-        captureInput();
-        layoutAndSyncFx();
+        Actor actor;
+        try {
+            actor = ComponentActors.toActor(windowId, root, useSkin, new Runnable() {
+                @Override
+                public void run() {
+                    ArtFramework.close(windowId);
+                }
+            });
+        } catch (Throwable t) {
+            releaseUnattachedSkin(useSkin);
+            throw t;
+        }
+        attachActor(id, actor, useSkin);
     }
 
     /** Validate scene2d layout then map all C1 effect targets to stage coordinates. */
@@ -455,7 +550,11 @@ public final class StageHost
             return;
         }
         try {
+            Skin previous = skin;
             skin = StsSkin.create(Themes.getDefault());
+            if (previous != null) {
+                skinOwnership.replaceDefault(previous);
+            }
         } catch (Throwable t) {
             try {
                 BaseMod.logger.warn("ArtFramework skin refresh skipped: " + t.getMessage());
@@ -471,6 +570,7 @@ public final class StageHost
         if (actor != null) {
             actor.remove();
         }
+        disposeActorSkin(id);
         if (actors.isEmpty()) {
             releaseInput();
         }
@@ -484,6 +584,41 @@ public final class StageHost
     @Override
     public int attachedCount() {
         return actors.size();
+    }
+
+    private void rememberActorSkin(String windowId, Skin actorSkin) {
+        if (actorSkin == null) return;
+        skinOwnership.attach(windowId, actorSkin);
+    }
+
+    private void disposeActorSkin(String windowId) {
+        skinOwnership.detach(windowId, skin);
+    }
+
+    private void attachActor(String windowId, Actor actor, Skin actorSkin) {
+        actors.put(windowId, actor);
+        rememberActorSkin(windowId, actorSkin);
+        try {
+            stage.addActor(actor);
+            captureInput();
+            layoutAndSyncFx();
+        } catch (Throwable t) {
+            actors.remove(windowId);
+            try { actor.remove(); } catch (Throwable ignored) {}
+            disposeActorSkin(windowId);
+            throw t;
+        }
+    }
+
+    private void releaseUnattachedSkin(Skin actorSkin) {
+        skinOwnership.releaseUnattached(actorSkin, skin);
+    }
+
+    private static void disposeSkin(Skin actorSkin) {
+        try {
+            actorSkin.dispose();
+        } catch (Throwable ignored) {
+        }
     }
 
     private void captureInput() {

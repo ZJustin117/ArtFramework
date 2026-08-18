@@ -6,7 +6,7 @@ import artframework.context.IntentNames;
 import artframework.context.IntentResult;
 import artframework.context.SurfaceIds;
 import artframework.context.UiIntent;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import org.junit.After;

@@ -1,10 +1,10 @@
 package artframework.c2;
 
-/** Opaque consumer snapshot attached to an EntityPresent slot. */
+/** Framework-owned immutable snapshot attached to an EntityPresent slot. */
 public final class EntitySlotSnapshotComponent {
-    public final Object snapshot;
+    public final EntitySnapshot snapshot;
 
-    public EntitySlotSnapshotComponent(Object snapshot) {
-        this.snapshot = snapshot;
+    public EntitySlotSnapshotComponent(EntitySnapshot snapshot) {
+        this.snapshot = snapshot != null ? EntitySnapshot.normalize(snapshot) : null;
     }
 }

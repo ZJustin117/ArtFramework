@@ -9,7 +9,7 @@ import com.megacrit.cardcrawl.monsters.AbstractMonster;
 import com.megacrit.cardcrawl.screens.select.GridCardSelectScreen;
 import com.megacrit.cardcrawl.screens.select.HandCardSelectScreen;
 import artframework.api.UiOpResult;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import artframework.c2.SelectKind;
 import artframework.context.IntentResult;
 import artframework.sts1.input.Sts1MapIntentBridge;

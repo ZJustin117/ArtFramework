@@ -131,7 +131,7 @@ public final class EntityDrawPath {
         boolean cardOverlay = cardOverlayOnly();
         for (EntitySlot slot : slots) {
             if (!slot.isLaidOut()) continue;
-            EntitySnapshot snap = EntitySnapshot.from(slot.snapshot());
+            EntitySnapshot snap = slot.snapshot() != null ? slot.snapshot() : EntitySnapshot.empty();
             float scale = slot.scale() > 0f ? slot.scale() : (snap.scale > 0f ? snap.scale : 1f);
             float[] size = defaultSize(slot.kind, scale);
             float x = slot.x() != 0f || slot.y() != 0f ? slot.x() : snap.x;

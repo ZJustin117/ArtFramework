@@ -17,6 +17,7 @@ public final class PresentSafety {
     private static boolean panic;
     private static String panicReason = "";
     private static int recreationCount;
+    private static String c1HostRecreation = "not attempted";
 
     private PresentSafety() {}
 
@@ -56,6 +57,9 @@ public final class PresentSafety {
         artframework.sts1.render.MapDrawPath.resetForTests();
         artframework.sts1.audio.ArtAudioBridge.resetForTests();
         artframework.sts1.skeleton.Sts1SkeletonBridge.onHostRecreated();
+        recreateC1HostIfAvailable();
+        artframework.render.RenderHosts.get().recreateHostCache();
+        artframework.sts1.assets.Sts1AssetMaterializer.clearCache();
         artframework.render.RenderProjectionQueue.projectNow();
         if (panic) {
             // stay safe
@@ -72,6 +76,7 @@ public final class PresentSafety {
         m.put("panic", Boolean.valueOf(panic));
         m.put("panicReason", panicReason);
         m.put("recreationCount", Integer.valueOf(recreationCount));
+        m.put("c1HostRecreation", c1HostRecreation);
         return m;
     }
 
@@ -79,6 +84,30 @@ public final class PresentSafety {
         panic = false;
         panicReason = "";
         recreationCount = 0;
+        c1HostRecreation = "not attempted";
+    }
+
+    /** C1 is an optional BaseMod host; keep pure runtime recreation independent of its classes. */
+    private static void recreateC1HostIfAvailable() {
+        try {
+            Class<?> bindings = Class.forName("artframework.c1.host.EffectTargetActors");
+            Class<?> type = Class.forName("artframework.c1.host.StageHost");
+            Object host = type.getMethod("get").invoke(null);
+            if (host == null) {
+                c1HostRecreation = "not installed";
+                return;
+            }
+            bindings.getMethod("clearAll").invoke(null);
+            Object rebuilt = type.getMethod("recreateHost").invoke(host);
+            c1HostRecreation = Boolean.TRUE.equals(rebuilt) ? "rebuilt" : "failed: StageHost";
+        } catch (ClassNotFoundException e) {
+            c1HostRecreation = "unavailable";
+        } catch (LinkageError e) {
+            // Pure ECS tests and non-BaseMod hosts legitimately cannot link StageHost.
+            c1HostRecreation = "unavailable";
+        } catch (Throwable e) {
+            c1HostRecreation = "failed: " + e.getClass().getSimpleName();
+        }
     }
 
     private static void unmountAllPresentSurfaces() {

@@ -19,6 +19,10 @@ public interface EntityPresent {
 
     void layout(String slotId, float x, float y, float scale);
 
+    /** Attach, snapshot, and lay out a slot with one final host-cache projection. */
+    void present(String slotId, String kind, String refId, Object snapshotDto,
+                 float x, float y, float scale);
+
     void detach(String slotId);
 
     boolean isAttached(String slotId);

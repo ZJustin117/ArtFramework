@@ -1,6 +1,6 @@
 package artframework.ops;
 
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 import artframework.c2.SelectKind;
 import artframework.core.SignalDecision;
 import artframework.core.SignalListener;

@@ -1,5 +1,6 @@
 package artframework.core;
 
+import artframework.component.ImmutableUiValue;
 import artframework.presentation.NodeStateComponent;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationRuntime;
@@ -40,10 +41,7 @@ public final class NodeStateMachine {
             this.to = to != null ? to : "";
             this.match = match != null ? match : "";
             this.matchPattern = matchPattern;
-            this.onEnter =
-                    onEnter != null
-                            ? Collections.unmodifiableList(new ArrayList<Map<String, Object>>(onEnter))
-                            : Collections.<Map<String, Object>>emptyList();
+        this.onEnter = immutableActions(onEnter);
         }
 
         boolean matchesSignal(String signalName) {
@@ -95,9 +93,23 @@ public final class NodeStateMachine {
         if (actions == null || actions.isEmpty()) {
             enterByState.remove(stateName);
         } else {
-            enterByState.put(
-                    stateName, Collections.unmodifiableList(new ArrayList<Map<String, Object>>(actions)));
+            enterByState.put(stateName, immutableActions(actions));
         }
+    }
+
+    private static List<Map<String, Object>> immutableActions(List<Map<String, Object>> actions) {
+        if (actions == null || actions.isEmpty()) return Collections.emptyList();
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (Map<String, Object> action : actions) {
+            if (action == null) {
+                result.add(null);
+            } else {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> copy = (Map<String, Object>) ImmutableUiValue.copy(action);
+                result.add(copy);
+            }
+        }
+        return Collections.unmodifiableList(result);
     }
 
     /** Force state without signal (AnimationPlayer internal). */

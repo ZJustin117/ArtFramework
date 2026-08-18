@@ -1,6 +1,6 @@
 package artframework.context;
 
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 
 /** Durable ECS state for the native map gesture host bridge. */
 public final class MapGestureComponent {

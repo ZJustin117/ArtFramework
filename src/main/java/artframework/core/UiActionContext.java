@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import artframework.ecs.EntityId;
 import artframework.presentation.PresentationContext;
+import artframework.component.ImmutableUiValue;
 
 /**
  * Runtime context for a {@link UiAction} invocation.
@@ -25,7 +26,7 @@ public final class UiActionContext {
         if (args == null || args.isEmpty()) {
             this.args = Collections.emptyMap();
         } else {
-            this.args = Collections.unmodifiableMap(new LinkedHashMap<String, Object>(args));
+            this.args = ImmutableUiValue.copyMap(args);
         }
     }
 

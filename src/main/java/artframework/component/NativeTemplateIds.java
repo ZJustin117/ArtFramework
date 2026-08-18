@@ -1,4 +1,4 @@
-package artframework.c2;
+package artframework.component;
 
 /**
  * Canonical C2 resource / registration ids for native STS1 templates.

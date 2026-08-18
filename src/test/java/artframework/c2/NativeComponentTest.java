@@ -1,5 +1,9 @@
 package artframework.c2;
 
+import artframework.component.NativeTemplateIds;
+
+import artframework.component.MapNodeRef;
+
 import org.junit.After;
 import org.junit.Test;
 import artframework.api.ArtFramework;

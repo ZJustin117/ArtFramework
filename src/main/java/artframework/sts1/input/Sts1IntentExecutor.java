@@ -9,7 +9,7 @@ import artframework.context.CardRef;
 import artframework.context.IntentNames;
 import artframework.context.IntentResult;
 import artframework.context.UiIntent;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 
 /**
  * Live STS1 intent execution for full-present surfaces (16.5b). Best-effort host gestures;

@@ -1,5 +1,7 @@
 package artframework.c2;
 
+import artframework.component.NativeTemplateIds;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;

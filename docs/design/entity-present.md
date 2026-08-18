@@ -20,7 +20,9 @@ attach(slotId, kind, refId) → sync(snapshot) → layout(x,y,scale) → detach
 ```
 
 - `kind`: `PLAYER` | `CARD` | `RELIC` | `MONSTER`
-- Snapshot: typed `EntitySnapshot` (pose, resourceIds, chrome flags) or opaque Object
+- Snapshot: framework-owned immutable `EntitySnapshot` (pose, resourceIds, chrome flags).
+  `sync(Object)` remains a compatibility ingress for `null`, `EntitySnapshot`, and recursively
+  immutable string-key Maps; it rejects unsupported values and never retains the caller object.
 - Presentation entity `c2:entity:{slotId}` is the FX anchor; RenderHost targets are derived caches
 
 ## Policy (24.4)

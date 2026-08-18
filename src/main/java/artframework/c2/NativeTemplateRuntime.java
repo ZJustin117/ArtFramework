@@ -1,5 +1,7 @@
 package artframework.c2;
 
+import artframework.component.NativeTemplateIds;
+
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
 import artframework.ecs.EntityId;

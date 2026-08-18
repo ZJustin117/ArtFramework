@@ -19,8 +19,6 @@ import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.PresentationRegistry;
 import artframework.presentation.SignalPortsComponent;
-import artframework.ecs.EcsPipeline;
-import artframework.ecs.EcsTick;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,7 +36,6 @@ public final class PresentSurfaces {
 
     private static final Map<String, UiComponent> BY_ID = new LinkedHashMap<String, UiComponent>();
     private static final SignalHub HUB = new SignalHub();
-    private static final SurfaceLifecycleSystem LIFECYCLE = new SurfaceLifecycleSystem();
 
     static {
         register(new HandSurface());
@@ -129,6 +126,10 @@ public final class PresentSurfaces {
         return PresentationRegistry.context("c2-surfaces");
     }
 
+    private static PresentationContext existingContext() {
+        return PresentationRegistry.existingContext("c2-surfaces");
+    }
+
     abstract static class BaseSurface implements UiComponent {
         private final String id;
         private final Set<String> signals;
@@ -152,7 +153,10 @@ public final class PresentSurfaces {
         public boolean isMounted() {
             EntityId entity = surfaceEntity();
             if (entity == null) return false;
-            SurfaceLifecycleComponent lifecycle = world().get(entity, SurfaceLifecycleComponent.class);
+            PresentationContext context = existingContext();
+            if (context == null) return false;
+            SurfaceLifecycleComponent lifecycle = context.world().get(
+                    entity, SurfaceLifecycleComponent.class);
             return lifecycle != null && lifecycle.mounted;
         }
 
@@ -167,8 +171,7 @@ public final class PresentSurfaces {
             if (entity != null) {
                 world().put(entity, SurfaceLifecycleRequestComponent.class,
                         new SurfaceLifecycleRequestComponent(false));
-                EcsPipeline.run(world(), new EcsTick(0f, 0L),
-                        Collections.<artframework.ecs.EcsSystem>singletonList(LIFECYCLE));
+                artframework.api.ArtFramework.executeSurfaceLifecycle();
                 context().destroy(entity);
             }
             HUB.clearInstance(id);
@@ -203,7 +206,6 @@ public final class PresentSurfaces {
         }
 
         Map<String, Object> baseProbe(List<String> actions) {
-            syncComponents();
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("id", id);
             m.put("kind", kind().name());
@@ -234,10 +236,9 @@ public final class PresentSurfaces {
             artframework.sts1.PresentLevel level = artframework.sts1.FullPresentMode.levelOf(id);
             world().put(entity, SurfaceLifecycleRequestComponent.class,
                     new SurfaceLifecycleRequestComponent(mounted));
-            EcsPipeline.run(world(), new EcsTick(0f, 0L),
-                    Collections.<artframework.ecs.EcsSystem>singletonList(LIFECYCLE));
+            artframework.api.ArtFramework.executeSurfaceLifecycle();
             world().put(entity, SurfacePolicyComponent.class,
-                    new SurfacePolicyComponent(level, level.allowsFullPresent(),
+                    new SurfacePolicyComponent(level.name(), level.allowsFullPresent(),
                             level.allowsObserve(), artframework.sts1.FullPresentMode.maySuppressNative(id)));
             world().put(entity, HostBindingComponent.class, new HostBindingComponent("STS1_C2", id));
             world().put(entity, SignalPortsComponent.class,
@@ -250,7 +251,8 @@ public final class PresentSurfaces {
         }
 
         private EntityId surfaceEntity() {
-            return context().entity(new PresentationKey("sts1.surface", id));
+            PresentationContext context = existingContext();
+            return context != null ? context.entity(new PresentationKey("sts1.surface", id)) : null;
         }
 
         protected IntentResult submit(String intentName, Object... args) {

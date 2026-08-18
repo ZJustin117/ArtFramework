@@ -1,5 +1,7 @@
 package artframework.c2;
 
+import artframework.component.MapNodeRef;
+
 /** Data-only map pin state projected from the C2 map template. */
 public final class MapPinComponent {
     public final String pinId;

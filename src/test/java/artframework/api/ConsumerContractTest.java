@@ -3,7 +3,7 @@ package artframework.api;
 import org.junit.Test;
 import artframework.c1.SyntheticRuntime;
 import artframework.c2.EntityPresent;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 import artframework.c2.NativeTemplateRuntime;
 
 import static org.junit.Assert.assertEquals;

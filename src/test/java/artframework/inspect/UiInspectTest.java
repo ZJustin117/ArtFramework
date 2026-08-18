@@ -6,10 +6,11 @@ import artframework.api.ArtFramework;
 import artframework.api.UiOpResult;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
-import artframework.c2.MapNodeRef;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.MapNodeRef;
+import artframework.component.NativeTemplateIds;
 import artframework.core.SignalHandler;
 import artframework.core.SignalNames;
+import artframework.presentation.PresentationRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,15 @@ public class UiInspectTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> components = (List<Map<String, Object>>) list.get("components");
         assertFalse(components.isEmpty());
+    }
+
+    @Test
+    public void listSurfacesDoesNotCreateAbsentPresentSurfaceContext() {
+        PresentationRegistry.close("c2-surfaces");
+
+        UiInspect.listSurfaces();
+
+        assertEquals(null, PresentationRegistry.existingContext("c2-surfaces"));
     }
 
     @Test

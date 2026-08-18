@@ -8,6 +8,7 @@ import artframework.context.FrameDiff;
 import artframework.context.NativeIntentLifecycleSystem;
 import artframework.context.PresentProjections;
 import artframework.context.SurfaceIntentExecutionSystem;
+import artframework.context.SurfaceLifecycleSystem;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.PresentationRegistry;
@@ -65,6 +66,7 @@ public final class PresentationSchedule {
             new NativeIntentLifecycleSystem();
     private final SurfaceIntentExecutionSystem surfaceIntentExecution =
             new SurfaceIntentExecutionSystem();
+    private final SurfaceLifecycleSystem surfaceLifecycle = new SurfaceLifecycleSystem();
     private final AnimationPlaybackSystem animation = new AnimationPlaybackSystem();
     private final EffectPulseSystem effects = new EffectPulseSystem();
     private final RenderClockSystem renderClock = new RenderClockSystem();
@@ -97,8 +99,7 @@ public final class PresentationSchedule {
                     case AUTHORITY_PROJECTION_AND_CONFIRMATION:
                         EntityId authorityEntity = authorityFrame != null
                                 ? queueAuthorityFrame(authorityFrame) : null;
-                        run(tick, authority);
-                        destroyAuthorityEntity(authorityEntity);
+                        runAuthorityProjection(tick, authorityEntity);
                         run(tick, businessConfirmation);
                         run(tick, nativeIntentLifecycle);
                         break;
@@ -141,6 +142,11 @@ public final class PresentationSchedule {
         run(new EcsTick(0f, sequence), surfaceIntentExecution);
     }
 
+    /** Runs the schedule-owned lifecycle command system for synchronous surface facades. */
+    public void executeSurfaceLifecycle() {
+        run(new EcsTick(0f, sequence), surfaceLifecycle);
+    }
+
     /** Processes native lifecycle events at their synchronous host-hook boundary. */
     public void processNativeIntentLifecycle() {
         run(new EcsTick(0f, sequence), nativeIntentLifecycle);
@@ -151,8 +157,7 @@ public final class PresentationSchedule {
         if (frame == null) return FrameDiff.skipped("frame required");
         EcsTick tick = new EcsTick(0f, sequence);
         EntityId authorityEntity = queueAuthorityFrame(frame);
-        run(tick, authority);
-        destroyAuthorityEntity(authorityEntity);
+        runAuthorityProjection(tick, authorityEntity);
         run(tick, businessConfirmation);
         run(tick, nativeIntentLifecycle);
         return PresentProjections.last();
@@ -161,6 +166,14 @@ public final class PresentationSchedule {
     private static void run(EcsTick tick, artframework.ecs.EcsSystem system) {
         EcsPipeline.run(ArtEcs.world(), tick,
                 java.util.Collections.singletonList(system));
+    }
+
+    private void runAuthorityProjection(EcsTick tick, EntityId authorityEntity) {
+        try {
+            run(tick, authority);
+        } finally {
+            destroyAuthorityEntity(authorityEntity);
+        }
     }
 
     private SkeletonHostTickSystem skeletonSystem() {

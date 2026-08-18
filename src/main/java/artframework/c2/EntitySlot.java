@@ -8,7 +8,7 @@ public final class EntitySlot {
     public final String slotId;
     public final EntityKind kind;
     public final String refId;
-    private final Object snapshot;
+    private final EntitySnapshot snapshot;
     private final float x;
     private final float y;
     private final float scale;
@@ -22,7 +22,7 @@ public final class EntitySlot {
             String slotId,
             EntityKind kind,
             String refId,
-            Object snapshot,
+            EntitySnapshot snapshot,
             float x,
             float y,
             float scale,
@@ -43,7 +43,7 @@ public final class EntitySlot {
         this.laidOut = laidOut;
     }
 
-    public Object snapshot() {
+    public EntitySnapshot snapshot() {
         return snapshot;
     }
 

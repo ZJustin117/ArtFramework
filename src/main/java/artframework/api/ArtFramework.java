@@ -1,5 +1,7 @@
 package artframework.api;
 
+import artframework.component.NativeTemplateIds;
+
 import artframework.c1.C1NodeFactories;
 import artframework.c1.SyntheticRuntime;
 import artframework.c1.layout.LayoutNode;
@@ -65,11 +67,11 @@ public final class ArtFramework {
         }
         DEFS.put(def.id, def);
         if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-            String canon = artframework.c2.NativeTemplateIds.canonicalize(def.id);
+            String canon = NativeTemplateIds.canonicalize(def.id);
             if (canon != null && !canon.equals(def.id)) {
                 DEFS.put(canon, def);
             }
-            String resCanon = artframework.c2.NativeTemplateIds.canonicalize(def.resource);
+            String resCanon = NativeTemplateIds.canonicalize(def.resource);
             if (resCanon != null && !resCanon.isEmpty() && !resCanon.equals(def.id) && !resCanon.equals(canon)) {
                 DEFS.put(resCanon, def);
             }
@@ -80,7 +82,7 @@ public final class ArtFramework {
         if (DEFS.containsKey(id)) {
             return true;
         }
-        String canon = artframework.c2.NativeTemplateIds.canonicalize(id);
+        String canon = NativeTemplateIds.canonicalize(id);
         return canon != null && DEFS.containsKey(canon);
     }
 
@@ -152,7 +154,7 @@ public final class ArtFramework {
         if (def != null) {
             return def;
         }
-        return DEFS.get(artframework.c2.NativeTemplateIds.canonicalize(id));
+        return DEFS.get(NativeTemplateIds.canonicalize(id));
     }
 
     public static WindowHandle bind(String id) {
@@ -163,9 +165,9 @@ public final class ArtFramework {
         if (def.windowClass == WindowClass.SYNTHETIC) {
             return open(id);
         }
-        String openId = artframework.c2.NativeTemplateIds.canonicalize(def.resource);
+        String openId = NativeTemplateIds.canonicalize(def.resource);
         if (openId == null || openId.isEmpty()) {
-            openId = artframework.c2.NativeTemplateIds.canonicalize(def.id);
+            openId = NativeTemplateIds.canonicalize(def.id);
         }
         if (openId == null || openId.isEmpty()) {
             openId = def.id;
@@ -192,7 +194,7 @@ public final class ArtFramework {
         if (h != null && h.isOpen()) {
             return h;
         }
-        h = OPEN.get(artframework.c2.NativeTemplateIds.canonicalize(id));
+        h = OPEN.get(NativeTemplateIds.canonicalize(id));
         return h != null && h.isOpen() ? h : null;
     }
 
@@ -217,7 +219,7 @@ public final class ArtFramework {
                 && artframework.presentation.PresentationRuntime.isOpen(def.id)) {
             closeSynthetic(def.id);
         } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-            String nativeId = artframework.c2.NativeTemplateIds.canonicalize(def.resource);
+            String nativeId = NativeTemplateIds.canonicalize(def.resource);
             if (NativeTemplateRuntime.isBound(nativeId)) NativeTemplateRuntime.unbind(def);
         }
     }
@@ -549,6 +551,11 @@ public final class ArtFramework {
         SCHEDULE.executeSurfaceIntents();
     }
 
+    /** Internal compatibility bridge to the schedule-owned surface lifecycle command. */
+    public static void executeSurfaceLifecycle() {
+        SCHEDULE.executeSurfaceLifecycle();
+    }
+
     /** Internal compatibility bridge for synchronous native host hooks. */
     public static void processNativeIntentLifecycle() {
         SCHEDULE.processNativeIntentLifecycle();
@@ -667,7 +674,7 @@ public final class ArtFramework {
             this.root = root;
             String id = def.id;
             if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-                String nativeId = artframework.c2.NativeTemplateIds.canonicalize(def.resource);
+                String nativeId = NativeTemplateIds.canonicalize(def.resource);
                 if (nativeId != null && !nativeId.isEmpty()) {
                     id = nativeId;
                 }

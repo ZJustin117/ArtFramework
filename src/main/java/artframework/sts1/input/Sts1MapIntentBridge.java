@@ -4,7 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.map.MapRoomNode;
 import com.megacrit.cardcrawl.helpers.input.InputHelper;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import artframework.context.IntentNames;
 import artframework.context.IntentResult;
 import artframework.context.MapGestureComponent;

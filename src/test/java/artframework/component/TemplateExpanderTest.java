@@ -5,9 +5,16 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 public class TemplateExpanderTest {
 
@@ -101,6 +108,37 @@ public class TemplateExpanderTest {
         LayoutResult r = LayoutEngine.layout(new TemplateExpander(registry).expand(instance));
         assertTrue(r.hasId("ok"));
         assertEquals(300f, r.rootBounds.width, 0.001f);
+    }
+
+    @Test
+    public void nestedCallPropertiesAreCopiedAndValidated() {
+        registry.register(
+                "nested",
+                UiNode.of(UiTypes.LABEL).prop("payload", "${payload}").build());
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("items", new ArrayList<Object>(Arrays.<Object>asList("one")));
+
+        UiNode expanded = new TemplateExpander(registry).expand(
+                UiNode.of(UiTypes.REF).ref("nested").prop("payload", payload).build());
+        ((List<Object>) payload.get("items")).add("two");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> copied = (Map<String, Object>) expanded.props.get("payload");
+        assertEquals(Arrays.<Object>asList("one"), copied.get("items"));
+        assertNull(copied.get("later"));
+        try {
+            ((List<Object>) copied.get("items")).add("blocked");
+            fail("expanded nested properties must be immutable");
+        } catch (UnsupportedOperationException expected) {
+            // expected
+        }
+        try {
+            new TemplateExpander(registry).expand(
+                    UiNode.of(UiTypes.REF).ref("nested").prop("payload", new Object()).build());
+            fail("host values must be rejected through template calls");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
     }
 
     private static int countType(UiNode n, String type) {

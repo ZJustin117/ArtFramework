@@ -4,6 +4,7 @@ import artframework.presentation.ConnectionDeclarationsComponent;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationRuntime;
 import artframework.ecs.EntityId;
+import artframework.component.ImmutableUiValue;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -77,8 +78,8 @@ public final class NodeConnections {
         if (!UiActions.contains(actionId)) throw new IllegalArgumentException("unknown ui action in connections: " + actionId);
         @SuppressWarnings("unchecked")
         final Map<String, Object> args = spec.get("args") instanceof Map
-                ? new LinkedHashMap<String, Object>((Map<String, Object>) spec.get("args"))
-                : new LinkedHashMap<String, Object>();
+                ? ImmutableUiValue.copyMap((Map<String, Object>) spec.get("args"))
+                : java.util.Collections.<String, Object>emptyMap();
         String match = stringVal(spec.get("match"));
         String pattern = stringVal(spec.get("match_pattern"));
         if (pattern.isEmpty()) pattern = stringVal(spec.get("matchPattern"));

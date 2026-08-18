@@ -142,4 +142,39 @@ public class WidgetSessionTest {
                 UiOpResult.Status.UNAVAILABLE,
                 ArtFramework.ops().setSlider("demo", "nope", 0.5f).status);
     }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void setSliderRejectsNonFiniteValue() {
+        WidgetSession session = sessionWithControls();
+        session.setSlider("intensity", Float.NaN);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void setProgressRejectsNonFiniteValue() {
+        WidgetSession session = sessionWithControls();
+        session.setProgress("load", Float.POSITIVE_INFINITY);
+    }
+
+    @Test
+    public void setSliderUsesMaterializedBoundsAfterPropertyChange() {
+        ArtFramework.register(
+                new WindowDef("comp", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));
+        ArtFramework.open("comp");
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context("comp");
+        artframework.ecs.EntityId slider = artframework.presentation.PresentationRuntime.find(
+                context, "intensity");
+        artframework.presentation.PresentationRuntime.setProperty(context, slider, "min", 0.8f);
+
+        assertEquals(0.5f, ArtFramework.widgets("comp").setSlider("intensity", 0.5f), 0.001f);
+    }
+
+    private static WidgetSession sessionWithControls() {
+        return new WidgetSession("controls", UiNode.of(UiTypes.WINDOW).id("root")
+                .child(UiNode.of(UiTypes.SLIDER).id("intensity").prop("min", 0f)
+                        .prop("max", 1f).prop("value", 0.5f).build())
+                .child(UiNode.of(UiTypes.PROGRESS).id("load").prop("min", 0f)
+                        .prop("max", 1f).prop("value", 0.5f).build())
+                .build());
+    }
 }

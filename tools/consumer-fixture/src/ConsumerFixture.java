@@ -10,7 +10,7 @@ import artframework.assets.HostAssets;
 import artframework.assets.ResourceIds;
 import artframework.c2.EntityPresent;
 import artframework.c2.EntitySnapshot;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 import artframework.context.CardRef;
 import artframework.context.CardView;
 import artframework.context.CardZone;

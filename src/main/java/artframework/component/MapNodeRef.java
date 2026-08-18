@@ -1,4 +1,4 @@
-package artframework.c2;
+package artframework.component;
 
 /**
  * Stable reference to a dungeon map node for interceptors/pins (no STS types).

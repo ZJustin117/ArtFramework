@@ -590,13 +590,9 @@ public final class ComponentActors {
 
     private static Actor buildSlider(
             final String windowId, final UiNode node, Skin skin, float scale) {
-        float min = node.propFloat("min", 0f);
-        float max = node.propFloat("max", 1f);
-        if (max < min) {
-            float t = min;
-            min = max;
-            max = t;
-        }
+        float[] bounds = controlBounds(windowId, node.id);
+        float min = bounds[0];
+        float max = bounds[1];
         float step = (max - min) / 100f;
         if (step <= 0f) {
             step = 0.01f;
@@ -630,6 +626,18 @@ public final class ComponentActors {
         if (entity == null) return fallback;
         ControlValueComponent value = context.world().get(entity, ControlValueComponent.class);
         return value != null && value.value != null ? value.value : fallback;
+    }
+
+    private static float[] controlBounds(String windowId, String id) {
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context(windowId);
+        artframework.ecs.EntityId entity = artframework.presentation.PresentationRuntime.find(context, id);
+        if (entity != null) {
+            artframework.presentation.ControlBoundsComponent bounds = context.world().get(
+                    entity, artframework.presentation.ControlBoundsComponent.class);
+            if (bounds != null) return new float[] {bounds.min, bounds.max};
+        }
+        return new float[] {0f, 1f};
     }
 
     private static float number(Object value) {

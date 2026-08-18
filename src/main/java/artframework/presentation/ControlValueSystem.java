@@ -10,14 +10,13 @@ import artframework.ecs.PresentationWorld;
 public final class ControlValueSystem implements EcsSystem {
     @Override
     public void run(PresentationWorld world, EcsTick tick) {
-        for (EntityId entity : world.query(NodeIdentityComponent.class, NodePropertiesComponent.class,
-                ControlValueComponent.class)) {
+        for (EntityId entity : world.query(NodeIdentityComponent.class, ControlValueComponent.class)) {
             NodeIdentityComponent identity = world.get(entity, NodeIdentityComponent.class);
-            NodePropertiesComponent props = world.get(entity, NodePropertiesComponent.class);
             ControlValueComponent current = world.get(entity, ControlValueComponent.class);
             if (UiTypes.SLIDER.equals(identity.type) || UiTypes.PROGRESS.equals(identity.type)) {
-                float min = number(props.get("min"), 0f);
-                float max = number(props.get("max"), 1f);
+                ControlBoundsComponent bounds = world.get(entity, ControlBoundsComponent.class);
+                float min = bounds != null ? bounds.min : 0f;
+                float max = bounds != null ? bounds.max : 1f;
                 float value = number(current.value, min);
                 world.put(entity, ControlValueComponent.class, new ControlValueComponent(Float.valueOf(clamp(value, min, max))));
             } else if (UiTypes.TEXTFIELD.equals(identity.type)) {
@@ -49,13 +48,29 @@ public final class ControlValueSystem implements EcsSystem {
         return null;
     }
 
+    public static ControlBoundsComponent bounds(NodePropertiesComponent props) {
+        float min = number(props != null ? props.get("min") : null, 0f);
+        float max = number(props != null ? props.get("max") : null, 1f);
+        return new ControlBoundsComponent(min, max);
+    }
+
     private static float number(Object value, float fallback) {
-        if (value instanceof Number) return ((Number) value).floatValue();
+        if (value instanceof Number) {
+            float result = ((Number) value).floatValue();
+            return finite(result) ? result : fallback;
+        }
         if (value != null) {
-            try { return Float.parseFloat(String.valueOf(value)); }
+            try {
+                float result = Float.parseFloat(String.valueOf(value));
+                return finite(result) ? result : fallback;
+            }
             catch (NumberFormatException ignored) { }
         }
         return fallback;
+    }
+
+    private static boolean finite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
     }
 
     private static float clamp(float value, float min, float max) {

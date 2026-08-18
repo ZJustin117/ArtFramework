@@ -1,9 +1,9 @@
 package artframework.c2.hooks;
 
 import artframework.c2.EventOptionRef;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import artframework.c2.NativeTemplateRuntime;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 import artframework.c2.SelectCardRef;
 import artframework.c2.SelectKind;
 import artframework.core.SignalGroups;

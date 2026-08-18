@@ -3,9 +3,10 @@ package artframework.core;
 import artframework.api.ArtFramework;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
-import artframework.c1.SyntheticRuntime;
 import artframework.component.ComponentRegistry;
+import artframework.component.LmlUiNodeLoader;
 import artframework.component.UiNode;
+import artframework.component.UiNodeLoader;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -191,7 +192,7 @@ public final class PresentPacks {
         }
         ComponentRegistry reg = ComponentRegistry.global();
         for (PresentPack.TemplateEntry te : pack.templates) {
-            UiNode root = SyntheticRuntime.loadLayoutResource(te.resource);
+            UiNode root = loadLayoutResource(te.resource);
             reg.register(te.name, root);
             tOwned.add(te.name);
         }
@@ -204,6 +205,20 @@ public final class PresentPacks {
             ArtFramework.register(new WindowDef(we.id, WindowClass.SYNTHETIC, we.resource));
             wOwned.add(we.id);
         }
+    }
+
+    private static UiNode loadLayoutResource(String resource) {
+        if (resource == null || resource.isEmpty()) {
+            throw new IllegalArgumentException("layout resource required");
+        }
+        String lower = resource.toLowerCase();
+        if (lower.endsWith(".lml") || lower.endsWith(".xml")) {
+            return LmlUiNodeLoader.loadClasspath(resource);
+        }
+        if (lower.endsWith(".json") || !resource.contains(".")) {
+            return UiNodeLoader.loadClasspath(resource);
+        }
+        throw new IllegalArgumentException("unsupported layout format: " + resource);
     }
 
     public static List<String> idsMatching(String regex) {

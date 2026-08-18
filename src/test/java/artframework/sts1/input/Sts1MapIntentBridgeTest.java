@@ -1,6 +1,6 @@
 package artframework.sts1.input;
 
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import org.junit.After;
 import org.junit.Test;
 

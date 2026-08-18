@@ -4,14 +4,15 @@ import org.junit.After;
 import org.junit.Test;
 import artframework.c1.layout.LayoutNode;
 import artframework.c2.EventOptionRef;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import artframework.c2.MapPin;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 import artframework.c2.NativeTemplateRuntime;
 import artframework.c2.SelectCardRef;
 import artframework.c2.SelectKind;
 import artframework.ops.FakeNativeOps;
 import artframework.ops.NativeOpsBackend;
+import artframework.presentation.PresentationRegistry;
 
 import java.util.List;
 import java.util.Map;
@@ -203,6 +204,27 @@ public class UiOpsProbeTest {
     }
 
     @Test
+    public void syntheticControlOpsRejectNonFiniteNumbers() {
+        ArtFramework.register(new WindowDef("lightwave_demo", WindowClass.SYNTHETIC,
+                "layouts/lightwave_demo.json"));
+        ArtFramework.open("lightwave_demo");
+
+        assertEquals(UiOpResult.Status.OK,
+                ArtFramework.ops().setSlider("lightwave_demo", "wave_slider", 0.4f).status);
+
+        assertEquals(UiOpResult.Status.UNAVAILABLE,
+                ArtFramework.ops().setSlider("lightwave_demo", "wave_slider", Float.NaN).status);
+        assertEquals(UiOpResult.Status.UNAVAILABLE,
+                ArtFramework.ops().setSlider("lightwave_demo", "wave_slider", Float.POSITIVE_INFINITY).status);
+        assertEquals(UiOpResult.Status.UNAVAILABLE,
+                ArtFramework.ops().setProgress("lightwave_demo", "missing", Float.NaN).status);
+        String json = ArtFramework.probe().toJsonLine();
+        assertTrue(!json.contains("NaN"));
+        assertTrue(!json.contains("Infinity"));
+        assertTrue(json.contains("0.4"));
+    }
+
+    @Test
     public void invokeSyntheticComponentAction() {
         final AtomicInteger hits = new AtomicInteger();
         ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
@@ -266,6 +288,45 @@ public class UiOpsProbeTest {
         String json = ArtFramework.probe().toJsonLine();
         assertTrue(json.startsWith("ART_PROBE "));
         assertTrue(json.contains("\"schemaVersion\":1"));
+    }
+
+    @Test
+    public void probeDoesNotCreateAbsentC2PresentationScopes() {
+        PresentationRegistry.close("c2-projection");
+        PresentationRegistry.close("c2-surfaces");
+
+        ArtFramework.probe().asMap();
+
+        assertEquals(null, PresentationRegistry.existingContext("c2-projection"));
+        assertEquals(null, PresentationRegistry.existingContext("c2-surfaces"));
+    }
+
+    @Test
+    public void projectionReadsDoNotCreateAbsentProjectionScope() {
+        PresentationRegistry.close("c2-projection");
+        artframework.context.PresentProjection projection = ArtFramework.projection();
+
+        projection.lastFrameId();
+        projection.scene();
+        projection.sceneEpoch();
+        projection.isAvailable();
+        projection.isStale();
+        projection.lastFrame();
+        projection.dragInstanceId();
+        projection.controls();
+        projection.map();
+        projection.event();
+        projection.select();
+        projection.reward();
+        projection.rest();
+        projection.treasure();
+        projection.shop();
+        projection.topPanel();
+        projection.intents();
+        projection.viewport();
+        projection.probeSlice();
+
+        assertEquals(null, PresentationRegistry.existingContext("c2-projection"));
     }
 
     @Test

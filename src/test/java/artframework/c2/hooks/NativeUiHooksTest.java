@@ -3,7 +3,7 @@ package artframework.c2.hooks;
 import artframework.api.ArtFramework;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 import artframework.c2.SelectKind;
 import artframework.core.SignalDecision;
 import artframework.context.NativeInputComponent;

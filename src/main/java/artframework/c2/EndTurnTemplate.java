@@ -1,5 +1,7 @@
 package artframework.c2;
 
+import artframework.component.NativeTemplateIds;
+
 /** C2 end-turn lifecycle/presentation state; policy lives on the shared SignalBus. */
 public final class EndTurnTemplate {
     public static final String RESOURCE = NativeTemplateIds.END_TURN;

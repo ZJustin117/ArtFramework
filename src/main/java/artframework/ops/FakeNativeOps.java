@@ -1,7 +1,7 @@
 package artframework.ops;
 
 import artframework.api.UiOpResult;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import artframework.c2.SelectKind;
 
 /** In-memory backend for pure JUnit — records calls, always OK. */

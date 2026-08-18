@@ -6,6 +6,7 @@ import artframework.presentation.HostBindingComponent;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.PresentationRegistry;
+import artframework.render.RenderProjectionQueue;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,7 +56,7 @@ public final class DefaultEntityPresent implements EntityPresent {
         PresentationWorld world = world();
         EntityId entity = requireEntity(slotId);
         world.put(entity, EntitySlotSnapshotComponent.class,
-                new EntitySlotSnapshotComponent(snapshotDto));
+                new EntitySlotSnapshotComponent(EntitySnapshot.normalize(snapshotDto)));
         for (EntityPresentListener l : listeners) {
             l.onSynced(view(entity));
         }
@@ -69,6 +70,19 @@ public final class DefaultEntityPresent implements EntityPresent {
                 new EntitySlotTransformComponent(x, y, scale, true));
         for (EntityPresentListener l : listeners) {
             l.onLaidOut(view(entity));
+        }
+    }
+
+    @Override
+    public void present(String slotId, String kind, String refId, Object snapshotDto,
+            float x, float y, float scale) {
+        RenderProjectionQueue.begin();
+        try {
+            attach(slotId, kind, refId);
+            sync(slotId, snapshotDto);
+            layout(slotId, x, y, scale);
+        } finally {
+            RenderProjectionQueue.flush();
         }
     }
 

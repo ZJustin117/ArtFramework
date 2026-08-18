@@ -1,5 +1,7 @@
 package artframework.c2;
 
+import artframework.component.MapNodeRef;
+
 /**
  * Decorative pin on a map node (party marker, vote, etc.). Presentation only — no authority.
  */

@@ -3,7 +3,7 @@ package artframework.inspect;
 import artframework.api.ArtFramework;
 import artframework.api.UiOpResult;
 import artframework.c1.SyntheticComponents;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import artframework.c2.NativeComponents;
 import artframework.component.Rect;
 import artframework.context.PresentSurfaces;

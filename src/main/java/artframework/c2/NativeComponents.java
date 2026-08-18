@@ -1,5 +1,8 @@
 package artframework.c2;
 
+import artframework.component.MapNodeRef;
+import artframework.component.NativeTemplateIds;
+
 import artframework.api.UiOpResult;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;

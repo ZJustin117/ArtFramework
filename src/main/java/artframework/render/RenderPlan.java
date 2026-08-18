@@ -66,6 +66,7 @@ public final class RenderPlan {
         for (EntityId entity : render.entities()) {
             RenderSurfaceComponent surface = render.world().get(entity, RenderSurfaceComponent.class);
             if (surface == null) continue;
+            if (activeSurfaceIds != null && !activeSurfaceIds.contains(surface.surfaceId)) continue;
             surfaceEffects.put(surface.surfaceId, surface.effects());
             entries.add(new Entry(RenderHost.c2SurfaceTargetId(surface.surfaceId),
                     RenderTargetKind.C2_SURFACE, surface.bounds, surface.z, surface.enabled,

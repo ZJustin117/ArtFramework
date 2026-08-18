@@ -30,12 +30,13 @@ public final class PresentPackApply {
         clearManagedAmbient();
         if (pack == null) {
             resyncOpenC1Render();
-            return;
+        } else {
+            applyFullFrame(pack);
+            applySurfaceBinds(pack);
+            applyC2SurfaceEffects(pack);
+            resyncOpenC1Render();
         }
-        applyFullFrame(pack);
-        applySurfaceBinds(pack);
-        applyC2SurfaceEffects(pack);
-        resyncOpenC1Render();
+        artframework.render.RenderProjectionQueue.projectNow();
     }
 
     /**
@@ -74,7 +75,6 @@ public final class PresentPackApply {
                 effects.add(new EffectAttachment(d.id, layer, params));
             }
             RenderStateEcs.fullFrame(w, h, true, effects);
-            artframework.render.RenderProjectionQueue.projectNow();
             managedFullFrame = true;
         } catch (Throwable ignored) {
         }
@@ -112,7 +112,6 @@ public final class PresentPackApply {
                     effects.add(new EffectAttachment(d.id, layer, d.params));
                 }
                 RenderStateEcs.surfaceEffects(entry.getKey(), effects);
-                artframework.render.RenderProjectionQueue.projectNow();
                 BOUND_C2_EFFECTS.add(entry.getKey());
             } catch (RuntimeException ignored) {
             }
@@ -120,14 +119,7 @@ public final class PresentPackApply {
     }
 
     private static void resyncOpenC1Render() {
-        for (String winId : artframework.presentation.PresentationRuntime.openWindowIds()) {
-            artframework.presentation.PresentationContext context =
-                    artframework.presentation.PresentationRuntime.context(winId);
-            try {
-                artframework.render.RenderProjectionQueue.projectNow();
-            } catch (Throwable ignored) {
-            }
-        }
+        // C1 targets are derived from every open context by the complete render plan projection.
     }
 
     private static void clearManagedAmbient() {
@@ -142,10 +134,8 @@ public final class PresentPackApply {
             RenderStateEcs.removeSurface(sid);
         }
         BOUND_C2_EFFECTS.clear();
-        artframework.render.RenderProjectionQueue.projectNow();
         if (managedFullFrame) {
             RenderStateEcs.removeFullFrame();
-            artframework.render.RenderProjectionQueue.projectNow();
             managedFullFrame = false;
         }
     }
@@ -166,5 +156,6 @@ public final class PresentPackApply {
 
     public static void resetForTests() {
         clearManagedAmbient();
+        artframework.render.RenderProjectionQueue.projectNow();
     }
 }

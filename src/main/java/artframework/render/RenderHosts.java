@@ -15,5 +15,6 @@ public final class RenderHosts {
 
     public static void resetForTests() {
         GLOBAL.resetForTests();
+        RenderProjectionQueue.resetForTests();
     }
 }

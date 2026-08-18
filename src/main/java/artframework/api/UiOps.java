@@ -1,9 +1,9 @@
 package artframework.api;
 
 import artframework.c2.EventOptionRef;
-import artframework.c2.MapNodeRef;
+import artframework.component.MapNodeRef;
 import artframework.c2.NativeTemplateRuntime;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 import artframework.c2.SelectCardRef;
 import artframework.c2.SelectKind;
 import artframework.c2.SelectTemplate;
@@ -308,6 +308,9 @@ public final class UiOps {
         if (slider == null) {
             return UiOpResult.unavailable("slider not in layout: " + sliderId);
         }
+        if (!finite(value)) {
+            return UiOpResult.unavailable("slider value must be finite");
+        }
         float clamped = normalizedNumber(slider, value);
         if (!allowSignal(windowId, sliderId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped))) {
             return UiOpResult.blocked("slider blocked: " + windowId + "/" + sliderId);
@@ -446,6 +449,9 @@ public final class UiOps {
         if (progress == null) {
             return UiOpResult.unavailable("progress not in layout: " + progressId);
         }
+        if (!finite(value)) {
+            return UiOpResult.unavailable("progress value must be finite");
+        }
         float clamped = normalizedNumber(progress, value);
         if (!allowSignal(windowId, progressId, SignalNames.VALUE_CHANGED, Float.valueOf(clamped))) {
             return UiOpResult.blocked("progress blocked: " + windowId + "/" + progressId);
@@ -482,14 +488,11 @@ public final class UiOps {
 
     private static float normalizedNumber(EntityId node, float requested) {
         PresentationContext context = currentContext(node);
-        NodePropertiesComponent props = PresentationRuntime.component(context, node, NodePropertiesComponent.class);
-        float min = number(props != null ? props.get("min") : null, 0f);
-        float max = number(props != null ? props.get("max") : null, 1f);
-        if (min > max) {
-            float swap = min;
-            min = max;
-            max = swap;
-        }
+        artframework.presentation.ControlBoundsComponent bounds =
+                PresentationRuntime.component(context, node,
+                        artframework.presentation.ControlBoundsComponent.class);
+        float min = bounds != null ? bounds.min : 0f;
+        float max = bounds != null ? bounds.max : 1f;
         return Math.max(min, Math.min(max, requested));
     }
 
@@ -502,12 +505,22 @@ public final class UiOps {
     }
 
     private static float number(Object value, float fallback) {
-        if (value instanceof Number) return ((Number) value).floatValue();
+        if (value instanceof Number) {
+            float result = ((Number) value).floatValue();
+            return finite(result) ? result : fallback;
+        }
         if (value != null) {
-            try { return Float.parseFloat(String.valueOf(value)); }
+            try {
+                float result = Float.parseFloat(String.valueOf(value));
+                return finite(result) ? result : fallback;
+            }
             catch (NumberFormatException ignored) { }
         }
         return fallback;
+    }
+
+    private static boolean finite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
     }
 
     /**

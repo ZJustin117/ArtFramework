@@ -20,12 +20,16 @@ and compatibility or host containers must be disposable, non-authoritative bound
 - Project: `traditional-ecs`
 - Started: 2026-08-16
 - Design checkpoint: approximately 80% complete as of 2026-08-15
-- Active slice: `TE-01` schedule and immediate execution ownership baseline
-- State: `reviewing`
-- Last semantic gate: not run by this refacter project yet
-- Next action: review `PresentationSchedule`, all production `EcsPipeline.run` calls, and direct
-  surface lifecycle execution under review round `R1`; establish which calls are schedule-owned
-  phases versus explicitly documented synchronous command boundaries
+- Active slice: `TE-14` pending scope selection
+- State: `complete` for `TE-01` through `TE-13`
+- Last semantic gate: `./scripts/with-art-env.sh test` passed 633/633 with 0 failures,
+  0 errors, and 0 ignored after TE-13
+- Last device evidence: final R5 review PASS; D1 deployment verified `ArtFramework.jar` at
+  940,143 bytes, SHA-256 `de37ff59d9afee3d24d3bca988e3bdb68a0a9125663966645fd30ddf7811893d`;
+  cold start reached READY; `art lab host-recreate` executed; `scripts/art-lab combat verify-full`
+  passed `d1_full_present_combat_ready` on 2026-08-17
+- Next action: select and baseline the next independent traditional-ECS ownership boundary; no
+  additional slice is currently implemented
 
 ## Authority
 

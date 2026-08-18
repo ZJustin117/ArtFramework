@@ -24,13 +24,14 @@ import java.util.Set;
  */
 public final class PresentProjection {
 
-    private final PresentationContext context = PresentationRegistry.context("c2-projection");
-    private final PresentationWorld world = context.world();
     private final PresentationKey metadataKey = new PresentationKey("sts1.projection", "context");
 
-    public PresentProjection() {
-        ensureMetadataEntity();
-    }
+    private static final ProjectionFrameComponent EMPTY_METADATA =
+            new ProjectionFrameComponent(-1L, -1L, "", false, false);
+    private static final ProjectionInteractionComponent EMPTY_INTERACTION =
+            new ProjectionInteractionComponent(null);
+    private static final ProjectionFrameSnapshotComponent EMPTY_SNAPSHOT =
+            new ProjectionFrameSnapshotComponent(ContextFrame.unavailable(0L));
 
     public FrameDiff applyFrame(ContextFrame frame) {
         return applyFrame(frame, true);
@@ -40,8 +41,8 @@ public final class PresentProjection {
         if (frame == null) {
             return FrameDiff.skipped("frame required");
         }
-        ProjectionFrameComponent metadata = metadata();
-        ContextFrame previousFrame = snapshot().frame;
+        ProjectionFrameComponent metadata = metadataForWrite();
+        ContextFrame previousFrame = snapshotForWrite().frame;
         if (!frame.available) {
             recordBusinessConfirmationFrame(previousFrame, frame);
             observeNativeIntents(frame);
@@ -76,9 +77,9 @@ public final class PresentProjection {
             if (entity == null) {
                 entity = new CardEntity(id);
                 PresentationKey key = new PresentationKey("sts1.card", id);
-                presentationEntity = context.entity(key);
+                presentationEntity = contextForWrite().entity(key);
                 if (presentationEntity == null) {
-                    presentationEntity = context.create(key, id, "card", "c2-projection");
+                    presentationEntity = contextForWrite().create(key, id, "card", "c2-projection");
                 }
                 int changes = CardEntity.IDENTITY_CHANGED
                         | CardEntity.PLACEMENT_CHANGED
@@ -98,14 +99,14 @@ public final class PresentProjection {
 
         List<String> removed = new ArrayList<String>();
         List<String> toRemove = new ArrayList<String>();
-        for (EntityId entity : context.entities()) {
-            CardIdentityComponent identity = world.get(entity, CardIdentityComponent.class);
+        for (EntityId entity : contextForWrite().entities()) {
+            CardIdentityComponent identity = worldForWrite().get(entity, CardIdentityComponent.class);
             if (identity != null && !seen.contains(identity.instanceId)) {
                 toRemove.add(identity.instanceId);
             }
         }
         for (String id : toRemove) {
-            context.destroy(cardEntity(id));
+            contextForWrite().destroy(cardEntity(id));
             removed.add(id);
             if (id.equals(dragInstanceId())) {
                 clearDrag();
@@ -121,7 +122,7 @@ public final class PresentProjection {
 
     private void recordBusinessConfirmationFrame(ContextFrame before, ContextFrame after) {
         EntityId metadata = ensureMetadataEntity();
-        world.put(metadata, BusinessConfirmationFrameComponent.class,
+        worldForWrite().put(metadata, BusinessConfirmationFrameComponent.class,
                 new BusinessConfirmationFrameComponent(before, after));
     }
 
@@ -156,8 +157,10 @@ public final class PresentProjection {
 
     public List<CardEntity> list() {
         List<CardEntity> result = new ArrayList<CardEntity>();
+        PresentationContext context = existingContext();
+        if (context == null) return Collections.emptyList();
         for (EntityId entity : context.entities()) {
-            if (world.get(entity, CardIdentityComponent.class) != null) result.add(cardView(entity));
+            if (context.world().get(entity, CardIdentityComponent.class) != null) result.add(cardView(entity));
         }
         return Collections.unmodifiableList(result);
     }
@@ -191,8 +194,8 @@ public final class PresentProjection {
 
     public void reset() {
         EntityId metadata = ensureMetadataEntity();
-        for (EntityId entity : new ArrayList<EntityId>(context.entities())) {
-            if (!metadata.equals(entity)) context.destroy(entity);
+        for (EntityId entity : new ArrayList<EntityId>(contextForWrite().entities())) {
+            if (!metadata.equals(entity)) contextForWrite().destroy(entity);
         }
         clearDrag();
         putSnapshot(ContextFrame.unavailable(0L));
@@ -200,68 +203,86 @@ public final class PresentProjection {
     }
 
     private EntityId ensureMetadataEntity() {
+        PresentationContext context = contextForWrite();
         EntityId entity = context.entity(metadataKey);
         return entity != null ? entity : context.create(metadataKey, "context", "projection", "c2");
     }
 
     private ProjectionFrameComponent metadata() {
+        PresentationContext context = existingContext();
+        if (context == null) return EMPTY_METADATA;
+        EntityId entity = context.entity(metadataKey);
+        ProjectionFrameComponent component = entity != null
+                ? context.world().get(entity, ProjectionFrameComponent.class) : null;
+        return component != null ? component : EMPTY_METADATA;
+    }
+
+    private ProjectionFrameComponent metadataForWrite() {
         EntityId entity = ensureMetadataEntity();
-        ProjectionFrameComponent component = world.get(entity, ProjectionFrameComponent.class);
+        ProjectionFrameComponent component = worldForWrite().get(entity, ProjectionFrameComponent.class);
         if (component == null) {
-            component = new ProjectionFrameComponent(-1L, -1L, "", false, false);
-            world.put(entity, ProjectionFrameComponent.class, component);
+            component = EMPTY_METADATA;
+            worldForWrite().put(entity, ProjectionFrameComponent.class, component);
         }
         return component;
     }
 
     private void putMetadata(long frameId, long sceneEpoch, String scene,
             boolean available, boolean stale) {
-        world.put(ensureMetadataEntity(), ProjectionFrameComponent.class,
+        worldForWrite().put(ensureMetadataEntity(), ProjectionFrameComponent.class,
                 new ProjectionFrameComponent(frameId, sceneEpoch, scene, available, stale));
     }
 
     private ProjectionInteractionComponent interaction() {
-        EntityId entity = ensureMetadataEntity();
-        ProjectionInteractionComponent component = world.get(entity, ProjectionInteractionComponent.class);
-        if (component == null) {
-            component = new ProjectionInteractionComponent(null);
-            world.put(entity, ProjectionInteractionComponent.class, component);
-        }
-        return component;
+        PresentationContext context = existingContext();
+        if (context == null) return EMPTY_INTERACTION;
+        EntityId entity = context.entity(metadataKey);
+        ProjectionInteractionComponent component = entity != null
+                ? context.world().get(entity, ProjectionInteractionComponent.class) : null;
+        return component != null ? component : EMPTY_INTERACTION;
     }
 
     private void putInteraction(String dragInstanceId) {
-        world.put(ensureMetadataEntity(), ProjectionInteractionComponent.class,
+        worldForWrite().put(ensureMetadataEntity(), ProjectionInteractionComponent.class,
                 new ProjectionInteractionComponent(dragInstanceId));
     }
 
     private ProjectionFrameSnapshotComponent snapshot() {
+        PresentationContext context = existingContext();
+        if (context == null) return EMPTY_SNAPSHOT;
+        EntityId entity = context.entity(metadataKey);
+        ProjectionFrameSnapshotComponent component = entity != null
+                ? context.world().get(entity, ProjectionFrameSnapshotComponent.class) : null;
+        return component != null ? component : EMPTY_SNAPSHOT;
+    }
+
+    private ProjectionFrameSnapshotComponent snapshotForWrite() {
         EntityId entity = ensureMetadataEntity();
         ProjectionFrameSnapshotComponent component =
-                world.get(entity, ProjectionFrameSnapshotComponent.class);
+                worldForWrite().get(entity, ProjectionFrameSnapshotComponent.class);
         if (component == null) {
-            component = new ProjectionFrameSnapshotComponent(ContextFrame.unavailable(0L));
-            world.put(entity, ProjectionFrameSnapshotComponent.class, component);
+            component = EMPTY_SNAPSHOT;
+            worldForWrite().put(entity, ProjectionFrameSnapshotComponent.class, component);
         }
         return component;
     }
 
     private void putSnapshot(ContextFrame frame) {
-        world.put(ensureMetadataEntity(), ProjectionFrameSnapshotComponent.class,
+        worldForWrite().put(ensureMetadataEntity(), ProjectionFrameSnapshotComponent.class,
                 new ProjectionFrameSnapshotComponent(frame));
     }
 
     private void clearCards() {
-        for (EntityId entity : new ArrayList<EntityId>(context.entities())) {
-            if (world.get(entity, CardIdentityComponent.class) != null) context.destroy(entity);
+        for (EntityId entity : new ArrayList<EntityId>(contextForWrite().entities())) {
+            if (worldForWrite().get(entity, CardIdentityComponent.class) != null) contextForWrite().destroy(entity);
         }
     }
 
     private void observeNativeIntents(ContextFrame frame) {
         for (EntityId entity : artframework.presentation.PresentationRegistry.context("sts1-input").entities()) {
-            NativeIntentLifecycleComponent lifecycle = world.get(entity, NativeIntentLifecycleComponent.class);
+            NativeIntentLifecycleComponent lifecycle = worldForWrite().get(entity, NativeIntentLifecycleComponent.class);
             if (lifecycle != null) {
-                NativeInputComponent input = world.get(entity, NativeInputComponent.class);
+                NativeInputComponent input = worldForWrite().get(entity, NativeInputComponent.class);
                 if (input != null) {
                     if (frame.available) {
                         artframework.sts1.input.NativeInputRecords.observe(input.surfaceId,
@@ -277,7 +298,8 @@ public final class PresentProjection {
 
     /** Internal presentation ECS world; consumers should continue using this projection facade. */
     public PresentationWorld world() {
-        return world;
+        PresentationContext context = existingContext();
+        return context != null ? context.world() : PresentationRegistry.world();
     }
 
     /** Returns the ECS identity for a projected card, or null when absent. */
@@ -287,10 +309,12 @@ public final class PresentProjection {
 
     private EntityId cardEntity(String instanceId) {
         if (instanceId == null) return null;
-        return context.entity(new PresentationKey("sts1.card", instanceId));
+        PresentationContext context = existingContext();
+        return context != null ? context.entity(new PresentationKey("sts1.card", instanceId)) : null;
     }
 
     private CardEntity cardView(EntityId entity) {
+        PresentationWorld world = world();
         CardIdentityComponent identity = world.get(entity, CardIdentityComponent.class);
         CardPlacementComponent placement = world.get(entity, CardPlacementComponent.class);
         CardInteractionComponent interaction = world.get(entity, CardInteractionComponent.class);
@@ -311,31 +335,31 @@ public final class PresentProjection {
 
     private void applyComponents(EntityId entity, CardView view, int changes) {
         if ((changes & CardEntity.IDENTITY_CHANGED) != 0) {
-            world.put(entity, CardIdentityComponent.class,
+            worldForWrite().put(entity, CardIdentityComponent.class,
                     new CardIdentityComponent(view.ref.instanceId, view.ref.cardId));
         }
         if ((changes & CardEntity.PLACEMENT_CHANGED) != 0) {
-            world.put(entity, CardPlacementComponent.class,
+            worldForWrite().put(entity, CardPlacementComponent.class,
                     new CardPlacementComponent(view.zone, view.slotIndex, view.pose));
         }
         if ((changes & CardEntity.INTERACTION_CHANGED) != 0) {
-            world.put(entity, CardInteractionComponent.class,
+            worldForWrite().put(entity, CardInteractionComponent.class,
                     new CardInteractionComponent(view.playable, view.selected, view.hovered, view.dragging));
         }
         if ((changes & CardEntity.ASSETS_CHANGED) != 0) {
-            world.put(entity, CardAssetsComponent.class,
+            worldForWrite().put(entity, CardAssetsComponent.class,
                     new CardAssetsComponent(view.artResourceId, view.frameResourceId));
         }
-        world.put(entity, HostBindingComponent.class,
+        worldForWrite().put(entity, HostBindingComponent.class,
                 new HostBindingComponent("STS1_C2", view.ref.instanceId));
-        world.put(entity, DrawComponent.class,
+        worldForWrite().put(entity, DrawComponent.class,
                 new DrawComponent("card", view.artResourceId, view.ref.cardId));
-        world.put(entity, VisibilityComponent.class, new VisibilityComponent(true, 1f));
-        world.put(entity, NodePropertiesComponent.class,
+        worldForWrite().put(entity, VisibilityComponent.class, new VisibilityComponent(true, 1f));
+        worldForWrite().put(entity, NodePropertiesComponent.class,
                 new NodePropertiesComponent(java.util.Collections.<String, Object>singletonMap(
                         "instanceId", view.ref.instanceId)));
         if (view.pose != null) {
-            world.put(entity, BoundsComponent.class,
+            worldForWrite().put(entity, BoundsComponent.class,
                     new BoundsComponent(new artframework.component.Rect(
                             view.pose.x, view.pose.y, 0f, 0f), view.pose.z));
         }
@@ -413,5 +437,17 @@ public final class PresentProjection {
         m.put("viewportWidth", Integer.valueOf(frame.viewport.logicalWidth));
         m.put("viewportHeight", Integer.valueOf(frame.viewport.logicalHeight));
         return m;
+    }
+
+    private PresentationContext contextForWrite() {
+        return PresentationRegistry.context("c2-projection");
+    }
+
+    private PresentationContext existingContext() {
+        return PresentationRegistry.existingContext("c2-projection");
+    }
+
+    private PresentationWorld worldForWrite() {
+        return contextForWrite().world();
     }
 }

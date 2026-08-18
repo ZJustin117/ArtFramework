@@ -2,7 +2,7 @@ package artframework.api;
 
 import org.junit.After;
 import org.junit.Test;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.NativeTemplateIds;
 import artframework.core.HostBackend;
 import artframework.core.HostCapabilities;
 

@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -218,6 +219,62 @@ public class NodeConnectionsTest {
         assertTrue(UiActions.contains(UiActions.EMIT));
         assertTrue(UiActions.contains(UiActions.CLOSE_WINDOW));
         assertNotNull(ArtFramework.getUiAction(UiActions.PAUSE));
+    }
+
+    @Test
+    public void connectionDeclarationsDeepCopyNestedArgs() {
+        Map<String, Object> nested = new LinkedHashMap<String, Object>();
+        nested.put("value", "before");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("nested", nested);
+        Map<String, Object> connection = new LinkedHashMap<String, Object>();
+        connection.put("match", "ui/win/w/ok/pressed");
+        connection.put("action", UiActions.PLAY);
+        connection.put("args", args);
+        ConnectionDeclarationsComponent declarations = new ConnectionDeclarationsComponent(
+                Collections.singletonList(connection), null);
+
+        nested.put("value", "after");
+        assertEquals("before", ((Map<?, ?>) ((Map<?, ?>) declarations.connections.get(0)
+                .get("args")).get("nested")).get("value"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void connectionDeclarationsRejectHostValues() {
+        Map<String, Object> connection = new LinkedHashMap<String, Object>();
+        connection.put("host", new Object());
+        new ConnectionDeclarationsComponent(Collections.singletonList(connection), null);
+    }
+
+    @Test
+    public void wiredConnectionExposesImmutableNestedArgs() {
+        final AtomicReference<Map<String, Object>> captured = new AtomicReference<Map<String, Object>>();
+        ArtFramework.registerUiAction("mod.immutable_args", new UiAction() {
+            @Override public boolean run(UiActionContext ctx) {
+                captured.set(ctx.args);
+                return true;
+            }
+        });
+        Map<String, Object> nested = new LinkedHashMap<String, Object>();
+        nested.put("value", "before");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("nested", nested);
+        Map<String, Object> connection = new LinkedHashMap<String, Object>();
+        connection.put("match", "ui/win/w/ok/pressed");
+        connection.put("action", "mod.immutable_args");
+        connection.put("args", args);
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount(
+                "win", windowWithButtonAndPlayer(null, Collections.singletonList(connection)));
+        nested.put("value", "after");
+
+        fixture.emit("ok", SignalNames.PRESSED);
+
+        assertEquals("before", ((Map<?, ?>) captured.get().get("nested")).get("value"));
+        try {
+            captured.get().put("new", "value");
+            fail("listener args must be immutable");
+        } catch (UnsupportedOperationException expected) {
+        }
     }
 
     private static C1RuntimeFixture mountWithPlayConnection(String match, boolean pattern) {

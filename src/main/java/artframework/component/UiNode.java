@@ -58,7 +58,7 @@ public final class UiNode {
         if (props == null || props.isEmpty()) {
             return Collections.emptyMap();
         }
-        return Collections.unmodifiableMap(new LinkedHashMap<String, Object>(props));
+        return ImmutableUiValue.copyMap(props);
     }
 
     private static List<EffectDecl> freezeEffects(List<EffectDecl> effects) {

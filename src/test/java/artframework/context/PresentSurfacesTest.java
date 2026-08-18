@@ -90,8 +90,22 @@ public class PresentSurfacesTest {
         assertEquals(SurfaceIds.COMBAT_HAND,
                 PresentSurfaces.world().get(entity, SurfaceIdentityComponent.class).id);
         assertTrue(PresentSurfaces.world().get(entity, SurfaceLifecycleComponent.class).mounted);
-        assertEquals(artframework.sts1.PresentLevel.OFF,
+        assertEquals("OFF",
                 PresentSurfaces.world().get(entity, SurfacePolicyComponent.class).level);
+
+        hand.unmount();
+        assertFalse(PresentSurfaces.world().contains(entity));
+    }
+
+    @Test
+    public void facadeLifecycleCommandsAreConsumedByTheSchedule() {
+        UiComponent hand = ArtFramework.component(SurfaceIds.COMBAT_HAND);
+        hand.mount();
+        EntityId entity = PresentSurfaces.world().query(SurfaceIdentityComponent.class).get(0);
+
+        assertTrue(PresentSurfaces.world().get(entity, SurfaceLifecycleComponent.class).mounted);
+        assertEquals(null, PresentSurfaces.world().get(entity,
+                SurfaceLifecycleRequestComponent.class));
 
         hand.unmount();
         assertFalse(PresentSurfaces.world().contains(entity));
@@ -245,7 +259,7 @@ public class PresentSurfacesTest {
 
         assertTrue(
                 ArtFramework.ops()
-                        .invoke(SurfaceIds.MAP, "click_node", new artframework.c2.MapNodeRef(1, 2, "M"))
+                        .invoke(SurfaceIds.MAP, "click_node", new artframework.component.MapNodeRef(1, 2, "M"))
                         .isOk());
         assertEquals(IntentNames.CLICK_MAP_NODE, ((UiIntent) backend.signalLog().get(1).payload).name);
     }

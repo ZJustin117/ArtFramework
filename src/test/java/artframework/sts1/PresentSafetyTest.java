@@ -66,6 +66,7 @@ public class PresentSafetyTest {
         assertEquals(before + 1, PresentSafety.recreationCount());
         assertFalse(Sts1RenderPipeline.isOverlayObserve());
         assertEquals(0f, MapDrawPath.panZoom().panX(), 0.01f);
+        assertTrue(String.valueOf(PresentSafety.probeSlice().get("c1HostRecreation")).length() > 0);
     }
 
     @Test

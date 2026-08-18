@@ -1,8 +1,10 @@
 package artframework.api;
 
+import artframework.context.CardView;
 import artframework.context.ContextFrame;
 import artframework.core.HostBackend;
 import artframework.core.HostCapabilities;
+import artframework.presentation.PresentationRegistry;
 import artframework.presentation.PresentationMount;
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -12,6 +14,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class PresentationScheduleTest {
     @After public void tearDown() {
@@ -78,5 +81,33 @@ public class PresentationScheduleTest {
         ArtFramework.tick(0.1f);
 
         assertEquals(Arrays.asList("host-presentation", "host-backend"), order);
+    }
+
+    @Test public void failedAuthorityProjectionDoesNotRetainItsPendingFrame() {
+        try {
+            ArtFramework.publishFrame(ContextFrame.of(1L, "combat",
+                    Arrays.<CardView>asList((CardView) null)));
+            fail("expected malformed card view to fail projection");
+        } catch (NullPointerException expected) {
+            // The malformed external frame is rejected after its temporary command is cleaned up.
+        }
+
+        assertTrue(PresentationRegistry.context("authority-input").entities().isEmpty());
+        ArtFramework.tick(0f);
+        assertTrue(PresentationRegistry.context("authority-input").entities().isEmpty());
+    }
+
+    @Test public void failedAdvanceFrameDoesNotRetainItsPendingAuthorityFrame() {
+        try {
+            ArtFramework.advanceFrame(0f, ContextFrame.of(1L, "combat",
+                    Arrays.<CardView>asList((CardView) null)));
+            fail("expected malformed card view to fail projection");
+        } catch (NullPointerException expected) {
+            // The malformed external frame is rejected after its temporary command is cleaned up.
+        }
+
+        assertTrue(PresentationRegistry.context("authority-input").entities().isEmpty());
+        ArtFramework.tick(0f);
+        assertTrue(PresentationRegistry.context("authority-input").entities().isEmpty());
     }
 }

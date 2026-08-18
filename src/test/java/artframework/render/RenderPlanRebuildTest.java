@@ -45,6 +45,8 @@ public class RenderPlanRebuildTest {
         RenderProjectionQueue.projectActiveSurfaces(Collections.singleton("sts1.visible"));
 
         assertNotNull(RenderHosts.get().getTarget(RenderHost.c2SurfaceTargetId("sts1.visible")));
+        assertEquals(null,
+                RenderHosts.get().getTarget(RenderHost.c2SurfaceTargetId("sts1.hidden")));
     }
 
     @Test public void publicRecreationApiRestoresOnlyFromEcsState() {
@@ -59,6 +61,21 @@ public class RenderPlanRebuildTest {
         assertEquals(1, host.targetCount());
         assertEquals(new Rect(2f, 3f, 20f, 30f),
                 host.getTarget(RenderHost.c2SurfaceTargetId("sts1.recreate")).bounds());
+    }
+
+    @Test public void hostRecreationReleasesCacheButRetainsEcsAuthority() {
+        RenderStateEcs.surface("sts1.host-recreate", 2f, 3f, 20f, 30f, true);
+        RenderProjectionQueue.projectNow();
+        assertNotNull(RenderHosts.get().getTarget(
+                RenderHost.c2SurfaceTargetId("sts1.host-recreate")));
+
+        RenderHosts.get().recreateHostCache();
+
+        assertEquals(1, RenderStateEcs.context().entities().size());
+        assertEquals(0, RenderHosts.get().targetCount());
+        RenderProjectionQueue.projectNow();
+        assertNotNull(RenderHosts.get().getTarget(
+                RenderHost.c2SurfaceTargetId("sts1.host-recreate")));
     }
 
     @Test public void fullFrameEnabledQueryReadsEcsWithoutHostMirror() {

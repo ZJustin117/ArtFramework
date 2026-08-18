@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 /** Milestone 41: declarative node FSM. */
 public class NodeStateMachineTest {
@@ -110,6 +111,103 @@ public class NodeStateMachineTest {
         fixture.emit("go", SignalNames.PRESSED);
         assertEquals("b", NodeStateMachines.get("win", "gate").state());
         assertEquals(1, hits.get());
+    }
+
+    @Test
+    public void transitionAndStateEnterActionsCopyNestedArgs() {
+        final AtomicReference<Object> captured = new AtomicReference<Object>();
+        ArtFramework.registerUiAction(
+                "mod.capture_nested",
+                new UiAction() {
+                    @Override
+                    public boolean run(UiActionContext ctx) {
+                        captured.set(ctx.args.get("nested"));
+                        return true;
+                    }
+                });
+        C1RuntimeFixture fixture = mountFsm(new LinkedHashMap<String, Object>());
+        NodeStateMachine fsm = new NodeStateMachine(
+                fixture.context, fixture.find("gate"), "closed");
+
+        Map<String, Object> nested = new LinkedHashMap<String, Object>();
+        nested.put("value", "before");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("nested", nested);
+        Map<String, Object> action = new LinkedHashMap<String, Object>();
+        action.put("action", "mod.capture_nested");
+        action.put("args", args);
+        List<Map<String, Object>> actions = new ArrayList<Map<String, Object>>();
+        actions.add(action);
+
+        fsm.setEnterActions("open", actions);
+        nested.put("value", "after");
+        fsm.setState("open");
+
+        assertEquals("before", ((Map<?, ?>) captured.get()).get("value"));
+        try {
+            ((Map<String, Object>) captured.get()).put("new", "value");
+            fail("state enter action args must be immutable");
+        } catch (UnsupportedOperationException expected) {
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void stateMachineActionsRejectHostValues() {
+        C1RuntimeFixture fixture = mountFsm(new LinkedHashMap<String, Object>());
+        NodeStateMachine fsm = new NodeStateMachine(
+                fixture.context, fixture.find("gate"), "closed");
+        Map<String, Object> action = new LinkedHashMap<String, Object>();
+        action.put("action", "mod.any");
+        action.put("args", Collections.<String, Object>singletonMap("host", new Object()));
+        fsm.setEnterActions("open", Collections.singletonList(action));
+    }
+
+    @Test
+    public void transitionActionsCopyNestedArgs() {
+        final AtomicReference<Object> captured = new AtomicReference<Object>();
+        ArtFramework.registerUiAction(
+                "mod.capture_transition_nested",
+                new UiAction() {
+                    @Override
+                    public boolean run(UiActionContext ctx) {
+                        captured.set(ctx.args.get("nested"));
+                        return true;
+                    }
+                });
+        C1RuntimeFixture fixture = mountFsm(new LinkedHashMap<String, Object>());
+        NodeStateMachine fsm = new NodeStateMachine(
+                fixture.context, fixture.find("gate"), "closed");
+        Map<String, Object> nested = new LinkedHashMap<String, Object>();
+        nested.put("value", "before");
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("nested", nested);
+        Map<String, Object> action = new LinkedHashMap<String, Object>();
+        action.put("action", "mod.capture_transition_nested");
+        action.put("args", args);
+        NodeStateMachine.Transition transition = new NodeStateMachine.Transition(
+                "closed", "open", "ui/win/w/go/pressed", null,
+                Collections.singletonList(action));
+        fsm.addTransition(transition);
+        fsm.wire(fixture.context);
+
+        nested.put("value", "after");
+        fixture.emit("go", SignalNames.PRESSED);
+
+        assertEquals("before", ((Map<?, ?>) captured.get()).get("value"));
+        try {
+            ((Map<String, Object>) captured.get()).put("new", "value");
+            fail("transition action args must be immutable");
+        } catch (UnsupportedOperationException expected) {
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void transitionActionsRejectHostValues() {
+        Map<String, Object> action = new LinkedHashMap<String, Object>();
+        action.put("action", "mod.any");
+        action.put("args", Collections.<String, Object>singletonMap("host", new Object()));
+        new NodeStateMachine.Transition(
+                "closed", "open", "go", null, Collections.singletonList(action));
     }
 
     private static Map<String, Object> dualStateDecl(String openOn, String closeOn, boolean closeRegex) {

@@ -53,6 +53,13 @@ public final class Sts1SurfaceRenderer {
                 return;
             }
             disableInactiveSurfaceEffects(plan);
+            Set<String> activeSurfaces = new LinkedHashSet<String>();
+            for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+                activeSurfaces.add(entry.surfaceId);
+            }
+            prepareSurfaceVisuals(plan);
+            artframework.render.RenderProjectionQueue.projectActiveSurfaces(activeSurfaces);
+            RenderHosts.get().drawFrame(sb, true, RenderHost.kindsC2UnderPresent());
             for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
                 prepareSurfaceChrome(sb, e.surfaceId);
                 if (SurfaceIds.COMBAT_HAND.equals(e.surfaceId)) {
@@ -65,11 +72,11 @@ public final class Sts1SurfaceRenderer {
                     renderEvent(sb);
                 } else if (SurfaceIds.SELECT_GRID.equals(e.surfaceId)
                         || SurfaceIds.SELECT_HAND.equals(e.surfaceId)) {
-                    renderSelect(sb);
+                    renderSelect(sb, e.surfaceId);
                 } else if (SurfaceIds.REWARD_COMBAT.equals(e.surfaceId)
                         || SurfaceIds.REWARD_CARD.equals(e.surfaceId)
                         || SurfaceIds.REWARD_BOSS_RELIC.equals(e.surfaceId)) {
-                    renderReward(sb);
+                    renderReward(sb, e.surfaceId);
                 } else if (SurfaceIds.REST.equals(e.surfaceId)) {
                     renderRest(sb);
                 } else if (SurfaceIds.SHOP.equals(e.surfaceId)) {
@@ -88,11 +95,6 @@ public final class Sts1SurfaceRenderer {
                     renderProceed(sb);
                 }
             }
-            Set<String> activeSurfaces = new LinkedHashSet<String>();
-            for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
-                activeSurfaces.add(entry.surfaceId);
-            }
-            artframework.render.RenderProjectionQueue.projectActiveSurfaces(activeSurfaces);
             renderEntityChrome(sb);
         } finally {
             guard.endCapture();
@@ -159,6 +161,212 @@ public final class Sts1SurfaceRenderer {
             // C2 surface bounds are layout regions, not pixel-precise chrome. Keep ambient
             // effects on item targets so a surface cannot paint a large fallback rectangle.
         } catch (RuntimeException ignored) {
+        }
+    }
+
+    /** Materializes the current frame's C2 visual components before their effect band is drawn. */
+    private static void prepareSurfaceVisuals(SurfaceDrawPlan plan) {
+        for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+            prepareSurfaceChrome(null, entry.surfaceId);
+        }
+        prepareHandVisuals(plan);
+        prepareControlsVisuals(plan);
+        prepareMapVisuals(plan);
+        prepareEventVisuals(plan);
+        prepareSelectVisuals(plan);
+        prepareRewardVisuals(plan);
+        prepareProceedVisuals(plan);
+        prepareIntentVisuals(plan);
+    }
+
+    private static void prepareHandVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.COMBAT_HAND)) return;
+        if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_HAND);
+            return;
+        }
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        for (HandDrawPath.DrawItem item : HandDrawPath.buildFromProjection()) {
+            if (!item.visible) continue;
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.COMBAT_HAND, item.instanceId, item.bounds(), 1f,
+                    "card", item.artResourceId, item.cardId, item.visible);
+            visibleItems.add(item.instanceId);
+        }
+        artframework.presentation.PresentationVisuals.retainC2Items(
+                SurfaceIds.COMBAT_HAND, visibleItems);
+    }
+
+    private static void prepareControlsVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.COMBAT_CONTROLS)) return;
+        if (!ControlsDrawPath.shouldSuppressNativeEndTurn()) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_CONTROLS);
+            return;
+        }
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        for (ControlsDrawPath.DrawItem item : ControlsDrawPath.buildFromProjection()) {
+            if (!item.visible || !ControlsViewIdEndTurn(item.id)) continue;
+            artframework.component.Rect bounds = Sts1EndTurnChrome.bounds(
+                    com.megacrit.cardcrawl.core.Settings.WIDTH,
+                    com.megacrit.cardcrawl.core.Settings.HEIGHT);
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.COMBAT_CONTROLS, item.id, bounds, 2f,
+                    "control", item.iconSource, item.text, item.visible);
+            visibleItems.add(item.id);
+        }
+        artframework.presentation.PresentationVisuals.retainC2Items(
+                SurfaceIds.COMBAT_CONTROLS, visibleItems);
+    }
+
+    private static void prepareMapVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.MAP)) return;
+        if (!MapDrawPath.shouldSuppressNativeMap()) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.MAP);
+            return;
+        }
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
+            float nodeSize = item.highlighted ? 80f : 64f;
+            String itemId = "node:" + item.row + ":" + item.col;
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.MAP, itemId,
+                    new artframework.component.Rect(item.screenX - nodeSize / 2f,
+                            item.screenY - nodeSize / 2f, nodeSize, nodeSize), 1f,
+                    "map-node", item.artSource, item.symbol, true);
+            visibleItems.add(itemId);
+        }
+        artframework.presentation.PresentationVisuals.retainC2Items(SurfaceIds.MAP, visibleItems);
+    }
+
+    private static void prepareEventVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.EVENT)) return;
+        if (!EventDrawPath.shouldSuppressNativeEvent()) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.EVENT);
+            return;
+        }
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
+            if (!item.visible) continue;
+            String itemId = "option:" + item.index;
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.EVENT, itemId,
+                    new artframework.component.Rect(item.x - item.w / 2f,
+                            item.y - item.h / 2f, item.w, item.h), 1f,
+                    "event-option", artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED,
+                    item.label, item.visible);
+            visibleItems.add(itemId);
+        }
+        artframework.presentation.PresentationVisuals.retainC2Items(SurfaceIds.EVENT, visibleItems);
+    }
+
+    private static void prepareSelectVisuals(SurfaceDrawPlan plan) {
+        if (!SelectDrawPath.shouldSuppressNativeSelect()) {
+            removeActiveItems(plan, SurfaceIds.SELECT_GRID, SurfaceIds.SELECT_HAND);
+            return;
+        }
+        for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+            if (!SurfaceIds.SELECT_GRID.equals(entry.surfaceId)
+                    && !SurfaceIds.SELECT_HAND.equals(entry.surfaceId)) continue;
+            Set<String> visibleItems = new LinkedHashSet<String>();
+            for (SelectDrawPath.DrawItem item : SelectDrawPath.buildFromProjection()) {
+                if (!item.visible) continue;
+                String itemId = item.confirm ? "confirm" : "card:" + item.cardId;
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        entry.surfaceId, itemId,
+                        new artframework.component.Rect(item.x - 48f, item.y - 32f, 96f, 64f), 1f,
+                        item.confirm ? "select-confirm" : "select-card", "", item.cardId,
+                        item.visible);
+                visibleItems.add(itemId);
+            }
+            artframework.presentation.PresentationVisuals.retainC2Items(
+                    entry.surfaceId, visibleItems);
+        }
+    }
+
+    private static void prepareRewardVisuals(SurfaceDrawPlan plan) {
+        if (!RewardDrawPath.shouldSuppressNativeReward()) {
+            removeActiveItems(plan, SurfaceIds.REWARD_COMBAT, SurfaceIds.REWARD_CARD,
+                    SurfaceIds.REWARD_BOSS_RELIC);
+            return;
+        }
+        for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+            if (!SurfaceIds.REWARD_COMBAT.equals(entry.surfaceId)
+                    && !SurfaceIds.REWARD_CARD.equals(entry.surfaceId)
+                    && !SurfaceIds.REWARD_BOSS_RELIC.equals(entry.surfaceId)) continue;
+            Set<String> visibleItems = new LinkedHashSet<String>();
+            for (RewardDrawPath.DrawItem item : RewardDrawPath.buildFromProjection()) {
+                if (!item.visible) continue;
+                String itemId = "reward:" + item.index;
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        entry.surfaceId, itemId,
+                        new artframework.component.Rect(item.x - item.w / 2f,
+                                item.y - item.h / 2f, item.w, item.h), 1f,
+                        "reward-item", artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
+                        item.label, item.visible);
+                visibleItems.add(itemId);
+            }
+            artframework.presentation.PresentationVisuals.retainC2Items(
+                    entry.surfaceId, visibleItems);
+        }
+    }
+
+    private static void prepareProceedVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.COMBAT_PROCEED)) return;
+        if (!ProceedDrawPath.shouldSuppressNativeProceed()) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_PROCEED);
+            return;
+        }
+        float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+        float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.2f;
+        int i = 0;
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        for (ProceedDrawPath.DrawItem item : ProceedDrawPath.buildFromProjection()) {
+            if (!item.visible) continue;
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.COMBAT_PROCEED, item.id,
+                    new artframework.component.Rect(x - 180f, y - i * 40f - 20f, 360f, 40f), 1f,
+                    "proceed", "", item.text, item.visible);
+            visibleItems.add(item.id);
+            i++;
+        }
+        artframework.presentation.PresentationVisuals.retainC2Items(
+                SurfaceIds.COMBAT_PROCEED, visibleItems);
+    }
+
+    private static void prepareIntentVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.COMBAT_INTENTS)) return;
+        if (!IntentDrawPath.shouldSuppressNativeIntents()
+                && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_INTENTS)) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_INTENTS);
+            return;
+        }
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
+            String itemId = "intent:" + item.monsterId;
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.COMBAT_INTENTS, itemId,
+                    new artframework.component.Rect(item.x - 32f, item.y - 32f, 64f, 64f), 1f,
+                    "intent", item.iconResourceId, String.valueOf(item.multiAmount), true);
+            visibleItems.add(itemId);
+        }
+        artframework.presentation.PresentationVisuals.retainC2Items(
+                SurfaceIds.COMBAT_INTENTS, visibleItems);
+    }
+
+    private static boolean containsSurface(SurfaceDrawPlan plan, String surfaceId) {
+        for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+            if (surfaceId.equals(entry.surfaceId)) return true;
+        }
+        return false;
+    }
+
+    private static void removeActiveItems(SurfaceDrawPlan plan, String... surfaceIds) {
+        for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+            for (String surfaceId : surfaceIds) {
+                if (surfaceId.equals(entry.surfaceId)) {
+                    artframework.presentation.PresentationVisuals.removeC2Items(surfaceId);
+                }
+            }
         }
     }
 
@@ -372,7 +580,7 @@ public final class Sts1SurfaceRenderer {
     }
 
     /** Select pool + confirm chrome when native select is suppressed (22.3). */
-    private static void renderSelect(SpriteBatch sb) {
+    private static void renderSelect(SpriteBatch sb, String surfaceId) {
         if (!SelectDrawPath.shouldSuppressNativeSelect()) {
             return;
         }
@@ -388,7 +596,7 @@ public final class Sts1SurfaceRenderer {
                                 ? item.cardId
                                 : (item.selected ? "[" + item.cardId + "]" : item.cardId);
                 artframework.presentation.PresentationVisuals.syncC2Item(
-                        SurfaceIds.SELECT_GRID, item.confirm ? "confirm" : "card:" + item.cardId,
+                        surfaceId, item.confirm ? "confirm" : "card:" + item.cardId,
                         new artframework.component.Rect(item.x - 48f, item.y - 32f, 96f, 64f), 1f,
                         item.confirm ? "select-confirm" : "select-card", "", label, item.visible);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
@@ -403,7 +611,7 @@ public final class Sts1SurfaceRenderer {
         }
     }
 
-    private static void renderReward(SpriteBatch sb) {
+    private static void renderReward(SpriteBatch sb, String surfaceId) {
         if (!RewardDrawPath.shouldSuppressNativeReward()) {
             return;
         }
@@ -415,7 +623,7 @@ public final class Sts1SurfaceRenderer {
                     continue;
                 }
                 artframework.presentation.PresentationVisuals.syncC2Item(
-                        SurfaceIds.REWARD_COMBAT, "reward:" + item.index,
+                        surfaceId, "reward:" + item.index,
                         new artframework.component.Rect(item.x - item.w / 2f,
                                 item.y - item.h / 2f, item.w, item.h), 1f,
                         "reward-item", artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,

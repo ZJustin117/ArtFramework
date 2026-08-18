@@ -261,6 +261,17 @@ public final class RenderHost {
         clearTargets();
     }
 
+    /** Release disposable host resources while retaining ECS render state and configuration. */
+    public void recreateHostCache() {
+        clearTargets();
+        shaderRuntime.disposeAll();
+        frameCapture.dispose();
+        effects.clear();
+        shaders.clear();
+        shadersReady = false;
+        installBuiltins();
+    }
+
     void rebuildFromEcsPlan() {
         rebuildFromEcsPlan(null);
     }

@@ -302,7 +302,8 @@ public final class UiProbe {
             row.put("x", Float.valueOf(slot.x()));
             row.put("y", Float.valueOf(slot.y()));
             row.put("scale", Float.valueOf(slot.scale()));
-            artframework.c2.EntitySnapshot snap = artframework.c2.EntitySnapshot.from(slot.snapshot());
+            artframework.c2.EntitySnapshot snap = slot.snapshot() != null
+                    ? slot.snapshot() : artframework.c2.EntitySnapshot.empty();
             row.put("snapshot", snap.toMap());
             slots.add(row);
         }

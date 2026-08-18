@@ -1,5 +1,7 @@
 package artframework.c2;
 
+import artframework.component.NativeTemplateIds;
+
 /** C2 event lifecycle state; option policy lives on the shared SignalBus. */
 public final class EventTemplate {
     public static final String RESOURCE = NativeTemplateIds.EVENT;

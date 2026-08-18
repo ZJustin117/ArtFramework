@@ -40,6 +40,11 @@ public class EntityDrawPathTest {
     }
 
     @Test
+    public void snapshotParseFallsBackToEmptyForUnknownReadInput() {
+        assertEquals("", EntitySnapshot.from(new Object()).label);
+    }
+
+    @Test
     public void drawPathBuildsLaidOutSlots() {
         EntityPresent p = ArtFramework.entities();
         p.attach("r1", "relic", "burning_blood");

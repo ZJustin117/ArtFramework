@@ -1,5 +1,7 @@
 package artframework.c2;
 
+import artframework.component.NativeTemplateIds;
+
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

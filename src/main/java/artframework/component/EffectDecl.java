@@ -1,7 +1,5 @@
 package artframework.component;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -17,10 +15,6 @@ public final class EffectDecl {
             throw new IllegalArgumentException("effect id required");
         }
         this.id = id;
-        if (params == null || params.isEmpty()) {
-            this.params = Collections.emptyMap();
-        } else {
-            this.params = Collections.unmodifiableMap(new LinkedHashMap<String, Object>(params));
-        }
+        this.params = ImmutableUiValue.copyMap(params);
     }
 }

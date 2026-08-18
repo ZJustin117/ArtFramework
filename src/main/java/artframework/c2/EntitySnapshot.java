@@ -1,12 +1,13 @@
 package artframework.c2;
 
+import artframework.component.ImmutableUiValue;
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Typed co-op chrome snapshot for {@link EntityPresent#sync}. Opaque Objects still accepted;
- * use {@link #from(Object)} to parse maps or snapshots.
+ * Framework-owned immutable co-op chrome snapshot for {@link EntityPresent#sync}.
  */
 public final class EntitySnapshot {
 
@@ -47,11 +48,7 @@ public final class EntitySnapshot {
         this.maxHp = maxHp;
         this.block = block;
         this.intentIconResourceId = intentIconResourceId != null ? intentIconResourceId : "";
-        if (extras == null || extras.isEmpty()) {
-            this.extras = Collections.emptyMap();
-        } else {
-            this.extras = Collections.unmodifiableMap(new LinkedHashMap<String, Object>(extras));
-        }
+        this.extras = ImmutableUiValue.copyMap(extras);
     }
 
     public static EntitySnapshot empty() {
@@ -76,17 +73,16 @@ public final class EntitySnapshot {
                 0f, 0f, 1f, true, "", "", label, hp, maxHp, block, intentIconResourceId, null);
     }
 
-    /** Parse {@link EntitySnapshot}, Map keys, or return empty for unknown. */
-    @SuppressWarnings("unchecked")
+    /** Parse an immutable snapshot or map; unknown read values produce an empty snapshot. */
     public static EntitySnapshot from(Object raw) {
         if (raw == null) {
             return empty();
         }
         if (raw instanceof EntitySnapshot) {
-            return (EntitySnapshot) raw;
+            return copyOf((EntitySnapshot) raw);
         }
         if (raw instanceof Map) {
-            Map<String, Object> m = (Map<String, Object>) raw;
+            Map<String, Object> m = immutableMap(raw);
             return new EntitySnapshot(
                     floatVal(m.get("x"), 0f),
                     floatVal(m.get("y"), 0f),
@@ -104,6 +100,14 @@ public final class EntitySnapshot {
         return empty();
     }
 
+    /** Validate a write input before it becomes persistent EntityPresent state. */
+    public static EntitySnapshot normalize(Object raw) {
+        if (raw == null) return empty();
+        if (raw instanceof EntitySnapshot || raw instanceof Map) return from(raw);
+        throw new IllegalArgumentException("unsupported EntityPresent snapshot: "
+                + raw.getClass().getName());
+    }
+
     public Map<String, Object> toMap() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("x", Float.valueOf(x));
@@ -118,6 +122,19 @@ public final class EntitySnapshot {
         m.put("block", Integer.valueOf(block));
         m.put("intentIconResourceId", intentIconResourceId);
         return m;
+    }
+
+    private static EntitySnapshot copyOf(EntitySnapshot source) {
+        return new EntitySnapshot(
+                source.x, source.y, source.scale, source.visible,
+                source.artResourceId, source.iconResourceId, source.label,
+                source.hp, source.maxHp, source.block, source.intentIconResourceId, source.extras);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> immutableMap(Object raw) {
+        Object copy = ImmutableUiValue.copy(raw);
+        return (Map<String, Object>) copy;
     }
 
     private static int intVal(Object o, int def) {

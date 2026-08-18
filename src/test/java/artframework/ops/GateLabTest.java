@@ -6,8 +6,8 @@ import artframework.api.ArtFramework;
 import artframework.api.UiOpResult;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
-import artframework.c2.MapNodeRef;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.MapNodeRef;
+import artframework.component.NativeTemplateIds;
 import artframework.c2.SelectKind;
 import artframework.c2.hooks.NativeUiHooks;
 

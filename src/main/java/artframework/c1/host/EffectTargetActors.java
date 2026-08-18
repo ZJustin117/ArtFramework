@@ -68,6 +68,11 @@ public final class EffectTargetActors {
         }
     }
 
+    /** Clear all disposable scene2d bindings during Stage recreation. */
+    public static void clearAll() {
+        BY_KEY.clear();
+    }
+
     public static void resetForTests() {
         BY_KEY.clear();
     }

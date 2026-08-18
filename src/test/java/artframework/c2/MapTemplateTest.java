@@ -1,5 +1,9 @@
 package artframework.c2;
 
+import artframework.component.NativeTemplateIds;
+
+import artframework.component.MapNodeRef;
+
 import artframework.api.ArtFramework;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;

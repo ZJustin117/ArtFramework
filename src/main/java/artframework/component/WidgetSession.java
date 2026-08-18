@@ -66,10 +66,10 @@ public final class WidgetSession {
     }
 
     public float setSlider(String sliderId, float value) {
-        UiNode n = requireType(sliderId, UiTypes.SLIDER);
-        float min = n.propFloat("min", 0f);
-        float max = n.propFloat("max", 1f);
-        float clamped = clamp(value, min, max);
+        requireType(sliderId, UiTypes.SLIDER);
+        requireFinite(value);
+        float[] bounds = bounds(sliderId);
+        float clamped = clamp(value, bounds[0], bounds[1]);
         putValue(sliderId, Float.valueOf(clamped));
         return clamped;
     }
@@ -120,10 +120,10 @@ public final class WidgetSession {
     }
 
     public float setProgress(String id, float value) {
-        UiNode n = requireType(id, UiTypes.PROGRESS);
-        float min = n.propFloat("min", 0f);
-        float max = n.propFloat("max", 1f);
-        float clamped = clamp(value, min, max);
+        requireType(id, UiTypes.PROGRESS);
+        requireFinite(value);
+        float[] bounds = bounds(id);
+        float clamped = clamp(value, bounds[0], bounds[1]);
         putValue(id, Float.valueOf(clamped));
         return clamped;
     }
@@ -222,6 +222,12 @@ public final class WidgetSession {
         return v;
     }
 
+    private static void requireFinite(float value) {
+        if (Float.isNaN(value) || Float.isInfinite(value)) {
+            throw new IllegalArgumentException("control value must be finite");
+        }
+    }
+
     private UiNode requireType(String id, String type) {
         UiNode node = index.get(id);
         if (node == null || !type.equals(node.type)) {
@@ -238,6 +244,18 @@ public final class WidgetSession {
         artframework.presentation.ControlValueComponent component = context.world().get(
                 node, artframework.presentation.ControlValueComponent.class);
         return component != null ? component.value : fallback;
+    }
+
+    private float[] bounds(String id) {
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRuntime.context(windowId);
+        artframework.ecs.EntityId node = artframework.presentation.PresentationRuntime.find(context, id);
+        if (node != null) {
+            artframework.presentation.ControlBoundsComponent bounds = context.world().get(
+                    node, artframework.presentation.ControlBoundsComponent.class);
+            if (bounds != null) return new float[] {bounds.min, bounds.max};
+        }
+        return new float[] {0f, 1f};
     }
 
     private void putValue(String id, Object value) {

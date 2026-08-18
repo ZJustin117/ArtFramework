@@ -7,8 +7,8 @@ import artframework.api.ArtFramework;
 import artframework.api.UiOpResult;
 import artframework.api.WindowClass;
 import artframework.api.WindowDef;
-import artframework.c2.MapNodeRef;
-import artframework.c2.NativeTemplateIds;
+import artframework.component.MapNodeRef;
+import artframework.component.NativeTemplateIds;
 import artframework.c2.SelectKind;
 import artframework.inspect.UiInspect;
 import artframework.inspect.UiLabListeners;
@@ -546,10 +546,9 @@ public class ArtCommand extends ConsoleCommand {
                                             .get("message"));
         } else if ("entity-attach".equals(action)) {
             artframework.c2.EntityPresent entities = ArtFramework.entities();
-            entities.attach("art-lab-entity", "player", "ironclad");
-            entities.sync("art-lab-entity",
-                    artframework.c2.EntitySnapshot.playerChrome("ART Entity", 70, 80, 0));
-            entities.layout("art-lab-entity", 320f, 720f, 1f);
+            entities.present("art-lab-entity", "player", "ironclad",
+                    artframework.c2.EntitySnapshot.playerChrome("ART Entity", 70, 80, 0),
+                    320f, 720f, 1f);
             r = UiOpResult.ok("entity attached slots=" + entities.size()
                     + " draw=" + artframework.c2.EntityDrawPath.buildFromPresent().size()
                     + " target=" + (artframework.render.RenderHosts.get()

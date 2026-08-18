@@ -46,6 +46,11 @@ public final class C1Materializer {
         }
         Object initial = ControlValueSystem.initialValue(declaration.type,
                 context.world().get(entity, NodePropertiesComponent.class));
+        if (artframework.component.UiTypes.SLIDER.equals(declaration.type)
+                || artframework.component.UiTypes.PROGRESS.equals(declaration.type)) {
+            context.world().put(entity, ControlBoundsComponent.class,
+                    ControlValueSystem.bounds(context.world().get(entity, NodePropertiesComponent.class)));
+        }
         if (initial != null) context.world().put(entity, ControlValueComponent.class,
                 new ControlValueComponent(initial));
         context.world().put(entity, SignalPortsComponent.class,

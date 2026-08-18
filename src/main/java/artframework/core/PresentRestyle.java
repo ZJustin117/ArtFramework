@@ -1,7 +1,6 @@
 package artframework.core;
 
 import artframework.assets.HostAssetsHolder;
-import artframework.c1.SyntheticRuntime;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationRegistry;
 import artframework.presentation.PresentationRuntime;
@@ -56,7 +55,7 @@ public final class PresentRestyle {
             return;
         }
         try {
-            SyntheticRuntime.reattach(windowId);
+            PresentRestyleHost.reattach(windowId);
         } catch (Throwable ignored) {
         }
     }
@@ -73,10 +72,7 @@ public final class PresentRestyle {
 
     private static void refreshDefaultSkinQuiet() {
         try {
-            artframework.c1.host.StageHost host = artframework.c1.host.StageHost.get();
-            if (host != null) {
-                host.refreshDefaultSkin();
-            }
+            PresentRestyleHost.refreshDefaultSkin();
         } catch (Throwable ignored) {
         }
     }

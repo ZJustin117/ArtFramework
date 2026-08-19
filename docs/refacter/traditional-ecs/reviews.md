@@ -684,3 +684,34 @@ Use stable IDs and preserve rejected findings with evidence:
   retained as an immutable declaration view for `LightwaveCoverageTest`; it is not read by any
   production path. `applySurfaceBinds` still tolerates a per-surface bind rejection by design. No
   device gate applies because no STS hook, draw path, or host lifecycle source changed.
+
+## Round R25 - Post-closure lifecycle audit
+
+- Ledger rows: `TE-26`, `TE-27`
+- Sessions: initial review `ses_fe61be6b3ffe2Tl4WJqz4ykm2N`; focused fix review resumed in the
+  same session and returned PASS
+- Scope: changed for registry reset identity, context ownership validation, and focused lifecycle
+  tests
+- Result: FINDINGS, with R25-01 rejected and R25-02 fixed and verified
+- Findings:
+  - `R25-01` medium, rejected with evidence: the initial recommendation to clear `CONTEXTS` from
+    `PresentationRegistry.resetForTests` would replace cached contexts. Production holders such as
+    `NativeInputRecords`, `NativeTemplateRuntime`, `Sts1MapIntentBridge`, and `RenderStateEcs`
+    retain contexts in `static final` fields; replacing registry entries splits their writer context
+    from readers returned by later `context(scope)` calls. Existing
+    `PresentationWorldTest.registryResetClearsContextOwnershipWithoutReplacingContexts` explicitly
+    asserts identity preservation. The attempted change caused 22 full-suite failures with
+    `unknown entity: null`; it was reverted. Reset intentionally clears ownership and the shared
+    world while retaining context instances; explicit `close(String)` unregisters scopes.
+  - `R25-02` medium, accepted, fixed, verified: `PresentationContext.destroy` dereferenced the
+    identity of any entity in the shared world, throwing `NullPointerException` for unkeyed pack or
+    effect entities and allowing a foreign scope to alter its ownership map. `keyOrNull` now handles
+    missing identity safely, and exact context ownership is required before removal or destruction.
+- Verification: focused red tests reproduced R25-01 and R25-02; after disposition,
+  `./scripts/with-art-env.sh clean test --rerun-tasks` passed 698/698 with 0 failures, 0 errors,
+  and 0 skipped. `PresentationRegistryLifecycleTest` passed 4/4;
+  `PresentationWorldTest` passed 8/8 including the identity-preservation contract. Independent
+  focused fix review returned PASS.
+- Residual risk: context identity stability remains a deliberate lifecycle invariant; any future
+  attempt to replace registry contexts must first migrate every static-final context holder or it
+  will split ECS writers and readers. No device gate applies to this pure lifecycle slice.

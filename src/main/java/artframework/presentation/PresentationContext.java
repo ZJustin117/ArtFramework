@@ -63,9 +63,19 @@ public final class PresentationContext implements AutoCloseable {
         return identity.key;
     }
 
+    /** Identity key of an entity, or null when it carries no ART node identity. */
+    private PresentationKey keyOrNull(EntityId entity) {
+        NodeIdentityComponent identity = world.get(entity, NodeIdentityComponent.class);
+        return identity != null ? identity.key : null;
+    }
+
     public boolean destroy(EntityId entity) {
         if (entity == null || !world.contains(entity)) return false;
-        entities.remove(key(entity));
+        // Only entities this scope keyed are owned here: the world is shared, so a foreign or
+        // unkeyed entity must be rejected rather than dereferenced or destroyed.
+        PresentationKey key = keyOrNull(entity);
+        if (key == null || !entity.equals(entities.get(key))) return false;
+        entities.remove(key);
         return world.destroyEntity(entity);
     }
 

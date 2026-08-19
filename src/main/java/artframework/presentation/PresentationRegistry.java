@@ -41,6 +41,16 @@ public final class PresentationRegistry {
         if (context != null) context.close();
     }
 
+    /**
+     * Clears ownership without replacing context instances.
+     *
+     * <p>The {@code CONTEXTS} keys are retained deliberately. Production holders such as
+     * {@code RenderStateEcs}, {@code NativeInputRecords}, {@code NativeTemplateRuntime}, and
+     * {@code Sts1MapIntentBridge} pin their context in a {@code static final} field at class init.
+     * Removing the key here would make the next {@link #context(String)} call build a second
+     * instance with an empty key map while those holders keep the old one, splitting writers from
+     * readers. Use {@link #close(String)} to retire a single scope.
+     */
     public static synchronized void resetForTests() {
         for (PresentationContext context : CONTEXTS.values()) context.close();
         WORLD.clear();

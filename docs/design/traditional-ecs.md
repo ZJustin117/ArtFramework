@@ -7,12 +7,12 @@ multi-runtime interpretation of C1, C2, projection, render-target, and host stat
 
 ## Current Checkpoint
 
-As of 2026-08-15, the refactor is approximately 80% complete against the full traditional-ECS
-target. ECS is authoritative for persistent presentation data: C1/C2 entities, projection
-frames, surface/template observations, native input and intent records, map gesture state,
-profile selections, render-plan inputs, capture policy, Skeleton state, EntityPresent slots, and
-diagnostic snapshots. A single production `PresentationSchedule` defines the frame order, and D1
-verifies EntityPresent draw/recreation/cleanup plus Spine34 native takeover/recreation/cleanup.
+As of 2026-08-19, the traditional-ECS convergence is complete. ECS is authoritative for persistent
+presentation data: C1/C2 entities, projection frames, surface/template observations, native input
+and intent records, map gesture state, profile selections, render-plan inputs, capture policy,
+Skeleton state, EntityPresent slots, diagnostic snapshots, and active pack presentation
+contributions. A single production `PresentationSchedule` defines the frame order, and D1 verifies
+EntityPresent draw/recreation/cleanup plus Spine34 native takeover/recreation/cleanup.
 
 The production schedule owns fixed instances for surface intent execution, authority projection,
 business confirmation, native intent lifecycle, normalization, animation, effects, render
@@ -23,6 +23,11 @@ and active-surface projection requests go through `RenderProjectionQueue`. `OPEN
 and legacy layout-root cache only, while `FullFrameRenderComponent` is the sole full-frame enabled
 state. Fixed catalogs, callback hubs, asset catalogs, host resources, and provider caches remain
 intentionally outside ECS authority.
+
+The completed pack migration additionally routes enabled-pack declaration contributions and
+template/window registration through reversible `PackWorld` operations. `PresentPackApply` is an
+owner-aware ECS projection boundary: it preserves unrelated ECS writers, removes only its own
+applied state, and reprojects the no-active-pack state after a failed activation.
 
 ## Rules
 

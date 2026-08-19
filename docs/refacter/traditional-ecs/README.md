@@ -19,9 +19,11 @@ and compatibility or host containers must be disposable, non-authoritative bound
 
 - Project: `traditional-ecs`
 - Started: 2026-08-16
-- Design checkpoint: approximately 80% complete as of 2026-08-15
-- Active slice: TE-20 pack projection ownership and ECS cleanup boundary
-- State: complete through `TE-20`; no residual traditional-ECS row is currently unclassified
+- Historical baseline: approximately 80% complete as of 2026-08-15; published completion
+  checkpoint reconciled on 2026-08-19
+- Active slice: none
+- State: `TE-01` through `TE-21` are complete; no residual traditional-ECS row is currently
+  unclassified.
 - Last semantic gate: `./scripts/with-art-env.sh test` passed after TE-20 and Signal API
   worktree integration on 2026-08-18
 - Last device evidence: final R5 review PASS; D1 deployment verified `ArtFramework.jar` at

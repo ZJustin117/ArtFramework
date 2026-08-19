@@ -22,14 +22,13 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 Design: [`docs/design/traditional-ecs.md`](design/traditional-ecs.md). Entity IDs only;
 components are data only; systems are stateless and own all ART interaction handling.
 
-**Current checkpoint (2026-08-15):** ECS data authority migration is substantially complete,
-including C1/C2 state, native input records, intent lifecycle records, render-plan inputs,
-Skeleton/EntityPresent state, and diagnostic projections. The production schedule and the D1
-draw/recreation gates are also in place. The remaining work is strict system ownership for every
-production phase, narrowing the last public render mutation boundaries, and removing only legacy
-stores that still have a concrete duplicate responsibility. This is approximately 80% of the
-broader traditional-ECS convergence: the remaining work is primarily strict schedule ownership
-and narrowing host execution boundaries.
+**Current checkpoint (2026-08-19):** Traditional ECS convergence is complete. ECS is the
+authority for C1/C2 state, native input and intent lifecycle records, render-plan inputs,
+Skeleton/EntityPresent state, diagnostic projections, and active pack presentation
+contributions. Production phases run through the fixed `PresentationSchedule`; render and host
+execution boundaries are explicit; compatibility APIs derive ECS views; and only documented
+non-authoritative host/callback/resource caches remain. The persistent closure evidence is in the
+traditional-ECS refacter ledger, including `TE-01` through `TE-20` and their review/test gates.
 
 Persistent recursive review, before/after evidence, findings, and verification progress:
 [`docs/refacter/traditional-ecs/`](refacter/traditional-ecs/).
@@ -60,7 +59,7 @@ Persistent recursive review, before/after evidence, findings, and verification p
   through the same model. Intent lifecycle transitions are centralized in
   `NativeIntentLifecycleSystem`; `PresentSurfaces.submit()` writes only ECS request data and uses
   the fixed schedule-owned `SurfaceIntentExecutionSystem` for its synchronous compatibility result.
-- [~] 46.5 Derive all rendering/effects/skeleton host caches from ECS data; animation playback,
+- [x] 46.5 Derive all rendering/effects/skeleton host caches from ECS data; animation playback,
   pulse envelopes, and skeleton identity/snapshot state are ECS authoritative, while RenderHost
   C1/C2 item target caches are ECS-frame-derived; surface/full-frame and host resource paths now
   consume ECS render-state components; D1 `d1_full_present_combat_ready`, EntityPresent draw/
@@ -109,7 +108,7 @@ Persistent recursive review, before/after evidence, findings, and verification p
 - [x] 46.5.0 `RenderPlan.fromEcs()` is the sole target/effect cache input; C1/C2/surface/full-frame/
   EntityPresent targets rebuild after host cache clearing, direct RenderHost mutation APIs and
   RenderTarget setters are internal, and StageHost writes actor geometry back to ECS bounds
-- [~] 46.5.1 C1/C2 render plans, effects, and profiles derive from ECS data only; animation
+- [x] 46.5.1 C1/C2 render plans, effects, and profiles derive from ECS data only; animation
   playback and pulse state are data-only components, C1 declarations now materialize draw/bounds/
   visibility/effects into ECS frames, C1 and active C2 item targets rebuild in shared projections,
   while scheduled EffectPulse, animation property effects, and Lightwave writes are coalesced into

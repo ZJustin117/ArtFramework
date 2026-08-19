@@ -603,3 +603,25 @@ Use stable IDs and preserve rejected findings with evidence:
   `PresentPackTest`, and full `./scripts/with-art-env.sh test` passed.
 - Residual risk: host application exceptions remain intentionally tolerated at individual pack write
   boundaries; no device gate applies to this pure pack/render state slice.
+
+## Round R23 - Published completion checkpoint baseline review
+
+- Ledger row: `TE-21`
+- Session: `ses_fe799cb20ffedoOD3W0FQPlL1E`
+- Scope: `docs/design/traditional-ecs.md`, task 46 in `docs/task.md`, and the
+  `docs/refacter/traditional-ecs/` control files
+- Result: PASS after focused fix review
+- Governing claim: published project status must agree with the completed TE-01 through TE-20
+  ledger and must not present an obsolete incomplete migration as current work.
+- Findings:
+  - `R23-01` medium, accepted, fixed, verified: the design checkpoint and task 46 still
+    described the 2026-08-15 80% baseline and left render rows `46.5`/`46.5.1` incomplete despite
+    closed TE-01 through TE-20 evidence. The current checkpoint now declares completion, while the
+    baseline remains explicitly historical in the refacter README. The review also found the README
+    still described the already-closed TE-21 as active; it now declares all TE-01 through TE-21 rows
+    complete. Focused re-review in the same session returned PASS.
+- Verification: document consistency search found no remaining active traditional-ECS ledger row;
+  `git diff --check` passed. Focused re-review returned PASS. No JUnit, tooling, deployment, or
+  device gate applies because this slice changes no production source or behavioral contract.
+- Residual risk: future source changes that introduce a duplicate authority must open a new ledger
+  row before this completion checkpoint is revised.

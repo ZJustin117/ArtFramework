@@ -47,6 +47,11 @@ public final class RenderStateEcs {
         if (entity != null) CONTEXT.destroy(entity);
     }
 
+    public static void restoreSurface(String surfaceId, RenderSurfaceComponent state) {
+        if (state == null) removeSurface(surfaceId);
+        else CONTEXT.world().put(entity("surface", surfaceId), RenderSurfaceComponent.class, state);
+    }
+
     public static void fullFrame(float width, float height, boolean enabled,
             List<EffectAttachment> effects) {
         EntityId entity = entity("full-frame", "full_frame");
@@ -103,6 +108,11 @@ public final class RenderStateEcs {
     public static void removeFullFrame() {
         EntityId entity = CONTEXT.entity(new PresentationKey("render.full-frame", "full_frame"));
         if (entity != null) CONTEXT.destroy(entity);
+    }
+
+    public static void restoreFullFrame(FullFrameRenderComponent state) {
+        if (state == null) removeFullFrame();
+        else CONTEXT.world().put(entity("full-frame", "full_frame"), FullFrameRenderComponent.class, state);
     }
 
     public static void resetForTests() {

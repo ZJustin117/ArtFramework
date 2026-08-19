@@ -99,7 +99,7 @@ public final class SyntheticRuntime {
             stageBackend.detach(id);
         }
         closeContext(id);
-        SyntheticComponents.unmount(id);
+        SyntheticComponents.onClosed(id);
         artframework.render.RenderProjectionQueue.projectNow();
     }
 
@@ -132,7 +132,7 @@ public final class SyntheticRuntime {
             }
         }
         closeContext(id);
-        SyntheticComponents.unmount(id);
+        SyntheticComponents.onClosed(id);
         artframework.render.RenderProjectionQueue.projectNow();
     }
 

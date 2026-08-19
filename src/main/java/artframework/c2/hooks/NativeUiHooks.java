@@ -119,7 +119,7 @@ public final class NativeUiHooks {
 
     private static SignalDispatchResult emit(String componentId, String signal, Object payload) {
         return SignalGroups.nativeGroup()
-                .emit(new UiSignal(SignalPaths.component(componentId, signal), componentId, payload));
+                .dispatch(new UiSignal(SignalPaths.component(componentId, signal), componentId, payload));
     }
 
     private static SignalDispatchResult record(String surfaceId, SignalDispatchResult result) {

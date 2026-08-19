@@ -5,6 +5,8 @@ import artframework.presentation.PresentationRegistry;
 import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
 import artframework.render.RenderStateEcs;
+import artframework.render.RenderSurfaceComponent;
+import artframework.render.FullFrameRenderComponent;
 import artframework.presentation.EffectAttachment;
 
 import java.util.ArrayList;
@@ -22,7 +24,16 @@ public final class PresentPackApply {
     private static final List<String> BOUND_SURFACES = new ArrayList<String>();
     private static final Map<String, String> PREVIOUS_SURFACE_BINDINGS =
             new LinkedHashMap<String, String>();
+    private static final Map<String, String> APPLIED_SURFACE_BINDINGS =
+            new LinkedHashMap<String, String>();
     private static final List<String> BOUND_C2_EFFECTS = new ArrayList<String>();
+    private static final Map<String, RenderSurfaceComponent> PREVIOUS_C2_SURFACES =
+            new LinkedHashMap<String, RenderSurfaceComponent>();
+    private static final Map<String, RenderSurfaceComponent> APPLIED_C2_SURFACES =
+            new LinkedHashMap<String, RenderSurfaceComponent>();
+    private static FullFrameRenderComponent previousFullFrame;
+    private static FullFrameRenderComponent appliedFullFrame;
+    private static boolean hadPreviousFullFrame;
     private static boolean managedFullFrame;
 
     private PresentPackApply() {}
@@ -30,7 +41,8 @@ public final class PresentPackApply {
     /** After pack activate/deactivate: fullFrame + surfaces + resync open C1 effect binds. */
     public static void syncFromActivePack() {
         PresentPack pack = PresentPacks.active();
-        clearManagedAmbient();
+        RuntimeException cleanupFailure = clearManagedAmbient();
+        if (cleanupFailure != null) throw cleanupFailure;
         if (pack == null) {
             resyncOpenC1Render();
         } else {
@@ -62,6 +74,10 @@ public final class PresentPackApply {
         if (declarations.isEmpty()) {
             return;
         }
+        if (!hadPreviousFullFrame) {
+            previousFullFrame = RenderStateEcs.fullFrameState();
+            hadPreviousFullFrame = true;
+        }
         try {
             RenderHost host = RenderHosts.get();
             float w = host.screenWidth();
@@ -83,6 +99,7 @@ public final class PresentPackApply {
                 effects.add(new EffectAttachment(d.id, layer, params));
             }
             RenderStateEcs.fullFrame(w, h, true, effects);
+            appliedFullFrame = RenderStateEcs.fullFrameState();
             managedFullFrame = true;
         } catch (Throwable ignored) {
         }
@@ -97,6 +114,7 @@ public final class PresentPackApply {
                     rememberPreviousBinding(entry.getKey());
                     SurfacePresent.bind(entry.getKey(), entry.getValue());
                     BOUND_SURFACES.add(entry.getKey());
+                    APPLIED_SURFACE_BINDINGS.put(entry.getKey(), entry.getValue());
                 } catch (RuntimeException ignored) {
                 }
             }
@@ -112,19 +130,22 @@ public final class PresentPackApply {
                     rememberPreviousBinding(sid);
                     SurfacePresent.bind(sid, profile);
                 BOUND_SURFACES.add(sid);
+                APPLIED_SURFACE_BINDINGS.put(sid, profile);
             } catch (RuntimeException ignored) {
             }
         }
     }
 
     private static void applyC2SurfaceEffects(PresentPack pack) {
-        if (PackSurfaceEffects.hasContribution(PresentationRegistry.world())) {
-            for (String surfaceId : PackSurfaceEffects.surfaceIds(PresentationRegistry.world())) {
-                List<EffectAttachment> effects = toAttachments(
-                        PackSurfaceEffects.forSurface(PresentationRegistry.world(), surfaceId));
+        if (PackSurfaceEffects.hasContribution(PresentationRegistry.world(), pack.id)) {
+                for (String surfaceId : PackSurfaceEffects.surfaceIds(PresentationRegistry.world(), pack.id)) {
+                    rememberPreviousC2Surface(surfaceId);
+                    List<EffectAttachment> effects = toAttachments(
+                         PackSurfaceEffects.forSurface(PresentationRegistry.world(), pack.id, surfaceId));
                 if (!effects.isEmpty()) {
                     RenderStateEcs.surfaceEffects(surfaceId, effects);
                     BOUND_C2_EFFECTS.add(surfaceId);
+                    APPLIED_C2_SURFACES.put(surfaceId, RenderStateEcs.surfaceState(surfaceId));
                 }
             }
             return;
@@ -139,8 +160,10 @@ public final class PresentPackApply {
             }
             try {
                 List<EffectAttachment> effects = toAttachments(entry.getValue());
+                rememberPreviousC2Surface(entry.getKey());
                 RenderStateEcs.surfaceEffects(entry.getKey(), effects);
                 BOUND_C2_EFFECTS.add(entry.getKey());
+                APPLIED_C2_SURFACES.put(entry.getKey(), RenderStateEcs.surfaceState(entry.getKey()));
             } catch (RuntimeException ignored) {
             }
         }
@@ -160,31 +183,98 @@ public final class PresentPackApply {
         // C1 targets are derived from every open context by the complete render plan projection.
     }
 
-    private static void clearManagedAmbient() {
+    private static RuntimeException clearManagedAmbient() {
+        RuntimeException failure = null;
         for (String sid : new ArrayList<String>(BOUND_SURFACES)) {
             try {
                 String previous = PREVIOUS_SURFACE_BINDINGS.get(sid);
-                if (previous == null) SurfacePresent.unbind(sid);
-                else SurfacePresent.bind(sid, previous);
-            } catch (RuntimeException ignored) {
+                String applied = APPLIED_SURFACE_BINDINGS.get(sid);
+                if (applied == null || applied.equals(SurfacePresent.profileId(sid))) {
+                    if (previous == null) SurfacePresent.unbind(sid);
+                    else SurfacePresent.bind(sid, previous);
+                }
+                BOUND_SURFACES.remove(sid);
+                PREVIOUS_SURFACE_BINDINGS.remove(sid);
+                APPLIED_SURFACE_BINDINGS.remove(sid);
+            } catch (RuntimeException e) {
+                if (failure == null) failure = e;
+                else failure.addSuppressed(e);
             }
         }
-        BOUND_SURFACES.clear();
-        PREVIOUS_SURFACE_BINDINGS.clear();
         for (String sid : new ArrayList<String>(BOUND_C2_EFFECTS)) {
-            RenderStateEcs.removeSurface(sid);
+            if (sameSurface(RenderStateEcs.surfaceState(sid), APPLIED_C2_SURFACES.get(sid))) {
+                try {
+                    RenderStateEcs.restoreSurface(sid, PREVIOUS_C2_SURFACES.get(sid));
+                    BOUND_C2_EFFECTS.remove(sid);
+                    PREVIOUS_C2_SURFACES.remove(sid);
+                    APPLIED_C2_SURFACES.remove(sid);
+                } catch (RuntimeException e) {
+                    if (failure == null) failure = e;
+                    else failure.addSuppressed(e);
+                }
+            } else {
+                BOUND_C2_EFFECTS.remove(sid);
+                PREVIOUS_C2_SURFACES.remove(sid);
+                APPLIED_C2_SURFACES.remove(sid);
+            }
         }
-        BOUND_C2_EFFECTS.clear();
-        if (managedFullFrame) {
-            RenderStateEcs.removeFullFrame();
-            managedFullFrame = false;
+        if (hadPreviousFullFrame && sameFullFrame(RenderStateEcs.fullFrameState(), appliedFullFrame)) {
+            try {
+                RenderStateEcs.restoreFullFrame(previousFullFrame);
+                hadPreviousFullFrame = false;
+                previousFullFrame = null;
+                appliedFullFrame = null;
+            } catch (RuntimeException e) {
+                if (failure == null) failure = e;
+                else failure.addSuppressed(e);
+            }
+        } else if (hadPreviousFullFrame) {
+            hadPreviousFullFrame = false;
+            previousFullFrame = null;
+            appliedFullFrame = null;
         }
+        managedFullFrame = false;
+        return failure;
     }
 
     private static void rememberPreviousBinding(String surfaceId) {
         if (!PREVIOUS_SURFACE_BINDINGS.containsKey(surfaceId)) {
             PREVIOUS_SURFACE_BINDINGS.put(surfaceId, SurfacePresent.profileId(surfaceId));
         }
+    }
+
+    private static void rememberPreviousC2Surface(String surfaceId) {
+        if (!PREVIOUS_C2_SURFACES.containsKey(surfaceId)) {
+            PREVIOUS_C2_SURFACES.put(surfaceId, RenderStateEcs.surfaceState(surfaceId));
+        }
+    }
+
+    private static boolean sameSurface(RenderSurfaceComponent a, RenderSurfaceComponent b) {
+        if (a == b) return true;
+        if (a == null || b == null || !a.surfaceId.equals(b.surfaceId)
+                || a.enabled != b.enabled || a.z != b.z
+                || a.bounds.x != b.bounds.x || a.bounds.y != b.bounds.y
+                || a.bounds.width != b.bounds.width || a.bounds.height != b.bounds.height) return false;
+        return sameEffects(a.effects(), b.effects());
+    }
+
+    private static boolean sameFullFrame(FullFrameRenderComponent a, FullFrameRenderComponent b) {
+        if (a == b) return true;
+        if (a == null || b == null || a.enabled != b.enabled
+                || a.bounds.x != b.bounds.x || a.bounds.y != b.bounds.y
+                || a.bounds.width != b.bounds.width || a.bounds.height != b.bounds.height) return false;
+        return sameEffects(a.effects(), b.effects());
+    }
+
+    private static boolean sameEffects(List<EffectAttachment> a, List<EffectAttachment> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) {
+            EffectAttachment left = a.get(i);
+            EffectAttachment right = b.get(i);
+            if (!left.effectId.equals(right.effectId) || !left.layer.equals(right.layer)
+                    || !left.params().equals(right.params())) return false;
+        }
+        return true;
     }
 
     public static Map<String, Object> probeSummary() {
@@ -202,7 +292,8 @@ public final class PresentPackApply {
     }
 
     public static void resetForTests() {
-        clearManagedAmbient();
+        RuntimeException failure = clearManagedAmbient();
         artframework.render.RenderProjectionQueue.projectNow();
+        if (failure != null) throw failure;
     }
 }

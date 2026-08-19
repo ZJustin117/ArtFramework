@@ -136,21 +136,31 @@ public final class UiInspect {
                 if (inst == null) {
                     return UiOpResult.notBound("control not found: " + et.controlId);
                 }
-                PresentationRuntime.emit(context, inst, signal, payload);
-                return UiOpResult.ok("emitted " + et.windowId + "/" + et.controlId + " " + signal);
+                return signalResult(PresentationRuntime.dispatch(context, inst, signal, payload),
+                        "emitted " + et.windowId + "/" + et.controlId + " " + signal);
             }
             UiComponent c = ArtFramework.component(et.componentId);
             if (c == null) {
                 return UiOpResult.unavailable("unknown component: " + et.componentId);
             }
-            c.emit(signal, payload);
-            return UiOpResult.ok("emitted " + c.id() + " " + signal);
+            return signalResult(c.dispatch(signal, payload), "emitted " + c.id() + " " + signal);
         } catch (IllegalArgumentException e) {
             return UiOpResult.unavailable(e.getMessage() != null ? e.getMessage() : "emit failed");
         } catch (RuntimeException e) {
             return UiOpResult.unavailable(
                     e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
         }
+    }
+
+    private static UiOpResult signalResult(
+            artframework.core.SignalDispatchResult result, String successMessage) {
+        if (result == null || result.isRejected()) {
+            return UiOpResult.blocked(result != null ? result.message : "signal rejected");
+        }
+        if (result.isStopped()) {
+            return UiOpResult.ok(result.message.isEmpty() ? successMessage : result.message);
+        }
+        return UiOpResult.ok(successMessage);
     }
 
     public static UiOpResult emit(String windowId, String controlId, String signal, Object... args) {

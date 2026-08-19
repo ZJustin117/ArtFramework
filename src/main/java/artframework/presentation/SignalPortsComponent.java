@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Serializable declaration of signals an entity may emit. */
 public final class SignalPortsComponent {
@@ -16,7 +17,14 @@ public final class SignalPortsComponent {
     public boolean canEmit(String signal) { return emits.contains(signal); }
 
     private static List<String> unique(List<String> ports) {
-        return ports == null ? Collections.<String>emptyList()
-                : Collections.unmodifiableList(new ArrayList<String>(new LinkedHashSet<String>(ports)));
+        if (ports == null || ports.isEmpty()) return Collections.emptyList();
+        Set<String> seen = new LinkedHashSet<String>();
+        for (String port : ports) {
+            if (port == null || port.trim().isEmpty()) {
+                throw new IllegalArgumentException("signal required");
+            }
+            seen.add(port.trim());
+        }
+        return Collections.unmodifiableList(new ArrayList<String>(seen));
     }
 }

@@ -20,15 +20,16 @@ and compatibility or host containers must be disposable, non-authoritative bound
 - Project: `traditional-ecs`
 - Started: 2026-08-16
 - Design checkpoint: approximately 80% complete as of 2026-08-15
-- Active slice: residual traditional-ECS inventory after TE-19
-- State: `complete` for `TE-01` through `TE-19`
-- Last semantic gate: `./scripts/with-art-env.sh test` passed 665/665 with 0 failures,
-  0 errors, and 0 ignored after TE-17
+- Active slice: TE-20 pack projection ownership and ECS cleanup boundary
+- State: complete through `TE-20`; no residual traditional-ECS row is currently unclassified
+- Last semantic gate: `./scripts/with-art-env.sh test` passed after TE-20 and Signal API
+  worktree integration on 2026-08-18
 - Last device evidence: final R5 review PASS; D1 deployment verified `ArtFramework.jar` at
   940,143 bytes, SHA-256 `de37ff59d9afee3d24d3bca988e3bdb68a0a9125663966645fd30ddf7811893d`;
   cold start reached READY; `art lab host-recreate` executed; `scripts/art-lab combat verify-full`
   passed `d1_full_present_combat_ready` on 2026-08-17
-- Next action: continue the residual traditional-ECS inventory after TE-19
+- Next action: preserve the final negative-inventory evidence; reopen only if a new duplicate
+  authority is identified
 
 ## Authority
 

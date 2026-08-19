@@ -43,7 +43,7 @@ Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Loa
 
 | Entry | Role |
 |-------|------|
-| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `emit()`** / **`assets()`** / **`projection()`** / **`registerUiAction` / `nodeState`** / **`registerPresentProfile` / `presentProfiles()` / `setProjectPresent` / `bindSurfacePresent`** |
+| `artframework.api.ArtFramework` | `register` / **`mount` / `unmount`** / `open` / `bind` / `close` / `component` / `theme` / `host` / `entities()` / `ops()` / `probe()` / **`signals()` / `connect()` / `dispatch()` / `emit()`** / **`assets()`** / **`projection()`** / **`registerUiAction` / `nodeState`** / **`registerPresentProfile` / `presentProfiles()` / `setProjectPresent` / `bindSurfacePresent`** |
 | `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
 | `artframework.presentation.*` | `PresentationContext` / `PresentationRuntime` / `PresentationFrame` |
@@ -101,7 +101,7 @@ Design: [`docs/design/present-profile.md`](../design/present-profile.md).
 
 ### Milestone 15–20 consumer notes (signals + full present)
 
-- Backend installs ordinary signal listeners; publish authority frames as `context/frame/updated` and use `ArtFramework.emit(...)` for all interactions.
+- Backend installs ordinary signal listeners; publish authority frames as `context/frame/updated` and use `ArtFramework.dispatch(...)` when the result must be observed. `emit(...)` remains the compatibility result-bearing alias.
 - Prefer `ACTION` signals or surface `action` over native hitbox callbacks. An interceptor may transform or reject a signal, but only an endpoint committed frame is authoritative.
 - Full-present surfaces: `sts1.combat.hand`, `sts1.combat.card_slots`, `sts1.combat.controls`,
   `sts1.combat.proceed`, `sts1.combat.energy`, `sts1.combat.intents`, `sts1.map`, `sts1.skeleton`,

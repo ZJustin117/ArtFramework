@@ -122,6 +122,25 @@ public class C2LightwaveSurfaceTest {
     }
 
     @Test
+    public void deactivatingPackPreservesPreExistingSurfaceState() {
+        RenderStateEcs.surface(SurfaceIds.EVENT, 10f, 20f, 300f, 200f, true);
+        RenderStateEcs.surfaceEffects(SurfaceIds.EVENT, java.util.Collections.singletonList(
+                new EffectAttachment("existing", "ambient", java.util.Collections.<String, Object>emptyMap())));
+        PresentPack pack = PresentPack.builder("mod.surface-preserve")
+                .surfaceEffect(SurfaceIds.EVENT,
+                        new artframework.component.EffectDecl("pack", java.util.Collections.<String, Object>emptyMap()))
+                .build();
+        PresentPacks.register(pack);
+
+        PresentPacks.activate(pack.id);
+        PresentPacks.deactivate(pack.id);
+
+        assertEquals(300f, RenderStateEcs.surfaceState(SurfaceIds.EVENT).bounds.width, 0.01f);
+        assertEquals("existing", RenderStateEcs.surfaceState(SurfaceIds.EVENT)
+                .effects().get(0).effectId);
+    }
+
+    @Test
     public void chromeExposesLightwavePanelTokens() {
         PresentChromeStyle chrome = PresentProfiles.get(PresentProfiles.LIGHTWAVE).chrome;
         Map<String, Object> probe = chrome.probeSummary();

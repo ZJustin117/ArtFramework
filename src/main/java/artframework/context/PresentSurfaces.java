@@ -5,6 +5,7 @@ import artframework.assets.AssetResolveResult;
 import artframework.assets.HostAssetsHolder;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
+import artframework.core.SignalListener;
 import artframework.core.SignalDispatchResult;
 import artframework.core.SignalHub;
 import artframework.core.SignalNames;
@@ -111,10 +112,13 @@ public final class PresentSurfaces {
     }
 
     public static void emit(String id, String signal, Object... args) {
+        dispatch(id, signal, args);
+    }
+
+    public static SignalDispatchResult dispatch(String id, String signal, Object... args) {
         UiComponent c = get(id);
-        if (c != null) {
-            c.emit(signal, args);
-        }
+        return c != null ? c.dispatch(signal, args)
+                : SignalDispatchResult.continueEmpty("surface not registered: " + id);
     }
 
     /** Internal ECS world for durable surface state; surface APIs remain the compatibility facade. */
@@ -187,13 +191,30 @@ public final class PresentSurfaces {
         }
 
         @Override
+        public SignalSubscription connectListener(String signal, SignalListener listener) {
+            requireSignal(signal);
+            return HUB.connectListener(id, signal, listener);
+        }
+
+        @Override
         public void disconnect(String signal, SignalHandler handler) {
             requireSignal(signal);
             HUB.disconnect(id, signal, handler);
         }
 
         @Override
+        public void disconnectListener(String signal, SignalListener listener) {
+            requireSignal(signal);
+            HUB.disconnectListener(id, signal, listener);
+        }
+
+        @Override
         public SignalDispatchResult emit(String signal, Object... args) {
+            return dispatch(signal, args);
+        }
+
+        @Override
+        public SignalDispatchResult dispatch(String signal, Object... args) {
             requireSignal(signal);
             return HUB.dispatch(id, signal, args);
         }

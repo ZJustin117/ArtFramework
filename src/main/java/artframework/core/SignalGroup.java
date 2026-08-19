@@ -17,6 +17,10 @@ public final class SignalGroup {
     public SignalSubscription connect(Pattern pattern, SignalListener listener) { return bus.connect(pattern, listener); }
 
     public SignalDispatchResult emit(UiSignal signal) {
+        return dispatch(signal);
+    }
+
+    public SignalDispatchResult dispatch(UiSignal signal) {
         if (signal == null) throw new IllegalArgumentException("signal required");
         if (!id.equals(signal.group)) {
             throw new IllegalArgumentException("signal belongs to group " + signal.group + ", not " + id);

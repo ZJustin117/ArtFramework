@@ -103,7 +103,7 @@ public class SignalBusTest {
                 new UiSignal("group-b", signal.id, signal.name, signal.source,
                         signal.payload, signal.metadata)));
 
-        SignalDispatchResult result = group.emit(new UiSignal(
+        SignalDispatchResult result = group.dispatch(new UiSignal(
                 "group-a", "id", "op", "source", null,
                 java.util.Collections.<String, Object>emptyMap()));
 

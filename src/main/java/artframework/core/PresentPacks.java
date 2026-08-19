@@ -90,6 +90,12 @@ public final class PresentPacks {
             } catch (RuntimeException rollbackFailure) {
                 e.addSuppressed(rollbackFailure);
             }
+            try {
+                // Abort removes pack contributions; rebuild the no-active projection before exposing failure.
+                PresentPackApply.syncFromActivePack();
+            } catch (RuntimeException cleanupFailure) {
+                e.addSuppressed(cleanupFailure);
+            }
             throw e;
         }
         for (String win : pack.autoOpen) {

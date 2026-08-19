@@ -30,9 +30,22 @@ public final class SignalHub {
         if (nodePath == null || signal == null || handler == null) {
             throw new IllegalArgumentException("nodePath, signal, handler required");
         }
+        return connect(nodePath, signal, wrapHandler(handler), handler);
+    }
+
+    public SignalSubscription connectListener(String nodePath, String signal, SignalListener listener) {
+        if (nodePath == null || signal == null || listener == null) {
+            throw new IllegalArgumentException("nodePath, signal, listener required");
+        }
+        return connect(nodePath, signal, listener, null);
+    }
+
+    private SignalSubscription connect(String nodePath, String signal,
+            SignalListener listener, SignalHandler handler) {
         SignalSubscription busSubscription = SignalGroups.nativeGroup()
-                .connect(routeName(nodePath, signal), wrapHandler(handler));
-        Registration registration = new Registration(nodePath, signal, handler, busSubscription);
+                .connect(routeName(nodePath, signal), listener);
+        Registration registration = new Registration(
+                nodePath, signal, handler, listener, busSubscription);
         registrations.add(registration);
         return new ManagedSubscription(registration);
     }
@@ -46,7 +59,7 @@ public final class SignalHub {
             throw new IllegalArgumentException("busName and listener required");
         }
         SignalSubscription busSubscription = SignalGroups.nativeGroup().connect(busName, listener);
-        Registration registration = new Registration("", busName, null, busSubscription);
+        Registration registration = new Registration("", busName, null, listener, busSubscription);
         registrations.add(registration);
         return new ManagedSubscription(registration);
     }
@@ -60,7 +73,7 @@ public final class SignalHub {
             throw new IllegalArgumentException("pattern and listener required");
         }
         SignalSubscription busSubscription = SignalGroups.nativeGroup().connect(pattern, listener);
-        Registration registration = new Registration("", pattern.pattern(), null, busSubscription);
+        Registration registration = new Registration("", pattern.pattern(), null, listener, busSubscription);
         registrations.add(registration);
         return new ManagedSubscription(registration);
     }
@@ -79,6 +92,18 @@ public final class SignalHub {
         }
     }
 
+    public void disconnectListener(String nodePath, String signal, SignalListener listener) {
+        if (nodePath == null || signal == null || listener == null) return;
+        for (Registration registration : new ArrayList<Registration>(registrations)) {
+            if (registration.instanceId.equals(nodePath)
+                    && registration.signal.equals(signal)
+                    && registration.listener == listener) {
+                registration.subscription.disconnect();
+                registrations.remove(registration);
+            }
+        }
+    }
+
     public void emit(String nodePath, String signal, Object... args) {
         dispatch(nodePath, signal, args);
     }
@@ -88,7 +113,7 @@ public final class SignalHub {
             throw new IllegalArgumentException("nodePath and signal required");
         }
         Object[] payload = args != null ? args : new Object[0];
-        return SignalGroups.nativeGroup().emit(
+        return SignalGroups.nativeGroup().dispatch(
                 new UiSignal(routeName(nodePath, signal), nodePath, payload));
     }
 
@@ -101,7 +126,7 @@ public final class SignalHub {
 
     /** Remove all handlers for one instance id. */
     public void clearInstance(String instanceId) {
-        if (instanceId == null) {
+        if (instanceId == null || instanceId.isEmpty()) {
             return;
         }
         for (Registration registration : new ArrayList<Registration>(registrations)) {
@@ -113,6 +138,7 @@ public final class SignalHub {
     }
 
     public int handlerCount(String instanceId, String signal) {
+        if (instanceId == null || instanceId.isEmpty()) return 0;
         int total = 0;
         for (Registration registration : registrations) {
             if (registration.instanceId.equals(instanceId)
@@ -173,16 +199,19 @@ public final class SignalHub {
         final String instanceId;
         final String signal;
         final SignalHandler handler;
+        final SignalListener listener;
         final SignalSubscription subscription;
 
         Registration(
                 String instanceId,
                 String signal,
                 SignalHandler handler,
+                SignalListener listener,
                 SignalSubscription subscription) {
             this.instanceId = instanceId;
             this.signal = signal;
             this.handler = handler;
+            this.listener = listener;
             this.subscription = subscription;
         }
     }

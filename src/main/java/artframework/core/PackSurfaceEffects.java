@@ -15,6 +15,10 @@ public final class PackSurfaceEffects {
     private PackSurfaceEffects() {}
 
     public static List<EffectDecl> forSurface(PresentationWorld world, String surfaceId) {
+        return forSurface(world, null, surfaceId);
+    }
+
+    public static List<EffectDecl> forSurface(PresentationWorld world, String packId, String surfaceId) {
         if (world == null || surfaceId == null || surfaceId.isEmpty()) {
             return Collections.emptyList();
         }
@@ -22,6 +26,7 @@ public final class PackSurfaceEffects {
         for (EntityId entity : world.query(PackSurfaceEffectsComponent.class)) {
             PackSurfaceEffectsComponent contribution =
                     world.get(entity, PackSurfaceEffectsComponent.class);
+            if (packId != null && !packId.equals(contribution.packId)) continue;
             result.addAll(contribution.forSurface(surfaceId));
         }
         return result.isEmpty() ? Collections.<EffectDecl>emptyList()
@@ -32,11 +37,26 @@ public final class PackSurfaceEffects {
         return world != null && !world.query(PackSurfaceEffectsComponent.class).isEmpty();
     }
 
+    public static boolean hasContribution(PresentationWorld world, String packId) {
+        if (world == null || packId == null || packId.isEmpty()) return false;
+        for (EntityId entity : world.query(PackSurfaceEffectsComponent.class)) {
+            if (packId.equals(world.get(entity, PackSurfaceEffectsComponent.class).packId)) return true;
+        }
+        return false;
+    }
+
     public static Set<String> surfaceIds(PresentationWorld world) {
+        return surfaceIds(world, null);
+    }
+
+    public static Set<String> surfaceIds(PresentationWorld world, String packId) {
         if (world == null) return Collections.emptySet();
         Set<String> result = new LinkedHashSet<String>();
         for (EntityId entity : world.query(PackSurfaceEffectsComponent.class)) {
-            result.addAll(world.get(entity, PackSurfaceEffectsComponent.class).surfaceIds());
+            PackSurfaceEffectsComponent contribution =
+                    world.get(entity, PackSurfaceEffectsComponent.class);
+            if (packId != null && !packId.equals(contribution.packId)) continue;
+            result.addAll(contribution.surfaceIds());
         }
         return result.isEmpty() ? Collections.<String>emptySet()
                 : Collections.unmodifiableSet(result);

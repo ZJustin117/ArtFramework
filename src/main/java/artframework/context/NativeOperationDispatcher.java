@@ -10,7 +10,7 @@ public final class NativeOperationDispatcher {
 
     public static SignalDispatchResult dispatch(UiIntent intent) {
         if (intent == null) throw new IllegalArgumentException("intent required");
-        return SignalGroups.nativeGroup().emit(new UiSignal(
+        return SignalGroups.nativeGroup().dispatch(new UiSignal(
                 ContextSignals.action(intent.surfaceId, intent.name), intent.surfaceId, intent));
     }
 }

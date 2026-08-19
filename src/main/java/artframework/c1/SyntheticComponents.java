@@ -4,6 +4,7 @@ import artframework.api.UiOpResult;
 import artframework.api.UiOps;
 import artframework.core.ComponentKind;
 import artframework.core.SignalHandler;
+import artframework.core.SignalListener;
 import artframework.core.SignalDispatchResult;
 import artframework.core.SignalSubscription;
 import artframework.core.UiComponent;
@@ -26,7 +27,16 @@ public final class SyntheticComponents {
     }
 
     public static void unmount(String windowId) {
-        // Presentation lifecycle is authoritative; this facade has no registry.
+        if (windowId != null) {
+            artframework.api.ArtFramework.close(windowId);
+        }
+    }
+
+    /** Clears adapter-owned signal state after the runtime has closed the window. */
+    public static void onClosed(String windowId) {
+        if (windowId != null) {
+            PresentationRuntime.clearSignals(PresentationRuntime.context(windowId));
+        }
     }
 
     public static UiComponent get(String windowId) {
@@ -84,6 +94,11 @@ public final class SyntheticComponents {
         }
 
         @Override
+        public SignalSubscription connectListener(String signal, SignalListener listener) {
+            return PresentationRuntime.connectListener(context(), rootEntity(), signal, listener);
+        }
+
+        @Override
         public void disconnect(String signal, SignalHandler handler) {
             PresentationContext context = PresentationRuntime.context(id);
             if (context != null) {
@@ -92,7 +107,20 @@ public final class SyntheticComponents {
         }
 
         @Override
+        public void disconnectListener(String signal, SignalListener listener) {
+            PresentationContext context = PresentationRuntime.context(id);
+            if (context != null) {
+                PresentationRuntime.disconnectListener(context, rootEntity(), signal, listener);
+            }
+        }
+
+        @Override
         public SignalDispatchResult emit(String signal, Object... args) {
+            return dispatch(signal, args);
+        }
+
+        @Override
+        public SignalDispatchResult dispatch(String signal, Object... args) {
             return PresentationRuntime.dispatch(context(), rootEntity(), signal, args);
         }
 

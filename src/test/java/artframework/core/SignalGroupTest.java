@@ -19,7 +19,7 @@ public class SignalGroupTest {
             }
         });
 
-        SignalDispatchResult result = other.emit(new UiSignal("other", "id", "op", "source", null,
+        SignalDispatchResult result = other.dispatch(new UiSignal("other", "id", "op", "source", null,
                 java.util.Collections.<String, Object>emptyMap()));
         assertEquals(0, seen[0]);
         assertTrue(!result.isStopped());

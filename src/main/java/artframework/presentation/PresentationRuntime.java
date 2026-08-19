@@ -2,6 +2,7 @@ package artframework.presentation;
 
 import artframework.component.Rect;
 import artframework.core.SignalHandler;
+import artframework.core.SignalDispatchResult;
 import artframework.core.SignalHub;
 import artframework.core.SignalListener;
 import artframework.core.SignalSubscription;
@@ -150,6 +151,13 @@ public final class PresentationRuntime {
         return signals(context).connect(nodePath, signal, handler);
     }
 
+    public static SignalSubscription connectListener(PresentationContext context, EntityId entity,
+            String signal, SignalListener listener) {
+        requirePort(context, entity, signal);
+        String nodePath = identity(context, entity).key.localId;
+        return signals(context).connectListener(nodePath, signal, listener);
+    }
+
     public static SignalSubscription connectBus(PresentationContext context, String name,
             SignalListener listener) {
         return signals(context).connectBus(name, listener);
@@ -172,6 +180,13 @@ public final class PresentationRuntime {
         signals(context).disconnect(identity(context, entity).key.localId, signal, handler);
     }
 
+    public static void disconnectListener(PresentationContext context, EntityId entity,
+            String signal, SignalListener listener) {
+        if (context == null || entity == null || signal == null || listener == null) return;
+        requirePort(context, entity, signal);
+        signals(context).disconnectListener(identity(context, entity).key.localId, signal, listener);
+    }
+
     public static artframework.core.SignalDispatchResult dispatch(
             PresentationContext context, EntityId entity, String signal, Object... payload) {
         requirePort(context, entity, signal);
@@ -180,8 +195,19 @@ public final class PresentationRuntime {
 
     public static void clearSignals(PresentationContext context) {
         if (context == null) return;
+        String windowId = windowId(context);
+        artframework.core.NodeConnections.clearWindow(windowId);
+        artframework.core.NodeStateMachines.clearWindow(windowId);
         SignalHub signals = SIGNALS.remove(context.scope());
         if (signals != null) signals.clear();
+    }
+
+    /** Clears all disposable signal hubs retained by the presentation runtime. */
+    public static void resetSignalsForTests() {
+        for (SignalHub hub : SIGNALS.values()) {
+            hub.clear();
+        }
+        SIGNALS.clear();
     }
 
     public static <T> T component(PresentationContext context, EntityId entity, Class<T> type) {

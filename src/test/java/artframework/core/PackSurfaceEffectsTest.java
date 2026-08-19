@@ -135,4 +135,64 @@ public class PackSurfaceEffectsTest {
         assertEquals(1, context.world().get(item, PackSurfaceEffectIdsComponent.class)
                 .effectIds().size());
     }
+
+    @Test
+    public void projectionUsesOnlyTheActivePackContribution() {
+        PresentPack first = PresentPack.builder("mod.surface-owner-a")
+                .surfaceEffect(SurfaceIds.COMBAT_HAND,
+                        new EffectDecl("surface-a", Collections.<String, Object>emptyMap()))
+                .build();
+        PresentPack second = PresentPack.builder("mod.surface-owner-b")
+                .surfaceEffect(SurfaceIds.EVENT,
+                        new EffectDecl("surface-b", Collections.<String, Object>emptyMap()))
+                .build();
+        PresentPacks.register(first);
+        PresentPacks.register(second);
+        PresentPacks.activate(first.id);
+        PresentPackRuntime.enable(second);
+
+        PresentPackApply.syncFromActivePack();
+
+        assertEquals("surface-a", RenderStateEcs.surfaceState(SurfaceIds.COMBAT_HAND)
+                .effects().get(0).effectId);
+        assertEquals(null, RenderStateEcs.surfaceState(SurfaceIds.EVENT));
+    }
+
+    @Test
+    public void activeLegacyEffectsAreNotSuppressedByForeignMigratedContribution() {
+        PresentPack legacy = new PresentPack("mod.surface-legacy-active", "", "", "",
+                Collections.<PresentPack.TemplateEntry>emptyList(),
+                Collections.<PresentPack.WindowEntry>emptyList(), Collections.<String>emptyList(),
+                Collections.<String, java.util.List<EffectDecl>>emptyMap(),
+                Collections.<EffectDecl>emptyList(), Collections.<String>emptyList(),
+                Collections.singletonMap(SurfaceIds.EVENT, Collections.singletonList(
+                        new EffectDecl("legacy-active", Collections.<String, Object>emptyMap()))),
+                true, false, false);
+        PresentPack foreign = PresentPack.builder("mod.surface-foreign")
+                .surfaceEffect(SurfaceIds.COMBAT_HAND,
+                        new EffectDecl("foreign", Collections.<String, Object>emptyMap())).build();
+        PresentPacks.register(legacy);
+        PresentPacks.register(foreign);
+        PresentPacks.activate(legacy.id);
+        PresentPackRuntime.enable(foreign);
+
+        PresentPackApply.syncFromActivePack();
+
+        assertEquals("legacy-active", RenderStateEcs.surfaceState(SurfaceIds.EVENT)
+                .effects().get(0).effectId);
+    }
+
+    @Test
+    public void nonPackSurfaceWriterSurvivesPackCleanup() {
+        PresentPack pack = PresentPack.builder("mod.surface-writer")
+                .surfaceEffect(SurfaceIds.EVENT,
+                        new EffectDecl("pack", Collections.<String, Object>emptyMap())).build();
+        PresentPacks.register(pack);
+        PresentPacks.activate(pack.id);
+        RenderStateEcs.surface(SurfaceIds.EVENT, 99f, 10f, 700f, 80f, false);
+        PresentPacks.deactivate(pack.id);
+
+        assertEquals(700f, RenderStateEcs.surfaceState(SurfaceIds.EVENT).bounds.width, 0.01f);
+        assertFalse(RenderStateEcs.surfaceState(SurfaceIds.EVENT).enabled);
+    }
 }

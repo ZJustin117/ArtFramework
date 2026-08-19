@@ -21,9 +21,22 @@ public interface UiComponent {
 
     SignalSubscription connect(String signal, SignalHandler handler);
 
+    default SignalSubscription connectListener(String signal, SignalListener listener) {
+        throw new UnsupportedOperationException("decision-aware listeners are not supported");
+    }
+
     void disconnect(String signal, SignalHandler handler);
 
+    default void disconnectListener(String signal, SignalListener listener) {
+        throw new UnsupportedOperationException("decision-aware listeners are not supported");
+    }
+
     SignalDispatchResult emit(String signal, Object... args);
+
+    /** Canonical result-bearing signal operation. */
+    default SignalDispatchResult dispatch(String signal, Object... args) {
+        return emit(signal, args);
+    }
 
     UiOpResult action(String name, Object... args);
 

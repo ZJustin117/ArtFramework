@@ -31,7 +31,7 @@ public class HostPatchResultsTest {
                 return SignalDecision.stopHandled("owned");
             }
         });
-        SignalDispatchResult result = SignalGroups.nativeGroup().emit(
+        SignalDispatchResult result = SignalGroups.nativeGroup().dispatch(
                 new UiSignal("native/op", "test", null));
         assertFalse(HostPatchResults.allowsNative(result));
     }

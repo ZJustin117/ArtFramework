@@ -104,6 +104,42 @@ public class PackSurfaceBindingsTest {
     }
 
     @Test
+    public void externalBindingChangeIsNotOverwrittenByPackCleanup() {
+        PresentPack pack = PresentPack.builder("mod.binding-external")
+                .profileId(PresentProfiles.STS)
+                .bindSurface(SurfaceIds.EVENT)
+                .build();
+        PresentPacks.register(pack);
+        SurfacePresent.bind(SurfaceIds.EVENT, PresentProfiles.LIGHTWAVE);
+
+        PresentPacks.activate(pack.id);
+        SurfacePresent.bind(SurfaceIds.EVENT, PresentProfiles.LIGHTWAVE);
+        PresentPacks.deactivate(pack.id);
+
+        assertEquals(PresentProfiles.LIGHTWAVE, SurfacePresent.profileId(SurfaceIds.EVENT));
+    }
+
+    @Test
+    public void legacyBindingFallbackProtectsExternalChanges() {
+        PresentPack pack = new PresentPack("mod.legacy-binding-external", "", "", "",
+                Collections.<PresentPack.TemplateEntry>emptyList(),
+                Collections.<PresentPack.WindowEntry>emptyList(), Collections.<String>emptyList(),
+                Collections.<String, java.util.List<artframework.component.EffectDecl>>emptyMap(),
+                Collections.<artframework.component.EffectDecl>emptyList(),
+                Collections.singletonList(SurfaceIds.EVENT),
+                Collections.<String, java.util.List<artframework.component.EffectDecl>>emptyMap(),
+                true, false, false);
+        PresentPacks.register(pack);
+        PresentProfiles.register(new PresentProfile(pack.id, PresentProfiles.get(PresentProfiles.STS).theme,
+                PresentProfiles.get(PresentProfiles.STS).chrome, ""));
+        PresentPacks.activate(pack.id);
+        SurfacePresent.bind(SurfaceIds.EVENT, PresentProfiles.LIGHTWAVE);
+        PresentPacks.deactivate(pack.id);
+
+        assertEquals(PresentProfiles.LIGHTWAVE, SurfacePresent.profileId(SurfaceIds.EVENT));
+    }
+
+    @Test
     public void profileIdWhitespaceIsNormalizedBeforeBinding() {
         PresentPack pack = PresentPack.builder("mod.trim-binding")
                 .profileId("  " + PresentProfiles.LIGHTWAVE + "  ")

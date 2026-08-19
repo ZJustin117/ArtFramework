@@ -683,7 +683,7 @@ public final class UiOps {
     }
 
     private static boolean rejected(String componentId, String signal, Object payload) {
-        SignalDispatchResult result = artframework.core.SignalGroups.nativeGroup().emit(
+        SignalDispatchResult result = artframework.core.SignalGroups.nativeGroup().dispatch(
                 new UiSignal(SignalPaths.component(componentId, signal), componentId, payload));
         return result.isRejected();
     }

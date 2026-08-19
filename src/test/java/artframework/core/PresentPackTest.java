@@ -11,6 +11,8 @@ import artframework.component.UiNode;
 import artframework.component.UiTypes;
 import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
+import artframework.render.RenderStateEcs;
+import artframework.presentation.EffectAttachment;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -118,6 +120,27 @@ public class PresentPackTest {
         assertFalse(PresentPackRuntime.isEnabled(pack.id));
         assertFalse(ComponentRegistry.global().contains("mod.failed.t"));
         assertFalse(ArtFramework.isRegistered("mod_failed_window"));
+    }
+
+    @Test
+    public void failedActivationReprojectsTheNoActivePackState() {
+        RenderStateEcs.fullFrame(640f, 360f, true, Collections.singletonList(
+                new EffectAttachment("existing", "ambient", Collections.<String, Object>emptyMap())));
+        PresentPack pack = PresentPack.builder("mod.failed-projection")
+                .fullFrameEffect(new artframework.component.EffectDecl("pack", Collections.<String, Object>emptyMap()))
+                .operation(PackOperations.fail("mod.failed-projection.operation", "reject projection"))
+                .build();
+        PresentPacks.register(pack);
+
+        try {
+            PresentPacks.activate(pack.id);
+            fail("expected activation failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("reject projection"));
+        }
+
+        assertEquals("", PresentPacks.activeId());
+        assertEquals("existing", RenderStateEcs.fullFrameState().effects().get(0).effectId);
     }
 
     @Test

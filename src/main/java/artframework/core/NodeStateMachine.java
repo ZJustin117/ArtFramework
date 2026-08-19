@@ -124,6 +124,9 @@ public final class NodeStateMachine {
     public void wire(PresentationContext context) {
         clearSubscriptions();
         if (context == null) return;
+        if (context != this.context) {
+            throw new IllegalArgumentException("state machine context mismatch");
+        }
         for (final Transition transition : transitions) {
             if (transition.match.isEmpty() && transition.matchPattern == null) continue;
             SignalListener listener = new SignalListener() {

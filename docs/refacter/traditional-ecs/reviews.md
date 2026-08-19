@@ -554,3 +554,52 @@ Use stable IDs and preserve rejected findings with evidence:
   passed; final `./scripts/with-art-env.sh test` passed 665/665 with 0 failures, errors, or ignored.
 - Closure review: independent session `ses_feb0dfa7cffe9xW4r6c5u1WOtY` returned PASS with no
   findings.
+
+## Round R21 - Pack projection ownership and ECS cleanup boundary
+
+- Ledger row: `TE-20`
+- Session: `ses_fead5f2adffe2amOrVmnQElV5L`
+- Scope: frozen baseline review of `PresentPackApply` and direct pack/surface/render lifecycle
+  callers; no source changes were made during review
+- Result: FINDINGS
+- Governing claim: PackWorld operation ownership and ECS-backed presentation projection must not
+  be split across an untracked static cleanup authority; pack cleanup must preserve unrelated ECS
+  state and isolate the active pack owner.
+- Findings:
+  - `TE-20-01` high, accepted, pending fix: static `PresentPackApply` cleanup fields track writes
+    to ECS-backed `SurfacePresent` and `RenderStateEcs` state, creating a second mutable ownership
+    ledger. Add lifecycle tests for pre-existing full-frame and surface state preservation.
+  - `TE-20-02` high, accepted, pending fix: C2 surface-effect projection checks all contributions
+    globally instead of the active pack owner and cleanup removes the whole surface state. Add
+    multi-pack and pre-existing surface-state tests.
+  - `TE-20-03` high, accepted, pending fix: failed activation aborts PackWorld operations but does
+    not force projection cleanup after a partial `syncFromActivePack`.
+  - `TE-20-04` medium, accepted, pending fix: stale previous-binding snapshots can overwrite an
+    external binding update, and cleanup failures are silently forgotten.
+- Open questions:
+  - Whether multiple packs may remain enabled while only one is active must be made explicit in the
+    projection contract.
+  - `RenderStateEcs` full-frame and surface state have other production writers; pack cleanup cannot
+    assume exclusive ownership of the complete ECS record.
+- Verification after fixes: isolated focused runs passed `PackSurfaceEffectsTest`,
+  `C2LightwaveSurfaceTest`, `PackFullFrameEffectsTest`, and `PackSurfaceBindingsTest`. The
+  combined forced rerun hit Gradle test-output state tracking (`output.bin.idx` missing), not a
+  test assertion. The default full gate is currently blocked before tests by unrelated Signal API
+  compile errors in untracked `docs/refacter/signal-api/` worktree changes.
+- Residual risk: failed activation after partial projection still needs an explicit failure-injection
+  test and cleanup contract; listener/resource caches remain outside this slice.
+
+## Round R22 - TE-20 cleanup retry closure
+
+- Ledger row: `TE-20`
+- Session: `ses_fead5f2adffe2amOrVmnQElV5L` resumed
+- Scope: changed TE-20 cleanup retry behavior in `PresentPackApply` plus focused pack/render tests
+- Result: PASS
+- Findings:
+  - `TE-20-08` medium, accepted, fixed, verified: cleanup now retains failed binding records,
+    propagates cleanup failures, and retries them on the next sync; successful records are removed
+    only after restoration completes.
+- Verification: `PackSurfaceEffectsTest`, `PackSurfaceBindingsTest`, `PackFullFrameEffectsTest`,
+  `PresentPackTest`, and full `./scripts/with-art-env.sh test` passed.
+- Residual risk: host application exceptions remain intentionally tolerated at individual pack write
+  boundaries; no device gate applies to this pure pack/render state slice.

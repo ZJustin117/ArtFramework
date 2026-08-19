@@ -121,7 +121,7 @@ Implements existing `UiComponent` contract: `id`, `kind`, `mount`/`unmount`, `co
 | `sts1.combat.card_slots` | Zones: hand/draw/discard/exhaust/select | `inspect_slot`, `select_card` | `slot_changed`, `card_selected` |
 | `sts1.combat.controls` | End turn and combat chrome controls | `press`, `set_enabled_hint` | `pressed`, `enabled_changed` |
 | `sts1.map` | Map nodes, pins, present anchors | `click_node`, `set_pins` | `node_hovered`, `node_clicked` |
-| `sts1.skeleton` | Skeleton instances / anchors | `play`, `stop`, `set_transform` | `animation_finished` |
+| `sts1.skeleton` | Skeleton instances / anchors | `play`, `stop`, `set_transform` | `finished` |
 | `sts1.combat.surface` | Combat UI aggregate root | `attach_overlay`, `detach_overlay` | `surface_opened`, `surface_closed` |
 
 ### Compatibility aliases

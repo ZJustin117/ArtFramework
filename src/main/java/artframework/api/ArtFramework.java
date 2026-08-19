@@ -231,6 +231,7 @@ public final class ArtFramework {
 
     public static void resetForTests() {
         artframework.core.SignalGroups.resetForTests();
+        artframework.presentation.PresentationRuntime.resetSignalsForTests();
         SCHEDULE.resetForTests();
         GateLab.resetForTests();
         OPEN.clear();
@@ -296,7 +297,11 @@ public final class ArtFramework {
     }
 
     public static SignalDispatchResult emit(UiSignal signal) {
-        return signals().emit(signal);
+        return dispatch(signal);
+    }
+
+    public static SignalDispatchResult dispatch(UiSignal signal) {
+        return signals().dispatch(signal);
     }
 
     public static HostBackend host() {

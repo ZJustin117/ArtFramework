@@ -129,7 +129,7 @@ public class NativeComponentTest {
                         n.incrementAndGet();
                     }
                 });
-        SignalDispatchResult result = map.emit(SignalNames.NODE_CLICKED, new MapNodeRef(0, 0, "a"));
+        SignalDispatchResult result = map.dispatch(SignalNames.NODE_CLICKED, new MapNodeRef(0, 0, "a"));
         assertEquals(1, n.get());
         assertFalse(result.isStopped());
         subscription.disconnect();

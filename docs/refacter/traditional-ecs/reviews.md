@@ -715,3 +715,21 @@ Use stable IDs and preserve rejected findings with evidence:
 - Residual risk: context identity stability remains a deliberate lifecycle invariant; any future
   attempt to replace registry contexts must first migrate every static-final context holder or it
   will split ECS writers and readers. No device gate applies to this pure lifecycle slice.
+
+## Round R26 - Migration checkpoint consistency
+
+- Ledger rows: `TE-26`
+- Session: none; documentation-only primary-session reconciliation
+- Scope: `docs/task.md` and `docs/refacter/traditional-ecs/ledger.md`
+- Result: PASS
+- Governing claim: the published task checkpoint, ledger status, and recorded verification evidence
+  must agree before the traditional-ECS refactor is considered closed.
+- Findings:
+  - `R26-01` low, accepted, fixed, verified: `TE-26` was marked `verifying` despite the existing
+    R25 review closure and 698/698 full semantic gate; it is now marked `complete`.
+  - `R26-02` low, accepted, fixed, verified: `docs/task.md` described the closure evidence as only
+    `TE-01` through `TE-20`; it now references the complete `TE-01` through `TE-27` ledger.
+- Verification: documentation consistency inspection and `git diff --check`; no production source
+  or behavioral contract changed, so no JUnit or device gate applies to this round.
+- Residual risk: future ECS authority or lifecycle changes must open a new ledger row before
+  changing the completion checkpoint.

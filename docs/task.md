@@ -28,7 +28,7 @@ Skeleton/EntityPresent state, diagnostic projections, and active pack presentati
 contributions. Production phases run through the fixed `PresentationSchedule`; render and host
 execution boundaries are explicit; compatibility APIs derive ECS views; and only documented
 non-authoritative host/callback/resource caches remain. The persistent closure evidence is in the
-traditional-ECS refacter ledger, including `TE-01` through `TE-20` and their review/test gates.
+traditional-ECS refacter ledger, including `TE-01` through `TE-27` and their review/test gates.
 
 Persistent recursive review, before/after evidence, findings, and verification progress:
 [`docs/refacter/traditional-ecs/`](refacter/traditional-ecs/).

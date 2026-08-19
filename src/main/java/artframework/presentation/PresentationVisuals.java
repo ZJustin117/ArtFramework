@@ -4,8 +4,6 @@ import artframework.component.EffectDecl;
 import artframework.component.Rect;
 import artframework.core.PackSurfaceEffects;
 import artframework.core.PresentChromeStyle;
-import artframework.core.PresentPack;
-import artframework.core.PresentPacks;
 import artframework.core.PresentResolve;
 import artframework.ecs.EntityId;
 import java.util.List;
@@ -109,11 +107,6 @@ public final class PresentationVisuals {
 
     private static List<EffectDecl> effectsFor(String surfaceId) {
         PresentationContext context = PresentationRegistry.context(CONTEXT);
-        List<EffectDecl> effects = PackSurfaceEffects.forSurface(context.world(), surfaceId);
-        if (!effects.isEmpty() || PackSurfaceEffects.hasContribution(context.world())) return effects;
-        PresentPack pack = PresentPacks.active();
-        if (pack == null) return java.util.Collections.emptyList();
-        List<EffectDecl> legacy = pack.surfaceEffects.get(surfaceId);
-        return legacy != null ? legacy : java.util.Collections.<EffectDecl>emptyList();
+        return PackSurfaceEffects.forSurface(context.world(), surfaceId);
     }
 }

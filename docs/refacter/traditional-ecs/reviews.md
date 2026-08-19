@@ -625,3 +625,62 @@ Use stable IDs and preserve rejected findings with evidence:
   device gate applies because this slice changes no production source or behavioral contract.
 - Residual risk: future source changes that introduce a duplicate authority must open a new ledger
   row before this completion checkpoint is revised.
+
+## Round R24 - Closure re-audit: residual duplicate authority and dead code
+
+- Ledger rows: `TE-22`, `TE-23`, `TE-24`, `TE-25`
+- Session: none recorded. Three `art-reviewer` / `explore` delegations for this round returned empty
+  result payloads, so no reviewer session id may be cited. All findings below were established by
+  primary-session source inspection and are recorded as self-review, not as a reviewer PASS.
+- Scope: changed for TE-22 through TE-25; frozen scope was the 15-file diff plus the new
+  `PackLegacyDeclarationMigrationTest`
+- Result: FINDINGS (all accepted, fixed, and verified in-session)
+- Governing claim: after the TE-21 completion checkpoint, no persistent presentation fact may retain
+  a second mutable authority, and no unreachable legacy authority path may remain undocumented.
+- Findings:
+  - `R24-01` high, accepted, fixed, verified: `PresentationContext.java:18-20` exposed a public
+    constructor allocating `new PresentationWorld(scope)` with `ownsWorld=true`, permitting an
+    unregistered second mutable presentation world contrary to rule 4. The constructor, the
+    `ownsWorld` field, and the `if (ownsWorld) world.close()` branch were removed so
+    `PresentationRegistry` is the sole factory over `ArtEcs.world()`.
+  - `R24-02` medium, accepted, fixed, verified: every `pack.<legacyField>` fallback in
+    `PresentPackApply`, `C1Materializer`, `RenderPlan`, and `PresentationVisuals` was unreachable,
+    because `PresentPack.normalizeOperations` always emits an operation for a non-empty legacy field
+    and `PresentPacks.activate` always enables operations before projecting. The branches and
+    `PresentPackApply.effectDefaultsForType` were deleted after the unreachability proof test passed
+    against the pre-deletion code.
+  - `R24-03` medium, accepted, fixed, verified: `PresentPackApply.probeSummary` reported
+    `effectDefaultTypes`/`fullFrameEffectCount` from raw pack fields, presenting a legacy declaration
+    as the pack presentation authority. Both now derive from the owner-scoped ECS contribution via
+    the new `PackEffectDefaults.nodeTypes` and `PackFullFrameEffects.effects`.
+  - `R24-04` high, accepted, fixed, verified: self-review of the TE-23 diff found the refactor had
+    introduced a per-surface `catch (RuntimeException ignored)` into `applyC2SurfaceEffects`, whose
+    previously reachable ECS branch had no catch. That would have silently swallowed genuine
+    render-write failures and could leave a `PREVIOUS_C2_SURFACES` entry without a matching
+    `APPLIED_C2_SURFACES` record. The catch was removed and the intent documented in place.
+  - `R24-05` medium, accepted, verified as behavior-preserving: removing the legacy
+    `PresentProfiles.contains` pre-check did not weaken validation, because `SurfacePresent.bind`
+    rejects an unknown profile at `SurfacePresent.java:31-33` and `applySurfaceBinds` already
+    tolerated that rejection per surface. Locked in by
+    `PackLegacyDeclarationMigrationTest.unregisteredProfileBindsNothingAndRecordsNoCleanup`.
+  - `R24-06` low, accepted, fixed, verified: `skeleton/SkeletonSignals.java` had no reference
+    anywhere in the repository including its own string literals; `PresentProfiles` retained five
+    zero-caller `@Deprecated` delegations; `LightwaveControls.flushPulses`/`flushPendingCloses` were
+    zero-caller empty-bodied no-ops. All were deleted.
+  - `R24-07` low, accepted, fixed, verified: `docs/development/api-stability.md:51` documented
+    `artframework.c2.NativeTemplateIds` although TE-06 moved the type to `artframework.component`,
+    and the baseline inventory `After` column was never measured. Both were corrected.
+  - `R24-08` low, accepted, rejected as a violation with evidence: `PackEffectDefaultsComponent`
+    returns `byNodeType.keySet()`. This is safe because the backing map is
+    `Collections.unmodifiableMap`, whose `keySet` rejects mutation (verified directly), and
+    `PackEffectDefaults.nodeTypes` additionally wraps its result in `unmodifiableSet`.
+- Verification: `./scripts/with-art-env.sh clean test --rerun-tasks` passed 694/694 with 0 failures,
+  0 errors, 0 skipped; `PackLegacyDeclarationMigrationTest` 8/8; the 13 pack/render/C1 classes named
+  in the TE-23 row all passed; `scripts/verify-consumer-fixture.sh` passed; a `javac -Xlint:all`
+  warning-set diff between `HEAD` and the worktree was identical, proving no dangling reference from
+  the deletions.
+- Residual risk: no independent reviewer session corroborates this round, so it rests on
+  primary-session inspection plus the test and tooling gates. `PresentPack.effectDefaultsFor` is
+  retained as an immutable declaration view for `LightwaveCoverageTest`; it is not read by any
+  production path. `applySurfaceBinds` still tolerates a per-surface bind rejection by design. No
+  device gate applies because no STS hook, draw path, or host lifecycle source changed.

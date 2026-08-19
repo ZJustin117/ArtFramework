@@ -22,16 +22,20 @@ and compatibility or host containers must be disposable, non-authoritative bound
 - Historical baseline: approximately 80% complete as of 2026-08-15; published completion
   checkpoint reconciled on 2026-08-19
 - Active slice: none
-- State: `TE-01` through `TE-21` are complete; no residual traditional-ECS row is currently
-  unclassified.
-- Last semantic gate: `./scripts/with-art-env.sh test` passed after TE-20 and Signal API
-  worktree integration on 2026-08-18
+- State: `TE-01` through `TE-25` are complete; no residual traditional-ECS row is currently
+  unclassified. The 2026-08-19 closure re-audit added `TE-22` through `TE-25` for a second
+  presentation world, unreachable legacy pack fallbacks, dead code, and inventory/doc drift.
+- Last semantic gate: `./scripts/with-art-env.sh clean test --rerun-tasks` passed 694/694 with
+  0 failures, 0 errors, 0 skipped after `TE-25`; `scripts/verify-consumer-fixture.sh` passed
 - Last device evidence: final R5 review PASS; D1 deployment verified `ArtFramework.jar` at
   940,143 bytes, SHA-256 `de37ff59d9afee3d24d3bca988e3bdb68a0a9125663966645fd30ddf7811893d`;
   cold start reached READY; `art lab host-recreate` executed; `scripts/art-lab combat verify-full`
-  passed `d1_full_present_combat_ready` on 2026-08-17
-- Next action: preserve the final negative-inventory evidence; reopen only if a new duplicate
-  authority is identified
+  passed `d1_full_present_combat_ready` on 2026-08-17. `TE-22` through `TE-25` changed no STS hook,
+  draw path, or host lifecycle source, so no new device gate applies.
+- Next action: preserve the closure evidence; reopen only if a new duplicate authority is
+  identified. Round `R24` has no reviewer session id because three delegated review Tasks returned
+  empty payloads, so an independent reviewer confirmation of `TE-22`..`TE-25` remains outstanding
+  and should be obtained before any further ownership change in the pack or context boundary.
 
 ## Authority
 

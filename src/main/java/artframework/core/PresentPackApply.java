@@ -16,8 +16,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Applies active {@link PresentPack} ambient tables: fullFrame, surface binds, and
- * effectDefaults consulted by RenderHost when a node has empty effects. Pack data only.
+ * Owner-aware projection boundary for the active {@link PresentPack}: full-frame effects, surface
+ * binds, and C2 surface effects. Every declaration is read from its ECS contribution, never from a
+ * raw pack field. The static maps below record only the pre-pack host state needed to restore it.
  */
 public final class PresentPackApply {
 
@@ -54,23 +55,9 @@ public final class PresentPackApply {
         artframework.render.RenderProjectionQueue.projectNow();
     }
 
-    /**
-     * Extra effects for a node type when layout effects are empty (active pack table).
-     */
-    public static List<EffectDecl> effectDefaultsForType(String type) {
-        PresentPack pack = PresentPacks.active();
-        if (pack == null || type == null) {
-            return Collections.emptyList();
-        }
-        return pack.effectDefaultsFor(type);
-    }
-
     private static void applyFullFrame(PresentPack pack) {
         List<EffectDecl> declarations = PackFullFrameEffects.effects(
                 PresentationRegistry.world(), pack.id);
-        if (!PackFullFrameEffects.hasContribution(PresentationRegistry.world(), pack.id)) {
-            declarations = pack.fullFrameEffects;
-        }
         if (declarations.isEmpty()) {
             return;
         }
@@ -108,63 +95,29 @@ public final class PresentPackApply {
     private static void applySurfaceBinds(PresentPack pack) {
         Map<String, String> bindings = PackSurfaceBindings.forPack(
                 PresentationRegistry.world(), pack.id);
-        if (PackSurfaceBindings.hasContribution(PresentationRegistry.world(), pack.id)) {
-            for (Map.Entry<String, String> entry : bindings.entrySet()) {
-                try {
-                    rememberPreviousBinding(entry.getKey());
-                    SurfacePresent.bind(entry.getKey(), entry.getValue());
-                    BOUND_SURFACES.add(entry.getKey());
-                    APPLIED_SURFACE_BINDINGS.put(entry.getKey(), entry.getValue());
-                } catch (RuntimeException ignored) {
-                }
-            }
-            return;
-        }
-        String profile =
-                pack.profileId != null && !pack.profileId.isEmpty() ? pack.profileId : pack.id;
-        if (!PresentProfiles.contains(profile)) {
-            return;
-        }
-        for (String sid : pack.bindSurfaces) {
+        for (Map.Entry<String, String> entry : bindings.entrySet()) {
             try {
-                    rememberPreviousBinding(sid);
-                    SurfacePresent.bind(sid, profile);
-                BOUND_SURFACES.add(sid);
-                APPLIED_SURFACE_BINDINGS.put(sid, profile);
+                rememberPreviousBinding(entry.getKey());
+                SurfacePresent.bind(entry.getKey(), entry.getValue());
+                BOUND_SURFACES.add(entry.getKey());
+                APPLIED_SURFACE_BINDINGS.put(entry.getKey(), entry.getValue());
             } catch (RuntimeException ignored) {
             }
         }
     }
 
     private static void applyC2SurfaceEffects(PresentPack pack) {
-        if (PackSurfaceEffects.hasContribution(PresentationRegistry.world(), pack.id)) {
-                for (String surfaceId : PackSurfaceEffects.surfaceIds(PresentationRegistry.world(), pack.id)) {
-                    rememberPreviousC2Surface(surfaceId);
-                    List<EffectAttachment> effects = toAttachments(
-                         PackSurfaceEffects.forSurface(PresentationRegistry.world(), pack.id, surfaceId));
-                if (!effects.isEmpty()) {
-                    RenderStateEcs.surfaceEffects(surfaceId, effects);
-                    BOUND_C2_EFFECTS.add(surfaceId);
-                    APPLIED_C2_SURFACES.put(surfaceId, RenderStateEcs.surfaceState(surfaceId));
-                }
-            }
-            return;
-        }
-        if (pack.surfaceEffects.isEmpty()) {
-            return;
-        }
-        for (Map.Entry<String, List<artframework.component.EffectDecl>> entry
-                : pack.surfaceEffects.entrySet()) {
-            if (entry.getValue() == null || entry.getValue().isEmpty()) {
-                continue;
-            }
-            try {
-                List<EffectAttachment> effects = toAttachments(entry.getValue());
-                rememberPreviousC2Surface(entry.getKey());
-                RenderStateEcs.surfaceEffects(entry.getKey(), effects);
-                BOUND_C2_EFFECTS.add(entry.getKey());
-                APPLIED_C2_SURFACES.put(entry.getKey(), RenderStateEcs.surfaceState(entry.getKey()));
-            } catch (RuntimeException ignored) {
+        // No per-surface catch: the previously reachable ECS branch propagated write failures, and
+        // swallowing them here would hide a genuine render-state failure from the caller.
+        for (String surfaceId
+                : PackSurfaceEffects.surfaceIds(PresentationRegistry.world(), pack.id)) {
+            rememberPreviousC2Surface(surfaceId);
+            List<EffectAttachment> effects = toAttachments(PackSurfaceEffects.forSurface(
+                    PresentationRegistry.world(), pack.id, surfaceId));
+            if (!effects.isEmpty()) {
+                RenderStateEcs.surfaceEffects(surfaceId, effects);
+                BOUND_C2_EFFECTS.add(surfaceId);
+                APPLIED_C2_SURFACES.put(surfaceId, RenderStateEcs.surfaceState(surfaceId));
             }
         }
     }
@@ -285,8 +238,12 @@ public final class PresentPackApply {
         PresentPack p = PresentPacks.active();
         m.put("activePack", p != null ? p.id : "");
         if (p != null) {
-            m.put("effectDefaultTypes", new ArrayList<String>(p.effectDefaults.keySet()));
-            m.put("fullFrameEffectCount", Integer.valueOf(p.fullFrameEffects.size()));
+            // Derived from the ECS contribution so the probe never reports a legacy declaration
+            // field as the pack presentation authority.
+            m.put("effectDefaultTypes", new ArrayList<String>(
+                    PackEffectDefaults.nodeTypes(PresentationRegistry.world(), p.id)));
+            m.put("fullFrameEffectCount", Integer.valueOf(
+                    PackFullFrameEffects.effects(PresentationRegistry.world(), p.id).size()));
         }
         return Collections.unmodifiableMap(m);
     }

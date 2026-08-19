@@ -400,8 +400,10 @@ public class PresentPackTest {
         assertEquals(
                 "mod.ambient_prof",
                 SurfacePresent.profileId(artframework.context.SurfaceIds.EVENT));
-        assertFalse(PresentPackApply.effectDefaultsForType("panel").isEmpty());
-        assertEquals("lightwave", PresentPackApply.effectDefaultsForType("panel").get(0).id);
+        assertFalse(PackEffectDefaults.forNodeType(
+                artframework.ecs.ArtEcs.world(), "panel").isEmpty());
+        assertEquals("lightwave", PackEffectDefaults.forNodeType(
+                artframework.ecs.ArtEcs.world(), "panel").get(0).id);
 
         Map<String, Object> apply = PresentPackApply.probeSummary();
         assertEquals("mod.ambient", apply.get("activePack"));

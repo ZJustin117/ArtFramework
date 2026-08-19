@@ -105,38 +105,6 @@ public final class PresentProfiles {
         return Collections.unmodifiableMap(m);
     }
 
-    /** @deprecated use {@link ProjectPresent#id()} */
-    @Deprecated
-    public static String activeId() {
-        return ProjectPresent.id();
-    }
-
-    /** @deprecated use {@link ProjectPresent#profile()} */
-    @Deprecated
-    public static PresentProfile active() {
-        return ProjectPresent.profile();
-    }
-
-    /** @deprecated use {@link PresentResolve#chrome()} or {@link ProjectPresent#chrome()} */
-    @Deprecated
-    public static PresentChromeStyle chrome() {
-        return ProjectPresent.chrome();
-    }
-
-    /**
-     * @deprecated use {@link ProjectPresent#set(String)} — sets project fallback only.
-     */
-    @Deprecated
-    public static void setActive(String id) {
-        ProjectPresent.set(id);
-    }
-
-    /** @deprecated use {@link ProjectPresent#set(String)} */
-    @Deprecated
-    public static void apply(String id) {
-        ProjectPresent.set(id);
-    }
-
     public static Map<String, Object> probeSummary() {
         return ProjectPresent.probeSummary();
     }

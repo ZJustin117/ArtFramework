@@ -121,11 +121,6 @@ public final class RenderPlan {
                     List<artframework.component.EffectDecl> defaults =
                             artframework.core.PackEffectDefaults.forNodeType(
                                     visuals.world(), artframework.component.UiTypes.LABEL);
-                    if (defaults.isEmpty()
-                            && !artframework.core.PackEffectDefaults.hasContribution(visuals.world())) {
-                        defaults = artframework.core.PresentPackApply.effectDefaultsForType(
-                                artframework.component.UiTypes.LABEL);
-                    }
                     for (artframework.component.EffectDecl effect : defaults) {
                         titleEffects.add(new EffectAttachment(effect.id, "ambient", effect.params));
                     }

@@ -8,27 +8,23 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/** One keyed presentation scope; all mutable node state belongs to its world. */
+/**
+ * One keyed presentation scope; all mutable node state belongs to the shared ART world.
+ *
+ * <p>Contexts are obtained from {@link PresentationRegistry#context(String)} so that every scope
+ * observes the single {@link artframework.ecs.ArtEcs#world()} authority. A context never owns or
+ * closes the world: {@link #close()} destroys only the entities this scope keyed.
+ */
 public final class PresentationContext implements AutoCloseable {
     private final String scope;
     private final PresentationWorld world;
-    private final boolean ownsWorld;
     private final Map<PresentationKey, EntityId> entities = new LinkedHashMap<PresentationKey, EntityId>();
 
-    public PresentationContext(String scope) {
-        this(scope, new PresentationWorld(scope), true);
-    }
-
     PresentationContext(String scope, PresentationWorld world) {
-        this(scope, world, false);
-    }
-
-    private PresentationContext(String scope, PresentationWorld world, boolean ownsWorld) {
         if (scope == null || scope.trim().isEmpty()) throw new IllegalArgumentException("scope required");
         if (world == null) throw new IllegalArgumentException("world required");
         this.scope = scope;
         this.world = world;
-        this.ownsWorld = ownsWorld;
     }
     public String scope() { return scope; }
     public PresentationWorld world() { return world; }
@@ -73,11 +69,11 @@ public final class PresentationContext implements AutoCloseable {
         return world.destroyEntity(entity);
     }
 
+    /** Destroys only this scope's keyed entities; the shared world outlives every context. */
     @Override public void close() {
         for (EntityId entity : new ArrayList<EntityId>(entities.values())) {
             if (world.contains(entity)) world.destroyEntity(entity);
         }
         entities.clear();
-        if (ownsWorld) world.close();
     }
 }

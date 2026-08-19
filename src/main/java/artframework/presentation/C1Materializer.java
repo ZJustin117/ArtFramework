@@ -130,10 +130,6 @@ public final class C1Materializer {
         if (result == null || result.isEmpty()) {
             result = artframework.core.PackEffectDefaults.forNodeType(context.world(), declaration.type);
         }
-        if ((result == null || result.isEmpty())
-                && !artframework.core.PackEffectDefaults.hasContribution(context.world())) {
-            result = artframework.core.PresentPackApply.effectDefaultsForType(declaration.type);
-        }
         if (!ArtNodeTypes.SHADER_EFFECT.equals(declaration.type)) return result != null ? result : Collections.<EffectDecl>emptyList();
         String effectId = declaration.propString("effect", "");
         if (effectId.isEmpty()) return result != null ? result : Collections.<EffectDecl>emptyList();

@@ -36,7 +36,9 @@ Also stable: `WindowDef`, `WindowClass`, `WindowHandle`, `UiOps`, `UiOpResult`, 
 
 ### Core / context / assets
 
-- `artframework.presentation`: `PresentationContext`, `PresentationRuntime`, `PresentationFrame`
+- `artframework.presentation`: `PresentationContext` (obtained from `PresentationRegistry.context`;
+  its constructor is not public so every scope shares the single `ArtEcs` world),
+  `PresentationRuntime`, `PresentationFrame`
 - `artframework.core`: `SignalHub`, `SignalBus`, `Theme`, `HostBackend`,
   `HostCapabilities`, `UiComponent`
 - `artframework.ecs`: `EntityId`, `PresentationWorld` for deterministic ART-owned presentation
@@ -48,7 +50,7 @@ Also stable: `WindowDef`, `WindowClass`, `WindowHandle`, `UiOps`, `UiOpResult`, 
 - `artframework.assets`: `HostAssets`, `AssetPack`, `ResourceIds`, resolve results
 - `artframework.skeleton`: `SkeletonProvider`, `SkeletonProviders`, `SkeletonSource`, and
   `SkeletonHandle` SPI; provider implementations are host-specific.
-- `artframework.c2.NativeTemplateIds`: canonical `sts1.*` (+ legacy `sts.*` input)
+- `artframework.component.NativeTemplateIds`: canonical `sts1.*` (+ legacy `sts.*` input)
 - `artframework.sts1.PresentLevel`, `FullPresentMode` (policy); **not** patch/draw path classes
 
 ### Host-only / lab-only (may evolve without major version)

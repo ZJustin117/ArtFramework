@@ -43,6 +43,8 @@ public class C1MaterializerTest {
         C1Materializer.mount(second, UiNode.of("window").id("second").build());
         assertSame(first.world(), second.world());
         assertSame(first.world(), PresentationRegistry.world());
+        // No constructor may allocate a private world: the registry world is the ArtEcs singleton.
+        assertSame(artframework.ecs.ArtEcs.world(), first.world());
     }
 
     @Test public void closingOneScopePreservesEntitiesInOtherScopes() {
@@ -79,8 +81,9 @@ public class C1MaterializerTest {
     }
 
     @Test public void destroysKeyedEntityWithoutASecondNodeStore() {
-        PresentationContext context = new PresentationContext("destroy");
+        PresentationContext context = PresentationRegistry.context("destroy");
         try {
+            assertSame(artframework.ecs.ArtEcs.world(), context.world());
             PresentationKey key = new PresentationKey("c2", "end-turn");
             EntityId entity = context.create(key, "end-turn", "control", "c2");
             assertEquals(entity, context.entity(key));
@@ -88,6 +91,17 @@ public class C1MaterializerTest {
             assertNull(context.entity(key));
             assertFalse(context.world().contains(entity));
         } finally { context.close(); }
+    }
+
+    @Test public void closingAScopeLeavesTheSharedWorldOpen() {
+        PresentationContext context = PresentationRegistry.context("close-keeps-world-open");
+        EntityId entity = context.create(
+                new PresentationKey("c2", "closed"), "closed", "control", "c2");
+        context.close();
+        assertTrue("a context must never close the shared ART world",
+                artframework.ecs.ArtEcs.world().isOpen());
+        assertFalse("closing a scope must destroy its own keyed entities",
+                artframework.ecs.ArtEcs.world().contains(entity));
     }
 
     @Test public void declarationMaterializesEffectsVisualsAndImmutableFrame() {

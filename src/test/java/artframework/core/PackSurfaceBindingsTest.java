@@ -120,7 +120,7 @@ public class PackSurfaceBindingsTest {
     }
 
     @Test
-    public void legacyBindingFallbackProtectsExternalChanges() {
+    public void bindingCleanupPreservesExternalRebind() {
         PresentPack pack = new PresentPack("mod.legacy-binding-external", "", "", "",
                 Collections.<PresentPack.TemplateEntry>emptyList(),
                 Collections.<PresentPack.WindowEntry>emptyList(), Collections.<String>emptyList(),

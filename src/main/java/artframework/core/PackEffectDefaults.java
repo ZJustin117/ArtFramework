@@ -30,4 +30,20 @@ public final class PackEffectDefaults {
     public static boolean hasContribution(PresentationWorld world) {
         return world != null && !world.query(PackEffectDefaultsComponent.class).isEmpty();
     }
+
+    /** Contributed node types for one owning pack; empty when the pack contributed nothing. */
+    public static java.util.Set<String> nodeTypes(PresentationWorld world, String packId) {
+        if (world == null || packId == null || packId.isEmpty()) {
+            return Collections.emptySet();
+        }
+        java.util.Set<String> types = new java.util.LinkedHashSet<String>();
+        for (EntityId entity : world.query(PackEffectDefaultsComponent.class)) {
+            PackEffectDefaultsComponent contribution =
+                    world.get(entity, PackEffectDefaultsComponent.class);
+            if (packId.equals(contribution.packId)) {
+                types.addAll(contribution.nodeTypes());
+            }
+        }
+        return Collections.unmodifiableSet(types);
+    }
 }

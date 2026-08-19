@@ -56,11 +56,6 @@ public final class LightwaveControls {
         artframework.core.EffectPulse.tick(dt);
     }
 
-    /** @deprecated use {@link #tickPulses(float)} */
-    public static void flushPulses() {}
-
-    public static void flushPendingCloses() {}
-
     public static void resetForTests() {
         EffectPulse.resetForTests();
     }

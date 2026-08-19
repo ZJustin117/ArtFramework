@@ -32,4 +32,9 @@ public final class PackEffectDefaultsComponent {
         List<EffectDecl> effects = byNodeType.get(nodeType);
         return effects != null ? effects : Collections.<EffectDecl>emptyList();
     }
+
+    /** Immutable view of the contributed node types. */
+    public java.util.Set<String> nodeTypes() {
+        return byNodeType.keySet();
+    }
 }

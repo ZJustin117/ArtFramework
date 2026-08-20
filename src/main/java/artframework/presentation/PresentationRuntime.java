@@ -6,6 +6,8 @@ import artframework.core.SignalDispatchResult;
 import artframework.core.SignalHub;
 import artframework.core.SignalListener;
 import artframework.core.SignalSubscription;
+import artframework.core.NodeConnections;
+import artframework.core.NodeStateMachines;
 import artframework.ecs.EntityId;
 import artframework.ecs.EcsPipeline;
 import artframework.ecs.EcsSystem;
@@ -21,7 +23,8 @@ import java.util.regex.Pattern;
 /** ECS-only lookup and signal operations for presentation contexts. */
 public final class PresentationRuntime {
     private static final String C1_SCOPE_PREFIX = "tree:";
-    private static final Map<String, SignalHub> SIGNALS = new LinkedHashMap<String, SignalHub>();
+    private static final Map<String, ScopedSignals> SIGNALS =
+            new LinkedHashMap<String, ScopedSignals>();
 
     private PresentationRuntime() {}
 
@@ -196,16 +199,32 @@ public final class PresentationRuntime {
     public static void clearSignals(PresentationContext context) {
         if (context == null) return;
         String windowId = windowId(context);
-        artframework.core.NodeConnections.clearWindow(windowId);
-        artframework.core.NodeStateMachines.clearWindow(windowId);
-        SignalHub signals = SIGNALS.remove(context.scope());
-        if (signals != null) signals.clear();
+        artframework.core.NodeConnections.clearContext(context);
+        artframework.core.NodeStateMachines.clearContext(context);
+        ScopedSignals signals = SIGNALS.get(context.scope());
+        if (signals != null && signals.context == context) {
+            SIGNALS.remove(context.scope());
+            signals.hub.clear();
+        }
+    }
+
+    /** Retire subscriptions owned by one ECS entity before its identity can be reused. */
+    public static void clearEntitySignals(PresentationContext context, EntityId entity) {
+        if (context == null || entity == null) return;
+        String windowId = windowId(context);
+        if (!context.owns(entity)) return;
+        NodeConnections.clearEntity(context, entity);
+        NodeStateMachines.clearEntity(context, entity);
+        ScopedSignals signals = SIGNALS.get(context.scope());
+        if (signals == null || signals.context != context) return;
+        NodeIdentityComponent identity = identity(context, entity);
+        if (identity != null) signals.hub.clearInstance(identity.key.localId);
     }
 
     /** Clears all disposable signal hubs retained by the presentation runtime. */
     public static void resetSignalsForTests() {
-        for (SignalHub hub : SIGNALS.values()) {
-            hub.clear();
+        for (ScopedSignals signals : SIGNALS.values()) {
+            signals.hub.clear();
         }
         SIGNALS.clear();
     }
@@ -220,15 +239,28 @@ public final class PresentationRuntime {
 
     private static SignalHub signals(PresentationContext context) {
         String scope = context.scope();
-        SignalHub hub = SIGNALS.get(scope);
-        if (hub == null) {
-            hub = new SignalHub(windowId(context));
-            SIGNALS.put(scope, hub);
+        ScopedSignals signals = SIGNALS.get(scope);
+        if (signals == null || signals.context != context) {
+            signals = new ScopedSignals(context, new SignalHub(windowId(context)));
+            SIGNALS.put(scope, signals);
         }
-        return hub;
+        return signals.hub;
+    }
+
+    private static final class ScopedSignals {
+        final PresentationContext context;
+        final SignalHub hub;
+
+        ScopedSignals(PresentationContext context, SignalHub hub) {
+            this.context = context;
+            this.hub = hub;
+        }
     }
 
     private static void requirePort(PresentationContext context, EntityId entity, String signal) {
+        if (context == null || entity == null || !context.owns(entity)) {
+            throw new IllegalArgumentException("entity is not owned by presentation context");
+        }
         SignalPortsComponent ports = component(context, entity, SignalPortsComponent.class);
         if (ports == null || !ports.canEmit(signal)) {
             throw new IllegalArgumentException("undeclared signal: " + signal);

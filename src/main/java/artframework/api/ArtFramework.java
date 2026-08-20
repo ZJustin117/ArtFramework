@@ -59,6 +59,10 @@ public final class ArtFramework {
     private static final PresentationSchedule SCHEDULE = new PresentationSchedule();
     private static NativeOpsBackend nativeOpsBackend = NoOpNativeOps.INSTANCE;
 
+    static {
+        installSyntheticRetirementHook();
+    }
+
     private ArtFramework() {}
 
     public static void register(WindowDef def) {
@@ -239,6 +243,7 @@ public final class ArtFramework {
         OPS.resetForTests();
         nativeOpsBackend = NoOpNativeOps.INSTANCE;
         SyntheticRuntime.resetForTests();
+        installSyntheticRetirementHook();
         NativeTemplateRuntime.resetForTests();
         RenderHosts.resetForTests();
         Themes.resetForTests();
@@ -750,5 +755,17 @@ public final class ArtFramework {
         if (context != null && root != null) HostBackends.get().detach(
                 new artframework.presentation.PresentationMount(context, root));
         SyntheticRuntime.onClosed(id);
+    }
+
+    private static void installSyntheticRetirementHook() {
+        SyntheticRuntime.installRetirementHook(new SyntheticRuntime.RetirementHook() {
+            @Override public void onRetired(String windowId) {
+                try {
+                    OPS.onTreeClosed(windowId);
+                } finally {
+                    artframework.inspect.UiLabListeners.onTreeClosed(windowId);
+                }
+            }
+        });
     }
 }

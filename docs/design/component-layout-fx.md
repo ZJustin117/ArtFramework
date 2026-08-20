@@ -12,7 +12,7 @@ Builds on [`component-composition.md`](./component-composition.md).
 | D | ShaderProgram compile path (`ShaderRuntime`) | done |
 | E | FULL_FRAME overlay (enable + tint/glow bind) | done |
 | F | Screen capture (`FrameCapture`) + blur/glass shaders + `glass` component | done |
-| G | Multi-pass Gaussian FBO chain; richer widgets | pending |
+| G | Multi-pass Gaussian FBO chain; richer widgets | Gaussian FBO chain done; richer widgets remain future work |
 | H | Godot-aligned core: size flags / Theme / C1 widgets / C2 NativeControl | see [`godot-aligned-ui.md`](./godot-aligned-ui.md) + task 11.x |
 
 ## Public surface
@@ -20,6 +20,14 @@ Builds on [`component-composition.md`](./component-composition.md).
 - `artframework.component.*` — composition AST + WidgetSession
 - `artframework.render.*` — `RenderHost` frame cache, `tint` / `glow`, `ShaderRegistry`
 - `ArtFramework.render()` — global host; `UiProbe` field `render`
+
+## Phase G Boundary
+
+`FrameCapture` now owns a bounded 1–4 pair separable Gaussian chain using horizontal and vertical
+ping-pong frame buffers. `BlurEffect` and `GlassEffect` sample the chain output when a compiled
+shader and GL context are available; capture, effect, and headless fallback behavior remains
+unchanged when they are not. The remaining Phase G work is richer widget coverage, not another
+capture authority or a second render pipeline.
 
 ## Not in ArtFramework
 

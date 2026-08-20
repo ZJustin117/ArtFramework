@@ -69,18 +69,26 @@ public final class PresentationContext implements AutoCloseable {
         return identity != null ? identity.key : null;
     }
 
+    boolean owns(EntityId entity) {
+        if (entity == null || !world.contains(entity)) return false;
+        PresentationKey key = keyOrNull(entity);
+        return key != null && entity.equals(entities.get(key));
+    }
+
     public boolean destroy(EntityId entity) {
         if (entity == null || !world.contains(entity)) return false;
         // Only entities this scope keyed are owned here: the world is shared, so a foreign or
         // unkeyed entity must be rejected rather than dereferenced or destroyed.
         PresentationKey key = keyOrNull(entity);
-        if (key == null || !entity.equals(entities.get(key))) return false;
+        if (!owns(entity)) return false;
+        PresentationRuntime.clearEntitySignals(this, entity);
         entities.remove(key);
         return world.destroyEntity(entity);
     }
 
     /** Destroys only this scope's keyed entities; the shared world outlives every context. */
     @Override public void close() {
+        PresentationRuntime.clearSignals(this);
         for (EntityId entity : new ArrayList<EntityId>(entities.values())) {
             if (world.contains(entity)) world.destroyEntity(entity);
         }

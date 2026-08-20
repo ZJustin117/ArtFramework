@@ -7,7 +7,7 @@ Reviewer sessions are advisory evidence. JUnit, tooling, and device gates remain
 - Ledger row: `SA-01`
 - Session: `ses_feac908e6ffec3HMJjg2M8c329`
 - Scope: frozen after initial inventory; no production edits
-- Result: FINDINGS
+- Result: PASS
 - Governing claim: `SignalBus` / `SignalGroup` remain the single dispatch authority, while the
   public C1/C2/consumer boundary has one callback and one send-result model unless an explicit
   compatibility decision says otherwise.
@@ -189,3 +189,196 @@ Reviewer sessions are advisory evidence. JUnit, tooling, and device gates remain
   public `SignalGroup.emit` compatibility test passed; `git diff --check` passed.
 - Residual risk: SA-05 path canonicalization/lifecycle identity, SA-07 lab-listener recreation and
   UiOps compatibility-cache invalidation remain separate future refacter projects.
+
+## Round R9 - ECS entity/context signal lifecycle
+
+- Ledger row: `SA-09`
+- Session: `ses_fe5cd09f2ffe3zv9OM57Zt2MFn`
+- Scope: frozen `PresentationContext`, `PresentationRegistry`, `PresentationRuntime`, `SignalHub`,
+  `NodeConnections`, `NodeStateMachines`, and focused lifecycle tests
+- Result: FINDINGS, implementation in progress
+- Findings:
+  - `SA-REVIEW-01` high, accepted, pending fix: direct entity destroy and context close bypass signal
+    cleanup; reusable local paths can deliver old listeners after recreation.
+- Verification required: focused tests for entity destroy/recreate and context close/recreate, then
+  `./scripts/with-art-env.sh test` and focused re-review.
+- Residual risk: `UiOps` compatibility registration maps and `UiLabListeners` recreation remain outside
+  this slice and are tracked as separate future rows.
+
+## Round R10 - SA-09 focused fix review
+
+- Ledger row: `SA-09`
+- Session: `ses_fe5cd09f2ffe3zv9OM57Zt2MFn` resumed
+- Scope: `PresentationContext`, `PresentationRuntime`, `NodeConnections`, `NodeStateMachines`, and
+  `SignalApiContractTest` lifecycle additions
+- Result: PASS
+- Findings: none. `SA-09-01`, `SA-09-02`, and `SA-09-03` were fixed and verified by source
+  inspection plus the focused lifecycle tests.
+- Verification: focused contract passed 15/15; full `./scripts/with-art-env.sh test` passed 702/702
+  before this review; `git diff --check` passed.
+- Residual risk: SA-05 path/identity normalization and SA-07 `UiOps`/`UiLabListeners` recreation
+  remain outside this slice.
+
+## Round R11 - UiOps C1 sugar handler lifetime
+
+- Ledger row: `SA-10`
+- Session: pending
+- Scope: frozen `UiOps`, `ArtFramework` synthetic retirement path, `SyntheticRuntime`, and focused
+  `UiOpsProbeTest` compatibility tests
+- Result: FINDINGS, implementation in progress
+- Governing decision: pre-mount handler registration is supported; after synthetic window retirement,
+  the handler intent and active subscription are invalidated. Reopening the same window ID does not
+  auto-bind the old handler.
+- Findings: pending focused review.
+- Verification required: close/reopen with same ID, pre-mount registration, replacement/removal, and
+  full semantic JUnit.
+- Residual risk: `UiLabListeners` recreation remains a separate follow-up.
+
+## Round R12 - SA-10 expanded retirement review
+
+- Ledger row: `SA-10`
+- Session: pending
+- Scope: expanded to include `SyntheticRuntime` retirement hook, `ArtFramework` hook installation,
+  `UiOps.onTreeClosed`, and all focused `UiOpsProbeTest` retirement tests
+- Result: PASS
+- Findings: none. `SA-10-08` exactly-once coverage is complete; the expanded retirement hook and reset
+  ownership scope has no actionable findings.
+- Verification: `UiOpsProbeTest` passed 28/28 before this review, including exactly-once callback
+  counts for normal close, pre-layout failure, attach failure, and replacement failure; full
+  `./scripts/with-art-env.sh test` passed 711/711; `git diff --check` passed.
+- Residual risk: `UiLabListeners` recreation and SA-05 path/identity normalization remain separate
+  future slices.
+
+## Round R13 - UiLabListeners target retirement
+
+- Ledger row: `SA-11`
+- Session: pending
+- Scope: frozen `UiLabListeners`, `ArtFramework`/`SyntheticRuntime` retirement callback, and
+  focused `UiInspectTest` listener lifecycle tests
+- Result: FINDINGS, implementation in progress
+- Governing decision: synthetic window retirement invalidates lab entries for the window and its
+  controls; recreation requires explicit `listen`; native component entries are not affected.
+- Findings: pending focused review.
+- Verification required: list invalidation, detach, close/reopen, explicit re-listen, and full semantic JUnit.
+- Residual risk: native component lifecycle and path normalization remain outside this slice.
+
+## Round R14 - SA-11 focused retirement review
+
+- Ledger row: `SA-11`
+- Session: pending
+- Scope: `UiLabListeners`, `ArtFramework` retirement hook, and focused `UiInspectTest` lifecycle tests
+- Result: FINDINGS
+- Findings:
+  - `SA-11-01` high, accepted, fixed pending re-review: synchronized `UiLabListeners` registry
+    operations so same-key listen and retirement cannot overwrite or lose subscriptions.
+  - `SA-11-02` high, accepted, fixed pending re-review: retirement hook now runs lab cleanup in a
+    `finally` block after UiOps cleanup, preserving lab invalidation if UiOps cleanup throws.
+  - `SA-11-03` high, accepted, fixed, verified: control-path listeners can attach through
+    `PresentationRuntime` before `ArtFramework` class initialization, leaving direct
+    `SyntheticRuntime` retirement without the facade hook. `UiLabListeners.listen` now explicitly
+    bootstraps the facade before creating an entry.
+  - `SA-11-04` medium, accepted, fixed pending re-review: entries retain the underlying
+    `SignalSubscription` and retirement calls `disconnect()` in `finally` even when detach throws.
+  - `SA-11-05` medium, accepted, fixed pending re-review: `LabEntry` records synthetic ownership;
+    retirement invalidates only synthetic presentation targets, preserving native component entries.
+- Verification required: focused lab lifecycle tests, full semantic JUnit, and final review.
+- Residual risk: console lifecycle concurrency is now serialized per `UiLabListeners` registry; native
+  component retirement remains outside this slice by design.
+- Verification: `UiInspectTest` passed 12/12 before this review.
+
+## Round R15 - SA-11 final closure
+
+- Ledger row: `SA-11`
+- Session: `ses_fe2c4843bffeOliRWYPLENYjNv` resumed
+- Scope: `UiLabListeners`, retirement hook integration, direct runtime bootstrap, and focused lab tests
+- Result: PASS
+- Findings: none. `SA-11-01` through `SA-11-05` are fixed and verified.
+- Verification: `UiInspectTest` passed 13/13; full `./scripts/with-art-env.sh test` passed 711/711;
+  `git diff --check` passed.
+- Residual risk: native component listener lifecycle and SA-05 path/identity normalization remain
+  outside this slice.
+
+## Round R16 - ECS signal identity ownership
+
+- Ledger row: `SA-12`
+- Session: pending
+- Scope: frozen `PresentationRuntime`, `PresentationContext`, signal contract tests, and shared-world
+  ownership boundaries
+- Result: pending
+- Governing claim: shared ART world membership is not sufficient signal authority; the supplied
+  context must own the entity before a signal operation can route.
+- Findings: pending focused review.
+- Verification required: foreign context/entity rejection, retired entity rejection, same-key recreation,
+  and full semantic JUnit.
+- Residual risk: signal path legal-character canonicalization remains separate from this ownership slice.
+
+## Round R17 - SA-12 focused fix review
+
+- Ledger row: `SA-12`
+- Session: `ses_fe26eb03affeF4wzRZeWFIFuzT` resumed
+- Scope: `PresentationRuntime.requirePort`, `PresentationContext.owns`, and scoped signal contract tests
+- Result: FINDINGS, fixes implemented pending final review
+- Findings:
+  - `SA-12-01` medium, accepted, fixed pending verification: retired entities now fail ownership before
+    identity lookup and use the stable ownership error.
+  - `SA-12-02` medium, accepted, fixed pending verification: all scoped entity signal operations are
+    covered by focused rejection assertions.
+- Verification: `SignalApiContractTest` passed 17/17.
+
+## Round R18 - SA-12 final closure
+
+- Ledger row: `SA-12`
+- Session: `ses_fe26eb03affeF4wzRZeWFIFuzT` resumed
+- Scope: ECS signal ownership boundary and focused contract tests
+- Result: PASS
+- Findings: none. `SA-12-01` and `SA-12-02` are fixed and verified.
+- Verification: `SignalApiContractTest` passed 17/17; full `./scripts/with-art-env.sh test` passed
+  716/716; `git diff --check` passed.
+- Residual risk: signal path legal-character canonicalization remains a separately scoped future slice;
+  native/raw signal paths remain intentionally outside ECS entity ownership checks.
+
+## Round R19 - SA-13 scoped signal wire grammar
+
+- Ledger row: `SA-13`
+- Session: pending
+- Scope: `SignalPaths`, local scoped signal declaration validation, focused wire-compatibility tests,
+  and signal-api refacter records.
+- Result: implementing
+- Governing decision: scoped component/window/signal identifiers use `[A-Za-z0-9._-]+`; C1 node
+  paths join those segments with `/`; scoped inputs trim outer whitespace before routing. Raw
+  `UiSignal` names and raw/regex bus subscriptions stay outside this grammar for compatibility.
+- Verification required: accepted dotted native component IDs and slash-delimited C1 node paths;
+  trimming; malformed scoped inputs; raw bus compatibility; focused and full semantic JUnit; final
+  review.
+- Residual risk: grammar does not retroactively canonicalize persisted or external raw bus names.
+
+## Round R20 - SA-13 initial grammar review
+
+- Ledger row: `SA-13`
+- Session: `ses_fe199fce8ffez2EtkOWVNlBG3y`
+- Scope: frozen `SignalPaths`, declaration validation/query paths, focused tests, and refacter docs.
+- Result: FINDINGS, all accepted and fixed before final re-review.
+- Findings:
+  - `SA-13-01` medium, accepted, fixed, verified: registered/default `UiNodeType` signal values now
+    pass through `SignalPaths.signal` before deduplication, matching explicit declarations.
+  - `SA-13-02` medium, accepted, fixed, verified: `SignalPortsComponent.canEmit` and
+    `UiNode.declaresSignal` normalize non-null query input before lookup, matching scoped public
+    input canonicalization.
+  - `SA-13-03` low, accepted, fixed, verified: focused coverage proves a regex raw-bus listener
+    receives an intentionally noncanonical raw name, in addition to exact raw-route coverage.
+- Verification: final `./scripts/with-art-env.sh test` passed 720/720; `git diff --check` pending
+  final current-worktree check.
+- Residual risk: raw names remain deliberately uncanonicalized for compatibility.
+
+## Round R21 - SA-13 final closure
+
+- Ledger row: `SA-13`
+- Session: `ses_fe199fce8ffez2EtkOWVNlBG3y` resumed
+- Scope: frozen SA-13 scoped grammar authority, declaration/query parity, raw exact/regex
+  compatibility, focused tests, and records.
+- Result: PASS
+- Findings: none. `SA-13-01`, `SA-13-02`, and `SA-13-03` are fixed and verified.
+- Verification: full `./scripts/with-art-env.sh test` passed 720/720; `git diff --check` pending
+  final current-worktree check.
+- Residual risk: the grammar intentionally does not constrain raw `UiSignal` names or raw/regex
+  `SignalBus` routes, and it does not rewrite external or persisted historical raw names.

@@ -441,6 +441,7 @@ public final class RenderHost {
         if (!alreadyCaptured && needsCapture() && hostBackend.supportsCapture()) {
             hostBackend.captureScreen(frameCapture, (int) screenW, (int) screenH);
         }
+        prepareBlurChain();
         RenderContext ctx = new RenderContext(
                 spriteBatch,
                 timeSeconds,
@@ -553,6 +554,28 @@ public final class RenderHost {
         drawFrame(spriteBatch, true);
     }
 
+    private void prepareBlurChain() {
+        if (!frameCapture.hasTexture() || !hostBackend.supportsShaders()) {
+            return;
+        }
+        boolean blurNeeded = false;
+        for (List<EffectBinding> list : bindings.values()) {
+            if (list == null) continue;
+            for (EffectBinding binding : list) {
+                if (binding.isEnabled()
+                        && (BlurEffect.ID.equals(binding.effectId)
+                                || GlassEffect.ID.equals(binding.effectId))) {
+                    blurNeeded = true;
+                    break;
+                }
+            }
+            if (blurNeeded) break;
+        }
+        if (blurNeeded) {
+            frameCapture.prepareBlur(shaderRuntime.get(BlurEffect.SHADER_ID), 2f);
+        }
+    }
+
     public Map<String, Object> probeMap() {
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("targetCount", Integer.valueOf(targetCount()));
@@ -575,6 +598,8 @@ public final class RenderHost {
         capMap.put("width", Integer.valueOf(cap.width));
         capMap.put("height", Integer.valueOf(cap.height));
         capMap.put("scale", Integer.valueOf(cap.scale));
+        capMap.put("blurPasses", Integer.valueOf(cap.blurPasses));
+        capMap.put("hasBlurredTexture", Boolean.valueOf(cap.hasBlurredTexture));
         capMap.put("lastError", cap.lastError);
         out.put("capture", capMap);
         List<Map<String, Object>> shaderStatus = new ArrayList<Map<String, Object>>();

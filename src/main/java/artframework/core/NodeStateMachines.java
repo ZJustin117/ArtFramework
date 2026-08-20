@@ -22,7 +22,7 @@ public final class NodeStateMachines {
     /** Rebuild state-machine host subscriptions from ECS entity declarations. */
     public static void syncContext(PresentationContext context) {
         if (context == null) return;
-        clearWindow(PresentationRuntime.windowId(context));
+        clearContext(context);
         for (EntityId entity : context.entities()) {
             NodeStateMachine fsm = NodeStateMachine.fromDecl(context, entity);
             NodeIdentityComponent identity = PresentationRuntime.identity(context, entity);
@@ -55,6 +55,35 @@ public final class NodeStateMachines {
         for (String k : remove) {
             BY_KEY.remove(k);
         }
+    }
+
+    public static void clearEntity(PresentationContext context, EntityId entity) {
+        if (context == null || entity == null) return;
+        String windowId = PresentationRuntime.windowId(context);
+        String prefix = windowId + "/";
+        List<String> remove = new ArrayList<String>();
+        for (Map.Entry<String, NodeStateMachine> e : BY_KEY.entrySet()) {
+            if (e.getKey().startsWith(prefix) && e.getValue().belongsTo(context)
+                    && e.getValue().owns(entity)) {
+                e.getValue().clearSubscriptions();
+                remove.add(e.getKey());
+            }
+        }
+        for (String key : remove) BY_KEY.remove(key);
+    }
+
+    /** Clear state machines for exactly one ECS context instance. */
+    public static void clearContext(PresentationContext context) {
+        if (context == null) return;
+        String prefix = PresentationRuntime.windowId(context) + "/";
+        List<String> remove = new ArrayList<String>();
+        for (Map.Entry<String, NodeStateMachine> e : BY_KEY.entrySet()) {
+            if (e.getKey().startsWith(prefix) && e.getValue().belongsTo(context)) {
+                e.getValue().clearSubscriptions();
+                remove.add(e.getKey());
+            }
+        }
+        for (String key : remove) BY_KEY.remove(key);
     }
 
     public static void resetForTests() {

@@ -185,6 +185,235 @@ public class UiOpsProbeTest {
     }
 
     @Test
+    public void c1SugarHandlerDoesNotSurviveWindowCloseAndReopen() {
+        final AtomicInteger hits = new AtomicInteger();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { hits.incrementAndGet(); }
+        });
+
+        ArtFramework.open("demo");
+        ArtFramework.ops().clickButton("demo", "close");
+        ArtFramework.close("demo");
+        ArtFramework.open("demo");
+        ArtFramework.ops().clickButton("demo", "close");
+
+        assertEquals(1, hits.get());
+    }
+
+    @Test
+    public void directSyntheticRetirementAlsoInvalidatesC1SugarHandler() {
+        final AtomicInteger hits = new AtomicInteger();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { hits.incrementAndGet(); }
+        });
+
+        ArtFramework.open("demo");
+        artframework.c1.SyntheticRuntime.onClosed("demo");
+        ArtFramework.open("demo");
+        ArtFramework.ops().clickButton("demo", "close");
+
+        assertEquals(0, hits.get());
+    }
+
+    @Test
+    public void failedSyntheticOpenInvalidatesPendingC1SugarHandler() {
+        final AtomicInteger hits = new AtomicInteger();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { hits.incrementAndGet(); }
+        });
+        artframework.c1.SyntheticRuntime.installStageBackend(new artframework.c1.StageBackend() {
+            @Override public boolean isReady() { return true; }
+            @Override public void attach(String id, LayoutNode root) {
+                throw new IllegalStateException("attach failed");
+            }
+            @Override public void attachComposition(String id, artframework.component.UiNode root) {
+                throw new IllegalStateException("attach failed");
+            }
+            @Override public void detach(String id) {}
+            @Override public boolean isAttached(String id) { return false; }
+            @Override public int attachedCount() { return 0; }
+        });
+
+        try {
+            ArtFramework.open("demo");
+        } catch (IllegalStateException expected) {
+            artframework.c1.SyntheticRuntime.installStageBackend(null);
+            ArtFramework.open("demo");
+            ArtFramework.ops().clickButton("demo", "close");
+            assertEquals(0, hits.get());
+            return;
+        }
+        throw new AssertionError("synthetic open should fail");
+    }
+
+    @Test
+    public void layoutLoadFailureInvalidatesPendingC1SugarHandler() {
+        final AtomicInteger hits = new AtomicInteger();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC,
+                "layouts/missing-signal-api-test.json"));
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { hits.incrementAndGet(); }
+        });
+
+        try {
+            ArtFramework.open("demo");
+        } catch (RuntimeException expected) {
+            ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+            ArtFramework.open("demo");
+            ArtFramework.ops().clickButton("demo", "close");
+            assertEquals(0, hits.get());
+            return;
+        }
+        throw new AssertionError("missing layout should fail");
+    }
+
+    @Test
+    public void directRuntimeReplacementInvalidatesMountedC1SugarHandler() {
+        final AtomicInteger hits = new AtomicInteger();
+        WindowDef def = new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json");
+        ArtFramework.register(def);
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { hits.incrementAndGet(); }
+        });
+        ArtFramework.open("demo");
+
+        artframework.c1.SyntheticRuntime.open(def);
+        ArtFramework.ops().clickButton("demo", "close");
+
+        assertEquals(0, hits.get());
+    }
+
+    @Test
+    public void syntheticRetirementHookRunsOnceWhenReplacementHookThrows() {
+        final AtomicInteger retired = new AtomicInteger();
+        WindowDef def = new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json");
+        ArtFramework.register(def);
+        ArtFramework.open("demo");
+        artframework.c1.SyntheticRuntime.installRetirementHook(
+                new artframework.c1.SyntheticRuntime.RetirementHook() {
+                    @Override public void onRetired(String windowId) {
+                        retired.incrementAndGet();
+                        throw new IllegalStateException("retirement failed");
+                    }
+                });
+
+        try {
+            artframework.c1.SyntheticRuntime.open(def);
+        } catch (IllegalStateException expected) {
+            assertEquals(1, retired.get());
+            return;
+        }
+        throw new AssertionError("replacement hook should fail");
+    }
+
+    @Test
+    public void frameworkResetRestoresItsSyntheticRetirementHook() {
+        final AtomicInteger custom = new AtomicInteger();
+        artframework.c1.SyntheticRuntime.installRetirementHook(
+                new artframework.c1.SyntheticRuntime.RetirementHook() {
+                    @Override public void onRetired(String windowId) {
+                        custom.incrementAndGet();
+                    }
+                });
+        ArtFramework.resetForTests();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.open("demo");
+        ArtFramework.close("demo");
+
+        assertEquals(0, custom.get());
+    }
+
+    @Test
+    public void syntheticRetirementHookCountsEachRetirementTransactionOnce() {
+        final AtomicInteger retired = new AtomicInteger();
+        artframework.c1.SyntheticRuntime.installRetirementHook(
+                new artframework.c1.SyntheticRuntime.RetirementHook() {
+                    @Override public void onRetired(String windowId) {
+                        retired.incrementAndGet();
+                    }
+                });
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.open("demo");
+        assertEquals(0, retired.get());
+        ArtFramework.close("demo");
+        assertEquals(1, retired.get());
+
+        ArtFramework.register(new WindowDef("broken", WindowClass.SYNTHETIC,
+                "layouts/missing-signal-api-test.json"));
+        try {
+            ArtFramework.open("broken");
+        } catch (RuntimeException expected) {
+            assertEquals(2, retired.get());
+        }
+
+        ArtFramework.register(new WindowDef("attach", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        artframework.c1.SyntheticRuntime.installStageBackend(new artframework.c1.StageBackend() {
+            @Override public boolean isReady() { return true; }
+            @Override public void attach(String id, LayoutNode root) {
+                throw new IllegalStateException("attach failed");
+            }
+            @Override public void attachComposition(String id, artframework.component.UiNode root) {
+                throw new IllegalStateException("attach failed");
+            }
+            @Override public void detach(String id) {}
+            @Override public boolean isAttached(String id) { return false; }
+            @Override public int attachedCount() { return 0; }
+        });
+        try {
+            ArtFramework.open("attach");
+        } catch (RuntimeException expected) {
+            assertEquals(3, retired.get());
+        }
+
+        ArtFramework.register(new WindowDef("replace", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        artframework.c1.SyntheticRuntime.installStageBackend(null);
+        ArtFramework.open("replace");
+        artframework.c1.SyntheticRuntime.installStageBackend(new artframework.c1.StageBackend() {
+            @Override public boolean isReady() { return true; }
+            @Override public void attach(String id, LayoutNode root) {
+                throw new IllegalStateException("attach failed");
+            }
+            @Override public void attachComposition(String id, artframework.component.UiNode root) {
+                throw new IllegalStateException("attach failed");
+            }
+            @Override public void detach(String id) {}
+            @Override public boolean isAttached(String id) { return false; }
+            @Override public int attachedCount() { return 0; }
+        });
+        try {
+            artframework.c1.SyntheticRuntime.open(
+                    new WindowDef("replace", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        } catch (RuntimeException expected) {
+            assertEquals(4, retired.get());
+        }
+    }
+
+    @Test
+    public void closingOneWindowDoesNotInvalidatePrefixedWindowHandler() {
+        final AtomicInteger demoHits = new AtomicInteger();
+        final AtomicInteger prefixedHits = new AtomicInteger();
+        ArtFramework.register(new WindowDef("demo", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.register(new WindowDef("demo-extra", WindowClass.SYNTHETIC, "layouts/demo.json"));
+        ArtFramework.ops().onButton("demo", "close", new Runnable() {
+            @Override public void run() { demoHits.incrementAndGet(); }
+        });
+        ArtFramework.ops().onButton("demo-extra", "close", new Runnable() {
+            @Override public void run() { prefixedHits.incrementAndGet(); }
+        });
+
+        ArtFramework.open("demo");
+        ArtFramework.open("demo-extra");
+        ArtFramework.close("demo");
+        ArtFramework.ops().clickButton("demo-extra", "close");
+
+        assertEquals(0, demoHits.get());
+        assertEquals(1, prefixedHits.get());
+    }
+
+    @Test
     public void syntheticControlOpsStoreTheirCurrentValueOnTheEcsEntity() {
         ArtFramework.register(new WindowDef("lightwave_demo", WindowClass.SYNTHETIC,
                 "layouts/lightwave_demo.json"));

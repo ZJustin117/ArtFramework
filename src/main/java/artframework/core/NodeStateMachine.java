@@ -152,6 +152,14 @@ public final class NodeStateMachine {
         subscriptions.clear();
     }
 
+    public boolean owns(EntityId entity) {
+        return ownerEntity.equals(entity);
+    }
+
+    public boolean belongsTo(PresentationContext context) {
+        return this.context == context;
+    }
+
     private void applyTransition(Transition t, UiSignal event) {
         if (t.to.equals(state())) {
             runActionList(t.onEnter, event);

@@ -169,6 +169,62 @@ public class UiInspectTest {
     }
 
     @Test
+    public void syntheticRetirementInvalidatesLabEntryAndRecreationRequiresRelisten() {
+        openComp();
+        final List<String> lines = new ArrayList<String>();
+        UiLabListeners.addSink(new UiLabListeners.LogSink() {
+            @Override public void log(String line) { lines.add(line); }
+        });
+        assertEquals(UiOpResult.Status.OK,
+                UiLabListeners.listen("comp/ok", SignalNames.PRESSED).status);
+        assertEquals(1, UiLabListeners.listKeys().size());
+
+        ArtFramework.close("comp");
+        assertEquals(0, UiLabListeners.listKeys().size());
+        assertEquals(UiOpResult.Status.NOT_BOUND,
+                UiLabListeners.unlisten("comp/ok", SignalNames.PRESSED).status);
+
+        openComp();
+        UiInspect.emit("comp/ok", SignalNames.PRESSED);
+        assertEquals(0, lines.size());
+        assertEquals(UiOpResult.Status.OK,
+                UiLabListeners.listen("comp/ok", SignalNames.PRESSED).status);
+        UiInspect.emit("comp/ok", SignalNames.PRESSED);
+        assertEquals(1, lines.size());
+    }
+
+    @Test
+    public void labRetirementIsolatedFromAnotherSyntheticWindow() {
+        openComp();
+        ArtFramework.register(new artframework.api.WindowDef(
+                "comp-extra", artframework.api.WindowClass.SYNTHETIC,
+                "layouts/composition_sample.json"));
+        ArtFramework.open("comp-extra");
+        assertEquals(UiOpResult.Status.OK,
+                UiLabListeners.listen("comp/ok", SignalNames.PRESSED).status);
+        assertEquals(UiOpResult.Status.OK,
+                UiLabListeners.listen("comp-extra/ok", SignalNames.PRESSED).status);
+
+        ArtFramework.close("comp");
+        assertEquals(1, UiLabListeners.listKeys().size());
+        assertEquals("comp-extra/ok pressed", UiLabListeners.listKeys().get(0));
+    }
+
+    @Test
+    public void directSyntheticRuntimeRetirementInvalidatesControlLabEntry() {
+        ArtFramework.register(new WindowDef("comp", WindowClass.SYNTHETIC,
+                "layouts/composition_sample.json"));
+        artframework.c1.SyntheticRuntime.open(
+                new WindowDef("comp", WindowClass.SYNTHETIC, "layouts/composition_sample.json"));
+        assertEquals(UiOpResult.Status.OK,
+                UiLabListeners.listen("comp/ok", SignalNames.PRESSED).status);
+
+        artframework.c1.SyntheticRuntime.onClosed("comp");
+
+        assertEquals(0, UiLabListeners.listKeys().size());
+    }
+
+    @Test
     public void nativeComponentEmit() {
         ArtFramework.register(
                 new WindowDef(NativeTemplateIds.END_TURN, WindowClass.NATIVE_TEMPLATE, NativeTemplateIds.END_TURN));

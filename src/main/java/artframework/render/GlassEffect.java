@@ -74,7 +74,7 @@ public final class GlassEffect implements Effect {
             EffectDraw.drawCaptureRegion(
                     ctx.spriteBatch,
                     target,
-                    cap.texture(),
+                    cap.textureForEffects(),
                     cap.width(),
                     cap.height(),
                     screenW > 0 ? screenW : cap.width(),

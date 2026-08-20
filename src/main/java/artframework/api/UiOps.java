@@ -576,6 +576,17 @@ public final class UiOps {
         }
     }
 
+    void onTreeClosed(String windowId) {
+        if (windowId == null) return;
+        String prefix = windowId + "\0";
+        for (String key : new java.util.ArrayList<String>(signalHandlers.keySet())) {
+            if (!key.startsWith(prefix)) continue;
+            signalHandlers.remove(key);
+            SignalSubscription subscription = signalSubscriptions.remove(key);
+            if (subscription != null) subscription.disconnect();
+        }
+    }
+
     private static void syncNodeProperty(String windowId, String controlId, String property, Object value) {
         PresentationContext context = PresentationRuntime.context(windowId);
         EntityId node = PresentationRuntime.find(context, controlId);

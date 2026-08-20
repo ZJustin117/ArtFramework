@@ -55,6 +55,28 @@ public class CapturePostProcessTest {
     }
 
     @Test
+    public void blurChainConfigurationIsBoundedAndHeadlessSafe() {
+        FrameCapture capture = ArtFramework.render().frameCapture();
+        capture.setBlurPasses(99);
+        assertEquals(4, capture.blurPasses());
+        capture.setBlurPasses(0);
+        assertEquals(1, capture.blurPasses());
+        assertFalse(capture.hasBlurredTexture());
+    }
+
+    @Test
+    public void captureResizeClearsBlurredState() {
+        FrameCapture capture = ArtFramework.render().frameCapture();
+        capture.ensureSize(320, 200);
+        capture.setBlurPasses(3);
+        assertFalse(capture.hasBlurredTexture());
+        capture.ensureSize(640, 400);
+        assertEquals(640, capture.width());
+        assertEquals(400, capture.height());
+        assertFalse(capture.hasBlurredTexture());
+    }
+
+    @Test
     public void captureScreenWithoutGlIsSafe() {
         FrameCapture cap = ArtFramework.render().frameCapture();
         boolean ok = cap.captureScreen(64, 64);
@@ -90,6 +112,8 @@ public class CapturePostProcessTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> cap = (Map<String, Object>) probe.get("capture");
         assertNotNull(cap.get("hasTexture"));
+        assertEquals(Integer.valueOf(2), cap.get("blurPasses"));
+        assertEquals(Boolean.FALSE, cap.get("hasBlurredTexture"));
     }
 
     @Test

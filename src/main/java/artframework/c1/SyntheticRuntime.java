@@ -21,6 +21,7 @@ import artframework.render.RenderHosts;
 public final class SyntheticRuntime {
 
     private static StageBackend stageBackend;
+    private static RetirementHook retirementHook;
 
     private SyntheticRuntime() {}
 
@@ -40,6 +41,14 @@ public final class SyntheticRuntime {
         return stageBackend;
     }
 
+    public interface RetirementHook {
+        void onRetired(String windowId);
+    }
+
+    public static void installRetirementHook(RetirementHook hook) {
+        retirementHook = hook;
+    }
+
     /**
      * Load layout for {@code def}, track under {@link WindowManager}, open widget session,
      * sync render targets, attach to stage if ready.
@@ -52,15 +61,17 @@ public final class SyntheticRuntime {
             throw new IllegalArgumentException("expected SYNTHETIC: " + def.id);
         }
 
-        UiNode uiRoot = loadLayout(def.resource);
-        if (!UiTypes.WINDOW.equals(uiRoot.type)) {
-            throw new IllegalArgumentException("layout root must be window: " + def.resource);
-        }
-        uiRoot = new TemplateExpander().expand(uiRoot);
-
+        boolean retired = false;
         try {
+            UiNode uiRoot = loadLayout(def.resource);
+            if (!UiTypes.WINDOW.equals(uiRoot.type)) {
+                throw new IllegalArgumentException("layout root must be window: " + def.resource);
+            }
+            uiRoot = new TemplateExpander().expand(uiRoot);
             PresentationContext existing = PresentationRuntime.context(def.id);
             if (existing != null) {
+                retired = true;
+                retireUiOps(def.id);
                 PresentationRuntime.clearSignals(existing);
                 artframework.presentation.PresentationRegistry.close(PresentationRuntime.c1Scope(def.id));
             }
@@ -89,12 +100,13 @@ public final class SyntheticRuntime {
             }
             return legacy;
         } catch (RuntimeException e) {
-            cleanupFailedOpen(def.id);
+            cleanupFailedOpen(def.id, !retired);
             throw e;
         }
     }
 
     public static void onClosed(String id) {
+        retireUiOps(id);
         if (stageBackend != null) {
             stageBackend.detach(id);
         }
@@ -124,7 +136,8 @@ public final class SyntheticRuntime {
         }
     }
 
-    private static void cleanupFailedOpen(String id) {
+    private static void cleanupFailedOpen(String id, boolean retire) {
+        if (retire) retireUiOps(id);
         if (stageBackend != null) {
             try {
                 stageBackend.detach(id);
@@ -154,6 +167,10 @@ public final class SyntheticRuntime {
         PresentationContext context = PresentationRuntime.context(id);
         if (context != null) PresentationRuntime.clearSignals(context);
         artframework.presentation.PresentationRegistry.close(PresentationRuntime.c1Scope(id));
+    }
+
+    private static void retireUiOps(String id) {
+        if (retirementHook != null) retirementHook.onRetired(id);
     }
 
     /** Public load for PresentPack templates/windows (JSON or LML). */

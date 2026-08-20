@@ -1,7 +1,10 @@
 package artframework.core;
 
 import artframework.component.UiNode;
+import artframework.component.UiNodeRegistry;
+import artframework.component.UiNodeType;
 import artframework.component.UiTypes;
+import artframework.component.NodeKind;
 import artframework.ecs.EntityId;
 import artframework.presentation.PresentationRuntime;
 import artframework.presentation.SignalPortsComponent;
@@ -42,6 +45,56 @@ public class SignalDeclarationTest {
         try { PresentationRuntime.connect(fixture.context, ok, SignalNames.VALUE_CHANGED, args -> {}); fail(); }
         catch (IllegalArgumentException expected) { assertTrue(expected.getMessage().contains(SignalNames.VALUE_CHANGED)); }
         fixture.close();
+    }
+
+    @Test public void declaredSignalsUseTheScopedSignalGrammar() {
+        SignalPortsComponent ports = new SignalPortsComponent(
+                java.util.Arrays.asList(" pressed ", "pressed"));
+        assertEquals(java.util.Arrays.asList("pressed"), ports.emits);
+        assertTrue(ports.canEmit(" pressed "));
+
+        try {
+            new SignalPortsComponent(java.util.Arrays.asList("pressed event"));
+            fail();
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("signal invalid"));
+        }
+
+        try {
+            UiNode.of(UiTypes.BUTTON).signal("pressed/event").build();
+            fail();
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("signal invalid"));
+        }
+    }
+
+    @Test public void defaultSignalsUseTheScopedSignalGrammar() {
+        UiNodeRegistry registry = UiNodeRegistry.global();
+        String validType = "test.signal_default";
+        String invalidType = "test.invalid_signal_default";
+        try {
+            registry.register(UiNodeType.builder(validType)
+                    .kind(NodeKind.LEAF)
+                    .defaultSignals(java.util.Arrays.asList(" pressed "))
+                    .build());
+            UiNode valid = UiNode.of(validType).build();
+            assertEquals(java.util.Arrays.asList("pressed"), valid.signals);
+            assertTrue(valid.declaresSignal(" pressed "));
+
+            registry.register(UiNodeType.builder(invalidType)
+                    .kind(NodeKind.LEAF)
+                    .defaultSignals(java.util.Arrays.asList("pressed/event"))
+                    .build());
+            try {
+                UiNode.of(invalidType).build();
+                fail();
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("signal invalid"));
+            }
+        } finally {
+            registry.unregister(validType);
+            registry.unregister(invalidType);
+        }
     }
 
     private static C1RuntimeFixture mountButtonTree() {

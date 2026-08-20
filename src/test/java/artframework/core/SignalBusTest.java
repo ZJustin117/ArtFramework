@@ -20,6 +20,60 @@ public class SignalBusTest {
     }
 
     @Test
+    public void signalPathsTrimScopedIdentifiersAndRejectAmbiguousRoutes() {
+        assertEquals("ui/sts1.map/node_clicked",
+                SignalPaths.component(" sts1.map ", " node_clicked "));
+        assertEquals("ui/demo/root/actions/ok/pressed",
+                SignalPaths.node(" demo ", " root/actions/ok ", " pressed "));
+
+        assertInvalidPath(new Runnable() {
+            @Override public void run() { SignalPaths.component("sts1/map", "pressed"); }
+        });
+        assertInvalidPath(new Runnable() {
+            @Override public void run() { SignalPaths.node("demo", "root//ok", "pressed"); }
+        });
+        assertInvalidPath(new Runnable() {
+            @Override public void run() { SignalPaths.node("demo", "/root/ok", "pressed"); }
+        });
+        assertInvalidPath(new Runnable() {
+            @Override public void run() { SignalPaths.node("demo", "root/ok", "pressed event"); }
+        });
+    }
+
+    private static void assertInvalidPath(Runnable action) {
+        try {
+            action.run();
+            throw new AssertionError("expected invalid signal path");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("invalid"));
+        }
+    }
+
+    @Test
+    public void rawBusRoutesRemainUnrestricted() {
+        SignalBus bus = new SignalBus();
+        final int[] calls = {0};
+        bus.connect("legacy route/with spaces", new SignalListener() {
+            @Override public SignalDecision onSignal(UiSignal signal) {
+                calls[0]++;
+                return SignalDecision.continueSignal();
+            }
+        });
+
+        bus.emit(new UiSignal("legacy route/with spaces", "test", null));
+        assertEquals(1, calls[0]);
+
+        bus.connect(Pattern.compile("legacy route/.*"), new SignalListener() {
+            @Override public SignalDecision onSignal(UiSignal signal) {
+                calls[0]++;
+                return SignalDecision.continueSignal();
+            }
+        });
+        bus.emit(new UiSignal("legacy route/with spaces", "test", null));
+        assertEquals(3, calls[0]);
+    }
+
+    @Test
     public void exactAndRegexListenersShareRegistrationOrderAndSeeReplacement() {
         SignalBus bus = new SignalBus();
         final List<String> seen = new ArrayList<String>();

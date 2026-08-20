@@ -52,13 +52,16 @@ public final class UiLabListeners {
         SINKS.remove(sink);
     }
 
-    public static UiOpResult listen(String target, String signal) {
+    public static synchronized UiOpResult listen(String target, String signal) {
         if (target == null || target.isEmpty()) {
             return UiOpResult.unavailable("target required");
         }
         if (signal == null || signal.isEmpty()) {
             return UiOpResult.unavailable("signal required");
         }
+        // SyntheticRuntime can be used directly; initialize the facade-owned retirement hook
+        // before attaching a lab entry to a presentation entity.
+        ArtFramework.isRegistered(target);
         String key = key(target, signal);
         String label = target + " " + signal;
         if (ENTRIES.containsKey(key)) {
@@ -85,7 +88,8 @@ public final class UiLabListeners {
             if (!attached.ok) {
                 return UiOpResult.unavailable(attached.message);
             }
-            ENTRIES.put(key, new LabEntry(target, signal, handler, attached.detach));
+            ENTRIES.put(key, new LabEntry(target, signal, handler, attached.detach,
+                    attached.subscription, attached.synthetic));
             return UiOpResult.ok("listening " + label);
         } catch (IllegalArgumentException e) {
             return UiOpResult.unavailable(e.getMessage() != null ? e.getMessage() : "listen failed");
@@ -95,7 +99,7 @@ public final class UiLabListeners {
         }
     }
 
-    public static UiOpResult unlisten(String target, String signal) {
+    public static synchronized UiOpResult unlisten(String target, String signal) {
         if (target == null || signal == null) {
             return UiOpResult.unavailable("target and signal required");
         }
@@ -112,7 +116,7 @@ public final class UiLabListeners {
         return UiOpResult.ok("stopped " + label);
     }
 
-    public static List<String> listKeys() {
+    public static synchronized List<String> listKeys() {
         List<String> out = new ArrayList<String>();
         for (LabEntry e : ENTRIES.values()) {
             out.add(e.target + " " + e.signal);
@@ -120,7 +124,29 @@ public final class UiLabListeners {
         return out;
     }
 
-    public static void resetForTests() {
+    /** Invalidate lab entries owned by a retired synthetic window. */
+    public static synchronized void onTreeClosed(String windowId) {
+        if (windowId == null || windowId.isEmpty()) return;
+        String prefix = windowId + "/";
+        List<LabEntry> retired = new ArrayList<LabEntry>();
+        for (Map.Entry<String, LabEntry> entry : new ArrayList<Map.Entry<String, LabEntry>>(ENTRIES.entrySet())) {
+            LabEntry lab = entry.getValue();
+            if (lab.synthetic && (windowId.equals(lab.target) || lab.target.startsWith(prefix))) {
+                ENTRIES.remove(entry.getKey());
+                retired.add(lab);
+            }
+        }
+        for (LabEntry lab : retired) {
+            try {
+                lab.detach.run();
+            } catch (RuntimeException ignored) {
+            } finally {
+                if (lab.subscription != null) lab.subscription.disconnect();
+            }
+        }
+    }
+
+    public static synchronized void resetForTests() {
         List<LabEntry> copy = new ArrayList<LabEntry>(ENTRIES.values());
         ENTRIES.clear();
         for (LabEntry e : copy) {
@@ -166,7 +192,7 @@ public final class UiLabListeners {
                         public void run() {
                             subscription.disconnect();
                         }
-                    });
+                    }, subscription, true);
         }
         PresentationContext context = PresentationRuntime.context(target);
         if (context != null) {
@@ -178,18 +204,18 @@ public final class UiLabListeners {
                         public void run() {
                             subscription.disconnect();
                         }
-                    });
+                    }, subscription, true);
         }
         UiComponent comp = ArtFramework.component(target);
         if (comp == null) {
             return AttachResult.fail("unknown target: " + target);
         }
-        comp.connect(signal, handler);
         final String id = target;
         final String sig = signal;
         final SignalHandler h = handler;
+        final SignalSubscription subscription = comp.connect(signal, handler);
         return AttachResult.ok(
-                new Runnable() {
+                    new Runnable() {
                     @Override
                     public void run() {
                         UiComponent c = ArtFramework.component(id);
@@ -197,7 +223,7 @@ public final class UiLabListeners {
                             c.disconnect(sig, h);
                         }
                     }
-                });
+                    }, subscription, false);
     }
 
     private static final class LabEntry {
@@ -205,12 +231,17 @@ public final class UiLabListeners {
         final String signal;
         final SignalHandler handler;
         final Runnable detach;
+        final SignalSubscription subscription;
+        final boolean synthetic;
 
-        LabEntry(String target, String signal, SignalHandler handler, Runnable detach) {
+        LabEntry(String target, String signal, SignalHandler handler, Runnable detach,
+                SignalSubscription subscription, boolean synthetic) {
             this.target = target;
             this.signal = signal;
             this.handler = handler;
             this.detach = detach;
+            this.subscription = subscription;
+            this.synthetic = synthetic;
         }
     }
 
@@ -218,19 +249,24 @@ public final class UiLabListeners {
         final boolean ok;
         final String message;
         final Runnable detach;
+        final SignalSubscription subscription;
+        final boolean synthetic;
 
-        private AttachResult(boolean ok, String message, Runnable detach) {
+        private AttachResult(boolean ok, String message, Runnable detach,
+                SignalSubscription subscription, boolean synthetic) {
             this.ok = ok;
             this.message = message;
             this.detach = detach;
+            this.subscription = subscription;
+            this.synthetic = synthetic;
         }
 
-        static AttachResult ok(Runnable detach) {
-            return new AttachResult(true, "", detach);
+        static AttachResult ok(Runnable detach, SignalSubscription subscription, boolean synthetic) {
+            return new AttachResult(true, "", detach, subscription, synthetic);
         }
 
         static AttachResult fail(String message) {
-            return new AttachResult(false, message, null);
+            return new AttachResult(false, message, null, null, false);
         }
     }
 }

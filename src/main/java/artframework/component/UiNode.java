@@ -1,5 +1,6 @@
 package artframework.component;
 
+import artframework.core.SignalPaths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -51,7 +52,7 @@ public final class UiNode {
     }
 
     public boolean declaresSignal(String signal) {
-        return signal != null && signals.contains(signal);
+        return signal != null && signals.contains(SignalPaths.signal(signal));
     }
 
     private static Map<String, Object> freezeProps(Map<String, Object> props) {
@@ -95,13 +96,7 @@ public final class UiNode {
         Set<String> seen = new LinkedHashSet<String>();
         if (signals != null) {
             for (String s : signals) {
-                if (s == null) {
-                    throw new IllegalArgumentException("signal required");
-                }
-                String name = s.trim();
-                if (name.isEmpty()) {
-                    throw new IllegalArgumentException("signal required");
-                }
+                String name = SignalPaths.signal(s);
                 if (seen.add(name)) {
                     ordered.add(name);
                 }
@@ -114,8 +109,9 @@ public final class UiNode {
                 defaults = registered.defaultSignals();
             }
             for (String d : defaults) {
-                if (seen.add(d)) {
-                    ordered.add(d);
+                String name = SignalPaths.signal(d);
+                if (seen.add(name)) {
+                    ordered.add(name);
                 }
             }
         }

@@ -45,12 +45,12 @@
 
 - Project: `signal-api`
 - Started: 2026-08-18
-- State: complete through `SA-08` with documented compatibility follow-ups
+- State: complete through `SA-13`
 - Active slice: none
-- Last verification: `SignalApiContractTest` passed 11/11; full `./scripts/with-art-env.sh test`
-  passed; `git diff --check` passed
-- Next action: preserve the final negative-inventory evidence; reopen only for a newly identified
-  signal authority or lifecycle defect. SA-05 and SA-07 residual risks remain separate future work.
+- Last verification: full `./scripts/with-art-env.sh test` passed 720/720; `SA-13` final review
+  PASS; `git diff --check` pending final current-worktree check
+- Next action: no signal-api refacter work remains. Start a new bounded project for any newly
+  discovered independent signal ownership or compatibility concern.
 
 ## Review Tree
 
@@ -64,6 +64,26 @@
 6. Backend、Host、UiOps、inspect 和实体适配器的调用方迁移
 7. reset、close、unmount、重建和订阅清理
 8. 全仓负面清单、消费者文档和最终验证
+9. ECS entity/context 销毁、重建与 signal subscription 生命周期（`SA-09`）
+10. UiOps C1 sugar handler registration lifetime and window retirement（`SA-10`）
+11. UiLabListeners target retirement and recreation（`SA-11`）
+12. ECS signal context/entity identity ownership（`SA-12`）
+13. Scoped signal wire-path legal-character grammar and canonicalization（`SA-13`）
+
+## SA-13 Wire Grammar
+
+`SignalPaths` is the authority for scoped signal routing names. Its canonical wire grammar is:
+
+- component, window, and local signal names are one identifier segment matching
+  `[A-Za-z0-9._-]+`;
+- C1 node paths are one or more identifier segments separated by `/`;
+- public scoped inputs are trimmed before validation and route using that trimmed value;
+- embedded whitespace, empty segments, leading/trailing `/`, and other path metacharacters are
+  rejected rather than producing ambiguous routes.
+
+This applies only to routes constructed by `SignalPaths`, including scoped node/component signal
+declarations. Raw `UiSignal` names and raw/regex `SignalBus` subscriptions remain intentionally
+unrestricted compatibility APIs.
 
 新发现的独立 ownership 问题必须新增 `SA-*` ledger 行，不得静默并入当前切片。
 

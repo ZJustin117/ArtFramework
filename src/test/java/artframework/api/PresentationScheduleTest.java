@@ -110,4 +110,13 @@ public class PresentationScheduleTest {
         ArtFramework.tick(0f);
         assertTrue(PresentationRegistry.context("authority-input").entities().isEmpty());
     }
+
+    @Test public void facadePublishFrameUsesTheScheduleProjectionBridge() {
+        ContextFrame frame = ContextFrame.of(9L, 2L, "combat", null, null, null, null);
+
+        ArtFramework.publishFrame(frame);
+
+        assertEquals(9L, ArtFramework.projection().lastFrameId());
+        assertEquals("combat", ArtFramework.projection().scene());
+    }
 }

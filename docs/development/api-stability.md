@@ -4,6 +4,10 @@ The public consumer surface is the `artframework.api` facade and the explicitly 
 contracts below. Consumers should compile against `ArtFramework.jar` with `compileOnly` and load
 the jar as a separate ModTheSpire dependency.
 
+For the complete API layer model and facade-to-domain mapping, see
+[`api-overview.md`](api-overview.md). This checklist defines stability; it is not a catalog of every
+implementation class in the repository.
+
 ## Stable Surface
 
 ### Facade (`artframework.api.ArtFramework`)
@@ -59,6 +63,17 @@ Also stable: `WindowDef`, `WindowClass`, `WindowHandle`, `UiOps`, `UiOpResult`, 
 - `artframework.inspect.*`, `artframework.sts1.inspect.*`, `artframework.sts1.lab.*`, console
   `art lab` / `art ui` native reflect
 - SpirePatch suppress points, pan/zoom defaults
+
+The API layers are intentionally separate:
+
+- **Consumer Facade:** `ArtFramework`, `UiOps`, `UiProbe`, and window types.
+- **Stable Typed Domain:** context, signal, presentation, ECS, assets, and skeleton contracts.
+- **Extension SPI:** `HostBackend`, `HostAssets`, skeleton providers, node/component registries, and
+  host presentation systems.
+- **Host/Lab/Compatibility:** STS1 draw and patch implementations, lab tooling, and test helpers.
+
+The facade delegates to these contracts. It must not become a second mutable state store, signal
+dispatcher, component registry, render cache, or entity identity authority.
 
 ## Intents (not `UiOps.submitIntent`)
 

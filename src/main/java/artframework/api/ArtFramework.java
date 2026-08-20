@@ -52,16 +52,14 @@ import java.util.Map;
  */
 public final class ArtFramework {
 
-    private static final Map<String, WindowDef> DEFS = new LinkedHashMap<String, WindowDef>();
-    private static final Map<String, WindowHandle> OPEN = new LinkedHashMap<String, WindowHandle>();
     private static final UiOps OPS = new UiOps();
     private static final UiProbe PROBE = new UiProbe();
     private static final PresentationSchedule SCHEDULE = new PresentationSchedule();
+    private static final FrameworkScheduleBridge SCHEDULE_BRIDGE =
+            new FrameworkScheduleBridge(SCHEDULE);
+    private static final FrameworkLifecycleCoordinator LIFECYCLE =
+            new FrameworkLifecycleCoordinator(OPS);
     private static NativeOpsBackend nativeOpsBackend = NoOpNativeOps.INSTANCE;
-
-    static {
-        installSyntheticRetirementHook();
-    }
 
     private ArtFramework() {}
 
@@ -69,30 +67,16 @@ public final class ArtFramework {
         if (def == null) {
             throw new IllegalArgumentException("def required");
         }
-        DEFS.put(def.id, def);
-        if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-            String canon = NativeTemplateIds.canonicalize(def.id);
-            if (canon != null && !canon.equals(def.id)) {
-                DEFS.put(canon, def);
-            }
-            String resCanon = NativeTemplateIds.canonicalize(def.resource);
-            if (resCanon != null && !resCanon.isEmpty() && !resCanon.equals(def.id) && !resCanon.equals(canon)) {
-                DEFS.put(resCanon, def);
-            }
-        }
+        LIFECYCLE.register(def);
     }
 
     public static boolean isRegistered(String id) {
-        if (DEFS.containsKey(id)) {
-            return true;
-        }
-        String canon = NativeTemplateIds.canonicalize(id);
-        return canon != null && DEFS.containsKey(canon);
+        return LIFECYCLE.isRegistered(id);
     }
 
     /** Registered definition lookup for reversible host registration operations. */
     public static WindowDef registeredWindow(String id) {
-        return defOf(id);
+        return LIFECYCLE.registeredWindow(id);
     }
 
     /** Remove a window def (PresentPack deactivate). Closes if open. */
@@ -100,192 +84,47 @@ public final class ArtFramework {
         if (id == null || id.isEmpty()) {
             return;
         }
-        close(id);
-        DEFS.remove(id);
+        LIFECYCLE.unregister(id);
     }
 
     /**
      * Mount a registered window (synthetic open or native bind). Preferred Godot-aligned entry.
      */
     public static WindowHandle mount(String id) {
-        WindowDef def = defOf(id);
-        if (def == null) {
-            throw new IllegalArgumentException("not registered: " + id);
-        }
-        if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-            return bind(id);
-        }
-        return openSynthetic(def);
+        return LIFECYCLE.mount(id);
     }
 
     /** Unmount / close an open window or native template. */
     public static void unmount(String id) {
-        close(id);
+        LIFECYCLE.close(id);
     }
 
     public static WindowHandle open(String id) {
-        WindowDef def = defOf(id);
-        if (def == null) {
-            throw new IllegalArgumentException("not registered: " + id);
-        }
-        if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-            return bind(id);
-        }
-        return openSynthetic(def);
-    }
-
-    private static WindowHandle openSynthetic(WindowDef def) {
-        WindowHandle previous = OPEN.get(def.id);
-        if (previous != null && previous.isOpen()) {
-            previous.close();
-        }
-        LayoutNode root = SyntheticRuntime.open(def);
-        WindowHandle handle = new TrackedHandle(def, root);
-        OPEN.put(def.id, handle);
-        artframework.presentation.PresentationContext context =
-                artframework.presentation.PresentationRuntime.context(def.id);
-        artframework.ecs.EntityId rootEntity = artframework.presentation.PresentationRuntime.root(context);
-        if (context != null && rootEntity != null) {
-            OPS.onTreeMounted(def.id);
-            HostBackends.get().attach(new artframework.presentation.PresentationMount(context, rootEntity));
-        }
-        return handle;
+        return LIFECYCLE.open(id);
     }
 
     /**
      * Attach to an engine-owned native screen (C2). For SYNTHETIC, delegates to {@link #open}.
      */
-    private static WindowDef defOf(String id) {
-        if (id == null) {
-            return null;
-        }
-        WindowDef def = DEFS.get(id);
-        if (def != null) {
-            return def;
-        }
-        return DEFS.get(NativeTemplateIds.canonicalize(id));
-    }
-
     public static WindowHandle bind(String id) {
-        WindowDef def = defOf(id);
-        if (def == null) {
-            throw new IllegalArgumentException("not registered: " + id);
-        }
-        if (def.windowClass == WindowClass.SYNTHETIC) {
-            return open(id);
-        }
-        String openId = NativeTemplateIds.canonicalize(def.resource);
-        if (openId == null || openId.isEmpty()) {
-            openId = NativeTemplateIds.canonicalize(def.id);
-        }
-        if (openId == null || openId.isEmpty()) {
-            openId = def.id;
-        }
-        WindowHandle previous = OPEN.get(openId);
-        if (previous != null && previous.isOpen()) {
-            previous.close();
-        }
-        previous = OPEN.get(id);
-        if (previous != null && previous.isOpen()) {
-            previous.close();
-        }
-        NativeTemplateRuntime.bind(def);
-        WindowHandle handle = new TrackedHandle(def, null);
-        OPEN.put(openId, handle);
-        if (!openId.equals(id)) {
-            OPEN.put(id, handle);
-        }
-        return handle;
+        return LIFECYCLE.bind(id);
     }
 
     public static WindowHandle find(String id) {
-        WindowHandle h = OPEN.get(id);
-        if (h != null && h.isOpen()) {
-            return h;
-        }
-        h = OPEN.get(NativeTemplateIds.canonicalize(id));
-        return h != null && h.isOpen() ? h : null;
+        return LIFECYCLE.find(id);
     }
 
     public static List<String> listOpenIds() {
-        List<String> ids = new ArrayList<String>(
-                artframework.presentation.PresentationRuntime.openWindowIds());
-        for (String id : NativeTemplateRuntime.boundIds()) {
-            if (!ids.contains(id)) ids.add(id);
-        }
-        return Collections.unmodifiableList(ids);
+        return LIFECYCLE.listOpenIds();
     }
 
     public static void close(String id) {
-        WindowHandle h = find(id);
-        if (h != null) {
-            h.close();
-            return;
-        }
-        WindowDef def = defOf(id);
-        if (def == null) return;
-        if (def.windowClass == WindowClass.SYNTHETIC
-                && artframework.presentation.PresentationRuntime.isOpen(def.id)) {
-            closeSynthetic(def.id);
-        } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-            String nativeId = NativeTemplateIds.canonicalize(def.resource);
-            if (NativeTemplateRuntime.isBound(nativeId)) NativeTemplateRuntime.unbind(def);
-        }
+        LIFECYCLE.close(id);
     }
 
     public static void resetForTests() {
-        artframework.core.SignalGroups.resetForTests();
-        artframework.presentation.PresentationRuntime.resetSignalsForTests();
-        SCHEDULE.resetForTests();
-        GateLab.resetForTests();
-        OPEN.clear();
-        DEFS.clear();
-        OPS.resetForTests();
+        FrameworkTestReset.reset(LIFECYCLE, SCHEDULE_BRIDGE, OPS);
         nativeOpsBackend = NoOpNativeOps.INSTANCE;
-        SyntheticRuntime.resetForTests();
-        installSyntheticRetirementHook();
-        NativeTemplateRuntime.resetForTests();
-        RenderHosts.resetForTests();
-        Themes.resetForTests();
-        artframework.core.PresentPackApply.resetForTests();
-        artframework.core.PresentPackRuntime.resetForTests();
-        artframework.core.PresentPacks.resetForTests();
-        artframework.core.EnabledPresents.resetForTests();
-        try {
-            artframework.c1.host.EffectTargetActors.resetForTests();
-        } catch (Throwable ignored) {
-        }
-        artframework.core.PresentProfiles.resetForTests();
-        artframework.core.ProjectPresent.resetForTests();
-        artframework.core.SurfacePresent.resetForTests();
-        artframework.render.LightwaveControls.resetForTests();
-        artframework.render.LightwaveDiagnostics.resetForTests();
-        artframework.core.EffectPulse.resetForTests();
-        artframework.core.NodeConnections.resetForTests();
-        artframework.core.NodeStateMachines.resetForTests();
-        artframework.core.UiActions.resetForTests();
-        artframework.c1.skin.StsSkin.resetFontsForTests();
-        HostBackends.resetForTests();
-        UiNodeRegistry.global().resetBuiltinsForTests();
-        C1NodeFactories.global().resetBuiltinsForTests();
-        AnimationPlayers.resetForTests();
-        artframework.skeleton.SkeletonProviders.global().resetForTests();
-        PresentSurfaces.resetForTests();
-        PresentProjections.resetForTests();
-        artframework.sts1.input.NativeInputRecords.resetForTests();
-        artframework.sts1.input.Sts1MapIntentBridge.resetForTests();
-        HostAssetsHolder.resetForTests();
-        artframework.sts1.FullPresentMode.resetForTests();
-        artframework.sts1.assets.Sts1HostAssets.resetForTests();
-        artframework.sts1.render.Sts1RenderPipeline.resetForTests();
-        artframework.sts1.render.MapDrawPath.resetForTests();
-        artframework.sts1.input.CombatInputRouter.resetForTests();
-        artframework.sts1.audio.ArtAudioBridge.resetForTests();
-        artframework.sts1.skeleton.Sts1SkeletonBridge.resetForTests();
-        artframework.sts1.PresentSafety.resetForTests();
-        artframework.inspect.UiLabListeners.resetForTests();
-        // All presentation scopes share one world; reset must remove cross-scope test residue.
-        artframework.presentation.PresentationRegistry.world().clear();
     }
 
     /** The default native operation group. */
@@ -531,10 +370,7 @@ public final class ArtFramework {
      */
     public static LayoutNode layoutRoot(String id) {
         WindowHandle h = find(id);
-        if (h instanceof TrackedHandle) {
-            return ((TrackedHandle) h).root;
-        }
-        return null;
+        return LIFECYCLE.layoutRoot(id);
     }
 
     /**
@@ -559,27 +395,27 @@ public final class ArtFramework {
 
     /** Advance one production presentation frame, optionally ingesting an authority snapshot first. */
     public static void advanceFrame(float deltaSeconds, ContextFrame authorityFrame) {
-        SCHEDULE.advance(deltaSeconds, authorityFrame);
+        SCHEDULE_BRIDGE.advance(deltaSeconds, authorityFrame);
     }
 
     /** Internal compatibility bridge to the schedule-owned surface command phase. */
     public static void executeSurfaceIntents() {
-        SCHEDULE.executeSurfaceIntents();
+        SCHEDULE_BRIDGE.executeSurfaceIntents();
     }
 
     /** Internal compatibility bridge to the schedule-owned surface lifecycle command. */
     public static void executeSurfaceLifecycle() {
-        SCHEDULE.executeSurfaceLifecycle();
+        SCHEDULE_BRIDGE.executeSurfaceLifecycle();
     }
 
     /** Internal compatibility bridge for synchronous native host hooks. */
     public static void processNativeIntentLifecycle() {
-        SCHEDULE.processNativeIntentLifecycle();
+        SCHEDULE_BRIDGE.processNativeIntentLifecycle();
     }
 
     /** Install the host-specific presentation phase used by the production frame schedule. */
     public static void setHostPresentationSystem(HostPresentationSystem system) {
-        SCHEDULE.setHostPresentationSystem(system);
+        SCHEDULE_BRIDGE.setHostPresentationSystem(system);
     }
 
     /**
@@ -616,7 +452,7 @@ public final class ArtFramework {
 
     /** Publishes an ordinary context-frame signal. */
     public static FrameDiff publishFrame(ContextFrame frame) {
-        return SCHEDULE.publishFrame(frame);
+        return SCHEDULE_BRIDGE.publishFrame(frame);
     }
 
     /** Host-managed unified asset library. */
@@ -680,92 +516,4 @@ public final class ArtFramework {
         return NativeTemplateRuntime.entities();
     }
 
-    private static final class TrackedHandle implements WindowHandle {
-        private final WindowDef def;
-        private final LayoutNode root;
-        private final String openId;
-
-        TrackedHandle(WindowDef def, LayoutNode root) {
-            this.def = def;
-            this.root = root;
-            String id = def.id;
-            if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-                String nativeId = NativeTemplateIds.canonicalize(def.resource);
-                if (nativeId != null && !nativeId.isEmpty()) {
-                    id = nativeId;
-                }
-            }
-            this.openId = id;
-        }
-
-        @Override
-        public String id() {
-            return def.id;
-        }
-
-        @Override
-        public WindowClass windowClass() {
-            return def.windowClass;
-        }
-
-        @Override
-        public boolean isOpen() {
-            if (!isCurrentHandle(this)) return false;
-            if (def.windowClass == WindowClass.SYNTHETIC) {
-                return artframework.presentation.PresentationRuntime.isOpen(def.id);
-            }
-            return NativeTemplateRuntime.isBound(openId);
-        }
-
-        @Override
-        public void close() {
-            if (!isCurrentHandle(this)) return;
-            removeHandleAliases(this);
-            if (def.windowClass == WindowClass.SYNTHETIC) {
-                closeSynthetic(def.id);
-            } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-                NativeTemplateRuntime.unbind(def);
-            }
-        }
-
-        private void removeHandleAliases(WindowHandle handle) {
-            List<String> aliases = new ArrayList<String>();
-            for (Map.Entry<String, WindowHandle> entry : OPEN.entrySet()) {
-                if (entry.getValue() == handle) {
-                    aliases.add(entry.getKey());
-                }
-            }
-            for (String alias : aliases) {
-                OPEN.remove(alias);
-            }
-        }
-    }
-
-    private static boolean isCurrentHandle(WindowHandle handle) {
-        for (WindowHandle current : OPEN.values()) {
-            if (current == handle) return true;
-        }
-        return false;
-    }
-
-    private static void closeSynthetic(String id) {
-        artframework.presentation.PresentationContext context =
-                artframework.presentation.PresentationRuntime.context(id);
-        artframework.ecs.EntityId root = artframework.presentation.PresentationRuntime.root(context);
-        if (context != null && root != null) HostBackends.get().detach(
-                new artframework.presentation.PresentationMount(context, root));
-        SyntheticRuntime.onClosed(id);
-    }
-
-    private static void installSyntheticRetirementHook() {
-        SyntheticRuntime.installRetirementHook(new SyntheticRuntime.RetirementHook() {
-            @Override public void onRetired(String windowId) {
-                try {
-                    OPS.onTreeClosed(windowId);
-                } finally {
-                    artframework.inspect.UiLabListeners.onTreeClosed(windowId);
-                }
-            }
-        });
-    }
 }

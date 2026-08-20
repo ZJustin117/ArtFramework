@@ -37,6 +37,8 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 | [`android-deploy.md`](./android-deploy.md) | Device jar push paths and force-stop |
 | [`android-device-lab.md`](./android-device-lab.md) | Amethyst connector / harness / UI smoke (D1) |
 | [`android-arthas.md`](./android-arthas.md) | Optional Arthas JVM diagnostics on the Android device |
+| [`api-overview.md`](./api-overview.md) | Facade, typed domain, extension SPI, and host/lab API layers |
+| [`api-stability.md`](./api-stability.md) | Stable consumer API and compatibility rules |
 | [`consumer.md`](./consumer.md) | How downstream mods depend on `ArtFramework.jar` |
 | [`../design/art-framework.md`](../design/art-framework.md) | ART presentation graph + Host SPI + milestone 12 |
 | [`../design/backend-context.md`](../design/backend-context.md) | Backend / context / intents (milestone 15) |

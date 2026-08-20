@@ -2,6 +2,10 @@
 
 ArtFramework is a **separate ModTheSpire mod** (`modid`: `artframework`). Consumers compile against the jar and load it **beside** their own jar — do **not** shade ArtFramework classes into the consumer fat jar (would duplicate `ArtFrameworkMod`).
 
+Start with [`api-overview.md`](api-overview.md) for the distinction between the Consumer Facade,
+Stable Typed Domain API, Extension SPI, and Host/Lab API. This document focuses on consumer setup
+and concrete integration examples.
+
 ## Build artifact
 
 ```bash
@@ -40,6 +44,17 @@ Use a consumer-local Gradle property or environment variable for the built `ArtF
 Deploy **both** `ArtFramework.jar` and `Consumer.jar` into the mods library. Load order: BaseMod → ArtFramework → consumer.
 
 ## Public API surface (stable for consumers)
+
+The default entry point is the facade:
+
+```java
+ArtFramework.mount("mod.window");
+ArtFramework.ops().invoke("mod.window", "confirm");
+ArtFramework.unmount("mod.window");
+```
+
+Use the typed APIs below when a consumer needs frame-level or extension-level control. Do not treat
+host draw paths, patch classes, scene2d actors, or native objects as stable consumer APIs.
 
 | Entry | Role |
 |-------|------|

@@ -23,12 +23,17 @@ attach(slotId, kind, refId) → sync(snapshot) → layout(x,y,scale) → detach
 - Snapshot: framework-owned immutable `EntitySnapshot` (pose, resourceIds, chrome flags).
   `sync(Object)` remains a compatibility ingress for `null`, `EntitySnapshot`, and recursively
   immutable string-key Maps; it rejects unsupported values and never retains the caller object.
-- Presentation entity `c2:entity:{slotId}` is the FX anchor; RenderHost targets are derived caches
+- Presentation entity `c2:entity:{slotId}` is the draw/chrome anchor; RenderHost targets are derived
+  caches. EntityPresent slots are intentionally effect-free in the current API. They own identity,
+  snapshot, transform, and host draw state only. FX or co-op marks must use a separate ECS-owned
+  visual/overlay entity rather than a host-only `EffectBinding` on the slot target.
 
 ## Policy (24.4)
 
 When combat hand is `PresentLevel.FULL` and hand surface is mounted, **EntityPresent CARD**
-slots are **overlay-only** (FX / co-op marks). They do **not** replace hand hard-sync draw.
+slots are **overlay-only** for the slot draw (for example, co-op chrome). They do **not** replace
+hand hard-sync draw. Any FX/co-op mark is a separate visual item, not an effect attachment on the
+EntityPresent slot itself.
 Non-CARD kinds are independent of hand FULL.
 
 ## Draw path

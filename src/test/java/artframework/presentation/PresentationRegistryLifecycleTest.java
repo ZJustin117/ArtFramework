@@ -12,6 +12,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * TE-26 / TE-27: registry reset clears ownership without replacing context instances, and a context
@@ -84,5 +85,37 @@ public class PresentationRegistryLifecycleTest {
 
         assertTrue("the owning scope may still destroy it", owner.destroy(owned));
         assertFalse(ArtEcs.world().contains(owned));
+    }
+
+    @Test
+    public void registryWorldCannotBeClosedThroughTheSharedWorldView() {
+        try {
+            PresentationRegistry.world().close();
+            fail("registry-owned world must not be directly closable");
+        } catch (IllegalStateException expected) {
+            assertTrue(PresentationRegistry.world().isOpen());
+        }
+
+        PresentationContext context = PresentationRegistry.context("registry-close");
+        EntityId entity = context.create(new PresentationKey("registry", "entity"),
+                "entity", "control", "test");
+        assertTrue(PresentationRegistry.world().contains(entity));
+    }
+
+    @Test
+    public void entityLookupDoesNotRepairOwnershipAsAReadSideEffect() {
+        PresentationContext context = PresentationRegistry.context("read-purity");
+        PresentationKey key = new PresentationKey("read", "entity");
+        EntityId entity = context.create(key, "entity", "control", "test");
+
+        assertTrue(PresentationRegistry.world().destroyEntity(entity));
+        assertNull(context.entity(key));
+
+        try {
+            context.create(key, "replacement", "control", "test");
+            fail("lookup must not mutate ownership or permit duplicate recreation");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("duplicate presentation key"));
+        }
     }
 }

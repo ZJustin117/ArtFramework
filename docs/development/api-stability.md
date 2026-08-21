@@ -17,7 +17,7 @@ implementation class in the repository.
 | `register` / `isRegistered` / `find` / `listOpenIds` | Window registry |
 | `mount` / `unmount` / `open` / `bind` / `close` | Lifecycle (`open`/`bind`/`close` aliases) |
 | `ops` / `probe` | Unified commands + snapshot |
-| `signals` / `connect` / `emit` | SignalBus |
+| `signals` / `connect` / `emit` / `dispatch` | SignalBus; `dispatch` is the result-bearing compatibility alias |
 | `host` / `setHostBackend` | Host SPI |
 | `theme` / `setTheme` | Default theme (project present when name is a profile id) |
 | `registerUiAction` / `getUiAction` / `uiActionIds` / `nodeState` | Declarative connections actions + node FSM (39–42) |

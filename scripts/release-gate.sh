@@ -30,6 +30,33 @@ if [[ "$PROP_VER" != "$MANIFEST_VER" || "$PROP_VER" != "$MTS_VER" ]]; then
 fi
 echo "version ok: $PROP_VER"
 
+echo "== release-gate: Java 8 bytecode assert =="
+python3 - "$ROOT/build/libs/ArtFramework.jar" <<'PY'
+import struct
+import sys
+import zipfile
+
+artifact = sys.argv[1]
+maximum_major = 52
+violations = []
+with zipfile.ZipFile(artifact) as jar:
+    for name in jar.namelist():
+        if not name.endswith('.class'):
+            continue
+        data = jar.read(name)
+        if len(data) < 8 or data[:4] != b'\xca\xfe\xba\xbe':
+            violations.append((name, 'invalid class header'))
+            continue
+        major = struct.unpack('>H', data[6:8])[0]
+        if major > maximum_major:
+            violations.append((name, 'major {}'.format(major)))
+if violations:
+    for name, reason in violations:
+        print('java8 bytecode violation: {} ({})'.format(name, reason), file=sys.stderr)
+    sys.exit(1)
+print('Java 8 bytecode ok (class major <= {})'.format(maximum_major))
+PY
+
 echo "== release-gate: consumer fixture =="
 "$ROOT/scripts/verify-consumer-fixture.sh"
 

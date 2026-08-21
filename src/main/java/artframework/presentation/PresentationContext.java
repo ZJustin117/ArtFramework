@@ -43,11 +43,7 @@ public final class PresentationContext implements AutoCloseable {
 
     public EntityId entity(PresentationKey key) {
         EntityId entity = entities.get(key);
-        if (entity != null && !world.contains(entity)) {
-            entities.remove(key);
-            return null;
-        }
-        return entity;
+        return entity != null && world.contains(entity) ? entity : null;
     }
 
     /** Entity IDs owned by this named context, in creation order. */
@@ -92,6 +88,11 @@ public final class PresentationContext implements AutoCloseable {
         for (EntityId entity : new ArrayList<EntityId>(entities.values())) {
             if (world.contains(entity)) world.destroyEntity(entity);
         }
+        entities.clear();
+    }
+
+    /** Clears the compatibility ownership index after a shared-world test reset. */
+    void resetOwnershipForTests() {
         entities.clear();
     }
 }

@@ -3,6 +3,8 @@ package artframework.core;
 import org.junit.After;
 import org.junit.Test;
 import artframework.presentation.EffectPulseComponent;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationRegistry;
 import artframework.api.ArtFramework;
 import artframework.component.ArtNodeTypes;
 import artframework.component.UiNode;
@@ -211,6 +213,89 @@ public class NodeConnectionsTest {
     }
 
     @Test
+    public void cleanupOfAnOldContextDoesNotDisconnectReplacementContext() {
+        C1RuntimeFixture oldFixture = mountWithPlayConnection("reused", "ui/reused/w/ok/pressed", false);
+        PresentationContext oldContext = oldFixture.context;
+        PresentationRegistry.close(PresentationRuntime.c1Scope("reused"));
+
+        C1RuntimeFixture replacement = mountWithPlayConnection("reused", "ui/reused/w/ok/pressed", false);
+        try {
+            assertTrue(NodeConnections.subscriptionCount("reused") >= 1);
+            NodeConnections.clearContext(oldContext);
+            assertTrue(NodeConnections.subscriptionCount("reused") >= 1);
+            replacement.emit("ok", SignalNames.PRESSED);
+            assertTrue(AnimationPlayers.get("reused", "motion").isPlaying());
+        } finally {
+            replacement.close();
+        }
+    }
+
+    @Test
+    public void failedSyncRollsBackEarlierDeclarations() {
+        Map<String, Object> valid = new LinkedHashMap<String, Object>();
+        valid.put("match", "ui/rollback/w/ok/pressed");
+        valid.put("action", UiActions.PLAY);
+        Map<String, Object> invalid = new LinkedHashMap<String, Object>();
+        invalid.put("match", "ui/rollback/w/ok/released");
+        invalid.put("action", "missing.action");
+        UiNode root = UiNode.of(UiTypes.WINDOW).id("w")
+                .prop("connections", Arrays.asList(valid, invalid))
+                .child(UiNode.of(UiTypes.BUTTON).id("ok").build()).build();
+        C1RuntimeFixture fixture = C1RuntimeFixture.mountWithoutConnections("rollback", root);
+        try {
+            try {
+                NodeConnections.syncContext(fixture.context);
+                fail("expected invalid action");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("unknown ui action"));
+            }
+            assertEquals(0, NodeConnections.subscriptionCount("rollback"));
+        } finally {
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void failedResyncPreservesPreviouslyWorkingSubscriptions() {
+        final AtomicInteger hits = new AtomicInteger();
+        ArtFramework.registerUiAction("mod.rollback", new UiAction() {
+            @Override public boolean run(UiActionContext ctx) {
+                hits.incrementAndGet();
+                return true;
+            }
+        });
+        Map<String, Object> valid = new LinkedHashMap<String, Object>();
+        valid.put("match", "ui/resync/w/ok/pressed");
+        valid.put("action", "mod.rollback");
+        C1RuntimeFixture fixture = C1RuntimeFixture.mount("resync",
+                windowWithButtonAndPlayer(null, Collections.singletonList(valid)));
+        try {
+            fixture.emit("ok", SignalNames.PRESSED);
+            assertEquals(1, hits.get());
+            hits.set(0);
+
+            Map<String, Object> invalid = new LinkedHashMap<String, Object>();
+            invalid.put("match", "ui/resync/w/ok/released");
+            invalid.put("action", "missing.action");
+            fixture.context.world().put(fixture.root,
+                    ConnectionDeclarationsComponent.class,
+                    new ConnectionDeclarationsComponent(Arrays.asList(valid, invalid), null));
+
+            try {
+                NodeConnections.syncContext(fixture.context);
+                fail("expected invalid action");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("unknown ui action"));
+            }
+            assertEquals(1, NodeConnections.subscriptionCount("resync"));
+            fixture.emit("ok", SignalNames.PRESSED);
+            assertEquals(1, hits.get());
+        } finally {
+            fixture.close();
+        }
+    }
+
+    @Test
     public void builtinsRegistered() {
         UiActions.ensureBuiltins();
         assertTrue(UiActions.contains(UiActions.PLAY));
@@ -278,6 +363,11 @@ public class NodeConnectionsTest {
     }
 
     private static C1RuntimeFixture mountWithPlayConnection(String match, boolean pattern) {
+        return mountWithPlayConnection("win", match, pattern);
+    }
+
+    private static C1RuntimeFixture mountWithPlayConnection(
+            String windowId, String match, boolean pattern) {
         Map<String, Object> conn = new LinkedHashMap<String, Object>();
         if (pattern) {
             conn.put("match_pattern", match);
@@ -290,7 +380,7 @@ public class NodeConnectionsTest {
         args.put("name", "enter");
         conn.put("args", args);
         return C1RuntimeFixture.mount(
-                "win", windowWithButtonAndPlayer(null, Collections.singletonList(conn)));
+                windowId, windowWithButtonAndPlayer(null, Collections.singletonList(conn)));
     }
 
     private static UiNode windowWithButtonAndPlayer(

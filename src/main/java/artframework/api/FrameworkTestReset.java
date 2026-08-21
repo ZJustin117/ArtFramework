@@ -70,7 +70,7 @@ final class FrameworkTestReset {
         artframework.sts1.skeleton.Sts1SkeletonBridge.resetForTests();
         artframework.sts1.PresentSafety.resetForTests();
         artframework.inspect.UiLabListeners.resetForTests();
-        PresentationRegistry.world().clear();
+        PresentationRegistry.resetForTests();
     }
 
     private static final class NativeTemplateRuntimeReset {

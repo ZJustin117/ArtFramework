@@ -27,6 +27,10 @@ final class FrameworkScheduleBridge {
         schedule.processNativeIntentLifecycle();
     }
 
+    void executeEffectPulses(float deltaSeconds) {
+        schedule.executeEffectPulses(deltaSeconds);
+    }
+
     void setHostPresentationSystem(HostPresentationSystem system) {
         schedule.setHostPresentationSystem(system);
     }

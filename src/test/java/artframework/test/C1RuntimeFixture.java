@@ -31,6 +31,12 @@ public final class C1RuntimeFixture implements AutoCloseable {
         return new C1RuntimeFixture(windowId, context, root);
     }
 
+    public static C1RuntimeFixture mountWithoutConnections(String windowId, UiNode declaration) {
+        PresentationContext context = PresentationRegistry.context(PresentationRuntime.c1Scope(windowId));
+        EntityId root = C1Materializer.mount(context, declaration);
+        return new C1RuntimeFixture(windowId, context, root);
+    }
+
     public EntityId find(String pathOrId) {
         return PresentationRuntime.find(context, pathOrId);
     }
@@ -49,7 +55,7 @@ public final class C1RuntimeFixture implements AutoCloseable {
 
     @Override
     public void close() {
-        NodeConnections.clearWindow(windowId);
+        NodeConnections.clearContext(context);
         AnimationPlayers.clearWindow(windowId);
         NodeStateMachines.clearWindow(windowId);
         PresentationRuntime.clearSignals(context);

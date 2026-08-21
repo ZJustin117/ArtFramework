@@ -138,14 +138,19 @@ public class RenderHostTest {
     }
 
     @Test
-    public void manualBindOnEntityTarget() {
+    public void manualBindOnEntityTargetIsRejectedAsHostOnlyMutation() {
         ArtFramework.entities().attach("e2", "monster", "Hexaghost");
         ArtFramework.entities().layout("e2", 10f, 20f, 1.5f);
-        ArtFramework.render().bindEffect(
-                "c2:entity:e2",
-                GlowEffect.ID,
-                Collections.<String, Object>singletonMap("intensity", 0.8f));
-        assertEquals(1, ArtFramework.render().effectsOf("c2:entity:e2").size());
+        try {
+            ArtFramework.render().bindEffect(
+                    "c2:entity:e2",
+                    GlowEffect.ID,
+                    Collections.<String, Object>singletonMap("intensity", 0.8f));
+            throw new AssertionError("expected ECS-owned target rejection");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("ECS-owned"));
+        }
+        assertEquals(0, ArtFramework.render().effectsOf("c2:entity:e2").size());
     }
 
     @Test

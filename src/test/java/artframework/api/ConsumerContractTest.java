@@ -5,6 +5,8 @@ import artframework.c1.SyntheticRuntime;
 import artframework.c2.EntityPresent;
 import artframework.component.NativeTemplateIds;
 import artframework.c2.NativeTemplateRuntime;
+import artframework.core.SignalDispatchResult;
+import artframework.core.UiSignal;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -31,5 +33,23 @@ public class ConsumerContractTest {
         assertEquals("sts1.select.grid", NativeTemplateIds.SELECT_GRID);
         assertEquals("sts1.select.hand", NativeTemplateIds.SELECT_HAND);
         assertEquals("sts1.endturn", NativeTemplateIds.END_TURN);
+    }
+
+    @Test
+    public void documentedFacadeCompatibilitySurfaceRemainsCallable() {
+        assertEquals("artframework", UiProbe.MOD_ID);
+        assertTrue(UiProbe.SCHEMA_VERSION > 0);
+        assertNotNull(ArtFramework.ops());
+        assertNotNull(ArtFramework.probe());
+        assertNotNull(ArtFramework.assets());
+        assertNotNull(ArtFramework.entities());
+        assertNotNull(ArtFramework.entityPresent());
+
+        SignalDispatchResult emitted = ArtFramework.emit(
+                new UiSignal("unbound/test", "consumer", null));
+        SignalDispatchResult dispatched = ArtFramework.dispatch(
+                new UiSignal("unbound/test", "consumer", null));
+        assertNotNull(emitted);
+        assertNotNull(dispatched);
     }
 }

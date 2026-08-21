@@ -27,15 +27,21 @@ public final class NodeConnections {
     /** Rebuild disposable subscriptions from ECS declaration components. */
     public static void syncContext(PresentationContext context) {
         if (context == null) return;
-        String windowId = PresentationRuntime.windowId(context);
-        clearContext(context);
         UiActions.ensureBuiltins();
-        for (EntityId entity : context.entities()) {
-            wireEntity(context, entity);
+        List<OwnedSubscription> staged = new ArrayList<OwnedSubscription>();
+        try {
+            for (EntityId entity : context.entities()) {
+                wireEntity(context, entity, staged);
+            }
+        } catch (RuntimeException failure) {
+            disconnectAll(staged);
+            throw failure;
         }
+        replaceContextSubscriptions(context, staged);
     }
 
-    private static void wireEntity(final PresentationContext context, final EntityId owner) {
+    private static void wireEntity(final PresentationContext context, final EntityId owner,
+            List<OwnedSubscription> destination) {
         ConnectionDeclarationsComponent declarations = PresentationRuntime.component(
                 context, owner, ConnectionDeclarationsComponent.class);
         if (declarations == null) return;
@@ -44,7 +50,7 @@ public final class NodeConnections {
             Map<String, Object> norm = normalizeTrigger(context, owner, legacy);
             if (norm != null) specs.add(norm);
         }
-        for (Map<String, Object> spec : specs) wireSpec(context, owner, spec);
+        for (Map<String, Object> spec : specs) wireSpec(context, owner, spec, destination);
     }
 
     private static Map<String, Object> normalizeTrigger(PresentationContext context, EntityId owner,
@@ -72,7 +78,7 @@ public final class NodeConnections {
     }
 
     private static void wireSpec(final PresentationContext context, final EntityId owner,
-            Map<String, Object> spec) {
+            Map<String, Object> spec, List<OwnedSubscription> destination) {
         final String actionId = stringVal(spec.get("action"));
         if (actionId.isEmpty()) return;
         if (!UiActions.contains(actionId)) throw new IllegalArgumentException("unknown ui action in connections: " + actionId);
@@ -102,7 +108,7 @@ public final class NodeConnections {
         SignalSubscription sub = pattern.isEmpty()
                 ? PresentationRuntime.connectBus(context, match, listener)
                 : PresentationRuntime.connectBus(context, Pattern.compile(pattern), listener);
-        track(context, PresentationRuntime.windowId(context), owner, sub);
+        track(destination, context, owner, sub);
     }
 
     public static void clearWindow(String windowId) {
@@ -117,6 +123,44 @@ public final class NodeConnections {
             if (owned != null && owned.subscription != null) {
                 owned.subscription.disconnect();
             }
+        }
+    }
+
+    /** Remove declarations owned by the supplied context, without touching replacements. */
+    public static void clearContext(PresentationContext context) {
+        if (context == null) return;
+        String windowId = PresentationRuntime.windowId(context);
+        List<OwnedSubscription> list = BY_WINDOW.get(windowId);
+        if (list == null) return;
+        for (OwnedSubscription owned : new ArrayList<OwnedSubscription>(list)) {
+            if (owned.context == context) {
+                owned.subscription.disconnect();
+                list.remove(owned);
+            }
+        }
+        if (list.isEmpty()) BY_WINDOW.remove(windowId);
+    }
+
+    private static void replaceContextSubscriptions(PresentationContext context,
+            List<OwnedSubscription> replacement) {
+        String windowId = PresentationRuntime.windowId(context);
+        List<OwnedSubscription> list = BY_WINDOW.get(windowId);
+        if (list == null) {
+            list = new ArrayList<OwnedSubscription>();
+            BY_WINDOW.put(windowId, list);
+        }
+        for (OwnedSubscription owned : new ArrayList<OwnedSubscription>(list)) {
+            if (owned.context == context) {
+                owned.subscription.disconnect();
+                list.remove(owned);
+            }
+        }
+        list.addAll(replacement);
+    }
+
+    private static void disconnectAll(List<OwnedSubscription> subscriptions) {
+        for (OwnedSubscription owned : subscriptions) {
+            if (owned != null && owned.subscription != null) owned.subscription.disconnect();
         }
     }
 
@@ -144,20 +188,6 @@ public final class NodeConnections {
         if (list == null) return;
         for (OwnedSubscription owned : new ArrayList<OwnedSubscription>(list)) {
             if (owned.context == context && owned.owner.equals(entity)) {
-                owned.subscription.disconnect();
-                list.remove(owned);
-            }
-        }
-        if (list.isEmpty()) BY_WINDOW.remove(windowId);
-    }
-
-    public static void clearContext(PresentationContext context) {
-        if (context == null) return;
-        String windowId = PresentationRuntime.windowId(context);
-        List<OwnedSubscription> list = BY_WINDOW.get(windowId);
-        if (list == null) return;
-        for (OwnedSubscription owned : new ArrayList<OwnedSubscription>(list)) {
-            if (owned.context == context) {
                 owned.subscription.disconnect();
                 list.remove(owned);
             }
@@ -218,17 +248,12 @@ public final class NodeConnections {
         return expected.equals(String.valueOf(got));
     }
 
-    private static void track(PresentationContext context, String windowId, EntityId owner,
-            SignalSubscription sub) {
+    private static void track(List<OwnedSubscription> destination,
+            PresentationContext context, EntityId owner, SignalSubscription sub) {
         if (sub == null) {
             return;
         }
-        List<OwnedSubscription> list = BY_WINDOW.get(windowId);
-        if (list == null) {
-            list = new ArrayList<OwnedSubscription>();
-            BY_WINDOW.put(windowId, list);
-        }
-        list.add(new OwnedSubscription(context, owner, sub));
+        destination.add(new OwnedSubscription(context, owner, sub));
     }
 
     private static String stringVal(Object v) {

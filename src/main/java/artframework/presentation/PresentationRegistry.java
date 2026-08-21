@@ -54,6 +54,7 @@ public final class PresentationRegistry {
     public static synchronized void resetForTests() {
         for (PresentationContext context : CONTEXTS.values()) context.close();
         WORLD.clear();
+        for (PresentationContext context : CONTEXTS.values()) context.resetOwnershipForTests();
     }
 
     /** The sole ART-owned world for all registered scopes. */

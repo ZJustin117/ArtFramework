@@ -29,7 +29,7 @@ public class FullFrameTest {
             host.bindEffect(RenderHost.FULL_FRAME_ID, TintEffect.ID, null);
             throw new AssertionError("expected FULL_FRAME disabled");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("FULL_FRAME"));
+            assertTrue(e.getMessage().contains("ECS-owned"));
         }
     }
 
@@ -43,8 +43,7 @@ public class FullFrameTest {
         assertEquals(720f, t.height(), 0.001f);
         assertTrue(t.isEnabled());
 
-        host.bindEffect(
-                RenderHost.FULL_FRAME_ID,
+        host.bindFullFrameEffect(
                 TintEffect.ID,
                 Collections.<String, Object>singletonMap("alpha", 0.1f));
         assertEquals(1, host.effectsOf(RenderHost.FULL_FRAME_ID).size());

@@ -65,7 +65,7 @@ public class HostRenderBackendTest {
                 };
         RenderHost host = ArtFramework.render();
         host.setHostBackend(counting);
-        host.ensureTarget("t", RenderTargetKind.SYNTHETIC_WIDGET);
+        host.ensureTarget("t", RenderTargetKind.OVERLAY);
         host.bindEffect("t", TintEffect.ID, Collections.<String, Object>emptyMap());
         host.drawFrame(null);
         assertEquals(1, draws.get());

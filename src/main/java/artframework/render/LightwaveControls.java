@@ -47,13 +47,10 @@ public final class LightwaveControls {
         EffectPulse.closeWithFx(windowId, "panel", onClose);
     }
 
-    /**
-     * Advance active pulses. Prefer {@link artframework.api.ArtFramework#tick} in production
-     * (StageHost already ticks the facade). Safe to call from unit tests that do not go through
-     * the facade.
-     */
+    /** Advance active pulses through the schedule-owned effect system. */
+    @Deprecated
     public static void tickPulses(float dt) {
-        artframework.core.EffectPulse.tick(dt);
+        ArtFramework.executeEffectPulses(dt);
     }
 
     public static void resetForTests() {

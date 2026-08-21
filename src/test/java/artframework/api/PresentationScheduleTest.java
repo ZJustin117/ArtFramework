@@ -119,4 +119,25 @@ public class PresentationScheduleTest {
         assertEquals(9L, ArtFramework.projection().lastFrameId());
         assertEquals("combat", ArtFramework.projection().scene());
     }
+
+    @Test public void pulseCompatibilityPathUsesScheduleOwnedEffectSystemOnly() {
+        final float before = ArtFramework.render().timeSeconds();
+        ArtFramework.setHostBackend(new HostBackend() {
+            @Override public boolean isReady() { return true; }
+            @Override public void attach(PresentationMount mount) {}
+            @Override public void detach(PresentationMount mount) {}
+            @Override public void applyLayout(PresentationMount mount) {}
+            @Override public HostCapabilities capabilities() { return HostCapabilities.none(); }
+            @Override public void tick(float deltaSeconds) {
+                fail("pulse-only compatibility path must not run the host backend");
+            }
+        });
+
+        artframework.core.EffectPulse.pulse("missing-window", "panel",
+                artframework.render.LightwaveEffect.ID, 1f);
+        artframework.render.LightwaveControls.tickPulses(0.25f);
+
+        assertTrue(artframework.core.EffectPulse.isActive("missing-window", "panel"));
+        assertEquals(before, ArtFramework.render().timeSeconds(), 0.0001f);
+    }
 }

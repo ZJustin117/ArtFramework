@@ -91,10 +91,16 @@ public final class DefaultEntityPresent implements EntityPresent {
         if (slotId == null) {
             return;
         }
-        EntityId entity = entityId(slotId);
-        if (entity != null) {
-            context().destroy(entity);
-            fireDetached(slotId);
+        RenderProjectionQueue.begin();
+        try {
+            EntityId entity = entityId(slotId);
+            if (entity != null) {
+                context().destroy(entity);
+                fireDetached(slotId);
+                RenderProjectionQueue.projectNow();
+            }
+        } finally {
+            RenderProjectionQueue.flush();
         }
     }
 
@@ -126,10 +132,20 @@ public final class DefaultEntityPresent implements EntityPresent {
 
     @Override
     public void clear() {
-        for (String id : new ArrayList<String>(listSlotIds())) {
-            EntityId entity = entityId(id);
-            context().destroy(entity);
-            fireDetached(id);
+        RenderProjectionQueue.begin();
+        try {
+            boolean changed = false;
+            for (String id : new ArrayList<String>(listSlotIds())) {
+                EntityId entity = entityId(id);
+                if (entity != null) {
+                    context().destroy(entity);
+                    fireDetached(id);
+                    changed = true;
+                }
+            }
+            if (changed) RenderProjectionQueue.projectNow();
+        } finally {
+            RenderProjectionQueue.flush();
         }
     }
 

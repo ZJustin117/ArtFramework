@@ -109,4 +109,47 @@ public class RenderPlanRebuildTest {
         assertNotNull(host.getTarget(targetId));
         assertEquals(before, host.getTarget(targetId).bounds());
     }
+
+    @Test public void entityPresentDetachImmediatelyRemovesProjectedTarget() {
+        ArtFramework.entities().present("player", "player", "ironclad", null,
+                100f, 200f, 0.5f);
+        assertNotNull(RenderHosts.get().getTarget("c2:entity:player"));
+
+        ArtFramework.entities().detach("player");
+
+        assertEquals(null, RenderHosts.get().getTarget("c2:entity:player"));
+    }
+
+    @Test public void entityPresentClearRemovesAllProjectedTargetsInOneBatch() {
+        ArtFramework.entities().present("player", "player", "ironclad", null,
+                100f, 200f, 0.5f);
+        ArtFramework.entities().present("monster", "monster", "cultist", null,
+                300f, 200f, 0.5f);
+        int before = RenderProjectionQueue.rebuildCountForTests();
+
+        ArtFramework.entities().clear();
+
+        assertEquals(null, RenderHosts.get().getTarget("c2:entity:player"));
+        assertEquals(null, RenderHosts.get().getTarget("c2:entity:monster"));
+        assertEquals(before + 1, RenderProjectionQueue.rebuildCountForTests());
+    }
+
+    @Test public void entityPresentSlotsAreEffectFreeAndCannotGainHostOnlyEffects() {
+        ArtFramework.entities().present("player", "player", "ironclad", null,
+                100f, 200f, 0.5f);
+        RenderHost host = RenderHosts.get();
+        assertTrue(host.effectsOf("c2:entity:player").isEmpty());
+
+        try {
+            host.bindEffect("c2:entity:player", TintEffect.ID,
+                    Collections.<String, Object>emptyMap());
+            throw new AssertionError("EntityPresent slots must reject host-only effects");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("ECS-owned"));
+        }
+
+        host.clearHostCacheForRecreation();
+        host.recreateFromEcs();
+        assertTrue(host.effectsOf("c2:entity:player").isEmpty());
+    }
 }

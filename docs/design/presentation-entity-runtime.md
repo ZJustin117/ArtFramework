@@ -66,6 +66,11 @@ Domain-specific components such as card placement, surface policy details, skele
 entity snapshots remain owned by their packages. They may reference common entity ids but do not
 replace the common components above.
 
+EntityPresent slot entities are a documented exception to the general visual-effect vocabulary in
+the current API: they retain identity, snapshot, transform, and host-binding state but no effect
+attachments. A slot target is draw/chrome-only; persistent FX must be represented by a separate
+ECS-owned visual entity and render-plan entry.
+
 ## Parent vs Child
 
 A child is an entity when it has independent identity, lifecycle, geometry, interaction, visual

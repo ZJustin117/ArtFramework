@@ -2,7 +2,7 @@ package artframework.ecs;
 
 /** Process-wide ART ECS world used by all registered presentation scopes. */
 public final class ArtEcs {
-    private static final PresentationWorld WORLD = new PresentationWorld("art");
+    private static final PresentationWorld WORLD = new PresentationWorld("art", false);
 
     private ArtEcs() {}
 

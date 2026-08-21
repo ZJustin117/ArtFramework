@@ -18,15 +18,21 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class PresentationWorld implements AutoCloseable {
     private static final AtomicLong NEXT_ENTITY = new AtomicLong(1L);
     private final String scope;
+    private final boolean closeable;
     private final Map<EntityId, Map<Class<?>, Object>> entities =
             new LinkedHashMap<EntityId, Map<Class<?>, Object>>();
     private boolean open = true;
 
     public PresentationWorld(String scope) {
+        this(scope, true);
+    }
+
+    PresentationWorld(String scope, boolean closeable) {
         if (scope == null || scope.trim().isEmpty()) {
             throw new IllegalArgumentException("scope required");
         }
         this.scope = scope;
+        this.closeable = closeable;
     }
 
     public String scope() {
@@ -127,6 +133,9 @@ public final class PresentationWorld implements AutoCloseable {
 
     @Override
     public void close() {
+        if (!closeable) {
+            throw new IllegalStateException("presentation world is registry-owned");
+        }
         if (!open) return;
         entities.clear();
         open = false;

@@ -413,6 +413,11 @@ public final class ArtFramework {
         SCHEDULE_BRIDGE.processNativeIntentLifecycle();
     }
 
+    /** Internal compatibility bridge for pulse-only helpers. */
+    public static void executeEffectPulses(float deltaSeconds) {
+        SCHEDULE_BRIDGE.executeEffectPulses(deltaSeconds);
+    }
+
     /** Install the host-specific presentation phase used by the production frame schedule. */
     public static void setHostPresentationSystem(HostPresentationSystem system) {
         SCHEDULE_BRIDGE.setHostPresentationSystem(system);

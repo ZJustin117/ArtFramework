@@ -159,6 +159,19 @@ public final class PresentationSchedule {
         run(new EcsTick(0f, sequence), nativeIntentLifecycle);
     }
 
+    /** Advances pulse envelopes through the schedule-owned effect system only. */
+    public void executeEffectPulses(float deltaSeconds) {
+        if (deltaSeconds < 0f) {
+            throw new IllegalArgumentException("deltaSeconds must be non-negative");
+        }
+        RenderProjectionQueue.begin();
+        try {
+            run(new EcsTick(deltaSeconds, sequence), effects);
+        } finally {
+            RenderProjectionQueue.flush();
+        }
+    }
+
     /** Ingests one compatibility frame through the schedule-owned authority systems. */
     public FrameDiff publishFrame(ContextFrame frame) {
         if (frame == null) return FrameDiff.skipped("frame required");

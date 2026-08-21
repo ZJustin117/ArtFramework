@@ -161,10 +161,10 @@ public final class SyntheticRuntime {
     }
 
     private static void closeContext(String id) {
-        artframework.core.NodeConnections.clearWindow(id);
+        PresentationContext context = PresentationRuntime.context(id);
+        artframework.core.NodeConnections.clearContext(context);
         artframework.core.AnimationPlayers.clearWindow(id);
         artframework.core.NodeStateMachines.clearWindow(id);
-        PresentationContext context = PresentationRuntime.context(id);
         if (context != null) PresentationRuntime.clearSignals(context);
         artframework.presentation.PresentationRegistry.close(PresentationRuntime.c1Scope(id));
     }

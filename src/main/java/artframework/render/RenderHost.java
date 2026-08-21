@@ -287,7 +287,7 @@ public final class RenderHost {
             clearEffects(entry.id);
             for (EffectAttachment attachment : entry.effects) {
                 if (!effects.contains(attachment.effectId)) continue;
-                bindEffect(entry.id, attachment.effectId, attachment.params());
+                bindPlannedEffect(entry.id, attachment.effectId, attachment.params());
                 EffectBinding binding = findEffect(entry.id, attachment.effectId, attachment.layer);
                 if (binding != null) binding.setEnabled(attachment.isEnabled());
             }
@@ -327,6 +327,24 @@ public final class RenderHost {
         if (target == null) {
             throw new IllegalArgumentException("unknown target: " + targetId);
         }
+        if (target.kind != RenderTargetKind.OVERLAY) {
+            throw new IllegalArgumentException(
+                    "ECS-owned target effects must be written to presentation state: " + targetId);
+        }
+        return bindEffectUnchecked(target, effectId, params);
+    }
+
+    private EffectBinding bindPlannedEffect(String targetId, String effectId,
+            Map<String, Object> params) {
+        RenderTarget target = targets.get(targetId);
+        if (target == null) {
+            throw new IllegalArgumentException("unknown target: " + targetId);
+        }
+        return bindEffectUnchecked(target, effectId, params);
+    }
+
+    private EffectBinding bindEffectUnchecked(RenderTarget target, String effectId,
+            Map<String, Object> params) {
         if (target.kind == RenderTargetKind.FULL_FRAME && !isFullFrameEnabled()) {
             throw new IllegalArgumentException("FULL_FRAME disabled");
         }
@@ -336,10 +354,10 @@ public final class RenderHost {
         }
         EffectBinding binding = new EffectBinding(effectId, params);
         effect.validate(binding);
-        List<EffectBinding> list = bindings.get(targetId);
+        List<EffectBinding> list = bindings.get(target.id);
         if (list == null) {
             list = new ArrayList<EffectBinding>();
-            bindings.put(targetId, list);
+            bindings.put(target.id, list);
         }
         list.add(binding);
         return binding;

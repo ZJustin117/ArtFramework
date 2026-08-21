@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full ArtFramework release gate (JUnit + art-verify + version assert + consumer fixture).
+# Full ArtFramework release gate (JUnit + art-verify + release docs + version assert + consumer fixture).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -8,6 +8,9 @@ echo "== release-gate: JUnit =="
 
 echo "== release-gate: art-verify offline =="
 (cd "$ROOT/tools/art-verify" && python3 -m unittest discover -s tests -v)
+
+echo "== release-gate: release documentation =="
+"$ROOT/scripts/verify-release-docs.sh"
 
 echo "== release-gate: jar + version assert =="
 "$ROOT/scripts/with-art-env.sh" jar

@@ -62,9 +62,9 @@ host draw paths, patch classes, scene2d actors, or native objects as stable cons
 | `artframework.api.UiOps` / `UiOpResult` / `UiProbe` | Unified commands + snapshot; **`invoke(componentId, action, …)`** for NativeControl / full-present surfaces; **`playHandCardRef`** |
 | `artframework.api.WindowDef` / `WindowClass` / `WindowHandle` | Registration + handles |
 | `artframework.presentation.*` | `PresentationContext` / `PresentationRuntime` / `PresentationFrame` |
-| `artframework.core.*` | `SignalHub` / `Theme` / `HostBackend` / `UiComponent` |
+| `artframework.core.*` | `SignalHub` / `SignalBus` / `SignalGroup` / `SignalGroups` / `UiSignal` / `SignalDispatchResult` / `Theme` / `PresentProfile` / `HostBackend` / `UiComponent` |
 | `artframework.ecs.*` | `EntityId` / `PresentationWorld` for ART-owned presentation state |
-| `artframework.context.*` | **Signal model:** `ContextSignals` / `ContextFrame` / `PresentProjections` / `FakeSignalBackend` / `SignalBackend` / `CardRef` / `PresentSurfaces` |
+| `artframework.context.*` | **Signal and frame model:** `ContextSignals` / `ContextFrame` / `PresentProjections` / `PresentProjection` / `FakeSignalBackend` / `SignalBackend` / `CardRef` / `PresentSurfaces` |
 | `artframework.assets.*` | **HostAssets** ResourceId / packs / resolve / `FakeHostAssets` |
 | `artframework.c1.SyntheticRuntime` | C1 layout open; Stage via `StageHost` |
 | `artframework.c2.NativeTemplateRuntime` | `map` / `event` / `selectGrid` / `selectHand` / `endTurn` / `entities` |

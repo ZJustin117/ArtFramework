@@ -43,14 +43,15 @@ Also stable: `WindowDef`, `WindowClass`, `WindowHandle`, `UiOps`, `UiOpResult`, 
 - `artframework.presentation`: `PresentationContext` (obtained from `PresentationRegistry.context`;
   its constructor is not public so every scope shares the single `ArtEcs` world),
   `PresentationRuntime`, `PresentationFrame`
-- `artframework.core`: `SignalHub`, `SignalBus`, `Theme`, `HostBackend`,
-  `HostCapabilities`, `UiComponent`
+- `artframework.core`: `SignalHub`, `SignalBus`, `SignalGroup`, `SignalGroups`, `UiSignal`,
+  `SignalDispatchResult`, `Theme`, `PresentProfile`, `HostBackend`, `HostCapabilities`,
+  `UiComponent`
 - `artframework.ecs`: `EntityId`, `PresentationWorld` for deterministic ART-owned presentation
   state. Scope/id semantics are stable; internal component classes remain package/domain owned.
 - `artframework.context`: `ContextFrame`, `CardRef`, `CardView`, strong views (`ControlsView`,
   `MapView`, `EventView`, `SelectView`, reward/rest/shop/treasure/top-panel/intent views),
-  `PresentSurfaces`, `PresentProjection`, `SurfaceIds`, `IntentNames`, `UiIntent`,
-  `FakeSignalBackend`, `EntitySnapshot` (via c2)
+  `PresentSurfaces`, `PresentProjection`, `PresentProjections`, `ContextSignals`, `SurfaceIds`,
+  `IntentNames`, `UiIntent`, `SignalBackend`, `FakeSignalBackend`, `EntitySnapshot` (via c2)
 - `artframework.assets`: `HostAssets`, `AssetPack`, `ResourceIds`, resolve results
 - `artframework.skeleton`: `SkeletonProvider`, `SkeletonProviders`, `SkeletonSource`, and
   `SkeletonHandle` SPI; provider implementations are host-specific.
@@ -117,8 +118,9 @@ Equivalent steps:
 
 1. `./scripts/with-art-env.sh test`
 2. `cd tools/art-verify && python3 -m unittest discover -s tests -v`
-3. Build jar; assert `gradle.properties` == jar manifest == `ModTheSpire.json` version
-4. `./scripts/verify-consumer-fixture.sh`
-5. (Optional) Deploy ArtFramework before D1 UI verification
+3. `./scripts/verify-release-docs.sh`
+4. Build jar; assert `gradle.properties` == jar manifest == `ModTheSpire.json` version
+5. `./scripts/verify-consumer-fixture.sh`
+6. (Optional) Deploy ArtFramework before D1 UI verification
 
 Version policy: [`versioning.md`](./versioning.md). Consumer guide: [`consumer.md`](./consumer.md).

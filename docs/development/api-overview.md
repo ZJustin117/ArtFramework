@@ -36,8 +36,10 @@ aliases and should not be used in new code unless a consumer must support the hi
 
 These APIs expose typed presentation contracts without exposing host implementation details:
 
-- `artframework.context`: `ContextFrame`, surface views, `CardRef`, `UiIntent`, and projections
-- `artframework.core`: `SignalBus`, `SignalGroup`, `Theme`, `PresentProfile`, `UiComponent`
+- `artframework.context`: `ContextFrame`, surface views, `CardRef`, `UiIntent`, `PresentProjection`,
+  `PresentProjections`, `ContextSignals`, `SignalBackend`, `FakeSignalBackend`, and projections
+- `artframework.core`: `SignalBus`, `SignalGroup`, `SignalGroups`, `UiSignal`,
+  `SignalDispatchResult`, `Theme`, `PresentProfile`, `UiComponent`
 - `artframework.presentation`: `PresentationContext`, `PresentationRuntime`, and frames
 - `artframework.ecs`: `EntityId` and `PresentationWorld`
 - `artframework.assets`: `HostAssets`, `AssetPack`, resource ids, and resolve results
@@ -53,7 +55,7 @@ ControlsView controls = frame.controlsView;
 CardRef card = frame.cards.get(0).ref;
 
 SignalDispatchResult result =
-        SignalGroups.nativeGroup().dispatch(new UiSignal("combat/end_turn"));
+        ArtFramework.dispatch(new UiSignal("combat/end_turn"));
 ```
 
 `PresentationWorld` is the authority for mutable ART presentation state. `EntityId` identifies

@@ -583,6 +583,8 @@ core presentation contracts.
 - [x] 44.10 Independent `tests/spine42-assets` bundle checks; standard JUnit has no asset dependency
 - [x] 44.11 Developer runtime loader, device asset deployment, and `spine42` dev console controls
 - [x] 44.12 D1 resource status/load/animation/lifecycle scenario skeletons
+- [x] 44.13 D1 data-path evidence: source-patched runtime loads a real 4.2 `.skel`, animates,
+      reports a bone transform, and cleans lifecycle state; pixel renderer intentionally deferred
 
 ### 45. Unified Presentation Entity Runtime
 
@@ -602,5 +604,3 @@ Design: [`docs/design/presentation-entity-runtime.md`](design/presentation-entit
       visual-item attachments and remove target-map authority.
 - [x] 45.7 Replace legacy runtime/docs/fixtures and complete JUnit, offline verifier, and D1
       C1/C2 visual verification.
-- [x] 44.13 D1 data-path evidence: source-patched runtime loads a real 4.2 `.skel`, animates,
-  reports a bone transform, and cleans lifecycle state; pixel renderer intentionally deferred

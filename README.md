@@ -9,8 +9,10 @@ Version: see `gradle.properties` → `artframework.version` (currently **1.0.0-a
   1. **C1 Synthetic** — scene2d.ui windows (layout DSL / LML + StageHost + StsSkin)
   2. **C2 Native** — thin templates + **full-present** surfaces (hand/map/event/select/reward/…)
 - **SignalBus** + **HostAssets** + **EntityPresent** presentation slots
-- Shipped milestones **0–43** (room/full-present production, PresentPack, node-signal runtime,
-  and C2 Lightwave chrome/FX)
+- Implemented milestones **0–46**. The current `1.0.0-alpha.4` release baseline is documented
+  below in `CHANGELOG.md`; later completed work remains under `Unreleased` until the next version.
+  This includes room/full-present production, PresentPack, node-signal runtime, C2 Lightwave
+  chrome/FX, Spine 4.2 data-path support, and the unified presentation entity runtime.
 
 Open work: [`docs/task.md`](docs/task.md). Design hub: [`docs/design/art-framework.md`](docs/design/art-framework.md).  
 Consumer: [`docs/development/consumer.md`](docs/development/consumer.md).  
@@ -45,7 +47,7 @@ The optional Spine 4.2 runtime artifact is built separately with
 ```bash
 ./scripts/with-art-env.sh test
 ./scripts/with-art-env.sh jar
-./scripts/release-gate.sh           # JUnit + art-verify + version + consumer fixture
+./scripts/release-gate.sh           # JUnit + art-verify + release docs + version + consumer fixture
 ./scripts/publish-art-local.sh      # jar + optional install via env
 ```
 

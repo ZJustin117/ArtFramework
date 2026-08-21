@@ -30,6 +30,15 @@
 - Removed downstream-project-specific references from ArtFramework docs; this repo documents only
   generic consumer contracts and ArtFramework verification boundaries.
 
+### Architecture
+
+- Milestone **44** Spine 4.2 provider/data-path support, including local asset packaging and D1
+  lifecycle evidence. Pixel rendering remains intentionally deferred.
+- Milestone **45** unified presentation entity runtime: `PresentationContext`, `EntityId`, ECS-derived
+  C1/C2 state, entity-present state, render attachments, and Lightwave visual items.
+- Milestone **46** Traditional ECS convergence: one presentation world and scheduled production
+  systems for lifecycle, intent, normalization, rendering, diagnostics, and host projection.
+
 ### Added
 
 - Milestone **38** PresentPack UI modules + regex enable/select/modify:

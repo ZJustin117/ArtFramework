@@ -30,15 +30,25 @@ final class FrameworkLifecycleCoordinator {
     }
 
     void register(WindowDef def) {
-        definitions.put(def.id, def);
+        closeDefinitionHandles(def.id);
+        if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
+            closeDefinitionHandles(NativeTemplateIds.canonicalize(def.id));
+            closeDefinitionHandles(NativeTemplateIds.canonicalize(def.resource));
+        }
+        removeDefinitionAliases(def.id);
         if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
             String canon = NativeTemplateIds.canonicalize(def.id);
-            if (canon != null && !canon.equals(def.id)) definitions.put(canon, def);
+            removeDefinitionAliasesForKey(canon);
             String resourceCanon = NativeTemplateIds.canonicalize(def.resource);
+            removeDefinitionAliasesForKey(resourceCanon);
+            definitions.put(def.id, def);
+            if (canon != null && !canon.equals(def.id)) definitions.put(canon, def);
             if (resourceCanon != null && !resourceCanon.isEmpty()
                     && !resourceCanon.equals(def.id) && !resourceCanon.equals(canon)) {
                 definitions.put(resourceCanon, def);
             }
+        } else {
+            definitions.put(def.id, def);
         }
     }
 
@@ -53,7 +63,8 @@ final class FrameworkLifecycleCoordinator {
     void unregister(String id) {
         if (id == null || id.isEmpty()) return;
         close(id);
-        definitions.remove(id);
+        WindowDef def = definition(id);
+        if (def != null) removeDefinitionAliases(def.id);
     }
 
     WindowHandle mount(String id) {
@@ -104,7 +115,7 @@ final class FrameworkLifecycleCoordinator {
         if (def.windowClass == WindowClass.SYNTHETIC && PresentationRuntime.isOpen(def.id)) {
             closeSynthetic(def.id);
         } else if (def.windowClass == WindowClass.NATIVE_TEMPLATE) {
-            String nativeId = NativeTemplateIds.canonicalize(def.resource);
+            String nativeId = nativeKey(def);
             if (NativeTemplateRuntime.isBound(nativeId)) NativeTemplateRuntime.unbind(def);
         }
     }
@@ -133,6 +144,43 @@ final class FrameworkLifecycleCoordinator {
         return def != null ? def : definitions.get(NativeTemplateIds.canonicalize(id));
     }
 
+    private void removeDefinitionAliases(String id) {
+        WindowDef def = definitions.get(id);
+        if (def == null) {
+            String canonical = NativeTemplateIds.canonicalize(id);
+            def = canonical == null ? null : definitions.get(canonical);
+        }
+        if (def == null) return;
+
+        List<String> aliases = new ArrayList<String>();
+        for (Map.Entry<String, WindowDef> entry : definitions.entrySet()) {
+            if (entry.getValue() == def) aliases.add(entry.getKey());
+        }
+        for (String alias : aliases) definitions.remove(alias);
+    }
+
+    private void removeDefinitionAliasesForKey(String key) {
+        if (key == null || key.isEmpty()) return;
+        WindowDef owner = definitions.get(key);
+        if (owner != null) removeDefinitionAliases(owner.id);
+    }
+
+    private void closeDefinitionHandles(String key) {
+        if (key == null || key.isEmpty()) return;
+        WindowDef owner = definitions.get(key);
+        if (owner == null) return;
+
+        List<WindowHandle> owned = new ArrayList<WindowHandle>();
+        for (WindowHandle handle : handles.values()) {
+            if (handle instanceof TrackedHandle
+                    && ((TrackedHandle) handle).def == owner
+                    && !owned.contains(handle)) {
+                owned.add(handle);
+            }
+        }
+        for (WindowHandle handle : owned) handle.close();
+    }
+
     private WindowHandle openSynthetic(WindowDef def) {
         closeCurrent(def.id);
         LayoutNode root = SyntheticRuntime.open(def);
@@ -159,6 +207,14 @@ final class FrameworkLifecycleCoordinator {
             HostBackends.get().detach(new PresentationMount(context, root));
         }
         SyntheticRuntime.onClosed(id);
+    }
+
+    private String nativeKey(WindowDef def) {
+        String nativeId = NativeTemplateIds.canonicalize(def.resource);
+        if (nativeId == null || nativeId.isEmpty()) {
+            nativeId = NativeTemplateIds.canonicalize(def.id);
+        }
+        return nativeId != null ? nativeId : "";
     }
 
     private void installRetirementHook() {

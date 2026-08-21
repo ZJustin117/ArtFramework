@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -67,6 +68,71 @@ public class MountHostTest {
         assertNull(ArtFramework.find("map_alias"));
         assertNull(ArtFramework.find(NativeTemplateIds.MAP));
         assertNull(ArtFramework.find(NativeTemplateIds.LEGACY_MAP));
+        assertTrue(ArtFramework.listOpenIds().isEmpty());
+    }
+
+    @Test
+    public void unregisterRemovesAllNativeDefinitionAliases() {
+        ArtFramework.register(
+                new WindowDef(
+                        "map_alias",
+                        WindowClass.NATIVE_TEMPLATE,
+                        NativeTemplateIds.LEGACY_MAP));
+
+        ArtFramework.unregisterWindow("map_alias");
+
+        assertFalse(ArtFramework.isRegistered("map_alias"));
+        assertFalse(ArtFramework.isRegistered(NativeTemplateIds.MAP));
+        assertFalse(ArtFramework.isRegistered(NativeTemplateIds.LEGACY_MAP));
+    }
+
+    @Test
+    public void reRegisterRemovesAliasesOwnedByPreviousNativeDefinition() {
+        ArtFramework.register(
+                new WindowDef(
+                        "map_alias",
+                        WindowClass.NATIVE_TEMPLATE,
+                        NativeTemplateIds.LEGACY_MAP));
+        ArtFramework.register(
+                new WindowDef(
+                        "map_alias",
+                        WindowClass.NATIVE_TEMPLATE,
+                        NativeTemplateIds.EVENT));
+
+        assertFalse(ArtFramework.isRegistered(NativeTemplateIds.MAP));
+        assertFalse(ArtFramework.isRegistered(NativeTemplateIds.LEGACY_MAP));
+        assertTrue(ArtFramework.isRegistered(NativeTemplateIds.EVENT));
+    }
+
+    @Test
+    public void registeringResourceAliasRemovesAliasesOwnedByAnotherDefinition() {
+        ArtFramework.register(
+                new WindowDef("first", WindowClass.NATIVE_TEMPLATE, NativeTemplateIds.MAP));
+        ArtFramework.register(
+                new WindowDef("second", WindowClass.NATIVE_TEMPLATE, NativeTemplateIds.LEGACY_MAP));
+
+        assertFalse(ArtFramework.isRegistered("first"));
+        assertTrue(ArtFramework.isRegistered("second"));
+        assertTrue(ArtFramework.registeredWindow(NativeTemplateIds.MAP).id.equals("second"));
+    }
+
+    @Test
+    public void registeringResourceAliasClosesOpenPreviousDefinition() {
+        ArtFramework.register(
+                new WindowDef("first", WindowClass.NATIVE_TEMPLATE, NativeTemplateIds.MAP));
+        WindowHandle first = ArtFramework.mount("first");
+
+        ArtFramework.register(
+                new WindowDef("second", WindowClass.NATIVE_TEMPLATE, NativeTemplateIds.LEGACY_MAP));
+
+        assertFalse(first.isOpen());
+        assertNull(ArtFramework.find("first"));
+        assertTrue(ArtFramework.listOpenIds().isEmpty());
+
+        WindowHandle second = ArtFramework.mount("second");
+        ArtFramework.unregisterWindow("second");
+
+        assertFalse(second.isOpen());
         assertTrue(ArtFramework.listOpenIds().isEmpty());
     }
 

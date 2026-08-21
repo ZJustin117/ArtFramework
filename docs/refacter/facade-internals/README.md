@@ -27,15 +27,17 @@ changing the public facade API or introducing another presentation-state authori
 
 - Project: `facade-internals`
 - Active slice: internal coordination extraction
-- State: complete with review-tool follow-up
+- State: complete; bounded refactor review and full semantic gate are closed
 - Scope: `ArtFramework.java`, new package-private coordination classes, focused API tests, and this
   project record.
-- Verification: `./scripts/with-art-env.sh test` passed; `./scripts/verify-consumer-fixture.sh` passed;
-  `git diff --check` passed. Initial review finding FI2-01 (duplicate signal reset) was fixed; final
-  re-review is pending.
-- Next action: record the final review result, complete the negative inventory, and close or reopen
-  the ledger rows based on evidence. The requested final reviewer continuation did not return a
-  consumable result in this session, so no PASS is claimed for that follow-up.
+- Verification: focused `MountHostTest`, `ArtFrameworkTest`, `PresentationScheduleTest`, and
+  `SyntheticRuntimeTest` passed; `LmlUiNodeLoaderTest` passed with the stderr regression assertion;
+  `./scripts/with-art-env.sh clean test --rerun-tasks` passed all 728 tests;
+  `./scripts/verify-consumer-fixture.sh` passed; `git diff --check` passed. R2/R3/R4/R5 lifecycle
+  findings were fixed with regression tests, R6 final facade review returned PASS, and the R7 LML
+  report-stability finding was fixed and verified.
+- Next action: no remaining action for this refacter. Keep the independent LML parser/reporting fix
+  in the current change set and do not reopen this project unless a new ownership finding appears.
 
 ## Review Tree
 

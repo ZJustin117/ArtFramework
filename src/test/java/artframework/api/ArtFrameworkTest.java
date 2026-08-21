@@ -2,6 +2,8 @@ package artframework.api;
 
 import org.junit.After;
 import org.junit.Test;
+import artframework.c2.NativeTemplateRuntime;
+import artframework.component.NativeTemplateIds;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -112,6 +114,27 @@ public class ArtFrameworkTest {
 
         ArtFramework.close("w");
 
+        assertTrue(ArtFramework.listOpenIds().isEmpty());
+    }
+
+    @Test
+    public void closeNativeUsesDefinitionIdWhenResourceIsEmptyAndHandleCacheIsMissing()
+            throws Exception {
+        ArtFramework.register(
+                new WindowDef(NativeTemplateIds.MAP, WindowClass.NATIVE_TEMPLATE, ""));
+        ArtFramework.bind(NativeTemplateIds.MAP);
+        assertTrue(NativeTemplateRuntime.isMapBound());
+
+        java.lang.reflect.Field lifecycleField = ArtFramework.class.getDeclaredField("LIFECYCLE");
+        lifecycleField.setAccessible(true);
+        Object lifecycle = lifecycleField.get(null);
+        java.lang.reflect.Field handlesField = lifecycle.getClass().getDeclaredField("handles");
+        handlesField.setAccessible(true);
+        ((java.util.Map<?, ?>) handlesField.get(lifecycle)).clear();
+
+        ArtFramework.unmount(NativeTemplateIds.MAP);
+
+        assertFalse(NativeTemplateRuntime.isMapBound());
         assertTrue(ArtFramework.listOpenIds().isEmpty());
     }
 

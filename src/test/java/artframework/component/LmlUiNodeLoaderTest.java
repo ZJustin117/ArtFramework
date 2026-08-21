@@ -4,6 +4,9 @@ import org.junit.After;
 import org.junit.Test;
 import artframework.core.SignalNames;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -135,6 +138,9 @@ public class LmlUiNodeLoaderTest {
 
     @Test
     public void rejectExternalEntity() {
+        PrintStream originalErr = System.err;
+        ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(capturedErr));
         try {
             LmlUiNodeLoader.parse(
                     "<?xml version=\"1.0\"?>"
@@ -142,6 +148,9 @@ public class LmlUiNodeLoaderTest {
                             + "<window id=\"w\" title=\"&xxe;\"/>");
             fail();
         } catch (IllegalArgumentException expected) {
+            assertEquals("", capturedErr.toString());
+        } finally {
+            System.setErr(originalErr);
         }
     }
 

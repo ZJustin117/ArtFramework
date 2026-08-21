@@ -19,6 +19,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.xml.sax.ErrorHandler;
+import org.xml.sax.SAXParseException;
 
 /**
  * Loads restricted LML (XML) into {@link UiNode} trees. Pure Java; no LibGDX.
@@ -130,6 +132,22 @@ public final class LmlUiNodeLoader {
                             throw new org.xml.sax.SAXException("external entities disabled");
                         }
                     });
+            builder.setErrorHandler(new ErrorHandler() {
+                @Override
+                public void warning(SAXParseException exception) throws SAXParseException {
+                    throw exception;
+                }
+
+                @Override
+                public void error(SAXParseException exception) throws SAXParseException {
+                    throw exception;
+                }
+
+                @Override
+                public void fatalError(SAXParseException exception) throws SAXParseException {
+                    throw exception;
+                }
+            });
             Document doc =
                     builder.parse(new ByteArrayInputStream(lml.getBytes(UTF_8)));
             Element root = doc.getDocumentElement();

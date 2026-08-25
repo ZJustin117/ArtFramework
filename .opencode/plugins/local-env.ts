@@ -25,6 +25,7 @@ const ALLOWED_KEYS = new Set([
 ])
 
 const TEST_AGENTS = new Set([
+  "developer",
   "junit-test",
   "android-deploy-jar",
   "art-verify",

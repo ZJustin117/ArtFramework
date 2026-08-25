@@ -4,9 +4,9 @@ import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import com.megacrit.cardcrawl.screens.select.GridCardSelectScreen;
 import com.megacrit.cardcrawl.screens.select.HandCardSelectScreen;
-import artframework.sts1.render.SelectDrawPath;
+import artframework.sts1.render.NativeRenderBridge;
 
-/** Skip native grid/hand select draw while ART select full-present is active. */
+/** Observe native grid/hand select draw; original renderers stay the visual authority (NRO-03). */
 public final class SelectRenderPatches {
 
     private SelectRenderPatches() {}
@@ -15,12 +15,13 @@ public final class SelectRenderPatches {
             clz = GridCardSelectScreen.class,
             method = "render",
             paramtypez = {com.badlogic.gdx.graphics.g2d.SpriteBatch.class})
-    public static class SuppressNativeGridSelectRender {
+    public static class ObserveNativeGridSelectRender {
         public static SpireReturn<Void> Prefix(
                 GridCardSelectScreen __instance, com.badlogic.gdx.graphics.g2d.SpriteBatch sb) {
-            return SelectDrawPath.shouldSuppressNativeGrid()
-                    ? SpireReturn.Return(null)
-                    : SpireReturn.Continue();
+            NativeRenderBridge.beginSurface(
+                    "sts1.select.grid", "com.megacrit.cardcrawl.screens.select.GridCardSelectScreen", "render",
+                    __instance != null ? String.valueOf(System.identityHashCode(__instance)) : "");
+            return SpireReturn.Continue();
         }
     }
 
@@ -28,12 +29,13 @@ public final class SelectRenderPatches {
             clz = HandCardSelectScreen.class,
             method = "render",
             paramtypez = {com.badlogic.gdx.graphics.g2d.SpriteBatch.class})
-    public static class SuppressNativeHandSelectRender {
+    public static class ObserveNativeHandSelectRender {
         public static SpireReturn<Void> Prefix(
                 HandCardSelectScreen __instance, com.badlogic.gdx.graphics.g2d.SpriteBatch sb) {
-            return SelectDrawPath.shouldSuppressNativeHandSelect()
-                    ? SpireReturn.Return(null)
-                    : SpireReturn.Continue();
+            NativeRenderBridge.beginSurface(
+                    "sts1.select.hand", "com.megacrit.cardcrawl.screens.select.HandCardSelectScreen", "render",
+                    __instance != null ? String.valueOf(System.identityHashCode(__instance)) : "");
+            return SpireReturn.Continue();
         }
     }
 }

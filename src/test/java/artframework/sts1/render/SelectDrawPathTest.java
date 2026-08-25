@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SelectDrawPathTest {
@@ -71,13 +72,14 @@ public class SelectDrawPathTest {
     }
 
     @Test
-    public void fullMountedGridSuppresses() {
+    public void fullMountedGridDrawsWithoutSuppressingNative() {
         publishSelectFrame();
         FullPresentMode.setSelectLevel(PresentLevel.FULL);
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         ArtFramework.component(SurfaceIds.SELECT_GRID).action("mount_select");
         assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.SELECT_GRID));
-        assertTrue(SelectDrawPath.shouldSuppressNativeGrid());
-        assertTrue(SelectDrawPath.shouldSuppressNativeSelect());
+        // NRO-03: native grid/hand select renderers stay the visual authority.
+        assertFalse(SelectDrawPath.shouldSuppressNativeGrid());
+        assertFalse(SelectDrawPath.shouldSuppressNativeSelect());
     }
 }

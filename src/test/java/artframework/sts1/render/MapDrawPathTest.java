@@ -79,13 +79,14 @@ public class MapDrawPathTest {
     }
 
     @Test
-    public void suppressOnlyWhenFullMapScene() {
+    public void neverSuppressesNativeMapEvenWhenFullMounted() {
         mapFrame();
         assertFalse(MapDrawPath.shouldSuppressNativeMap());
         FullPresentMode.setMapLevel(PresentLevel.FULL);
         assertFalse(MapDrawPath.shouldSuppressNativeMap());
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
-        assertTrue(MapDrawPath.shouldSuppressNativeMap());
+        // NRO-03: native DungeonMapScreen.render stays the visual authority.
+        assertFalse(MapDrawPath.shouldSuppressNativeMap());
         FullPresentMode.setMapLevel(PresentLevel.OBSERVE);
         assertFalse(MapDrawPath.shouldSuppressNativeMap());
     }

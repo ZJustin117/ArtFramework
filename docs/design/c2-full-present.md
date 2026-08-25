@@ -1,35 +1,62 @@
-# C2 full present — replace native display
+# C2 full present — native invocation delegation
 
-Target design for **C2 as full display takeover**: ART draws the surface, hard-syncs from
-Backend frames, and replaces native UI callbacks with **signals + intents**.
+Target design for **C2 as an invocation-boundary/overlay/input layer**: ART intercepts the
+relevant native render invocations, records display input from hard-synced Backend frames, and
+routes native UI callbacks through **signals + intents**. ART does not rewrite STS render
+implementations or game authority. Original STS renderers remain the visual authority unless the
+surface is explicitly ART-owned and has no corresponding native renderer.
 Complements [`backend-context.md`](./backend-context.md), [`host-assets.md`](./host-assets.md),
-[`dual-track.md`](./dual-track.md), [`godot-aligned-ui.md`](./godot-aligned-ui.md).
+[`dual-track.md`](./dual-track.md), [`godot-aligned-ui.md`](./godot-aligned-ui.md),
+[`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md).
 Roadmap: [`docs/task.md`](../task.md) milestones **15–22** (shipped), **24–26** (entity + room
 FULL production).
+
+## Native render boundary
+
+The STS1 adapter is an invocation boundary, not a second STS renderer implementation:
+
+```text
+STS native render invocation
+  -> NativeRenderBridge
+       -> capture owner / source identity
+       -> project display input
+       -> PASS_THROUGH | CAPTURE_AND_PASS | DELEGATE_TO_ART | FAIL_OPEN
+```
+
+`DELEGATE_TO_ART` is scoped to the intercepted invocation and is only allowed when the native
+surface/effect has no STS renderer or the native renderer is explicitly replaced by a
+documented, tested ART path (see [`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md)).
+For a complete native surface, the native owner may be delegated as a whole only when ART is the
+sole pixel owner. For transient effects, delegation is per effect instance. Uncovered native calls
+continue through the original implementation.
+
+The bridge never executes relic, Power, card, combat, or room rules. It only controls whether the
+native display invocation continues after its display input has been captured.
 
 ## Status vs shipped code
 
 | | Shipped (0–26) | Notes |
 |--|----------------|-------|
-| Draw | Combat/map/event/select FULL; room/chrome FULL_READY when scene matches | Suppress patches for reward/rest/shop/treasure |
+| Draw | Combat/map/event/select FULL; room/chrome FULL_READY when scene matches | Invocation hooks and suppression patches for reward/rest/shop/treasure |
 | Input | SignalBus + intents including room CLAIM/REST/SHOP/CHEST | Soft-reject without dungeon |
 | Data | Context frames + strong views including event/select/reward/rest/shop | |
 | Objects | Registerable full-present surfaces + EntityPresent draw path | Thin intercept remains migration bridge |
 
 Thin intercept ([`dual-track.md`](./dual-track.md) roadmap 7, patches) remains a **migration
-bridge**, not the end state.
+bridge**. The fixed target is a typed `NativeRenderBridge` and delegation ledger; the current
+patch classes are host-boundary adapters toward that target.
 
 ## STS1 implementation status
 
 The host-agnostic Backend/Projection/Surface contract is implemented in milestone 15. It is
-not evidence that STS1 has replaced a native display. STS1 full-present integration is tracked
+not evidence that STS1 native render invocations have been fully delegated. STS1 full-present integration is tracked
 separately in milestone **16**:
 
 | Capability | 15.x | 16.x completion criterion |
 |------------|------|---------------------------|
 | Context frames / intents | pure API + fake | real STS1 backend and scene lifecycle |
-| Hand / slots | projection + probe | SpriteBatch draw, input, suppression, D1 validation |
-| Controls / map | surface actions | draw, input, executor, suppression, D1 validation |
+| Hand / slots | projection + probe | SpriteBatch draw, input, invocation delegation, D1 validation |
+| Controls / map | surface actions | draw, input, executor, invocation delegation, D1 validation |
 | Assets | key/pack resolver | STS1 texture/font/audio handle resolver |
 | Skeleton | provider/surface API | STS1 draw/event/lifecycle bridge |
 
@@ -37,11 +64,11 @@ No C2 surface is called full-present on device until its complete D1 acceptance 
 
 ### PresentLevel policy (16.0)
 
-| Level | Snapshot / probe | Suppress native | ART owns input |
-|-------|------------------|-----------------|----------------|
-| `OFF` | optional observe via backend bind | no | no |
-| `OBSERVE` | yes | no | no |
-| `FULL` | yes | yes when surface mounted | yes when surface mounted + executor ready |
+| Level | Snapshot / probe | Native continuation | ART owns input |
+|-------|------------------|--------------------|-----------------|
+| `OFF` | optional observe via backend bind | native continues | no |
+| `OBSERVE` | yes | native continues | no |
+| `FULL` | yes | delegated invocation stops when surface is ready | yes when surface mounted + executor ready |
 
 Mount alone never hides native UI. `FullPresentMode` defaults all surfaces to `OFF`.
 Console: `art present combat on|off|observe|status` (on ≡ FULL).
@@ -87,7 +114,8 @@ Primary Backend frame (cards, slots, controls, map, resourceIds)
         → ART applyFrame (normalize, align, diff)
         → Surface projection (UiComponent + layout + drag session)
         → HostAssets.resolve(keys)
-        → ART draw (full present)
+  → ART draw / overlay (only for ART-owned or overlay surfaces)
+        → native renderers remain the visual authority otherwise
         → input → signal → intercept → intent → Backend
         → next frame converges pixels
 ```
@@ -210,9 +238,9 @@ input → surface signal → interceptors → intent (if ALLOW) → Backend
 
 | Area | Full present expectation |
 |------|--------------------------|
-| **Map** | ART draws nodes/paths from map context; pins decorative; enter-room authority stays Backend/consumer policy via intent |
-| **Controls** | Generic control surface (not end-turn-only special case): visible, enabled hint, press intent |
-| **Skeleton** | Backend/anchor keys + [`SkeletonProvider`](./art-framework.md) SPI; ART plays; no combat rules in anim |
+| **Map** | Native `DungeonMapScreen.render` continues to draw the map; ART projects nodes/paths for input/overlays; enter-room authority stays Backend/consumer policy via intent |
+| **Controls** | Native `EndTurnButton.render` and `EnergyPanel.render` continue; ART observes and routes press intents; generic control surface (not end-turn-only special case) |
+| **Skeleton** | Per-instance `SkeletonMeshRenderer.draw` suppression only when ART claims that instance; unclaimed skeletons continue natively; Backend/anchor keys + [`SkeletonProvider`](./art-framework.md) SPI; no combat rules in anim |
 
 ## Four intercept / observe kinds
 
@@ -243,8 +271,9 @@ See dual-track EntityPresent; full present binds anchors to surfaces and HostAss
 
 1. **Authority read-only** in ART and consumers.
 2. **Display hard-sync** to Primary Backend frames.
-3. **Signals do not execute rules**; intents do (Backend).
-4. **Assets by ResourceId** via HostAssets; ART only resolves and draws.
+3. **Native STS renderers stay the visual authority** unless the surface is explicitly ART-owned and has no corresponding native renderer.
+4. **Signals do not execute rules**; intents do (Backend).
+5. **Assets by ResourceId** via HostAssets; ART only resolves and draws.
 
 ## Testing
 

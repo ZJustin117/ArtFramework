@@ -13,7 +13,6 @@ permission:
   question: deny
   task: deny
   skill: deny
-  external_directory: deny
   read: allow
   bash: allow
 ---

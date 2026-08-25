@@ -70,13 +70,14 @@ public class ControlsDrawPathTest {
     }
 
     @Test
-    public void suppressOnlyWhenFullMountedCombat() {
+    public void neverSuppressesNativeEndTurnEvenWhenFullMountedCombat() {
         combatControlsFrame();
         assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
         FullPresentMode.setCombatControlsLevel(PresentLevel.FULL);
         assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
-        assertTrue(ControlsDrawPath.shouldSuppressNativeEndTurn());
+        // NRO-02: controls stay native-pixel-authoritative even at FULL.
+        assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
         Sts1RenderPipeline.setOverlayObserve(true);
         assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
     }

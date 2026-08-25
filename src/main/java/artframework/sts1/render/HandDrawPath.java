@@ -37,6 +37,10 @@ public final class HandDrawPath {
         public final boolean artFound;
         public final String artResourceId;
         public final String frameResourceId;
+        public final String title;
+        public final String cost;
+        public final String type;
+        public final String description;
 
         public DrawItem(
                 String instanceId,
@@ -50,7 +54,11 @@ public final class HandDrawPath {
                 String frameSource,
                 boolean artFound,
                 String artResourceId,
-                String frameResourceId) {
+                String frameResourceId,
+                String title,
+                String cost,
+                String type,
+                String description) {
             this.instanceId = instanceId;
             this.cardId = cardId;
             this.x = x;
@@ -63,6 +71,18 @@ public final class HandDrawPath {
             this.artFound = artFound;
             this.artResourceId = artResourceId;
             this.frameResourceId = frameResourceId;
+            this.title = title != null ? title : cardId;
+            this.cost = cost != null ? cost : "";
+            this.type = type != null ? type : "";
+            this.description = description != null ? description : "";
+        }
+
+        public DrawItem(
+                String instanceId, String cardId, float x, float y, float rotation, float scale,
+                boolean visible, String artSource, String frameSource, boolean artFound,
+                String artResourceId, String frameResourceId) {
+            this(instanceId, cardId, x, y, rotation, scale, visible, artSource, frameSource,
+                    artFound, artResourceId, frameResourceId, cardId, "", "", "");
         }
 
         public Map<String, Object> toMap() {
@@ -79,6 +99,10 @@ public final class HandDrawPath {
             m.put("artFound", Boolean.valueOf(artFound));
             m.put("artResourceId", artResourceId);
             m.put("frameResourceId", frameResourceId);
+            m.put("title", title);
+            m.put("cost", cost);
+            m.put("type", type);
+            m.put("description", description);
             Rect bounds = bounds();
             Map<String, Object> b = new LinkedHashMap<String, Object>();
             b.put("x", Float.valueOf(bounds.x));
@@ -100,9 +124,13 @@ public final class HandDrawPath {
     private HandDrawPath() {}
 
     private static final Map<String, CachedItem> CACHE = new HashMap<String, CachedItem>();
+    private static long cachedFrameId = Long.MIN_VALUE;
+    private static List<DrawItem> cachedItems;
 
     /** Build draw list from current projection HAND zone + HostAssets resolve. */
     public static List<DrawItem> buildFromProjection() {
+        long frameId = ArtFramework.projection().lastFrameId();
+        if (cachedItems != null && cachedFrameId == frameId) return cachedItems;
         List<DrawItem> out = new ArrayList<DrawItem>();
         Set<String> current = new HashSet<String>();
         for (CardEntity e : ArtFramework.projection().listZone(CardZone.HAND)) {
@@ -121,6 +149,8 @@ public final class HandDrawPath {
                 CACHE.remove(id);
             }
         }
+        cachedFrameId = frameId;
+        cachedItems = out;
         return out;
     }
 
@@ -129,6 +159,10 @@ public final class HandDrawPath {
         h = 31L * h + stringHash(e.cardId);
         h = 31L * h + stringHash(e.artResourceId);
         h = 31L * h + stringHash(e.frameResourceId);
+        h = 31L * h + stringHash(e.title);
+        h = 31L * h + stringHash(e.cost);
+        h = 31L * h + stringHash(e.type);
+        h = 31L * h + stringHash(e.description);
         h = 31L * h + (e.pose != null ? e.pose.hashCode() : 0);
         return h;
     }
@@ -149,11 +183,13 @@ public final class HandDrawPath {
 
     public static void resetForTests() {
         CACHE.clear();
+        cachedFrameId = Long.MIN_VALUE;
+        cachedItems = null;
     }
 
     public static DrawItem fromEntity(CardEntity e) {
         if (e == null) {
-            return new DrawItem("", "", 0, 0, 0, 1, false, "", "", false, "", "");
+            return new DrawItem("", "", 0, 0, 0, 1, false, "", "", false, "", "", "", "", "", "");
         }
         float x = e.pose != null ? e.pose.x : 0f;
         float y = e.pose != null ? e.pose.y : 0f;
@@ -178,9 +214,21 @@ public final class HandDrawPath {
                 vis,
                 art.found || art.fallback ? art.source : "",
                 frame.found ? frame.source : "",
-                art.found,
+                art.found || cardArtAvailable(e.cardId),
                 e.artResourceId != null ? e.artResourceId : "",
-                e.frameResourceId != null ? e.frameResourceId : "");
+                e.frameResourceId != null ? e.frameResourceId : "",
+                e.title, e.cost, e.type, e.description);
+    }
+
+    private static boolean cardArtAvailable(String cardId) {
+        if (cardId == null || cardId.isEmpty()) return false;
+        try {
+            com.megacrit.cardcrawl.cards.AbstractCard card =
+                    com.megacrit.cardcrawl.helpers.CardLibrary.getCard(cardId);
+            return card != null && card.portrait != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     public static Map<String, Object> probeSlice() {

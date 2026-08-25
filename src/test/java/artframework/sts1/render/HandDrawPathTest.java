@@ -46,10 +46,14 @@ public class HandDrawPathTest {
                                 CardView.builder(new CardRef("a", "Strike_R"))
                                         .zone(CardZone.HAND)
                                         .slot(0)
-                                        .pose(new CardPose(100f, 200f, 5f, 0.9f, 0f, true))
-                                        .art(ResourceIds.cardArt("Strike_R"))
-                                        .frame(ResourceIds.CARD_FRAME_RED)
-                                        .build(),
+                                 .pose(new CardPose(100f, 200f, 5f, 0.9f, 0f, true))
+                                 .art(ResourceIds.cardArt("Strike_R"))
+                                 .frame(ResourceIds.CARD_FRAME_RED)
+                                         .title("Strike")
+                                         .cost("1")
+                                         .type("ATTACK")
+                                         .description("Deal damage.")
+                                         .build(),
                                 CardView.builder(new CardRef("b", "Defend_R"))
                                         .zone(CardZone.HAND)
                                         .slot(1)
@@ -75,6 +79,11 @@ public class HandDrawPathTest {
         assertTrue(items.get(0).frameSource.length() > 0);
         assertEquals(ResourceIds.cardArt("Strike_R"), items.get(0).artResourceId);
         assertEquals(ResourceIds.CARD_FRAME_RED, items.get(0).frameResourceId);
+        assertEquals("Strike", items.get(0).title);
+        assertEquals("1", items.get(0).cost);
+        assertEquals("ATTACK", items.get(0).type);
+        assertEquals("Deal damage.", items.get(0).description);
+        assertEquals("Strike", items.get(0).toMap().get("title"));
     }
 
     @Test

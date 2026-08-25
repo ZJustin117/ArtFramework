@@ -49,8 +49,8 @@ public final class Sts1SkeletonBridge {
             new SkeletonPresentationSystem(
                     PresentationRegistry.context("c2-skeleton").world(), ArtFramework.skeletons());
     private static SignalSubscription presentationSubscription;
-    private static final Map<AbstractCreature, NativeCreature> NATIVE_CREATURES =
-            new IdentityHashMap<AbstractCreature, NativeCreature>();
+    private static final Map<Object, NativeCreature> NATIVE_CREATURES =
+            new IdentityHashMap<Object, NativeCreature>();
     private static final Map<Skeleton, String> NATIVE_SKELETONS =
             new IdentityHashMap<Skeleton, String>();
     private static long nextNativeEntityId;
@@ -298,6 +298,14 @@ public final class Sts1SkeletonBridge {
         }
     }
 
+    /** Test-only helper to register a native creature mapping without instantiating AbstractCreature. */
+    static synchronized void observeNativeSkeletonForTests(Skeleton skeleton, String entityKey,
+            String atlasPath, String skeletonPath) {
+        if (skeleton == null || entityKey == null || entityKey.isEmpty()) return;
+        NATIVE_CREATURES.put(new Object(),
+                new NativeCreature(entityKey, skeleton, atlasPath, skeletonPath));
+    }
+
     /** Creates a host-neutral snapshot; null means the creature has no captured Spine source. */
     public static synchronized SkeletonPresentationView presentationView(AbstractCreature creature) {
         NativeCreature nativeCreature = NATIVE_CREATURES.get(creature);
@@ -334,8 +342,22 @@ public final class Sts1SkeletonBridge {
         artframework.skeleton.SkeletonRuntimeBinding binding = PRESENTATION.binding(entityKey);
         if (binding == null || !binding.handle.isAlive()) return false;
         SkeletonProvider provider = ArtFramework.skeletons().get(binding.handle.providerId);
-        return provider instanceof Sts1Spine34Provider
-                && ((Sts1Spine34Provider) provider).renderAtNativeSlot(binding.handle, activeBatch);
+        return provider instanceof SkeletonNativeSlotRenderer
+                && ((SkeletonNativeSlotRenderer) provider).renderAtNativeSlot(binding.handle, activeBatch);
+    }
+
+    /** Whether ART has a complete native-slot presentation for this exact Spine instance. */
+    public static synchronized boolean canRenderClaimedNative(Skeleton nativeSkeleton) {
+        String entityKey = NATIVE_SKELETONS.get(nativeSkeleton);
+        if (entityKey == null || !Sts1NativeSkeletonRenderPolicy.suppress(nativeSkeleton)) return false;
+        artframework.skeleton.SkeletonRuntimeBinding binding = PRESENTATION.binding(entityKey);
+        if (binding == null || !binding.handle.isAlive()) return false;
+        SkeletonProvider provider = ArtFramework.skeletons().get(binding.handle.providerId);
+        return provider instanceof SkeletonNativeSlotRenderer;
+    }
+
+    public static synchronized String nativeEntityKey(Skeleton nativeSkeleton) {
+        return NATIVE_SKELETONS.get(nativeSkeleton);
     }
 
     private static void reconcileNativeClaims(List<SkeletonPresentationView> views) {
@@ -346,7 +368,7 @@ public final class Sts1SkeletonBridge {
         NATIVE_SKELETONS.clear();
         Sts1NativeSkeletonRenderPolicy.clear();
         if (!shouldDraw()) return;
-        for (java.util.Iterator<Map.Entry<AbstractCreature, NativeCreature>> iterator =
+        for (java.util.Iterator<Map.Entry<Object, NativeCreature>> iterator =
                 NATIVE_CREATURES.entrySet().iterator(); iterator.hasNext();) {
             if (!active.contains(iterator.next().getValue().entityKey)) iterator.remove();
         }

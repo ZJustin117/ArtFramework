@@ -8,7 +8,7 @@ import java.util.Set;
 /**
  * In-memory skeleton provider for pure JUnit.
  */
-public final class FakeSkeletonProvider implements SkeletonCommandProvider {
+public final class FakeSkeletonProvider implements SkeletonCommandProvider, artframework.sts1.skeleton.SkeletonNativeSlotRenderer {
 
     public static final String ID = "fake";
 
@@ -142,6 +142,28 @@ public final class FakeSkeletonProvider implements SkeletonCommandProvider {
         return new BoneTransform(0f, 0f, 0f, 1f, 1f);
     }
 
+    @Override
+    public void render(SkeletonHandle handle, Object batch) {
+        FakeState s = state(handle);
+        if (s != null) {
+            s.rendered = true;
+        }
+    }
+
+    @Override
+    public boolean renderAtNativeSlot(SkeletonHandle handle, Object batch) {
+        FakeState s = state(handle);
+        if (s != null) {
+            s.renderedAtNativeSlot = true;
+        }
+        return s != null;
+    }
+
+    public boolean renderedAtNativeSlot(String skeletonId) {
+        FakeState s = states.get(skeletonId);
+        return s != null && s.renderedAtNativeSlot;
+    }
+
     public String events(String skeletonId) {
         FakeState s = states.get(skeletonId);
         return s != null ? s.events.toString() : "";
@@ -182,6 +204,8 @@ public final class FakeSkeletonProvider implements SkeletonCommandProvider {
         private float animationEnd = 2f;
         private boolean updated;
         private boolean applied;
+        private boolean rendered;
+        private boolean renderedAtNativeSlot;
         private float x, y, rotation, scaleX = 1f, scaleY = 1f;
         private boolean flipX, flipY;
 

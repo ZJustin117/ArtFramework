@@ -1,6 +1,8 @@
 package artframework.sts1.patch;
 
 import artframework.sts1.skeleton.Sts1SkeletonBridge;
+import artframework.sts1.render.NativeRenderBridge;
+import artframework.sts1.render.RenderDisposition;
 import com.megacrit.cardcrawl.core.AbstractCreature;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
@@ -31,9 +33,19 @@ public final class SkeletonRenderPatches {
                 com.esotericsoftware.spine.SkeletonMeshRenderer __instance,
                 com.badlogic.gdx.graphics.g2d.Batch batch,
                 com.esotericsoftware.spine.Skeleton skeleton) {
-            return Sts1SkeletonBridge.renderClaimedNative(skeleton, batch)
-                    ? SpireReturn.Return(null)
-                    : SpireReturn.Continue();
+            RenderDisposition disposition = NativeRenderBridge.beginSkeletonRender(skeleton);
+            if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART) {
+                // Per-instance ART claim: the provider draws the skeleton at the native slot and the
+                // original STS draw must not also run. Unclaimed skeletons always fall through.
+                boolean rendered = Sts1SkeletonBridge.renderClaimedNative(skeleton, batch);
+                if (rendered) {
+                    NativeRenderBridge.recordSkeletonDraw(skeleton, 1);
+                } else {
+                    NativeRenderBridge.recordSkeletonFailure(skeleton);
+                }
+                return SpireReturn.Return(null);
+            }
+            return SpireReturn.Continue();
         }
     }
 }

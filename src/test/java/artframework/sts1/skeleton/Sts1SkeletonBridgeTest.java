@@ -5,9 +5,14 @@ import artframework.context.SurfaceIds;
 import artframework.skeleton.FakeSkeletonProvider;
 import artframework.skeleton.SkeletonHandle;
 import artframework.skeleton.SkeletonPresentationFrames;
+import artframework.skeleton.SkeletonPresentationView;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.PresentSafety;
+import artframework.sts1.render.NativeRenderBridge;
+import artframework.sts1.render.RenderDisposition;
+import com.esotericsoftware.spine.Skeleton;
+import com.esotericsoftware.spine.SkeletonData;
 import org.junit.After;
 import org.junit.Test;
 
@@ -20,6 +25,7 @@ public class Sts1SkeletonBridgeTest {
 
     @After
     public void tearDown() {
+        Sts1SkeletonBridge.stopAll();
         ArtFramework.resetForTests();
     }
 
@@ -119,5 +125,77 @@ public class Sts1SkeletonBridgeTest {
         assertEquals(1, Sts1SkeletonBridge.presentationSystem().size());
         assertNotNull(Sts1SkeletonBridge.presentationSystem().binding("hero"));
         assertEquals(4L, Sts1SkeletonBridge.presentationSystem().lastFrameId());
+    }
+
+    @Test
+    public void unclaimedNativeSkeletonPassesThroughWithNativeContinuation() {
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        RenderDisposition disposition = NativeRenderBridge.beginSkeletonRender(skeleton);
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, disposition.mode);
+        assertTrue("unclaimed skeleton must continue to native renderer",
+                disposition.nativeContinuation);
+    }
+
+    @Test
+    public void claimedSkeletonDelegatesWithoutNativeContinuation() {
+        String entityKey = "claimed-creature-1";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey, "atlas", "skeleton");
+        SkeletonPresentationView view = viewFor(entityKey, fake.id());
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(view));
+
+        assertTrue("skeleton must be claimed", Sts1SkeletonBridge.canRenderClaimedNative(skeleton));
+        assertEquals(entityKey, Sts1SkeletonBridge.nativeEntityKey(skeleton));
+
+        RenderDisposition disposition = NativeRenderBridge.beginSkeletonRender(skeleton);
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertFalse("claimed skeleton must not continue to native renderer",
+                disposition.nativeContinuation);
+        assertEquals("skeleton:" + entityKey, disposition.presentationEntityId);
+
+        boolean rendered = Sts1SkeletonBridge.renderClaimedNative(skeleton, new Object());
+        assertTrue(rendered);
+        NativeRenderBridge.recordSkeletonDraw(skeleton, 1);
+        assertEquals(1, NativeRenderBridge.ledger().evidenceCount());
+        assertTrue(fake.renderedAtNativeSlot(entityKey));
+    }
+
+    @Test
+    public void hostRecreationRestoresSkeletonClaimWithoutDoubleDraw() {
+        String entityKey = "claimed-creature-2";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey, "atlas", "skeleton");
+        SkeletonPresentationView view = viewFor(entityKey, fake.id());
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(view));
+        assertTrue(Sts1SkeletonBridge.canRenderClaimedNative(skeleton));
+
+        Sts1SkeletonBridge.onHostRecreated();
+
+        assertTrue("claim must survive host recreation",
+                Sts1SkeletonBridge.canRenderClaimedNative(skeleton));
+        assertEquals(entityKey, Sts1SkeletonBridge.nativeEntityKey(skeleton));
+        assertEquals(1, Sts1SkeletonBridge.presentationSystem().size());
+        assertEquals(1, fake.liveCount());
+    }
+
+    private FakeSkeletonProvider registerAndMountSkeletonProvider() {
+        FakeSkeletonProvider fake = new FakeSkeletonProvider();
+        ArtFramework.skeletons().register(fake);
+        FullPresentMode.setSkeletonLevel(PresentLevel.FULL);
+        ArtFramework.component(SurfaceIds.SKELETON).mount();
+        return fake;
+    }
+
+    private SkeletonPresentationView viewFor(String entityKey, String providerId) {
+        return new SkeletonPresentationView(
+                entityKey,
+                new artframework.skeleton.SkeletonAssetComponent(
+                        providerId, "atlas", "skeleton", "", 1f),
+                new artframework.skeleton.SkeletonPoseComponent(
+                        100f, 200f, 0f, 1f, 1f, false, false, 0),
+                new artframework.skeleton.SkeletonAnimationComponent(0, "idle", true),
+                new artframework.skeleton.SkeletonVisualComponent(true));
     }
 }

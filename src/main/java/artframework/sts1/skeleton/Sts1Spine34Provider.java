@@ -21,7 +21,7 @@ import java.lang.reflect.InvocationTargetException;
 /**
  * Provider for STS1's host-bundled Spine 3.4 runtime.
  */
-public final class Sts1Spine34Provider implements SkeletonCommandProvider {
+public final class Sts1Spine34Provider implements SkeletonCommandProvider, SkeletonNativeSlotRenderer {
 
     public static final String ID = "spine34";
 

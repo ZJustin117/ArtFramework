@@ -382,6 +382,30 @@ public final class SurfaceDrawPlan {
                 artframework.sts1.PresentSafety.isPanic());
         DrawMode mode = capability.shouldDraw() ? DrawMode.DRAW
                 : capability.state == FullPresentCapability.State.OBSERVING ? DrawMode.OBSERVE : DrawMode.SKIP;
-        return new Entry(surfaceId, layer, mode, level, mounted, capability.shouldSuppressNative(), capability.state, capability.reason);
+        // NRO-02: controls/energy/intent pixels stay owned by the original STS renderers even
+        // when the surface is otherwise FULL_READY for input/projection ownership.
+        boolean suppressNative = capability.shouldSuppressNative() && !keepsNativePixelAuthority(surfaceId);
+        return new Entry(surfaceId, layer, mode, level, mounted, suppressNative, capability.state, capability.reason);
+    }
+
+    static boolean keepsNativePixelAuthority(String surfaceId) {
+        // NRO-03: map, event, select, reward, rest, shop, and treasure surfaces stay
+        // native-pixel-authoritative; the original STS renderers are never suppressed.
+        // NRO-04: skeletons are never suppressed wholesale either; per-instance claims are handled
+        // by the SkeletonMeshRenderer patch and Sts1SkeletonBridge.
+        return SurfaceIds.COMBAT_CONTROLS.equals(surfaceId)
+                || SurfaceIds.COMBAT_ENERGY.equals(surfaceId)
+                || SurfaceIds.COMBAT_INTENTS.equals(surfaceId)
+                || SurfaceIds.MAP.equals(surfaceId)
+                || SurfaceIds.EVENT.equals(surfaceId)
+                || SurfaceIds.SELECT_GRID.equals(surfaceId)
+                || SurfaceIds.SELECT_HAND.equals(surfaceId)
+                || SurfaceIds.REWARD_COMBAT.equals(surfaceId)
+                || SurfaceIds.REWARD_CARD.equals(surfaceId)
+                || SurfaceIds.REWARD_BOSS_RELIC.equals(surfaceId)
+                || SurfaceIds.REST.equals(surfaceId)
+                || SurfaceIds.SHOP.equals(surfaceId)
+                || SurfaceIds.TREASURE.equals(surfaceId)
+                || SurfaceIds.SKELETON.equals(surfaceId);
     }
 }

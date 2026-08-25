@@ -15,6 +15,10 @@ public final class CardView {
     public final boolean dragging;
     public final String artResourceId;
     public final String frameResourceId;
+    public final String title;
+    public final String cost;
+    public final String type;
+    public final String description;
 
     public CardView(
             CardRef ref,
@@ -27,6 +31,14 @@ public final class CardView {
             boolean dragging,
             String artResourceId,
             String frameResourceId) {
+        this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging,
+                artResourceId, frameResourceId, ref.cardId, "", "", "");
+    }
+
+    public CardView(
+            CardRef ref, CardZone zone, int slotIndex, CardPose pose, boolean playable,
+            boolean selected, boolean hovered, boolean dragging, String artResourceId,
+            String frameResourceId, String title, String cost, String type, String description) {
         if (ref == null) {
             throw new IllegalArgumentException("ref required");
         }
@@ -40,6 +52,10 @@ public final class CardView {
         this.dragging = dragging;
         this.artResourceId = artResourceId != null ? artResourceId : "";
         this.frameResourceId = frameResourceId != null ? frameResourceId : "";
+        this.title = title != null ? title : ref.cardId;
+        this.cost = cost != null ? cost : "";
+        this.type = type != null ? type : "";
+        this.description = description != null ? description : "";
     }
 
     public static Builder builder(CardRef ref) {
@@ -57,6 +73,10 @@ public final class CardView {
         private boolean dragging;
         private String artResourceId = "";
         private String frameResourceId = "";
+        private String title;
+        private String cost = "";
+        private String type = "";
+        private String description = "";
 
         Builder(CardRef ref) {
             this.ref = ref;
@@ -107,6 +127,11 @@ public final class CardView {
             return this;
         }
 
+        public Builder title(String value) { this.title = value; return this; }
+        public Builder cost(String value) { this.cost = value; return this; }
+        public Builder type(String value) { this.type = value; return this; }
+        public Builder description(String value) { this.description = value; return this; }
+
         public CardView build() {
             return new CardView(
                     ref,
@@ -117,8 +142,8 @@ public final class CardView {
                     selected,
                     hovered,
                     dragging,
-                    artResourceId,
-                    frameResourceId);
+                    artResourceId, frameResourceId, title != null ? title : ref.cardId,
+                    cost, type, description);
         }
     }
 }

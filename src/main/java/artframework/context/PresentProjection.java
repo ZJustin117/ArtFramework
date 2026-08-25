@@ -84,7 +84,8 @@ public final class PresentProjection {
                 int changes = CardEntity.IDENTITY_CHANGED
                         | CardEntity.PLACEMENT_CHANGED
                         | CardEntity.INTERACTION_CHANGED
-                        | CardEntity.ASSETS_CHANGED;
+                        | CardEntity.ASSETS_CHANGED
+                        | CardEntity.CHROME_CHANGED;
                 entity.apply(view);
                 applyComponents(presentationEntity, view, changes);
                 added.add(id);
@@ -319,6 +320,7 @@ public final class PresentProjection {
         CardPlacementComponent placement = world.get(entity, CardPlacementComponent.class);
         CardInteractionComponent interaction = world.get(entity, CardInteractionComponent.class);
         CardAssetsComponent assets = world.get(entity, CardAssetsComponent.class);
+        CardChromeComponent chrome = world.get(entity, CardChromeComponent.class);
         CardEntity view = new CardEntity(identity.instanceId);
         view.cardId = identity.cardId;
         view.zone = placement != null ? placement.zone : CardZone.OTHER;
@@ -330,6 +332,10 @@ public final class PresentProjection {
         view.dragging = interaction != null && interaction.dragging;
         view.artResourceId = assets != null ? assets.artResourceId : "";
         view.frameResourceId = assets != null ? assets.frameResourceId : "";
+        view.title = chrome != null ? chrome.title : identity.cardId;
+        view.cost = chrome != null ? chrome.cost : "";
+        view.type = chrome != null ? chrome.type : "";
+        view.description = chrome != null ? chrome.description : "";
         return view;
     }
 
@@ -349,6 +355,10 @@ public final class PresentProjection {
         if ((changes & CardEntity.ASSETS_CHANGED) != 0) {
             worldForWrite().put(entity, CardAssetsComponent.class,
                     new CardAssetsComponent(view.artResourceId, view.frameResourceId));
+        }
+        if ((changes & CardEntity.CHROME_CHANGED) != 0) {
+            worldForWrite().put(entity, CardChromeComponent.class,
+                    new CardChromeComponent(view.title, view.cost, view.type, view.description));
         }
         worldForWrite().put(entity, HostBindingComponent.class,
                 new HostBindingComponent("STS1_C2", view.ref.instanceId));

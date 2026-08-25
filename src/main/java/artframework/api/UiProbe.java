@@ -90,6 +90,7 @@ public final class UiProbe {
         m.put("mapView", ArtFramework.projection().map().toMap());
         m.put("renderPlan", artframework.sts1.render.Sts1RenderPipeline.probeSlice());
         m.put("handDraw", artframework.sts1.render.HandDrawPath.probeSlice());
+        m.put("handRender", artframework.sts1.render.HandRenderMetrics.probeSlice());
         m.put("input", artframework.sts1.input.CombatInputRouter.probeSlice());
         m.put("controlsDraw", artframework.sts1.render.ControlsDrawPath.probeSlice());
         m.put("mapDraw", artframework.sts1.render.MapDrawPath.probeSlice());

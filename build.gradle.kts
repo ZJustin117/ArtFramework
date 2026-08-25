@@ -34,6 +34,7 @@ val modTheSpireJar = requiredJar("modTheSpireJar")
 
 dependencies {
     compileOnly(files(stsJar, baseModJar, modTheSpireJar))
+    testImplementation(files(stsJar, baseModJar, modTheSpireJar))
     testImplementation("junit:junit:4.13.2")
 }
 

@@ -1,13 +1,11 @@
 package artframework.sts1.render;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import artframework.api.ArtFramework;
 import artframework.context.SurfaceIds;
-import artframework.sts1.assets.Sts1AssetMaterializer;
 import artframework.render.RenderHosts;
 import artframework.render.RenderHost;
 
@@ -199,7 +197,8 @@ public final class Sts1SurfaceRenderer {
 
     private static void prepareControlsVisuals(SurfaceDrawPlan plan) {
         if (!containsSurface(plan, SurfaceIds.COMBAT_CONTROLS)) return;
-        if (!ControlsDrawPath.shouldSuppressNativeEndTurn()) {
+        SurfaceDrawPlan.Entry entry = plan.find(SurfaceIds.COMBAT_CONTROLS);
+        if (entry == null || entry.mode != SurfaceDrawPlan.DrawMode.DRAW) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_CONTROLS);
             return;
         }
@@ -220,10 +219,8 @@ public final class Sts1SurfaceRenderer {
 
     private static void prepareMapVisuals(SurfaceDrawPlan plan) {
         if (!containsSurface(plan, SurfaceIds.MAP)) return;
-        if (!MapDrawPath.shouldSuppressNativeMap()) {
-            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.MAP);
-            return;
-        }
+        // NRO-03: native DungeonMapScreen.render stays the visual authority. Keep C2 input
+        // items synced while the surface is in DRAW mode.
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
             float nodeSize = item.highlighted ? 80f : 64f;
@@ -240,10 +237,8 @@ public final class Sts1SurfaceRenderer {
 
     private static void prepareEventVisuals(SurfaceDrawPlan plan) {
         if (!containsSurface(plan, SurfaceIds.EVENT)) return;
-        if (!EventDrawPath.shouldSuppressNativeEvent()) {
-            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.EVENT);
-            return;
-        }
+        // NRO-03: native GenericEventDialog.render stays the visual authority. Keep C2 input
+        // items synced while the surface is in DRAW mode.
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
             if (!item.visible) continue;
@@ -260,7 +255,11 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareSelectVisuals(SurfaceDrawPlan plan) {
-        if (!SelectDrawPath.shouldSuppressNativeSelect()) {
+        // NRO-03: native GridCardSelectScreen/HandCardSelectScreen.render stay the visual
+        // authority. Keep C2 input items synced while a select surface is in DRAW mode.
+        boolean hasGrid = containsSurface(plan, SurfaceIds.SELECT_GRID);
+        boolean hasHand = containsSurface(plan, SurfaceIds.SELECT_HAND);
+        if (!hasGrid && !hasHand) {
             removeActiveItems(plan, SurfaceIds.SELECT_GRID, SurfaceIds.SELECT_HAND);
             return;
         }
@@ -284,7 +283,12 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareRewardVisuals(SurfaceDrawPlan plan) {
-        if (!RewardDrawPath.shouldSuppressNativeReward()) {
+        // NRO-03: native CombatRewardScreen.render stays the visual authority. Keep C2 input
+        // items synced while a reward surface is in DRAW mode.
+        boolean hasReward = containsSurface(plan, SurfaceIds.REWARD_COMBAT)
+                || containsSurface(plan, SurfaceIds.REWARD_CARD)
+                || containsSurface(plan, SurfaceIds.REWARD_BOSS_RELIC);
+        if (!hasReward) {
             removeActiveItems(plan, SurfaceIds.REWARD_COMBAT, SurfaceIds.REWARD_CARD,
                     SurfaceIds.REWARD_BOSS_RELIC);
             return;
@@ -335,8 +339,8 @@ public final class Sts1SurfaceRenderer {
 
     private static void prepareIntentVisuals(SurfaceDrawPlan plan) {
         if (!containsSurface(plan, SurfaceIds.COMBAT_INTENTS)) return;
-        if (!IntentDrawPath.shouldSuppressNativeIntents()
-                && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_INTENTS)) {
+        SurfaceDrawPlan.Entry entry = plan.find(SurfaceIds.COMBAT_INTENTS);
+        if (entry == null || entry.mode != SurfaceDrawPlan.DrawMode.DRAW) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_INTENTS);
             return;
         }
@@ -385,12 +389,22 @@ public final class Sts1SurfaceRenderer {
         // The hand surface is only a parent for item-level effects. Drawing its ambient effect
         // across the whole upper combat region produces large fallback rectangles on devices.
         // Draw in projection order; hard-sync pose onto live card before render (16.4).
+        long started = HandRenderMetrics.begin();
         Set<String> visibleItems = new LinkedHashSet<String>();
+        int drawCount = 0;
+        int projectedCount = 0;
+        int renderedCards = 0;
+        int missingArt = 0;
+        int invalidBounds = 0;
         for (HandDrawPath.DrawItem item : HandDrawPath.buildFromProjection()) {
+            projectedCount++;
             if (!item.visible) {
                 continue;
             }
             artframework.component.Rect bounds = item.bounds();
+            if (bounds.width <= 0f || bounds.height <= 0f || Float.isNaN(bounds.x)
+                    || Float.isNaN(bounds.y)) invalidBounds++;
+            if (!item.artFound && (item.artSource == null || item.artSource.isEmpty())) missingArt++;
             artframework.presentation.PresentationVisuals.syncC2Item(
                     SurfaceIds.COMBAT_HAND,
                     item.instanceId,
@@ -401,283 +415,78 @@ public final class Sts1SurfaceRenderer {
                     item.cardId,
                     item.visible);
             visibleItems.add(item.instanceId);
-            Sts1HandCardRenderer.render(sb, item, find(item.instanceId));
+            int cardDraws = Sts1HandCardRenderer.render(sb, item, find(item.instanceId));
+            drawCount += cardDraws;
+            if (cardDraws > 0) renderedCards++;
         }
         artframework.presentation.PresentationVisuals.retainC2Items(SurfaceIds.COMBAT_HAND, visibleItems);
+        HandRenderMetrics.end(started, projectedCount, renderedCards, missingArt, invalidBounds);
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_HAND, drawCount);
     }
 
     /**
-     * Controls chrome: when native end-turn is suppressed, draw a minimal label via FontHelper so
-     * the button is not invisible. Full atlas chrome is HostAssets-driven later.
+     * Controls surface: native EndTurnButton.render remains the visual authority. ART only
+     * observes the invocation and keeps C2 input/hit items synced in prepareControlsVisuals.
+     * No authoritative end-turn button pixels are drawn here.
      */
     private static void renderControls(SpriteBatch sb) {
-        if (!ControlsDrawPath.shouldSuppressNativeEndTurn()) {
-            artframework.presentation.PresentationVisuals.removeC2Items(
-                    SurfaceIds.COMBAT_CONTROLS);
-            return;
-        }
-        try {
-            for (ControlsDrawPath.DrawItem item : ControlsDrawPath.buildFromProjection()) {
-                if (!item.visible || !ControlsViewIdEndTurn(item.id)) {
-                    continue;
-                }
-                artframework.component.Rect bounds = Sts1EndTurnChrome.bounds(
-                        com.megacrit.cardcrawl.core.Settings.WIDTH,
-                        com.megacrit.cardcrawl.core.Settings.HEIGHT);
-                artframework.presentation.PresentationVisuals.syncC2Item(
-                        SurfaceIds.COMBAT_CONTROLS,
-                        item.id,
-                        bounds,
-                        2f,
-                        "control",
-                        item.iconSource,
-                        item.text,
-                        item.visible);
-                float x = bounds.x + bounds.width / 2f;
-                float y = bounds.y + bounds.height / 2f;
-                artframework.core.PresentChromeStyle chrome =
-                        artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_CONTROLS);
-                C2ChromePainter.panel(sb, bounds.x, bounds.y, bounds.width, bounds.height, chrome);
-                Texture icon = Sts1AssetMaterializer.resolveTexture(item.iconSource);
-                if (icon != null) {
-                    if (item.enabled) {
-                        sb.setColor(chrome.labelR, chrome.labelG, chrome.labelB, chrome.labelA);
-                    } else {
-                        sb.setColor(
-                                chrome.disabledR, chrome.disabledG, chrome.disabledB, chrome.disabledA);
-                    }
-                    sb.draw(icon, bounds.x, bounds.y, bounds.width, bounds.height);
-                    sb.setColor(Color.WHITE);
-                }
-                String nativeLabel = Sts1EndTurnChrome.label(item.text);
-                String label = nativeLabel;
-                com.badlogic.gdx.graphics.Color fontColor =
-                        item.enabled
-                                ? new com.badlogic.gdx.graphics.Color(
-                                        chrome.labelR, chrome.labelG, chrome.labelB, chrome.labelA)
-                                : new com.badlogic.gdx.graphics.Color(
-                                        chrome.disabledR,
-                                        chrome.disabledG,
-                                        chrome.disabledB,
-                                        chrome.disabledA);
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        label,
-                        x,
-                        y,
-                        fontColor);
-            }
-        } catch (Throwable ignored) {
-        }
+        // NRO-02: EndTurnButton.render is the sole visual authority for the end-turn button.
     }
 
     private static boolean ControlsViewIdEndTurn(String id) {
         return artframework.context.ControlsView.END_TURN_ID.equals(id) || "end_turn".equals(id);
     }
 
-    /** Map nodes as text symbols when native map is suppressed (atlas path later). */
+    /**
+     * Map surface: native DungeonMapScreen.render remains the visual authority. ART only
+     * observes the invocation and keeps C2 input/hit items synced in prepareMapVisuals.
+     * No authoritative map pixels are drawn here (NRO-03).
+     */
     private static void renderMap(SpriteBatch sb) {
-        if (!MapDrawPath.shouldSuppressNativeMap()) {
-            return;
-        }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.MAP);
-            Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.MAP_BG_PREFIX + "act1",
-                    0f, 0f, com.megacrit.cardcrawl.core.Settings.WIDTH,
-                    com.megacrit.cardcrawl.core.Settings.HEIGHT);
-            for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
-                float nodeSize = item.highlighted ? 80f : 64f;
-                artframework.presentation.PresentationVisuals.syncC2Item(
-                        SurfaceIds.MAP, "node:" + item.row + ":" + item.col,
-                        new artframework.component.Rect(item.screenX - nodeSize / 2f,
-                                item.screenY - nodeSize / 2f, nodeSize, nodeSize), 1f,
-                        "map-node", item.artSource, item.symbol, true);
-                String label = item.symbol != null && !item.symbol.isEmpty() ? item.symbol : "?";
-                Texture art = Sts1AssetMaterializer.resolveTexture(item.artSource);
-                if (art != null) {
-                    float size = item.highlighted ? 80f : 64f;
-                    if (item.taken) {
-                        sb.setColor(chrome.disabledR, chrome.disabledG, chrome.disabledB, chrome.disabledA);
-                    } else {
-                        sb.setColor(chrome.labelR, chrome.labelG, chrome.labelB, chrome.labelA);
-                    }
-                    sb.draw(art, item.screenX - size / 2f, item.screenY - size / 2f, size, size);
-                    if (item.highlighted) {
-                        Sts1VanillaDraw.draw(sb,
-                                artframework.assets.ResourceIds.mapOutline(item.roomKind),
-                                item.screenX - size / 2f, item.screenY - size / 2f, size, size);
-                    }
-                    sb.setColor(Color.WHITE);
-                } else {
-                    if (item.highlighted) {
-                        label = "[" + label + "]";
-                    }
-                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                            sb,
-                            com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                            label,
-                            item.screenX,
-                            item.screenY,
-                            item.taken ? colorDisabled(chrome) : colorLabel(chrome));
-                }
-            }
-        } catch (Throwable ignored) {
-        }
+        // NRO-03: DungeonMapScreen.render is the sole visual authority for the map.
     }
 
-    /** Event option labels when native event chrome is suppressed (22.3). */
+    /**
+     * Event surface: native GenericEventDialog.render remains the visual authority. ART only
+     * observes the invocation and keeps C2 input/hit items synced in prepareEventVisuals.
+     * No authoritative event pixels are drawn here (NRO-03).
+     */
     private static void renderEvent(SpriteBatch sb) {
-        if (!EventDrawPath.shouldSuppressNativeEvent()) {
-            return;
-        }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.EVENT);
-            String title = ArtFramework.projection().event().title;
-            if (title != null && !title.isEmpty()) {
-                float tx = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-                float ty = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.55f;
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        title,
-                        tx,
-                        ty,
-                        colorLabel(chrome));
-            }
-            Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.UI_EVENT_PANEL,
-                    com.megacrit.cardcrawl.core.Settings.WIDTH * 0.18f,
-                    com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.48f,
-                    com.megacrit.cardcrawl.core.Settings.WIDTH * 0.64f,
-                    com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.34f);
-            for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
-                if (!item.visible) {
-                    continue;
-                }
-                String label = item.enabled ? item.label : (item.label + " (disabled)");
-                artframework.presentation.PresentationVisuals.syncC2Item(
-                        SurfaceIds.EVENT, "option:" + item.index,
-                        new artframework.component.Rect(item.x - item.w / 2f,
-                                item.y - item.h / 2f, item.w, item.h), 1f,
-                        "event-option", artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED,
-                        item.label, item.visible);
-                Sts1VanillaDraw.draw(sb,
-                        item.enabled ? artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED
-                                : artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED,
-                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        label,
-                        item.x,
-                        item.y,
-                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
-            }
-        } catch (Throwable ignored) {
-        }
+        // NRO-03: GenericEventDialog.render is the sole visual authority for events.
     }
 
-    /** Select pool + confirm chrome when native select is suppressed (22.3). */
+    /**
+     * Select surface: native GridCardSelectScreen/HandCardSelectScreen.render remain the visual
+     * authority. ART only observes the invocation and keeps C2 input/hit items synced in
+     * prepareSelectVisuals. No authoritative select pixels are drawn here (NRO-03).
+     */
     private static void renderSelect(SpriteBatch sb, String surfaceId) {
-        if (!SelectDrawPath.shouldSuppressNativeSelect()) {
-            return;
-        }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.SELECT_GRID);
-            for (SelectDrawPath.DrawItem item : SelectDrawPath.buildFromProjection()) {
-                if (!item.visible) {
-                    continue;
-                }
-                String label =
-                        item.confirm
-                                ? item.cardId
-                                : (item.selected ? "[" + item.cardId + "]" : item.cardId);
-                artframework.presentation.PresentationVisuals.syncC2Item(
-                        surfaceId, item.confirm ? "confirm" : "card:" + item.cardId,
-                        new artframework.component.Rect(item.x - 48f, item.y - 32f, 96f, 64f), 1f,
-                        item.confirm ? "select-confirm" : "select-card", "", label, item.visible);
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        label,
-                        item.x,
-                        item.y,
-                        item.selected || item.confirm ? colorAccent(chrome) : colorLabel(chrome));
-            }
-        } catch (Throwable ignored) {
-        }
+        // NRO-03: native select renderers are the sole visual authority for selection screens.
     }
 
+    /**
+     * Reward surface: native CombatRewardScreen.render remains the visual authority. ART only
+     * observes the invocation and keeps C2 input/hit items synced in prepareRewardVisuals.
+     * No authoritative reward pixels are drawn here (NRO-03).
+     */
     private static void renderReward(SpriteBatch sb, String surfaceId) {
-        if (!RewardDrawPath.shouldSuppressNativeReward()) {
-            return;
-        }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.REWARD_COMBAT);
-            for (RewardDrawPath.DrawItem item : RewardDrawPath.buildFromProjection()) {
-                if (!item.visible) {
-                    continue;
-                }
-                artframework.presentation.PresentationVisuals.syncC2Item(
-                        surfaceId, "reward:" + item.index,
-                        new artframework.component.Rect(item.x - item.w / 2f,
-                                item.y - item.h / 2f, item.w, item.h), 1f,
-                        "reward-item", artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
-                        item.label, item.visible);
-                Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
-                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        item.label,
-                        item.x,
-                        item.y,
-                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
-            }
-        } catch (Throwable ignored) {
-        }
+        // NRO-03: CombatRewardScreen.render is the sole visual authority for rewards.
     }
 
+    /**
+     * Rest surface: native CampfireUI.render remains the visual authority. ART only observes
+     * the invocation. No authoritative rest/campfire pixels are drawn here (NRO-03).
+     */
     private static void renderRest(SpriteBatch sb) {
-        if (!RestDrawPath.shouldSuppressNativeRest()) {
-            return;
-        }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.REST);
-            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.5f;
-            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-            int i = 0;
-            for (RestDrawPath.DrawItem item : RestDrawPath.buildFromProjection()) {
-                if (!item.visible) {
-                    continue;
-                }
-                String icon = item.id.toLowerCase().contains("smith")
-                        ? artframework.assets.ResourceIds.UI_CAMPFIRE_SMITH
-                        : artframework.assets.ResourceIds.UI_CAMPFIRE_SLEEP;
-                Sts1VanillaDraw.draw(sb, icon, x - 36f, y - i * 48f - 22f, 44f, 44f);
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        item.label,
-                        x,
-                        y - i * 48f,
-                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
-                i++;
-            }
-        } catch (Throwable ignored) {
-        }
+        // NRO-03: CampfireUI.render is the sole visual authority for the rest screen.
     }
 
     private static void renderSkeleton(SpriteBatch sb) {
         if (!artframework.sts1.skeleton.Sts1SkeletonBridge.shouldDraw()) {
             return;
         }
-        // Provider owns Spine type details. Preserve the host SpriteBatch contract around it.
+        // NRO-04: the provider renders ART-owned skeletons (or at the native slot for claimed
+        // instances). No hand-drawn skeleton fallback/chrome pixels are ever drawn here.
         boolean drawing = false;
         try {
             drawing = sb.isDrawing();
@@ -696,73 +505,20 @@ public final class Sts1SurfaceRenderer {
         }
     }
 
+    /**
+     * Shop surface: native ShopScreen.render remains the visual authority. ART only observes
+     * the invocation. No authoritative shop pixels are drawn here (NRO-03).
+     */
     private static void renderShop(SpriteBatch sb) {
-        if (!ShopDrawPath.shouldSuppressNativeShop()) {
-            return;
-        }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.SHOP);
-            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.55f;
-            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-            int gold = ArtFramework.projection().shop().gold;
-            com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                    sb,
-                    com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                    "Gold " + gold,
-                    x,
-                    y + 64f,
-                    colorAccent(chrome));
-            int i = 0;
-            for (ShopDrawPath.DrawItem item : ShopDrawPath.buildFromProjection()) {
-                String label =
-                        item.label
-                                + " ("
-                                + item.cost
-                                + "g)"
-                                + (item.soldOut ? " SOLD" : "");
-                Sts1VanillaDraw.draw(sb, artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
-                        x - 230f, y - i * 40f - 20f, 460f, 36f);
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.cardDescFont_N,
-                        label,
-                        x,
-                        y - i * 40f,
-                        item.soldOut ? colorDisabled(chrome) : colorLabel(chrome));
-                i++;
-            }
-        } catch (Throwable ignored) {
-        }
+        // NRO-03: ShopScreen.render is the sole visual authority for the shop screen.
     }
 
+    /**
+     * Treasure surface: native TreasureRoom.render remains the visual authority. ART only
+     * observes the invocation. No authoritative treasure pixels are drawn here (NRO-03).
+     */
     private static void renderTreasure(SpriteBatch sb) {
-        if (!TreasureDrawPath.shouldSuppressNativeTreasure()) {
-            return;
-        }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TREASURE);
-            artframework.context.TreasureView tv = ArtFramework.projection().treasure();
-            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.5f;
-            String label =
-                    tv.chestOpen
-                            ? (tv.relicLabel.isEmpty() ? "Chest open" : tv.relicLabel)
-                            : (tv.canOpen ? "Open chest" : "Chest");
-            Sts1VanillaDraw.draw(sb, tv.chestOpen
-                            ? artframework.assets.ResourceIds.UI_REWARD_CARD
-                            : artframework.assets.ResourceIds.MAP_NODE_TREASURE,
-                    x - 64f, y - 64f, 128f, 128f);
-            com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                    sb,
-                    com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                    label,
-                    x,
-                    y,
-                    colorLabel(chrome));
-        } catch (Throwable ignored) {
-        }
+        // NRO-03: TreasureRoom.render is the sole visual authority for treasure rooms.
     }
 
     private static void renderProceed(SpriteBatch sb) {
@@ -829,60 +585,21 @@ public final class Sts1SurfaceRenderer {
         }
     }
 
+    /**
+     * Energy surface: native EnergyPanel.render remains the visual authority. ART only observes
+     * the invocation. No authoritative energy orb pixels are drawn here.
+     */
     private static void renderEnergy(SpriteBatch sb) {
-        if (!EnergyDrawPath.shouldSuppressNativeEnergy()
-                && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_ENERGY)) {
-            return;
-        }
-        try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_ENERGY);
-            int energy = ArtFramework.projection().controls().energy;
-            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.12f;
-            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.18f;
-            float size = 128f * Math.max(1f, com.megacrit.cardcrawl.core.Settings.scale);
-            for (int layer = 1; layer <= 3; layer++) {
-                Sts1VanillaDraw.draw(
-                        sb,
-                        artframework.assets.ResourceIds.energyOrbLayer("red", layer),
-                        x - size / 2f,
-                        y - size / 2f,
-                        size,
-                        size);
-            }
-            com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                    sb,
-                    com.megacrit.cardcrawl.helpers.FontHelper.energyNumFontRed,
-                    String.valueOf(energy),
-                    x,
-                    y,
-                    colorAccent(chrome));
-        } catch (Throwable ignored) {
-        }
+        // NRO-02: EnergyPanel.render is the sole visual authority for the energy orb.
     }
 
+    /**
+     * Intents surface: native AbstractMonster.renderIntent remains the visual authority. ART only
+     * observes the invocation and keeps C2 input/hit items synced in prepareIntentVisuals. No
+     * authoritative intent icon/amount pixels are drawn here.
+     */
     private static void renderIntents(SpriteBatch sb) {
-        if (!IntentDrawPath.shouldSuppressNativeIntents()
-                && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_INTENTS)) {
-            return;
-        }
-        for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
-            artframework.presentation.PresentationVisuals.syncC2Item(
-                    SurfaceIds.COMBAT_INTENTS, "intent:" + item.monsterId,
-                    new artframework.component.Rect(item.x - 32f, item.y - 32f, 64f, 64f), 1f,
-                    "intent", item.iconResourceId, String.valueOf(item.multiAmount), true);
-            String key = item.iconResourceId == null || item.iconResourceId.isEmpty()
-                    ? artframework.assets.ResourceIds.UI_COMBAT_INTENT_UNKNOWN
-                    : item.iconResourceId;
-            Sts1VanillaDraw.draw(sb, key, item.x - 32f, item.y - 32f, 64f, 64f);
-            if (item.multiAmount > 0) {
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        String.valueOf(item.multiAmount), item.x, item.y - 42f, colorAccent(
-                                artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_INTENTS)));
-            }
-        }
+        // NRO-02: AbstractMonster.renderIntent is the sole visual authority for intents.
     }
 
     private static void renderEntityChrome(SpriteBatch sb) {
@@ -926,6 +643,10 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static AbstractCard find(String instanceId) {
+        if (AbstractDungeon.player == null || AbstractDungeon.player.hand == null
+                || AbstractDungeon.player.hand.group == null || instanceId == null) {
+            return null;
+        }
         for (AbstractCard card : AbstractDungeon.player.hand.group) {
             if (card == null) {
                 continue;
@@ -939,4 +660,5 @@ public final class Sts1SurfaceRenderer {
         }
         return null;
     }
+
 }

@@ -14,27 +14,8 @@ permission:
   task: deny
   skill: deny
   external_directory: deny
-  read:
-    "*": allow
-    "*.env": ask
-    "*.env.*": ask
-    ".env.example": allow
-    ".env.local": ask
-  bash:
-    "*": ask
-    "git status*": allow
-    "git diff*": allow
-    "git log*": allow
-    "git show*": allow
-    "./gradlew test*": allow
-    "./scripts/with-art-env.sh test*": allow
-    "git add*": deny
-    "git commit*": deny
-    "git merge*": deny
-    "git push*": deny
-    "git reset*": deny
-    "git checkout*": deny
-    "rm *": deny
+  read: allow
+  bash: allow
 ---
 
 You are the ArtFramework **developer** subagent. You implement one bounded code task in an isolated context and return a concise summary to the parent. You may edit source, tests, fixtures, scripts, and necessary docs only when the parent explicitly scopes that work.

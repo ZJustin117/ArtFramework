@@ -83,6 +83,8 @@ public final class Sts1RenderPipeline {
         m.put("overlayObserve", Boolean.valueOf(overlayObserve));
         m.put("clipEmpty", Boolean.valueOf(clip.isEmpty()));
         m.put("batchArmed", Boolean.valueOf(BATCH.isArmed()));
+        m.put("nativeRender", NativeRenderBridge.probeSlice());
+        m.put("nativeRenderStrict", NativeRenderBridge.strictReport());
         return m;
     }
 
@@ -90,7 +92,10 @@ public final class Sts1RenderPipeline {
         overlayObserve = false;
         clip = ClipRect.none();
         BATCH.reset();
+        HandDrawPath.resetForTests();
+        HandRenderMetrics.resetForTests();
         lastPlan = SurfaceDrawPlan.build("", false, false, false, false, false, false);
+        NativeRenderBridge.resetForTests();
     }
 
     private static boolean mounted(String id) {

@@ -136,6 +136,37 @@ data. Java listeners, regex subscriptions, ordering, first-stop dispatch, and un
 remain in `SignalHub`. Entity destruction disconnects incoming and outgoing subscriptions before
 components are removed.
 
+## Native render invocation boundary
+
+STS1 native rendering is not rewritten into the presentation runtime. The host adapter intercepts
+native render invocations and converts only display observations into ART-owned input:
+
+```text
+STS authority / renderer
+  -> NativeRenderBridge
+  -> NativeRenderInvocation
+  -> presentation input adapter
+  -> PresentationWorld mutation
+  -> immutable PresentationFrame
+```
+
+The bridge makes one explicit decision per invocation:
+
+```text
+PASS_THROUGH        native renderer continues
+CAPTURE_AND_PASS    ART records/projects; native renderer continues
+DELEGATE_TO_ART     ART renders the invocation; native draw is stopped
+FAIL_OPEN           ART failed; native renderer continues with a recorded warning
+```
+
+Surface-level delegation is valid only when the complete surface is ready. Transient relic,
+Power, card, and system effects are delegated by effect instance, never by skipping the whole
+STS effect queue. Native effect lifecycle remains authoritative; ART observes it and owns only its
+presentation entity.
+
+The bridge may hold short-lived host caches for invocation identity and native handles, but the
+presentation world stores no STS objects, render batches, textures, or game authority.
+
 ## C1 and C2 Materialization
 
 C1 materializes `UiNode` declarations into entities. The Stage host is an adapter/cache that maps
@@ -144,7 +175,7 @@ entities to scene2d actors.
 C2 materializes surface parents and exact visual children from projection/native state. A surface
 entity owns C2 policy and layout scope. Cards, controls, energy, intents, map nodes, rewards,
 options, and shop items are visual children. The STS1 adapter remains responsible for native
-interception and intent execution; the runtime owns only presentation state.
+invocation interception and intent execution; the runtime owns only presentation state.
 
 ## Lightwave
 

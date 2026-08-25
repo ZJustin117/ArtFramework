@@ -16,7 +16,7 @@ Identity (breaking, post-rename):
 | Env prefix | `ART_*` |
 | Verify tooling | `tools/art-verify` |
 
-Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md). Roadmap: [`docs/task.md`](../task.md) milestones **0–43** shipped.
+Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md), [`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md). Roadmap: [`docs/task.md`](../task.md) milestones **0–46** shipped.
 
 ## Purpose
 
@@ -46,7 +46,7 @@ Caller
        PresentationWorld · EntityId (ART-owned presentation state)
        RenderGraph bookkeeping (today RenderHost pure side)
   → Host SPI
-       PresentationHost · HostRenderBackend · HostInput · HostAssets · NativePresentationBridge
+        PresentationHost · HostRenderBackend · HostInput · HostAssets · NativeRenderBridge
   → host.sts1 (today c1 + c2 patches + StsNativeOps)
        StageHost · ComponentActors · StsSkin · @SpirePatch hooks · StsNativeOps
   → host.sts2 (future; design only until real API exists)
@@ -57,7 +57,7 @@ Caller
 | Declaration | Immutable tree: type, id, props, layout, effects, children, slots, **signals** |
 | Runtime graph | Per-context entity index, lifecycle, properties, bounds, theme cascade, signal hub |
 | Render | Targets, effect bindings, shader registry; GL only on host backend |
-| Native | Observe/present STS1 screens via thin patches → pure hooks → `UiComponent` |
+| Native | Intercept STS1 render invocations via host-boundary patches → `NativeRenderBridge` → `UiComponent` / `PresentationFrame`; do not rewrite STS authority or render implementations |
 | Consumer | Mount/bind, connect signals, UiOps, register templates/effects/node types |
 
 ## Presentation node kinds (target)
@@ -129,7 +129,7 @@ STS1 implements full set used by current C1/C2. STS2 implements what the real ho
 
 ## Native presentation
 
-- C2 templates remain until migrated to `NativePresentationBridge` + `sts1.*` ids.
+- C2 templates remain until migrated to `NativeRenderBridge` + `sts1.*` ids.
 - Patches stay thin; pure logic in hooks/templates/components.
 - Entity slots are anchors for overlays/effects — not free-form window children.
 - Display-layer only: intercept/observe/present; do not smuggle combat authority into ART.

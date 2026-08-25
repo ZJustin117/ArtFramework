@@ -9,7 +9,7 @@ Both share one facade (`artframework.api.ArtFramework`) and registration format;
 
 **API target:** one consumer surface (mount / tree / signals / ops / probe); C2 as encapsulated **NativeControl** / **Native Surface** components; host remains dual. See [`godot-aligned-ui.md`](./godot-aligned-ui.md).
 
-**Shipped (milestones 15–28):** pluggable Backend + context frames; C2 **full present** for combat/map/event/select/room; HostAssets packs; SignalBus; EntityPresent; C1 grid/tabs. See [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md), [`entity-present.md`](./entity-present.md). Thin SpirePatch intercept remains a **migration bridge**, not the end state.
+**Shipped (milestones 15–28):** pluggable Backend + context frames; C2 **full present** for combat/map/event/select/room; HostAssets packs; SignalBus; EntityPresent; C1 grid/tabs. See [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md), [`entity-present.md`](./entity-present.md). Thin SpirePatch intercept remains a host-boundary migration adapter toward the typed [`NativeRenderBridge`](./native-render-coverage-sdd.md), not a second STS renderer.
 
 ```
 Caller
@@ -138,3 +138,4 @@ ArtFramework.probe()  → UI snapshot (open windows, bound templates, pins, sele
 - **Gesture only** for combat hand play — no queue / protocol / party authority in this repo.
 - Map **decorative** pins stay in `MapTemplate`; semantic pin consensus stays outside ArtFramework.
 - Device serials for optional UI smoke: `ART_D1_SERIAL`.
+- Native render coverage and invocation delegation: [`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md).

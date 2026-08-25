@@ -37,7 +37,8 @@ emit named signal              →     ordered broadcast          →    observe
 
 ### Broadcast semantics
 
-Backend replaces native display APIs with ART calls:
+Backend-facing native hooks route display invocations through ART calls without rewriting native
+render implementations or moving authority into ART:
 
 - Every event is an immutable `UiSignal(name, source, payload, metadata)`.
 - Exact-name and regex subscriptions share one global registration sequence.

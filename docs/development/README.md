@@ -47,9 +47,28 @@ Recommended flow: parent scopes the task → `@developer` implements the bounded
 | [`../design/backend-context.md`](../design/backend-context.md) | Backend / context / intents (milestone 15) |
 | [`../design/c2-full-present.md`](../design/c2-full-present.md) | C2 full present hard-sync (15) |
 | [`../design/host-assets.md`](../design/host-assets.md) | HostAssets packs / ResourceId (15) |
+| [`../design/native-render-coverage-sdd.md`](../design/native-render-coverage-sdd.md) | NRCC static STS render inventory |
 | [`../task.md`](../task.md) | Open implementation tasks |
 
 ## Boundary
 
 - Default verification is **JUnit**. Device deploy is optional and does not replace API tests.
 - ArtFramework may use **single-device** UI smoke (`ART_D1_SERIAL`) and optional read-only Arthas JVM diagnostics; neither replaces JUnit or `art-verify`.
+
+## Static STS render inventory
+
+The first NRCC slice inventories STS render candidates and ART invocation hooks. It is static
+evidence only; `unclassified` paths are expected until the coverage manifest is authored.
+
+```bash
+scripts/scan-sts-render.sh
+
+# Require every static candidate to have a manifest entry.
+scripts/scan-sts-render.sh --check-manifest tools/nrcc/manifests/sts1-native-coverage.yaml
+
+# FULL acceptance also rejects entries explicitly marked UNKNOWN.
+scripts/scan-sts-render.sh --check-manifest tools/nrcc/manifests/sts1-native-coverage.yaml --strict-manifest
+```
+
+Output is written to the gitignored `debug-artifacts/nrcc/sts-static-scan.json` by default.
+`--check-manifest` is a development closure check; `--strict-manifest` is the FULL gate.

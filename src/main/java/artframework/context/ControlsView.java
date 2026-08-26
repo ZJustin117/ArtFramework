@@ -29,6 +29,11 @@ public final class ControlsView {
     public final boolean proceedVisible;
     public final boolean cancelEnabled;
     public final boolean cancelVisible;
+    public final float endTurnX;
+    public final float endTurnY;
+    public final float endTurnW;
+    public final float endTurnH;
+    public final String endTurnLabel;
 
     public ControlsView(
             List<ControlView> controls,
@@ -67,6 +72,44 @@ public final class ControlsView {
             boolean proceedVisible,
             boolean cancelEnabled,
             boolean cancelVisible) {
+        this(
+                controls,
+                energy,
+                handSize,
+                drawSize,
+                discardSize,
+                exhaustSize,
+                endTurnEnabled,
+                endTurnVisible,
+                proceedEnabled,
+                proceedVisible,
+                cancelEnabled,
+                cancelVisible,
+                0f,
+                0f,
+                0f,
+                0f,
+                null);
+    }
+
+    public ControlsView(
+            List<ControlView> controls,
+            int energy,
+            int handSize,
+            int drawSize,
+            int discardSize,
+            int exhaustSize,
+            boolean endTurnEnabled,
+            boolean endTurnVisible,
+            boolean proceedEnabled,
+            boolean proceedVisible,
+            boolean cancelEnabled,
+            boolean cancelVisible,
+            float endTurnX,
+            float endTurnY,
+            float endTurnW,
+            float endTurnH,
+            String endTurnLabel) {
         if (controls == null || controls.isEmpty()) {
             this.controls = Collections.emptyList();
         } else {
@@ -83,6 +126,16 @@ public final class ControlsView {
         this.proceedVisible = proceedVisible;
         this.cancelEnabled = cancelEnabled;
         this.cancelVisible = cancelVisible;
+        this.endTurnX = endTurnX;
+        this.endTurnY = endTurnY;
+        this.endTurnW = endTurnW;
+        this.endTurnH = endTurnH;
+        this.endTurnLabel = endTurnLabel != null ? endTurnLabel : "";
+    }
+
+    /** Zero-sized geometry means the backend could not observe a native hitbox. */
+    public boolean hasEndTurnBounds() {
+        return endTurnW > 0f && endTurnH > 0f;
     }
 
     public static ControlsView empty() {
@@ -98,11 +151,47 @@ public final class ControlsView {
             int exhaustSize,
             boolean endTurnEnabled,
             boolean endTurnVisible) {
+        return combat(
+                energy, handSize, drawSize, discardSize, exhaustSize,
+                endTurnEnabled, endTurnVisible, 0f, 0f, 0f, 0f, null);
+    }
+
+    public static ControlsView combat(
+            int energy,
+            int handSize,
+            int drawSize,
+            int discardSize,
+            int exhaustSize,
+            boolean endTurnEnabled,
+            boolean endTurnVisible,
+            float endTurnX,
+            float endTurnY,
+            float endTurnW,
+            float endTurnH,
+            String endTurnLabel) {
         List<ControlView> list = new ArrayList<ControlView>();
-        list.add(new ControlView(END_TURN_ID, "End Turn", "", endTurnVisible, endTurnEnabled));
+        String label = endTurnLabel != null && !endTurnLabel.isEmpty()
+                ? endTurnLabel : "End Turn";
+        list.add(new ControlView(END_TURN_ID, label, "", endTurnVisible, endTurnEnabled));
         list.add(new ControlView(ENERGY_ID, String.valueOf(energy), "", true, true));
         return new ControlsView(
-                list, energy, handSize, drawSize, discardSize, exhaustSize, endTurnEnabled, endTurnVisible);
+                list,
+                energy,
+                handSize,
+                drawSize,
+                discardSize,
+                exhaustSize,
+                endTurnEnabled,
+                endTurnVisible,
+                false,
+                false,
+                false,
+                false,
+                endTurnX,
+                endTurnY,
+                endTurnW,
+                endTurnH,
+                endTurnLabel);
     }
 
     public static ControlsView combatWithProceed(
@@ -117,8 +206,33 @@ public final class ControlsView {
             boolean proceedVisible,
             boolean cancelEnabled,
             boolean cancelVisible) {
+        return combatWithProceed(
+                energy, handSize, drawSize, discardSize, exhaustSize,
+                endTurnEnabled, endTurnVisible, proceedEnabled, proceedVisible,
+                cancelEnabled, cancelVisible, 0f, 0f, 0f, 0f, null);
+    }
+
+    public static ControlsView combatWithProceed(
+            int energy,
+            int handSize,
+            int drawSize,
+            int discardSize,
+            int exhaustSize,
+            boolean endTurnEnabled,
+            boolean endTurnVisible,
+            boolean proceedEnabled,
+            boolean proceedVisible,
+            boolean cancelEnabled,
+            boolean cancelVisible,
+            float endTurnX,
+            float endTurnY,
+            float endTurnW,
+            float endTurnH,
+            String endTurnLabel) {
         List<ControlView> list = new ArrayList<ControlView>();
-        list.add(new ControlView(END_TURN_ID, "End Turn", "", endTurnVisible, endTurnEnabled));
+        String label = endTurnLabel != null && !endTurnLabel.isEmpty()
+                ? endTurnLabel : "End Turn";
+        list.add(new ControlView(END_TURN_ID, label, "", endTurnVisible, endTurnEnabled));
         list.add(new ControlView(ENERGY_ID, String.valueOf(energy), "", true, true));
         if (proceedVisible || proceedEnabled) {
             list.add(new ControlView(PROCEED_ID, "Proceed", "", proceedVisible, proceedEnabled));
@@ -138,7 +252,12 @@ public final class ControlsView {
                 proceedEnabled,
                 proceedVisible,
                 cancelEnabled,
-                cancelVisible);
+                cancelVisible,
+                endTurnX,
+                endTurnY,
+                endTurnW,
+                endTurnH,
+                endTurnLabel);
     }
 
     public ControlView find(String id) {
@@ -166,6 +285,11 @@ public final class ControlsView {
         m.put("proceedVisible", Boolean.valueOf(proceedVisible));
         m.put("cancelEnabled", Boolean.valueOf(cancelEnabled));
         m.put("cancelVisible", Boolean.valueOf(cancelVisible));
+        m.put("endTurnX", Float.valueOf(endTurnX));
+        m.put("endTurnY", Float.valueOf(endTurnY));
+        m.put("endTurnW", Float.valueOf(endTurnW));
+        m.put("endTurnH", Float.valueOf(endTurnH));
+        m.put("endTurnLabel", endTurnLabel);
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (ControlView c : controls) {
             Map<String, Object> row = new LinkedHashMap<String, Object>();

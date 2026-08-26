@@ -26,6 +26,23 @@ public final class ControlsDrawPath {
         return new Rect(screenWidth * 0.85f - w / 2f, screenHeight * 0.12f - h / 2f, w, h);
     }
 
+    /** Backend-projected hitbox when available; constant layout only as a fallback. */
+    public static Rect endTurnProjectedBounds(float screenWidth, float screenHeight) {
+        ControlsView cv = ArtFramework.projection().controls();
+        if (cv.hasEndTurnBounds()) {
+            return new Rect(cv.endTurnX, cv.endTurnY, cv.endTurnW, cv.endTurnH);
+        }
+        return endTurnBounds(screenWidth, screenHeight);
+    }
+
+    /** Backend-projected localized label; constant text only as a fallback. */
+    public static String endTurnLabel() {
+        ControlsView cv = ArtFramework.projection().controls();
+        return cv.endTurnLabel != null && !cv.endTurnLabel.isEmpty()
+                ? cv.endTurnLabel
+                : "End Turn";
+    }
+
     public static final class DrawItem {
         public final String id;
         public final String text;
@@ -105,7 +122,7 @@ public final class ControlsDrawPath {
         AssetResolveResult icon = ArtFramework.assets().resolve(iconKey);
         return new DrawItem(
                 ControlsView.END_TURN_ID,
-                "End Turn",
+                endTurnLabel(),
                 cv.endTurnVisible,
                 cv.endTurnEnabled,
                 icon.found ? icon.source : "",

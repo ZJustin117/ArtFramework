@@ -618,3 +618,14 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
 - [ ] 47.5 `Sts1NativePresentationAdapter` projection into ECS / `PresentationFrame`
 - [x] 47.6 Transient effect instance registry and complete recovery cleanup
 - [x] 47.7 Migrate remaining native render patches through the final bridge contract
+- [x] 47.8 Contract-layer sync for full-present takeover: SDD replaces the native-pixel
+      authority rule with disposition + evidence-ledger delegation (exposing current
+      pixel-supply gaps per surface and the un-patched `AbstractCard.render` boundary),
+      coverage manifest marks every suppressing patch `ART_DELEGATED` (incl.
+      `TopPanel#render` / `ProceedButton#render`), and ownership-test messaging matches
+      the allowlist semantics
+- [x] 47.9 End-turn field gap G1 / review V-3: `ControlsView` gains backend-projected
+      end-turn hitbox geometry (`endTurnX/Y/W/H` + `hasEndTurnBounds`) and localized
+      label (`endTurnLabel`); `Sts1PresentationBackend` projects native hb/label; render
+      consumes projection with constant fallback only, and the unlisted reflection bridge
+      `Sts1EndTurnChrome` is deleted (NRO-06)

@@ -180,6 +180,33 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 && AbstractDungeon.overlayMenu.endTurnButton.enabled;
         boolean endTurnVisible = AbstractDungeon.overlayMenu != null
                 && AbstractDungeon.overlayMenu.endTurnButton != null;
+        float endTurnX = 0f;
+        float endTurnY = 0f;
+        float endTurnW = 0f;
+        float endTurnH = 0f;
+        String endTurnLabel = "";
+        try {
+            if (endTurnVisible) {
+                com.megacrit.cardcrawl.ui.buttons.EndTurnButton button =
+                        AbstractDungeon.overlayMenu.endTurnButton;
+                Object hb = softField(button.getClass(), button, "hb");
+                if (hb instanceof com.megacrit.cardcrawl.helpers.Hitbox) {
+                    com.megacrit.cardcrawl.helpers.Hitbox box =
+                            (com.megacrit.cardcrawl.helpers.Hitbox) hb;
+                    if (box.width > 0f && box.height > 0f) {
+                        endTurnX = box.x;
+                        endTurnY = box.y;
+                        endTurnW = box.width;
+                        endTurnH = box.height;
+                    }
+                }
+                Object label = softField(button.getClass(), button, "label");
+                if (label instanceof String && !((String) label).trim().isEmpty()) {
+                    endTurnLabel = ((String) label).trim();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
         boolean proceedVisible = false;
         boolean proceedEnabled = false;
         try {
@@ -202,7 +229,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
                         proceedEnabled,
                         proceedVisible,
                         false,
-                        false);
+                        false,
+                        endTurnX,
+                        endTurnY,
+                        endTurnW,
+                        endTurnH,
+                        endTurnLabel);
         ViewportView viewport =
                 new ViewportView(
                         com.megacrit.cardcrawl.core.Settings.WIDTH,

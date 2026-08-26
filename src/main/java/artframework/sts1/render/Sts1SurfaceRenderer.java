@@ -141,7 +141,7 @@ public final class Sts1SurfaceRenderer {
         if (SurfaceIds.COMBAT_HAND.equals(surfaceId)) {
             x = 0f; y = 0f; w = sw; h = sh * 0.46f;
         } else if (SurfaceIds.COMBAT_CONTROLS.equals(surfaceId)) {
-            artframework.component.Rect bounds = Sts1EndTurnChrome.bounds(sw, sh);
+            artframework.component.Rect bounds = ControlsDrawPath.endTurnProjectedBounds(sw, sh);
             x = bounds.x; y = bounds.y; w = bounds.width; h = bounds.height;
         } else if (SurfaceIds.TOP_PANEL.equals(surfaceId)) {
             x = 20f; y = sh - 82f; w = sw * 0.48f; h = 58f;
@@ -207,7 +207,7 @@ public final class Sts1SurfaceRenderer {
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (ControlsDrawPath.DrawItem item : ControlsDrawPath.buildFromProjection()) {
             if (!item.visible || !ControlsViewIdEndTurn(item.id)) continue;
-            artframework.component.Rect bounds = Sts1EndTurnChrome.bounds(
+            artframework.component.Rect bounds = ControlsDrawPath.endTurnProjectedBounds(
                     com.megacrit.cardcrawl.core.Settings.WIDTH,
                     com.megacrit.cardcrawl.core.Settings.HEIGHT);
             artframework.presentation.PresentationVisuals.syncC2Item(

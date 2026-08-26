@@ -73,7 +73,8 @@ public class RoomPresentViewsTest {
         entries.add(ShopView.ShopEntryView.of(0, "card", "Strike", 50));
         List<MonsterIntentView.IntentEntry> intents = new ArrayList<MonsterIntentView.IntentEntry>();
         intents.add(
-                new MonsterIntentView.IntentEntry("cultist", "Cultist", "ATTACK", "", 1, 100f, 200f));
+                new MonsterIntentView.IntentEntry(
+                        "cultist", "Cultist", "ATTACK", artframework.assets.ResourceIds.intent("attack/attack_intent_1"), 1, 100f, 200f));
         ContextFrame frame =
                 ContextFrame.ofFull(
                         2L,
@@ -97,6 +98,9 @@ public class RoomPresentViewsTest {
         assertTrue(Boolean.TRUE.equals(TreasureDrawPath.probeSlice().get("canOpen")));
         assertEquals(Integer.valueOf(70), TopPanelDrawPath.probeSlice().get("hp"));
         assertEquals(1, IntentDrawPath.buildFromProjection().size());
+        assertEquals(
+                artframework.assets.ResourceIds.intent("attack/attack_intent_1"),
+                IntentDrawPath.buildFromProjection().get(0).iconResourceId);
         assertEquals(Integer.valueOf(3), EnergyDrawPath.probeSlice().get("energy"));
         assertFalse(ProceedDrawPath.buildFromProjection().isEmpty());
     }

@@ -72,14 +72,15 @@ public class SelectDrawPathTest {
     }
 
     @Test
-    public void fullMountedGridDrawsWithoutSuppressingNative() {
+    public void fullMountedGridDrawsAndSuppressesNative() {
         publishSelectFrame();
         FullPresentMode.setSelectLevel(PresentLevel.FULL);
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         ArtFramework.component(SurfaceIds.SELECT_GRID).action("mount_select");
-        assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.SELECT_GRID));
-        // NRO-03: native grid/hand select renderers stay the visual authority.
-        assertFalse(SelectDrawPath.shouldSuppressNativeGrid());
-        assertFalse(SelectDrawPath.shouldSuppressNativeSelect());
+        SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
+        assertTrue(plan.shouldDraw(SurfaceIds.SELECT_GRID));
+        assertTrue(SelectDrawPath.shouldSuppressNativeGrid());
+        assertTrue(SelectDrawPath.shouldSuppressNativeSelect());
+        assertTrue(plan.shouldSuppressNative(SurfaceIds.SELECT_GRID));
     }
 }

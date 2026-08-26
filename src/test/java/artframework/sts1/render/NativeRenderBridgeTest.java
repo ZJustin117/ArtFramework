@@ -144,44 +144,58 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
-    public void controlsEnergyIntentsPassThroughInFullModeWithoutSuppressingNative() {
+    public void controlsEnergyIntentsTopPanelProceedDelegateInFullMode() {
         mountedCombat();
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         FullPresentMode.setCombatControlsLevel(PresentLevel.FULL);
         FullPresentMode.setEnergyLevel(PresentLevel.FULL);
         FullPresentMode.setIntentsLevel(PresentLevel.FULL);
+        FullPresentMode.setTopPanelLevel(PresentLevel.FULL);
+        FullPresentMode.setProceedLevel(PresentLevel.FULL);
         ArtFramework.component(SurfaceIds.COMBAT_INTENTS).mount();
+        ArtFramework.component(SurfaceIds.TOP_PANEL).mount();
+        ArtFramework.component(SurfaceIds.COMBAT_PROCEED).mount();
 
         RenderDisposition controls = NativeRenderBridge.beginSurface(
                 SurfaceIds.COMBAT_CONTROLS, "com.megacrit.cardcrawl.ui.buttons.EndTurnButton", "render", "c");
-        assertEquals(RenderDisposition.Mode.PASS_THROUGH, controls.mode);
-        assertTrue(controls.nativeContinuation);
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, controls.mode);
+        assertFalse(controls.nativeContinuation);
 
         RenderDisposition energy = NativeRenderBridge.beginSurface(
                 SurfaceIds.COMBAT_ENERGY, "com.megacrit.cardcrawl.ui.panels.EnergyPanel", "render", "e");
-        assertEquals(RenderDisposition.Mode.PASS_THROUGH, energy.mode);
-        assertTrue(energy.nativeContinuation);
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, energy.mode);
+        assertFalse(energy.nativeContinuation);
 
         RenderDisposition intents = NativeRenderBridge.beginSurface(
                 SurfaceIds.COMBAT_INTENTS, "com.megacrit.cardcrawl.monsters.AbstractMonster", "renderIntent", "i");
-        assertEquals(RenderDisposition.Mode.PASS_THROUGH, intents.mode);
-        assertTrue(intents.nativeContinuation);
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, intents.mode);
+        assertFalse(intents.nativeContinuation);
+
+        RenderDisposition topPanel = NativeRenderBridge.beginSurface(
+                SurfaceIds.TOP_PANEL, "com.megacrit.cardcrawl.ui.panels.TopPanel", "render", "t");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, topPanel.mode);
+        assertFalse(topPanel.nativeContinuation);
+
+        RenderDisposition proceed = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_PROCEED, "com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render", "p");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, proceed.mode);
+        assertFalse(proceed.nativeContinuation);
     }
 
     @Test
-    public void mapEventSelectRoomSurfacesPassThroughInFullModeWithoutSuppressingNative() {
+    public void mapAndRoomSurfacesDelegateInFullMode() {
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
 
-        assertFullSurfacePassThrough(SurfaceIds.MAP, "map");
-        assertFullSurfacePassThrough(SurfaceIds.EVENT, "event");
-        assertFullSurfacePassThrough(SurfaceIds.SELECT_GRID, "select");
-        assertFullSurfacePassThrough(SurfaceIds.SELECT_HAND, "select");
-        assertFullSurfacePassThrough(SurfaceIds.REWARD_COMBAT, "reward");
-        assertFullSurfacePassThrough(SurfaceIds.REWARD_CARD, "reward");
-        assertFullSurfacePassThrough(SurfaceIds.REWARD_BOSS_RELIC, "reward");
-        assertFullSurfacePassThrough(SurfaceIds.REST, "rest");
-        assertFullSurfacePassThrough(SurfaceIds.SHOP, "shop");
-        assertFullSurfacePassThrough(SurfaceIds.TREASURE, "treasure");
+        assertFullSurfaceDelegates(SurfaceIds.MAP, "map");
+        assertFullSurfaceDelegates(SurfaceIds.EVENT, "event");
+        assertFullSurfaceDelegates(SurfaceIds.SELECT_GRID, "select");
+        assertFullSurfaceDelegates(SurfaceIds.SELECT_HAND, "select");
+        assertFullSurfaceDelegates(SurfaceIds.REWARD_COMBAT, "reward");
+        assertFullSurfaceDelegates(SurfaceIds.REWARD_CARD, "reward");
+        assertFullSurfaceDelegates(SurfaceIds.REWARD_BOSS_RELIC, "reward");
+        assertFullSurfaceDelegates(SurfaceIds.REST, "rest");
+        assertFullSurfaceDelegates(SurfaceIds.SHOP, "shop");
+        assertFullSurfaceDelegates(SurfaceIds.TREASURE, "treasure");
     }
 
     private void assertFullSurfacePassThrough(String surfaceId, String scene) {
@@ -198,6 +212,23 @@ public class NativeRenderBridgeTest {
         assertEquals("NRO-03 surface " + surfaceId + " must pass through to native renderer",
                 RenderDisposition.Mode.PASS_THROUGH, disposition.mode);
         assertTrue("NRO-03 surface " + surfaceId + " must allow native continuation",
+                disposition.nativeContinuation);
+    }
+
+    private void assertFullSurfaceDelegates(String surfaceId, String scene) {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                ContextFrame.of(
+                        1L, 1L, scene, null, ControlsView.empty(), MapView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
+        FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
+        ArtFramework.component(surfaceId).mount();
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                surfaceId, "native.Owner", "render", "owner");
+        assertEquals("Phase 3 surface " + surfaceId + " must delegate to ART",
+                RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertFalse("Phase 3 surface " + surfaceId + " must suppress native continuation",
                 disposition.nativeContinuation);
     }
 

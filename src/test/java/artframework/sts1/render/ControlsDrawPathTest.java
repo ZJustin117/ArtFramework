@@ -70,16 +70,28 @@ public class ControlsDrawPathTest {
     }
 
     @Test
-    public void neverSuppressesNativeEndTurnEvenWhenFullMountedCombat() {
+    public void suppressesNativeEndTurnOnlyWhenFullReady() {
         combatControlsFrame();
-        assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
+        assertFalse("OFF keeps native renderer", ControlsDrawPath.shouldSuppressNativeEndTurn());
+
         FullPresentMode.setCombatControlsLevel(PresentLevel.FULL);
-        assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
+        assertFalse("FULL without executor stays native", ControlsDrawPath.shouldSuppressNativeEndTurn());
+
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
-        // NRO-02: controls stay native-pixel-authoritative even at FULL.
-        assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
+        assertTrue("FULL + mounted + combat + ready executor suppresses native",
+                ControlsDrawPath.shouldSuppressNativeEndTurn());
+
         Sts1RenderPipeline.setOverlayObserve(true);
-        assertFalse(ControlsDrawPath.shouldSuppressNativeEndTurn());
+        assertFalse("overlay-observe forces native visibility", ControlsDrawPath.shouldSuppressNativeEndTurn());
+    }
+
+    @Test
+    public void surfaceDrawPlanSuppressesNativeControlsWhenFullMountedCombat() {
+        combatControlsFrame();
+        FullPresentMode.setCombatControlsLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
+        assertTrue(plan.shouldSuppressNative(SurfaceIds.COMBAT_CONTROLS));
     }
 
     @Test

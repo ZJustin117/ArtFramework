@@ -649,8 +649,7 @@ public final class UiOps {
         PresentationContext context = PresentationRuntime.context(windowId);
         EntityId node = PresentationRuntime.find(context, controlId);
         artframework.presentation.NodeIdentityComponent identity = PresentationRuntime.identity(context, node);
-        return identity != null && (UiTypes.BUTTON.equals(identity.type)
-                || artframework.component.StsNodeTypes.isPressable(identity.type));
+        return identity != null && UiTypes.BUTTON.equals(identity.type);
     }
 
     private static SelectTemplate selectTemplate(SelectKind kind) {

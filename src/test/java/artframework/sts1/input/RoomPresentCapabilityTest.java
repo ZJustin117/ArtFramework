@@ -91,12 +91,11 @@ public class RoomPresentCapabilityTest {
         FullPresentCapability cap = CombatInputRouter.capability(SurfaceIds.REWARD_COMBAT);
         assertEquals(FullPresentCapability.State.FULL_READY, cap.state);
         assertTrue(cap.shouldSuppressNative());
-        // NRO-03: native CombatRewardScreen.render stays the visual authority even at FULL_READY.
-        assertFalse(RewardDrawPath.shouldSuppressNativeReward());
+        assertTrue(RewardDrawPath.shouldSuppressNativeReward());
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, Sts1RenderPipeline.plan().find(SurfaceIds.REWARD_COMBAT).mode);
         Map<String, Object> probe = RewardDrawPath.probeSlice();
         assertEquals("FULL_READY", probe.get("capability"));
-        assertEquals(Boolean.FALSE, probe.get("suppressNativeReward"));
+        assertEquals(Boolean.TRUE, probe.get("suppressNativeReward"));
         Map<String, Object> input = CombatInputRouter.probeSlice();
         assertEquals("FULL_READY", input.get("rewardState"));
     }
@@ -180,7 +179,6 @@ public class RoomPresentCapabilityTest {
         assertEquals(
                 FullPresentCapability.State.FULL_READY,
                 CombatInputRouter.capability(SurfaceIds.SHOP).state);
-        // NRO-03: native ShopScreen.render stays the visual authority even at FULL_READY.
-        assertFalse(artframework.sts1.render.ShopDrawPath.shouldSuppressNativeShop());
+        assertTrue(artframework.sts1.render.ShopDrawPath.shouldSuppressNativeShop());
     }
 }

@@ -60,10 +60,10 @@ steps:
   - assert:
       path: backend.renderPlan.drawCount
       gte: 4
-  # NRO-02: end-turn button pixels stay owned by native EndTurnButton.render even at FULL.
+  # C2 full-present now owns end-turn button pixels; native EndTurnButton.render is suppressed at FULL.
   - assert:
       path: backend.controlsDraw.suppressNativeEndTurn
-      eq: false
+      eq: true
   - wait_probe:
       timeout_ms: 5000
       interval_ms: 250

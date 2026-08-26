@@ -108,7 +108,7 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
-    public void fullMountedIntentsDrawsWithoutSuppressingNative() {
+    public void fullMountedIntentsDrawsAndSuppressesNative() {
         combatFrameMounted();
         ArtFramework.component(SurfaceIds.COMBAT_INTENTS).mount();
         FullPresentMode.setIntentsLevel(PresentLevel.FULL);
@@ -116,39 +116,63 @@ public class Sts1RenderPipelineTest {
         SurfaceDrawPlan.Entry intents = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_INTENTS);
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, intents.mode);
         assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_INTENTS));
-        // NRO-02: intent pixels stay owned by native AbstractMonster.renderIntent.
-        assertFalse(intents.suppressNative);
-        assertFalse(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_INTENTS));
+        assertTrue(intents.suppressNative);
+        assertTrue(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_INTENTS));
     }
 
     @Test
-    public void fullMountedControlsDrawWithoutSuppressingNative() {
+    public void fullMountedControlsDrawsAndSuppressesNative() {
         combatFrameMounted();
         FullPresentMode.setCombatControlsLevel(PresentLevel.FULL);
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         SurfaceDrawPlan.Entry controls = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_CONTROLS);
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, controls.mode);
         assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_CONTROLS));
-        // NRO-02: end-turn pixels stay owned by native EndTurnButton.render.
-        assertFalse(controls.suppressNative);
-        assertFalse(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_CONTROLS));
+        // Controls are now ART-owned; native EndTurnButton.render is suppressed.
+        assertTrue(controls.suppressNative);
+        assertTrue(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_CONTROLS));
     }
 
     @Test
-    public void fullMountedEnergyDrawWithoutSuppressingNative() {
+    public void fullMountedEnergyDrawsAndSuppressesNative() {
         combatFrameMounted();
         FullPresentMode.setEnergyLevel(PresentLevel.FULL);
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         SurfaceDrawPlan.Entry energy = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_ENERGY);
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, energy.mode);
         assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_ENERGY));
-        // NRO-02: energy orb pixels stay owned by native EnergyPanel.render.
-        assertFalse(energy.suppressNative);
-        assertFalse(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_ENERGY));
+        assertTrue(energy.suppressNative);
+        assertTrue(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_ENERGY));
     }
 
     @Test
-    public void mapEventSelectRoomSurfacesDrawWithoutSuppressingNative() {
+    public void fullMountedTopPanelDrawsAndSuppressesNative() {
+        combatFrameMounted();
+        ArtFramework.component(SurfaceIds.TOP_PANEL).mount();
+        FullPresentMode.setTopPanelLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan.Entry topPanel = Sts1RenderPipeline.plan().find(SurfaceIds.TOP_PANEL);
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, topPanel.mode);
+        assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.TOP_PANEL));
+        assertTrue(topPanel.suppressNative);
+        assertTrue(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.TOP_PANEL));
+    }
+
+    @Test
+    public void fullMountedProceedDrawsAndSuppressesNative() {
+        combatFrameMounted();
+        ArtFramework.component(SurfaceIds.COMBAT_PROCEED).mount();
+        FullPresentMode.setProceedLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan.Entry proceed = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_PROCEED);
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, proceed.mode);
+        assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_PROCEED));
+        assertTrue(proceed.suppressNative);
+        assertTrue(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_PROCEED));
+    }
+
+    @Test
+    public void roomAndOverlaySurfacesSuppressNativeWhenFullMountedAndSceneMatches() {
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         String[] scenes = {"map", "event", "select", "reward", "rest", "shop", "treasure"};
         String[] surfaces = {
@@ -171,8 +195,7 @@ public class Sts1RenderPipelineTest {
                     continue;
                 }
                 if (entry.mode == SurfaceDrawPlan.DrawMode.DRAW) {
-                    // NRO-03: these surfaces never suppress their native renderers.
-                    assertFalse("surface " + surfaceId + " in scene " + scene + " must not suppress native",
+                    assertTrue("surface " + surfaceId + " in scene " + scene + " must suppress native",
                             entry.suppressNative);
                 }
             }
@@ -270,21 +293,21 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
-    public void fullMountedSkeletonDrawsWithoutSuppressingNative() {
+    public void fullMountedSkeletonDrawsAndSuppressesNative() {
         combatFrameMounted();
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         ArtFramework.component(SurfaceIds.SKELETON).mount();
         FullPresentMode.setSkeletonLevel(PresentLevel.FULL);
         SurfaceDrawPlan.Entry skeleton = Sts1RenderPipeline.plan().find(SurfaceIds.SKELETON);
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, skeleton.mode);
-        // NRO-04: skeleton suppression is per-instance via the patch; the surface plan never
-        // claims wholesale native-pixel authority for the skeleton surface.
-        assertFalse(skeleton.suppressNative);
-        assertFalse(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.SKELETON));
+        // Skeleton surface is now a normal C2 full-present surface. Per-instance suppression is
+        // still handled by SkeletonRenderPatches for claimed skeletons.
+        assertTrue(skeleton.suppressNative);
+        assertTrue(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.SKELETON));
     }
 
     @Test
-    public void fullMountedEventDrawsWithoutSuppressingNative() {
+    public void fullMountedEventDrawsAndSuppressesNative() {
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
         backend.publish(
@@ -295,7 +318,6 @@ public class Sts1RenderPipelineTest {
         ArtFramework.component(SurfaceIds.EVENT).action("mount_event");
         SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, plan.find(SurfaceIds.EVENT).mode);
-        // NRO-03: native GenericEventDialog.render stays the visual authority.
-        assertFalse(plan.shouldSuppressNative(SurfaceIds.EVENT));
+        assertTrue(plan.shouldSuppressNative(SurfaceIds.EVENT));
     }
 }

@@ -96,38 +96,6 @@ public final class UiNodeRegistry {
                         .allowsChildren(true)
                         .builtin(true)
                         .build());
-        registerStsBuiltin(ArtNodeTypes.STS_BUTTON, NodeKind.LEAF, false,
-                java.util.Arrays.asList(artframework.core.SignalNames.PRESSED));
-        registerStsBuiltin(ArtNodeTypes.STS_PANEL, NodeKind.CONTAINER, true,
-                java.util.Collections.<String>emptyList());
-        registerStsBuiltin(ArtNodeTypes.STS_CARD, NodeKind.VISUAL, false,
-                java.util.Arrays.asList(artframework.core.SignalNames.PRESSED));
-        registerStsBuiltin(ArtNodeTypes.STS_ENERGY_ORB, NodeKind.VISUAL, false,
-                java.util.Collections.<String>emptyList());
-        registerStsBuiltin(ArtNodeTypes.STS_INTENT, NodeKind.VISUAL, false,
-                java.util.Collections.<String>emptyList());
-        registerStsBuiltin(ArtNodeTypes.STS_TOP_PANEL, NodeKind.VISUAL, false,
-                java.util.Collections.<String>emptyList());
-        registerStsBuiltin(ArtNodeTypes.STS_MAP, NodeKind.CONTAINER, true,
-                java.util.Collections.<String>emptyList());
-        registerStsBuiltin(ArtNodeTypes.STS_MAP_NODE, NodeKind.VISUAL, false,
-                java.util.Arrays.asList(artframework.core.SignalNames.PRESSED));
-        registerStsBuiltin(ArtNodeTypes.STS_EVENT_OPTION, NodeKind.LEAF, false,
-                java.util.Arrays.asList(artframework.core.SignalNames.PRESSED));
-        registerStsBuiltin(ArtNodeTypes.STS_REWARD_ITEM, NodeKind.LEAF, false,
-                java.util.Arrays.asList(artframework.core.SignalNames.PRESSED));
-        registerStsBuiltin(ArtNodeTypes.STS_ROOM_ACTION, NodeKind.LEAF, false,
-                java.util.Arrays.asList(artframework.core.SignalNames.PRESSED));
-    }
-
-    private void registerStsBuiltin(
-            String type, NodeKind kind, boolean children, java.util.List<String> signals) {
-        registerBuiltin(UiNodeType.builder(type)
-                .kind(kind)
-                .allowsChildren(children)
-                .builtin(true)
-                .defaultSignals(signals)
-                .build());
     }
 
     private static UiNodeType container(String type) {

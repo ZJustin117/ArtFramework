@@ -33,30 +33,24 @@ public class RenderPatchOwnershipTest {
     private static final Set<String> ALLOWED_SUPPRESS_PATCHES = new HashSet<String>(
             Arrays.asList(
                     "CombatHandRenderPatches.java",
+                    "CombatControlsRenderPatches.java",
+                    "CombatEnergyRenderPatches.java",
+                    "CombatIntentRenderPatches.java",
+                    "TopPanelRenderPatches.java",
+                    "ProceedButtonRenderPatches.java",
+                    "EventRenderPatches.java",
+                    "SelectRenderPatches.java",
+                    "RoomRenderPatches.java",
+                    "MapRenderPatches.java",
                     "SkeletonRenderPatches.java",
                     "TransientEffectRenderPatches.java"));
 
     /**
      * The listed surface ids must keep native-pixel authority. If a new surface is
-     * added here, it must come with an focused ART_DELEGATED test proving ART is
+     * added here, it must come with a focused ART_DELEGATED test proving ART is
      * the sole pixel owner.
      */
-    private static final Set<String> EXPECTED_NATIVE_PIXEL_AUTHORITATIVE = new HashSet<String>(
-            Arrays.asList(
-                    "sts1.combat.controls",
-                    "sts1.combat.energy",
-                    "sts1.combat.intents",
-                    "sts1.map",
-                    "sts1.event",
-                    "sts1.select.grid",
-                    "sts1.select.hand",
-                    "sts1.reward.combat",
-                    "sts1.reward.card",
-                    "sts1.reward.boss_relic",
-                    "sts1.rest",
-                    "sts1.shop",
-                    "sts1.treasure",
-                    "sts1.skeleton"));
+    private static final Set<String> EXPECTED_NATIVE_PIXEL_AUTHORITATIVE = new HashSet<String>();
 
     @Test
     public void onlyApprovedPatchesSuppressNativeDraw() throws IOException {
@@ -89,32 +83,48 @@ public class RenderPatchOwnershipTest {
     }
 
     @Test
-    public void controlsEnergyIntentPatchesDoNotSuppressNative() throws IOException {
+    public void controlsPatchSuppressesNativeEndTurnRender() throws IOException {
+        Path file = PATCH_ROOT.resolve("CombatControlsRenderPatches.java");
+        String text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+        assertTrue("CombatControlsRenderPatches must suppress EndTurnButton.render",
+                text.contains("EndTurnButton") && text.contains("SpireReturn.Return(null)"));
+    }
+
+    @Test
+    public void energyAndIntentPatchesSuppressNativeWhenFullReady() throws IOException {
         for (String name : Arrays.asList(
-                "CombatControlsRenderPatches.java",
                 "CombatEnergyRenderPatches.java",
                 "CombatIntentRenderPatches.java")) {
             Path file = PATCH_ROOT.resolve(name);
             String text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-            assertFalse(
-                    name + " must not suppress native rendering; original STS renderer stays authoritative",
+            assertTrue(
+                    name + " must suppress native rendering when ART owns the surface",
                     text.contains("SpireReturn.Return(null)"));
         }
     }
 
     @Test
-    public void mapEventSelectRoomPatchesDoNotSuppressNative() throws IOException {
+    public void topPanelAndProceedPatchesSuppressNativeWhenFullReady() throws IOException {
         for (String name : Arrays.asList(
-                "MapRenderPatches.java",
-                "EventRenderPatches.java",
-                "SelectRenderPatches.java",
-                "RoomRenderPatches.java")) {
+                "TopPanelRenderPatches.java",
+                "ProceedButtonRenderPatches.java")) {
             Path file = PATCH_ROOT.resolve(name);
             String text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
-            assertFalse(
-                    name + " must not suppress native rendering; original STS renderer stays authoritative",
+            assertTrue(
+                    name + " must suppress native rendering when ART owns the surface",
                     text.contains("SpireReturn.Return(null)"));
         }
+    }
+
+    @Test
+    public void mapPatchSuppressesNativeWhenFullReady() throws IOException {
+        // Phase 4: map is now ART-delegated when FULL + mounted + map scene.
+        String name = "MapRenderPatches.java";
+        Path file = PATCH_ROOT.resolve(name);
+        String text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+        assertTrue(
+                name + " must suppress native rendering when ART owns the surface",
+                text.contains("SpireReturn.Return(null)"));
     }
 
     @Test
@@ -127,12 +137,38 @@ public class RenderPatchOwnershipTest {
     }
 
     @Test
-    public void combatHandIsTheOnlySurfaceAllowedToSuppressNative() {
-        // Hand is explicitly ART-delegated; every other surface in the set keeps
-        // native-pixel authority. This test guards against accidentally adding a new
-        // surface to keepsNativePixelAuthority without an ART_DELEGATED test.
-        assertFalse(
-                "sts1.combat.hand is ART-delegated and must not be in the native-authoritative set",
+    public void delegatedSurfacesAreNotNativeAuthoritative() {
+        // Combat hand/controls/energy/intents/proceed, top-panel, and Phase 3 room/overlay
+        // surfaces are ART-delegated when FULL + mounted + scene match.
+        assertFalse("sts1.combat.hand is ART-delegated",
                 SurfaceDrawPlan.keepsNativePixelAuthority("sts1.combat.hand"));
+        assertFalse("sts1.combat.controls is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.combat.controls"));
+        assertFalse("sts1.combat.energy is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.combat.energy"));
+        assertFalse("sts1.combat.intents is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.combat.intents"));
+        assertFalse("sts1.combat.proceed is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.combat.proceed"));
+        assertFalse("sts1.top_panel is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.top_panel"));
+        assertFalse("sts1.event is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.event"));
+        assertFalse("sts1.select.grid is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.select.grid"));
+        assertFalse("sts1.select.hand is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.select.hand"));
+        assertFalse("sts1.reward.combat is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.reward.combat"));
+        assertFalse("sts1.reward.card is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.reward.card"));
+        assertFalse("sts1.reward.boss_relic is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.reward.boss_relic"));
+        assertFalse("sts1.rest is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.rest"));
+        assertFalse("sts1.shop is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.shop"));
+        assertFalse("sts1.treasure is ART-delegated",
+                SurfaceDrawPlan.keepsNativePixelAuthority("sts1.treasure"));
     }
 }

@@ -4,7 +4,6 @@ import org.junit.After;
 import org.junit.Test;
 import artframework.api.ArtFramework;
 import artframework.component.UiTypes;
-import artframework.component.ArtNodeTypes;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -30,8 +29,6 @@ public class C1NodeFactoriesTest {
         assertTrue(r.contains(UiTypes.GRID));
         assertTrue(r.contains(UiTypes.TABS));
         assertTrue(r.contains(UiTypes.PROGRESS));
-        assertTrue(r.contains(ArtNodeTypes.STS_BUTTON));
-        assertTrue(r.contains(ArtNodeTypes.STS_MAP_NODE));
         assertNotNull(r.get(UiTypes.LABEL));
         assertFalse(r.contains(UiTypes.WINDOW));
         assertFalse(r.contains(UiTypes.REF));

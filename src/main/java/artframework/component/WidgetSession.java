@@ -133,19 +133,12 @@ public final class WidgetSession {
     }
 
     public List<String> buttonIds() {
-        List<String> ids = new ArrayList<String>(index.idsOfType(UiTypes.BUTTON));
-        for (String id : index.ids()) {
-            UiNode node = index.get(id);
-            if (node != null && StsNodeTypes.isPressable(node.type)) {
-                ids.add(id);
-            }
-        }
-        return Collections.unmodifiableList(ids);
+        return Collections.unmodifiableList(new ArrayList<String>(index.idsOfType(UiTypes.BUTTON)));
     }
 
     public boolean isPressable(String id) {
         UiNode node = index.get(id);
-        return node != null && (UiTypes.BUTTON.equals(node.type) || StsNodeTypes.isPressable(node.type));
+        return node != null && UiTypes.BUTTON.equals(node.type);
     }
 
     public List<String> hitAreaIds() {

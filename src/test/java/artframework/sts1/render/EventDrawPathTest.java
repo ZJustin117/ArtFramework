@@ -65,15 +65,16 @@ public class EventDrawPathTest {
     }
 
     @Test
-    public void fullMountedDrawsWithoutSuppressingNative() {
+    public void fullMountedEventDrawsAndSuppressesNative() {
         publishEventFrame();
         FullPresentMode.setEventLevel(PresentLevel.FULL);
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         ArtFramework.component(SurfaceIds.EVENT).action("mount_event");
-        assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.EVENT));
-        // NRO-03: native GenericEventDialog.render stays the visual authority.
-        assertFalse(EventDrawPath.shouldSuppressNativeEvent());
-        assertEquals(Boolean.FALSE, EventDrawPath.probeSlice().get("suppressNativeEvent"));
+        SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
+        assertTrue(plan.shouldDraw(SurfaceIds.EVENT));
+        assertTrue(EventDrawPath.shouldSuppressNativeEvent());
+        assertTrue(plan.shouldSuppressNative(SurfaceIds.EVENT));
+        assertEquals(Boolean.TRUE, EventDrawPath.probeSlice().get("suppressNativeEvent"));
     }
 
     @Test

@@ -175,6 +175,8 @@ public final class Sts1SurfaceRenderer {
         prepareRewardVisuals(plan);
         prepareProceedVisuals(plan);
         prepareIntentVisuals(plan);
+        prepareEnergyVisuals(plan);
+        prepareTopPanelVisuals(plan);
     }
 
     private static void prepareHandVisuals(SurfaceDrawPlan plan) {
@@ -237,7 +239,7 @@ public final class Sts1SurfaceRenderer {
 
     private static void prepareEventVisuals(SurfaceDrawPlan plan) {
         if (!containsSurface(plan, SurfaceIds.EVENT)) return;
-        // NRO-03: native GenericEventDialog.render stays the visual authority. Keep C2 input
+        // Phase 3: ART owns event option pixels at FULL + mounted + event scene. Keep C2 input
         // items synced while the surface is in DRAW mode.
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
@@ -255,8 +257,8 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareSelectVisuals(SurfaceDrawPlan plan) {
-        // NRO-03: native GridCardSelectScreen/HandCardSelectScreen.render stay the visual
-        // authority. Keep C2 input items synced while a select surface is in DRAW mode.
+        // Phase 3: ART owns selection card/confirm pixels at FULL + mounted. Keep C2 input items
+        // synced while a select surface is in DRAW mode.
         boolean hasGrid = containsSurface(plan, SurfaceIds.SELECT_GRID);
         boolean hasHand = containsSurface(plan, SurfaceIds.SELECT_HAND);
         if (!hasGrid && !hasHand) {
@@ -283,7 +285,7 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareRewardVisuals(SurfaceDrawPlan plan) {
-        // NRO-03: native CombatRewardScreen.render stays the visual authority. Keep C2 input
+        // Phase 3: ART owns reward item pixels at FULL + mounted + reward scene. Keep C2 input
         // items synced while a reward surface is in DRAW mode.
         boolean hasReward = containsSurface(plan, SurfaceIds.REWARD_COMBAT)
                 || containsSurface(plan, SurfaceIds.REWARD_CARD)
@@ -357,6 +359,47 @@ public final class Sts1SurfaceRenderer {
                 SurfaceIds.COMBAT_INTENTS, visibleItems);
     }
 
+    private static void prepareEnergyVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.COMBAT_ENERGY)) return;
+        SurfaceDrawPlan.Entry entry = plan.find(SurfaceIds.COMBAT_ENERGY);
+        if (entry == null || entry.mode != SurfaceDrawPlan.DrawMode.DRAW) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_ENERGY);
+            return;
+        }
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        artframework.presentation.PresentationVisuals.syncC2Item(
+                SurfaceIds.COMBAT_ENERGY, "energy_orb",
+                new artframework.component.Rect(
+                        com.megacrit.cardcrawl.core.Settings.WIDTH * 0.06f,
+                        com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.11f,
+                        com.megacrit.cardcrawl.core.Settings.WIDTH * 0.13f,
+                        70f), 1f,
+                "energy", "", String.valueOf(ArtFramework.projection().controls().energy), true);
+        visibleItems.add("energy_orb");
+        artframework.presentation.PresentationVisuals.retainC2Items(
+                SurfaceIds.COMBAT_ENERGY, visibleItems);
+    }
+
+    private static void prepareTopPanelVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.TOP_PANEL)) return;
+        SurfaceDrawPlan.Entry entry = plan.find(SurfaceIds.TOP_PANEL);
+        if (entry == null || entry.mode != SurfaceDrawPlan.DrawMode.DRAW) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
+            return;
+        }
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        artframework.presentation.PresentationVisuals.syncC2Item(
+                SurfaceIds.TOP_PANEL, "top_panel_hud",
+                new artframework.component.Rect(20f,
+                        com.megacrit.cardcrawl.core.Settings.HEIGHT - 82f,
+                        com.megacrit.cardcrawl.core.Settings.WIDTH * 0.48f,
+                        58f), 1f,
+                "top_panel", "", ArtFramework.projection().topPanel().characterName, true);
+        visibleItems.add("top_panel_hud");
+        artframework.presentation.PresentationVisuals.retainC2Items(
+                SurfaceIds.TOP_PANEL, visibleItems);
+    }
+
     private static boolean containsSurface(SurfaceDrawPlan plan, String surfaceId) {
         for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
             if (surfaceId.equals(entry.surfaceId)) return true;
@@ -425,12 +468,12 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Controls surface: native EndTurnButton.render remains the visual authority. ART only
-     * observes the invocation and keeps C2 input/hit items synced in prepareControlsVisuals.
-     * No authoritative end-turn button pixels are drawn here.
+     * Controls surface: the end-turn button is now ART-owned. The C2 item was already synced in
+     * prepareControlsVisuals and drawn by the global RenderHosts.drawFrame pass, so no extra
+     * native rendering is needed here. Record ART output to close the native delegation ledger.
      */
     private static void renderControls(SpriteBatch sb) {
-        // NRO-02: EndTurnButton.render is the sole visual authority for the end-turn button.
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_CONTROLS, 1);
     }
 
     private static boolean ControlsViewIdEndTurn(String id) {
@@ -438,55 +481,59 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Map surface: native DungeonMapScreen.render remains the visual authority. ART only
-     * observes the invocation and keeps C2 input/hit items synced in prepareMapVisuals.
-     * No authoritative map pixels are drawn here (NRO-03).
+     * Map surface: ART owns the map pixels when FULL + mounted + map scene. The C2 items were
+     * synced in prepareMapVisuals and are drawn by the global RenderHosts.drawFrame pass, so no
+     * extra native rendering is needed here. Record ART output to close the native delegation ledger.
      */
     private static void renderMap(SpriteBatch sb) {
-        // NRO-03: DungeonMapScreen.render is the sole visual authority for the map.
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.MAP, 1);
     }
 
     /**
-     * Event surface: native GenericEventDialog.render remains the visual authority. ART only
-     * observes the invocation and keeps C2 input/hit items synced in prepareEventVisuals.
-     * No authoritative event pixels are drawn here (NRO-03).
+     * Event surface: ART owns the event option pixels when FULL + mounted + event scene. The C2
+     * items were synced in prepareEventVisuals and are drawn by the global RenderHosts.drawFrame
+     * pass, so no extra native rendering is needed here. Record ART output to close the native
+     * delegation ledger.
      */
     private static void renderEvent(SpriteBatch sb) {
-        // NRO-03: GenericEventDialog.render is the sole visual authority for events.
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT, 1);
     }
 
     /**
-     * Select surface: native GridCardSelectScreen/HandCardSelectScreen.render remain the visual
-     * authority. ART only observes the invocation and keeps C2 input/hit items synced in
-     * prepareSelectVisuals. No authoritative select pixels are drawn here (NRO-03).
+     * Select surface: ART owns the selection card/confirm pixels when FULL + mounted. The C2 items
+     * were synced in prepareSelectVisuals and are drawn by the global RenderHosts.drawFrame pass,
+     * so no extra native rendering is needed here. Record ART output to close the native delegation
+     * ledger.
      */
     private static void renderSelect(SpriteBatch sb, String surfaceId) {
-        // NRO-03: native select renderers are the sole visual authority for selection screens.
+        NativeRenderBridge.recordSurfaceDraw(surfaceId, 1);
     }
 
     /**
-     * Reward surface: native CombatRewardScreen.render remains the visual authority. ART only
-     * observes the invocation and keeps C2 input/hit items synced in prepareRewardVisuals.
-     * No authoritative reward pixels are drawn here (NRO-03).
+     * Reward surface: ART owns the reward item pixels when FULL + mounted + reward scene. The C2
+     * items were synced in prepareRewardVisuals and are drawn by the global RenderHosts.drawFrame
+     * pass, so no extra native rendering is needed here. Record ART output to close the native
+     * delegation ledger.
      */
     private static void renderReward(SpriteBatch sb, String surfaceId) {
-        // NRO-03: CombatRewardScreen.render is the sole visual authority for rewards.
+        NativeRenderBridge.recordSurfaceDraw(surfaceId, 1);
     }
 
     /**
-     * Rest surface: native CampfireUI.render remains the visual authority. ART only observes
-     * the invocation. No authoritative rest/campfire pixels are drawn here (NRO-03).
+     * Rest surface: ART owns the campfire option pixels when FULL + mounted + rest scene. The
+     * surface is drawn by the global RenderHosts.drawFrame pass, so no extra native rendering is
+     * needed here. Record ART output to close the native delegation ledger.
      */
     private static void renderRest(SpriteBatch sb) {
-        // NRO-03: CampfireUI.render is the sole visual authority for the rest screen.
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.REST, 1);
     }
 
     private static void renderSkeleton(SpriteBatch sb) {
         if (!artframework.sts1.skeleton.Sts1SkeletonBridge.shouldDraw()) {
             return;
         }
-        // NRO-04: the provider renders ART-owned skeletons (or at the native slot for claimed
-        // instances). No hand-drawn skeleton fallback/chrome pixels are ever drawn here.
+        // The provider renders ART-owned skeletons (or at the native slot for claimed instances).
+        // No hand-drawn skeleton fallback/chrome pixels are ever drawn here.
         boolean drawing = false;
         try {
             drawing = sb.isDrawing();
@@ -503,22 +550,25 @@ public final class Sts1SurfaceRenderer {
                 }
             }
         }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.SKELETON, 1);
     }
 
     /**
-     * Shop surface: native ShopScreen.render remains the visual authority. ART only observes
-     * the invocation. No authoritative shop pixels are drawn here (NRO-03).
+     * Shop surface: ART owns the shop entry pixels when FULL + mounted + shop scene. The surface is
+     * drawn by the global RenderHosts.drawFrame pass, so no extra native rendering is needed here.
+     * Record ART output to close the native delegation ledger.
      */
     private static void renderShop(SpriteBatch sb) {
-        // NRO-03: ShopScreen.render is the sole visual authority for the shop screen.
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.SHOP, 1);
     }
 
     /**
-     * Treasure surface: native TreasureRoom.render remains the visual authority. ART only
-     * observes the invocation. No authoritative treasure pixels are drawn here (NRO-03).
+     * Treasure surface: ART owns the chest/relic pixels when FULL + mounted + treasure scene. The
+     * surface is drawn by the global RenderHosts.drawFrame pass, so no extra native rendering is
+     * needed here. Record ART output to close the native delegation ledger.
      */
     private static void renderTreasure(SpriteBatch sb) {
-        // NRO-03: TreasureRoom.render is the sole visual authority for treasure rooms.
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TREASURE, 1);
     }
 
     private static void renderProceed(SpriteBatch sb) {
@@ -531,6 +581,7 @@ public final class Sts1SurfaceRenderer {
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
             float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.2f;
             int i = 0;
+            int drawn = 0;
             for (ProceedDrawPath.DrawItem item : ProceedDrawPath.buildFromProjection()) {
                 if (!item.visible) {
                     continue;
@@ -547,7 +598,9 @@ public final class Sts1SurfaceRenderer {
                         y - i * 40f,
                         item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 i++;
+                drawn++;
             }
+            NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_PROCEED, Math.max(1, drawn));
         } catch (Throwable ignored) {
         }
     }
@@ -561,45 +614,49 @@ public final class Sts1SurfaceRenderer {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TOP_PANEL);
             artframework.context.TopPanelView tv = ArtFramework.projection().topPanel();
-            if (!tv.available) {
-                return;
+            if (tv.available) {
+                String line =
+                        tv.characterName
+                                + "  HP "
+                                + tv.hp
+                                + "/"
+                                + tv.maxHp
+                                + "  Gold "
+                                + tv.gold
+                                + "  Floor "
+                                + tv.floor;
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontLeftTopAligned(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.topPanelInfoFont,
+                        line,
+                        40f,
+                        com.megacrit.cardcrawl.core.Settings.HEIGHT - 40f,
+                        colorLabel(chrome));
             }
-            String line =
-                    tv.characterName
-                            + "  HP "
-                            + tv.hp
-                            + "/"
-                            + tv.maxHp
-                            + "  Gold "
-                            + tv.gold
-                            + "  Floor "
-                            + tv.floor;
-            com.megacrit.cardcrawl.helpers.FontHelper.renderFontLeftTopAligned(
-                    sb,
-                    com.megacrit.cardcrawl.helpers.FontHelper.topPanelInfoFont,
-                    line,
-                    40f,
-                    com.megacrit.cardcrawl.core.Settings.HEIGHT - 40f,
-                    colorLabel(chrome));
+            NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TOP_PANEL, 1);
         } catch (Throwable ignored) {
         }
     }
 
     /**
-     * Energy surface: native EnergyPanel.render remains the visual authority. ART only observes
-     * the invocation. No authoritative energy orb pixels are drawn here.
+     * Energy surface: ART owns the energy orb pixels when FULL + mounted + combat. The C2 item
+     * was synced in prepareEnergyVisuals and is drawn by the global RenderHosts.drawFrame pass,
+     * so no extra native rendering is needed here. Record ART output to close the native
+     * delegation ledger.
      */
     private static void renderEnergy(SpriteBatch sb) {
-        // NRO-02: EnergyPanel.render is the sole visual authority for the energy orb.
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_ENERGY, 1);
     }
 
     /**
-     * Intents surface: native AbstractMonster.renderIntent remains the visual authority. ART only
-     * observes the invocation and keeps C2 input/hit items synced in prepareIntentVisuals. No
-     * authoritative intent icon/amount pixels are drawn here.
+     * Intents surface: ART owns the intent icon/amount pixels when FULL + mounted + combat. The
+     * C2 items were synced in prepareIntentVisuals and are drawn by the global
+     * RenderHosts.drawFrame pass, so no extra native rendering is needed here. Record ART output
+     * to close the native delegation ledger.
      */
     private static void renderIntents(SpriteBatch sb) {
-        // NRO-02: AbstractMonster.renderIntent is the sole visual authority for intents.
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS,
+                Math.max(1, IntentDrawPath.buildFromProjection().size()));
     }
 
     private static void renderEntityChrome(SpriteBatch sb) {

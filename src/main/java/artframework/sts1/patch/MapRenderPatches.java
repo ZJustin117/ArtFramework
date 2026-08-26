@@ -5,7 +5,7 @@ import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import com.megacrit.cardcrawl.screens.DungeonMapScreen;
 import artframework.sts1.render.NativeRenderBridge;
 
-/** Observe native map screen draw; original renderer stays the visual authority (NRO-03). */
+/** Observe or suppress native map screen draw depending on C2 full-present ownership. */
 public final class MapRenderPatches {
 
     private MapRenderPatches() {}
@@ -17,10 +17,12 @@ public final class MapRenderPatches {
     public static class ObserveNativeMapRender {
         public static SpireReturn<Void> Prefix(
                 DungeonMapScreen __instance, com.badlogic.gdx.graphics.g2d.SpriteBatch sb) {
-            NativeRenderBridge.beginSurface(
+            artframework.sts1.render.RenderDisposition disposition = NativeRenderBridge.beginSurface(
                     "sts1.map", "com.megacrit.cardcrawl.screens.DungeonMapScreen", "render",
                     __instance != null ? String.valueOf(System.identityHashCode(__instance)) : "");
-            return SpireReturn.Continue();
+            return !disposition.nativeContinuation
+                    ? SpireReturn.Return(null)
+                    : SpireReturn.Continue();
         }
     }
 }

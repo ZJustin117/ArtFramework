@@ -389,23 +389,8 @@ public final class SurfaceDrawPlan {
     }
 
     static boolean keepsNativePixelAuthority(String surfaceId) {
-        // NRO-03: map, event, select, reward, rest, shop, and treasure surfaces stay
-        // native-pixel-authoritative; the original STS renderers are never suppressed.
-        // NRO-04: skeletons are never suppressed wholesale either; per-instance claims are handled
-        // by the SkeletonMeshRenderer patch and Sts1SkeletonBridge.
-        return SurfaceIds.COMBAT_CONTROLS.equals(surfaceId)
-                || SurfaceIds.COMBAT_ENERGY.equals(surfaceId)
-                || SurfaceIds.COMBAT_INTENTS.equals(surfaceId)
-                || SurfaceIds.MAP.equals(surfaceId)
-                || SurfaceIds.EVENT.equals(surfaceId)
-                || SurfaceIds.SELECT_GRID.equals(surfaceId)
-                || SurfaceIds.SELECT_HAND.equals(surfaceId)
-                || SurfaceIds.REWARD_COMBAT.equals(surfaceId)
-                || SurfaceIds.REWARD_CARD.equals(surfaceId)
-                || SurfaceIds.REWARD_BOSS_RELIC.equals(surfaceId)
-                || SurfaceIds.REST.equals(surfaceId)
-                || SurfaceIds.SHOP.equals(surfaceId)
-                || SurfaceIds.TREASURE.equals(surfaceId)
-                || SurfaceIds.SKELETON.equals(surfaceId);
+        // No surface is unconditionally native-pixel-authoritative. Skeletons are handled through
+        // per-instance claims in SkeletonRenderPatches rather than wholesale surface suppression.
+        return false;
     }
 }

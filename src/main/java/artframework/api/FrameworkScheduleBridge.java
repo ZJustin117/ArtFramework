@@ -27,6 +27,10 @@ final class FrameworkScheduleBridge {
         schedule.processNativeIntentLifecycle();
     }
 
+    void executeTransientEffectProjections() {
+        schedule.executeTransientEffectProjections();
+    }
+
     void executeEffectPulses(float deltaSeconds) {
         schedule.executeEffectPulses(deltaSeconds);
     }

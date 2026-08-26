@@ -135,6 +135,7 @@ public final class NativeRenderBridge {
         RenderDisposition disposition = RenderDisposition.capture(invocation.invocationId,
                 "transient_effect_observe");
         LEDGER.recordDisposition(disposition);
+        projectPendingEffects();
         return disposition;
     }
 
@@ -144,6 +145,7 @@ public final class NativeRenderBridge {
         if (identity == null) return;
         EFFECT_LIFECYCLE.create(identity);
         EFFECT_LIFECYCLE.update(identity, effect.isDone);
+        projectPendingEffects();
     }
 
     public static void observeEffectDispose(
@@ -152,6 +154,20 @@ public final class NativeRenderBridge {
         if (identity == null) return;
         EFFECT_LIFECYCLE.create(identity);
         EFFECT_LIFECYCLE.cancel(identity);
+        projectPendingEffects();
+    }
+
+    /** Fail-open note for effect observation paths; never blocks native drawing. */
+    public static void recordEffectObservationFailure() {
+        EFFECT_LEDGER.recordFailOpen();
+    }
+
+    private static void projectPendingEffects() {
+        try {
+            ArtFramework.executeTransientEffectProjections();
+        } catch (Throwable error) {
+            EFFECT_LEDGER.recordFailOpen();
+        }
     }
 
     public static NativeRenderLedger ledger() { return LEDGER; }

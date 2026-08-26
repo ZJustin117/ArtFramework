@@ -26,6 +26,7 @@ public final class TransientEffectLedger {
     private final Map<String, Record> records = new LinkedHashMap<String, Record>();
     private int unknownLifecycleCount;
     private int leakedCount;
+    private int failOpenCount;
 
     public synchronized void create(TransientEffectIdentity identity) {
         if (identity == null) throw new IllegalArgumentException("identity required");
@@ -91,6 +92,11 @@ public final class TransientEffectLedger {
     public synchronized int unknownLifecycleCount() { return unknownLifecycleCount; }
     public synchronized int leakedCount() { return leakedCount; }
 
+    /** Records one observation-path failure that failed open without blocking native drawing. */
+    public synchronized void recordFailOpen() { failOpenCount++; }
+
+    public synchronized int failOpenCount() { return failOpenCount; }
+
     public synchronized List<Record> records() {
         return Collections.unmodifiableList(new ArrayList<Record>(records.values()));
     }
@@ -114,6 +120,7 @@ public final class TransientEffectLedger {
         out.put("completed", Integer.valueOf(completed));
         out.put("unknownLifecycle", Integer.valueOf(unknownLifecycleCount));
         out.put("leaked", Integer.valueOf(leakedCount));
+        out.put("failOpen", Integer.valueOf(failOpenCount));
         return out;
     }
 
@@ -121,6 +128,7 @@ public final class TransientEffectLedger {
         records.clear();
         unknownLifecycleCount = 0;
         leakedCount = 0;
+        failOpenCount = 0;
     }
 
     private Record record(TransientEffectIdentity identity) {

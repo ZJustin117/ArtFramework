@@ -1,5 +1,9 @@
 package artframework.sts1.render;
 
+import artframework.ecs.ArtEcs;
+import artframework.ecs.EcsPipeline;
+import artframework.ecs.EcsTick;
+import java.util.Collections;
 import org.junit.After;
 import org.junit.Test;
 
@@ -12,6 +16,8 @@ public class TransientEffectLifecycleAdapterTest {
     private final TransientEffectRegistry registry = new TransientEffectRegistry();
     private final TransientEffectLifecycleAdapter adapter =
             new TransientEffectLifecycleAdapter(ledger, registry);
+    private final TransientEffectProjectionSystem projection =
+            new TransientEffectProjectionSystem(registry);
 
     @After
     public void tearDown() {
@@ -23,15 +29,22 @@ public class TransientEffectLifecycleAdapterTest {
         return new TransientEffectIdentity(id, "native.Effect", id.hashCode(), 1L);
     }
 
+    private void drain() {
+        EcsPipeline.run(ArtEcs.world(), new EcsTick(0f, 1L),
+                Collections.singletonList(projection));
+    }
+
     @Test
     public void renderCreatesOneEntityAndCompletionRemovesIt() {
         TransientEffectIdentity identity = identity("a");
         adapter.render(identity, 7L, "render");
+        drain();
 
         assertEquals(Integer.valueOf(1), Integer.valueOf(registry.activeCount()));
         assertTrue(Sts1NativePresentationAdapter.hasEntity("effect:" + identity.instanceId));
 
         adapter.update(identity, true);
+        drain();
         assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
         assertFalse(Sts1NativePresentationAdapter.hasEntity("effect:" + identity.instanceId));
         assertEquals(Integer.valueOf(0), ledger.probeSlice().get("active"));
@@ -43,8 +56,10 @@ public class TransientEffectLifecycleAdapterTest {
         TransientEffectIdentity second = identity("second");
         adapter.render(first, 1L, "render");
         adapter.render(second, 1L, "render");
+        drain();
 
         adapter.cancel(first);
+        drain();
         assertEquals(Integer.valueOf(1), Integer.valueOf(registry.activeCount()));
         assertFalse(Sts1NativePresentationAdapter.hasEntity("effect:" + first.instanceId));
         assertTrue(Sts1NativePresentationAdapter.hasEntity("effect:" + second.instanceId));
@@ -53,7 +68,11 @@ public class TransientEffectLifecycleAdapterTest {
     @Test
     public void cleanupAllCountsUnfinishedInstancesAsLeakedAndRemovesEntities() {
         adapter.render(identity("leaked"), 1L, "render");
+        drain();
+        assertTrue(Sts1NativePresentationAdapter.hasEntity("effect:leaked"));
+
         adapter.cleanupAll();
+        drain();
 
         assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
         assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.leakedCount()));

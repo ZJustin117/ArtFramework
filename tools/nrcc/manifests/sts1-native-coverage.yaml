@@ -244,7 +244,7 @@ entries:
   pathKind: render-owner
   surfaceId: ''
   effectFamily: none
-  hook: ''
+  hook: artframework/sts1/patch/TransientEffectContainerPatches.java
   policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.abstractevent.render
   nativeClass: com.megacrit.cardcrawl.events.AbstractEvent

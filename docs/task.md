@@ -636,3 +636,10 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       the TransientEffect four-piece template, meta-screen / targeting / transient-VFX
       integration recipes, the new-`@SpirePatch` precondition checklist, and known
       scanner limitations
+- [x] 47.11 Slice 3: fix the transient-effect observation entry — the three-arg
+      `AbstractGameEffect.render` Prefix missed container-driven effects (single-arg render is
+      abstract), so a `@SpireInstrumentPatch` on `AbstractDungeon#render(SpriteBatch)` now wraps
+      the three `AbstractGameEffect.render:(SpriteBatch)V` call sites with an observe-then-render
+      helper (zero suppression, fail-open ledger note); converge the Registry→ECS projection into
+      the schedule-owned `TransientEffectProjectionSystem` (`HOST_PRESENTATION`) whose drain is
+      shared by the frame schedule and the synchronous render-hook bridge

@@ -69,22 +69,29 @@ currently have a matching ART patch. Counts are the scan baseline above; regener
 | `monsters-bosses` | 8 | `AbstractMonster`, `MonsterGroup` | Delegation-governed (hooked 1/8: `renderIntent`); remainder `UNKNOWN` |
 | `player-character` | 5 | `AbstractPlayer`, `AnimatedNpc` | Delegation-governed (hooked 1/5: `renderHand`); remainder `UNKNOWN` |
 | `skeleton-runtime` | 1 | `SkeletonMeshRenderer` | Delegation-governed; per-instance claims only, unclaimed skeletons pass through |
-| `vfx-misc-root` | 97 | `AbstractGameEffect`, `SpeechBubble`, `RelicAboveCreatureEffect` | Hosts the observe hook on the container base class (see observe-only below); hooked 1/97 |
+| `vfx-misc-root` | 97 | `AbstractGameEffect`, `SpeechBubble`, `RelicAboveCreatureEffect` | Observed through the `AbstractDungeon` container instrument plus the base-class direct-draw hook (see observe-only below); hooked 1/97 |
 
-### Observe-only (container base-class single point already covered)
+### Observe-only (container call sites + direct-draw hook)
 
-All transient effects funnel through one choke point: the `AbstractGameEffect#render`
-observation hook keeps `CAPTURE_AND_PASS`, the native effect queue remains authoritative, and
-no per-subclass hook is planned (refacter ledger `NRO-04`). Subclass families are covered by
-virtual dispatch at that single point, not by their own patches.
+Transient effects are observed at two entry points that share one identity-keyed
+pipeline. The container entry is a `@SpireInstrumentPatch` on
+`AbstractDungeon#render(SpriteBatch)` whose `ExprEditor` replaces the three
+`AbstractGameEffect.render:(SpriteBatch)V` call sites (`effectList` behind/regular,
+`topLevelEffects`) with an observe-then-render helper — the single-arg method is
+abstract, so ModTheSpire cannot attach a Prefix to it. The retained
+`AbstractGameEffect#render(SpriteBatch, float, float)` Prefix covers the ~20
+host-drawn particle groups that never enter the containers. Both entries keep
+`CAPTURE_AND_PASS`, the native effect queue remains authoritative, and no
+per-subclass hook is planned (refacter ledger `NRO-04`). Subclass families are
+covered by virtual dispatch at the container sites, not by their own patches.
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `vfx-combat` | 145 | `StrikeEffect`, `DamageNumberEffect`, `FlashAtkImgEffect` | Observe-only via the `AbstractGameEffect` base hook |
-| `vfx-scene-world` | 29 | `TorchParticleLEffect`, `DustEffect`, `BonfireParticleEffect` | Observe-only via the base hook |
-| `vfx-campfire-rest` | 10 | `CampfireSmithEffect`, `CampfireSleepEffect` | Observe-only via the base hook |
-| `vfx-card-manipulation` | 10 | `ShowCardAndAddToHandEffect`, `ExhaustCardEffect` | Observe-only via the base hook |
-| `vfx-stance-aura` | 8 | `DivinityParticleEffect`, `WrathParticleEffect`, `StanceAuraEffect` | Observe-only via the base hook |
+| `vfx-combat` | 145 | `StrikeEffect`, `DamageNumberEffect`, `FlashAtkImgEffect` | Observe-only via the `AbstractDungeon` container call sites |
+| `vfx-scene-world` | 29 | `TorchParticleLEffect`, `DustEffect`, `BonfireParticleEffect` | Observe-only via the container call sites |
+| `vfx-campfire-rest` | 10 | `CampfireSmithEffect`, `CampfireSleepEffect` | Observe-only via the container call sites |
+| `vfx-card-manipulation` | 10 | `ShowCardAndAddToHandEffect`, `ExhaustCardEffect` | Observe-only via the container call sites |
+| `vfx-stance-aura` | 8 | `DivinityParticleEffect`, `WrathParticleEffect`, `StanceAuraEffect` | Observe-only via the container call sites |
 
 ### Future delegation candidate / reserved
 
@@ -97,7 +104,7 @@ virtual dispatch at that single point, not by their own patches.
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
 | `draw-primitives-tips` | 6 | `TipHelper`, `Hitbox`, `Label`, `DrawMaster`, `Sprite`, `AbstractDrawable` | Passthrough drawing primitives shared by every surface; closed exact-set, native ownership by design |
-| `core-game-root` | 6 | `CardCrawlGame`, `OverlayMenu`, `AbstractCreature`, `GameCursor` | Structural root / overlay plumbing; passthrough unless a §5 design proves a single safe choke point |
+| `core-game-root` | 6 | `CardCrawlGame`, `OverlayMenu`, `AbstractCreature`, `GameCursor` | Structural root / overlay plumbing; `AbstractDungeon#render` hosts the observe-only effect-container instrument (recipe C), the rest passthrough unless a §5 design proves a single safe choke point |
 
 ### Out of scope and untriaged
 
@@ -147,12 +154,15 @@ stateless, and host caches stay explicitly non-authoritative.
 
 ### Projection layer
 
-- `<Family>Registry` maps stable instance identity → presentation entity. It projects through
-  `Sts1NativePresentationAdapter.present(invocation)`, which creates/reuses an entity in the
-  `nrcc-native` context under the `sts1.native/<ownerId>` key pair and writes data-only
+- `<Family>Registry` maps stable instance identity → presentation entity. For transient
+  effects it produces pending projection events; the schedule-owned
+  `TransientEffectProjectionSystem` (fixed `HOST_PRESENTATION` instance) is the only caller of
+  `Sts1NativePresentationAdapter.present(invocation)` in that chain, creating/reusing an entity
+  in the `nrcc-native` context under the `sts1.native/<ownerId>` key pair and writing data-only
   components (`BoundsComponent`, `VisibilityComponent`, `DrawComponent`,
-  `HostBindingComponent`), then requests coalesced render projection via
-  `RenderProjectionQueue`.
+  `HostBindingComponent`), then requesting coalesced render projection via
+  `RenderProjectionQueue`. Synchronous host render hooks enqueue and immediately drain the same
+  schedule-owned system so entities stay same-frame visible.
 - Owner ids are namespaced per family (`effect:<instanceId>`, `surface:<surfaceId>`,
   `skeleton:<entityKey>`) so cleanup and probe slices never collide.
 - Removal is explicit: complete/cancel/scene-change/host-recreation paths destroy through the
@@ -187,7 +197,7 @@ the transient-effect example:
 |---|---|
 | `<Family>Identity` | Immutable host-neutral value: stable `instanceId`, native class, identity hash, generation (`TransientEffectIdentity`) |
 | `<Family>Ledger` | Lifecycle evidence states + unknown/leaked counters + `probeSlice()` for diagnostics (`TransientEffectLedger`) |
-| `<Family>Registry` | instanceId → presentation entity index; presents through `Sts1NativePresentationAdapter`; cleans up on completion (`TransientEffectRegistry`) |
+| `<Family>Registry` | instanceId → presentation entity index plus the pending-projection queue; `TransientEffectProjectionSystem` presents through `Sts1NativePresentationAdapter` and cleans up on completion (`TransientEffectRegistry`) |
 | `<Family>LifecycleAdapter` | Coordinates ledger transitions with registry present/cleanup; exposes `cleanupAll()` for recovery (`TransientEffectLifecycleAdapter`) |
 
 Recovery closure: `PresentSafety` panic, scene epoch changes, and host recreation must drain
@@ -268,9 +278,11 @@ containers — they belong to their host-surface families, not to the vfx famili
 - The `renderBehind` flag maps onto `PresentLayer` z-ordering: behind-effects project below
   room/world content, regular effects above, top-level effects into the overlay band — the
   same ordering the C2 full-present draw path already uses.
-- Governance stays on the existing observe chain: `beginEffectRender` +
+- Governance stays on the observe chain: the `AbstractDungeon#render` container instrument plus
+  the retained three-arg hook feed `beginEffectRender` +
   `TransientEffectIdentity/Ledger/Registry/LifecycleAdapter` with `CAPTURE_AND_PASS`
-  (refacter ledger `NRO-04`). Per-subclass hooks are prohibited; a future delegated effect
+  (refacter ledger `NRO-04`); projection converges in the schedule-owned
+  `TransientEffectProjectionSystem`. Per-subclass hooks are prohibited; a future delegated effect
   type must arrive as a per-instance claim, never as a queue-wide suppression.
 
 ### General choke-point selection rules

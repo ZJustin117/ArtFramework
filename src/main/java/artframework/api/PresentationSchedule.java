@@ -26,6 +26,8 @@ import artframework.render.RenderClockSystem;
 import artframework.render.RenderProjectionQueue;
 import artframework.render.RenderProjectionSystem;
 import artframework.skeleton.SkeletonHostTickSystem;
+import artframework.sts1.render.NativeRenderBridge;
+import artframework.sts1.render.TransientEffectProjectionSystem;
 import artframework.sts1.skeleton.Sts1SkeletonBridge;
 import java.util.Arrays;
 import java.util.Collections;
@@ -75,6 +77,7 @@ public final class PresentationSchedule {
     private final RenderProjectionSystem renderProjection = new RenderProjectionSystem();
     private final HostBackendTickSystem hostBackend = new HostBackendTickSystem();
     private SkeletonHostTickSystem skeleton;
+    private TransientEffectProjectionSystem transientEffectProjection;
     private HostPresentationSystem hostPresentationSystem;
     private long sequence;
 
@@ -123,6 +126,7 @@ public final class PresentationSchedule {
                             hostPresentationSystem.tick(deltaSeconds);
                         }
                         run(tick, skeletonSystem());
+                        run(tick, transientEffectProjectionSystem());
                         runAll(tick, PackSystemPhase.HOST_PRESENTATION);
                         break;
                     case RENDER_PROJECTION:
@@ -157,6 +161,14 @@ public final class PresentationSchedule {
     /** Processes native lifecycle events at their synchronous host-hook boundary. */
     public void processNativeIntentLifecycle() {
         run(new EcsTick(0f, sequence), nativeIntentLifecycle);
+    }
+
+    /**
+     * Drains pending transient-effect projections through the schedule-owned system so
+     * synchronous host render hooks keep same-frame entity visibility.
+     */
+    public void executeTransientEffectProjections() {
+        run(new EcsTick(0f, sequence), transientEffectProjectionSystem());
     }
 
     /** Advances pulse envelopes through the schedule-owned effect system only. */
@@ -205,6 +217,14 @@ public final class PresentationSchedule {
             skeleton = new SkeletonHostTickSystem(Sts1SkeletonBridge.presentationSystem());
         }
         return skeleton;
+    }
+
+    private TransientEffectProjectionSystem transientEffectProjectionSystem() {
+        if (transientEffectProjection == null) {
+            transientEffectProjection =
+                    new TransientEffectProjectionSystem(NativeRenderBridge.effectRegistry());
+        }
+        return transientEffectProjection;
     }
 
     private static EntityId queueAuthorityFrame(ContextFrame frame) {

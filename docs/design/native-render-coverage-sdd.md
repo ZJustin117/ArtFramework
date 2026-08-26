@@ -106,7 +106,7 @@ Per-instance claims stay granular:
 | Surface / effect | Native invocation | Ownership justification |
 |---|---|---|
 | Per-instance skeleton | `SkeletonMeshRenderer.draw` | Only individual skeleton instances claimed by ART through `Sts1SkeletonBridge` are suppressed; unclaimed skeletons continue through the native renderer. |
-| Per-instance transient effect | `AbstractGameEffect.render` | Only individual effect instances claimed by ART through `NativeRenderBridge.beginEffectRender` are suppressed; the native effect queue remains authoritative. |
+| Per-instance transient effect | `AbstractGameEffect.render` (observed at the `AbstractDungeon.render` container call sites and at direct three-arg host draws) | Effect observation is capture-and-pass only: the native effect queue stays authoritative, every observed call still executes the original `render`, and no effect instance is ever suppressed. |
 
 ### AbstractCard.render boundary
 

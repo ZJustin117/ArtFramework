@@ -413,6 +413,11 @@ public final class ArtFramework {
         SCHEDULE_BRIDGE.processNativeIntentLifecycle();
     }
 
+    /** Internal compatibility bridge draining pending transient-effect projections. */
+    public static void executeTransientEffectProjections() {
+        SCHEDULE_BRIDGE.executeTransientEffectProjections();
+    }
+
     /** Internal compatibility bridge for pulse-only helpers. */
     public static void executeEffectPulses(float deltaSeconds) {
         SCHEDULE_BRIDGE.executeEffectPulses(deltaSeconds);

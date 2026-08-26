@@ -173,6 +173,9 @@ public final class Sts1SurfaceRenderer {
         prepareEventVisuals(plan);
         prepareSelectVisuals(plan);
         prepareRewardVisuals(plan);
+        prepareRestVisuals(plan);
+        prepareShopVisuals(plan);
+        prepareTreasureVisuals(plan);
         prepareProceedVisuals(plan);
         prepareIntentVisuals(plan);
         prepareEnergyVisuals(plan);
@@ -337,6 +340,72 @@ public final class Sts1SurfaceRenderer {
         }
         artframework.presentation.PresentationVisuals.retainC2Items(
                 SurfaceIds.COMBAT_PROCEED, visibleItems);
+    }
+
+    /**
+     * Slice C phase 2: materializes the rest chrome rows (title + live campfire options) as C2
+     * items while ART owns rest pixels; clears them when native keeps the surface.
+     */
+    static void prepareRestVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.REST)) return;
+        if (!RestDrawPath.shouldSuppressNativeRest()) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.REST);
+            return;
+        }
+        syncRoomChromeItems(
+                SurfaceIds.REST, RestDrawPath.chromeLines(), "rest-title", "rest-option");
+    }
+
+    /** Slice C phase 2: shop chrome rows (title/gold/entries/purge) from the live ShopView. */
+    static void prepareShopVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.SHOP)) return;
+        if (!ShopDrawPath.shouldSuppressNativeShop()) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.SHOP);
+            return;
+        }
+        syncRoomChromeItems(
+                SurfaceIds.SHOP, ShopDrawPath.chromeLines(), "shop-title", "shop-entry");
+    }
+
+    /** Slice C phase 2: treasure chrome rows (title + chest/relic state) from TreasureView. */
+    static void prepareTreasureVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.TREASURE)) return;
+        if (!TreasureDrawPath.shouldSuppressNativeTreasure()) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TREASURE);
+            return;
+        }
+        syncRoomChromeItems(
+                SurfaceIds.TREASURE, TreasureDrawPath.chromeLines(),
+                "treasure-title", "treasure-item");
+    }
+
+    /** Shared single-column layout for room text chrome rows. */
+    private static void syncRoomChromeItems(
+            String surfaceId,
+            java.util.List<RoomChromeLine> lines,
+            String titleRole,
+            String rowRole) {
+        float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+        float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        int i = 0;
+        for (RoomChromeLine line : lines) {
+            boolean title = "title".equals(line.id);
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    surfaceId,
+                    line.id,
+                    new artframework.component.Rect(x - 180f, y - i * 40f - 20f, 360f, 40f),
+                    1f,
+                    title ? titleRole : rowRole,
+                    title || line.enabled
+                            ? ""
+                            : artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED,
+                    line.text,
+                    true);
+            visibleItems.add(line.id);
+            i++;
+        }
+        artframework.presentation.PresentationVisuals.retainC2Items(surfaceId, visibleItems);
     }
 
     private static void prepareIntentVisuals(SurfaceDrawPlan plan) {
@@ -520,12 +589,35 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Rest surface: ART owns the campfire option pixels when FULL + mounted + rest scene. The
-     * surface is drawn by the global RenderHosts.drawFrame pass, so no extra native rendering is
-     * needed here. Record ART output to close the native delegation ledger.
+     * Rest surface: ART owns the campfire pixels when FULL + mounted + rest scene (Slice C
+     * phase 2). Paints the minimal text chrome projected from RestView and records the real
+     * drawn-row count to close the native delegation ledger.
      */
     private static void renderRest(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.REST, 1);
+        if (!RestDrawPath.shouldSuppressNativeRest()) {
+            return;
+        }
+        int drawn = 0;
+        try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.REST);
+            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
+            int i = 0;
+            for (RoomChromeLine line : RestDrawPath.chromeLines()) {
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        line.text,
+                        x,
+                        y - i * 40f,
+                        line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                i++;
+                drawn++;
+            }
+        } catch (Throwable ignored) {
+        }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.REST, drawn);
     }
 
     private static void renderSkeleton(SpriteBatch sb) {
@@ -554,21 +646,67 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Shop surface: ART owns the shop entry pixels when FULL + mounted + shop scene. The surface is
-     * drawn by the global RenderHosts.drawFrame pass, so no extra native rendering is needed here.
-     * Record ART output to close the native delegation ledger.
+     * Shop surface: ART owns the shop pixels when FULL + mounted + shop scene (Slice C phase 2).
+     * Paints the minimal text chrome projected from ShopView (entry prices stay whatever the
+     * view carries; G4 full projection is a later slice) and records the real drawn-row count.
      */
     private static void renderShop(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.SHOP, 1);
+        if (!ShopDrawPath.shouldSuppressNativeShop()) {
+            return;
+        }
+        int drawn = 0;
+        try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.SHOP);
+            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
+            int i = 0;
+            for (RoomChromeLine line : ShopDrawPath.chromeLines()) {
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        line.text,
+                        x,
+                        y - i * 40f,
+                        line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                i++;
+                drawn++;
+            }
+        } catch (Throwable ignored) {
+        }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.SHOP, drawn);
     }
 
     /**
-     * Treasure surface: ART owns the chest/relic pixels when FULL + mounted + treasure scene. The
-     * surface is drawn by the global RenderHosts.drawFrame pass, so no extra native rendering is
-     * needed here. Record ART output to close the native delegation ledger.
+     * Treasure surface: ART owns the chest pixels when FULL + mounted + treasure scene (Slice C
+     * phase 2). Paints the minimal text chrome projected from TreasureView and records the real
+     * drawn-row count to close the native delegation ledger.
      */
     private static void renderTreasure(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TREASURE, 1);
+        if (!TreasureDrawPath.shouldSuppressNativeTreasure()) {
+            return;
+        }
+        int drawn = 0;
+        try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TREASURE);
+            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
+            int i = 0;
+            for (RoomChromeLine line : TreasureDrawPath.chromeLines()) {
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb,
+                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        line.text,
+                        x,
+                        y - i * 40f,
+                        line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                i++;
+                drawn++;
+            }
+        } catch (Throwable ignored) {
+        }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TREASURE, drawn);
     }
 
     private static void renderProceed(SpriteBatch sb) {

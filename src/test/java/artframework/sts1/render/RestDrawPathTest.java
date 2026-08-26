@@ -71,6 +71,7 @@ public class RestDrawPathTest {
         ArtFramework.component(SurfaceIds.REST).mount();
         SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
         assertTrue(plan.shouldDraw(SurfaceIds.REST));
+        // Slice C phase 2: minimal campfire chrome supplies real pixels, so suppression is safe.
         assertTrue(plan.shouldSuppressNative(SurfaceIds.REST));
         assertTrue(RestDrawPath.shouldSuppressNativeRest());
         assertEquals(Boolean.TRUE, RestDrawPath.probeSlice().get("suppressNativeRest"));

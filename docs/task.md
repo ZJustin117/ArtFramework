@@ -662,3 +662,18 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       `sts1-native-coverage.yaml` (488 paths: 16 `ART_DELEGATED`, 63 `OUT_OF_SCOPE`,
       1 `OBSERVED`, 408 inherited; unknown=0) so
       `--check-manifest --strict-manifest` passes with zero ownership errors
+- [x] 47.14 Slice C: eliminate the rest/shop/treasure "suppress-native but zero-pixel"
+      black-screen risk in two phases. Phase 1 capped `SurfaceDrawPlan` so the three room
+      surfaces kept native pixels (`suppressNative=false`, mode stayed DRAW) while they closed
+      their evidence ledger with a constant count. Phase 2 restored suppression after supplying
+      real pixels: G5 — `readRestView` soft-reads live `CampfireUI` buttons (class-name option
+      ids, `label`, `usable`; static triple fallback); G6 — `readTreasureView` soft-reads the
+      live `TreasureRoom` chest (`isOpen`) plus the granted relic reward label/resourceId
+      (`closed()` fallback); `prepare{Rest,Shop,Treasure}Visuals` materialize title/row C2 items
+      from new pure `chromeLines()` projections (already inside
+      `disableInactiveSurfaceEffects`); `render{Rest,Shop,Treasure}` paint proceed-style text
+      chrome and record the real drawn-row count instead of the constant 1. Shop entry prices
+      stay whatever `ShopView` carries (G4 full projection deferred to Slice E). Probe additions
+      are host-only additive fields (`chromeLineCount` per DrawPath slice) per api-stability.
+      Final state: FULL suppresses native for all three rooms, ART shows minimal chrome, evidence
+      counts are real; no new `@SpirePatch`.

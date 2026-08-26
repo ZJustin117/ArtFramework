@@ -555,6 +555,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
             if (room == null || !(room instanceof com.megacrit.cardcrawl.rooms.RestRoom)) {
                 return RestView.empty();
             }
+            // G5: prefer the live CampfireUI button set; fall back to the static option triple
+            // only while the native UI has not instantiated its buttons yet.
+            RestView live = liveRestView(room);
+            if (live != null) {
+                return live;
+            }
             List<RestView.RestOptionView> options = new ArrayList<RestView.RestOptionView>();
             options.add(RestView.RestOptionView.of("rest", "Rest"));
             options.add(RestView.RestOptionView.of("smith", "Smith"));
@@ -565,16 +571,120 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
     }
 
+    /**
+     * G5 soft-read of the live {@code CampfireUI} buttons. Returns {@code null} (caller falls
+     * back) when the room/UI/buttons are unreadable; never throws. Option identity comes from
+     * the button class simple name ({@code RestOption} -> {@code rest}); {@code usable} carries
+     * real availability. Read-only reflection, no host mutation.
+     */
+    static RestView liveRestView(Object room) {
+        try {
+            if (room == null) {
+                return null;
+            }
+            Object ui = softField(room.getClass(), room, "campfireUI");
+            if (ui == null) {
+                return null;
+            }
+            Object buttonsObj = softField(ui.getClass(), ui, "buttons");
+            if (!(buttonsObj instanceof java.util.List)) {
+                return null;
+            }
+            List<RestView.RestOptionView> options = new ArrayList<RestView.RestOptionView>();
+            for (Object raw : (java.util.List<?>) buttonsObj) {
+                if (raw == null) {
+                    continue;
+                }
+                String label = stringValue(raw, "label");
+                options.add(new RestView.RestOptionView(
+                        campfireOptionId(raw, label),
+                        label,
+                        booleanValue(raw, "usable", true),
+                        true));
+            }
+            return options.isEmpty() ? null : RestView.of(options);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static String campfireOptionId(Object option, String label) {
+        String simple = option.getClass().getSimpleName();
+        if (simple.endsWith("Option") && simple.length() > "Option".length()) {
+            return simple.substring(0, simple.length() - "Option".length()).toLowerCase();
+        }
+        return label != null && !label.isEmpty() ? label.toLowerCase() : simple.toLowerCase();
+    }
+
     private static TreasureView readTreasureView() {
         try {
             AbstractRoom room = safeCurrRoom();
             if (room == null || !(room instanceof com.megacrit.cardcrawl.rooms.TreasureRoom)) {
                 return TreasureView.empty();
             }
-            return TreasureView.closed();
+            // G6: prefer the live chest state; fall back to a closed chest while unreadable.
+            TreasureView live = liveTreasureView(room);
+            return live != null ? live : TreasureView.closed();
         } catch (Throwable t) {
             return TreasureView.empty();
         }
+    }
+
+    /**
+     * G6 soft-read of the live {@code TreasureRoom} chest. Returns {@code null} (caller falls
+     * back to a closed chest) when the chest is unreadable; never throws. After the chest opens,
+     * STS grants the relic to the room rewards, so the first relic reward supplies the projected
+     * label/resourceId. Read-only reflection, no host mutation.
+     */
+    static TreasureView liveTreasureView(Object room) {
+        try {
+            if (room == null) {
+                return null;
+            }
+            Object chest = softField(room.getClass(), room, "chest");
+            if (chest == null) {
+                return null;
+            }
+            if (!booleanValue(chest, "isOpen", false)) {
+                return TreasureView.closed();
+            }
+            String[] relic = openRelicProjection(room);
+            return TreasureView.opened(relic[0], relic[1]);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** First relic reward granted to the room after the chest opened, as {label, resourceId}. */
+    private static String[] openRelicProjection(Object room) {
+        Object rewardsObj = softField(room.getClass(), room, "rewards");
+        if (rewardsObj instanceof java.util.List) {
+            for (Object raw : (java.util.List<?>) rewardsObj) {
+                if (raw == null || !isRelicRewardType(raw)) {
+                    continue;
+                }
+                Object relic = softField(raw.getClass(), raw, "relic");
+                if (relic == null) {
+                    continue;
+                }
+                String name = stringValue(relic, "name");
+                String relicId = stringValue(relic, "relicId");
+                if (!name.isEmpty() || !relicId.isEmpty()) {
+                    return new String[] {name, relicResource(relicId)};
+                }
+            }
+        }
+        return new String[] {"", ""};
+    }
+
+    private static boolean isRelicRewardType(Object rewardItem) {
+        Object type = softField(rewardItem.getClass(), rewardItem, "type");
+        return type instanceof Enum && "RELIC".equals(((Enum) type).name());
+    }
+
+    /** Local resource convention for relic projections; HostAssets resolves or falls back. */
+    private static String relicResource(String relicId) {
+        return relicId == null || relicId.isEmpty() ? "" : "relic." + relicId;
     }
 
     private static ShopView readShopView() {
@@ -864,6 +974,18 @@ public final class Sts1PresentationBackend implements SignalBackend {
             }
             return null;
         }
+    }
+
+    /** Soft-read a reflective field as a non-null string; empty when absent. */
+    private static String stringValue(Object owner, String field) {
+        Object value = softField(owner.getClass(), owner, field);
+        return value != null ? String.valueOf(value) : "";
+    }
+
+    /** Soft-read a reflective boolean field; fallback when absent or of another type. */
+    private static boolean booleanValue(Object owner, String field, boolean fallback) {
+        Object value = softField(owner.getClass(), owner, field);
+        return value instanceof Boolean ? ((Boolean) value).booleanValue() : fallback;
     }
 
     private void append(

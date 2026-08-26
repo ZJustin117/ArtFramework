@@ -193,6 +193,7 @@ public class NativeRenderBridgeTest {
         assertFullSurfaceDelegates(SurfaceIds.REWARD_COMBAT, "reward");
         assertFullSurfaceDelegates(SurfaceIds.REWARD_CARD, "reward");
         assertFullSurfaceDelegates(SurfaceIds.REWARD_BOSS_RELIC, "reward");
+        // Slice C phase 2: rest/shop/treasure now paint minimal chrome, so delegation is safe.
         assertFullSurfaceDelegates(SurfaceIds.REST, "rest");
         assertFullSurfaceDelegates(SurfaceIds.SHOP, "shop");
         assertFullSurfaceDelegates(SurfaceIds.TREASURE, "treasure");

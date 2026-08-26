@@ -71,6 +71,7 @@ public class ShopDrawPathTest {
         ArtFramework.component(SurfaceIds.SHOP).mount();
         SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
         assertTrue(plan.shouldDraw(SurfaceIds.SHOP));
+        // Slice C phase 2: minimal merchant chrome supplies real pixels, so suppression is safe.
         assertTrue(plan.shouldSuppressNative(SurfaceIds.SHOP));
         assertTrue(ShopDrawPath.shouldSuppressNativeShop());
         assertEquals(Boolean.TRUE, ShopDrawPath.probeSlice().get("suppressNativeShop"));

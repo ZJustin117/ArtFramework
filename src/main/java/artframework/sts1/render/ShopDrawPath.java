@@ -53,6 +53,32 @@ public final class ShopDrawPath {
         return out;
     }
 
+    /**
+     * Pure projection of the current ShopView into paintable rows: title, gold, one row per
+     * entry and the purge service when available. Empty while the view is unavailable so the
+     * renderer never invents pixels. Entry prices stay whatever ShopView carries (G4 full
+     * projection is a later slice); no placeholder data is added here.
+     */
+    public static List<RoomChromeLine> chromeLines() {
+        List<RoomChromeLine> out = new ArrayList<RoomChromeLine>();
+        ShopView shop = ArtFramework.projection().shop();
+        if (!shop.available) {
+            return out;
+        }
+        out.add(new RoomChromeLine("title", "Merchant", true));
+        out.add(new RoomChromeLine("gold", "Gold " + shop.gold, true));
+        for (DrawItem item : buildFromProjection()) {
+            out.add(new RoomChromeLine(
+                    "entry:" + item.index,
+                    item.label + "  " + item.cost + "G",
+                    !item.soldOut));
+        }
+        if (shop.purgeAvailable) {
+            out.add(new RoomChromeLine("purge", "Card Removal  " + shop.purgeCost + "G", true));
+        }
+        return out;
+    }
+
     public static Map<String, Object> probeSlice() {
         List<DrawItem> items = buildFromProjection();
         ShopView sv = ArtFramework.projection().shop();
@@ -69,6 +95,8 @@ public final class ShopDrawPath {
         m.put("capability", cap.state.name());
         m.put("capabilityReason", cap.reason);
         m.put("drawCount", Integer.valueOf(items.size()));
+        // Slice C phase 2: real ART-painted chrome rows (additive probe field).
+        m.put("chromeLineCount", Integer.valueOf(chromeLines().size()));
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (DrawItem d : items) {
             list.add(d.toMap());

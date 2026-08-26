@@ -93,9 +93,9 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Event dialog | `GenericEventDialog.render` | yes | none yet: base pixels not reproduced |
 | Select screens | `GridCardSelectScreen.render`, `HandCardSelectScreen.render` | yes | none yet: base pixels not reproduced |
 | Reward screen | `CombatRewardScreen.render` | yes | incomplete: reward item sync missing |
-| Rest room | `CampfireUI.render` | yes | none yet: campfire options not synced |
-| Shop screen | `ShopScreen.render` | yes | incomplete: item sync missing |
-| Treasure room | `TreasureRoom.render` | yes | none yet: chest/item sync absent |
+| Rest room | `CampfireUI.render` | yes | minimal text chrome: campfire title + live option rows projected from `CampfireUI` buttons (G5 soft read); campfire art not reproduced |
+| Shop screen | `ShopScreen.render` | yes | incomplete: minimal text chrome (merchant/gold/entries/purge from `ShopView`); entry prices still placeholder until G4 full projection |
+| Treasure room | `TreasureRoom.render` | yes | minimal text chrome: chest state + relic label projected from the live `TreasureRoom` chest (G6 soft read); chest art not reproduced |
 
 These gaps are deliberate inventory, not silent acceptance. Until a surface
 reproduces its base pixels, its delegations keep surfacing as strict-report

@@ -17,6 +17,29 @@ public final class TreasureDrawPath {
         return Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.TREASURE);
     }
 
+    /**
+     * Pure projection of the current TreasureView into paintable rows: a title row plus the live
+     * chest state (closed / opened with relic label when projected). Empty while the view is
+     * unavailable so the renderer never invents pixels.
+     */
+    public static java.util.List<RoomChromeLine> chromeLines() {
+        java.util.List<RoomChromeLine> out = new java.util.ArrayList<RoomChromeLine>();
+        TreasureView tv = ArtFramework.projection().treasure();
+        if (!tv.available) {
+            return out;
+        }
+        out.add(new RoomChromeLine("title", "Treasure", true));
+        if (tv.chestOpen) {
+            out.add(new RoomChromeLine(
+                    "relic",
+                    tv.relicLabel.isEmpty() ? "Chest opened" : tv.relicLabel,
+                    true));
+        } else {
+            out.add(new RoomChromeLine("chest", "Chest closed", tv.canOpen));
+        }
+        return out;
+    }
+
     public static Map<String, Object> probeSlice() {
         TreasureView tv = ArtFramework.projection().treasure();
         Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -31,6 +54,8 @@ public final class TreasureDrawPath {
                 artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.TREASURE);
         m.put("capability", cap.state.name());
         m.put("capabilityReason", cap.reason);
+        // Slice C phase 2: real ART-painted chrome rows (additive probe field).
+        m.put("chromeLineCount", Integer.valueOf(chromeLines().size()));
         return m;
     }
 }

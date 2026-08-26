@@ -67,6 +67,7 @@ public class TreasureDrawPathTest {
         ArtFramework.component(SurfaceIds.TREASURE).mount();
         SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
         assertTrue(plan.shouldDraw(SurfaceIds.TREASURE));
+        // Slice C phase 2: minimal chest chrome supplies real pixels, so suppression is safe.
         assertTrue(plan.shouldSuppressNative(SurfaceIds.TREASURE));
         assertTrue(TreasureDrawPath.shouldSuppressNativeTreasure());
         assertEquals(Boolean.TRUE, TreasureDrawPath.probeSlice().get("suppressNativeTreasure"));

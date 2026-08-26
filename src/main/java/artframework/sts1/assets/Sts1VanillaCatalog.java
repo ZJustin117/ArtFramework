@@ -67,6 +67,22 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_CAMPFIRE_SMITH, "images/ui/campfire/smith.png");
         put(m, ResourceIds.UI_COMBAT_BLOCK, "images/ui/combat/block.png");
         put(m, ResourceIds.UI_COMBAT_INTENT_UNKNOWN, "images/ui/combat/reticleBlock.png");
+        putIntent(m, "attackBuff", "images/ui/intent/attackBuff.png");
+        putIntent(m, "attackDebuff", "images/ui/intent/attackDebuff.png");
+        putIntent(m, "attackDefend", "images/ui/intent/attackDefend.png");
+        putIntent(m, "defend", "images/ui/intent/defend.png");
+        putIntent(m, "defendBuff", "images/ui/intent/defendBuff.png");
+        putIntent(m, "buff1", "images/ui/intent/buff1.png");
+        putIntent(m, "debuff1", "images/ui/intent/debuff1.png");
+        putIntent(m, "magic", "images/ui/intent/magic.png");
+        putIntent(m, "sleep", "images/ui/intent/sleep.png");
+        putIntent(m, "stun", "images/ui/intent/stun.png");
+        putIntent(m, "escape", "images/ui/intent/escape.png");
+        putIntent(m, "special", "images/ui/intent/special.png");
+        for (int i = 1; i <= 7; i++) {
+            putIntent(m, "attack/attack_intent_" + i,
+                    "images/ui/intent/attack/attack_intent_" + i + ".png");
+        }
         put(m, ResourceIds.UI_REWARD_TAKE_ALL, "images/ui/reward/takeAll.png");
         put(m, ResourceIds.UI_REWARD_ITEM_PANEL, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_MAP_SELECT, "images/ui/map/selectBox.png");
@@ -83,6 +99,10 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.CARD_FRAME_COLORLESS, "cardui/frame");
         put(m, ResourceIds.CARD_FRAME_PREFIX + "skill_red", "cardui/frame");
         put(m, ResourceIds.CARD_FRAME_PREFIX + "power_red", "cardui/frame");
+    }
+
+    private static void putIntent(Map<String, String> m, String id, String source) {
+        put(m, ResourceIds.intent(id), source);
     }
 
     private static void putMapNodes(Map<String, String> m) {

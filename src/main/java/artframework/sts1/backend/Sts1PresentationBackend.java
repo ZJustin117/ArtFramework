@@ -592,21 +592,55 @@ public final class Sts1PresentationBackend implements SignalBackend {
                     continue;
                 }
                 String intent = m.intent != null ? m.intent.name() : "";
+                int amount = intentAmount(m);
                 float x = m.hb != null ? m.hb.cX : m.drawX;
                 float y = m.hb != null ? m.hb.cY + 80f : m.drawY + 80f;
                 entries.add(
                         new MonsterIntentView.IntentEntry(
-                                m.id != null ? m.id : m.name,
-                                m.name != null ? m.name : "",
-                                intent,
-                                "",
-                                0,
-                                x,
-                                y));
+                                 m.id != null ? m.id : m.name,
+                                 m.name != null ? m.name : "",
+                                 intent,
+                                 intentResource(intent, amount),
+                                 amount,
+                                 x,
+                                 y));
             }
             return MonsterIntentView.of(entries);
         } catch (Throwable t) {
             return MonsterIntentView.empty();
+        }
+    }
+
+    private static String intentResource(String intent, int amount) {
+        if (intent == null || intent.isEmpty()) {
+            return ResourceIds.UI_COMBAT_INTENT_UNKNOWN;
+        }
+        String normalized = intent.toLowerCase();
+        if ("attack_buff".equals(normalized)) return ResourceIds.intent("attackBuff");
+        if ("attack_debuff".equals(normalized)) return ResourceIds.intent("attackDebuff");
+        if ("attack_defend".equals(normalized)) return ResourceIds.intent("attackDefend");
+        if ("defend_buff".equals(normalized)) return ResourceIds.intent("defendBuff");
+        if ("defend".equals(normalized)) return ResourceIds.intent("defend");
+        if ("buff".equals(normalized)) return ResourceIds.intent("buff1");
+        if ("debuff".equals(normalized)) return ResourceIds.intent("debuff1");
+        if ("magic".equals(normalized)) return ResourceIds.intent("magic");
+        if ("sleep".equals(normalized)) return ResourceIds.intent("sleep");
+        if ("stun".equals(normalized)) return ResourceIds.intent("stun");
+        if ("escape".equals(normalized)) return ResourceIds.intent("escape");
+        if ("special".equals(normalized)) return ResourceIds.intent("special");
+        if ("attack".equals(normalized)) {
+            int icon = amount < 1 ? 1 : amount > 7 ? 7 : amount;
+            return ResourceIds.intent("attack/attack_intent_" + icon);
+        }
+        return ResourceIds.UI_COMBAT_INTENT_UNKNOWN;
+    }
+
+    private static int intentAmount(com.megacrit.cardcrawl.monsters.AbstractMonster monster) {
+        try {
+            int amount = monster != null ? monster.getIntentDmg() : 0;
+            return amount > 0 ? amount : 0;
+        } catch (Throwable ignored) {
+            return 0;
         }
     }
 
@@ -732,9 +766,13 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                 .zone(CardZone.SELECT)
                                 .slot(i)
                                 .pose(pose)
-                                .selected(isSel)
-                                .art(ResourceIds.cardArt(card.cardID))
-                                .build());
+                        .selected(isSel)
+                        .art(ResourceIds.cardArt(card.cardID))
+                        .title(card.name)
+                        .cost(cardCost(card))
+                        .type(cardType(card))
+                        .description(card.rawDescription)
+                        .build());
             }
         }
         boolean confirmVisible = gcs.confirmButton != null;
@@ -766,6 +804,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     .slot(i)
                                     .selected(isSel)
                                     .art(ResourceIds.cardArt(card.cardID))
+                                    .title(card.name)
+                                    .cost(cardCost(card))
+                                    .type(cardType(card))
+                                    .description(card.rawDescription)
                                     .build());
                 }
             }
@@ -826,6 +868,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
                             && AbstractDungeon.player.hoveredCard == card)
                     .art(ResourceIds.cardArt(card.cardID))
                     .frame(ResourceIds.cardFrame(card.color != null ? card.color.name().toLowerCase() : "colorless"))
+                    .title(card.name)
+                    .cost(cardCost(card))
+                    .type(cardType(card))
+                    .description(card.rawDescription)
                     .build();
             CardView stable = cardViews.get(instance);
             if (stable == null || !sameCardView(stable, next)) {
@@ -848,7 +894,26 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 && a.hovered == b.hovered
                 && a.dragging == b.dragging
                 && a.artResourceId.equals(b.artResourceId)
-                && a.frameResourceId.equals(b.frameResourceId);
+                && a.frameResourceId.equals(b.frameResourceId)
+                && a.title.equals(b.title)
+                && a.cost.equals(b.cost)
+                && a.type.equals(b.type)
+                && a.description.equals(b.description);
+    }
+
+    private static String cardCost(AbstractCard card) {
+        if (card == null) {
+            return "";
+        }
+        int cost = card.costForTurn >= 0 ? card.costForTurn : card.cost;
+        if (cost < -1) {
+            return "";
+        }
+        return cost == -1 ? "X" : String.valueOf(cost);
+    }
+
+    private static String cardType(AbstractCard card) {
+        return card != null && card.type != null ? card.type.name() : "";
     }
 
     private boolean playable(AbstractCard card, CardZone zone, long revision) {

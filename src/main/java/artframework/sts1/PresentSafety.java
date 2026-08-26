@@ -39,6 +39,7 @@ public final class PresentSafety {
         panicReason = reason != null ? reason : "panic";
         CombatInputRouter.setSuppressNativeInput(false);
         Sts1RenderPipeline.setOverlayObserve(false);
+        artframework.sts1.render.NativeRenderBridge.clearTransientEffectsForRecovery();
         artframework.sts1.skeleton.Sts1SkeletonBridge.stopAll();
         unmountAllPresentSurfaces();
     }
@@ -54,6 +55,8 @@ public final class PresentSafety {
     public static void onHostRecreated() {
         recreationCount++;
         Sts1RenderPipeline.resetForTests();
+        artframework.sts1.render.NativeRenderBridge.clearTransientEffectsForRecovery();
+        artframework.sts1.render.NativeRenderBridge.resetForTests();
         artframework.sts1.render.MapDrawPath.resetForTests();
         artframework.sts1.audio.ArtAudioBridge.resetForTests();
         artframework.sts1.skeleton.Sts1SkeletonBridge.onHostRecreated();

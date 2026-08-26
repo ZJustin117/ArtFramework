@@ -191,7 +191,13 @@ class CoverageManifestTest(unittest.TestCase):
             }],
         )
         self.assertEqual("owner.known", entries[0]["ownerId"])
-        self.assertEqual("UNKNOWN", entries[1]["policy"])
+        # vfx-combat carries an OBSERVED family default, so the new entry
+        # inherits it instead of writing an explicit (stale-prone) annotation.
+        self.assertNotIn("policy", entries[1])
+        self.assertEqual(
+            "OBSERVED",
+            coverage_manifest.effective_policy(entries[1]),
+        )
         self.assertEqual(2, len(entries))
 
     def test_unpatched_native_card_render_is_explicitly_out_of_scope(self):
@@ -247,6 +253,7 @@ class CoverageManifestTest(unittest.TestCase):
             "    effectFamily: none\n"
             "    hook: Hook\n"
             "    policy: NATIVE_PASSTHROUGH\n"
+            "    justification: structural root never intercepted per pixel\n"
         )
         self.paths = [path]
         result = coverage_manifest.check_manifest(
@@ -375,9 +382,13 @@ class CoverageManifestTest(unittest.TestCase):
         menu = by_key[("com.megacrit.cardcrawl.screens.mainMenu.MainMenuScreen", "render")]
         strike = by_key[("com.megacrit.cardcrawl.vfx.combat.StrikeEffect", "render")]
         self.assertEqual("meta-outofrun-screens", menu["family"])
-        self.assertEqual("OUT_OF_SCOPE", menu["policy"])
+        # New paths inherit their family default instead of baking it in.
+        self.assertNotIn("policy", menu)
+        self.assertEqual("OUT_OF_SCOPE", coverage_manifest.effective_policy(menu))
         self.assertEqual("vfx-combat", strike["family"])
-        self.assertEqual("UNKNOWN", strike["policy"])
+        # Inherited family default: no explicit annotation is written.
+        self.assertNotIn("policy", strike)
+        self.assertEqual("OBSERVED", coverage_manifest.effective_policy(strike))
 
     def test_regeneration_keeps_existing_explicit_annotation(self):
         entries = coverage_manifest.inventory_entries(
@@ -396,6 +407,184 @@ class CoverageManifestTest(unittest.TestCase):
             }],
         )
         self.assertEqual("NATIVE_WITH_ART_OVERLAY", entries[0]["policy"])
+
+    def test_observed_is_valid_policy_with_patch_reference(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: native.Owner\n"
+            "    nativeMethod: render\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: OBSERVED\n"
+            "    justification: observed via artframework/sts1/patch/SamplePatch.java\n"
+        )
+        self.paths = [path]
+        result = coverage_manifest.check_manifest(
+            {"paths": [{"nativeClass": "native.Owner", "nativeMethod": "render"}]},
+            path,
+            strict_unknown=True,
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual([], result["errors"])
+
+    def test_observed_justification_must_cite_observation_entry(self):
+        path = self.write_manifest(
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: native.Owner\n"
+            "    nativeMethod: render\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: OBSERVED\n"
+            "    justification: we just watch it, trust us\n"
+        )
+        self.paths = [path]
+        result = coverage_manifest.check_manifest({"paths": []}, path)
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any("observation patch file" in e for e in result["errors"])
+        )
+
+    def test_authority_retaining_policies_require_justification(self):
+        self.paths = []
+        for policy in ("OBSERVED", "NATIVE_PASSTHROUGH"):
+            path = self.write_manifest(
+                "entries:\n"
+                "  - ownerId: owner\n"
+                "    nativeClass: native.Owner\n"
+                "    nativeMethod: render\n"
+                "    pathKind: native_surface\n"
+                "    surfaceId: surface\n"
+                "    effectFamily: none\n"
+                "    hook: Hook\n"
+                "    policy: {}\n".format(policy)
+            )
+            self.paths.append(path)
+            result = coverage_manifest.check_manifest({"paths": []}, path)
+            self.assertFalse(result["ok"], policy)
+            self.assertTrue(
+                any("requires a justification" in e for e in result["errors"]),
+                policy,
+            )
+
+    def test_family_default_justification_satisfies_validation(self):
+        # An entry inheriting an OBSERVED family default needs no per-entry
+        # justification: the families.py rationale covers it (and cites the
+        # observation patch files).
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: com.megacrit.cardcrawl.vfx.combat.StrikeEffect\n"
+            "    nativeMethod: render\n"
+            "    family: vfx-combat\n"
+            "    pathKind: transient_effect\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: abstract_game_effect\n"
+            "    hook: Hook\n"
+        )
+        self.paths = [path]
+        report = {"paths": [{
+            "nativeClass": "com.megacrit.cardcrawl.vfx.combat.StrikeEffect",
+            "nativeMethod": "render",
+        }]}
+        result = coverage_manifest.check_manifest(report, path, strict_unknown=True)
+        self.assertTrue(result["ok"])
+        self.assertEqual([], result["unknown"])
+
+    def test_strict_gate_passes_when_every_path_resolves_without_unknown(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: delegated\n"
+            "    nativeClass: native.Delegated\n"
+            "    nativeMethod: render\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: ART_DELEGATED\n"
+            "    justification: full-present surface\n"
+            "    test: test.Class#method\n"
+            "  - ownerId: observed\n"
+            "    nativeClass: com.megacrit.cardcrawl.vfx.combat.StrikeEffect\n"
+            "    nativeMethod: draw\n"
+            "    family: vfx-combat\n"
+            "    pathKind: transient_effect\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: abstract_game_effect\n"
+            "    hook: Hook\n"
+            "  - ownerId: passthrough\n"
+            "    nativeClass: com.megacrit.cardcrawl.helpers.Hitbox\n"
+            "    nativeMethod: render\n"
+            "    family: draw-primitives-tips\n"
+            "    pathKind: render-owner\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "  - ownerId: overlay\n"
+            "    nativeClass: com.megacrit.cardcrawl.orbs.Frost\n"
+            "    nativeMethod: render\n"
+            "    family: orbs\n"
+            "    pathKind: render-owner\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+        )
+        self.paths = [path]
+        report = {"paths": [
+            {"nativeClass": "native.Delegated", "nativeMethod": "render"},
+            {"nativeClass": "com.megacrit.cardcrawl.vfx.combat.StrikeEffect", "nativeMethod": "draw"},
+            {"nativeClass": "com.megacrit.cardcrawl.helpers.Hitbox", "nativeMethod": "render"},
+            {"nativeClass": "com.megacrit.cardcrawl.orbs.Frost", "nativeMethod": "render"},
+        ]}
+        result = coverage_manifest.check_manifest(report, path, strict_unknown=True)
+        self.assertTrue(result["ok"])
+        self.assertEqual([], result["errors"])
+        self.assertEqual([], result["unknown"])
+
+    def test_inventory_core_game_root_member_exceptions(self):
+        entries = coverage_manifest.inventory_entries({
+            "paths": [
+                {
+                    "nativeClass": "com.megacrit.cardcrawl.dungeons.AbstractDungeon",
+                    "nativeMethod": "render",
+                    "kind": "render-owner",
+                    "artPatches": [{"source": "artframework/sts1/patch/TransientEffectContainerPatches.java"}],
+                },
+                {
+                    "nativeClass": "com.megacrit.cardcrawl.core.TestGame",
+                    "nativeMethod": "render",
+                    "kind": "render-owner",
+                },
+                {
+                    "nativeClass": "com.megacrit.cardcrawl.core.CardCrawlGame",
+                    "nativeMethod": "render",
+                    "kind": "render-owner",
+                },
+            ]
+        })
+        by_key = dict(
+            ((entry["nativeClass"], entry["nativeMethod"]), entry)
+            for entry in entries
+        )
+        dungeon = by_key[("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render")]
+        self.assertEqual("OBSERVED", dungeon["policy"])
+        self.assertIn("TransientEffectContainerPatches.java", dungeon["justification"])
+        test_game = by_key[("com.megacrit.cardcrawl.core.TestGame", "render")]
+        self.assertEqual("OUT_OF_SCOPE", test_game["policy"])
+        crawl = by_key[("com.megacrit.cardcrawl.core.CardCrawlGame", "render")]
+        # Structural root: inherits the NATIVE_PASSTHROUGH family default.
+        self.assertNotIn("policy", crawl)
+        self.assertEqual(
+            "NATIVE_PASSTHROUGH", coverage_manifest.effective_policy(crawl)
+        )
 
     def test_write_inventory_manifest_round_trip_carries_family(self):
         handle = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)

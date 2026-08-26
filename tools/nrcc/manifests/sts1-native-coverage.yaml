@@ -1,8 +1,8 @@
 schema: nrcc.coverage-manifest.v1
 status: inventory
 notes:
-- Generated from the current static scan; UNKNOWN entries require explicit policy
-  review.
+- Generated from the current static scan; entries without an explicit policy inherit
+  their family default.
 - Generation does not prove patch loading or runtime delegation.
 - Entries may omit policy to inherit their family default; see tools/nrcc/families.py.
 entries:
@@ -26,7 +26,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.blights.abstractblight.rendertip
   nativeClass: com.megacrit.cardcrawl.blights.AbstractBlight
   nativeMethod: renderTip
@@ -35,7 +34,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cards.abstractcard.render
   nativeClass: com.megacrit.cardcrawl.cards.AbstractCard
   nativeMethod: render
@@ -53,7 +51,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cards.cardgroup.renderhand
   nativeClass: com.megacrit.cardcrawl.cards.CardGroup
   nativeMethod: renderHand
@@ -62,7 +59,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cards.cardgroup.rendertip
   nativeClass: com.megacrit.cardcrawl.cards.CardGroup
   nativeMethod: renderTip
@@ -71,7 +67,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cards.soul.render
   nativeClass: com.megacrit.cardcrawl.cards.Soul
   nativeMethod: render
@@ -80,7 +75,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cards.soulgroup.render
   nativeClass: com.megacrit.cardcrawl.cards.SoulGroup
   nativeMethod: render
@@ -89,7 +83,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.characters.abstractplayer.draw
   nativeClass: com.megacrit.cardcrawl.characters.AbstractPlayer
   nativeMethod: draw
@@ -98,7 +91,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.characters.abstractplayer.render
   nativeClass: com.megacrit.cardcrawl.characters.AbstractPlayer
   nativeMethod: render
@@ -107,7 +99,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.characters.abstractplayer.renderhand
   nativeClass: com.megacrit.cardcrawl.characters.AbstractPlayer
   nativeMethod: renderHand
@@ -128,7 +119,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.characters.animatednpc.render
   nativeClass: com.megacrit.cardcrawl.characters.AnimatedNpc
   nativeMethod: render
@@ -137,7 +127,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.core.abstractcreature.render
   nativeClass: com.megacrit.cardcrawl.core.AbstractCreature
   nativeMethod: render
@@ -146,7 +135,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.core.cardcrawlgame.render
   nativeClass: com.megacrit.cardcrawl.core.CardCrawlGame
   nativeMethod: render
@@ -155,7 +143,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.core.gamecursor.render
   nativeClass: com.megacrit.cardcrawl.core.GameCursor
   nativeMethod: render
@@ -164,7 +151,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.core.overlaymenu.render
   nativeClass: com.megacrit.cardcrawl.core.OverlayMenu
   nativeMethod: render
@@ -173,7 +159,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.core.testgame.render
   nativeClass: com.megacrit.cardcrawl.core.TestGame
   nativeMethod: render
@@ -182,7 +167,8 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
+  policy: OUT_OF_SCOPE
+  justification: Test harness bootstrap screen outside ART scope; never intercepted.
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.credits.creditline.render
   nativeClass: com.megacrit.cardcrawl.credits.CreditLine
   nativeMethod: render
@@ -245,7 +231,11 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: artframework/sts1/patch/TransientEffectContainerPatches.java
-  policy: UNKNOWN
+  policy: OBSERVED
+  justification: 'Observation-only instrument: artframework/sts1/patch/TransientEffectContainerPatches.java
+    replaces the three AbstractGameEffect.render call sites with an observe-then-render
+    helper; the native dungeon frame and effect queue remain authoritative and nothing
+    is suppressed.'
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.abstractevent.render
   nativeClass: com.megacrit.cardcrawl.events.AbstractEvent
   nativeMethod: render
@@ -254,7 +244,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.abstractimageevent.render
   nativeClass: com.megacrit.cardcrawl.events.AbstractImageEvent
   nativeMethod: render
@@ -263,7 +252,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.genericeventdialog.render
   nativeClass: com.megacrit.cardcrawl.events.GenericEventDialog
   nativeMethod: render
@@ -286,7 +274,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.beyond.spireheart.render
   nativeClass: com.megacrit.cardcrawl.events.beyond.SpireHeart
   nativeMethod: render
@@ -295,7 +282,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.exordium.deadadventurer.render
   nativeClass: com.megacrit.cardcrawl.events.exordium.DeadAdventurer
   nativeMethod: render
@@ -304,7 +290,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.exordium.mushrooms.render
   nativeClass: com.megacrit.cardcrawl.events.exordium.Mushrooms
   nativeMethod: render
@@ -313,7 +298,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.shrines.gremlinmatchgame.render
   nativeClass: com.megacrit.cardcrawl.events.shrines.GremlinMatchGame
   nativeMethod: render
@@ -322,7 +306,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.shrines.gremlinwheelgame.render
   nativeClass: com.megacrit.cardcrawl.events.shrines.GremlinWheelGame
   nativeMethod: render
@@ -331,7 +314,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.helpers.abstractdrawable.render
   nativeClass: com.megacrit.cardcrawl.helpers.AbstractDrawable
   nativeMethod: render
@@ -340,7 +322,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.helpers.drawmaster.draw
   nativeClass: com.megacrit.cardcrawl.helpers.DrawMaster
   nativeMethod: draw
@@ -349,7 +330,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.helpers.hitbox.render
   nativeClass: com.megacrit.cardcrawl.helpers.Hitbox
   nativeMethod: render
@@ -358,7 +338,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.helpers.label.render
   nativeClass: com.megacrit.cardcrawl.helpers.Label
   nativeMethod: render
@@ -367,7 +346,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.helpers.sprite.render
   nativeClass: com.megacrit.cardcrawl.helpers.Sprite
   nativeMethod: render
@@ -376,7 +354,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.helpers.tiphelper.render
   nativeClass: com.megacrit.cardcrawl.helpers.TipHelper
   nativeMethod: render
@@ -385,7 +362,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.map.dungeonmap.render
   nativeClass: com.megacrit.cardcrawl.map.DungeonMap
   nativeMethod: render
@@ -394,7 +370,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.map.legend.render
   nativeClass: com.megacrit.cardcrawl.map.Legend
   nativeMethod: render
@@ -403,7 +378,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.map.legenditem.render
   nativeClass: com.megacrit.cardcrawl.map.LegendItem
   nativeMethod: render
@@ -412,7 +386,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.map.mapedge.render
   nativeClass: com.megacrit.cardcrawl.map.MapEdge
   nativeMethod: render
@@ -421,7 +394,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.map.maproomnode.render
   nativeClass: com.megacrit.cardcrawl.map.MapRoomNode
   nativeMethod: render
@@ -430,7 +402,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.abstractmonster.render
   nativeClass: com.megacrit.cardcrawl.monsters.AbstractMonster
   nativeMethod: render
@@ -439,7 +410,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.abstractmonster.renderintent
   nativeClass: com.megacrit.cardcrawl.monsters.AbstractMonster
   nativeMethod: renderIntent
@@ -462,7 +432,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.monstergroup.render
   nativeClass: com.megacrit.cardcrawl.monsters.MonsterGroup
   nativeMethod: render
@@ -471,7 +440,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.beyond.awakenedone.render
   nativeClass: com.megacrit.cardcrawl.monsters.beyond.AwakenedOne
   nativeMethod: render
@@ -480,7 +448,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.exordium.hexaghost.render
   nativeClass: com.megacrit.cardcrawl.monsters.exordium.Hexaghost
   nativeMethod: render
@@ -489,7 +456,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.exordium.hexaghostbody.render
   nativeClass: com.megacrit.cardcrawl.monsters.exordium.HexaghostBody
   nativeMethod: render
@@ -498,7 +464,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.exordium.theguardian.render
   nativeClass: com.megacrit.cardcrawl.monsters.exordium.TheGuardian
   nativeMethod: render
@@ -507,7 +472,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.neow.neowevent.render
   nativeClass: com.megacrit.cardcrawl.neow.NeowEvent
   nativeMethod: render
@@ -516,7 +480,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.neow.neowroom.render
   nativeClass: com.megacrit.cardcrawl.neow.NeowRoom
   nativeMethod: render
@@ -525,7 +488,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.neow.neowunlockscreen.render
   nativeClass: com.megacrit.cardcrawl.neow.NeowUnlockScreen
   nativeMethod: render
@@ -543,7 +505,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.orbs.dark.render
   nativeClass: com.megacrit.cardcrawl.orbs.Dark
   nativeMethod: render
@@ -552,7 +513,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.orbs.emptyorbslot.render
   nativeClass: com.megacrit.cardcrawl.orbs.EmptyOrbSlot
   nativeMethod: render
@@ -561,7 +521,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.orbs.frost.render
   nativeClass: com.megacrit.cardcrawl.orbs.Frost
   nativeMethod: render
@@ -570,7 +529,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.orbs.lightning.render
   nativeClass: com.megacrit.cardcrawl.orbs.Lightning
   nativeMethod: render
@@ -579,7 +537,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.orbs.plasma.render
   nativeClass: com.megacrit.cardcrawl.orbs.Plasma
   nativeMethod: render
@@ -588,7 +545,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.potions.abstractpotion.render
   nativeClass: com.megacrit.cardcrawl.potions.AbstractPotion
   nativeMethod: render
@@ -597,7 +553,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.relics.abstractrelic.render
   nativeClass: com.megacrit.cardcrawl.relics.AbstractRelic
   nativeMethod: render
@@ -606,7 +561,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.relics.abstractrelic.rendertip
   nativeClass: com.megacrit.cardcrawl.relics.AbstractRelic
   nativeMethod: renderTip
@@ -615,7 +569,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rewards.rewarditem.render
   nativeClass: com.megacrit.cardcrawl.rewards.RewardItem
   nativeMethod: render
@@ -624,7 +577,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rewards.chests.abstractchest.render
   nativeClass: com.megacrit.cardcrawl.rewards.chests.AbstractChest
   nativeMethod: render
@@ -633,7 +585,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.abstractroom.render
   nativeClass: com.megacrit.cardcrawl.rooms.AbstractRoom
   nativeMethod: render
@@ -642,7 +593,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.campfireui.render
   nativeClass: com.megacrit.cardcrawl.rooms.CampfireUI
   nativeMethod: render
@@ -665,7 +615,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.restroom.render
   nativeClass: com.megacrit.cardcrawl.rooms.RestRoom
   nativeMethod: render
@@ -674,7 +623,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.shoproom.render
   nativeClass: com.megacrit.cardcrawl.rooms.ShopRoom
   nativeMethod: render
@@ -683,7 +631,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.treasureroom.render
   nativeClass: com.megacrit.cardcrawl.rooms.TreasureRoom
   nativeMethod: render
@@ -706,7 +653,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.truevictoryroom.render
   nativeClass: com.megacrit.cardcrawl.rooms.TrueVictoryRoom
   nativeMethod: render
@@ -715,7 +661,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.victoryroom.render
   nativeClass: com.megacrit.cardcrawl.rooms.VictoryRoom
   nativeMethod: render
@@ -724,7 +669,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.scenes.titlebackground.render
   nativeClass: com.megacrit.cardcrawl.scenes.TitleBackground
   nativeMethod: render
@@ -751,7 +695,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.combatrewardscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.CombatRewardScreen
   nativeMethod: render
@@ -774,7 +717,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.discardpileviewscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DiscardPileViewScreen
   nativeMethod: render
@@ -783,7 +725,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.doorlock.render
   nativeClass: com.megacrit.cardcrawl.screens.DoorLock
   nativeMethod: render
@@ -792,7 +733,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.doorunlockscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DoorUnlockScreen
   nativeMethod: render
@@ -810,7 +750,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.dungeonmapscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DungeonMapScreen
   nativeMethod: render
@@ -833,7 +772,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.exhaustpileviewscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.ExhaustPileViewScreen
   nativeMethod: render
@@ -842,7 +780,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.gameoverstat.render
   nativeClass: com.megacrit.cardcrawl.screens.GameOverStat
   nativeMethod: render
@@ -851,7 +788,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.masterdecksortheader.render
   nativeClass: com.megacrit.cardcrawl.screens.MasterDeckSortHeader
   nativeMethod: render
@@ -860,7 +796,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.masterdeckviewscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.MasterDeckViewScreen
   nativeMethod: render
@@ -869,7 +804,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.singlecardviewpopup.render
   nativeClass: com.megacrit.cardcrawl.screens.SingleCardViewPopup
   nativeMethod: render
@@ -878,7 +812,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.singlerelicviewpopup.render
   nativeClass: com.megacrit.cardcrawl.screens.SingleRelicViewPopup
   nativeMethod: render
@@ -887,7 +820,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.victoryscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.VictoryScreen
   nativeMethod: render
@@ -896,7 +828,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.charselect.characteroption.render
   nativeClass: com.megacrit.cardcrawl.screens.charSelect.CharacterOption
   nativeMethod: render
@@ -1301,7 +1232,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.select.gridcardselectscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.select.GridCardSelectScreen
   nativeMethod: render
@@ -1384,7 +1314,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.shop.onsaletag.render
   nativeClass: com.megacrit.cardcrawl.shop.OnSaleTag
   nativeMethod: render
@@ -1393,7 +1322,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.shop.shopscreen.render
   nativeClass: com.megacrit.cardcrawl.shop.ShopScreen
   nativeMethod: render
@@ -1416,7 +1344,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.shop.storepotion.render
   nativeClass: com.megacrit.cardcrawl.shop.StorePotion
   nativeMethod: render
@@ -1425,7 +1352,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.shop.storerelic.render
   nativeClass: com.megacrit.cardcrawl.shop.StoreRelic
   nativeMethod: render
@@ -1434,7 +1360,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.stances.abstractstance.render
   nativeClass: com.megacrit.cardcrawl.stances.AbstractStance
   nativeMethod: render
@@ -1443,7 +1368,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.stances.neutralstance.render
   nativeClass: com.megacrit.cardcrawl.stances.NeutralStance
   nativeMethod: render
@@ -1452,7 +1376,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.dialogword.render
   nativeClass: com.megacrit.cardcrawl.ui.DialogWord
   nativeMethod: render
@@ -1461,7 +1384,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.ftuetip.render
   nativeClass: com.megacrit.cardcrawl.ui.FtueTip
   nativeMethod: render
@@ -1470,7 +1392,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.multipageftue.render
   nativeClass: com.megacrit.cardcrawl.ui.MultiPageFtue
   nativeMethod: render
@@ -1479,7 +1400,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.speechword.render
   nativeClass: com.megacrit.cardcrawl.ui.SpeechWord
   nativeMethod: render
@@ -1488,7 +1408,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.button.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.Button
   nativeMethod: render
@@ -1497,7 +1416,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.cancelbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.CancelButton
   nativeMethod: render
@@ -1506,7 +1424,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.cardselectconfirmbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.CardSelectConfirmButton
   nativeMethod: render
@@ -1515,7 +1432,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.confirmbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.ConfirmButton
   nativeMethod: render
@@ -1524,7 +1440,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.dynamicbanner.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.DynamicBanner
   nativeMethod: render
@@ -1533,7 +1448,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.endturnbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.EndTurnButton
   nativeMethod: render
@@ -1556,7 +1470,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.gridselectconfirmbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.GridSelectConfirmButton
   nativeMethod: render
@@ -1565,7 +1478,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.largedialogoptionbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.LargeDialogOptionButton
   nativeMethod: render
@@ -1574,7 +1486,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.peekbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.PeekButton
   nativeMethod: render
@@ -1583,7 +1494,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.proceedbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.ProceedButton
   nativeMethod: render
@@ -1606,7 +1516,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.returntomenubutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.ReturnToMenuButton
   nativeMethod: render
@@ -1615,7 +1524,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.singingbowlbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.SingingBowlButton
   nativeMethod: render
@@ -1624,7 +1532,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.skipcardbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.SkipCardButton
   nativeMethod: render
@@ -1633,7 +1540,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.unlockconfirmbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.UnlockConfirmButton
   nativeMethod: render
@@ -1642,7 +1548,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.campfire.abstractcampfireoption.render
   nativeClass: com.megacrit.cardcrawl.ui.campfire.AbstractCampfireOption
   nativeMethod: render
@@ -1651,7 +1556,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.abstractpanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.AbstractPanel
   nativeMethod: render
@@ -1660,7 +1564,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.deletesaveconfirmpopup.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.DeleteSaveConfirmPopup
   nativeMethod: render
@@ -1669,7 +1572,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.discardpilepanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.DiscardPilePanel
   nativeMethod: render
@@ -1678,7 +1580,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.drawpilepanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.DrawPilePanel
   nativeMethod: render
@@ -1687,7 +1588,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.energypanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.EnergyPanel
   nativeMethod: render
@@ -1710,7 +1610,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.potionpopup.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.PotionPopUp
   nativeMethod: render
@@ -1719,7 +1618,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.renamepopup.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.RenamePopup
   nativeMethod: render
@@ -1728,7 +1626,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.seedpanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.SeedPanel
   nativeMethod: render
@@ -1737,7 +1634,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.toppanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.TopPanel
   nativeMethod: render
@@ -1760,7 +1656,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.unlock.abstractunlock.render
   nativeClass: com.megacrit.cardcrawl.unlock.AbstractUnlock
   nativeMethod: render
@@ -1799,7 +1694,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.ascensionunlockedtexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.AscensionUnlockedTextEffect
   nativeMethod: render
@@ -1808,7 +1702,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.awakenedeyeparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.AwakenedEyeParticle
   nativeMethod: render
@@ -1817,7 +1710,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.awakenedwingparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.AwakenedWingParticle
   nativeMethod: render
@@ -1826,7 +1718,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.betacardartunlockedtexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.BetaCardArtUnlockedTextEffect
   nativeMethod: render
@@ -1835,7 +1726,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.borderflasheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.BorderFlashEffect
   nativeMethod: render
@@ -1844,7 +1734,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.borderlongflasheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.BorderLongFlashEffect
   nativeMethod: render
@@ -1853,7 +1742,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.bosschestshineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.BossChestShineEffect
   nativeMethod: render
@@ -1862,7 +1750,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardtraileffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.CardTrailEffect
   nativeMethod: render
@@ -1871,7 +1758,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.chestshineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ChestShineEffect
   nativeMethod: render
@@ -1880,7 +1766,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.clangclangclangeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ClangClangClangEffect
   nativeMethod: render
@@ -1889,7 +1774,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cloudbubble.render
   nativeClass: com.megacrit.cardcrawl.vfx.CloudBubble
   nativeMethod: render
@@ -1898,7 +1782,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.collectorcurseeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.CollectorCurseEffect
   nativeMethod: render
@@ -1907,7 +1790,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.collectorstakeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.CollectorStakeEffect
   nativeMethod: render
@@ -1916,7 +1798,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.coneeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ConeEffect
   nativeMethod: render
@@ -1925,7 +1806,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.damagehearteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.DamageHeartEffect
   nativeMethod: render
@@ -1934,7 +1814,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.darksmokepuffeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.DarkSmokePuffEffect
   nativeMethod: render
@@ -1943,7 +1822,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.deathscreenfloatyeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect
   nativeMethod: render
@@ -1952,7 +1830,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.debuffparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.DebuffParticleEffect
   nativeMethod: render
@@ -1961,7 +1838,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.discardgloweffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.DiscardGlowEffect
   nativeMethod: render
@@ -1970,7 +1846,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.doorflasheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.DoorFlashEffect
   nativeMethod: render
@@ -1979,7 +1854,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.doorshineparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.DoorShineParticleEffect
   nativeMethod: render
@@ -1988,7 +1862,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.endturngloweffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.EndTurnGlowEffect
   nativeMethod: render
@@ -1997,7 +1870,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.endturnlongpressbarflasheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.EndTurnLongPressBarFlashEffect
   nativeMethod: render
@@ -2006,7 +1878,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.enemyturneffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.EnemyTurnEffect
   nativeMethod: render
@@ -2015,7 +1886,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.exhaustblureffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ExhaustBlurEffect
   nativeMethod: render
@@ -2024,7 +1894,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.exhaustembereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ExhaustEmberEffect
   nativeMethod: render
@@ -2033,7 +1902,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.exhaustpileparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.ExhaustPileParticle
   nativeMethod: render
@@ -2042,7 +1910,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.fadewipeparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.FadeWipeParticle
   nativeMethod: render
@@ -2051,7 +1918,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.fallingdusteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.FallingDustEffect
   nativeMethod: render
@@ -2060,7 +1926,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.fastcardobtaineffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.FastCardObtainEffect
   nativeMethod: render
@@ -2069,7 +1934,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.fastdarksmoke.render
   nativeClass: com.megacrit.cardcrawl.vfx.FastDarkSmoke
   nativeMethod: render
@@ -2078,7 +1942,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.fastsmoke.render
   nativeClass: com.megacrit.cardcrawl.vfx.FastSmoke
   nativeMethod: render
@@ -2087,7 +1950,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.fastsmokeparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.FastSmokeParticle
   nativeMethod: render
@@ -2096,7 +1958,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.fireburstparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.FireBurstParticleEffect
   nativeMethod: render
@@ -2105,7 +1966,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.flameanimationeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.FlameAnimationEffect
   nativeMethod: render
@@ -2114,7 +1974,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.flameballparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.FlameBallParticleEffect
   nativeMethod: render
@@ -2123,7 +1982,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.flashpotioneffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.FlashPotionEffect
   nativeMethod: render
@@ -2132,7 +1990,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.gaingoldtexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.GainGoldTextEffect
   nativeMethod: render
@@ -2141,7 +1998,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.gainpennyeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.GainPennyEffect
   nativeMethod: render
@@ -2150,7 +2006,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.gamedeckgloweffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.GameDeckGlowEffect
   nativeMethod: render
@@ -2159,7 +2014,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.gamesavedeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.GameSavedEffect
   nativeMethod: render
@@ -2168,7 +2022,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.genericsmokeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.GenericSmokeEffect
   nativeMethod: render
@@ -2177,7 +2030,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.ghostlyfireeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.GhostlyFireEffect
   nativeMethod: render
@@ -2186,7 +2038,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.ghostlyweakfireeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect
   nativeMethod: render
@@ -2195,7 +2046,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.glowrelicparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.GlowRelicParticle
   nativeMethod: render
@@ -2204,7 +2054,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.glowyfireeyeseffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect
   nativeMethod: render
@@ -2213,7 +2062,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.infinitespeechbubble.render
   nativeClass: com.megacrit.cardcrawl.vfx.InfiniteSpeechBubble
   nativeMethod: render
@@ -2222,7 +2070,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.linetesteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.LineTestEffect
   nativeMethod: render
@@ -2231,7 +2078,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.mapcircleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.MapCircleEffect
   nativeMethod: render
@@ -2240,7 +2086,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.mapdot.render
   nativeClass: com.megacrit.cardcrawl.vfx.MapDot
   nativeMethod: render
@@ -2249,7 +2094,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.megadialogtexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.MegaDialogTextEffect
   nativeMethod: render
@@ -2258,7 +2102,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.megaspeechbubble.render
   nativeClass: com.megacrit.cardcrawl.vfx.MegaSpeechBubble
   nativeMethod: render
@@ -2267,7 +2110,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.necronomicurseeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.NecronomicurseEffect
   nativeMethod: render
@@ -2276,7 +2118,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.nemesisfireparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.NemesisFireParticle
   nativeMethod: render
@@ -2285,7 +2126,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.obtainkeyeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ObtainKeyEffect
   nativeMethod: render
@@ -2294,7 +2134,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.obtainpotioneffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ObtainPotionEffect
   nativeMethod: render
@@ -2303,7 +2142,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.petaleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.PetalEffect
   nativeMethod: render
@@ -2312,7 +2150,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.playerturneffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.PlayerTurnEffect
   nativeMethod: render
@@ -2321,7 +2158,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.rainbowcardeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.RainbowCardEffect
   nativeMethod: render
@@ -2330,7 +2166,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.raininggoldeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.RainingGoldEffect
   nativeMethod: render
@@ -2339,7 +2174,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.rarepotionparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.RarePotionParticleEffect
   nativeMethod: render
@@ -2348,7 +2182,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.refreshenergyeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.RefreshEnergyEffect
   nativeMethod: render
@@ -2357,7 +2190,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.relicabovecreatureeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.RelicAboveCreatureEffect
   nativeMethod: render
@@ -2366,7 +2198,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.restartforchangeseffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.RestartForChangesEffect
   nativeMethod: render
@@ -2375,7 +2206,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.rewardgloweffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.RewardGlowEffect
   nativeMethod: render
@@ -2384,7 +2214,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.roomshineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.RoomShineEffect
   nativeMethod: render
@@ -2393,7 +2222,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.roomshineeffect2.render
   nativeClass: com.megacrit.cardcrawl.vfx.RoomShineEffect2
   nativeMethod: render
@@ -2402,7 +2230,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.shieldparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ShieldParticleEffect
   nativeMethod: render
@@ -2411,7 +2238,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.shinelineseffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ShineLinesEffect
   nativeMethod: render
@@ -2420,7 +2246,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.shinesparkleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.ShineSparkleEffect
   nativeMethod: render
@@ -2429,7 +2254,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.shopspeechbubble.render
   nativeClass: com.megacrit.cardcrawl.vfx.ShopSpeechBubble
   nativeMethod: render
@@ -2438,7 +2262,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.smokepuffeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.SmokePuffEffect
   nativeMethod: render
@@ -2447,7 +2270,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.speechbubble.render
   nativeClass: com.megacrit.cardcrawl.vfx.SpeechBubble
   nativeMethod: render
@@ -2456,7 +2278,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.speechtexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.SpeechTextEffect
   nativeMethod: render
@@ -2465,7 +2286,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.spotlighteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.SpotlightEffect
   nativeMethod: render
@@ -2474,7 +2294,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.spotlightplayereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.SpotlightPlayerEffect
   nativeMethod: render
@@ -2483,7 +2302,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stafffireeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.StaffFireEffect
   nativeMethod: render
@@ -2492,7 +2310,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.starbounceeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.StarBounceEffect
   nativeMethod: render
@@ -2501,7 +2318,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.sumdamageeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.SumDamageEffect
   nativeMethod: render
@@ -2510,7 +2326,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.textabovecreatureeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.TextAboveCreatureEffect
   nativeMethod: render
@@ -2519,7 +2334,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.textcenteredeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.TextCenteredEffect
   nativeMethod: render
@@ -2528,7 +2342,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.thoughtbubble.render
   nativeClass: com.megacrit.cardcrawl.vfx.ThoughtBubble
   nativeMethod: render
@@ -2537,7 +2350,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.torchheadfireeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.TorchHeadFireEffect
   nativeMethod: render
@@ -2546,7 +2358,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.touchpickupgold.render
   nativeClass: com.megacrit.cardcrawl.vfx.TouchPickupGold
   nativeMethod: render
@@ -2555,7 +2366,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.uncommonpotionparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.UncommonPotionParticleEffect
   nativeMethod: render
@@ -2564,7 +2374,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.unlocktexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.UnlockTextEffect
   nativeMethod: render
@@ -2573,7 +2382,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.upgradehammerimprinteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.UpgradeHammerImprintEffect
   nativeMethod: render
@@ -2582,7 +2390,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.upgradeshineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.UpgradeShineEffect
   nativeMethod: render
@@ -2591,7 +2398,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.upgradeshineparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.UpgradeShineParticleEffect
   nativeMethod: render
@@ -2600,7 +2406,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.wallopeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.WallopEffect
   nativeMethod: render
@@ -2609,7 +2414,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.warningsigneffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.WarningSignEffect
   nativeMethod: render
@@ -2618,7 +2422,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfirebubbleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireBubbleEffect
   nativeMethod: render
@@ -2627,7 +2430,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfireburningeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireBurningEffect
   nativeMethod: render
@@ -2636,7 +2438,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfiredigeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireDigEffect
   nativeMethod: render
@@ -2645,7 +2446,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfireendingburningeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireEndingBurningEffect
   nativeMethod: render
@@ -2654,7 +2454,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfirelifteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireLiftEffect
   nativeMethod: render
@@ -2663,7 +2462,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfirerecalleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect
   nativeMethod: render
@@ -2672,7 +2470,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfiresleepeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireSleepEffect
   nativeMethod: render
@@ -2681,7 +2478,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfiresleepscreencovereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect
   nativeMethod: render
@@ -2690,7 +2486,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfiresmitheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireSmithEffect
   nativeMethod: render
@@ -2699,7 +2494,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.campfire.campfiretokeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.campfire.CampfireTokeEffect
   nativeMethod: render
@@ -2708,7 +2502,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.carddisappeareffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.CardDisappearEffect
   nativeMethod: render
@@ -2717,7 +2510,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.cardflashvfx.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.CardFlashVfx
   nativeMethod: render
@@ -2726,7 +2518,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.cardglowborder.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.CardGlowBorder
   nativeMethod: render
@@ -2735,7 +2526,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.exhaustcardeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.ExhaustCardEffect
   nativeMethod: render
@@ -2744,7 +2534,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.purgecardeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.PurgeCardEffect
   nativeMethod: render
@@ -2753,7 +2542,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.showcardandaddtodiscardeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.ShowCardAndAddToDiscardEffect
   nativeMethod: render
@@ -2762,7 +2550,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.showcardandaddtodrawpileeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.ShowCardAndAddToDrawPileEffect
   nativeMethod: render
@@ -2771,7 +2558,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.showcardandaddtohandeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.ShowCardAndAddToHandEffect
   nativeMethod: render
@@ -2780,7 +2566,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.showcardandobtaineffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.ShowCardAndObtainEffect
   nativeMethod: render
@@ -2789,7 +2574,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.cardmanip.showcardbrieflyeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.cardManip.ShowCardBrieflyEffect
   nativeMethod: render
@@ -2798,7 +2582,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.additiveslashimpacteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.AdditiveSlashImpactEffect
   nativeMethod: render
@@ -2807,7 +2590,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.adrenalineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.AdrenalineEffect
   nativeMethod: render
@@ -2816,7 +2598,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.animatedslasheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.AnimatedSlashEffect
   nativeMethod: render
@@ -2825,7 +2606,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.battlestarteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BattleStartEffect
   nativeMethod: render
@@ -2834,7 +2614,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.biteeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BiteEffect
   nativeMethod: render
@@ -2843,7 +2622,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.blizzardeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BlizzardEffect
   nativeMethod: render
@@ -2852,7 +2630,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.blockimpactlineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect
   nativeMethod: render
@@ -2861,7 +2638,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.blockednumbereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BlockedNumberEffect
   nativeMethod: render
@@ -2870,7 +2646,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.blockedwordeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BlockedWordEffect
   nativeMethod: render
@@ -2879,7 +2654,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.bloodshoteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BloodShotEffect
   nativeMethod: render
@@ -2888,7 +2662,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.bloodshotparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BloodShotParticleEffect
   nativeMethod: render
@@ -2897,7 +2670,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.blurwaveadditiveeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BlurWaveAdditiveEffect
   nativeMethod: render
@@ -2906,7 +2678,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.blurwavechaoticeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BlurWaveChaoticEffect
   nativeMethod: render
@@ -2915,7 +2686,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.blurwavenormaleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BlurWaveNormalEffect
   nativeMethod: render
@@ -2924,7 +2694,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.bosscrystalimpacteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BossCrystalImpactEffect
   nativeMethod: render
@@ -2933,7 +2702,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.buffparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect
   nativeMethod: render
@@ -2942,7 +2710,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.cardpoofeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.CardPoofEffect
   nativeMethod: render
@@ -2951,7 +2718,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.cardpoofparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.CardPoofParticle
   nativeMethod: render
@@ -2960,7 +2726,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.clasheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ClashEffect
   nativeMethod: render
@@ -2969,7 +2734,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.claweffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ClawEffect
   nativeMethod: render
@@ -2978,7 +2742,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.cleaveeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.CleaveEffect
   nativeMethod: render
@@ -2987,7 +2750,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.daggersprayeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DaggerSprayEffect
   nativeMethod: render
@@ -2996,7 +2758,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.damageimpactblureffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect
   nativeMethod: render
@@ -3005,7 +2766,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.damageimpactcurvyeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DamageImpactCurvyEffect
   nativeMethod: render
@@ -3014,7 +2774,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.damageimpactlineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect
   nativeMethod: render
@@ -3023,7 +2782,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.damagenumbereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DamageNumberEffect
   nativeMethod: render
@@ -3032,7 +2790,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.darkorbactivateeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DarkOrbActivateEffect
   nativeMethod: render
@@ -3041,7 +2798,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.darkorbactivateparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DarkOrbActivateParticle
   nativeMethod: render
@@ -3050,7 +2806,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.darkorbpassiveeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect
   nativeMethod: render
@@ -3059,7 +2814,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.deckpoofeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DeckPoofEffect
   nativeMethod: render
@@ -3068,7 +2822,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.deckpoofparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DeckPoofParticle
   nativeMethod: render
@@ -3077,7 +2830,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.devotioneffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DevotionEffect
   nativeMethod: render
@@ -3086,7 +2838,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.diediedieeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.DieDieDieEffect
   nativeMethod: render
@@ -3095,7 +2846,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.empowercircleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect
   nativeMethod: render
@@ -3104,7 +2854,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.empowereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.EmpowerEffect
   nativeMethod: render
@@ -3113,7 +2862,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.emptystanceeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.EmptyStanceEffect
   nativeMethod: render
@@ -3122,7 +2870,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.emptystanceparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.EmptyStanceParticleEffect
   nativeMethod: render
@@ -3131,7 +2878,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.entangleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.EntangleEffect
   nativeMethod: render
@@ -3140,7 +2886,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.explosionsmalleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ExplosionSmallEffect
   nativeMethod: render
@@ -3149,7 +2894,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.fallingiceeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FallingIceEffect
   nativeMethod: render
@@ -3158,7 +2902,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.fastingeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FastingEffect
   nativeMethod: render
@@ -3167,7 +2910,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.fireballeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FireballEffect
   nativeMethod: render
@@ -3176,7 +2918,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flamebarriereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlameBarrierEffect
   nativeMethod: render
@@ -3185,7 +2926,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flameparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect
   nativeMethod: render
@@ -3194,7 +2934,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flashatkimgeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect
   nativeMethod: render
@@ -3203,7 +2942,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flashintenteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlashIntentEffect
   nativeMethod: render
@@ -3212,7 +2950,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flashintentparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlashIntentParticle
   nativeMethod: render
@@ -3221,7 +2958,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flashpowereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlashPowerEffect
   nativeMethod: render
@@ -3230,7 +2966,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flickcoineffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect
   nativeMethod: render
@@ -3239,7 +2974,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flyingdaggereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlyingDaggerEffect
   nativeMethod: render
@@ -3248,7 +2982,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flyingorbeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect
   nativeMethod: render
@@ -3257,7 +2990,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.flyingspikeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect
   nativeMethod: render
@@ -3266,7 +2998,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.frostorbactivateeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FrostOrbActivateEffect
   nativeMethod: render
@@ -3275,7 +3006,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.frostorbactivateparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FrostOrbActivateParticle
   nativeMethod: render
@@ -3284,7 +3014,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.frostorbpassiveeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.FrostOrbPassiveEffect
   nativeMethod: render
@@ -3293,7 +3022,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.gainpowereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.GainPowerEffect
   nativeMethod: render
@@ -3302,7 +3030,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.ghostigniteeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.GhostIgniteEffect
   nativeMethod: render
@@ -3311,7 +3038,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.gianteyeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.GiantEyeEffect
   nativeMethod: render
@@ -3320,7 +3046,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.giantfireeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.GiantFireEffect
   nativeMethod: render
@@ -3329,7 +3054,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.gianttexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.GiantTextEffect
   nativeMethod: render
@@ -3338,7 +3062,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.goldenslasheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.GoldenSlashEffect
   nativeMethod: render
@@ -3347,7 +3070,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.grandfinaleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.GrandFinalEffect
   nativeMethod: render
@@ -3356,7 +3078,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.hbblockbrokeneffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HbBlockBrokenEffect
   nativeMethod: render
@@ -3365,7 +3086,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.healeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HealEffect
   nativeMethod: render
@@ -3374,7 +3094,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.healnumbereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HealNumberEffect
   nativeMethod: render
@@ -3383,7 +3102,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.healpaneleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HealPanelEffect
   nativeMethod: render
@@ -3392,7 +3110,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.healverticallineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HealVerticalLineEffect
   nativeMethod: render
@@ -3401,7 +3118,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.heartbuffeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HeartBuffEffect
   nativeMethod: render
@@ -3410,7 +3126,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.heartmegadebuffeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HeartMegaDebuffEffect
   nativeMethod: render
@@ -3419,7 +3134,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.hemokinesiseffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HemokinesisEffect
   nativeMethod: render
@@ -3428,7 +3142,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.hemokinesisparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.HemokinesisParticle
   nativeMethod: render
@@ -3437,7 +3150,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.iceshattereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.IceShatterEffect
   nativeMethod: render
@@ -3446,7 +3158,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.impactsparkeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ImpactSparkEffect
   nativeMethod: render
@@ -3455,7 +3166,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.inflameeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.InflameEffect
   nativeMethod: render
@@ -3464,7 +3174,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.intensezoomeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.IntenseZoomEffect
   nativeMethod: render
@@ -3473,7 +3182,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.intensezoomparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.IntenseZoomParticle
   nativeMethod: render
@@ -3482,7 +3190,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.intimidateeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.IntimidateEffect
   nativeMethod: render
@@ -3491,7 +3198,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.inversionbeameffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.InversionBeamEffect
   nativeMethod: render
@@ -3500,7 +3206,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.ironwaveeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.IronWaveEffect
   nativeMethod: render
@@ -3509,7 +3214,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.ironwaveparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.IronWaveParticle
   nativeMethod: render
@@ -3518,7 +3222,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.laserbeameffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LaserBeamEffect
   nativeMethod: render
@@ -3527,7 +3230,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.lightbulbeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LightBulbEffect
   nativeMethod: render
@@ -3536,7 +3238,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.lightflareparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LightFlareParticleEffect
   nativeMethod: render
@@ -3545,7 +3246,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.lightrayflyouteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LightRayFlyOutEffect
   nativeMethod: render
@@ -3554,7 +3254,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.lightningeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LightningEffect
   nativeMethod: render
@@ -3563,7 +3262,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.lightningorbactivateeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect
   nativeMethod: render
@@ -3572,7 +3270,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.lightningorbpassiveeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect
   nativeMethod: render
@@ -3581,7 +3278,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.losehpeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LoseHPEffect
   nativeMethod: render
@@ -3590,7 +3286,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.losepowereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.LosePowerEffect
   nativeMethod: render
@@ -3599,7 +3294,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.mindblasteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.MindblastEffect
   nativeMethod: render
@@ -3608,7 +3302,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.miracleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.MiracleEffect
   nativeMethod: render
@@ -3617,7 +3310,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.movenameeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.MoveNameEffect
   nativeMethod: render
@@ -3626,7 +3318,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.offeringeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.OfferingEffect
   nativeMethod: render
@@ -3635,7 +3326,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.omegaflasheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.OmegaFlashEffect
   nativeMethod: render
@@ -3644,7 +3334,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.orbflareeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.OrbFlareEffect
   nativeMethod: render
@@ -3653,7 +3342,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.pinghpeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PingHpEffect
   nativeMethod: render
@@ -3662,7 +3350,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.plasmaorbactivateeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PlasmaOrbActivateEffect
   nativeMethod: render
@@ -3671,7 +3358,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.plasmaorbactivateparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PlasmaOrbActivateParticle
   nativeMethod: render
@@ -3680,7 +3366,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.plasmaorbpassiveeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PlasmaOrbPassiveEffect
   nativeMethod: render
@@ -3689,7 +3374,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.potionbounceeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PotionBounceEffect
   nativeMethod: render
@@ -3698,7 +3382,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.powerbuffeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PowerBuffEffect
   nativeMethod: render
@@ -3707,7 +3390,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.powerdebuffeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PowerDebuffEffect
   nativeMethod: render
@@ -3716,7 +3398,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.powerexpiretexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PowerExpireTextEffect
   nativeMethod: render
@@ -3725,7 +3406,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.powericonshoweffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PowerIconShowEffect
   nativeMethod: render
@@ -3734,7 +3414,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.pressurepointeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.PressurePointEffect
   nativeMethod: render
@@ -3743,7 +3422,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.reapereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ReaperEffect
   nativeMethod: render
@@ -3752,7 +3430,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.redfireburstparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect
   nativeMethod: render
@@ -3761,7 +3438,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.redfireballeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.RedFireballEffect
   nativeMethod: render
@@ -3770,7 +3446,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.ripandteareffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.RipAndTearEffect
   nativeMethod: render
@@ -3779,7 +3454,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.roomtinteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.RoomTintEffect
   nativeMethod: render
@@ -3788,7 +3462,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.sanctityeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SanctityEffect
   nativeMethod: render
@@ -3797,7 +3470,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.scrapeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ScrapeEffect
   nativeMethod: render
@@ -3806,7 +3478,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.screenonfireeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ScreenOnFireEffect
   nativeMethod: render
@@ -3815,7 +3486,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.searingbloweffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SearingBlowEffect
   nativeMethod: render
@@ -3824,7 +3494,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.shockwaveeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ShockWaveEffect
   nativeMethod: render
@@ -3833,7 +3502,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.silentgainpowereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SilentGainPowerEffect
   nativeMethod: render
@@ -3842,7 +3510,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.smalllasereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SmallLaserEffect
   nativeMethod: render
@@ -3851,7 +3518,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.smokeblureffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect
   nativeMethod: render
@@ -3860,7 +3526,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.smokebombeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SmokeBombEffect
   nativeMethod: render
@@ -3869,7 +3534,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.smokingembereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SmokingEmberEffect
   nativeMethod: render
@@ -3878,7 +3542,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.strikeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.StrikeEffect
   nativeMethod: render
@@ -3887,7 +3550,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.stunstareffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.StunStarEffect
   nativeMethod: render
@@ -3896,7 +3558,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.sweepingbeameffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SweepingBeamEffect
   nativeMethod: render
@@ -3905,7 +3566,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.swirlybloodeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.SwirlyBloodEffect
   nativeMethod: render
@@ -3914,7 +3574,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.thirdeyeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ThirdEyeEffect
   nativeMethod: render
@@ -3923,7 +3582,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.thirdeyeparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ThirdEyeParticleEffect
   nativeMethod: render
@@ -3932,7 +3590,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.throwdaggereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ThrowDaggerEffect
   nativeMethod: render
@@ -3941,7 +3598,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.throwshiveffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ThrowShivEffect
   nativeMethod: render
@@ -3950,7 +3606,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.timewarpturnendeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.TimeWarpTurnEndEffect
   nativeMethod: render
@@ -3959,7 +3614,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.unknownparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect
   nativeMethod: render
@@ -3968,7 +3622,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.verticalauraeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.VerticalAuraEffect
   nativeMethod: render
@@ -3977,7 +3630,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.verticalauraparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.VerticalAuraParticle
   nativeMethod: render
@@ -3986,7 +3638,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.verticalimpacteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.VerticalImpactEffect
   nativeMethod: render
@@ -3995,7 +3646,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.vicecrusheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ViceCrushEffect
   nativeMethod: render
@@ -4004,7 +3654,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.violentattackeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.ViolentAttackEffect
   nativeMethod: render
@@ -4013,7 +3662,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.waterdropeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WaterDropEffect
   nativeMethod: render
@@ -4022,7 +3670,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.watersplashparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect
   nativeMethod: render
@@ -4031,7 +3678,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.weakparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WeakParticleEffect
   nativeMethod: render
@@ -4040,7 +3686,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.webeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WebEffect
   nativeMethod: render
@@ -4049,7 +3694,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.weblineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WebLineEffect
   nativeMethod: render
@@ -4058,7 +3702,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.webparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WebParticleEffect
   nativeMethod: render
@@ -4067,7 +3710,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.weightyimpacteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WeightyImpactEffect
   nativeMethod: render
@@ -4076,7 +3718,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.whirlwindeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WhirlwindEffect
   nativeMethod: render
@@ -4085,7 +3726,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.windyparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WindyParticleEffect
   nativeMethod: render
@@ -4094,7 +3734,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.combat.wobblylineeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.combat.WobblyLineEffect
   nativeMethod: render
@@ -4103,7 +3742,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.deprecated.animationtesteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.deprecated.AnimationTestEffect
   nativeMethod: render
@@ -4112,7 +3750,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.deprecated.deprecatedroomfadeparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.deprecated.DEPRECATEDRoomFadeParticle
   nativeMethod: render
@@ -4121,7 +3758,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.deprecated.shinychesteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.deprecated.ShinyChestEffect
   nativeMethod: render
@@ -4130,7 +3766,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.bonfireparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.BonfireParticleEffect
   nativeMethod: render
@@ -4139,7 +3774,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.bottomfogeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.BottomFogEffect
   nativeMethod: render
@@ -4148,7 +3782,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.campfiresmokeeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.CampfireSmokeEffect
   nativeMethod: render
@@ -4157,7 +3790,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.ceilingdustcloudeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect
   nativeMethod: render
@@ -4166,7 +3798,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.ceilingdusteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.CeilingDustEffect
   nativeMethod: render
@@ -4175,7 +3806,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.defectvictoryeyeseffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.DefectVictoryEyesEffect
   nativeMethod: render
@@ -4184,7 +3814,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.defectvictorynumbereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.DefectVictoryNumberEffect
   nativeMethod: render
@@ -4193,7 +3822,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.dusteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.DustEffect
   nativeMethod: render
@@ -4202,7 +3830,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.eventbgparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.EventBgParticle
   nativeMethod: render
@@ -4211,7 +3838,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.fireflyeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.FireFlyEffect
   nativeMethod: render
@@ -4220,7 +3846,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.interactabletorcheffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.InteractableTorchEffect
   nativeMethod: render
@@ -4229,7 +3854,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.ironcladvictoryflameeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect
   nativeMethod: render
@@ -4238,7 +3862,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.leveltransitiontextoverlayeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.LevelTransitionTextOverlayEffect
   nativeMethod: render
@@ -4247,7 +3870,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.lightflareleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect
   nativeMethod: render
@@ -4256,7 +3878,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.lightflaremeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect
   nativeMethod: render
@@ -4265,7 +3886,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.lightflareseffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect
   nativeMethod: render
@@ -4274,7 +3894,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.logoflameeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.LogoFlameEffect
   nativeMethod: render
@@ -4283,7 +3902,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.shinysparkleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.ShinySparkleEffect
   nativeMethod: render
@@ -4292,7 +3910,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.silentvictorystareffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.SilentVictoryStarEffect
   nativeMethod: render
@@ -4301,7 +3918,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.slowfireparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.SlowFireParticleEffect
   nativeMethod: render
@@ -4310,7 +3926,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.spookierchesteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.SpookierChestEffect
   nativeMethod: render
@@ -4319,7 +3934,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.spookychesteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect
   nativeMethod: render
@@ -4328,7 +3942,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.titledusteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.TitleDustEffect
   nativeMethod: render
@@ -4337,7 +3950,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.torchparticleleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect
   nativeMethod: render
@@ -4346,7 +3958,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.torchparticlemeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect
   nativeMethod: render
@@ -4355,7 +3966,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.torchparticleseffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect
   nativeMethod: render
@@ -4364,7 +3974,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.torchparticlexleffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect
   nativeMethod: render
@@ -4373,7 +3982,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.watchervictoryeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.WatcherVictoryEffect
   nativeMethod: render
@@ -4382,7 +3990,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.scene.wobblycircleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.scene.WobblyCircleEffect
   nativeMethod: render
@@ -4391,7 +3998,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.shader.shadereffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.shader.ShaderEffect
   nativeMethod: render
@@ -4400,7 +4006,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stance.calmparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect
   nativeMethod: render
@@ -4409,7 +4014,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stance.divinityparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect
   nativeMethod: render
@@ -4418,7 +4022,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stance.divinitystancechangeparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle
   nativeMethod: render
@@ -4427,7 +4030,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stance.stanceauraeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect
   nativeMethod: render
@@ -4436,7 +4038,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stance.stancechangeabsorptionparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle
   nativeMethod: render
@@ -4445,7 +4046,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stance.stancechangeparticlegenerator.render
   nativeClass: com.megacrit.cardcrawl.vfx.stance.StanceChangeParticleGenerator
   nativeMethod: render
@@ -4454,7 +4054,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stance.wrathparticleeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect
   nativeMethod: render
@@ -4463,7 +4062,6 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: ''
-  policy: UNKNOWN
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.stance.wrathstancechangeparticle.render
   nativeClass: com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle
   nativeMethod: render
@@ -4472,4 +4070,3 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: UNKNOWN

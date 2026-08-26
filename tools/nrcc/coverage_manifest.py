@@ -6,11 +6,18 @@ from __future__ import print_function
 import yaml
 import re
 
-from families import FAMILY_DEFAULT_POLICY, FAMILY_IDS, family_for
+from families import (
+    FAMILY_DEFAULT_JUSTIFICATION,
+    FAMILY_DEFAULT_POLICY,
+    FAMILY_IDS,
+    UNKNOWN_POLICY,
+    family_for,
+)
 
 
 POLICIES = {
     "ART_DELEGATED",
+    "OBSERVED",
     "NATIVE_PASSTHROUGH",
     "CAPTURED_PASSTHROUGH",
     "NATIVE_WITH_ART_OVERLAY",
@@ -30,6 +37,13 @@ ART_DELEGATED_REQUIRED = (
     "justification",
     "test",
 )
+# Policies that keep native pixels authoritative must document why.  Entries
+# without their own justification inherit the family default rationale
+# (families.FAMILY_DEFAULT_JUSTIFICATION).
+JUSTIFICATION_REQUIRED_POLICIES = ("OBSERVED", "NATIVE_PASSTHROUGH")
+# OBSERVED justifications must cite the observation entry (the patch file that
+# performs the hook/instrument).
+OBSERVATION_REFERENCE = re.compile(r"[A-Za-z0-9_./$-]+\.java\b")
 
 
 def effective_policy(entry):
@@ -44,7 +58,14 @@ def effective_policy(entry):
     explicit = entry.get("policy")
     if explicit:
         return explicit
-    return FAMILY_DEFAULT_POLICY.get(entry.get("family"), "UNKNOWN")
+    return FAMILY_DEFAULT_POLICY.get(entry.get("family"), UNKNOWN_POLICY)
+
+
+def entry_justification(entry):
+    """Justification for one entry: its own, else its family default rationale."""
+    return entry.get("justification") or FAMILY_DEFAULT_JUSTIFICATION.get(
+        entry.get("family"), ""
+    )
 
 
 def load_manifest(path):
@@ -79,6 +100,23 @@ def check_manifest(report, manifest_path, strict_unknown=False):
         explicit_policy = entry.get("policy")
         if explicit_policy is not None and explicit_policy not in POLICIES:
             errors.append("entries[{}] invalid policy: {}".format(index, explicit_policy))
+        effective = effective_policy(entry)
+        if effective in JUSTIFICATION_REQUIRED_POLICIES:
+            justification = entry_justification(entry)
+            if not justification:
+                errors.append(
+                    "entries[{}] {} policy requires a justification".format(
+                        index, effective
+                    )
+                )
+            elif (
+                effective == "OBSERVED"
+                and not OBSERVATION_REFERENCE.search(justification)
+            ):
+                errors.append(
+                    "entries[{}] OBSERVED justification must reference the "
+                    "observation patch file".format(index)
+                )
         key = (entry.get("nativeClass"), entry.get("nativeMethod"))
         if key in seen:
             errors.append(
@@ -188,14 +226,30 @@ def _owner_id(native_class, native_method):
     return "sts1.inventory." + value
 
 
+def _overlay_ownership_metadata(entry, key, policy, known_justification, known_test):
+    """Attach curated ownership metadata to one generated entry.
+
+    ART_DELEGATED entries always carry justification and test references.
+    Other explicit member-level decisions carry a curated justification when
+    one exists; inherited family defaults rely on the family rationale instead.
+    """
+    if policy == "ART_DELEGATED":
+        entry["justification"] = known_justification.get(key, "")
+        entry["test"] = known_test.get(key, "")
+    elif key in known_justification:
+        entry["justification"] = known_justification[key]
+
+
 def inventory_entries(report, existing_entries=None):
     """Materialize every static path as an explicit development manifest entry.
 
     Existing entries are preserved verbatim by native path. Newly discovered paths
-    are deliberately marked UNKNOWN; generation closes inventory bookkeeping without claiming
-    runtime ownership or delegation. Every entry records its semantic family;
-    the written policy is the curated override when present, otherwise an
-    existing explicit (non-UNKNOWN) annotation, otherwise the family default.
+    are deliberately marked UNKNOWN when their family carries no default; generation
+    closes inventory bookkeeping without claiming runtime ownership or delegation.
+    Every entry records its semantic family; the written policy is the curated
+    override when present, otherwise an existing explicit (non-UNKNOWN) annotation.
+    Entries resolved from a family default omit the policy field so inheritance
+    stays live: re-triage then only touches families.FAMILY_DEFAULT_POLICY.
     """
     existing = {}
     for entry in existing_entries or []:
@@ -203,14 +257,22 @@ def inventory_entries(report, existing_entries=None):
             existing[(entry.get("nativeClass"), entry.get("nativeMethod"))] = entry
 
     def resolve_policy(key, family, existing_entry):
+        """Return (policy, inherited).
+
+        `inherited` marks a family-default resolution whose value is
+        intentionally omitted from the written entry.
+        """
         if key in known_policy:
-            return known_policy[key]
+            return known_policy[key], False
         explicit = existing_entry.get("policy") if existing_entry else None
         if explicit not in (None, "UNKNOWN"):
             # A human annotation always beats generated defaults; UNKNOWN is a
             # placeholder, not a decision, so it is re-derived instead.
-            return explicit
-        return FAMILY_DEFAULT_POLICY.get(family, "UNKNOWN")
+            return explicit, False
+        default = FAMILY_DEFAULT_POLICY.get(family)
+        if default is not None and default != UNKNOWN_POLICY:
+            return default, True
+        return UNKNOWN_POLICY, False
 
     known_policy = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): "ART_DELEGATED",
@@ -232,6 +294,11 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "ART_DELEGATED",
+        # Member-level exceptions inside core-game-root (family default
+        # NATIVE_PASSTHROUGH): the dungeon frame hosts an observation-only
+        # instrument, and the TestGame bootstrap is out of ART scope.
+        ("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render"): "OBSERVED",
+        ("com.megacrit.cardcrawl.core.TestGame", "render"): "OUT_OF_SCOPE",
     }
     known_surface_id = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): "sts1.combat.hand",
@@ -263,6 +330,14 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): (
             "Only individual effect instances claimed by ART through NativeRenderBridge.beginEffectRender "
             "are suppressed; the native effect queue remains authoritative."
+        ),
+        ("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render"): (
+            "Observation-only instrument: artframework/sts1/patch/TransientEffectContainerPatches.java "
+            "replaces the three AbstractGameEffect.render call sites with an observe-then-render helper; "
+            "the native dungeon frame and effect queue remain authoritative and nothing is suppressed."
+        ),
+        ("com.megacrit.cardcrawl.core.TestGame", "render"): (
+            "Test harness bootstrap screen outside ART scope; never intercepted."
         ),
         ("com.megacrit.cardcrawl.ui.buttons.EndTurnButton", "render"): (
             "Combat controls is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
@@ -401,15 +476,13 @@ def inventory_entries(report, existing_entries=None):
         key = (path.get("nativeClass"), path.get("nativeMethod"))
         existing_entry = existing.get(key)
         family = family_for(*key)
-        policy = resolve_policy(key, family, existing_entry)
+        policy, inherited = resolve_policy(key, family, existing_entry)
         if existing_entry is not None and existing_entry.get("policy") not in (None, "UNKNOWN"):
             # Preserve the existing entry but overlay any known ownership metadata.
             entry = dict(existing_entry)
             entry["family"] = family
             entry["policy"] = policy
-            if policy == "ART_DELEGATED":
-                entry["justification"] = known_justification.get(key, "")
-                entry["test"] = known_test.get(key, "")
+            _overlay_ownership_metadata(entry, key, policy, known_justification, known_test)
             if key in known_surface_id:
                 entry["surfaceId"] = known_surface_id[key]
             result.append(entry)
@@ -425,11 +498,12 @@ def inventory_entries(report, existing_entries=None):
             "surfaceId": known_surface_id.get(key, ""),
             "effectFamily": "abstract_game_effect" if path.get("kind") == "transient-effect" else "none",
             "hook": hook,
-            "policy": policy,
         }
-        if policy == "ART_DELEGATED":
-            entry["justification"] = known_justification.get(key, "")
-            entry["test"] = known_test.get(key, "")
+        if not inherited:
+            # Family-default resolutions stay unwritten so inheritance remains
+            # live; explicit decisions are recorded on the entry.
+            entry["policy"] = policy
+        _overlay_ownership_metadata(entry, key, policy, known_justification, known_test)
         result.append(entry)
     current_keys = set(
         (path.get("nativeClass"), path.get("nativeMethod"))
@@ -450,7 +524,7 @@ def write_inventory_manifest(report, path, existing_path=None):
         "schema": existing_data.get("schema", "nrcc.coverage-manifest.v1"),
         "status": "inventory",
         "notes": [
-            "Generated from the current static scan; UNKNOWN entries require explicit policy review.",
+            "Generated from the current static scan; entries without an explicit policy inherit their family default.",
             "Generation does not prove patch loading or runtime delegation.",
             "Entries may omit policy to inherit their family default; see tools/nrcc/families.py.",
         ],

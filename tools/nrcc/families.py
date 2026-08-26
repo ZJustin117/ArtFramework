@@ -13,10 +13,115 @@ import re
 
 UNKNOWN_POLICY = "UNKNOWN"
 
-# Family -> default manifest policy.  Families without an entry inherit
-# UNKNOWN; only deliberate out-of-scope groups carry a default here.
+# Family -> default manifest policy.  Every scanned path resolves to a
+# determinate policy through this table; only `overlay-targeting` deliberately
+# stays UNKNOWN until its slice lands, so new paths there keep failing the
+# strict manifest gate loudly instead of silently counting as covered.
 FAMILY_DEFAULT_POLICY = {
+    # Transient effects: native pixel authority is retained and ART only
+    # observes through the shared container/base-class observation entries.
+    "vfx-combat": "OBSERVED",
+    "vfx-scene-world": "OBSERVED",
+    "vfx-campfire-rest": "OBSERVED",
+    "vfx-card-manipulation": "OBSERVED",
+    "vfx-stance-aura": "OBSERVED",
+    "vfx-misc-root": "OBSERVED",
+    # Semantic fallback note only: the single member carries an explicit
+    # ART_DELEGATED per-instance claim policy.
+    "skeleton-runtime": "OBSERVED",
+    # Structural drawing helpers that ART never intercepts.
+    "draw-primitives-tips": "NATIVE_PASSTHROUGH",
+    "word-tip-ui": "NATIVE_PASSTHROUGH",
+    "core-game-root": "NATIVE_PASSTHROUGH",
+    # Native authority retained; roadmap candidates until individually triaged
+    # for delegation or a full-present surface.
+    "monsters-bosses": "NATIVE_WITH_ART_OVERLAY",
+    "player-character": "NATIVE_WITH_ART_OVERLAY",
+    "orbs": "NATIVE_WITH_ART_OVERLAY",
+    "relics-blights-potions": "NATIVE_WITH_ART_OVERLAY",
+    "stances-state": "NATIVE_WITH_ART_OVERLAY",
+    "map-graph": "NATIVE_WITH_ART_OVERLAY",
+    "cards-piles-soul": "NATIVE_WITH_ART_OVERLAY",
+    "room-shells": "NATIVE_WITH_ART_OVERLAY",
+    "event-dialogs": "NATIVE_WITH_ART_OVERLAY",
+    "shop-rewards-chests": "NATIVE_WITH_ART_OVERLAY",
+    "hud-top-panel": "NATIVE_WITH_ART_OVERLAY",
+    "buttons-controls": "NATIVE_WITH_ART_OVERLAY",
+    "inrun-fullscreens": "NATIVE_WITH_ART_OVERLAY",
+    # Deliberate boundary: out-of-run meta screens stay native and unhooked.
     "meta-outofrun-screens": "OUT_OF_SCOPE",
+    # Slice D placeholder (0 paths today).
+    "overlay-targeting": UNKNOWN_POLICY,
+}
+
+# Shared rationale texts for family defaults.  Policies that keep native
+# pixels authoritative (OBSERVED / NATIVE_PASSTHROUGH) must document why;
+# entries without their own justification inherit these.  OBSERVED texts cite
+# the observation entry (patch file) so the validator can enforce it.
+_VFX_OBSERVED_JUSTIFICATION = (
+    "Native pixel authority retained; ART only observes transient effect renders "
+    "through the shared observation entries (the AbstractGameEffect.render hook in "
+    "artframework/sts1/patch/TransientEffectRenderPatches.java and the "
+    "AbstractDungeon.render container instrument in "
+    "artframework/sts1/patch/TransientEffectContainerPatches.java); concrete "
+    "effects are covered by virtual dispatch at those sites, never by per-class hooks."
+)
+_ROADMAP_OVERLAY_JUSTIFICATION = (
+    "Future delegation candidate; native render authority remains with STS until "
+    "the path is triaged for delegation or a full-present surface. ART may add "
+    "non-authoritative overlays only."
+)
+
+FAMILY_DEFAULT_JUSTIFICATION = {
+    "vfx-combat": _VFX_OBSERVED_JUSTIFICATION,
+    "vfx-scene-world": _VFX_OBSERVED_JUSTIFICATION,
+    "vfx-campfire-rest": _VFX_OBSERVED_JUSTIFICATION,
+    "vfx-card-manipulation": _VFX_OBSERVED_JUSTIFICATION,
+    "vfx-stance-aura": _VFX_OBSERVED_JUSTIFICATION,
+    "vfx-misc-root": (
+        "Native pixel authority retained; this group contains the hooked "
+        "AbstractGameEffect base class itself plus misc effects, all observed "
+        "through artframework/sts1/patch/TransientEffectRenderPatches.java and the "
+        "artframework/sts1/patch/TransientEffectContainerPatches.java container "
+        "instrument; the native effect queue stays authoritative."
+    ),
+    "skeleton-runtime": (
+        "Semantic note only: unclaimed skeletons always continue through the native "
+        "renderer (artframework/sts1/patch/SkeletonRenderPatches.java is the single "
+        "observation/suppression entry); the one member carries an explicit "
+        "ART_DELEGATED per-instance claim policy."
+    ),
+    "draw-primitives-tips": (
+        "Structural drawing helpers (Hitbox, TipHelper, DrawMaster, Label, Sprite, "
+        "AbstractDrawable) invoked inside owner draws; ART never intercepts them."
+    ),
+    "word-tip-ui": (
+        "DialogWord/SpeechWord text layout helpers are structural drawing aids that "
+        "ART never intercepts; FtueTip/MultiPageFtue belong to the out-of-run Ftue "
+        "meta interface, recorded here as a note only."
+    ),
+    "core-game-root": (
+        "Structural roots (CardCrawlGame, OverlayMenu, GameCursor, AbstractCreature) "
+        "orchestrate frame rendering and are never intercepted per pixel; member "
+        "exceptions (TestGame, AbstractDungeon.render) carry explicit entry policies."
+    ),
+    "monsters-bosses": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "player-character": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "orbs": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "relics-blights-potions": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "stances-state": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "map-graph": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "cards-piles-soul": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "room-shells": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "event-dialogs": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "shop-rewards-chests": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "hud-top-panel": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "buttons-controls": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "inrun-fullscreens": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "meta-outofrun-screens": (
+        "Out-of-run meta screens are C1 synthetic-window territory; the native "
+        "screens stay authoritative and unhooked."
+    ),
 }
 
 _PREFIX = "com.megacrit.cardcrawl."

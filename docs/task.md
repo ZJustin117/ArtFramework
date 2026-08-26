@@ -612,7 +612,7 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
 
 - [x] 47.1 Static inventory output and explicit coverage manifest scaffold
 - [x] 47.2 Manifest schema validation and `--check-manifest` closure check
-- [ ] 47.3 Classify all static candidates and make strict manifest check pass
+- [x] 47.3 Classify all static candidates and make strict manifest check pass
 - [x] 47.3a Replace hand card native chrome delegation with an atlas-only ART card shell
 - [ ] 47.4 Pure invocation/disposition/evidence ledger contract and exact correlation
 - [ ] 47.5 `Sts1NativePresentationAdapter` projection into ECS / `PresentationFrame`
@@ -647,3 +647,18 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       pass; probe `nativeRender.transientEffects.rendered` climbs 0→2→30→64→76→86 during
       combat with `failOpen=0` / `unknownLifecycle=0`, confirming container-driven effect
       observation is live on device (previously pinned at zero by the three-arg mis-hook)
+- [x] 47.13 Slice B: NRCC coverage-manifest strategy vocabulary + family default
+      finalization — added `OBSERVED` (native authority retained, ART observes through an
+      existing hook/instrument; justification must cite the observation patch file, probe
+      test optional) and `NATIVE_PASSTHROUGH` (structural helpers never intercepted;
+      justification required) with entry-or-family justification validation; finalized
+      `FAMILY_DEFAULT_POLICY` for all 25 families (vfx groups → `OBSERVED`,
+      draw-primitives/word-tip/core roots → `NATIVE_PASSTHROUGH`, roadmap groups →
+      `NATIVE_WITH_ART_OVERLAY` "future delegation candidate", meta screens →
+      `OUT_OF_SCOPE`, targeting reserved `UNKNOWN`); member-level exceptions
+      `AbstractDungeon#render` → explicit `OBSERVED` (container instrument) and
+      `TestGame#render` → `OUT_OF_SCOPE`; generator now omits policy for family-default
+      resolutions so re-triage stays a one-table change; regenerated
+      `sts1-native-coverage.yaml` (488 paths: 16 `ART_DELEGATED`, 63 `OUT_OF_SCOPE`,
+      1 `OBSERVED`, 408 inherited; unknown=0) so
+      `--check-manifest --strict-manifest` passes with zero ownership errors

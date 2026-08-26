@@ -6,6 +6,7 @@ import unittest
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "tools", "nrcc"))
 
+import coverage_manifest
 import families
 
 
@@ -163,9 +164,56 @@ class FamiliesTest(unittest.TestCase):
 
     def test_family_default_policies(self):
         self.assertEqual(
-            {"meta-outofrun-screens": "OUT_OF_SCOPE"},
+            {
+                "vfx-combat": "OBSERVED",
+                "vfx-scene-world": "OBSERVED",
+                "vfx-campfire-rest": "OBSERVED",
+                "vfx-card-manipulation": "OBSERVED",
+                "vfx-stance-aura": "OBSERVED",
+                "vfx-misc-root": "OBSERVED",
+                "skeleton-runtime": "OBSERVED",
+                "draw-primitives-tips": "NATIVE_PASSTHROUGH",
+                "word-tip-ui": "NATIVE_PASSTHROUGH",
+                "core-game-root": "NATIVE_PASSTHROUGH",
+                "monsters-bosses": "NATIVE_WITH_ART_OVERLAY",
+                "player-character": "NATIVE_WITH_ART_OVERLAY",
+                "orbs": "NATIVE_WITH_ART_OVERLAY",
+                "relics-blights-potions": "NATIVE_WITH_ART_OVERLAY",
+                "stances-state": "NATIVE_WITH_ART_OVERLAY",
+                "map-graph": "NATIVE_WITH_ART_OVERLAY",
+                "cards-piles-soul": "NATIVE_WITH_ART_OVERLAY",
+                "room-shells": "NATIVE_WITH_ART_OVERLAY",
+                "event-dialogs": "NATIVE_WITH_ART_OVERLAY",
+                "shop-rewards-chests": "NATIVE_WITH_ART_OVERLAY",
+                "hud-top-panel": "NATIVE_WITH_ART_OVERLAY",
+                "buttons-controls": "NATIVE_WITH_ART_OVERLAY",
+                "inrun-fullscreens": "NATIVE_WITH_ART_OVERLAY",
+                "meta-outofrun-screens": "OUT_OF_SCOPE",
+                "overlay-targeting": "UNKNOWN",
+            },
             families.FAMILY_DEFAULT_POLICY,
         )
+
+    def test_every_family_has_a_default_policy(self):
+        self.assertEqual(set(families.FAMILY_IDS), set(families.FAMILY_DEFAULT_POLICY))
+
+    def test_family_defaults_are_valid_manifest_policies(self):
+        for family, policy in families.FAMILY_DEFAULT_POLICY.items():
+            self.assertIn(policy, coverage_manifest.POLICIES, family)
+
+    def test_authority_retaining_defaults_carry_justification(self):
+        for family, policy in families.FAMILY_DEFAULT_POLICY.items():
+            if policy not in ("OBSERVED", "NATIVE_PASSTHROUGH"):
+                continue
+            justification = families.FAMILY_DEFAULT_JUSTIFICATION.get(family, "")
+            self.assertTrue(justification, family)
+
+    def test_observed_defaults_cite_observation_patch_file(self):
+        for family, policy in families.FAMILY_DEFAULT_POLICY.items():
+            if policy != "OBSERVED":
+                continue
+            justification = families.FAMILY_DEFAULT_JUSTIFICATION.get(family, "")
+            self.assertRegex(justification, r"[A-Za-z0-9_./$-]+\.java\b", family)
 
 
 if __name__ == "__main__":

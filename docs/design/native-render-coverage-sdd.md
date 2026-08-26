@@ -255,11 +255,40 @@ The static report is ready for manifest authoring when:
 4. Every `hooked` path has an exact target class and method.
 5. Every `unclassified` path is assigned to one of:
    - `ART_DELEGATED` planned invocation delegation (requires justification);
-   - `NATIVE_PASSTHROUGH` explicit native ownership;
+   - `OBSERVED` native pixel authority retained, ART only observes through an
+     existing hook/instrument (requires a justification citing the observation
+     patch file; a probe-field test reference is encouraged but optional);
+   - `NATIVE_PASSTHROUGH` structural helper drawing that ART never intercepts
+     (requires a justification stating the never-intercept reason);
    - `CAPTURED_PASSTHROUGH` observe-only bridge behavior;
    - `NATIVE_WITH_ART_OVERLAY` native pixels continue, ART may add non-authoritative overlays;
    - `OUT_OF_SCOPE` documented boundary;
    - `UNKNOWN` requiring implementation.
+
+### Manifest policy vocabulary and validation
+
+The manifest checker (`tools/nrcc/coverage_manifest.py`) enforces per-policy
+field contracts on top of the list above:
+
+| Policy | Native authority | Required fields |
+|---|---|---|
+| `ART_DELEGATED` | suppressed when FULL_READY | `justification` + `test` (enforced for suppressing patches by the ownership check) |
+| `OBSERVED` | retained; ART observes via an existing hook/instrument | `justification` citing the observation entry (patch file); `test` optional, probe-field references encouraged |
+| `NATIVE_PASSTHROUGH` | retained; structural helpers never intercepted | `justification` stating the never-intercept reason |
+| `CAPTURED_PASSTHROUGH` / `NATIVE_WITH_ART_OVERLAY` | retained | none beyond the base schema |
+| `OUT_OF_SCOPE` | retained; documented boundary | none beyond the base schema |
+| `UNKNOWN` | undecided | must be eliminated before strict acceptance |
+
+An entry satisfies the justification contract with its own `justification`
+field or, when it inherits a family default policy, with the family's default
+rationale (`FAMILY_DEFAULT_JUSTIFICATION` in `tools/nrcc/families.py`). Family
+defaults give every scanned path a determinate effective policy
+(`explicit > family default > UNKNOWN`); entries resolved from a family default
+omit the `policy` field so re-triage stays a one-table change. The strict gate
+(`--check-manifest --strict-manifest`) rejects only explicit `policy: UNKNOWN`
+annotations — inherited defaults are decisions, not gaps — plus the usual
+closure errors (missing/stale paths, duplicates, invalid policies, unknown
+families) and patch-ownership errors.
 
 The static tool must not fail merely because the current project is incomplete;
 it must expose incomplete paths. The `--check-manifest` mode fails CI when an

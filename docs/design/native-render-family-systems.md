@@ -32,9 +32,30 @@ The `family` field flows into both evidence artifacts:
    where each entry records its family and inherits its default policy from
    `FAMILY_DEFAULT_POLICY`.
 
-Default policy strategy: **only `meta-outofrun-screens` defaults to `OUT_OF_SCOPE`**. Every
-other family inherits `UNKNOWN`, deliberately exposing incompleteness instead of pretending
-coverage. Explicit per-entry policies still override the family default.
+Default policy strategy: every family carries a determinate default in
+`FAMILY_DEFAULT_POLICY` (`tools/nrcc/families.py`), so no scanned path is left
+without a policy decision:
+
+- `OBSERVED` for the six vfx families and as the semantic note on
+  `skeleton-runtime`: native pixel authority is retained and ART only observes
+  through the shared container/base-class observation entries;
+- `NATIVE_PASSTHROUGH` for structural helpers that ART never intercepts
+  (`draw-primitives-tips`, `word-tip-ui`, `core-game-root`);
+- `NATIVE_WITH_ART_OVERLAY` for the roadmap groups (monsters/bosses, player,
+  orbs, relics/blights/potions, stances, map graph, cards/piles/soul, room
+  shells, event dialogs, shop/rewards/chests, HUD top panel, buttons, in-run
+  fullscreens): future delegation candidates whose native authority stays in
+  place until individually triaged;
+- `OUT_OF_SCOPE` for `meta-outofrun-screens`;
+- `UNKNOWN` only for the zero-path `overlay-targeting` placeholder so Slice D
+  paths fail the strict gate loudly instead of silently counting as covered.
+
+Explicit per-entry policies still override the family default; entries resolved
+from a family default omit the `policy` field so re-triage stays a one-table
+change in `families.py`. Member-level exceptions live as explicit annotations:
+the 16 `ART_DELEGATED` paths, `AbstractCard#render` `OUT_OF_SCOPE`,
+`AbstractDungeon#render` `OBSERVED` (container instrument), and `TestGame#render`
+`OUT_OF_SCOPE`.
 
 Current distribution baseline (static scan, 488 paths total, 16 `hooked` / 472 `unclassified`):
 
@@ -60,16 +81,16 @@ currently have a matching ART patch. Counts are the scan baseline above; regener
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `inrun-fullscreens` | 18 | `DungeonMapScreen`, `GridCardSelectScreen`, `HandCardSelectScreen`, `CombatRewardScreen`, `DeathScreen` | Delegation-governed (hooked 4/18: map, grid/hand select, combat reward); remaining paths stay `UNKNOWN` until triaged |
-| `buttons-controls` | 17 | `EndTurnButton`, `ProceedButton`, `ConfirmButton`, `CancelButton` | Delegation-governed (hooked 2/17: end turn, proceed); remainder `UNKNOWN` |
-| `hud-top-panel` | 11 | `TopPanel`, `EnergyPanel`, `DrawPilePanel`, `DiscardPilePanel` | Delegation-governed (hooked 2/11: top panel, energy); remainder `UNKNOWN` |
-| `room-shells` | 10 | `AbstractRoom`, `CampfireUI`, `TreasureRoom`, `NeowRoom` | Delegation-governed (hooked 2/10: rest, treasure); remainder `UNKNOWN` |
-| `event-dialogs` | 10 | `GenericEventDialog`, `RoomEventDialog`, `AbstractEvent` | Delegation-governed (hooked 1/10: generic event dialog); remainder `UNKNOWN` |
-| `shop-rewards-chests` | 8 | `ShopScreen`, `RewardItem`, `Merchant`, `AbstractChest` | Delegation-governed (hooked 1/8: shop screen); remainder `UNKNOWN` |
-| `monsters-bosses` | 8 | `AbstractMonster`, `MonsterGroup` | Delegation-governed (hooked 1/8: `renderIntent`); remainder `UNKNOWN` |
-| `player-character` | 5 | `AbstractPlayer`, `AnimatedNpc` | Delegation-governed (hooked 1/5: `renderHand`); remainder `UNKNOWN` |
-| `skeleton-runtime` | 1 | `SkeletonMeshRenderer` | Delegation-governed; per-instance claims only, unclaimed skeletons pass through |
-| `vfx-misc-root` | 97 | `AbstractGameEffect`, `SpeechBubble`, `RelicAboveCreatureEffect` | Observed through the `AbstractDungeon` container instrument plus the base-class direct-draw hook (see observe-only below); hooked 1/97 |
+| `inrun-fullscreens` | 18 | `DungeonMapScreen`, `GridCardSelectScreen`, `HandCardSelectScreen`, `CombatRewardScreen`, `DeathScreen` | Delegation-governed (hooked 4/18: map, grid/hand select, combat reward); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; native authority until triaged) |
+| `buttons-controls` | 17 | `EndTurnButton`, `ProceedButton`, `ConfirmButton`, `CancelButton` | Delegation-governed (hooked 2/17: end turn, proceed); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `hud-top-panel` | 11 | `TopPanel`, `EnergyPanel`, `DrawPilePanel`, `DiscardPilePanel` | Delegation-governed (hooked 2/11: top panel, energy); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `room-shells` | 10 | `AbstractRoom`, `CampfireUI`, `TreasureRoom`, `NeowRoom` | Delegation-governed (hooked 2/10: rest, treasure); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `event-dialogs` | 10 | `GenericEventDialog`, `RoomEventDialog`, `AbstractEvent` | Delegation-governed (hooked 1/10: generic event dialog); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `shop-rewards-chests` | 8 | `ShopScreen`, `RewardItem`, `Merchant`, `AbstractChest` | Delegation-governed (hooked 1/8: shop screen); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `monsters-bosses` | 8 | `AbstractMonster`, `MonsterGroup` | Delegation-governed (hooked 1/8: `renderIntent`); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `player-character` | 5 | `AbstractPlayer`, `AnimatedNpc` | Delegation-governed (hooked 1/5: `renderHand`); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `skeleton-runtime` | 1 | `SkeletonMeshRenderer` | Delegation-governed; per-instance claims only (`ART_DELEGATED` member), unclaimed skeletons pass through; family default is the `OBSERVED` semantic note |
+| `vfx-misc-root` | 97 | `AbstractGameEffect`, `SpeechBubble`, `RelicAboveCreatureEffect` | `OBSERVED` by family default: observed through the `AbstractDungeon` container instrument plus the base-class direct-draw hook (see observe-only below); hooked 1/97 (`ART_DELEGATED` base-class member) |
 
 ### Observe-only (container call sites + direct-draw hook)
 
@@ -87,36 +108,36 @@ covered by virtual dispatch at the container sites, not by their own patches.
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `vfx-combat` | 145 | `StrikeEffect`, `DamageNumberEffect`, `FlashAtkImgEffect` | Observe-only via the `AbstractDungeon` container call sites |
-| `vfx-scene-world` | 29 | `TorchParticleLEffect`, `DustEffect`, `BonfireParticleEffect` | Observe-only via the container call sites |
-| `vfx-campfire-rest` | 10 | `CampfireSmithEffect`, `CampfireSleepEffect` | Observe-only via the container call sites |
-| `vfx-card-manipulation` | 10 | `ShowCardAndAddToHandEffect`, `ExhaustCardEffect` | Observe-only via the container call sites |
-| `vfx-stance-aura` | 8 | `DivinityParticleEffect`, `WrathParticleEffect`, `StanceAuraEffect` | Observe-only via the container call sites |
+| `vfx-combat` | 145 | `StrikeEffect`, `DamageNumberEffect`, `FlashAtkImgEffect` | `OBSERVED` (family default): observe-only via the `AbstractDungeon` container call sites |
+| `vfx-scene-world` | 29 | `TorchParticleLEffect`, `DustEffect`, `BonfireParticleEffect` | `OBSERVED` (family default): observe-only via the container call sites |
+| `vfx-campfire-rest` | 10 | `CampfireSmithEffect`, `CampfireSleepEffect` | `OBSERVED` (family default): observe-only via the container call sites |
+| `vfx-card-manipulation` | 10 | `ShowCardAndAddToHandEffect`, `ExhaustCardEffect` | `OBSERVED` (family default): observe-only via the container call sites |
+| `vfx-stance-aura` | 8 | `DivinityParticleEffect`, `WrathParticleEffect`, `StanceAuraEffect` | `OBSERVED` (family default): observe-only via the container call sites |
 
 ### Future delegation candidate / reserved
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `overlay-targeting` | 0 | (reserved: `AbstractPlayer#renderTargetingUi`, `PotionPopUp#renderTargetingUi`) | Placeholder for the card targeting arrow (recipe B); future observe-family pilot, not implemented this round |
+| `overlay-targeting` | 0 | (reserved: `AbstractPlayer#renderTargetingUi`, `PotionPopUp#renderTargetingUi`) | Placeholder for the card targeting arrow (recipe B); family default stays `UNKNOWN` so Slice D paths fail strict loudly; future observe-family pilot, not implemented this round |
 
 ### Passthrough helpers and structural roots
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `draw-primitives-tips` | 6 | `TipHelper`, `Hitbox`, `Label`, `DrawMaster`, `Sprite`, `AbstractDrawable` | Passthrough drawing primitives shared by every surface; closed exact-set, native ownership by design |
-| `core-game-root` | 6 | `CardCrawlGame`, `OverlayMenu`, `AbstractCreature`, `GameCursor` | Structural root / overlay plumbing; `AbstractDungeon#render` hosts the observe-only effect-container instrument (recipe C), the rest passthrough unless a §5 design proves a single safe choke point |
+| `draw-primitives-tips` | 6 | `TipHelper`, `Hitbox`, `Label`, `DrawMaster`, `Sprite`, `AbstractDrawable` | `NATIVE_PASSTHROUGH` (family default): drawing primitives shared by every surface; closed exact-set, never intercepted |
+| `core-game-root` | 6 | `CardCrawlGame`, `OverlayMenu`, `AbstractCreature`, `GameCursor` | `NATIVE_PASSTHROUGH` (family default): structural root / overlay plumbing, never intercepted per pixel; explicit member exceptions — `AbstractDungeon#render` is `OBSERVED` (hosts the observe-only effect-container instrument, recipe C) and `TestGame#render` is `OUT_OF_SCOPE` |
 
 ### Out of scope and untriaged
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
 | `meta-outofrun-screens` | 61 | `MainMenuScreen`, `CreditsScreen`, `Cutscene`, char-select/options/stats screens | `OUT_OF_SCOPE` by family default policy; upgrade path is recipe A and stays reversible |
-| `cards-piles-soul` | 6 | `AbstractCard`, `CardGroup`, `Soul`, `SoulGroup` | Mixed: `AbstractCard#render` is `OUT_OF_SCOPE` by SDD boundary (ART never suppresses card pixels); rest `UNKNOWN` triage |
-| `orbs` | 6 | `AbstractOrb`, `Frost`, `Dark`, `EmptyOrbSlot` | `UNKNOWN` triage; combat-chrome promotion only through the §5 checklist |
-| `relics-blights-potions` | 5 | `AbstractRelic`, `AbstractPotion`, `AbstractBlight` | `UNKNOWN` triage (adjacent to top-panel chrome governance) |
-| `map-graph` | 5 | `DungeonMap`, `MapEdge`, `Legend`, `LegendItem` | `UNKNOWN` triage; screen-level map delegation is owned by the `inrun-fullscreens` member `DungeonMapScreen` |
-| `word-tip-ui` | 4 | `DialogWord`, `FtueTip`, `MultiPageFtue`, `SpeechWord` | `UNKNOWN` triage |
-| `stances-state` | 2 | `AbstractStance`, `NeutralStance` | `UNKNOWN` triage |
+| `cards-piles-soul` | 6 | `AbstractCard`, `CardGroup`, `Soul`, `SoulGroup` | Mixed: `AbstractCard#render` is `OUT_OF_SCOPE` by SDD boundary (ART never suppresses card pixels); rest inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; native authority until triaged) |
+| `orbs` | 6 | `AbstractOrb`, `Frost`, `Dark`, `EmptyOrbSlot` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate); combat-chrome promotion only through the §5 checklist |
+| `relics-blights-potions` | 5 | `AbstractRelic`, `AbstractPotion`, `AbstractBlight` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; adjacent to top-panel chrome governance) |
+| `map-graph` | 5 | `DungeonMap`, `MapEdge`, `Legend`, `LegendItem` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate); screen-level map delegation is owned by the `inrun-fullscreens` member `DungeonMapScreen` |
+| `word-tip-ui` | 4 | `DialogWord`, `FtueTip`, `MultiPageFtue`, `SpeechWord` | `NATIVE_PASSTHROUGH` (family default): text layout helpers never intercepted; Ftue members are an out-of-run meta-interface property, recorded as a justification note |
+| `stances-state` | 2 | `AbstractStance`, `NeutralStance` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 
 ## 3. Group → three-layer mapping framework
 

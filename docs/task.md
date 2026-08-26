@@ -643,3 +643,7 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       helper (zero suppression, fail-open ledger note); converge the Registry→ECS projection into
       the schedule-owned `TransientEffectProjectionSystem` (`HOST_PRESENTATION`) whose drain is
       shared by the frame schedule and the synchronous render-hook bridge
+- [x] 47.12 D1 evidence for 47.11: fresh `ArtFramework.jar` deploy + `d1_full_present_combat_ready`
+      pass; probe `nativeRender.transientEffects.rendered` climbs 0→2→30→64→76→86 during
+      combat with `failOpen=0` / `unknownLifecycle=0`, confirming container-driven effect
+      observation is live on device (previously pinned at zero by the three-arg mis-hook)

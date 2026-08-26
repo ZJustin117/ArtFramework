@@ -6,6 +6,8 @@ from __future__ import print_function
 import yaml
 import re
 
+from families import FAMILY_DEFAULT_POLICY, FAMILY_IDS, family_for
+
 
 POLICIES = {
     "ART_DELEGATED",
@@ -23,12 +25,26 @@ REQUIRED_FIELDS = (
     "surfaceId",
     "effectFamily",
     "hook",
-    "policy",
 )
 ART_DELEGATED_REQUIRED = (
     "justification",
     "test",
 )
+
+
+def effective_policy(entry):
+    """Resolve the manifest policy for one entry.
+
+    An explicit policy always wins.  Without one the entry inherits its
+    family default (see families.FAMILY_DEFAULT_POLICY); entries without a
+    usable family default stay UNKNOWN.  Inherited values are not manual
+    annotations, so strict UNKNOWN reporting keeps looking at the explicit
+    field only.
+    """
+    explicit = entry.get("policy")
+    if explicit:
+        return explicit
+    return FAMILY_DEFAULT_POLICY.get(entry.get("family"), "UNKNOWN")
 
 
 def load_manifest(path):
@@ -56,9 +72,13 @@ def check_manifest(report, manifest_path, strict_unknown=False):
         for field in REQUIRED_FIELDS:
             if field not in entry:
                 errors.append("entries[{}] missing {}".format(index, field))
-        policy = entry.get("policy")
-        if policy not in POLICIES:
-            errors.append("entries[{}] invalid policy: {}".format(index, policy))
+        family = entry.get("family")
+        if family is not None and family not in FAMILY_IDS:
+            errors.append("entries[{}] unknown family: {}".format(index, family))
+        # policy is optional: entries may inherit their family default.
+        explicit_policy = entry.get("policy")
+        if explicit_policy is not None and explicit_policy not in POLICIES:
+            errors.append("entries[{}] invalid policy: {}".format(index, explicit_policy))
         key = (entry.get("nativeClass"), entry.get("nativeMethod"))
         if key in seen:
             errors.append(
@@ -146,10 +166,10 @@ def check_patch_ownership(report, manifest_path):
                 )
             )
             continue
-        if entry.get("policy") != "ART_DELEGATED":
+        if effective_policy(entry) != "ART_DELEGATED":
             errors.append(
                 "patch {} -> {}#{} suppresses native draw but manifest policy is {}".format(
-                    patch.get("source"), key[0], key[1], entry.get("policy")
+                    patch.get("source"), key[0], key[1], effective_policy(entry)
                 )
             )
         for field in ART_DELEGATED_REQUIRED:
@@ -171,14 +191,26 @@ def _owner_id(native_class, native_method):
 def inventory_entries(report, existing_entries=None):
     """Materialize every static path as an explicit development manifest entry.
 
-    Existing entries are preserved verbatim by native path. Newly discovered paths are
-    deliberately marked UNKNOWN; generation closes inventory bookkeeping without claiming
-    runtime ownership or delegation.
+    Existing entries are preserved verbatim by native path. Newly discovered paths
+    are deliberately marked UNKNOWN; generation closes inventory bookkeeping without claiming
+    runtime ownership or delegation. Every entry records its semantic family;
+    the written policy is the curated override when present, otherwise an
+    existing explicit (non-UNKNOWN) annotation, otherwise the family default.
     """
     existing = {}
     for entry in existing_entries or []:
         if isinstance(entry, dict):
             existing[(entry.get("nativeClass"), entry.get("nativeMethod"))] = entry
+
+    def resolve_policy(key, family, existing_entry):
+        if key in known_policy:
+            return known_policy[key]
+        explicit = existing_entry.get("policy") if existing_entry else None
+        if explicit not in (None, "UNKNOWN"):
+            # A human annotation always beats generated defaults; UNKNOWN is a
+            # placeholder, not a decision, so it is re-derived instead.
+            return explicit
+        return FAMILY_DEFAULT_POLICY.get(family, "UNKNOWN")
 
     known_policy = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): "ART_DELEGATED",
@@ -368,10 +400,12 @@ def inventory_entries(report, existing_entries=None):
     ):
         key = (path.get("nativeClass"), path.get("nativeMethod"))
         existing_entry = existing.get(key)
-        policy = known_policy.get(key, "UNKNOWN")
-        if existing_entry is not None and existing_entry.get("policy") != "UNKNOWN":
+        family = family_for(*key)
+        policy = resolve_policy(key, family, existing_entry)
+        if existing_entry is not None and existing_entry.get("policy") not in (None, "UNKNOWN"):
             # Preserve the existing entry but overlay any known ownership metadata.
             entry = dict(existing_entry)
+            entry["family"] = family
             entry["policy"] = policy
             if policy == "ART_DELEGATED":
                 entry["justification"] = known_justification.get(key, "")
@@ -386,6 +420,7 @@ def inventory_entries(report, existing_entries=None):
             "ownerId": _owner_id(*key),
             "nativeClass": key[0],
             "nativeMethod": key[1],
+            "family": family,
             "pathKind": path.get("kind", "unknown"),
             "surfaceId": known_surface_id.get(key, ""),
             "effectFamily": "abstract_game_effect" if path.get("kind") == "transient-effect" else "none",
@@ -417,6 +452,7 @@ def write_inventory_manifest(report, path, existing_path=None):
         "notes": [
             "Generated from the current static scan; UNKNOWN entries require explicit policy review.",
             "Generation does not prove patch loading or runtime delegation.",
+            "Entries may omit policy to inherit their family default; see tools/nrcc/families.py.",
         ],
         "entries": inventory_entries(report, existing_entries),
     }

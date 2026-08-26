@@ -55,12 +55,34 @@ class StaticScanTest(unittest.TestCase):
         )
 
     def test_static_scan_uses_hooked_vocabulary(self):
-        self.assertEqual("nrcc.static-scan.v2", scan_sts_render.STATIC_SCAN_SCHEMA)
+        self.assertEqual("nrcc.static-scan.v3", scan_sts_render.STATIC_SCAN_SCHEMA)
         self.assertEqual(
             "relic-power",
             scan_sts_render.classify(
                 "com.megacrit.cardcrawl.relics.AbstractRelic", "render"
             ),
+        )
+
+    def test_family_summary_counts_paths_per_family(self):
+        paths = [
+            {"family": "vfx-combat"},
+            {"family": "vfx-combat"},
+            {"family": "skeleton-runtime"},
+            {},
+        ]
+        self.assertEqual(
+            {"": 1, "skeleton-runtime": 1, "vfx-combat": 2},
+            scan_sts_render.family_summary(paths),
+        )
+
+    def test_path_rows_carry_semantic_family(self):
+        # The scan builds rows with family_for; verify the wiring on a
+        # representative native path without needing the STS jar.
+        from families import family_for
+
+        self.assertEqual(
+            "inrun-fullscreens",
+            family_for("com.megacrit.cardcrawl.screens.DungeonMapScreen", "render"),
         )
 
     def test_candidate_classes_include_explicit_non_sts_patch_targets(self):

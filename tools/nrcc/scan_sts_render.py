@@ -17,10 +17,11 @@ import sys
 import zipfile
 
 from coverage_manifest import check_manifest, check_patch_ownership, load_manifest, write_inventory_manifest
+from families import family_for
 
 
 STS_PREFIX = "com.megacrit.cardcrawl."
-STATIC_SCAN_SCHEMA = "nrcc.static-scan.v2"
+STATIC_SCAN_SCHEMA = "nrcc.static-scan.v3"
 CLASS_HINTS = re.compile(
     r"(render|effect|relic|power|screen|room|creature|player|energy|card|dialog|panel|button|map)",
     re.IGNORECASE,
@@ -201,6 +202,7 @@ def scan(args):
             paths.append({
                 "nativeClass": name,
                 "nativeMethod": method,
+                "family": family_for(name, method),
                 "kind": classify(name, method),
                 "artPatches": rows,
                 "classification": "hooked" if rows else "unclassified",
@@ -219,6 +221,7 @@ def scan(args):
             "renderPaths": len(paths),
             "hooked": sum(1 for p in paths if p["classification"] == "hooked"),
             "unclassified": sum(1 for p in paths if p["classification"] == "unclassified"),
+            "families": family_summary(paths),
         },
         "limitations": [
             "Method declarations are static candidates; runtime execution still needs a dynamic ledger.",
@@ -268,6 +271,15 @@ def classify(name, method):
     if method == "draw":
         return "draw-owner"
     return "render-owner"
+
+
+def family_summary(paths):
+    """Count static paths per semantic family, in stable family-id order."""
+    counts = {}
+    for path in paths:
+        family = path.get("family", "")
+        counts[family] = counts.get(family, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def main(argv):

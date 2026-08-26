@@ -181,11 +181,11 @@ class CoverageManifestTest(unittest.TestCase):
     def test_inventory_entries_preserve_existing_and_add_unknown(self):
         entries = coverage_manifest.inventory_entries(
             {"paths": [
-                {"nativeClass": "native.Known", "nativeMethod": "render", "kind": "native-surface"},
-                {"nativeClass": "native.New", "nativeMethod": "draw", "kind": "draw-owner"},
+                {"nativeClass": "com.megacrit.cardcrawl.cards.CardGroup", "nativeMethod": "render", "kind": "native-surface"},
+                {"nativeClass": "com.megacrit.cardcrawl.vfx.combat.StrikeEffect", "nativeMethod": "draw", "kind": "draw-owner"},
             ]},
             [{
-                "ownerId": "owner.known", "nativeClass": "native.Known", "nativeMethod": "render",
+                "ownerId": "owner.known", "nativeClass": "com.megacrit.cardcrawl.cards.CardGroup", "nativeMethod": "render",
                 "pathKind": "native_surface", "surfaceId": "surface", "effectFamily": "none",
                 "hook": "Hook", "policy": "ART_DELEGATED",
             }],
@@ -205,6 +205,234 @@ class CoverageManifestTest(unittest.TestCase):
             }]
         })
         self.assertEqual("OUT_OF_SCOPE", entries[0]["policy"])
+
+    def test_entry_without_policy_inherits_family_default(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: com.megacrit.cardcrawl.screens.mainMenu.MainMenuScreen\n"
+            "    nativeMethod: render\n"
+            "    family: meta-outofrun-screens\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+        )
+        self.paths = [path]
+        report = {"paths": [{
+            "nativeClass": "com.megacrit.cardcrawl.screens.mainMenu.MainMenuScreen",
+            "nativeMethod": "render",
+        }]}
+        result = coverage_manifest.check_manifest(report, path)
+        self.assertTrue(result["ok"])
+        self.assertEqual([], result["errors"])
+        # Inherited defaults are not manual annotations: strict UNKNOWN
+        # reporting must not flag them.
+        self.assertEqual([], result["unknown"])
+        self.assertTrue(
+            coverage_manifest.check_manifest(report, path, strict_unknown=True)["ok"]
+        )
+
+    def test_explicit_policy_overrides_family_default(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: com.megacrit.cardcrawl.screens.mainMenu.MainMenuScreen\n"
+            "    nativeMethod: render\n"
+            "    family: meta-outofrun-screens\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: NATIVE_PASSTHROUGH\n"
+        )
+        self.paths = [path]
+        result = coverage_manifest.check_manifest(
+            {"paths": [{
+                "nativeClass": "com.megacrit.cardcrawl.screens.mainMenu.MainMenuScreen",
+                "nativeMethod": "render",
+            }]},
+            path,
+        )
+        self.assertTrue(result["ok"])
+        entry = coverage_manifest.load_manifest(path)[1][0]
+        self.assertEqual("NATIVE_PASSTHROUGH", coverage_manifest.effective_policy(entry))
+
+    def test_inherited_family_unknown_is_not_reported_as_annotation(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: com.megacrit.cardcrawl.vfx.combat.StrikeEffect\n"
+            "    nativeMethod: render\n"
+            "    family: vfx-combat\n"
+            "    pathKind: transient_effect\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+        )
+        self.paths = [path]
+        report = {"paths": [{
+            "nativeClass": "com.megacrit.cardcrawl.vfx.combat.StrikeEffect",
+            "nativeMethod": "render",
+        }]}
+        result = coverage_manifest.check_manifest(report, path)
+        self.assertTrue(result["ok"])
+        self.assertEqual([], result["unknown"])
+        self.assertTrue(
+            coverage_manifest.check_manifest(report, path, strict_unknown=True)["ok"]
+        )
+
+    def test_explicit_unknown_is_still_reported(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: native.Unknown\n"
+            "    nativeMethod: render\n"
+            "    family: vfx-combat\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: UNKNOWN\n"
+        )
+        self.paths = [path]
+        result = coverage_manifest.check_manifest(
+            {"paths": [{"nativeClass": "native.Unknown", "nativeMethod": "render"}]},
+            path,
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual([("native.Unknown", "render")], result["unknown"])
+
+    def test_unknown_family_id_is_rejected(self):
+        path = self.write_manifest(
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: native.Owner\n"
+            "    nativeMethod: render\n"
+            "    family: not-a-family\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: UNKNOWN\n"
+        )
+        self.paths = [path]
+        result = coverage_manifest.check_manifest({"paths": []}, path)
+        self.assertFalse(result["ok"])
+        self.assertTrue(any("unknown family" in e for e in result["errors"]))
+
+    def test_patch_ownership_honors_inherited_policy(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: native.Owner\n"
+            "    nativeMethod: render\n"
+            "    family: meta-outofrun-screens\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+        )
+        self.paths = [path]
+        report = {
+            "patches": [
+                {
+                    "source": "artframework/sts1/patch/NativeRenderPatches.java",
+                    "targetClass": "native.Owner",
+                    "targetMethod": "render",
+                    "hasSpireReturn": True,
+                    "continuationHint": [],
+                }
+            ]
+        }
+        errors = coverage_manifest.check_patch_ownership(report, path)
+        self.assertTrue(any("manifest policy is OUT_OF_SCOPE" in e for e in errors))
+
+    def test_inventory_entries_write_family_and_meta_out_of_scope(self):
+        entries = coverage_manifest.inventory_entries({
+            "paths": [
+                {
+                    "nativeClass": "com.megacrit.cardcrawl.screens.mainMenu.MainMenuScreen",
+                    "nativeMethod": "render",
+                    "kind": "native-surface",
+                },
+                {
+                    "nativeClass": "com.megacrit.cardcrawl.vfx.combat.StrikeEffect",
+                    "nativeMethod": "render",
+                    "kind": "transient-effect",
+                },
+            ]
+        })
+        by_key = dict(
+            ((entry["nativeClass"], entry["nativeMethod"]), entry)
+            for entry in entries
+        )
+        menu = by_key[("com.megacrit.cardcrawl.screens.mainMenu.MainMenuScreen", "render")]
+        strike = by_key[("com.megacrit.cardcrawl.vfx.combat.StrikeEffect", "render")]
+        self.assertEqual("meta-outofrun-screens", menu["family"])
+        self.assertEqual("OUT_OF_SCOPE", menu["policy"])
+        self.assertEqual("vfx-combat", strike["family"])
+        self.assertEqual("UNKNOWN", strike["policy"])
+
+    def test_regeneration_keeps_existing_explicit_annotation(self):
+        entries = coverage_manifest.inventory_entries(
+            {"paths": [{
+                "nativeClass": "com.megacrit.cardcrawl.vfx.combat.StrikeEffect",
+                "nativeMethod": "render",
+                "kind": "transient-effect",
+            }]},
+            [{
+                "ownerId": "owner.custom",
+                "nativeClass": "com.megacrit.cardcrawl.vfx.combat.StrikeEffect",
+                "nativeMethod": "render", "family": "vfx-combat",
+                "pathKind": "transient_effect", "surfaceId": "surface",
+                "effectFamily": "abstract_game_effect", "hook": "Hook",
+                "policy": "NATIVE_WITH_ART_OVERLAY",
+            }],
+        )
+        self.assertEqual("NATIVE_WITH_ART_OVERLAY", entries[0]["policy"])
+
+    def test_write_inventory_manifest_round_trip_carries_family(self):
+        handle = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+        handle.close()
+        self.paths = [handle.name]
+        report = {"paths": [
+            {
+                "nativeClass": "com.megacrit.cardcrawl.screens.splash.SplashScreen",
+                "nativeMethod": "render",
+                "kind": "native-surface",
+            },
+            {
+                "nativeClass": "com.esotericsoftware.spine.SkeletonMeshRenderer",
+                "nativeMethod": "draw",
+                "kind": "draw-owner",
+            },
+        ]}
+        coverage_manifest.write_inventory_manifest(report, handle.name)
+        data, entries = coverage_manifest.load_manifest(handle.name)
+        families_written = sorted(entry["family"] for entry in entries)
+        self.assertEqual(
+            ["meta-outofrun-screens", "skeleton-runtime"],
+            families_written,
+        )
+        policies = dict(
+            ((entry["nativeClass"], entry["nativeMethod"]),
+             coverage_manifest.effective_policy(entry))
+            for entry in entries
+        )
+        self.assertEqual(
+            "OUT_OF_SCOPE",
+            policies[("com.megacrit.cardcrawl.screens.splash.SplashScreen", "render")],
+        )
+        self.assertEqual(
+            "ART_DELEGATED",
+            policies[("com.esotericsoftware.spine.SkeletonMeshRenderer", "draw")],
+        )
 
 
 if __name__ == "__main__":

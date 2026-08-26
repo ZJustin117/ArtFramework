@@ -183,19 +183,22 @@ def inventory_entries(report, existing_entries=None):
     known_policy = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): "ART_DELEGATED",
         ("com.esotericsoftware.spine.SkeletonMeshRenderer", "draw"): "ART_DELEGATED",
-        # Atlas shell replaces this native call entirely; no native invocation is hooked now.
+        # Not patched: card pixels are drawn by the live, un-intercepted
+        # AbstractCard.render call; ART owns hand pose/layout only.
         ("com.megacrit.cardcrawl.cards.AbstractCard", "render"): "OUT_OF_SCOPE",
-        ("com.megacrit.cardcrawl.ui.buttons.EndTurnButton", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.ui.panels.EnergyPanel", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.monsters.AbstractMonster", "renderIntent"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.screens.DungeonMapScreen", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.events.GenericEventDialog", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.screens.select.GridCardSelectScreen", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.screens.select.HandCardSelectScreen", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.screens.CombatRewardScreen", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.rooms.CampfireUI", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.shop.ShopScreen", "render"): "NATIVE_WITH_ART_OVERLAY",
-        ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): "NATIVE_WITH_ART_OVERLAY",
+        ("com.megacrit.cardcrawl.ui.buttons.EndTurnButton", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.ui.panels.EnergyPanel", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.monsters.AbstractMonster", "renderIntent"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.screens.DungeonMapScreen", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.events.GenericEventDialog", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.screens.select.GridCardSelectScreen", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.screens.select.HandCardSelectScreen", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.screens.CombatRewardScreen", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.rooms.CampfireUI", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.shop.ShopScreen", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "ART_DELEGATED",
     }
     known_surface_id = {
@@ -212,6 +215,8 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.rooms.CampfireUI", "render"): "sts1.rest",
         ("com.megacrit.cardcrawl.shop.ShopScreen", "render"): "sts1.shop",
         ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): "sts1.treasure",
+        ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): "sts1.combat.proceed",
+        ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): "sts1.top_panel",
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "",
     }
     known_justification = {
@@ -227,6 +232,84 @@ def inventory_entries(report, existing_entries=None):
             "Only individual effect instances claimed by ART through NativeRenderBridge.beginEffectRender "
             "are suppressed; the native effect queue remains authoritative."
         ),
+        ("com.megacrit.cardcrawl.ui.buttons.EndTurnButton", "render"): (
+            "Combat controls is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; current pixel supply is text "
+            "chrome pending full reproduction."
+        ),
+        ("com.megacrit.cardcrawl.ui.panels.EnergyPanel", "render"): (
+            "Combat energy is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; current pixel supply is text "
+            "chrome pending full reproduction."
+        ),
+        ("com.megacrit.cardcrawl.monsters.AbstractMonster", "renderIntent"): (
+            "Combat intents is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; current pixel supply is "
+            "projection chrome pending full reproduction."
+        ),
+        ("com.megacrit.cardcrawl.screens.DungeonMapScreen", "render"): (
+            "Map is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART only when "
+            "FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; HostAssets supplies the node "
+            "draw path while full native parity is pending."
+        ),
+        ("com.megacrit.cardcrawl.events.GenericEventDialog", "render"): (
+            "Event dialog is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; base pixels are not reproduced "
+            "yet and stay visible there."
+        ),
+        ("com.megacrit.cardcrawl.screens.select.GridCardSelectScreen", "render"): (
+            "Grid select is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; base pixels are not reproduced "
+            "yet and stay visible there."
+        ),
+        ("com.megacrit.cardcrawl.screens.select.HandCardSelectScreen", "render"): (
+            "Hand select is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; base pixels are not reproduced "
+            "yet, and the referenced test gates the shared plan-level policy until a dedicated prefix "
+            "suppression test exists."
+        ),
+        ("com.megacrit.cardcrawl.screens.CombatRewardScreen", "render"): (
+            "Combat rewards is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; reward item sync and base "
+            "pixels are incomplete."
+        ),
+        ("com.megacrit.cardcrawl.rooms.CampfireUI", "render"): (
+            "Rest room is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART only "
+            "when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; campfire options are not synced "
+            "and base pixels are absent."
+        ),
+        ("com.megacrit.cardcrawl.shop.ShopScreen", "render"): (
+            "Shop is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART only when "
+            "FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; item sync and base pixels are "
+            "incomplete."
+        ),
+        ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): (
+            "Treasure room is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; chest and item sync are absent."
+        ),
+        ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): (
+            "Proceed button is an ART combat-controls extension surface; NativeRenderBridge returns "
+            "DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail open. Delegation "
+            "must close PresentationDrawEvidence or count as a strict report gap; current pixel supply "
+            "is text chrome."
+        ),
+        ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): (
+            "Top panel is an ART HUD surface; NativeRenderBridge returns DELEGATE_TO_ART only when "
+            "FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; current pixel supply is text "
+            "chrome."
+        ),
     }
     known_test = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): (
@@ -237,6 +320,45 @@ def inventory_entries(report, existing_entries=None):
         ),
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): (
             "artframework.sts1.render.NativeRenderBridgeTest.transientEffectRenderAlwaysCapturesAndPasses"
+        ),
+        ("com.megacrit.cardcrawl.ui.buttons.EndTurnButton", "render"): (
+            "artframework.sts1.render.CombatControlsRenderPatchesTest.fullReadySuppressesNativeEndTurnRender"
+        ),
+        ("com.megacrit.cardcrawl.ui.panels.EnergyPanel", "render"): (
+            "artframework.sts1.render.CombatEnergyRenderPatchesTest.fullReadySuppressesNativeEnergyRender"
+        ),
+        ("com.megacrit.cardcrawl.monsters.AbstractMonster", "renderIntent"): (
+            "artframework.sts1.render.CombatIntentRenderPatchesTest.fullReadySuppressesNativeIntentRender"
+        ),
+        ("com.megacrit.cardcrawl.screens.DungeonMapScreen", "render"): (
+            "artframework.sts1.render.MapDrawPathTest.suppressesNativeMapOnlyWhenFullReady"
+        ),
+        ("com.megacrit.cardcrawl.events.GenericEventDialog", "render"): (
+            "artframework.sts1.render.EventRenderPatchesTest.fullReadySuppressesNativeEventRender"
+        ),
+        ("com.megacrit.cardcrawl.screens.select.GridCardSelectScreen", "render"): (
+            "artframework.sts1.render.SelectRenderPatchesTest.fullReadySuppressesNativeGridSelectRender"
+        ),
+        ("com.megacrit.cardcrawl.screens.select.HandCardSelectScreen", "render"): (
+            "artframework.sts1.render.RenderPatchOwnershipTest.delegatedSurfacesAreNotNativeAuthoritative"
+        ),
+        ("com.megacrit.cardcrawl.screens.CombatRewardScreen", "render"): (
+            "artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeRewardRender"
+        ),
+        ("com.megacrit.cardcrawl.rooms.CampfireUI", "render"): (
+            "artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeRestRender"
+        ),
+        ("com.megacrit.cardcrawl.shop.ShopScreen", "render"): (
+            "artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeShopRender"
+        ),
+        ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): (
+            "artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeTreasureRender"
+        ),
+        ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): (
+            "artframework.sts1.render.ProceedButtonRenderPatchesTest.fullReadySuppressesNativeProceedButtonRender"
+        ),
+        ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): (
+            "artframework.sts1.render.TopPanelRenderPatchesTest.fullReadySuppressesNativeTopPanelRender"
         ),
     }
     result = []

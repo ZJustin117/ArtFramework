@@ -242,7 +242,12 @@ entries:
   surfaceId: sts1.event
   effectFamily: none
   hook: artframework/sts1/patch/EventRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Event dialog is an ART full-present surface; NativeRenderBridge returns
+    DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail open. Delegation
+    must close PresentationDrawEvidence or count as a strict report gap; base pixels
+    are not reproduced yet and stay visible there.
+  test: artframework.sts1.render.EventRenderPatchesTest.fullReadySuppressesNativeEventRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.roomeventdialog.render
   nativeClass: com.megacrit.cardcrawl.events.RoomEventDialog
   nativeMethod: render
@@ -394,7 +399,12 @@ entries:
   surfaceId: sts1.combat.intents
   effectFamily: none
   hook: artframework/sts1/patch/CombatIntentRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Combat intents is an ART full-present surface; NativeRenderBridge
+    returns DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail
+    open. Delegation must close PresentationDrawEvidence or count as a strict report
+    gap; current pixel supply is projection chrome pending full reproduction.
+  test: artframework.sts1.render.CombatIntentRenderPatchesTest.fullReadySuppressesNativeIntentRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.abstractmonster.rendertip
   nativeClass: com.megacrit.cardcrawl.monsters.AbstractMonster
   nativeMethod: renderTip
@@ -570,7 +580,12 @@ entries:
   surfaceId: sts1.rest
   effectFamily: none
   hook: artframework/sts1/patch/RoomRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Rest room is an ART full-present surface; NativeRenderBridge returns
+    DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail open. Delegation
+    must close PresentationDrawEvidence or count as a strict report gap; campfire
+    options are not synced and base pixels are absent.
+  test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeRestRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.eventroom.render
   nativeClass: com.megacrit.cardcrawl.rooms.EventRoom
   nativeMethod: render
@@ -602,7 +617,12 @@ entries:
   surfaceId: sts1.treasure
   effectFamily: none
   hook: artframework/sts1/patch/RoomRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Treasure room is an ART full-present surface; NativeRenderBridge
+    returns DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail
+    open. Delegation must close PresentationDrawEvidence or count as a strict report
+    gap; chest and item sync are absent.
+  test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeTreasureRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.treasureroomboss.render
   nativeClass: com.megacrit.cardcrawl.rooms.TreasureRoomBoss
   nativeMethod: render
@@ -658,7 +678,12 @@ entries:
   surfaceId: sts1.reward.combat
   effectFamily: none
   hook: artframework/sts1/patch/RoomRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Combat rewards is an ART full-present surface; NativeRenderBridge
+    returns DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail
+    open. Delegation must close PresentationDrawEvidence or count as a strict report
+    gap; reward item sync and base pixels are incomplete.
+  test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeRewardRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.deathscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DeathScreen
   nativeMethod: render
@@ -706,7 +731,12 @@ entries:
   surfaceId: sts1.map
   effectFamily: none
   hook: artframework/sts1/patch/MapRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Map is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART
+    only when FULL_READY and panic or unknown owners fail open. Delegation must close
+    PresentationDrawEvidence or count as a strict report gap; HostAssets supplies
+    the node draw path while full native parity is pending.
+  test: artframework.sts1.render.MapDrawPathTest.suppressesNativeMapOnlyWhenFullReady
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.dungeontransitionscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DungeonTransitionScreen
   nativeMethod: render
@@ -1138,7 +1168,12 @@ entries:
   surfaceId: sts1.select.grid
   effectFamily: none
   hook: artframework/sts1/patch/SelectRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Grid select is an ART full-present surface; NativeRenderBridge returns
+    DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail open. Delegation
+    must close PresentationDrawEvidence or count as a strict report gap; base pixels
+    are not reproduced yet and stay visible there.
+  test: artframework.sts1.render.SelectRenderPatchesTest.fullReadySuppressesNativeGridSelectRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.select.handcardselectscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.select.HandCardSelectScreen
   nativeMethod: render
@@ -1146,7 +1181,13 @@ entries:
   surfaceId: sts1.select.hand
   effectFamily: none
   hook: artframework/sts1/patch/SelectRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Hand select is an ART full-present surface; NativeRenderBridge returns
+    DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail open. Delegation
+    must close PresentationDrawEvidence or count as a strict report gap; base pixels
+    are not reproduced yet, and the referenced test gates the shared plan-level policy
+    until a dedicated prefix suppression test exists.
+  test: artframework.sts1.render.RenderPatchOwnershipTest.delegatedSurfacesAreNotNativeAuthoritative
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.splash.splashscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.splash.SplashScreen
   nativeMethod: render
@@ -1210,7 +1251,12 @@ entries:
   surfaceId: sts1.shop
   effectFamily: none
   hook: artframework/sts1/patch/RoomRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Shop is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART
+    only when FULL_READY and panic or unknown owners fail open. Delegation must close
+    PresentationDrawEvidence or count as a strict report gap; item sync and base pixels
+    are incomplete.
+  test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeShopRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.shop.shopscreen.renderrelics
   nativeClass: com.megacrit.cardcrawl.shop.ShopScreen
   nativeMethod: renderRelics
@@ -1330,7 +1376,12 @@ entries:
   surfaceId: sts1.combat.controls
   effectFamily: none
   hook: artframework/sts1/patch/CombatControlsRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Combat controls is an ART full-present surface; NativeRenderBridge
+    returns DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail
+    open. Delegation must close PresentationDrawEvidence or count as a strict report
+    gap; current pixel supply is text chrome pending full reproduction.
+  test: artframework.sts1.render.CombatControlsRenderPatchesTest.fullReadySuppressesNativeEndTurnRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.gotitbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.GotItButton
   nativeMethod: render
@@ -1367,10 +1418,15 @@ entries:
   nativeClass: com.megacrit.cardcrawl.ui.buttons.ProceedButton
   nativeMethod: render
   pathKind: render-owner
-  surfaceId: ''
+  surfaceId: sts1.combat.proceed
   effectFamily: none
-  hook: ''
-  policy: UNKNOWN
+  hook: artframework/sts1/patch/ProceedButtonRenderPatches.java
+  policy: ART_DELEGATED
+  justification: Proceed button is an ART combat-controls extension surface; NativeRenderBridge
+    returns DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail
+    open. Delegation must close PresentationDrawEvidence or count as a strict report
+    gap; current pixel supply is text chrome.
+  test: artframework.sts1.render.ProceedButtonRenderPatchesTest.fullReadySuppressesNativeProceedButtonRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.retrybutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.RetryButton
   nativeMethod: render
@@ -1458,7 +1514,12 @@ entries:
   surfaceId: sts1.combat.energy
   effectFamily: none
   hook: artframework/sts1/patch/CombatEnergyRenderPatches.java
-  policy: NATIVE_WITH_ART_OVERLAY
+  policy: ART_DELEGATED
+  justification: Combat energy is an ART full-present surface; NativeRenderBridge
+    returns DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail
+    open. Delegation must close PresentationDrawEvidence or count as a strict report
+    gap; current pixel supply is text chrome pending full reproduction.
+  test: artframework.sts1.render.CombatEnergyRenderPatchesTest.fullReadySuppressesNativeEnergyRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.exhaustpanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.ExhaustPanel
   nativeMethod: render
@@ -1495,10 +1556,15 @@ entries:
   nativeClass: com.megacrit.cardcrawl.ui.panels.TopPanel
   nativeMethod: render
   pathKind: render-owner
-  surfaceId: ''
+  surfaceId: sts1.top_panel
   effectFamily: none
-  hook: ''
-  policy: UNKNOWN
+  hook: artframework/sts1/patch/TopPanelRenderPatches.java
+  policy: ART_DELEGATED
+  justification: Top panel is an ART HUD surface; NativeRenderBridge returns DELEGATE_TO_ART
+    only when FULL_READY and panic or unknown owners fail open. Delegation must close
+    PresentationDrawEvidence or count as a strict report gap; current pixel supply
+    is text chrome.
+  test: artframework.sts1.render.TopPanelRenderPatchesTest.fullReadySuppressesNativeTopPanelRender
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.toppanel.renderrelics
   nativeClass: com.megacrit.cardcrawl.ui.panels.TopPanel
   nativeMethod: renderRelics

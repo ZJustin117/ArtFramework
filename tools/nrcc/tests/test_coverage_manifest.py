@@ -194,7 +194,9 @@ class CoverageManifestTest(unittest.TestCase):
         self.assertEqual("UNKNOWN", entries[1]["policy"])
         self.assertEqual(2, len(entries))
 
-    def test_replaced_native_card_render_is_explicitly_out_of_scope(self):
+    def test_unpatched_native_card_render_is_explicitly_out_of_scope(self):
+        # AbstractCard.render is not hooked: card pixels come from the live,
+        # un-intercepted native call while ART owns hand pose/layout only.
         entries = coverage_manifest.inventory_entries({
             "paths": [{
                 "nativeClass": "com.megacrit.cardcrawl.cards.AbstractCard",

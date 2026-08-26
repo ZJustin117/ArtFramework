@@ -21,9 +21,10 @@ import static org.junit.Assert.fail;
 /**
  * Regression gates for the Native Render Coverage Contract (NRCC).
  *
- * <p>Original STS renderers remain the visual authority. Any patch that returns
- * {@code SpireReturn.Return(null)} to suppress a native render call must be a
- * documented, tested, ART-owned surface or per-instance claim.
+ * <p>Native suppression is decided per invocation by {@link NativeRenderBridge}
+ * dispositions: a patch may return {@code SpireReturn.Return(null)} only when the
+ * bridge resolved a FULL_READY surface and returned {@code DELEGATE_TO_ART};
+ * panic and unknown owners fail open to native rendering.
  */
 public class RenderPatchOwnershipTest {
 
@@ -46,9 +47,10 @@ public class RenderPatchOwnershipTest {
                     "TransientEffectRenderPatches.java"));
 
     /**
-     * The listed surface ids must keep native-pixel authority. If a new surface is
-     * added here, it must come with a focused ART_DELEGATED test proving ART is
-     * the sole pixel owner.
+     * Surfaces listed here must keep native-pixel authority. The set is empty
+     * today: every suppressing patch gates through NativeRenderBridge
+     * dispositions instead of an unconditional native-authority rule. If a new
+     * surface is added here, it must come with a focused ART_DELEGATED test.
      */
     private static final Set<String> EXPECTED_NATIVE_PIXEL_AUTHORITATIVE = new HashSet<String>();
 
@@ -67,8 +69,11 @@ public class RenderPatchOwnershipTest {
             }
             assertTrue(
                     "Patch " + name + " contains SpireReturn.Return(null) but is not on the "
-                            + "approved ART_DELEGATED list (CombatHandRenderPatches, SkeletonRenderPatches, "
-                            + "TransientEffectRenderPatches). Native STS renderers must not be suppressed.",
+                            + "approved ART_DELEGATED allowlist. Listed files gate suppression "
+                            + "through NativeRenderBridge dispositions (DELEGATE_TO_ART only when "
+                            + "the surface is FULL_READY; panic and unknown owners fail open). Add "
+                            + "the file together with an ART_DELEGATED manifest entry, a "
+                            + "justification, and a focused suppression-gate test.",
                     ALLOWED_SUPPRESS_PATCHES.contains(name));
         }
     }

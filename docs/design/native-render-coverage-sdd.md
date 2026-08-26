@@ -51,45 +51,84 @@ ART remains responsible for:
 The bridge may fail open to native rendering. Every fail-open decision must be
 recorded and must never be silently treated as delegated coverage.
 
-## Native pixel authority rule
+## Native render delegation contract
 
-Original STS renderers remain the visual authority. ART does not reimplement or
-rewrite native STS render paths, and it does not suppress a native renderer in
-order to draw hand-made replacement pixels for a surface that STS already owns.
+STS renderers remain the default visual authority for any invocation that is not
+delegated. Suppression is never a static property of a surface; it is decided per
+invocation by the `NativeRenderBridge`, which resolves the owning surface or
+effect, records the invocation, and returns one explicit `RenderDisposition`. A
+patch may return `SpireReturn.Return(null)` only when the bridge returned
+`DELEGATE_TO_ART` (`nativeContinuation == false`). Panic, unknown owners, and
+bridge errors fail open to native rendering with a recorded reason; fail-open is
+recovery behavior and is never counted as delegated coverage.
 
-`DELEGATE_TO_ART` is only allowed when the intercepted invocation targets an
-ART-owned surface or effect that has **no corresponding STS native renderer**, or
-where the native renderer is explicitly replaced by a documented, tested ART
-path. Permitted `ART_DELEGATED` cases in the current codebase are:
+### Disposition + evidence ledger closure
 
-| Surface / effect | Native invocation | ART ownership justification |
+A listed STS surface may be marked `ART_DELEGATED` in the coverage manifest once
+its full-present capability gate exists (FULL level + mounted + scene match +
+ready executor). The manifest declaration alone is not coverage: every delegated
+invocation must close through the runtime evidence ledger.
+
+1. `RenderDisposition` records mode `DELEGATE_TO_ART` with
+   `nativeContinuation == false` and a presentation entity id.
+2. A matching `PresentationDrawEvidence` must be recorded for the same
+   invocation id in the same frame.
+3. A delegated invocation without draw evidence stays visible as a strict-report
+   gap (`delegatedWithoutArtEvidence`) and is never folded into coverage.
+
+### Current pixel supply status (exposed gaps)
+
+Suppressing a native renderer transfers display ownership to ART. The current
+pixel supply differs per surface and is recorded here instead of hidden:
+
+| Surface | Native invocation | Suppressed when FULL_READY | Current ART pixel supply |
+|---|---|---|---|
+| Combat hand | `AbstractPlayer.renderHand` | yes | live-card delegation: ART hard-syncs pose and calls the un-patched `AbstractCard.render`; card pixels stay native |
+| Combat controls | `EndTurnButton.render` | yes | text chrome only; button art not fully reproduced |
+| Energy panel | `EnergyPanel.render` | yes | text chrome only |
+| Intents | `AbstractMonster.renderIntent` | yes | projection chrome only |
+| Proceed button | `ProceedButton.render` | yes | text chrome only |
+| Top panel | `TopPanel.render` | yes | text chrome only |
+| Map screen | `DungeonMapScreen.render` | yes | HostAssets node draw path; full native parity pending |
+| Event dialog | `GenericEventDialog.render` | yes | none yet: base pixels not reproduced |
+| Select screens | `GridCardSelectScreen.render`, `HandCardSelectScreen.render` | yes | none yet: base pixels not reproduced |
+| Reward screen | `CombatRewardScreen.render` | yes | incomplete: reward item sync missing |
+| Rest room | `CampfireUI.render` | yes | none yet: campfire options not synced |
+| Shop screen | `ShopScreen.render` | yes | incomplete: item sync missing |
+| Treasure room | `TreasureRoom.render` | yes | none yet: chest/item sync absent |
+
+These gaps are deliberate inventory, not silent acceptance. Until a surface
+reproduces its base pixels, its delegations keep surfacing as strict-report
+evidence gaps so the missing supply cannot be mistaken for coverage.
+
+Per-instance claims stay granular:
+
+| Surface / effect | Native invocation | Ownership justification |
 |---|---|---|
-| Combat hand | `AbstractPlayer.renderHand` | Hand is an ART full-present surface; card pixels are still drawn by live `AbstractCard.render` calls, not by hand-built card art. |
 | Per-instance skeleton | `SkeletonMeshRenderer.draw` | Only individual skeleton instances claimed by ART through `Sts1SkeletonBridge` are suppressed; unclaimed skeletons continue through the native renderer. |
 | Per-instance transient effect | `AbstractGameEffect.render` | Only individual effect instances claimed by ART through `NativeRenderBridge.beginEffectRender` are suppressed; the native effect queue remains authoritative. |
 
-STS native surfaces that must never be hand-reimplemented include, but are not
-limited to:
+### AbstractCard.render boundary
 
-- Combat controls (`EndTurnButton.render`)
-- Energy panel (`EnergyPanel.render`)
-- Intents (`AbstractMonster.renderIntent`)
-- Map screen (`DungeonMapScreen.render`)
-- Event dialog (`GenericEventDialog.render`)
-- Select screens (`GridCardSelectScreen.render`, `HandCardSelectScreen.render`)
-- Reward screen (`CombatRewardScreen.render`)
-- Rest screen (`CampfireUI.render`)
-- Shop screen (`ShopScreen.render`)
-- Treasure room (`TreasureRoom.render`)
+`AbstractCard.render` is not patched and must not be suppressed. Card pixels —
+including hand cards — are drawn by the live, un-intercepted
+`AbstractCard.render` call. ART owns hand layout only: the hand draw path
+hard-syncs each card pose (`current_x`, `current_y`, `angle`, `drawScale`)
+before invoking the live render. The manifest records `AbstractCard#render` as
+`OUT_OF_SCOPE` because no ART hook intercepts this invocation, not because an
+atlas shell replaced it.
+
+### Suppression bookkeeping
 
 Any patch that returns `SpireReturn.Return(null)` to suppress a native render call
 must be accompanied by:
 
 1. A documented ownership justification in the source patch Javadoc.
 2. A manifest entry with policy `ART_DELEGATED` and a non-empty `justification`.
-3. A focused test proving the replacement path is the only pixel owner for that
-   invocation (e.g. the native continuation is `false` and the corresponding ART
-   surface/effect emits draw evidence).
+3. A focused test proving the suppression gate: native continuation becomes
+   `false` only when the surface is FULL_READY, while OFF, panic, unmounted, and
+   executor-less states continue natively. Sole-pixel-owner proof for surfaces
+   with outstanding pixel-supply gaps remains tracked by the ledger gaps above.
 
 Patches that only observe, project, or overlay must use `SpireReturn.Continue()`
 and must not suppress the native draw.
@@ -364,10 +403,11 @@ reported immediately.
 ### `FULL`
 
 Manifest entries marked `ART_DELEGATED` may stop their native invocation only
-when the complete ART capability is ready and the entry includes an ownership
-justification and a focused test proving ART is the sole pixel owner. Every
-delegated invocation requires ART draw evidence. Unclassified native calls fail
-the strict report.
+when the surface capability gate is ready and the entry includes an ownership
+justification and a focused test proving the suppression gate. Every delegated
+invocation requires ART draw evidence; missing evidence is a strict-report gap,
+and surfaces whose base pixels are not yet reproduced stay exposed there (see
+Current pixel supply status). Unclassified native calls fail the strict report.
 
 ### `RECOVERY`
 

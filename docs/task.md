@@ -629,3 +629,10 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       label (`endTurnLabel`); `Sts1PresentationBackend` projects native hb/label; render
       consumes projection with constant fallback only, and the unlisted reflection bridge
       `Sts1EndTurnChrome` is deleted (NRO-06)
+- [x] 47.10 Design: native render family → three-layer system contract
+      ([`native-render-family-systems.md`](design/native-render-family-systems.md)):
+      25-family taxonomy over the 488-path static scan (schema v3, families.py as the
+      assignment authority), family → collection/projection/system mapping framework with
+      the TransientEffect four-piece template, meta-screen / targeting / transient-VFX
+      integration recipes, the new-`@SpirePatch` precondition checklist, and known
+      scanner limitations

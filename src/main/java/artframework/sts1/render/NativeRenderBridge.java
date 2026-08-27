@@ -12,6 +12,7 @@ public final class NativeRenderBridge {
     private static final TransientEffectLifecycleAdapter EFFECT_LIFECYCLE =
             new TransientEffectLifecycleAdapter(EFFECT_LEDGER, EFFECT_REGISTRY);
     private static long nextInvocationId;
+    private static long lastProjectionFrameId = -1L;
 
     private NativeRenderBridge() {}
 
@@ -135,7 +136,7 @@ public final class NativeRenderBridge {
         RenderDisposition disposition = RenderDisposition.capture(invocation.invocationId,
                 "transient_effect_observe");
         LEDGER.recordDisposition(disposition);
-        projectPendingEffects();
+        projectPendingEffectsOncePerFrame();
         return disposition;
     }
 
@@ -145,7 +146,7 @@ public final class NativeRenderBridge {
         if (identity == null) return;
         EFFECT_LIFECYCLE.create(identity);
         EFFECT_LIFECYCLE.update(identity, effect.isDone);
-        projectPendingEffects();
+        projectPendingEffectsOncePerFrame();
     }
 
     public static void observeEffectDispose(
@@ -154,7 +155,7 @@ public final class NativeRenderBridge {
         if (identity == null) return;
         EFFECT_LIFECYCLE.create(identity);
         EFFECT_LIFECYCLE.cancel(identity);
-        projectPendingEffects();
+        projectPendingEffectsOncePerFrame();
     }
 
     /** Fail-open note for effect observation paths; never blocks native drawing. */
@@ -168,6 +169,15 @@ public final class NativeRenderBridge {
         } catch (Throwable error) {
             EFFECT_LEDGER.recordFailOpen();
         }
+    }
+
+    private static void projectPendingEffectsOncePerFrame() {
+        long frameId = ArtFramework.projection().lastFrameId();
+        if (frameId == lastProjectionFrameId) {
+            return;
+        }
+        lastProjectionFrameId = frameId;
+        projectPendingEffects();
     }
 
     public static NativeRenderLedger ledger() { return LEDGER; }
@@ -199,6 +209,7 @@ public final class NativeRenderBridge {
 
     public static void resetForTests() {
         nextInvocationId = 0L;
+        lastProjectionFrameId = -1L;
         LEDGER.clear();
         EFFECT_LEDGER.reset();
         EFFECT_REGISTRY.clear();

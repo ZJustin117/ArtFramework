@@ -60,6 +60,20 @@ public final class RenderPlan {
                     full.bounds, 1000f, true, full.effects()));
         }
 
+        appendC2SurfaceEntries(entries, activeSurfaceIds);
+        return appendFullProjectionEntries(entries,
+                PresentationRegistry.context("c2-entity-present"),
+                PresentationRegistry.context("c2-surfaces"));
+    }
+
+    /** Build only the C2 surface targets needed during an STS render pass. */
+    public static RenderPlan fromActiveC2Surfaces(Set<String> activeSurfaceIds) {
+        List<Entry> entries = new ArrayList<Entry>();
+        appendC2SurfaceEntries(entries, activeSurfaceIds);
+        return new RenderPlan(entries);
+    }
+
+    private static void appendC2SurfaceEntries(List<Entry> entries, Set<String> activeSurfaceIds) {
         PresentationContext render = RenderStateEcs.context();
         Map<String, List<EffectAttachment>> surfaceEffects =
                 new LinkedHashMap<String, List<EffectAttachment>>();
@@ -92,8 +106,10 @@ public final class RenderPlan {
                     visibility.visible && bounds.rect.width > 0f && bounds.rect.height > 0f,
                     itemEffects));
         }
+    }
 
-        PresentationContext entityContext = PresentationRegistry.context("c2-entity-present");
+    private static RenderPlan appendFullProjectionEntries(List<Entry> entries,
+            PresentationContext entityContext, PresentationContext visuals) {
         for (EntityId entity : entityContext.entities()) {
             artframework.c2.EntitySlotIdentityComponent identity =
                     entityContext.world().get(entity, artframework.c2.EntitySlotIdentityComponent.class);

@@ -49,6 +49,34 @@ public class RenderPlanRebuildTest {
                 RenderHosts.get().getTarget(RenderHost.c2SurfaceTargetId("sts1.hidden")));
     }
 
+    @Test public void activeSurfaceProjectionPreservesNonC2TargetsAndRemovesStaleC2Targets() {
+        RenderStateEcs.surface("sts1.active", 1f, 2f, 10f, 20f, true);
+        RenderStateEcs.surface("sts1.stale", 3f, 4f, 30f, 40f, true);
+        RenderHost host = RenderHosts.get();
+        RenderTarget c1 = host.ensureTarget("c1:window", RenderTargetKind.SYNTHETIC_WINDOW);
+        c1.setBounds(9f, 8f, 7f, 6f);
+        RenderTarget entity = host.ensureTarget("c2:entity:player", RenderTargetKind.ENTITY_SLOT);
+        entity.setBounds(5f, 4f, 3f, 2f);
+        RenderTarget fullFrame = host.ensureTarget(RenderHost.FULL_FRAME_ID, RenderTargetKind.FULL_FRAME);
+        fullFrame.setBounds(100f, 90f, 80f, 70f);
+        RenderTarget overlay = host.ensureTarget("overlay:test", RenderTargetKind.OVERLAY);
+        overlay.setBounds(6f, 5f, 4f, 3f);
+
+        RenderProjectionQueue.projectActiveSurfaces(
+                new java.util.LinkedHashSet<String>(java.util.Arrays.asList("sts1.active", "sts1.stale")));
+        RenderStateEcs.surface("sts1.active", 11f, 12f, 13f, 14f, true);
+        RenderProjectionQueue.projectActiveSurfaces(Collections.singleton("sts1.active"));
+
+        assertNotNull(host.getTarget(RenderHost.c2SurfaceTargetId("sts1.active")));
+        assertEquals(new Rect(11f, 12f, 13f, 14f),
+                host.getTarget(RenderHost.c2SurfaceTargetId("sts1.active")).bounds());
+        assertEquals(null, host.getTarget(RenderHost.c2SurfaceTargetId("sts1.stale")));
+        assertEquals(new Rect(9f, 8f, 7f, 6f), host.getTarget("c1:window").bounds());
+        assertEquals(new Rect(5f, 4f, 3f, 2f), host.getTarget("c2:entity:player").bounds());
+        assertEquals(new Rect(100f, 90f, 80f, 70f), host.getTarget(RenderHost.FULL_FRAME_ID).bounds());
+        assertEquals(new Rect(6f, 5f, 4f, 3f), host.getTarget("overlay:test").bounds());
+    }
+
     @Test public void publicRecreationApiRestoresOnlyFromEcsState() {
         RenderStateEcs.surface("sts1.recreate", 2f, 3f, 20f, 30f, true);
         RenderHost host = new RenderHost();

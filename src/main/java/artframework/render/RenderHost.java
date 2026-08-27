@@ -279,6 +279,16 @@ public final class RenderHost {
     void rebuildFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
         RenderPlan plan = RenderPlan.fromEcs(activeSurfaceIds);
         clearTargets();
+        applyPlan(plan);
+    }
+
+    /** Rebuild only active C2 surfaces, retaining all other host targets and bindings. */
+    void rebuildActiveC2SurfacesFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
+        removeTargetsWithPrefix(C2_SURFACE_PREFIX);
+        applyPlan(RenderPlan.fromActiveC2Surfaces(activeSurfaceIds));
+    }
+
+    private void applyPlan(RenderPlan plan) {
         for (RenderPlan.Entry entry : plan.entries()) {
             RenderTarget target = ensureTarget(entry.id, entry.kind);
             target.setBounds(entry.bounds);

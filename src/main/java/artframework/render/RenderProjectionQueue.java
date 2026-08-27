@@ -37,7 +37,7 @@ public final class RenderProjectionQueue {
 
     /** Immediately project only active C2 surfaces for an STS render pass. */
     public static void projectActiveSurfaces(Set<String> activeSurfaceIds) {
-        RenderHosts.get().rebuildFromEcsPlan(activeSurfaceIds);
+        RenderHosts.get().rebuildActiveC2SurfacesFromEcsPlan(activeSurfaceIds);
     }
 
     public static void flush() {

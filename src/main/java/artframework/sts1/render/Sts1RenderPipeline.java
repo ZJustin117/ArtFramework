@@ -13,8 +13,6 @@ import java.util.Map;
 public final class Sts1RenderPipeline {
 
     private static boolean overlayObserve;
-    private static final BatchStateGuard BATCH = new BatchStateGuard();
-    private static ClipRect clip = ClipRect.none();
     private static SurfaceDrawPlan lastPlan = SurfaceDrawPlan.build("", false, false, false, false, false, false);
 
     private Sts1RenderPipeline() {}
@@ -25,18 +23,6 @@ public final class Sts1RenderPipeline {
 
     public static boolean isOverlayObserve() {
         return overlayObserve;
-    }
-
-    public static void setClip(ClipRect rect) {
-        clip = rect != null ? rect : ClipRect.none();
-    }
-
-    public static ClipRect clip() {
-        return clip;
-    }
-
-    public static BatchStateGuard batchGuard() {
-        return BATCH;
     }
 
     public static SurfaceDrawPlan lastPlan() {
@@ -82,8 +68,6 @@ public final class Sts1RenderPipeline {
     public static Map<String, Object> probeSlice() {
         Map<String, Object> m = plan().toMap();
         m.put("overlayObserve", Boolean.valueOf(overlayObserve));
-        m.put("clipEmpty", Boolean.valueOf(clip.isEmpty()));
-        m.put("batchArmed", Boolean.valueOf(BATCH.isArmed()));
         m.put("nativeRender", NativeRenderBridge.probeSlice());
         m.put("nativeRenderStrict", NativeRenderBridge.strictReport());
         return m;
@@ -91,8 +75,6 @@ public final class Sts1RenderPipeline {
 
     public static void resetForTests() {
         overlayObserve = false;
-        clip = ClipRect.none();
-        BATCH.reset();
         HandDrawPath.resetForTests();
         HandRenderMetrics.resetForTests();
         lastPlan = SurfaceDrawPlan.build("", false, false, false, false, false, false);

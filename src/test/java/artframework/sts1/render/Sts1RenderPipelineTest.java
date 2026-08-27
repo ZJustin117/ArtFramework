@@ -270,29 +270,6 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
-    public void batchGuardNestAndRestoreFlags() {
-        BatchStateGuard g = new BatchStateGuard();
-        g.beginCapture(true);
-        assertTrue(g.shouldEndBatch());
-        assertTrue(g.shouldRestoreBegin());
-        g.beginCapture(false);
-        assertTrue(g.isArmed());
-        g.endCapture();
-        assertTrue(g.isArmed());
-        g.endCapture();
-        assertFalse(g.isArmed());
-    }
-
-    @Test
-    public void clipRectContains() {
-        ClipRect c = new ClipRect(10, 20, 100, 50);
-        assertTrue(c.contains(10, 20));
-        assertTrue(c.contains(50, 40));
-        assertFalse(c.contains(9, 20));
-        assertFalse(ClipRect.none().contains(0, 0));
-    }
-
-    @Test
     public void probeSliceHasPlan() {
         combatFrameMounted();
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
@@ -301,6 +278,8 @@ public class Sts1RenderPipelineTest {
         assertEquals("combat", m.get("scene"));
         assertEquals(Integer.valueOf(2), m.get("drawCount"));
         assertEquals(Boolean.FALSE, m.get("overlayObserve"));
+        assertFalse("batchArmed probe field removed in Slice E1", m.containsKey("batchArmed"));
+        assertFalse("clipEmpty probe field removed in Slice E1", m.containsKey("clipEmpty"));
     }
 
     @Test

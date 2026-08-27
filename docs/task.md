@@ -690,3 +690,10 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       pending Slice E cleanup). Update SDD pixel supply table, task.md, and
       api-stability/consumer additive notes; strict manifest check must remain
       ok=true unknown=0.
+- [x] 47.16 Slice E1 — render-side hygiene cleanup: delete `C2ChromePainter` /
+      `Sts1VanillaDraw`, remove `ClipRect` and `BatchStateGuard` production usage
+      (keep `BatchStateGuard` deprecated), drop `batchArmed`/`clipEmpty` probe
+      fields, document `RenderTargetKind.OVERLAY` as unused in production,
+      eliminate duplicate `syncC2Item` in `renderHand`/`renderProceed`, record
+      real draw counts per surface, and align `renderTopPanel` gate with
+      `plan.drawOrder`.

@@ -39,68 +39,57 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
-        BatchStateGuard guard = Sts1RenderPipeline.batchGuard();
-        boolean drawing = false;
-        try {
-            drawing = sb.isDrawing();
-        } catch (Throwable ignored) {
+        if (artframework.sts1.PresentSafety.isPanic()) {
+            return;
         }
-        guard.beginCapture(drawing);
-        try {
-            if (artframework.sts1.PresentSafety.isPanic()) {
-                return;
-            }
-            disableInactiveSurfaceEffects(plan);
-            Set<String> activeSurfaces = new LinkedHashSet<String>();
-            for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
-                activeSurfaces.add(entry.surfaceId);
-            }
-            prepareSurfaceVisuals(plan);
-            artframework.render.RenderProjectionQueue.projectActiveSurfaces(activeSurfaces);
-            RenderHosts.get().drawFrame(sb, true, RenderHost.kindsC2UnderPresent());
-            for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
-                prepareSurfaceChrome(sb, e.surfaceId);
-                if (SurfaceIds.COMBAT_HAND.equals(e.surfaceId)) {
-                    renderHand(sb);
-                } else if (SurfaceIds.COMBAT_CONTROLS.equals(e.surfaceId)) {
-                    renderControls(sb);
-                } else if (SurfaceIds.MAP.equals(e.surfaceId)) {
-                    renderMap(sb);
-                } else if (SurfaceIds.EVENT.equals(e.surfaceId)) {
-                    renderEvent(sb);
-                } else if (SurfaceIds.SELECT_GRID.equals(e.surfaceId)
-                        || SurfaceIds.SELECT_HAND.equals(e.surfaceId)) {
-                    renderSelect(sb, e.surfaceId);
-                } else if (SurfaceIds.REWARD_COMBAT.equals(e.surfaceId)
-                        || SurfaceIds.REWARD_CARD.equals(e.surfaceId)
-                        || SurfaceIds.REWARD_BOSS_RELIC.equals(e.surfaceId)) {
-                    renderReward(sb, e.surfaceId);
-                } else if (SurfaceIds.REST.equals(e.surfaceId)) {
-                    renderRest(sb);
-                } else if (SurfaceIds.SHOP.equals(e.surfaceId)) {
-                    renderShop(sb);
-                } else if (SurfaceIds.TREASURE.equals(e.surfaceId)) {
-                    renderTreasure(sb);
-                } else if (SurfaceIds.SKELETON.equals(e.surfaceId)) {
-                    renderSkeleton(sb);
-                } else if (SurfaceIds.TOP_PANEL.equals(e.surfaceId)) {
-                    renderTopPanel(sb);
-                } else if (SurfaceIds.COMBAT_ENERGY.equals(e.surfaceId)) {
-                    renderEnergy(sb);
-                } else if (SurfaceIds.COMBAT_INTENTS.equals(e.surfaceId)) {
-                    renderIntents(sb);
-                } else if (SurfaceIds.COMBAT_PROCEED.equals(e.surfaceId)) {
-                    renderProceed(sb);
-                }
-            }
-            // Targeting arrow is drawn above the normal surface list so it paints over
-            // C2 stage items. The surface loop already recorded its presence; the actual
-            // geometry is rendered here as a tail-slot overlay.
-            renderTargetingOverlay(sb);
-            renderEntityChrome(sb);
-        } finally {
-            guard.endCapture();
+        disableInactiveSurfaceEffects(plan);
+        Set<String> activeSurfaces = new LinkedHashSet<String>();
+        for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
+            activeSurfaces.add(entry.surfaceId);
         }
+        prepareSurfaceVisuals(plan);
+        artframework.render.RenderProjectionQueue.projectActiveSurfaces(activeSurfaces);
+        RenderHosts.get().drawFrame(sb, true, RenderHost.kindsC2UnderPresent());
+        for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
+            prepareSurfaceChrome(sb, e.surfaceId);
+            if (SurfaceIds.COMBAT_HAND.equals(e.surfaceId)) {
+                renderHand(sb);
+            } else if (SurfaceIds.COMBAT_CONTROLS.equals(e.surfaceId)) {
+                renderControls(sb);
+            } else if (SurfaceIds.MAP.equals(e.surfaceId)) {
+                renderMap(sb);
+            } else if (SurfaceIds.EVENT.equals(e.surfaceId)) {
+                renderEvent(sb);
+            } else if (SurfaceIds.SELECT_GRID.equals(e.surfaceId)
+                    || SurfaceIds.SELECT_HAND.equals(e.surfaceId)) {
+                renderSelect(sb, e.surfaceId);
+            } else if (SurfaceIds.REWARD_COMBAT.equals(e.surfaceId)
+                    || SurfaceIds.REWARD_CARD.equals(e.surfaceId)
+                    || SurfaceIds.REWARD_BOSS_RELIC.equals(e.surfaceId)) {
+                renderReward(sb, e.surfaceId);
+            } else if (SurfaceIds.REST.equals(e.surfaceId)) {
+                renderRest(sb);
+            } else if (SurfaceIds.SHOP.equals(e.surfaceId)) {
+                renderShop(sb);
+            } else if (SurfaceIds.TREASURE.equals(e.surfaceId)) {
+                renderTreasure(sb);
+            } else if (SurfaceIds.SKELETON.equals(e.surfaceId)) {
+                renderSkeleton(sb);
+            } else if (SurfaceIds.TOP_PANEL.equals(e.surfaceId)) {
+                renderTopPanel(sb);
+            } else if (SurfaceIds.COMBAT_ENERGY.equals(e.surfaceId)) {
+                renderEnergy(sb);
+            } else if (SurfaceIds.COMBAT_INTENTS.equals(e.surfaceId)) {
+                renderIntents(sb);
+            } else if (SurfaceIds.COMBAT_PROCEED.equals(e.surfaceId)) {
+                renderProceed(sb);
+            }
+        }
+        // Targeting arrow is drawn above the normal surface list so it paints over
+        // C2 stage items. The surface loop already recorded its presence; the actual
+        // geometry is rendered here as a tail-slot overlay.
+        renderTargetingOverlay(sb);
+        renderEntityChrome(sb);
     }
 
     private static void disableInactiveSurfaceEffects(SurfaceDrawPlan plan) {
@@ -522,15 +511,6 @@ public final class Sts1SurfaceRenderer {
             if (bounds.width <= 0f || bounds.height <= 0f || Float.isNaN(bounds.x)
                     || Float.isNaN(bounds.y)) invalidBounds++;
             if (!item.artFound && (item.artSource == null || item.artSource.isEmpty())) missingArt++;
-            artframework.presentation.PresentationVisuals.syncC2Item(
-                    SurfaceIds.COMBAT_HAND,
-                    item.instanceId,
-                    bounds,
-                    1f,
-                    "card",
-                    item.artResourceId,
-                    item.cardId,
-                    item.visible);
             visibleItems.add(item.instanceId);
             int cardDraws = Sts1HandCardRenderer.render(sb, item, find(item.instanceId));
             drawCount += cardDraws;
@@ -547,7 +527,8 @@ public final class Sts1SurfaceRenderer {
      * native rendering is needed here. Record ART output to close the native delegation ledger.
      */
     private static void renderControls(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_CONTROLS, 1);
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_CONTROLS,
+                ControlsDrawPath.buildFromProjection().size());
     }
 
     private static boolean ControlsViewIdEndTurn(String id) {
@@ -560,7 +541,7 @@ public final class Sts1SurfaceRenderer {
      * extra native rendering is needed here. Record ART output to close the native delegation ledger.
      */
     private static void renderMap(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.MAP, 1);
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.MAP, MapDrawPath.buildFromProjection().size());
     }
 
     /**
@@ -570,7 +551,7 @@ public final class Sts1SurfaceRenderer {
      * delegation ledger.
      */
     private static void renderEvent(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT, 1);
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT, EventDrawPath.buildFromProjection().size());
     }
 
     /**
@@ -580,7 +561,7 @@ public final class Sts1SurfaceRenderer {
      * ledger.
      */
     private static void renderSelect(SpriteBatch sb, String surfaceId) {
-        NativeRenderBridge.recordSurfaceDraw(surfaceId, 1);
+        NativeRenderBridge.recordSurfaceDraw(surfaceId, SelectDrawPath.buildFromProjection().size());
     }
 
     /**
@@ -590,7 +571,7 @@ public final class Sts1SurfaceRenderer {
      * delegation ledger.
      */
     private static void renderReward(SpriteBatch sb, String surfaceId) {
-        NativeRenderBridge.recordSurfaceDraw(surfaceId, 1);
+        NativeRenderBridge.recordSurfaceDraw(surfaceId, RewardDrawPath.buildFromProjection().size());
     }
 
     /**
@@ -631,6 +612,9 @@ public final class Sts1SurfaceRenderer {
         }
         // The provider renders ART-owned skeletons (or at the native slot for claimed instances).
         // No hand-drawn skeleton fallback/chrome pixels are ever drawn here.
+        // The skeleton bridge manages its own SpriteBatch end/begin so it does not rely on the
+        // outer batch guard (which was removed in Slice E1). This self-contained lifecycle is
+        // correct because skeleton rendering may need to swap to the native Spine renderer.
         boolean drawing = false;
         try {
             drawing = sb.isDrawing();
@@ -724,15 +708,10 @@ public final class Sts1SurfaceRenderer {
             float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
             float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.2f;
             int i = 0;
-            int drawn = 0;
             for (ProceedDrawPath.DrawItem item : ProceedDrawPath.buildFromProjection()) {
                 if (!item.visible) {
                     continue;
                 }
-                artframework.presentation.PresentationVisuals.syncC2Item(
-                        SurfaceIds.COMBAT_PROCEED, item.id,
-                        new artframework.component.Rect(x - 180f, y - i * 40f - 20f,
-                                360f, 40f), 1f, "proceed", "", item.text, item.visible);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
@@ -741,16 +720,14 @@ public final class Sts1SurfaceRenderer {
                         y - i * 40f,
                         item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 i++;
-                drawn++;
             }
-            NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_PROCEED, Math.max(1, drawn));
+            NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_PROCEED, 1);
         } catch (Throwable ignored) {
         }
     }
 
     private static void renderTopPanel(SpriteBatch sb) {
-        if (!TopPanelDrawPath.shouldSuppressNativeTopPanel()
-                && !Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.TOP_PANEL)) {
+        if (!Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.TOP_PANEL)) {
             return;
         }
         try {
@@ -799,7 +776,7 @@ public final class Sts1SurfaceRenderer {
      */
     private static void renderIntents(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS,
-                Math.max(1, IntentDrawPath.buildFromProjection().size()));
+                IntentDrawPath.buildFromProjection().size());
     }
 
     private static void renderTargetingOverlay(SpriteBatch sb) {

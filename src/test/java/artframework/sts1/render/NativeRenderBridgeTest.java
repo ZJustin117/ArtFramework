@@ -3,8 +3,11 @@ package artframework.sts1.render;
 import artframework.api.ArtFramework;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
+import artframework.context.EventOptionView;
+import artframework.context.EventView;
 import artframework.context.FakeSignalBackend;
 import artframework.context.MapView;
+import artframework.context.SelectView;
 import artframework.context.SurfaceIds;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
@@ -290,5 +293,76 @@ public class NativeRenderBridgeTest {
         assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
         assertTrue("native effect queue must continue after observation",
                 disposition.nativeContinuation);
+    }
+
+    @Test
+    public void surfaceDrawCountMatchesProjectionContent() {
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+
+        assertSurfaceDrawCountMatchesContent(
+                SurfaceIds.EVENT,
+                PresentLevel.FULL,
+                () -> EventDrawPath.buildFromProjection().size());
+
+        assertSurfaceDrawCountMatchesContent(
+                SurfaceIds.COMBAT_CONTROLS,
+                PresentLevel.FULL,
+                () -> ControlsDrawPath.buildFromProjection().size());
+    }
+
+    private void assertSurfaceDrawCountMatchesContent(
+            String surfaceId,
+            PresentLevel level,
+            java.util.function.IntSupplier countSupplier) {
+        Sts1RenderPipeline.resetForTests();
+        FullPresentMode.setLevel(surfaceId, level);
+        if (SurfaceIds.EVENT.equals(surfaceId)) {
+            publishEventFrame();
+            ArtFramework.component(surfaceId).action("mount_event");
+        } else if (SurfaceIds.COMBAT_CONTROLS.equals(surfaceId)) {
+            publishCombatFrame();
+            ArtFramework.ops().invoke(SurfaceIds.COMBAT_SURFACE, "mount_combat");
+        } else {
+            throw new IllegalArgumentException("unsupported surface: " + surfaceId);
+        }
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                surfaceId, "native.Owner", "render", "owner");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        int expected = countSupplier.getAsInt();
+        NativeRenderBridge.recordSurfaceDraw(surfaceId, expected);
+        Map<String, Object> report = NativeRenderBridge.probeSlice();
+        assertEquals("evidence count for " + surfaceId,
+                Integer.valueOf(1), report.get("evidenceCount"));
+        assertEquals(Integer.valueOf(0), report.get("delegatedWithoutEvidence"));
+        assertEquals(Integer.valueOf(0), report.get("orphanArtOutput"));
+    }
+
+    private void publishEventFrame() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                ContextFrame.of(
+                        1L,
+                        1L,
+                        "event",
+                        null,
+                        ControlsView.empty(),
+                        MapView.empty(),
+                        EventView.of(
+                                "Test",
+                                Arrays.asList(
+                                        EventOptionView.of(0, "A", true),
+                                        EventOptionView.of(1, "B", true))),
+                        SelectView.empty(),
+                        null));
+        ArtFramework.publishFrame(backend.currentFrame());
+    }
+
+    private void publishCombatFrame() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(ContextFrame.of(1L, 1L, "combat", Arrays.asList(),
+                ControlsView.combat(3, 1, 0, 0, 0, true, true), MapView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
     }
 }

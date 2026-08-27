@@ -1,9 +1,11 @@
 package artframework.sts1.render;
 
 /**
- * Records whether a SpriteBatch was drawing so host code can end/begin around ART draws and
- * restore afterward (milestone 16.3). Pure bookkeeping — no GL types on this API.
+ * Kept for historical probe compatibility. Production batch begin/end bookkeeping was removed
+ * in Slice E1; the host SpriteBatch lifecycle is now managed by the caller and the skeleton
+ * renderer.
  */
+@Deprecated
 public final class BatchStateGuard {
 
     private boolean wasDrawing;

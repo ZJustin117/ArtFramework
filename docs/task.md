@@ -677,7 +677,7 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       are host-only additive fields (`chromeLineCount` per DrawPath slice) per api-stability.
       Final state: FULL suppresses native for all three rooms, ART shows minimal chrome, evidence
       counts are real; no new `@SpirePatch`.
-- [ ] 47.15 Slice D — target arrow observation family pilot (recipe B): add
+- [x] 47.15 Slice D — target arrow observation family pilot (recipe B): add
       `overlay-targeting` OBSERVED default, scan whitelist `renderTargetingUi`,
       `CombatTargetingRenderPatches` observe-and-pass on `AbstractPlayer` and
       `PotionPopUp` (zero suppression), new mini-surface `sts1.combat.targeting`
@@ -697,3 +697,14 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       eliminate duplicate `syncC2Item` in `renderHand`/`renderProceed`, record
       real draw counts per surface, and align `renderTopPanel` gate with
       `plan.drawOrder`.
+- [x] 47.17 Slice E2 — backend projection field completion: epoch change clears
+      c2-surfaces visual items (`PresentProjection.applyFrame`), `MapPanZoom`
+      resets on non-map scene/epoch change, `EventOptionView`/`RewardItemView`
+      geometry from native hitboxes, `ShopView` real inventory/prices/soldOut/
+      purge cost from `ShopScreen`, and `IntentEntry.multiAmount` from monster
+      intent data.
+- [x] 47.18 Final D1 regression smoke after A–E: fresh `ArtFramework.jar` deploy +
+      `d1_full_present_combat_ready` pass; `transientEffects.rendered` climbs
+      0→52 with `failOpen=0`/`unknownLifecycle=0`, confirming no regression
+      across container effect observation, room chrome, targeting family, backend
+      field projection, and render hygiene changes.

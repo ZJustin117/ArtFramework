@@ -93,6 +93,10 @@ public final class Sts1SurfaceRenderer {
                     renderProceed(sb);
                 }
             }
+            // Targeting arrow is drawn above the normal surface list so it paints over
+            // C2 stage items. The surface loop already recorded its presence; the actual
+            // geometry is rendered here as a tail-slot overlay.
+            renderTargetingOverlay(sb);
             renderEntityChrome(sb);
         } finally {
             guard.endCapture();
@@ -105,7 +109,8 @@ public final class Sts1SurfaceRenderer {
             SurfaceIds.MAP, SurfaceIds.EVENT, SurfaceIds.SELECT_GRID, SurfaceIds.SELECT_HAND,
             SurfaceIds.REWARD_COMBAT, SurfaceIds.REWARD_CARD, SurfaceIds.REWARD_BOSS_RELIC,
             SurfaceIds.REST, SurfaceIds.SHOP, SurfaceIds.TREASURE, SurfaceIds.COMBAT_PROCEED,
-            SurfaceIds.TOP_PANEL, SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_INTENTS
+            SurfaceIds.TOP_PANEL, SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_INTENTS,
+            SurfaceIds.COMBAT_TARGETING
         };
         for (String sid : surfaces) {
             boolean active = false;
@@ -795,6 +800,86 @@ public final class Sts1SurfaceRenderer {
     private static void renderIntents(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS,
                 Math.max(1, IntentDrawPath.buildFromProjection().size()));
+    }
+
+    private static void renderTargetingOverlay(SpriteBatch sb) {
+        SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
+        if (!plan.shouldDraw(SurfaceIds.COMBAT_TARGETING)) {
+            return;
+        }
+        int drawn = 0;
+        try {
+            com.badlogic.gdx.graphics.Texture lineTexture =
+                    com.megacrit.cardcrawl.helpers.ImageMaster.WHITE_SQUARE_IMG;
+            for (TargetingDrawPath.DrawItem item : TargetingDrawPath.buildFromProjection()) {
+                if (!item.active) {
+                    continue;
+                }
+                float dx = item.endX - item.startX;
+                float dy = item.endY - item.startY;
+                float length = (float) Math.sqrt(dx * dx + dy * dy);
+                if (length < 0.0001f) {
+                    continue;
+                }
+                float angle = (float) Math.toDegrees(Math.atan2(dy, dx)) - 90f;
+                float thickness = 4f;
+                sb.draw(
+                        lineTexture,
+                        item.startX - thickness * 0.5f,
+                        item.startY,
+                        thickness * 0.5f,
+                        0f,
+                        thickness,
+                        length,
+                        1f,
+                        1f,
+                        angle,
+                        0,
+                        0,
+                        1,
+                        1,
+                        false,
+                        false);
+                com.badlogic.gdx.graphics.Texture arrowTexture = resolveTargetingArrow();
+                if (arrowTexture != null) {
+                    float arrowSize = 32f;
+                    sb.draw(
+                            arrowTexture,
+                            item.endX - arrowSize * 0.5f,
+                            item.endY - arrowSize * 0.5f,
+                            arrowSize * 0.5f,
+                            arrowSize * 0.5f,
+                            arrowSize,
+                            arrowSize,
+                            1f,
+                            1f,
+                            angle,
+                            0,
+                            0,
+                            arrowTexture.getWidth(),
+                            arrowTexture.getHeight(),
+                            false,
+                            false);
+                }
+                drawn++;
+            }
+        } catch (Throwable ignored) {
+        }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_TARGETING, Math.max(1, drawn));
+    }
+
+    private static com.badlogic.gdx.graphics.Texture resolveTargetingArrow() {
+        try {
+            artframework.assets.AssetResolveResult result =
+                    artframework.api.ArtFramework.assets().resolve(
+                            artframework.assets.ResourceIds.UI_COMBAT_TARGETING_ARROW);
+            if (!result.found) {
+                return null;
+            }
+            return artframework.sts1.assets.Sts1AssetMaterializer.resolveTexture(result);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     private static void renderEntityChrome(SpriteBatch sb) {

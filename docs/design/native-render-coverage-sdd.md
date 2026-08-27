@@ -87,6 +87,7 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Combat controls | `EndTurnButton.render` | yes | text chrome only; button art not fully reproduced |
 | Energy panel | `EnergyPanel.render` | yes | text chrome only |
 | Intents | `AbstractMonster.renderIntent` | yes | projection chrome only |
+| Targeting arrow | `AbstractPlayer.renderTargetingUi`, `PotionPopUp.renderTargetingUi` | no (observe-only by default; FULL self-draw optional) | OBSERVE: projection only, native arrow stays authoritative; FULL: self-drawn bezier arrow via `TargetingDrawPath`, texture fallback to plain line |
 | Proceed button | `ProceedButton.render` | yes | text chrome only |
 | Top panel | `TopPanel.render` | yes | text chrome only |
 | Map screen | `DungeonMapScreen.render` | yes | HostAssets node draw path; full native parity pending |

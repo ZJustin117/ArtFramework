@@ -91,6 +91,9 @@ There is **no** `UiOps.submitIntent`. Consumers:
 - `UiProbe.SCHEMA_VERSION` stays **1** for additive field groups; bump only with a documented migration.
 - `UiOpResult.Status` is additive only within a minor release.
 - Extension packages (`component`, `c1.layout`, `render` internals) may evolve with release notes.
+- Slice D additive probe fields: `projection.targeting` (targeting session) and
+  `backend.renderPlan` additions for `sts1.combat.targeting`; host-only draw path
+  `TargetingDrawPath` may evolve without consumer breakage.
 
 ## Probe schema v1 (field groups)
 
@@ -101,7 +104,7 @@ There is **no** `UiOps.submitIntent`. Consumers:
 | `windows` / `templates` / `map` / `endTurn` | C1/C2 thin templates |
 | `entities` | `slotCount` + `slots[]` |
 | `components` / `present` | UiComponent slices |
-| `projection` | frame/scene/card counts + event/select/reward fields |
+| `projection` | frame/scene/card counts + event/select/reward fields + `targeting` session (Slice D) |
 | `backend` | `fullPresent`, `renderPlan`, `*Draw` (+ `capability`), `input` (+ room states), `safety`, … |
 | `assets` / `host` / `render` / `theme` | HostAssets + host SPI |
 

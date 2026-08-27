@@ -50,8 +50,8 @@ FAMILY_DEFAULT_POLICY = {
     "inrun-fullscreens": "NATIVE_WITH_ART_OVERLAY",
     # Deliberate boundary: out-of-run meta screens stay native and unhooked.
     "meta-outofrun-screens": "OUT_OF_SCOPE",
-    # Slice D placeholder (0 paths today).
-    "overlay-targeting": UNKNOWN_POLICY,
+    # Slice D: observe-only targeting family (AbstractPlayer/PotionPopUp renderTargetingUi).
+    "overlay-targeting": "OBSERVED",
 }
 
 # Shared rationale texts for family defaults.  Policies that keep native
@@ -121,6 +121,11 @@ FAMILY_DEFAULT_JUSTIFICATION = {
     "meta-outofrun-screens": (
         "Out-of-run meta screens are C1 synthetic-window territory; the native "
         "screens stay authoritative and unhooked."
+    ),
+    "overlay-targeting": (
+        "Native pixel authority retained; ART only observes card/potion targeting renders "
+        "through CombatTargetingRenderPatches.java and projects the session into the "
+        "c2-projection metadata entity; self-draw is optional at sts1.combat.targeting FULL."
     ),
 }
 

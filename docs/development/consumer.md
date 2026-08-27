@@ -119,9 +119,10 @@ Design: [`docs/design/present-profile.md`](../design/present-profile.md).
 - Backend installs ordinary signal listeners; publish authority frames as `context/frame/updated` and use `ArtFramework.dispatch(...)` when the result must be observed. `emit(...)` remains the compatibility result-bearing alias.
 - Prefer `ACTION` signals or surface `action` over native hitbox callbacks. An interceptor may transform or reject a signal, but only an endpoint committed frame is authoritative.
 - Full-present surfaces: `sts1.combat.hand`, `sts1.combat.card_slots`, `sts1.combat.controls`,
-  `sts1.combat.proceed`, `sts1.combat.energy`, `sts1.combat.intents`, `sts1.map`, `sts1.skeleton`,
-  `sts1.combat.surface` (`mount_combat`), `sts1.event`, `sts1.select.grid`, `sts1.select.hand`,
-  `sts1.reward.combat|card|boss_relic`, `sts1.rest`, `sts1.treasure`, `sts1.shop`, `sts1.top_panel`.
+  `sts1.combat.proceed`, `sts1.combat.energy`, `sts1.combat.intents`, `sts1.combat.targeting`,
+  `sts1.map`, `sts1.skeleton`, `sts1.combat.surface` (`mount_combat`), `sts1.event`,
+  `sts1.select.grid`, `sts1.select.hand`, `sts1.reward.combat|card|boss_relic`, `sts1.rest`,
+  `sts1.treasure`, `sts1.shop`, `sts1.top_panel`.
 - Legacy `sts.*` / `sts1.endturn` **NativeComponents** remain; end-turn full-present is `sts1.combat.controls` (not an alias that steals `sts1.endturn`).
 - Card identity: use **`CardRef.instanceId`** (multi-instance safe); `playHandCard(cardId)` still resolves first hand match when hand surface is mounted.
 - EntityPresent chrome: `ArtFramework.entities()` + `EntitySnapshot` / `EntityDrawPath`; combat HAND FULL owns in-combat cards.
@@ -138,7 +139,7 @@ Design: [`docs/design/present-profile.md`](../design/present-profile.md).
 | Frames | `ContextFrame` + controls/map/event/select/reward/rest/treasure/shop/top/intents views + `CardRef` / `sceneEpoch` |
 | Ops | `UiOps.invoke` / surface `action` / `playHandCardRef` / `ArtFramework.emit` (no `UiOps.submitIntent`) |
 | Probe | `backend.fullPresent`, `renderPlan`, `*Draw`, `entityDraw`, `input`, `safety` |
-| Console lab | `art present combat\|map\|skeleton\|event\|select\|reward\|rest\|treasure\|shop\|top\|intents\|proceed\|energy …`, panic/clear-panic |
+| Console lab | `art present combat\|map\|skeleton\|event\|select\|reward\|rest\|treasure\|shop\|top\|intents\|targeting\|proceed\|energy …`, panic/clear-panic |
 
 **Host-only (may evolve):** `Sts1IntentExecutor` gesture bodies, SpriteBatch label fallbacks, SpirePatch suppress points, pan/zoom defaults.
 

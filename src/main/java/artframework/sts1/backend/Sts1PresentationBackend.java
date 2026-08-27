@@ -20,6 +20,7 @@ import artframework.context.RewardView;
 import artframework.context.SelectView;
 import artframework.context.ShopView;
 import artframework.context.SignalBackend;
+import artframework.context.TargetingSessionComponent;
 import artframework.context.TopPanelView;
 import artframework.context.TreasureView;
 import artframework.context.UiIntent;
@@ -83,6 +84,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 }
             }
             frameId++;
+            publishTargetingSession();
             if ("combat".equals(scene)) {
                 return publish(combatFrame());
             }
@@ -1189,6 +1191,45 @@ public final class Sts1PresentationBackend implements SignalBackend {
         } catch (Throwable ignored) {
         }
         return "";
+    }
+
+    private void publishTargetingSession() {
+        try {
+            if (!"combat".equals(scene)) {
+                artframework.api.ArtFramework.projection().setTargetingSession(TargetingSessionComponent.EMPTY);
+                return;
+            }
+            artframework.api.ArtFramework.projection().setTargetingSession(readTargetingSession());
+        } catch (Throwable ignored) {
+        }
+    }
+
+    static TargetingSessionComponent readTargetingSession() {
+        try {
+            AbstractPlayer player = AbstractDungeon.player;
+            if (player == null) {
+                return TargetingSessionComponent.EMPTY;
+            }
+            boolean dragging = booleanValue(player, "isDraggingCard", false);
+            AbstractCard hoveredCard = (AbstractCard) softField(player.getClass(), player, "hoveredCard");
+            if (!dragging || hoveredCard == null) {
+                return TargetingSessionComponent.EMPTY;
+            }
+            String cardInstanceId = hoveredCard.uuid != null
+                    ? hoveredCard.uuid.toString()
+                    : "h" + Integer.toHexString(System.identityHashCode(hoveredCard));
+            Object hoveredMonster = softField(player.getClass(), player, "hoveredMonster");
+            if (!(hoveredMonster instanceof com.megacrit.cardcrawl.monsters.AbstractMonster)) {
+                return new TargetingSessionComponent(true, cardInstanceId, "", TargetingSessionComponent.Phase.ARMED);
+            }
+            com.megacrit.cardcrawl.monsters.AbstractMonster target =
+                    (com.megacrit.cardcrawl.monsters.AbstractMonster) hoveredMonster;
+            String targetKey = target.id != null ? target.id : "";
+            return new TargetingSessionComponent(
+                    true, cardInstanceId, targetKey, TargetingSessionComponent.Phase.VALID);
+        } catch (Throwable t) {
+            return TargetingSessionComponent.EMPTY;
+        }
     }
 
     /** {@link AbstractDungeon#getCurrRoom()} NPEs when {@code currMapNode} is null. */

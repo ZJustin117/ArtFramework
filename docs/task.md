@@ -677,3 +677,16 @@ manifest checker reports incomplete coverage explicitly; it is not yet a FULL ac
       are host-only additive fields (`chromeLineCount` per DrawPath slice) per api-stability.
       Final state: FULL suppresses native for all three rooms, ART shows minimal chrome, evidence
       counts are real; no new `@SpirePatch`.
+- [ ] 47.15 Slice D — target arrow observation family pilot (recipe B): add
+      `overlay-targeting` OBSERVED default, scan whitelist `renderTargetingUi`,
+      `CombatTargetingRenderPatches` observe-and-pass on `AbstractPlayer` and
+      `PotionPopUp` (zero suppression), new mini-surface `sts1.combat.targeting`
+      (OFF default, observe/full console, SurfaceDrawPlan entry, PresentSafety
+      unmount list), `TargetingSessionComponent` c2-projection metadata filled by
+      `Sts1PresentationBackend` soft-reads (`inSingleTargetMode`, hovered card,
+      hovered monster), `TargetingDrawPath` pure bezier geometry with HostAssets
+      arrow texture + plain-line fallback, renderer tail self-draw gated by FULL
+      only. Note deviation: does not use `RenderTargetKind.OVERLAY` (dead mechanism
+      pending Slice E cleanup). Update SDD pixel supply table, task.md, and
+      api-stability/consumer additive notes; strict manifest check must remain
+      ok=true unknown=0.

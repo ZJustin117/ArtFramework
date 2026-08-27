@@ -67,6 +67,7 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_CAMPFIRE_SMITH, "images/ui/campfire/smith.png");
         put(m, ResourceIds.UI_COMBAT_BLOCK, "images/ui/combat/block.png");
         put(m, ResourceIds.UI_COMBAT_INTENT_UNKNOWN, "images/ui/combat/reticleBlock.png");
+        put(m, ResourceIds.UI_COMBAT_TARGETING_ARROW, "images/ui/combat/reticleArrow.png");
         putIntent(m, "attackBuff", "images/ui/intent/attackBuff.png");
         putIntent(m, "attackDebuff", "images/ui/intent/attackDebuff.png");
         putIntent(m, "attackDefend", "images/ui/intent/attackDefend.png");

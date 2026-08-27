@@ -17,6 +17,8 @@ import families
 FIXTURE_PATHS = (
     # overlay-targeting placeholder: method rule wins over any class rule.
     ("com.megacrit.cardcrawl.monsters.AbstractMonster", "renderTargetingUi"),
+    ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderTargetingUi"),
+    ("com.megacrit.cardcrawl.ui.panels.PotionPopUp", "renderTargetingUi"),
     ("com.esotericsoftware.spine.SkeletonMeshRenderer", "draw"),
     ("com.megacrit.cardcrawl.vfx.combat.StrikeEffect", "render"),
     ("com.megacrit.cardcrawl.vfx.combat.ClashEffect", "draw"),
@@ -189,7 +191,7 @@ class FamiliesTest(unittest.TestCase):
                 "buttons-controls": "NATIVE_WITH_ART_OVERLAY",
                 "inrun-fullscreens": "NATIVE_WITH_ART_OVERLAY",
                 "meta-outofrun-screens": "OUT_OF_SCOPE",
-                "overlay-targeting": "UNKNOWN",
+                "overlay-targeting": "OBSERVED",
             },
             families.FAMILY_DEFAULT_POLICY,
         )

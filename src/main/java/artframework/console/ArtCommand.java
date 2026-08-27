@@ -580,7 +580,7 @@ public class ArtCommand extends ConsoleCommand {
     private void cmdPresent(String[] tokens, int depth) {
         if (tokens.length <= depth) {
             DevConsole.log(
-                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|proceed|energy on|off|observe|status");
+                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|targeting|proceed|energy on|off|observe|status");
             return;
         }
         String target = tokens[depth].toLowerCase();
@@ -613,10 +613,11 @@ public class ArtCommand extends ConsoleCommand {
                 && !"top".equals(target)
                 && !"toppanel".equals(target)
                 && !"intents".equals(target)
+                && !"targeting".equals(target)
                 && !"proceed".equals(target)
                 && !"energy".equals(target)) {
             DevConsole.log(
-                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|proceed|energy on|off|observe|status");
+                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|targeting|proceed|energy on|off|observe|status");
             return;
         }
         if (tokens.length < depth + 2) {
@@ -724,6 +725,9 @@ public class ArtCommand extends ConsoleCommand {
         } else if ("intents".equals(target)) {
             artframework.sts1.FullPresentMode.setIntentsLevel(level);
             mountPresentAction(artframework.context.SurfaceIds.COMBAT_INTENTS, "mount_intents", level);
+        } else if ("targeting".equals(target)) {
+            artframework.sts1.FullPresentMode.setTargetingLevel(level);
+            mountPresentAction(artframework.context.SurfaceIds.COMBAT_TARGETING, "mount_targeting", level);
         } else if ("proceed".equals(target)) {
             artframework.sts1.FullPresentMode.setProceedLevel(level);
             mountPresentAction(artframework.context.SurfaceIds.COMBAT_PROCEED, "mount_proceed", level);
@@ -790,6 +794,8 @@ public class ArtCommand extends ConsoleCommand {
                         + policy.get("shop")
                         + " skeleton="
                         + policy.get("skeleton")
+                        + " targeting="
+                        + policy.get("targeting")
                         + " panic="
                         + policy.get("panic")
                         + " suppressHand="

@@ -27,7 +27,7 @@ CLASS_HINTS = re.compile(
     re.IGNORECASE,
 )
 RENDER_METHOD = re.compile(r"\b(public|protected|private)?\s*(static\s+)?[^ ]+\s+"
-                            r"(render|draw|renderHand|renderTip|renderRelics|renderPowers|renderIntent)\s*\(")
+                            r"(render|draw|renderHand|renderTip|renderRelics|renderPowers|renderIntent|renderTargetingUi)\s*\(")
 PATCH_TARGET = re.compile(
     r"@SpirePatch\s*\(.*?clz\s*=\s*([A-Za-z0-9_.$]+).*?method\s*=\s*\"([^\"]+)\"",
     re.DOTALL,
@@ -120,7 +120,7 @@ def javap_methods(jar, name):
     for line in result.stdout.splitlines():
         match = RENDER_METHOD.search(line)
         if match:
-            method = re.search(r"\b(renderHand|renderRelics|renderPowers|renderTip|renderIntent|render|draw)\s*\(", line)
+            method = re.search(r"\b(renderHand|renderRelics|renderPowers|renderTip|renderIntent|renderTargetingUi|render|draw)\s*\(", line)
             if method:
                 methods.append(method.group(1))
     return sorted(set(methods))
@@ -154,7 +154,7 @@ def javap_candidate_methods(jar, names):
             continue
         match = RENDER_METHOD.search(line)
         if match:
-            method = re.search(r"\b(renderHand|renderRelics|renderPowers|renderTip|renderIntent|render|draw)\s*\(", line)
+            method = re.search(r"\b(renderHand|renderRelics|renderPowers|renderTip|renderIntent|renderTargetingUi|render|draw)\s*\(", line)
             if method:
                 methods[current].add(method.group(1))
     return dict((name, sorted(values)) for name, values in methods.items())
@@ -256,7 +256,7 @@ def is_render_patch(patch):
     method = patch["targetMethod"].lower()
     return method in {
         "render", "draw", "renderhand", "renderrelics", "renderpowers", "rendertip",
-        "renderintent"
+        "renderintent", "rendertargetingui"
     } or "render" in patch["source"].lower()
 
 

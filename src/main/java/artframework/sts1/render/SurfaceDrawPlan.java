@@ -191,6 +191,7 @@ public final class SurfaceDrawPlan {
                 false,
                 false,
                 false,
+                false,
                 overlayObserve);
     }
 
@@ -212,6 +213,7 @@ public final class SurfaceDrawPlan {
             boolean intentsMounted,
             boolean proceedMounted,
             boolean energyMounted,
+            boolean targetingMounted,
             boolean overlayObserve) {
         List<Entry> list = new ArrayList<Entry>();
         list.add(
@@ -349,6 +351,14 @@ public final class SurfaceDrawPlan {
                         overlayObserve));
         list.add(
                 entry(
+                        SurfaceIds.COMBAT_TARGETING,
+                        PresentLayer.COMBAT_TARGETING,
+                        FullPresentMode.targetingLevel(),
+                        targetingMounted,
+                        "combat".equals(scene),
+                        overlayObserve));
+        list.add(
+                entry(
                         SurfaceIds.SKELETON,
                         PresentLayer.SKELETON,
                         FullPresentMode.skeletonLevel(),
@@ -373,11 +383,14 @@ public final class SurfaceDrawPlan {
             boolean mounted,
             boolean sceneOk,
             boolean overlayObserve) {
+        // Targeting is observe-first and needs no input executor; readiness is scene + mount only.
+        boolean executorReady = SurfaceIds.COMBAT_TARGETING.equals(surfaceId)
+                || CombatInputRouter.isExecutorReady(surfaceId);
         FullPresentCapability capability = FullPresentCapability.resolve(
                 level,
                 mounted,
                 sceneOk,
-                CombatInputRouter.isExecutorReady(surfaceId),
+                executorReady,
                 overlayObserve,
                 artframework.sts1.PresentSafety.isPanic());
         DrawMode mode = capability.shouldDraw() ? DrawMode.DRAW
@@ -389,8 +402,13 @@ public final class SurfaceDrawPlan {
     }
 
     static boolean keepsNativePixelAuthority(String surfaceId) {
-        // No surface is unconditionally native-pixel-authoritative. Skeletons are handled through
-        // per-instance claims in SkeletonRenderPatches rather than wholesale surface suppression.
+        // Targeting is observe-first: the patch always continues native rendering, even when the
+        // surface is otherwise FULL_READY for observation/projection.
+        if (SurfaceIds.COMBAT_TARGETING.equals(surfaceId)) {
+            return true;
+        }
+        // No other surface is unconditionally native-pixel-authoritative. Skeletons are handled
+        // through per-instance claims in SkeletonRenderPatches rather than wholesale suppression.
         return false;
     }
 }

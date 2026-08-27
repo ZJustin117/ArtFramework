@@ -30,6 +30,8 @@ public final class PresentProjection {
             new ProjectionFrameComponent(-1L, -1L, "", false, false);
     private static final ProjectionInteractionComponent EMPTY_INTERACTION =
             new ProjectionInteractionComponent(null);
+    private static final TargetingSessionComponent EMPTY_TARGETING =
+            TargetingSessionComponent.EMPTY;
     private static final ProjectionFrameSnapshotComponent EMPTY_SNAPSHOT =
             new ProjectionFrameSnapshotComponent(ContextFrame.unavailable(0L));
 
@@ -191,6 +193,20 @@ public final class PresentProjection {
 
     public void clearDrag() {
         putInteraction(null);
+        putTargetingSession(null);
+    }
+
+    public TargetingSessionComponent targetingSession() {
+        PresentationContext context = existingContext();
+        if (context == null) return EMPTY_TARGETING;
+        EntityId entity = context.entity(metadataKey);
+        TargetingSessionComponent component = entity != null
+                ? context.world().get(entity, TargetingSessionComponent.class) : null;
+        return component != null ? component : EMPTY_TARGETING;
+    }
+
+    public void setTargetingSession(TargetingSessionComponent component) {
+        putTargetingSession(component);
     }
 
     public void reset() {
@@ -246,6 +262,11 @@ public final class PresentProjection {
     private void putInteraction(String dragInstanceId) {
         worldForWrite().put(ensureMetadataEntity(), ProjectionInteractionComponent.class,
                 new ProjectionInteractionComponent(dragInstanceId));
+    }
+
+    private void putTargetingSession(TargetingSessionComponent component) {
+        worldForWrite().put(ensureMetadataEntity(), TargetingSessionComponent.class,
+                component != null ? component : EMPTY_TARGETING);
     }
 
     private ProjectionFrameSnapshotComponent snapshot() {
@@ -431,6 +452,11 @@ public final class PresentProjection {
         m.put("handCount", Integer.valueOf(listZone(CardZone.HAND).size()));
         String dragInstanceId = interaction().dragInstanceId;
         m.put("dragInstanceId", dragInstanceId != null ? dragInstanceId : "");
+        TargetingSessionComponent targeting = targetingSession();
+        m.put("targetingActive", Boolean.valueOf(targeting.active));
+        m.put("targetingCardInstanceId", targeting.cardInstanceId);
+        m.put("targetingTargetKey", targeting.targetKey);
+        m.put("targetingPhase", targeting.phase.name());
         ContextFrame frame = snapshot().frame;
         m.put("endTurnEnabled", Boolean.valueOf(frame.controlsView.endTurnEnabled));
         m.put("mapNodeCount", Integer.valueOf(frame.mapView.nodeCount()));

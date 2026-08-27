@@ -17,4 +17,12 @@ public class Sts1PresentationBackendTest {
         PresentSurfaces.resetForTests();
         org.junit.Assert.assertFalse(PresentSurfaces.anyMounted());
     }
+
+    @Test
+    public void readTargetingSessionFailsOpenOutsideDungeon() {
+        artframework.context.TargetingSessionComponent session =
+                Sts1PresentationBackend.readTargetingSession();
+        org.junit.Assert.assertNotNull(session);
+        org.junit.Assert.assertFalse(session.active);
+    }
 }

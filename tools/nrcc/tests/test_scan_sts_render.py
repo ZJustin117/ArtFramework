@@ -46,6 +46,13 @@ class StaticScanTest(unittest.TestCase):
             )
         )
 
+    def test_render_targeting_ui_is_a_render_patch(self):
+        self.assertTrue(
+            scan_sts_render.is_render_patch(
+                {"targetMethod": "renderTargetingUi", "source": "CombatTargetingRenderPatches.java"}
+            )
+        )
+
     def test_classification_marks_effects(self):
         self.assertEqual(
             "transient-effect",

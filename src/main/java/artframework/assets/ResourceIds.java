@@ -36,6 +36,7 @@ public final class ResourceIds {
     public static final String UI_CAMPFIRE_SMITH = "ui.campfire.smith";
     public static final String UI_COMBAT_BLOCK = "ui.combat.block";
     public static final String UI_COMBAT_INTENT_UNKNOWN = "ui.intent.unknown";
+    public static final String UI_COMBAT_TARGETING_ARROW = "ui.combat.targeting_arrow";
     public static final String UI_REWARD_TAKE_ALL = "ui.reward.take_all";
     public static final String UI_REWARD_ITEM_PANEL = "ui.reward.item_panel";
     public static final String UI_MAP_SELECT = "ui.map.select";

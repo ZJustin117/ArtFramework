@@ -9,6 +9,7 @@ entries:
 - ownerId: sts1.inventory.com.esotericsoftware.spine.skeletonmeshrenderer.draw
   nativeClass: com.esotericsoftware.spine.SkeletonMeshRenderer
   nativeMethod: draw
+  family: skeleton-runtime
   pathKind: draw-owner
   surfaceId: sts1.skeleton
   effectFamily: none
@@ -17,7 +18,6 @@ entries:
   justification: Only individual skeleton instances claimed by ART through Sts1SkeletonBridge
     are suppressed; unclaimed skeletons continue through the native renderer.
   test: artframework.sts1.skeleton.Sts1SkeletonBridgeTest.claimedSkeletonDelegatesWithoutNativeContinuation
-  family: skeleton-runtime
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.blights.abstractblight.render
   nativeClass: com.megacrit.cardcrawl.blights.AbstractBlight
   nativeMethod: render
@@ -37,12 +37,12 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cards.abstractcard.render
   nativeClass: com.megacrit.cardcrawl.cards.AbstractCard
   nativeMethod: render
+  family: cards-piles-soul
   pathKind: render-owner
   surfaceId: ''
   effectFamily: none
   hook: ''
   policy: OUT_OF_SCOPE
-  family: cards-piles-soul
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cards.cardgroup.render
   nativeClass: com.megacrit.cardcrawl.cards.CardGroup
   nativeMethod: render
@@ -102,6 +102,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.characters.abstractplayer.renderhand
   nativeClass: com.megacrit.cardcrawl.characters.AbstractPlayer
   nativeMethod: renderHand
+  family: player-character
   pathKind: render-owner
   surfaceId: sts1.combat.hand
   effectFamily: none
@@ -110,7 +111,6 @@ entries:
   justification: Combat hand is an ART full-present surface; card pixels are still
     drawn by live AbstractCard.render calls, not by hand-built card art.
   test: artframework.sts1.render.NativeRenderBridgeTest.fullReadyDelegatesWithoutNativeContinuation
-  family: player-character
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.characters.abstractplayer.renderrelics
   nativeClass: com.megacrit.cardcrawl.characters.AbstractPlayer
   nativeMethod: renderRelics
@@ -119,6 +119,14 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
+- ownerId: sts1.inventory.com.megacrit.cardcrawl.characters.abstractplayer.rendertargetingui
+  nativeClass: com.megacrit.cardcrawl.characters.AbstractPlayer
+  nativeMethod: renderTargetingUi
+  family: overlay-targeting
+  pathKind: render-owner
+  surfaceId: sts1.combat.targeting
+  effectFamily: none
+  hook: artframework/sts1/patch/CombatTargetingRenderPatches.java
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.characters.animatednpc.render
   nativeClass: com.megacrit.cardcrawl.characters.AnimatedNpc
   nativeMethod: render
@@ -177,7 +185,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.credits.creditsscreen.render
   nativeClass: com.megacrit.cardcrawl.credits.CreditsScreen
   nativeMethod: render
@@ -186,7 +193,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cutscenes.cutscene.render
   nativeClass: com.megacrit.cardcrawl.cutscenes.Cutscene
   nativeMethod: render
@@ -195,7 +201,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cutscenes.cutscenepanel.render
   nativeClass: com.megacrit.cardcrawl.cutscenes.CutscenePanel
   nativeMethod: render
@@ -204,7 +209,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.cutscenes.neownarrationscreen.render
   nativeClass: com.megacrit.cardcrawl.cutscenes.NeowNarrationScreen
   nativeMethod: render
@@ -213,7 +217,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.daily.dailyscreen.render
   nativeClass: com.megacrit.cardcrawl.daily.DailyScreen
   nativeMethod: render
@@ -222,7 +225,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.dungeons.abstractdungeon.render
   nativeClass: com.megacrit.cardcrawl.dungeons.AbstractDungeon
   nativeMethod: render
@@ -255,6 +257,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.genericeventdialog.render
   nativeClass: com.megacrit.cardcrawl.events.GenericEventDialog
   nativeMethod: render
+  family: event-dialogs
   pathKind: native-surface
   surfaceId: sts1.event
   effectFamily: none
@@ -265,7 +268,6 @@ entries:
     must close PresentationDrawEvidence or count as a strict report gap; base pixels
     are not reproduced yet and stay visible there.
   test: artframework.sts1.render.EventRenderPatchesTest.fullReadySuppressesNativeEventRender
-  family: event-dialogs
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.roomeventdialog.render
   nativeClass: com.megacrit.cardcrawl.events.RoomEventDialog
   nativeMethod: render
@@ -413,6 +415,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.abstractmonster.renderintent
   nativeClass: com.megacrit.cardcrawl.monsters.AbstractMonster
   nativeMethod: renderIntent
+  family: monsters-bosses
   pathKind: render-owner
   surfaceId: sts1.combat.intents
   effectFamily: none
@@ -423,7 +426,6 @@ entries:
     open. Delegation must close PresentationDrawEvidence or count as a strict report
     gap; current pixel supply is projection chrome pending full reproduction.
   test: artframework.sts1.render.CombatIntentRenderPatchesTest.fullReadySuppressesNativeIntentRender
-  family: monsters-bosses
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.monsters.abstractmonster.rendertip
   nativeClass: com.megacrit.cardcrawl.monsters.AbstractMonster
   nativeMethod: renderTip
@@ -496,7 +498,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.orbs.abstractorb.render
   nativeClass: com.megacrit.cardcrawl.orbs.AbstractOrb
   nativeMethod: render
@@ -596,6 +597,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.campfireui.render
   nativeClass: com.megacrit.cardcrawl.rooms.CampfireUI
   nativeMethod: render
+  family: room-shells
   pathKind: native-surface
   surfaceId: sts1.rest
   effectFamily: none
@@ -606,7 +608,6 @@ entries:
     must close PresentationDrawEvidence or count as a strict report gap; campfire
     options are not synced and base pixels are absent.
   test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeRestRender
-  family: room-shells
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.eventroom.render
   nativeClass: com.megacrit.cardcrawl.rooms.EventRoom
   nativeMethod: render
@@ -634,6 +635,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.treasureroom.render
   nativeClass: com.megacrit.cardcrawl.rooms.TreasureRoom
   nativeMethod: render
+  family: room-shells
   pathKind: native-surface
   surfaceId: sts1.treasure
   effectFamily: none
@@ -644,7 +646,6 @@ entries:
     open. Delegation must close PresentationDrawEvidence or count as a strict report
     gap; chest and item sync are absent.
   test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeTreasureRender
-  family: room-shells
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.treasureroomboss.render
   nativeClass: com.megacrit.cardcrawl.rooms.TreasureRoomBoss
   nativeMethod: render
@@ -677,7 +678,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.scenes.titlecloud.render
   nativeClass: com.megacrit.cardcrawl.scenes.TitleCloud
   nativeMethod: render
@@ -686,7 +686,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.cardrewardscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.CardRewardScreen
   nativeMethod: render
@@ -698,6 +697,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.combatrewardscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.CombatRewardScreen
   nativeMethod: render
+  family: inrun-fullscreens
   pathKind: native-surface
   surfaceId: sts1.reward.combat
   effectFamily: none
@@ -708,7 +708,6 @@ entries:
     open. Delegation must close PresentationDrawEvidence or count as a strict report
     gap; reward item sync and base pixels are incomplete.
   test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeRewardRender
-  family: inrun-fullscreens
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.deathscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DeathScreen
   nativeMethod: render
@@ -741,7 +740,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.drawpileviewscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DrawPileViewScreen
   nativeMethod: render
@@ -753,6 +751,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.dungeonmapscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DungeonMapScreen
   nativeMethod: render
+  family: inrun-fullscreens
   pathKind: native-surface
   surfaceId: sts1.map
   effectFamily: none
@@ -763,7 +762,6 @@ entries:
     PresentationDrawEvidence or count as a strict report gap; HostAssets supplies
     the node draw path while full native parity is pending.
   test: artframework.sts1.render.MapDrawPathTest.suppressesNativeMapOnlyWhenFullReady
-  family: inrun-fullscreens
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.dungeontransitionscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.DungeonTransitionScreen
   nativeMethod: render
@@ -836,7 +834,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.charselect.characteroption.renderrelics
   nativeClass: com.megacrit.cardcrawl.screens.charSelect.CharacterOption
   nativeMethod: renderRelics
@@ -845,7 +842,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.charselect.characterselectscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.charSelect.CharacterSelectScreen
   nativeMethod: render
@@ -854,7 +850,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.compendium.cardlibsortheader.render
   nativeClass: com.megacrit.cardcrawl.screens.compendium.CardLibSortHeader
   nativeMethod: render
@@ -863,7 +858,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.compendium.cardlibraryscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.compendium.CardLibraryScreen
   nativeMethod: render
@@ -872,7 +866,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.compendium.potionviewscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.compendium.PotionViewScreen
   nativeMethod: render
@@ -881,7 +874,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.compendium.relicviewscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.compendium.RelicViewScreen
   nativeMethod: render
@@ -890,7 +882,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.custom.custommod.render
   nativeClass: com.megacrit.cardcrawl.screens.custom.CustomMod
   nativeMethod: render
@@ -899,7 +890,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.custom.custommodecharacterbutton.render
   nativeClass: com.megacrit.cardcrawl.screens.custom.CustomModeCharacterButton
   nativeMethod: render
@@ -908,7 +898,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.custom.custommodescreen.render
   nativeClass: com.megacrit.cardcrawl.screens.custom.CustomModeScreen
   nativeMethod: render
@@ -917,7 +906,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.leaderboards.filterbutton.render
   nativeClass: com.megacrit.cardcrawl.screens.leaderboards.FilterButton
   nativeMethod: render
@@ -926,7 +914,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.leaderboards.leaderboardentry.render
   nativeClass: com.megacrit.cardcrawl.screens.leaderboards.LeaderboardEntry
   nativeMethod: render
@@ -935,7 +922,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.leaderboards.leaderboardscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.leaderboards.LeaderboardScreen
   nativeMethod: render
@@ -944,7 +930,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.colortabbar.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.ColorTabBar
   nativeMethod: render
@@ -953,7 +938,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.earlyaccesspopup.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.EarlyAccessPopup
   nativeMethod: render
@@ -962,7 +946,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.horizontalscrollbar.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.HorizontalScrollBar
   nativeMethod: render
@@ -971,7 +954,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.mainmenupanelbutton.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.MainMenuPanelButton
   nativeMethod: render
@@ -980,7 +962,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.mainmenuscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.MainMenuScreen
   nativeMethod: render
@@ -989,7 +970,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.menubutton.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.MenuButton
   nativeMethod: render
@@ -998,7 +978,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.menucancelbutton.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.MenuCancelButton
   nativeMethod: render
@@ -1007,7 +986,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.menupanelscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.MenuPanelScreen
   nativeMethod: render
@@ -1016,7 +994,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.patchnotesscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.PatchNotesScreen
   nativeMethod: render
@@ -1025,7 +1002,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.saveslot.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.SaveSlot
   nativeMethod: render
@@ -1034,7 +1010,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.saveslotscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.SaveSlotScreen
   nativeMethod: render
@@ -1043,7 +1018,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.scrollbar.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.ScrollBar
   nativeMethod: render
@@ -1052,7 +1026,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.sortheaderbutton.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.SortHeaderButton
   nativeMethod: render
@@ -1061,7 +1034,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.mainmenu.syncmessage.render
   nativeClass: com.megacrit.cardcrawl.screens.mainMenu.SyncMessage
   nativeMethod: render
@@ -1070,7 +1042,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.abandonrunbutton.render
   nativeClass: com.megacrit.cardcrawl.screens.options.AbandonRunButton
   nativeMethod: render
@@ -1079,7 +1050,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.confirmpopup.render
   nativeClass: com.megacrit.cardcrawl.screens.options.ConfirmPopup
   nativeMethod: render
@@ -1088,7 +1058,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.dropdownmenu.render
   nativeClass: com.megacrit.cardcrawl.screens.options.DropdownMenu
   nativeMethod: render
@@ -1097,7 +1066,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.exitgamebutton.render
   nativeClass: com.megacrit.cardcrawl.screens.options.ExitGameButton
   nativeMethod: render
@@ -1106,7 +1074,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.gianttogglebutton.render
   nativeClass: com.megacrit.cardcrawl.screens.options.GiantToggleButton
   nativeMethod: render
@@ -1115,7 +1082,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.inputsettingsscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.options.InputSettingsScreen
   nativeMethod: render
@@ -1124,7 +1090,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.optionspanel.render
   nativeClass: com.megacrit.cardcrawl.screens.options.OptionsPanel
   nativeMethod: render
@@ -1133,7 +1098,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.remapinputelement.render
   nativeClass: com.megacrit.cardcrawl.screens.options.RemapInputElement
   nativeMethod: render
@@ -1142,7 +1106,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.settingsscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.options.SettingsScreen
   nativeMethod: render
@@ -1151,7 +1114,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.slider.render
   nativeClass: com.megacrit.cardcrawl.screens.options.Slider
   nativeMethod: render
@@ -1160,7 +1122,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.options.togglebutton.render
   nativeClass: com.megacrit.cardcrawl.screens.options.ToggleButton
   nativeMethod: render
@@ -1169,7 +1130,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.runhistory.copyabletextelement.render
   nativeClass: com.megacrit.cardcrawl.screens.runHistory.CopyableTextElement
   nativeMethod: render
@@ -1178,7 +1138,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.runhistory.runhistorypath.render
   nativeClass: com.megacrit.cardcrawl.screens.runHistory.RunHistoryPath
   nativeMethod: render
@@ -1187,7 +1146,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.runhistory.runhistoryscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.runHistory.RunHistoryScreen
   nativeMethod: render
@@ -1196,7 +1154,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.runhistory.runhistoryscreen.renderrelics
   nativeClass: com.megacrit.cardcrawl.screens.runHistory.RunHistoryScreen
   nativeMethod: renderRelics
@@ -1205,7 +1162,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.runhistory.runpathelement.render
   nativeClass: com.megacrit.cardcrawl.screens.runHistory.RunPathElement
   nativeMethod: render
@@ -1214,7 +1170,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.runhistory.tinycard.render
   nativeClass: com.megacrit.cardcrawl.screens.runHistory.TinyCard
   nativeMethod: render
@@ -1223,7 +1178,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.select.bossrelicselectscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.select.BossRelicSelectScreen
   nativeMethod: render
@@ -1235,6 +1189,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.select.gridcardselectscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.select.GridCardSelectScreen
   nativeMethod: render
+  family: inrun-fullscreens
   pathKind: native-surface
   surfaceId: sts1.select.grid
   effectFamily: none
@@ -1245,10 +1200,10 @@ entries:
     must close PresentationDrawEvidence or count as a strict report gap; base pixels
     are not reproduced yet and stay visible there.
   test: artframework.sts1.render.SelectRenderPatchesTest.fullReadySuppressesNativeGridSelectRender
-  family: inrun-fullscreens
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.select.handcardselectscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.select.HandCardSelectScreen
   nativeMethod: render
+  family: inrun-fullscreens
   pathKind: native-surface
   surfaceId: sts1.select.hand
   effectFamily: none
@@ -1260,7 +1215,6 @@ entries:
     are not reproduced yet, and the referenced test gates the shared plan-level policy
     until a dedicated prefix suppression test exists.
   test: artframework.sts1.render.RenderPatchOwnershipTest.delegatedSurfacesAreNotNativeAuthoritative
-  family: inrun-fullscreens
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.splash.splashscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.splash.SplashScreen
   nativeMethod: render
@@ -1269,7 +1223,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.stats.achievementgrid.render
   nativeClass: com.megacrit.cardcrawl.screens.stats.AchievementGrid
   nativeMethod: render
@@ -1278,7 +1231,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.stats.achievementitem.render
   nativeClass: com.megacrit.cardcrawl.screens.stats.AchievementItem
   nativeMethod: render
@@ -1287,7 +1239,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.stats.charstat.render
   nativeClass: com.megacrit.cardcrawl.screens.stats.CharStat
   nativeMethod: render
@@ -1296,7 +1247,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.stats.statsscreen.render
   nativeClass: com.megacrit.cardcrawl.screens.stats.StatsScreen
   nativeMethod: render
@@ -1305,7 +1255,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.shop.merchant.render
   nativeClass: com.megacrit.cardcrawl.shop.Merchant
   nativeMethod: render
@@ -1325,6 +1274,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.shop.shopscreen.render
   nativeClass: com.megacrit.cardcrawl.shop.ShopScreen
   nativeMethod: render
+  family: shop-rewards-chests
   pathKind: native-surface
   surfaceId: sts1.shop
   effectFamily: none
@@ -1335,7 +1285,6 @@ entries:
     PresentationDrawEvidence or count as a strict report gap; item sync and base pixels
     are incomplete.
   test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeShopRender
-  family: shop-rewards-chests
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.shop.shopscreen.renderrelics
   nativeClass: com.megacrit.cardcrawl.shop.ShopScreen
   nativeMethod: renderRelics
@@ -1451,6 +1400,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.endturnbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.EndTurnButton
   nativeMethod: render
+  family: buttons-controls
   pathKind: render-owner
   surfaceId: sts1.combat.controls
   effectFamily: none
@@ -1461,7 +1411,6 @@ entries:
     open. Delegation must close PresentationDrawEvidence or count as a strict report
     gap; current pixel supply is text chrome pending full reproduction.
   test: artframework.sts1.render.CombatControlsRenderPatchesTest.fullReadySuppressesNativeEndTurnRender
-  family: buttons-controls
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.gotitbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.GotItButton
   nativeMethod: render
@@ -1497,6 +1446,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.proceedbutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.ProceedButton
   nativeMethod: render
+  family: buttons-controls
   pathKind: render-owner
   surfaceId: sts1.combat.proceed
   effectFamily: none
@@ -1507,7 +1457,6 @@ entries:
     open. Delegation must close PresentationDrawEvidence or count as a strict report
     gap; current pixel supply is text chrome.
   test: artframework.sts1.render.ProceedButtonRenderPatchesTest.fullReadySuppressesNativeProceedButtonRender
-  family: buttons-controls
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.buttons.retrybutton.render
   nativeClass: com.megacrit.cardcrawl.ui.buttons.RetryButton
   nativeMethod: render
@@ -1591,6 +1540,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.energypanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.EnergyPanel
   nativeMethod: render
+  family: hud-top-panel
   pathKind: render-owner
   surfaceId: sts1.combat.energy
   effectFamily: none
@@ -1601,7 +1551,6 @@ entries:
     open. Delegation must close PresentationDrawEvidence or count as a strict report
     gap; current pixel supply is text chrome pending full reproduction.
   test: artframework.sts1.render.CombatEnergyRenderPatchesTest.fullReadySuppressesNativeEnergyRender
-  family: hud-top-panel
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.exhaustpanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.ExhaustPanel
   nativeMethod: render
@@ -1618,6 +1567,14 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
+- ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.potionpopup.rendertargetingui
+  nativeClass: com.megacrit.cardcrawl.ui.panels.PotionPopUp
+  nativeMethod: renderTargetingUi
+  family: overlay-targeting
+  pathKind: render-owner
+  surfaceId: sts1.combat.targeting
+  effectFamily: none
+  hook: artframework/sts1/patch/CombatTargetingRenderPatches.java
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.renamepopup.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.RenamePopup
   nativeMethod: render
@@ -1637,6 +1594,7 @@ entries:
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.toppanel.render
   nativeClass: com.megacrit.cardcrawl.ui.panels.TopPanel
   nativeMethod: render
+  family: hud-top-panel
   pathKind: render-owner
   surfaceId: sts1.top_panel
   effectFamily: none
@@ -1647,7 +1605,6 @@ entries:
     PresentationDrawEvidence or count as a strict report gap; current pixel supply
     is text chrome.
   test: artframework.sts1.render.TopPanelRenderPatchesTest.fullReadySuppressesNativeTopPanelRender
-  family: hud-top-panel
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.toppanel.renderrelics
   nativeClass: com.megacrit.cardcrawl.ui.panels.TopPanel
   nativeMethod: renderRelics
@@ -1664,7 +1621,6 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.unlock.unlockcharacterscreen.render
   nativeClass: com.megacrit.cardcrawl.unlock.UnlockCharacterScreen
   nativeMethod: render
@@ -1673,10 +1629,10 @@ entries:
   surfaceId: ''
   effectFamily: none
   hook: ''
-  policy: OUT_OF_SCOPE
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.abstractgameeffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.AbstractGameEffect
   nativeMethod: render
+  family: vfx-misc-root
   pathKind: transient-effect
   surfaceId: ''
   effectFamily: abstract_game_effect
@@ -1685,7 +1641,6 @@ entries:
   justification: Only individual effect instances claimed by ART through NativeRenderBridge.beginEffectRender
     are suppressed; the native effect queue remains authoritative.
   test: artframework.sts1.render.NativeRenderBridgeTest.transientEffectRenderAlwaysCapturesAndPasses
-  family: vfx-misc-root
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.ascensionleveluptexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.AscensionLevelUpTextEffect
   nativeMethod: render

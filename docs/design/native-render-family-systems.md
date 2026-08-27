@@ -57,7 +57,7 @@ the 16 `ART_DELEGATED` paths, `AbstractCard#render` `OUT_OF_SCOPE`,
 `AbstractDungeon#render` `OBSERVED` (container instrument), and `TestGame#render`
 `OUT_OF_SCOPE`.
 
-Current distribution baseline (static scan, 488 paths total, 16 `hooked` / 472 `unclassified`):
+Current distribution baseline (static scan, 490 paths total, 18 `hooked` / 472 `unclassified`):
 
 ```text
 buttons-controls 17        cards-piles-soul 6        core-game-root 6
@@ -68,7 +68,7 @@ relics-blights-potions 5   room-shells 10            shop-rewards-chests 8
 skeleton-runtime 1         stances-state 2           vfx-campfire-rest 10
 vfx-card-manipulation 10   vfx-combat 145            vfx-misc-root 97
 vfx-scene-world 29         vfx-stance-aura 8         word-tip-ui 4
-overlay-targeting 0 (reserved placeholder, see recipe B)
+overlay-targeting 2 (recipe B pilot, see recipe B)
 ```
 
 ## 2. Family inventory
@@ -118,7 +118,7 @@ covered by virtual dispatch at the container sites, not by their own patches.
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `overlay-targeting` | 0 | (reserved: `AbstractPlayer#renderTargetingUi`, `PotionPopUp#renderTargetingUi`) | Placeholder for the card targeting arrow (recipe B); family default stays `UNKNOWN` so Slice D paths fail strict loudly; future observe-family pilot, not implemented this round |
+| `overlay-targeting` | 2 | `AbstractPlayer#renderTargetingUi`, `PotionPopUp#renderTargetingUi` | `OBSERVED` by family default: capture-and-pass observation through `CombatTargetingRenderPatches`; native targeting pixels stay authoritative; self-draw is optional at `sts1.combat.targeting` FULL |
 
 ### Passthrough helpers and structural roots
 
@@ -256,24 +256,49 @@ screen transition without touching dozens of screen classes.
   adding a manifest entry + C1 window, not reworking the hook — the path is low-cost and
   reversible.
 
-### Recipe B — card targeting arrow (future pilot, not implemented this round)
+### Recipe B — card targeting arrow (pilot landed, Slice D)
 
 **Native shape.** Targeting is **not a standalone class**. `AbstractPlayer` declares
 `private void renderTargetingUi(SpriteBatch)`, called conditionally near the end of its
 `render` body; `ui.panels.PotionPopUp` carries a same-named private variant for potion
-targeting. Neither name is in the scanner's method whitelist, which is exactly why
-`overlay-targeting` exists as a zero-count reserved family.
+targeting. Both methods are now on the scanner whitelist and belong to the
+`overlay-targeting` family.
 
-**Projection.** Extend c2-projection metadata with a
-`TargetingSessionComponent(cardInstanceId, targetEntityId, phase)` written while a drag is
-armed. Today's `ProjectionInteractionComponent` carries only the single `dragInstanceId`
-field; targeting adds target identity and phase (`ARMED/VALID/COMMITTED`) without changing
-existing readers.
+**Choke points / patches.** Two Prefix patches (one per class) attach to the private
+`renderTargetingUi(SpriteBatch)` descriptor. They call `NativeRenderBridge.beginSurface`
+with surface id `sts1.combat.targeting` and always return `SpireReturn.Continue()` — zero
+suppression. OBSERVE level yields `CAPTURE_AND_PASS`; OFF yields `PASS_THROUGH`; panic,
+unknown owner, and bridge errors fail open. Because the patch never calls
+`SpireReturn.Return(null)`, the ownership static gate is not triggered and the family stays
+under `OBSERVED` policy.
 
-**Execution.** Reuse the currently idle `RenderTargetKind.OVERLAY` target drawn through
-`RenderHost.kindsOverUi()` so the arrow paints above C1 stage content, and self-draw the
-bezier arrow there. The texture resolves through HostAssets; the vanilla resource already
-exists in the game assets (`images/ui/combat/reticleArrow.png`).
+**Surface.** A new mini-surface `sts1.combat.targeting` follows the intents observe-first
+template: `SurfaceIds` constant, `FullPresentMode` field defaulting to `OFF`,
+`SurfaceDrawPlan` entry gated by `sceneOk=combat`, `PresentSafety` unmount list inclusion,
+console `art present targeting on|off|observe|status`, and a probe slice field.
+
+**ECS projection.** The c2-projection metadata entity carries a data-only
+`TargetingSessionComponent(active, cardInstanceId, targetKey, phase)` written by
+`Sts1PresentationBackend` while a drag is armed. The component mirrors the existing
+`ProjectionInteractionComponent` / `dragInstanceId` pattern; targeting adds target identity
+and phase (`ARMED/VALID/COMMITTED`) without changing existing readers. Epoch switches reuse
+the existing `clearDrag` cleanup path.
+
+**Self-draw.** `TargetingDrawPath` is a pure function that computes bezier control points and
+endpoints from `TargetingSessionComponent`, the source card's projected pose, and the
+target geometry. Drawing runs at the tail of `Sts1SurfaceRenderer.render` only when the
+targeting surface level is `FULL` (default `OFF` draws nothing).
+
+> **Deviation from earlier recipe drafts.** `RenderTargetKind.OVERLAY` and `kindsOverUi()`
+> are currently a dead mechanism scheduled for cleanup in Slice E. This pilot therefore
+> paints the arrow through the renderer's existing tail slot, not through an overlay kind.
+> The deviation is recorded here and in `task.md` 47.15.
+
+**Texture.** The arrow texture resolves through `HostAssets` at
+`sts1:images/ui/combat/reticleArrow.png` (vanilla path `images/ui/combat/reticleArrow.png`).
+When the texture is unavailable, the path falls back to a plain colored line drawn with
+`FontHelper` / `ImageMaster` white-pixel so geometry and fail-open behavior remain verifiable
+without the asset.
 
 **Policy.** Observe-first pilot for the `overlay-targeting` family: capture and project, keep
 native pixels authoritative, and only consider delegation after the §5 checklist passes for

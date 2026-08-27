@@ -58,6 +58,7 @@ public final class PresentSurfaces {
         register(new ShopSurface());
         register(new TopPanelSurface());
         register(new IntentsSurface());
+        register(new TargetingSurface());
     }
 
     private PresentSurfaces() {}
@@ -796,6 +797,32 @@ public final class PresentSurfaces {
         public Map<String, Object> probeSlice() {
             Map<String, Object> m = baseProbe(Arrays.asList("mount_intents"));
             m.put("intents", PresentProjections.get().intents().toMap());
+            return m;
+        }
+    }
+
+    static final class TargetingSurface extends BaseSurface {
+        TargetingSurface() {
+            super(SurfaceIds.COMBAT_TARGETING, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_targeting".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("targeting mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("targeting not mounted");
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("mount_targeting"));
+            m.put("targeting", PresentProjections.get().targetingSession().toMap());
             return m;
         }
     }

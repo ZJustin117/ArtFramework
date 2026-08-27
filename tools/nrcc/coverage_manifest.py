@@ -192,7 +192,7 @@ def check_patch_ownership(report, manifest_path):
         # Only render/draw invocations can be pixel owners.
         if method not in {
             "render", "draw", "renderHand", "renderRelics", "renderPowers",
-            "renderTip", "renderIntent",
+            "renderTip", "renderIntent", "renderTargetingUi",
         }:
             continue
         key = (patch.get("targetClass"), method)
@@ -306,6 +306,8 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.ui.buttons.EndTurnButton", "render"): "sts1.combat.controls",
         ("com.megacrit.cardcrawl.ui.panels.EnergyPanel", "render"): "sts1.combat.energy",
         ("com.megacrit.cardcrawl.monsters.AbstractMonster", "renderIntent"): "sts1.combat.intents",
+        ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderTargetingUi"): "sts1.combat.targeting",
+        ("com.megacrit.cardcrawl.ui.panels.PotionPopUp", "renderTargetingUi"): "sts1.combat.targeting",
         ("com.megacrit.cardcrawl.screens.DungeonMapScreen", "render"): "sts1.map",
         ("com.megacrit.cardcrawl.events.GenericEventDialog", "render"): "sts1.event",
         ("com.megacrit.cardcrawl.screens.select.GridCardSelectScreen", "render"): "sts1.select.grid",

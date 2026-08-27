@@ -25,6 +25,7 @@ public final class FullPresentMode {
     private static PresentLevel shop = PresentLevel.OFF;
     private static PresentLevel topPanel = PresentLevel.OFF;
     private static PresentLevel intents = PresentLevel.OFF;
+    private static PresentLevel targeting = PresentLevel.OFF;
     private static PresentLevel proceed = PresentLevel.OFF;
     private static PresentLevel energy = PresentLevel.OFF;
 
@@ -87,6 +88,9 @@ public final class FullPresentMode {
         }
         if (SurfaceIds.COMBAT_INTENTS.equals(id)) {
             return intents;
+        }
+        if (SurfaceIds.COMBAT_TARGETING.equals(id)) {
+            return targeting;
         }
         if (SurfaceIds.COMBAT_PROCEED.equals(id)) {
             return proceed;
@@ -154,6 +158,10 @@ public final class FullPresentMode {
         intents = level != null ? level : PresentLevel.OFF;
     }
 
+    public static void setTargetingLevel(PresentLevel level) {
+        targeting = level != null ? level : PresentLevel.OFF;
+    }
+
     public static void setProceedLevel(PresentLevel level) {
         proceed = level != null ? level : PresentLevel.OFF;
     }
@@ -192,6 +200,10 @@ public final class FullPresentMode {
 
     public static PresentLevel intentsLevel() {
         return intents;
+    }
+
+    public static PresentLevel targetingLevel() {
+        return targeting;
     }
 
     public static PresentLevel proceedLevel() {
@@ -257,6 +269,10 @@ public final class FullPresentMode {
             intents = v;
             return;
         }
+        if (SurfaceIds.COMBAT_TARGETING.equals(id)) {
+            targeting = v;
+            return;
+        }
         if (SurfaceIds.COMBAT_PROCEED.equals(id)) {
             proceed = v;
             return;
@@ -292,6 +308,7 @@ public final class FullPresentMode {
         m.put("shop", shop.name());
         m.put("topPanel", topPanel.name());
         m.put("intents", intents.name());
+        m.put("targeting", targeting.name());
         m.put("proceed", proceed.name());
         m.put("energy", energy.name());
         m.put("combatHandFull", Boolean.valueOf(combatHand.allowsFullPresent() && !PresentSafety.isPanic()));
@@ -315,6 +332,7 @@ public final class FullPresentMode {
         shop = PresentLevel.OFF;
         topPanel = PresentLevel.OFF;
         intents = PresentLevel.OFF;
+        targeting = PresentLevel.OFF;
         proceed = PresentLevel.OFF;
         energy = PresentLevel.OFF;
     }

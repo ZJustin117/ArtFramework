@@ -14,6 +14,7 @@ public enum PresentLayer {
     COMBAT_HAND,
     COMBAT_CONTROLS,
     COMBAT_INTENTS,
+    COMBAT_TARGETING,
     SKELETON,
     TOP_PANEL,
     OVERLAY_FX,

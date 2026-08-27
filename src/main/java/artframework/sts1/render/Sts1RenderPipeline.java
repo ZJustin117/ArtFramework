@@ -66,6 +66,7 @@ public final class Sts1RenderPipeline {
                         mounted(SurfaceIds.COMBAT_INTENTS),
                         mounted(SurfaceIds.COMBAT_PROCEED),
                         mounted(SurfaceIds.COMBAT_ENERGY),
+                        mounted(SurfaceIds.COMBAT_TARGETING),
                         overlayObserve);
         return lastPlan;
     }

@@ -144,6 +144,32 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void targetingSurfaceObserveCapturesAndPasses() {
+        mountedCombat();
+        ArtFramework.component(SurfaceIds.COMBAT_TARGETING).mount();
+        FullPresentMode.setTargetingLevel(PresentLevel.OBSERVE);
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_TARGETING,
+                "com.megacrit.cardcrawl.characters.AbstractPlayer",
+                "renderTargetingUi",
+                "p");
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
+        assertTrue("native targeting pixels must continue", disposition.nativeContinuation);
+    }
+
+    @Test
+    public void targetingSurfaceOffPassesThrough() {
+        mountedCombat();
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_TARGETING,
+                "com.megacrit.cardcrawl.characters.AbstractPlayer",
+                "renderTargetingUi",
+                "p");
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, disposition.mode);
+        assertTrue("native targeting pixels must continue when OFF", disposition.nativeContinuation);
+    }
+
+    @Test
     public void controlsEnergyIntentsTopPanelProceedDelegateInFullMode() {
         mountedCombat();
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());

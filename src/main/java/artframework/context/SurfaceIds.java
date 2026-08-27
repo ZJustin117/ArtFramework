@@ -14,6 +14,7 @@ public final class SurfaceIds {
     public static final String COMBAT_PROCEED = "sts1.combat.proceed";
     public static final String COMBAT_ENERGY = "sts1.combat.energy";
     public static final String COMBAT_INTENTS = "sts1.combat.intents";
+    public static final String COMBAT_TARGETING = "sts1.combat.targeting";
     public static final String MAP = NativeTemplateIds.MAP;
     public static final String SKELETON = "sts1.skeleton";
     public static final String EVENT = NativeTemplateIds.EVENT;
@@ -47,6 +48,7 @@ public final class SurfaceIds {
                 || COMBAT_PROCEED.equals(id)
                 || COMBAT_ENERGY.equals(id)
                 || COMBAT_INTENTS.equals(id)
+                || COMBAT_TARGETING.equals(id)
                 || SKELETON.equals(id)
                 || REWARD_COMBAT.equals(id)
                 || REWARD_CARD.equals(id)

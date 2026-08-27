@@ -121,6 +121,29 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
+    public void fullMountedTargetingObservesWithoutSuppressingNative() {
+        combatFrameMounted();
+        ArtFramework.component(SurfaceIds.COMBAT_TARGETING).mount();
+        FullPresentMode.setTargetingLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan.Entry targeting = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_TARGETING);
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, targeting.mode);
+        assertTrue(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_TARGETING));
+        // Targeting is observe-first: the patch always continues native rendering.
+        assertFalse("targeting must not suppress native render", targeting.suppressNative);
+        assertFalse(Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.COMBAT_TARGETING));
+    }
+
+    @Test
+    public void offSkipsTargetingDraw() {
+        combatFrameMounted();
+        ArtFramework.component(SurfaceIds.COMBAT_TARGETING).mount();
+        SurfaceDrawPlan.Entry targeting = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_TARGETING);
+        assertEquals(SurfaceDrawPlan.DrawMode.SKIP, targeting.mode);
+        assertFalse(Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.COMBAT_TARGETING));
+    }
+
+    @Test
     public void fullMountedControlsDrawsAndSuppressesNative() {
         combatFrameMounted();
         FullPresentMode.setCombatControlsLevel(PresentLevel.FULL);

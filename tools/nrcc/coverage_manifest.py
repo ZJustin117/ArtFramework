@@ -293,7 +293,7 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): "ART_DELEGATED",
-        ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "OBSERVED",
         # Member-level exceptions inside core-game-root (family default
         # NATIVE_PASSTHROUGH): the dungeon frame hosts an observation-only
         # instrument, and the TestGame bootstrap is out of ART scope.
@@ -330,8 +330,9 @@ def inventory_entries(report, existing_entries=None):
             "suppressed; unclaimed skeletons continue through the native renderer."
         ),
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): (
-            "Only individual effect instances claimed by ART through NativeRenderBridge.beginEffectRender "
-            "are suppressed; the native effect queue remains authoritative."
+            "Observation-only entry: NativeRenderBridge.beginEffectRender returns CAPTURE_AND_PASS; "
+            "the native effect queue remains authoritative and no effect instance is suppressed. "
+            "Observation is provided by artframework/sts1/patch/TransientEffectRenderPatches.java."
         ),
         ("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render"): (
             "Observation-only instrument: artframework/sts1/patch/TransientEffectContainerPatches.java "

@@ -607,15 +607,15 @@ Design: [`docs/design/presentation-entity-runtime.md`](design/presentation-entit
 
 ### 47. Native Render Coverage Contract
 
-The initial static inventory and runtime bridge are present as an in-progress slice. The
-manifest checker reports incomplete coverage explicitly; it is not yet a FULL acceptance gate.
+The static inventory, manifest checker, runtime bridge, and strict runtime ledger are present.
+FULL acceptance requires zero static unknowns and zero runtime strict-report gaps.
 
 - [x] 47.1 Static inventory output and explicit coverage manifest scaffold
 - [x] 47.2 Manifest schema validation and `--check-manifest` closure check
 - [x] 47.3 Classify all static candidates and make strict manifest check pass
 - [x] 47.3a Replace hand card native chrome delegation with an atlas-only ART card shell
-- [ ] 47.4 Pure invocation/disposition/evidence ledger contract and exact correlation
-- [ ] 47.5 `Sts1NativePresentationAdapter` projection into ECS / `PresentationFrame`
+- [x] 47.4 Pure invocation/disposition/evidence ledger contract and exact correlation
+- [x] 47.5 `Sts1NativePresentationAdapter` projection into ECS / `PresentationFrame`
 - [x] 47.6 Transient effect instance registry and complete recovery cleanup
 - [x] 47.7 Migrate remaining native render patches through the final bridge contract
 - [x] 47.8 Contract-layer sync for full-present takeover: SDD replaces the native-pixel

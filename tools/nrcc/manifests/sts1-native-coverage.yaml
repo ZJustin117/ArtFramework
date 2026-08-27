@@ -1637,9 +1637,8 @@ entries:
   surfaceId: ''
   effectFamily: abstract_game_effect
   hook: artframework/sts1/patch/TransientEffectRenderPatches.java
-  policy: ART_DELEGATED
-  justification: Only individual effect instances claimed by ART through NativeRenderBridge.beginEffectRender
-    are suppressed; the native effect queue remains authoritative.
+  policy: OBSERVED
+  justification: 'Observation-only entry: NativeRenderBridge.beginEffectRender returns CAPTURE_AND_PASS; the native effect queue remains authoritative and no effect instance is suppressed. Observation is provided by artframework/sts1/patch/TransientEffectRenderPatches.java.'
   test: artframework.sts1.render.NativeRenderBridgeTest.transientEffectRenderAlwaysCapturesAndPasses
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.ascensionleveluptexteffect.render
   nativeClass: com.megacrit.cardcrawl.vfx.AscensionLevelUpTextEffect

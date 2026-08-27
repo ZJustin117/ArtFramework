@@ -42,6 +42,8 @@ public final class Sts1NativePresentationAdapter {
                 new DrawComponent(invocation.nativeMethod, "", invocation.sourceIdentity));
         context.world().put(entity, HostBindingComponent.class,
                 new HostBindingComponent(HOST_KIND, invocation.ownerId));
+        context.world().put(entity, NativeInvocationComponent.class,
+                new NativeInvocationComponent(invocation));
         RenderProjectionQueue.request(CONTEXT_SCOPE);
         return entity.toString();
     }

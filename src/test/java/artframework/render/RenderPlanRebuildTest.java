@@ -3,6 +3,10 @@ package artframework.render;
 import artframework.api.ArtFramework;
 import artframework.component.Rect;
 import artframework.presentation.EffectAttachment;
+import artframework.presentation.PresentationFrame;
+import artframework.presentation.PresentationRegistry;
+import artframework.sts1.render.NativeRenderInvocation;
+import artframework.sts1.render.Sts1NativePresentationAdapter;
 import java.util.Collections;
 import org.junit.After;
 import org.junit.Test;
@@ -36,6 +40,17 @@ public class RenderPlanRebuildTest {
         assertNotNull(host.getTarget(RenderHost.c2ItemTargetId("sts1.test", "item")));
         assertEquals(3, host.targetCount());
         assertEquals(3, host.bindingCount());
+    }
+
+    @Test public void nativeProjectionIsVisibleInPresentationFrameAndRenderPlan() {
+        Sts1NativePresentationAdapter.present(new NativeRenderInvocation(7L, 3L, "combat",
+                "sts1.native.test", "Native", "render", "family", "source",
+                new Rect(10f, 20f, 30f, 40f)));
+
+        assertEquals(1, PresentationFrame.from(PresentationRegistry.context("nrcc-native")).items.size());
+        RenderPlan plan = RenderPlan.fromEcs(Collections.<String>emptySet());
+        assertEquals(1, plan.entries().size());
+        assertEquals("native:sts1.native.test", plan.entries().get(0).id);
     }
 
     @Test public void queueProjectsRequestedActiveSurface() {

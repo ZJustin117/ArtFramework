@@ -39,9 +39,9 @@ public final class SkeletonRenderPatches {
                 // original STS draw must not also run. Unclaimed skeletons always fall through.
                 boolean rendered = Sts1SkeletonBridge.renderClaimedNative(skeleton, batch);
                 if (rendered) {
-                    NativeRenderBridge.recordSkeletonDraw(skeleton, 1);
+                    NativeRenderBridge.recordSkeletonDraw(disposition.invocationId, 1);
                 } else {
-                    NativeRenderBridge.recordSkeletonFailure(skeleton);
+                    NativeRenderBridge.recordSkeletonFailure(disposition.invocationId);
                 }
                 return SpireReturn.Return(null);
             }

@@ -1,6 +1,6 @@
 # Native Render Family and System Integration Contract
 
-Status: fixed classification contract; integration recipes A/B are design-final, implementation pending
+Status: fixed classification contract; integration recipes A/B/C implemented; runtime coverage closure is enforced through the native render ledger.
 
 This document is the sister of [`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md).
 The SDD owns the **disposition** contract (how an intercepted invocation is continued,

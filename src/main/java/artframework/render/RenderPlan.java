@@ -63,7 +63,8 @@ public final class RenderPlan {
         appendC2SurfaceEntries(entries, activeSurfaceIds);
         return appendFullProjectionEntries(entries,
                 PresentationRegistry.context("c2-entity-present"),
-                PresentationRegistry.context("c2-surfaces"));
+                PresentationRegistry.context("c2-surfaces"),
+                PresentationRegistry.existingContext("nrcc-native"));
     }
 
     /** Build only the C2 surface targets needed during an STS render pass. */
@@ -109,7 +110,8 @@ public final class RenderPlan {
     }
 
     private static RenderPlan appendFullProjectionEntries(List<Entry> entries,
-            PresentationContext entityContext, PresentationContext visuals) {
+            PresentationContext entityContext, PresentationContext visuals,
+            PresentationContext nativeContext) {
         for (EntityId entity : entityContext.entities()) {
             artframework.c2.EntitySlotIdentityComponent identity =
                     entityContext.world().get(entity, artframework.c2.EntitySlotIdentityComponent.class);
@@ -144,6 +146,12 @@ public final class RenderPlan {
                             RenderTargetKind.SYNTHETIC_WIDGET, item.bounds, item.z + 0.001f,
                             true, titleEffects));
                 }
+            }
+        }
+        if (nativeContext != null) {
+            for (PresentationDrawItem item : PresentationFrame.from(nativeContext).items) {
+                entries.add(new Entry("native:" + item.key.localId,
+                        RenderTargetKind.SYNTHETIC_WIDGET, item.bounds, item.z, true, item.effects));
             }
         }
         return new RenderPlan(entries);

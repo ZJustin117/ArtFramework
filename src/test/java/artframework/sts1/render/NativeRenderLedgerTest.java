@@ -58,6 +58,38 @@ public class NativeRenderLedgerTest {
     }
 
     @Test
+    public void evidenceUsesInvocationIdWhenOwnersAndFramesAreEqual() {
+        NativeRenderLedger ledger = new NativeRenderLedger();
+        ledger.recordInvocation(invocation(1L, 4L));
+        ledger.recordInvocation(invocation(2L, 4L));
+        ledger.recordDisposition(RenderDisposition.delegate(1L, "full", "entity-1"));
+        ledger.recordDisposition(RenderDisposition.delegate(2L, "full", "entity-2"));
+
+        ledger.recordEvidence(2L, "entity-2", 4L, 2, "active");
+        ledger.recordEvidence(1L, "entity-1", 4L, 1, "active");
+
+        assertEquals(1, ledger.evidence(1L).drawCount);
+        assertEquals(2, ledger.evidence(2L).drawCount);
+        assertEquals(Integer.valueOf(0), ledger.strictReport().get("delegatedWithoutEvidence"));
+        assertTrue(ledger.isStrictlyAccepted());
+    }
+
+    @Test
+    public void wrongEntityIsRejectedWithoutClosingInvocation() {
+        NativeRenderLedger ledger = new NativeRenderLedger();
+        ledger.recordInvocation(invocation(1L, 4L));
+        ledger.recordDisposition(RenderDisposition.delegate(1L, "full", "entity"));
+        try {
+            ledger.recordEvidence(1L, "other", 4L, 1, "active");
+        } catch (IllegalStateException expected) {
+            assertTrue(ledger.isOpen(1L));
+            assertEquals(0, ledger.evidenceCount());
+            return;
+        }
+        throw new AssertionError("entity mismatch was accepted");
+    }
+
+    @Test
     public void undecidedInvocationIsReported() {
         NativeRenderLedger ledger = new NativeRenderLedger();
         ledger.recordInvocation(invocation(1L, 4L));

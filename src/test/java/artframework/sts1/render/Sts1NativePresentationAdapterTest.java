@@ -42,6 +42,27 @@ public class Sts1NativePresentationAdapterTest {
         assertEquals(new Rect(5f, 6f, 50f, 60f), bounds.rect);
         assertEquals("render", draw.role);
         assertTrue(visibility.visible);
+        NativeInvocationComponent nativeInvocation =
+                PresentationRegistry.world().get(entity, NativeInvocationComponent.class);
+        assertNotNull(nativeInvocation);
+        assertEquals(1L, nativeInvocation.invocationId);
+        assertEquals(4L, nativeInvocation.frameId);
+        assertEquals("surface", nativeInvocation.surfaceFamily);
+    }
+
+    @Test
+    public void stableEntityCarriesLatestInvocationWithoutChangingIdentity() {
+        String first = Sts1NativePresentationAdapter.present(invocation("owner", 1L, Rect.ZERO));
+        NativeRenderInvocation next = new NativeRenderInvocation(9L, 2L, "combat", "owner",
+                "Native2", "render2", "family2", "source2", Rect.ZERO);
+        String second = Sts1NativePresentationAdapter.present(next);
+
+        assertEquals(first, second);
+        EntityId entity = Sts1NativePresentationAdapter.entity("owner");
+        NativeInvocationComponent metadata =
+                PresentationRegistry.world().get(entity, NativeInvocationComponent.class);
+        assertEquals(9L, metadata.invocationId);
+        assertEquals("Native2", metadata.nativeClass);
     }
 
     @Test

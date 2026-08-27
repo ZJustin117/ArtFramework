@@ -22,6 +22,13 @@ public final class NativeRenderLedger {
     private int leakedTransientEntityCount;
     private int recoveryFailOpenCount;
 
+    /** Records ART output for the exact native invocation that produced it. */
+    public synchronized void recordEvidence(long invocationId, String entityId, long frameId,
+            int drawCount, String cleanupState) {
+        recordEvidence(new PresentationDrawEvidence(invocationId, entityId, frameId,
+                drawCount, cleanupState));
+    }
+
     public synchronized void recordInvocation(NativeRenderInvocation invocation) {
         if (invocation == null) throw new IllegalArgumentException("invocation required");
         if (invocations.containsKey(Long.valueOf(invocation.invocationId))) {
@@ -112,6 +119,15 @@ public final class NativeRenderLedger {
         states.put(id, State.COMPLETE);
     }
 
+    public synchronized int delegatedWithoutEvidenceCount() {
+        int count = 0;
+        for (RenderDisposition disposition : dispositions.values()) {
+            if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
+                    && !evidence.containsKey(Long.valueOf(disposition.invocationId))) count++;
+        }
+        return count;
+    }
+
     /** Close an invocation explicitly during scene/recovery cleanup. */
     public synchronized void closeInvocation(long id) {
         Long key = Long.valueOf(id);
@@ -194,7 +210,35 @@ public final class NativeRenderLedger {
         out.put("leakedTransientEntity", probe.get("leakedTransientEntity"));
         out.put("recoveryFailOpen", probe.get("recoveryFailOpen"));
         out.put("unrecordedFAIL_OPEN", Integer.valueOf(recoveryFailOpenCount));
+        out.put("accepted", Boolean.valueOf(isStrictlyAccepted(out)));
         return Collections.unmodifiableMap(out);
+    }
+
+    /** Machine-readable NRCC acceptance; every strict error counter must be zero. */
+    public synchronized boolean isStrictlyAccepted() {
+        return isStrictlyAccepted(strictReportWithoutAcceptance());
+    }
+
+    private Map<String, Object> strictReportWithoutAcceptance() {
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        Map<String, Object> probe = probeSlice();
+        out.put("runtimeUNKNOWN", probe.get("unknownOwner"));
+        out.put("runtimeUNDECIDED", Integer.valueOf(invocations.size() - dispositions.size()));
+        out.put("openInvocation", Integer.valueOf(openCount()));
+        out.put("delegatedWithoutEvidence", probe.get("delegatedWithoutEvidence"));
+        out.put("dispositionMismatch", probe.get("dispositionMismatch"));
+        out.put("orphanArtOutput", probe.get("orphanArtOutput"));
+        out.put("leakedTransientEntity", probe.get("leakedTransientEntity"));
+        out.put("recoveryFailOpen", probe.get("recoveryFailOpen"));
+        out.put("unrecordedFAIL_OPEN", Integer.valueOf(recoveryFailOpenCount));
+        return out;
+    }
+
+    private static boolean isStrictlyAccepted(Map<String, Object> report) {
+        for (Object value : report.values()) {
+            if (value instanceof Number && ((Number) value).intValue() != 0) return false;
+        }
+        return true;
     }
 
     public synchronized void clear() {

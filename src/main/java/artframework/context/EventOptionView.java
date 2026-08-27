@@ -38,6 +38,11 @@ public final class EventOptionView {
         return new EventOptionView(index, label, enabled, true, 0f, 0f, 0f, 0f);
     }
 
+    public static EventOptionView of(int index, String label, boolean enabled,
+            float x, float y, float w, float h) {
+        return new EventOptionView(index, label, enabled, true, x, y, w, h);
+    }
+
     public Map<String, Object> toMap() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("index", Integer.valueOf(index));

@@ -512,16 +512,35 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 new ViewportView(w, h, w, h));
     }
 
-    private static RewardView readRewardView() {
+    static RewardView readRewardView() {
+        RewardView base = readRewardView(AbstractDungeon.combatRewardScreen);
+        if (!base.available) {
+            return base;
+        }
         try {
-            if (AbstractDungeon.combatRewardScreen == null
-                    || AbstractDungeon.combatRewardScreen.rewards == null
-                    || AbstractDungeon.combatRewardScreen.rewards.isEmpty()) {
+            if (AbstractDungeon.cardRewardScreen != null
+                    && AbstractDungeon.cardRewardScreen.rewardGroup != null
+                    && !AbstractDungeon.cardRewardScreen.rewardGroup.isEmpty()) {
+                return RewardView.of("card", base.title, base.items);
+            }
+        } catch (Throwable ignored) {
+        }
+        return base;
+    }
+
+    static RewardView readRewardView(Object screen) {
+        try {
+            if (screen == null) {
+                return RewardView.empty();
+            }
+            java.util.ArrayList<?> rewards =
+                    (java.util.ArrayList<?>) softField(screen.getClass(), screen, "rewards");
+            if (rewards == null || rewards.isEmpty()) {
                 return RewardView.empty();
             }
             List<RewardItemView> items = new ArrayList<RewardItemView>();
             int i = 0;
-            for (Object raw : AbstractDungeon.combatRewardScreen.rewards) {
+            for (Object raw : rewards) {
                 String kind = "reward";
                 String label = "Reward " + i;
                 try {
@@ -533,19 +552,26 @@ public final class Sts1PresentationBackend implements SignalBackend {
                     }
                 } catch (Throwable ignored) {
                 }
-                items.add(RewardItemView.of(i, kind, label));
+                float x = 0f;
+                float y = 0f;
+                float w = 0f;
+                float h = 0f;
+                try {
+                    Object hb = softField(raw.getClass(), raw, "hb");
+                    if (hb instanceof com.megacrit.cardcrawl.helpers.Hitbox) {
+                        com.megacrit.cardcrawl.helpers.Hitbox box =
+                                (com.megacrit.cardcrawl.helpers.Hitbox) hb;
+                        x = box.x;
+                        y = box.y;
+                        w = box.width;
+                        h = box.height;
+                    }
+                } catch (Throwable ignored) {
+                }
+                items.add(RewardItemView.of(i, kind, label, x, y, w, h));
                 i++;
             }
-            String kind = "combat";
-            try {
-                if (AbstractDungeon.cardRewardScreen != null
-                        && AbstractDungeon.cardRewardScreen.rewardGroup != null
-                        && !AbstractDungeon.cardRewardScreen.rewardGroup.isEmpty()) {
-                    kind = "card";
-                }
-            } catch (Throwable ignored) {
-            }
-            return RewardView.of(kind, "Rewards", items);
+            return RewardView.of("combat", "Rewards", items);
         } catch (Throwable t) {
             return RewardView.empty();
         }
@@ -693,16 +719,111 @@ public final class Sts1PresentationBackend implements SignalBackend {
         try {
             AbstractRoom room = safeCurrRoom();
             if (room == null || !(room instanceof com.megacrit.cardcrawl.rooms.ShopRoom)) {
-                return ShopView.empty();
+                if (AbstractDungeon.shopScreen == null) {
+                    return ShopView.empty();
+                }
             }
-            int gold = AbstractDungeon.player != null ? AbstractDungeon.player.gold : 0;
-            List<ShopView.ShopEntryView> entries = new ArrayList<ShopView.ShopEntryView>();
-            entries.add(ShopView.ShopEntryView.of(0, "card", "Card", 50));
-            entries.add(ShopView.ShopEntryView.of(1, "relic", "Relic", 150));
-            return ShopView.of(gold, entries, true, 75);
+            int gold = 0;
+            try {
+                if (AbstractDungeon.player != null) {
+                    gold = AbstractDungeon.player.gold;
+                }
+            } catch (Throwable ignored) {
+            }
+            return readShopView(AbstractDungeon.shopScreen, gold);
         } catch (Throwable t) {
             return ShopView.empty();
         }
+    }
+
+    static ShopView readShopView(Object screen, int gold) {
+        try {
+            if (screen == null) {
+                return ShopView.empty();
+            }
+            Object coloredCards = softField(screen.getClass(), screen, "coloredCards");
+            Object colorlessCards = softField(screen.getClass(), screen, "colorlessCards");
+            Object relics = softField(screen.getClass(), screen, "relics");
+            Object potions = softField(screen.getClass(), screen, "potions");
+            int purgeCost = intField(screen, "actualPurgeCost");
+            if (purgeCost <= 0) {
+                purgeCost = intField(screen, "purgeCost");
+            }
+            boolean purgeAvailable = booleanValue(screen, "purgeAvailable", purgeCost > 0);
+            List<ShopView.ShopEntryView> entries = new ArrayList<ShopView.ShopEntryView>();
+            int index = 0;
+            if (coloredCards instanceof java.util.List) {
+                for (Object card : (java.util.List<?>) coloredCards) {
+                    addShopCard(entries, card, index++);
+                }
+            }
+            if (colorlessCards instanceof java.util.List) {
+                for (Object card : (java.util.List<?>) colorlessCards) {
+                    addShopCard(entries, card, index++);
+                }
+            }
+            if (relics instanceof java.util.List) {
+                for (Object relic : (java.util.List<?>) relics) {
+                    addShopRelic(entries, relic, index++);
+                }
+            }
+            if (potions instanceof java.util.List) {
+                for (Object potion : (java.util.List<?>) potions) {
+                    addShopPotion(entries, potion, index++);
+                }
+            }
+            return ShopView.of(gold, entries, purgeAvailable, purgeCost);
+        } catch (Throwable t) {
+            return ShopView.empty();
+        }
+    }
+
+    private static void addShopCard(List<ShopView.ShopEntryView> entries, Object card, int index) {
+        if (card == null) {
+            return;
+        }
+        String name = stringValue(card, "name");
+        String cardId = stringValue(card, "cardID");
+        int price = intValue(card, "price", 0);
+        boolean sold = !booleanValue(card, "isPurchased", false);
+        entries.add(ShopView.ShopEntryView.of(index, "card", name, price, sold,
+                cardId.isEmpty() ? "" : ResourceIds.cardArt(cardId)));
+    }
+
+    private static void addShopRelic(List<ShopView.ShopEntryView> entries, Object relic, int index) {
+        if (relic == null) {
+            return;
+        }
+        Object inner = softField(relic.getClass(), relic, "relic");
+        String name = inner != null ? stringValue(inner, "name") : "";
+        String relicId = inner != null ? stringValue(inner, "relicId") : "";
+        int price = intValue(relic, "price", 0);
+        boolean sold = booleanValue(relic, "isPurchased", false);
+        entries.add(ShopView.ShopEntryView.of(index, "relic", name, price, sold,
+                relicId.isEmpty() ? "" : relicResource(relicId)));
+    }
+
+    private static void addShopPotion(List<ShopView.ShopEntryView> entries, Object potion, int index) {
+        if (potion == null) {
+            return;
+        }
+        Object inner = softField(potion.getClass(), potion, "potion");
+        String name = inner != null ? stringValue(inner, "name") : "";
+        String id = inner != null ? stringValue(inner, "ID") : "";
+        int price = intValue(potion, "price", 0);
+        boolean sold = booleanValue(potion, "isPurchased", false);
+        entries.add(ShopView.ShopEntryView.of(index, "potion", name, price, sold,
+                id.isEmpty() ? "" : "potion." + id));
+    }
+
+    private static int intValue(Object owner, String field, int fallback) {
+        Object value = softField(owner.getClass(), owner, field);
+        return value instanceof Number ? ((Number) value).intValue() : fallback;
+    }
+
+    private static int intField(Object owner, String field) {
+        Object value = softField(owner.getClass(), owner, field);
+        return value instanceof Number ? ((Number) value).intValue() : 0;
     }
 
     private static TopPanelView readTopPanelView() {
@@ -737,6 +858,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 }
                 String intent = m.intent != null ? m.intent.name() : "";
                 int amount = intentAmount(m);
+                int multiAmount = intentMultiAmount(m);
                 float x = m.hb != null ? m.hb.cX : m.drawX;
                 float y = m.hb != null ? m.hb.cY + 80f : m.drawY + 80f;
                 entries.add(
@@ -745,7 +867,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                  m.name != null ? m.name : "",
                                  intent,
                                  intentResource(intent, amount),
-                                 amount,
+                                 multiAmount,
                                  x,
                                  y));
             }
@@ -788,6 +910,18 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
     }
 
+    private static int intentMultiAmount(com.megacrit.cardcrawl.monsters.AbstractMonster monster) {
+        try {
+            Object value = monster != null ? softField(monster.getClass(), monster, "intentMultiAmt") : null;
+            if (value instanceof Number) {
+                int amount = ((Number) value).intValue();
+                return amount > 0 ? amount : 1;
+            }
+        } catch (Throwable ignored) {
+        }
+        return 1;
+    }
+
     private static EventView readEventView() {
         try {
             AbstractRoom room = safeCurrRoom();
@@ -806,7 +940,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
     }
 
-    private static List<EventOptionView> readEventOptions(AbstractEvent ev) {
+    static List<EventOptionView> readEventOptions(AbstractEvent ev) {
         List<EventOptionView> options = new ArrayList<EventOptionView>();
         try {
             com.megacrit.cardcrawl.events.GenericEventDialog dialog = ev.imageEventText;
@@ -815,6 +949,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
                     Object btn = dialog.optionList.get(i);
                     String label = "Option " + i;
                     boolean enabled = true;
+                    float x = 0f;
+                    float y = 0f;
+                    float w = 0f;
+                    float h = 0f;
                     try {
                         java.lang.reflect.Field msg = btn.getClass().getDeclaredField("msg");
                         msg.setAccessible(true);
@@ -833,7 +971,19 @@ public final class Sts1PresentationBackend implements SignalBackend {
                         }
                     } catch (Throwable ignored) {
                     }
-                    options.add(EventOptionView.of(i, label, enabled));
+                    try {
+                        Object hb = softField(btn.getClass(), btn, "hb");
+                        if (hb instanceof com.megacrit.cardcrawl.helpers.Hitbox) {
+                            com.megacrit.cardcrawl.helpers.Hitbox box =
+                                    (com.megacrit.cardcrawl.helpers.Hitbox) hb;
+                            x = box.x;
+                            y = box.y;
+                            w = box.width;
+                            h = box.height;
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                    options.add(new EventOptionView(i, label, enabled, true, x, y, w, h));
                 }
                 return options;
             }

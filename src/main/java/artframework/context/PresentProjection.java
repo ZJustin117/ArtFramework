@@ -57,6 +57,7 @@ public final class PresentProjection {
             // Epoch is Backend authority. A new scene must never inherit card/drag state.
             clearCards();
             clearDrag();
+            clearVisualItems();
             metadata = new ProjectionFrameComponent(-1L, metadata.sceneEpoch, metadata.scene,
                     metadata.available, metadata.stale);
         }
@@ -297,6 +298,21 @@ public final class PresentProjection {
     private void clearCards() {
         for (EntityId entity : new ArrayList<EntityId>(contextForWrite().entities())) {
             if (worldForWrite().get(entity, CardIdentityComponent.class) != null) contextForWrite().destroy(entity);
+        }
+    }
+
+    private void clearVisualItems() {
+        artframework.presentation.PresentationContext context =
+                artframework.presentation.PresentationRegistry.existingContext("c2-surfaces");
+        if (context == null) {
+            return;
+        }
+        for (artframework.ecs.EntityId entity : new ArrayList<artframework.ecs.EntityId>(context.entities())) {
+            artframework.presentation.NodeIdentityComponent identity =
+                    context.world().get(entity, artframework.presentation.NodeIdentityComponent.class);
+            if (identity != null && identity.key.scope.startsWith("sts1.visual.")) {
+                context.destroy(entity);
+            }
         }
     }
 

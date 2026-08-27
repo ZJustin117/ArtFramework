@@ -81,6 +81,11 @@ public final class ShopView {
             return new ShopEntryView(index, kind, label, cost, false, "");
         }
 
+        public static ShopEntryView of(int index, String kind, String label, int cost,
+                boolean soldOut, String resourceId) {
+            return new ShopEntryView(index, kind, label, cost, soldOut, resourceId);
+        }
+
         public Map<String, Object> toMap() {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("index", Integer.valueOf(index));

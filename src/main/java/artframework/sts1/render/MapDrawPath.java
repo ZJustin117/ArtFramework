@@ -74,10 +74,28 @@ public final class MapDrawPath {
         }
     }
 
+    private static String lastScene;
+    private static long lastSceneEpoch = -1L;
+    private static boolean lastSceneKnown;
+
     private MapDrawPath() {}
 
     public static MapPanZoom panZoom() {
         return PAN;
+    }
+
+    private static void maybeResetPanZoom() {
+        String scene = ArtFramework.projection().scene();
+        long epoch = ArtFramework.projection().sceneEpoch();
+        if (!"map".equals(scene)) {
+            PAN.reset();
+        } else if (lastSceneKnown
+                && (!"map".equals(lastScene) || epoch != lastSceneEpoch)) {
+            PAN.reset();
+        }
+        lastScene = scene;
+        lastSceneEpoch = epoch;
+        lastSceneKnown = true;
     }
 
     public static boolean shouldSuppressNativeMap() {
@@ -85,6 +103,7 @@ public final class MapDrawPath {
     }
 
     public static List<DrawItem> buildFromProjection() {
+        maybeResetPanZoom();
         List<DrawItem> out = new ArrayList<DrawItem>();
         MapView mv = ArtFramework.projection().map();
         for (MapNodeView n : mv.nodes) {
@@ -154,5 +173,8 @@ public final class MapDrawPath {
 
     public static void resetForTests() {
         PAN.reset();
+        lastScene = null;
+        lastSceneEpoch = -1L;
+        lastSceneKnown = false;
     }
 }

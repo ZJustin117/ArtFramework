@@ -8,6 +8,7 @@ import artframework.context.FakeSignalBackend;
 import artframework.context.MapNodeView;
 import artframework.context.MapView;
 import artframework.context.SurfaceIds;
+import artframework.context.ViewportView;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.assets.Sts1HostAssets;
@@ -16,6 +17,7 @@ import artframework.sts1.input.RecordingIntentExecutor;
 import org.junit.After;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,7 @@ public class MapDrawPathTest {
     public void tearDown() {
         ArtFramework.resetForTests();
         Sts1HostAssets.resetForTests();
+        MapDrawPath.resetForTests();
     }
 
     private void mapFrame() {
@@ -107,5 +110,57 @@ public class MapDrawPathTest {
         assertEquals(Integer.valueOf(1), m.get("count"));
         assertEquals("OBSERVE", m.get("presentLevel"));
         assertEquals("map", m.get("scene"));
+    }
+
+    @Test
+    public void sceneChangeResetsPanZoom() {
+        mapFrame();
+        MapDrawPath.buildFromProjection();
+        MapDrawPath.panZoom().setPan(50f, 60f);
+        MapDrawPath.panZoom().setZoom(2f);
+
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                ContextFrame.of(
+                        2L,
+                        2L,
+                        "combat",
+                        Arrays.asList(),
+                        ControlsView.empty(),
+                        MapView.empty(),
+                        new ViewportView(1920, 1080, 1920, 1080)));
+        ArtFramework.publishFrame(backend.currentFrame());
+
+        MapDrawPath.buildFromProjection();
+        assertEquals(0f, MapDrawPath.panZoom().panX(), 0.01f);
+        assertEquals(0f, MapDrawPath.panZoom().panY(), 0.01f);
+        assertEquals(1f, MapDrawPath.panZoom().zoom(), 0.01f);
+    }
+
+    @Test
+    public void epochChangeResetsPanZoom() {
+        mapFrame();
+        MapDrawPath.buildFromProjection();
+        MapDrawPath.panZoom().setPan(50f, 60f);
+        MapDrawPath.panZoom().setZoom(2f);
+
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                ContextFrame.of(
+                        2L,
+                        2L,
+                        "map",
+                        Arrays.asList(),
+                        ControlsView.empty(),
+                        MapView.empty(),
+                        new ViewportView(1920, 1080, 1920, 1080)));
+        ArtFramework.publishFrame(backend.currentFrame());
+
+        MapDrawPath.buildFromProjection();
+        assertEquals(0f, MapDrawPath.panZoom().panX(), 0.01f);
+        assertEquals(0f, MapDrawPath.panZoom().panY(), 0.01f);
+        assertEquals(1f, MapDrawPath.panZoom().zoom(), 0.01f);
     }
 }

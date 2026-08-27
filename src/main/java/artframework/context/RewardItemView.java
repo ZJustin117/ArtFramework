@@ -44,6 +44,11 @@ public final class RewardItemView {
         return new RewardItemView(index, kind, label, "", true, true, 0f, 0f, 0f, 0f);
     }
 
+    public static RewardItemView of(int index, String kind, String label,
+            float x, float y, float w, float h) {
+        return new RewardItemView(index, kind, label, "", true, true, x, y, w, h);
+    }
+
     public Map<String, Object> toMap() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("index", Integer.valueOf(index));

@@ -3,9 +3,17 @@ package artframework.sts1.render;
 import artframework.api.ArtFramework;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
+import artframework.context.EventView;
 import artframework.context.FakeSignalBackend;
 import artframework.context.MapView;
+import artframework.context.MonsterIntentView;
+import artframework.context.RewardView;
+import artframework.context.RestView;
+import artframework.context.SelectView;
+import artframework.context.ShopView;
 import artframework.context.SurfaceIds;
+import artframework.context.TopPanelView;
+import artframework.context.TreasureView;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.input.CombatInputRouter;
@@ -14,6 +22,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -72,5 +81,43 @@ public class IntentDrawPathTest {
         Map<String, Object> m = IntentDrawPath.probeSlice();
         assertEquals("OBSERVE", m.get("presentLevel"));
         assertEquals(Boolean.FALSE, m.get("suppressNativeIntents"));
+    }
+
+    @Test
+    public void buildFromProjectionIncludesMultiAmount() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        MonsterIntentView intents = MonsterIntentView.of(
+                Arrays.asList(
+                        new MonsterIntentView.IntentEntry(
+                                "m1",
+                                "Cultist",
+                                "ATTACK",
+                                "ui.intent.attack.attack_intent_1",
+                                3,
+                                100f,
+                                200f)));
+        backend.publish(
+                ContextFrame.ofFull(
+                        1L,
+                        1L,
+                        "combat",
+                        Arrays.asList(),
+                        ControlsView.combat(3, 1, 0, 0, 0, true, true),
+                        MapView.empty(),
+                        EventView.empty(),
+                        SelectView.empty(),
+                        RewardView.empty(),
+                        RestView.empty(),
+                        TreasureView.empty(),
+                        ShopView.empty(),
+                        TopPanelView.empty(),
+                        intents,
+                        null));
+        ArtFramework.publishFrame(backend.currentFrame());
+
+        List<IntentDrawPath.DrawItem> items = IntentDrawPath.buildFromProjection();
+        assertEquals(1, items.size());
+        assertEquals(3, items.get(0).multiAmount);
     }
 }

@@ -30,7 +30,10 @@ STS authority / native renderer
 
 `DELEGATE_TO_ART` means that ART owns the presentation result for this specific
 invocation and the native draw body is not allowed to emit a duplicate result.
-It does not mean that ART rewrites the STS method, executes game rules, or
+It is not, by itself, a claim that ART currently reproduces every native pixel:
+surfaces with minimal or incomplete supply are explicitly tracked as delegated
+with exposed pixel-supply gaps until strict draw evidence closes the gap. It
+does not mean that ART rewrites the STS method, executes game rules, or
 maintains a second STS state model.
 
 STS remains responsible for:
@@ -84,19 +87,19 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Surface | Native invocation | Suppressed when FULL_READY | Current ART pixel supply |
 |---|---|---|---|
 | Combat hand | `AbstractPlayer.renderHand` | yes | live-card delegation: ART hard-syncs pose and calls the un-patched `AbstractCard.render`; card pixels stay native |
-| Combat controls | `EndTurnButton.render` | yes | text chrome only; button art not fully reproduced |
-| Energy panel | `EnergyPanel.render` | yes | text chrome only |
-| Intents | `AbstractMonster.renderIntent` | yes | projection chrome only |
+| Combat controls | `EndTurnButton.render` | yes | ART_DELEGATED with exposed gap: text chrome only; button art not fully reproduced |
+| Energy panel | `EnergyPanel.render` | yes | ART_DELEGATED with exposed gap: text chrome only |
+| Intents | `AbstractMonster.renderIntent` | yes | ART_DELEGATED with exposed gap: projection chrome only |
 | Targeting arrow | `AbstractPlayer.renderTargetingUi`, `PotionPopUp.renderTargetingUi` | no (observe-only by default; FULL self-draw optional) | OBSERVE: projection only, native arrow stays authoritative; FULL: self-drawn bezier arrow via `TargetingDrawPath`, texture fallback to plain line |
 | Proceed button | `ProceedButton.render` | yes | text chrome only |
 | Top panel | `TopPanel.render` | yes | text chrome only |
-| Map screen | `DungeonMapScreen.render` | yes | HostAssets node draw path; full native parity pending |
-| Event dialog | `GenericEventDialog.render` | yes | none yet: base pixels not reproduced |
-| Select screens | `GridCardSelectScreen.render`, `HandCardSelectScreen.render` | yes | none yet: base pixels not reproduced |
-| Reward screen | `CombatRewardScreen.render` | yes | incomplete: reward item sync missing |
-| Rest room | `CampfireUI.render` | yes | minimal text chrome: campfire title + live option rows projected from `CampfireUI` buttons (G5 soft read); campfire art not reproduced |
-| Shop screen | `ShopScreen.render` | yes | incomplete: minimal text chrome (merchant/gold/entries/purge from `ShopView`); entry prices still placeholder until G4 full projection |
-| Treasure room | `TreasureRoom.render` | yes | minimal text chrome: chest state + relic label projected from the live `TreasureRoom` chest (G6 soft read); chest art not reproduced |
+| Map screen | `DungeonMapScreen.render` | yes | ART_DELEGATED with exposed gap: HostAssets node draw path; full native parity pending |
+| Event dialog | `GenericEventDialog.render` | yes | ART_DELEGATED with exposed gap: base pixels not reproduced |
+| Select screens | `GridCardSelectScreen.render`, `HandCardSelectScreen.render` | yes | ART_DELEGATED with exposed gap: base pixels not reproduced |
+| Reward screen | `CombatRewardScreen.render` | yes | ART_DELEGATED with exposed gap: reward item sync missing |
+| Rest room | `CampfireUI.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (campfire title + live option rows projected from `CampfireUI` buttons); campfire art not reproduced |
+| Shop screen | `ShopScreen.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (merchant/gold/entries/purge from `ShopView`); entry prices still placeholder until G4 full projection |
+| Treasure room | `TreasureRoom.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (chest state + relic label projected from the live `TreasureRoom` chest); chest art not reproduced |
 
 These gaps are deliberate inventory, not silent acceptance. Until a surface
 reproduces its base pixels, its delegations keep surfacing as strict-report
@@ -347,8 +350,11 @@ There are two fixed interception granularities:
 
 ### Surface owner
 
-Use whole-invocation delegation only for a complete native surface whose ART
-draw path, input ownership, scene readiness, and recovery behavior are ready.
+Use whole-invocation delegation only when the surface capability gate, input
+ownership, scene readiness, recovery behavior, manifest justification, and
+focused suppression test are ready. If the current ART draw path is minimal or
+incomplete, the surface remains `ART_DELEGATED` but must be described as
+delegated with exposed pixel-supply gaps, not as complete native-pixel coverage.
 Examples include hand, map, event, select, and room screens.
 
 ```text

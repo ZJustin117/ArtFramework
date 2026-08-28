@@ -3,8 +3,9 @@
 Target design for **C2 as an invocation-boundary/overlay/input layer**: ART intercepts the
 relevant native render invocations, records display input from hard-synced Backend frames, and
 routes native UI callbacks through **signals + intents**. ART does not rewrite STS render
-implementations or game authority. Original STS renderers remain the visual authority unless the
-surface is explicitly ART-owned and has no corresponding native renderer.
+implementations or game authority. Original STS renderers remain the visual authority unless an
+intercepted invocation is explicitly `ART_DELEGATED`; delegated surfaces with minimal/incomplete
+pixel supply remain tracked as exposed gaps in the NRCC strict evidence ledger.
 Complements [`backend-context.md`](./backend-context.md), [`host-assets.md`](./host-assets.md),
 [`dual-track.md`](./dual-track.md), [`godot-aligned-ui.md`](./godot-aligned-ui.md),
 [`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md).
@@ -24,11 +25,11 @@ STS native render invocation
 ```
 
 `DELEGATE_TO_ART` is scoped to the intercepted invocation and is only allowed when the native
-surface/effect has no STS renderer or the native renderer is explicitly replaced by a
-documented, tested ART path (see [`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md)).
-For a complete native surface, the native owner may be delegated as a whole only when ART is the
-sole pixel owner. For transient effects, delegation is per effect instance. Uncovered native calls
-continue through the original implementation.
+surface/effect has a documented, tested ART path with explicit manifest support (see
+[`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md)). Delegation is not a complete
+pixel-coverage claim while the SDD records exposed pixel-supply gaps. For transient effects,
+delegation is per effect instance. Uncovered native calls continue through the original
+implementation.
 
 The bridge never executes relic, Power, card, combat, or room rules. It only controls whether the
 native display invocation continues after its display input has been captured.

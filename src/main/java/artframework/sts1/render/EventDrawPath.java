@@ -13,7 +13,8 @@ import java.util.Map;
 
 /**
  * Event full-present draw description (22.3). Host paints option chrome from EventView; native
- * event UI may be suppressed when FULL + mounted.
+ * event UI may be suppressed when ART_DELEGATED and FULL_READY, with base dialog pixels tracked
+ * as an exposed supply gap.
  */
 public final class EventDrawPath {
 

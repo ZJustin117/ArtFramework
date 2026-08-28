@@ -15,7 +15,9 @@ import java.util.Map;
 /**
  * Pure plan of which full-present surfaces draw this frame and in which mode (16.3).
  * OBSERVE = projection/probe only, no ART draw and no native suppress.
- * FULL + mounted + scene match = ART draw (and may suppress native).
+ * FULL + mounted + scene match = ART draw (and may suppress native for ART_DELEGATED
+ * surfaces). Delegation is not a complete-pixel claim while the SDD records exposed
+ * pixel-supply gaps.
  */
 public final class SurfaceDrawPlan {
 
@@ -395,8 +397,9 @@ public final class SurfaceDrawPlan {
                 artframework.sts1.PresentSafety.isPanic());
         DrawMode mode = capability.shouldDraw() ? DrawMode.DRAW
                 : capability.state == FullPresentCapability.State.OBSERVING ? DrawMode.OBSERVE : DrawMode.SKIP;
-        // NRO-02: controls/energy/intent pixels stay owned by the original STS renderers even
-        // when the surface is otherwise FULL_READY for input/projection ownership.
+        // ART_DELEGATED surfaces may suppress only through the capability gate. Minimal or
+        // incomplete ART pixel supply remains visible as strict ledger gaps; do not recast those
+        // surfaces as native-authoritative here.
         boolean suppressNative = capability.shouldSuppressNative() && !keepsNativePixelAuthority(surfaceId);
         return new Entry(surfaceId, layer, mode, level, mounted, suppressNative, capability.state, capability.reason);
     }
@@ -407,8 +410,10 @@ public final class SurfaceDrawPlan {
         if (SurfaceIds.COMBAT_TARGETING.equals(surfaceId)) {
             return true;
         }
-        // No other surface is unconditionally native-pixel-authoritative. Skeletons are handled
-        // through per-instance claims in SkeletonRenderPatches rather than wholesale suppression.
+        // No other surface is unconditionally native-pixel-authoritative. Suppressing surfaces are
+        // ART_DELEGATED with SDD-visible pixel-supply gaps where base pixels are incomplete.
+        // Skeletons are handled through per-instance claims in SkeletonRenderPatches rather than
+        // wholesale surface authority.
         return false;
     }
 }

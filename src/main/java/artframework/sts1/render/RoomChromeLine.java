@@ -1,8 +1,8 @@
 package artframework.sts1.render;
 
 /**
- * One minimal text-chrome row ART paints when it owns rest/shop/treasure pixels
- * (Slice C phase 2). Pure projection data: no host objects.
+ * One minimal text-chrome row ART paints for delegated rest/shop/treasure surfaces
+ * (Slice C phase 2). This is exposed pixel supply, not complete base-art parity.
  */
 public final class RoomChromeLine {
 

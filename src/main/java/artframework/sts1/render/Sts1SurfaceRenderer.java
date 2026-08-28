@@ -14,8 +14,8 @@ import java.util.Set;
 
 
 /**
- * STS1 adapter renderer. ART owns the full-present card pixels and uses live cards only as a
- * read-only portrait/text bridge while the public projection remains host-agnostic.
+ * STS1 adapter renderer. ART owns full-present hand layout, projection, input, and overlays;
+ * live, unpatched {@code AbstractCard.render} remains responsible for card pixels.
  */
 public final class Sts1SurfaceRenderer {
 
@@ -218,8 +218,8 @@ public final class Sts1SurfaceRenderer {
 
     private static void prepareMapVisuals(SurfaceDrawPlan plan) {
         if (!containsSurface(plan, SurfaceIds.MAP)) return;
-        // NRO-03: native DungeonMapScreen.render stays the visual authority. Keep C2 input
-        // items synced while the surface is in DRAW mode.
+        // Map is ART_DELEGATED when FULL_READY, but the current HostAssets node path is not full
+        // native parity. Keep C2 input items synced and let strict evidence expose supply gaps.
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
             float nodeSize = item.highlighted ? 80f : 64f;
@@ -236,8 +236,8 @@ public final class Sts1SurfaceRenderer {
 
     private static void prepareEventVisuals(SurfaceDrawPlan plan) {
         if (!containsSurface(plan, SurfaceIds.EVENT)) return;
-        // Phase 3: ART owns event option pixels at FULL + mounted + event scene. Keep C2 input
-        // items synced while the surface is in DRAW mode.
+        // Event dialog is ART_DELEGATED when FULL_READY; base dialog pixels are not reproduced
+        // yet, so the strict ledger must keep exposing the pixel-supply gap.
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
             if (!item.visible) continue;
@@ -254,8 +254,8 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareSelectVisuals(SurfaceDrawPlan plan) {
-        // Phase 3: ART owns selection card/confirm pixels at FULL + mounted. Keep C2 input items
-        // synced while a select surface is in DRAW mode.
+        // Select screens are ART_DELEGATED when FULL_READY; base selection pixels are not fully
+        // reproduced yet, so keep C2 input items synced and expose supply gaps in strict reports.
         boolean hasGrid = containsSurface(plan, SurfaceIds.SELECT_GRID);
         boolean hasHand = containsSurface(plan, SurfaceIds.SELECT_HAND);
         if (!hasGrid && !hasHand) {
@@ -282,8 +282,8 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareRewardVisuals(SurfaceDrawPlan plan) {
-        // Phase 3: ART owns reward item pixels at FULL + mounted + reward scene. Keep C2 input
-        // items synced while a reward surface is in DRAW mode.
+        // Reward screen is ART_DELEGATED when FULL_READY; reward item sync remains incomplete, so
+        // keep C2 input items synced and expose the missing supply through strict evidence gaps.
         boolean hasReward = containsSurface(plan, SurfaceIds.REWARD_COMBAT)
                 || containsSurface(plan, SurfaceIds.REWARD_CARD)
                 || containsSurface(plan, SurfaceIds.REWARD_BOSS_RELIC);
@@ -338,7 +338,8 @@ public final class Sts1SurfaceRenderer {
 
     /**
      * Slice C phase 2: materializes the rest chrome rows (title + live campfire options) as C2
-     * items while ART owns rest pixels; clears them when native keeps the surface.
+     * items while rest is ART_DELEGATED; clears them when native keeps the surface. This is
+     * minimal text chrome, not complete campfire pixel parity.
      */
     static void prepareRestVisuals(SurfaceDrawPlan plan) {
         if (!containsSurface(plan, SurfaceIds.REST)) return;
@@ -522,9 +523,9 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Controls surface: the end-turn button is now ART-owned. The C2 item was already synced in
-     * prepareControlsVisuals and drawn by the global RenderHosts.drawFrame pass, so no extra
-     * native rendering is needed here. Record ART output to close the native delegation ledger.
+     * Controls surface: ART_DELEGATED when FULL_READY. The C2 item was already synced in
+     * prepareControlsVisuals and drawn by the global RenderHosts.drawFrame pass, but current
+     * supply is text chrome only; strict evidence keeps the missing button art visible.
      */
     private static void renderControls(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_CONTROLS,
@@ -536,48 +537,44 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Map surface: ART owns the map pixels when FULL + mounted + map scene. The C2 items were
-     * synced in prepareMapVisuals and are drawn by the global RenderHosts.drawFrame pass, so no
-     * extra native rendering is needed here. Record ART output to close the native delegation ledger.
+     * Map surface: ART_DELEGATED when FULL_READY. The C2 items were synced in prepareMapVisuals
+     * and are drawn by the global RenderHosts.drawFrame pass; full native parity remains tracked
+     * as an exposed pixel-supply gap.
      */
     private static void renderMap(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.MAP, MapDrawPath.buildFromProjection().size());
     }
 
     /**
-     * Event surface: ART owns the event option pixels when FULL + mounted + event scene. The C2
-     * items were synced in prepareEventVisuals and are drawn by the global RenderHosts.drawFrame
-     * pass, so no extra native rendering is needed here. Record ART output to close the native
-     * delegation ledger.
+     * Event surface: ART_DELEGATED when FULL_READY. The C2 items were synced in prepareEventVisuals
+     * and are drawn by the global RenderHosts.drawFrame pass; base dialog pixels remain an exposed
+     * supply gap.
      */
     private static void renderEvent(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT, EventDrawPath.buildFromProjection().size());
     }
 
     /**
-     * Select surface: ART owns the selection card/confirm pixels when FULL + mounted. The C2 items
-     * were synced in prepareSelectVisuals and are drawn by the global RenderHosts.drawFrame pass,
-     * so no extra native rendering is needed here. Record ART output to close the native delegation
-     * ledger.
+     * Select surface: ART_DELEGATED when FULL_READY. The C2 items were synced in
+     * prepareSelectVisuals and are drawn by the global RenderHosts.drawFrame pass; full base-pixel
+     * parity remains an exposed supply gap.
      */
     private static void renderSelect(SpriteBatch sb, String surfaceId) {
         NativeRenderBridge.recordSurfaceDraw(surfaceId, SelectDrawPath.buildFromProjection().size());
     }
 
     /**
-     * Reward surface: ART owns the reward item pixels when FULL + mounted + reward scene. The C2
-     * items were synced in prepareRewardVisuals and are drawn by the global RenderHosts.drawFrame
-     * pass, so no extra native rendering is needed here. Record ART output to close the native
-     * delegation ledger.
+     * Reward surface: ART_DELEGATED when FULL_READY. The C2 items were synced in
+     * prepareRewardVisuals and are drawn by the global RenderHosts.drawFrame pass; reward-item
+     * supply remains incomplete and visible in strict evidence.
      */
     private static void renderReward(SpriteBatch sb, String surfaceId) {
         NativeRenderBridge.recordSurfaceDraw(surfaceId, RewardDrawPath.buildFromProjection().size());
     }
 
     /**
-     * Rest surface: ART owns the campfire pixels when FULL + mounted + rest scene (Slice C
-     * phase 2). Paints the minimal text chrome projected from RestView and records the real
-     * drawn-row count to close the native delegation ledger.
+     * Rest surface: ART_DELEGATED when FULL_READY. Paints minimal text chrome projected from
+     * RestView and records the drawn-row count; campfire art remains an exposed supply gap.
      */
     private static void renderRest(SpriteBatch sb) {
         if (!RestDrawPath.shouldSuppressNativeRest()) {
@@ -635,9 +632,9 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Shop surface: ART owns the shop pixels when FULL + mounted + shop scene (Slice C phase 2).
-     * Paints the minimal text chrome projected from ShopView (entry prices stay whatever the
-     * view carries; G4 full projection is a later slice) and records the real drawn-row count.
+     * Shop surface: ART_DELEGATED when FULL_READY. Paints minimal text chrome projected from
+     * ShopView (entry prices stay whatever the view carries; G4 full projection is a later slice)
+     * and records the drawn-row count; merchant/base art remains an exposed supply gap.
      */
     private static void renderShop(SpriteBatch sb) {
         if (!ShopDrawPath.shouldSuppressNativeShop()) {
@@ -667,9 +664,8 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Treasure surface: ART owns the chest pixels when FULL + mounted + treasure scene (Slice C
-     * phase 2). Paints the minimal text chrome projected from TreasureView and records the real
-     * drawn-row count to close the native delegation ledger.
+     * Treasure surface: ART_DELEGATED when FULL_READY. Paints minimal text chrome projected from
+     * TreasureView and records the drawn-row count; chest art remains an exposed supply gap.
      */
     private static void renderTreasure(SpriteBatch sb) {
         if (!TreasureDrawPath.shouldSuppressNativeTreasure()) {
@@ -759,20 +755,18 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Energy surface: ART owns the energy orb pixels when FULL + mounted + combat. The C2 item
-     * was synced in prepareEnergyVisuals and is drawn by the global RenderHosts.drawFrame pass,
-     * so no extra native rendering is needed here. Record ART output to close the native
-     * delegation ledger.
+     * Energy surface: ART_DELEGATED when FULL_READY. The C2 item was synced in
+     * prepareEnergyVisuals and drawn by the global RenderHosts.drawFrame pass; current supply is
+     * text chrome only, so strict evidence keeps the missing orb art visible.
      */
     private static void renderEnergy(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_ENERGY, 1);
     }
 
     /**
-     * Intents surface: ART owns the intent icon/amount pixels when FULL + mounted + combat. The
-     * C2 items were synced in prepareIntentVisuals and are drawn by the global
-     * RenderHosts.drawFrame pass, so no extra native rendering is needed here. Record ART output
-     * to close the native delegation ledger.
+     * Intents surface: ART_DELEGATED when FULL_READY. The C2 items were synced in
+     * prepareIntentVisuals and drawn by the global RenderHosts.drawFrame pass; current supply is
+     * projection chrome only, so strict evidence keeps missing base pixels visible.
      */
     private static void renderIntents(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS,

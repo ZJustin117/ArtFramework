@@ -16,7 +16,8 @@ import java.util.Map;
 
 /**
  * Combat controls full-present draw description (16.6). Host paints end-turn chrome from
- * ControlsView; native end-turn may be suppressed when FULL + mounted.
+ * ControlsView; native end-turn may be suppressed when ART_DELEGATED and FULL_READY, with
+ * incomplete button art exposed as a pixel-supply gap.
  */
 public final class ControlsDrawPath {
 

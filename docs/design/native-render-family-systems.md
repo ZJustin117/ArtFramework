@@ -53,9 +53,9 @@ without a policy decision:
 Explicit per-entry policies still override the family default; entries resolved
 from a family default omit the `policy` field so re-triage stays a one-table
 change in `families.py`. Member-level exceptions live as explicit annotations:
-the 16 `ART_DELEGATED` paths, `AbstractCard#render` `OUT_OF_SCOPE`,
-`AbstractDungeon#render` `OBSERVED` (container instrument), and `TestGame#render`
-`OUT_OF_SCOPE`.
+the suppressing `ART_DELEGATED` paths (some with SDD-visible pixel-supply gaps),
+`AbstractCard#render` `OUT_OF_SCOPE`, `AbstractDungeon#render` `OBSERVED`
+(container instrument), and `TestGame#render` `OUT_OF_SCOPE`.
 
 Current distribution baseline (static scan, 490 paths total, 18 `hooked` / 472 `unclassified`):
 
@@ -81,14 +81,14 @@ currently have a matching ART patch. Counts are the scan baseline above; regener
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `inrun-fullscreens` | 18 | `DungeonMapScreen`, `GridCardSelectScreen`, `HandCardSelectScreen`, `CombatRewardScreen`, `DeathScreen` | Delegation-governed (hooked 4/18: map, grid/hand select, combat reward); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; native authority until triaged) |
-| `buttons-controls` | 17 | `EndTurnButton`, `ProceedButton`, `ConfirmButton`, `CancelButton` | Delegation-governed (hooked 2/17: end turn, proceed); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `hud-top-panel` | 11 | `TopPanel`, `EnergyPanel`, `DrawPilePanel`, `DiscardPilePanel` | Delegation-governed (hooked 2/11: top panel, energy); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `room-shells` | 10 | `AbstractRoom`, `CampfireUI`, `TreasureRoom`, `NeowRoom` | Delegation-governed (hooked 2/10: rest, treasure); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `event-dialogs` | 10 | `GenericEventDialog`, `RoomEventDialog`, `AbstractEvent` | Delegation-governed (hooked 1/10: generic event dialog); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `shop-rewards-chests` | 8 | `ShopScreen`, `RewardItem`, `Merchant`, `AbstractChest` | Delegation-governed (hooked 1/8: shop screen); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `monsters-bosses` | 8 | `AbstractMonster`, `MonsterGroup` | Delegation-governed (hooked 1/8: `renderIntent`); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `player-character` | 5 | `AbstractPlayer`, `AnimatedNpc` | Delegation-governed (hooked 1/5: `renderHand`); remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `inrun-fullscreens` | 18 | `DungeonMapScreen`, `GridCardSelectScreen`, `HandCardSelectScreen`, `CombatRewardScreen`, `DeathScreen` | Delegation-governed (hooked 4/18: map, grid/hand select, combat reward); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; native authority until triaged) |
+| `buttons-controls` | 17 | `EndTurnButton`, `ProceedButton`, `ConfirmButton`, `CancelButton` | Delegation-governed (hooked 2/17: end turn, proceed); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `hud-top-panel` | 11 | `TopPanel`, `EnergyPanel`, `DrawPilePanel`, `DiscardPilePanel` | Delegation-governed (hooked 2/11: top panel, energy); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `room-shells` | 10 | `AbstractRoom`, `CampfireUI`, `TreasureRoom`, `NeowRoom` | Delegation-governed (hooked 2/10: rest, treasure); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `event-dialogs` | 10 | `GenericEventDialog`, `RoomEventDialog`, `AbstractEvent` | Delegation-governed (hooked 1/10: generic event dialog); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `shop-rewards-chests` | 8 | `ShopScreen`, `RewardItem`, `Merchant`, `AbstractChest` | Delegation-governed (hooked 1/8: shop screen); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `monsters-bosses` | 8 | `AbstractMonster`, `MonsterGroup` | Delegation-governed (hooked 1/8: `renderIntent`); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `player-character` | 5 | `AbstractPlayer`, `AnimatedNpc` | Delegation-governed (hooked 1/5: `renderHand`); combat hand delegates the hand invocation while live `AbstractCard.render` keeps card-pixel responsibility; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 | `skeleton-runtime` | 1 | `SkeletonMeshRenderer` | Delegation-governed; per-instance claims only (`ART_DELEGATED` member), unclaimed skeletons pass through; family default is the `OBSERVED` semantic note |
 | `vfx-misc-root` | 97 | `AbstractGameEffect`, `SpeechBubble`, `RelicAboveCreatureEffect` | `OBSERVED` by family default: observed through the `AbstractDungeon` container instrument plus the base-class direct-draw hook (see observe-only below); hooked 1/97 (`ART_DELEGATED` base-class member) |
 

@@ -173,6 +173,38 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void targetingFullStillPassesWithoutDelegatedEvidence() {
+        mountedCombat();
+        FullPresentMode.setTargetingLevel(PresentLevel.FULL);
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_TARGETING,
+                "com.megacrit.cardcrawl.ui.panels.PotionPopUp",
+                "renderTargetingUi", "p");
+
+        assertTrue(disposition.mode == RenderDisposition.Mode.CAPTURE_AND_PASS
+                || disposition.mode == RenderDisposition.Mode.PASS_THROUGH);
+        assertTrue(disposition.nativeContinuation);
+        assertEquals(0, NativeRenderBridge.ledger().evidenceCount());
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
+    public void targetingUnknownOwnerAndRecoveryDoNotCreateDelegatedStrictGap() {
+        mountedCombat();
+        NativeRenderBridge.beginSurface("sts1.unknown", "unknown.Owner", "render", "u");
+        RenderDisposition targeting = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_TARGETING, "native.Targeting", "renderTargetingUi", "t");
+
+        assertTrue(targeting.nativeContinuation);
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.strictReport().get("runtimeUNKNOWN"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
     public void controlsEnergyIntentsTopPanelProceedDelegateInFullMode() {
         mountedCombat();
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());

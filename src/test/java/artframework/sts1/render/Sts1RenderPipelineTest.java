@@ -135,6 +135,25 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
+    public void targetingRequiresCombatSceneAndMountForOptionalFullSelfDraw() {
+        combatFrameMounted();
+        FullPresentMode.setTargetingLevel(PresentLevel.FULL);
+        SurfaceDrawPlan.Entry targeting = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_TARGETING);
+        assertEquals(SurfaceDrawPlan.DrawMode.SKIP, targeting.mode);
+        assertFalse(targeting.suppressNative);
+
+        ArtFramework.component(SurfaceIds.COMBAT_TARGETING).mount();
+        targeting = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_TARGETING);
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, targeting.mode);
+        assertFalse(targeting.suppressNative);
+
+        ArtFramework.publishFrame(ContextFrame.of(9L, "map", java.util.Collections.<CardView>emptyList()));
+        targeting = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_TARGETING);
+        assertEquals(SurfaceDrawPlan.DrawMode.SKIP, targeting.mode);
+        assertFalse(targeting.suppressNative);
+    }
+
+    @Test
     public void offSkipsTargetingDraw() {
         combatFrameMounted();
         ArtFramework.component(SurfaceIds.COMBAT_TARGETING).mount();

@@ -17,6 +17,8 @@ import org.junit.Test;
 import java.util.Arrays;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class CombatTargetingRenderPatchesTest {
 
@@ -77,5 +79,32 @@ public class CombatTargetingRenderPatchesTest {
         SpireReturn<Void> result =
                 CombatTargetingRenderPatches.ObservePotionTargeting.Prefix(null, null);
         assertFalse("Patch outside a mounted scene must fail open to native", result.isPresent());
+    }
+
+    @Test
+    public void panicAndHostRecreationKeepTargetingNative() {
+        mountedCombat();
+        FullPresentMode.setTargetingLevel(PresentLevel.FULL);
+        artframework.sts1.PresentSafety.panic("targeting-test");
+
+        SpireReturn<Void> panicResult =
+                CombatTargetingRenderPatches.ObservePlayerTargeting.Prefix(null, null);
+        assertFalse(panicResult.isPresent());
+        assertTrue(NativeRenderBridgeProbe.nativeContinuation());
+
+        artframework.sts1.PresentSafety.clearPanic();
+        artframework.sts1.PresentSafety.onHostRecreated();
+        assertEquals(1, artframework.sts1.PresentSafety.recreationCount());
+        SpireReturn<Void> recreatedResult =
+                CombatTargetingRenderPatches.ObservePotionTargeting.Prefix(null, null);
+        assertFalse(recreatedResult.isPresent());
+    }
+
+    private static final class NativeRenderBridgeProbe {
+        private static boolean nativeContinuation() {
+            java.util.List<artframework.sts1.render.RenderDisposition> dispositions =
+                    artframework.sts1.render.NativeRenderBridge.ledger().dispositions();
+            return !dispositions.isEmpty() && dispositions.get(dispositions.size() - 1).nativeContinuation;
+        }
     }
 }

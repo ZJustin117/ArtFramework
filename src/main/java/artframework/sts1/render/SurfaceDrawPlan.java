@@ -285,7 +285,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.EVENT,
                         FullPresentMode.eventLevel(),
                         eventMounted,
-                        eventMounted,
+                        "event".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -293,7 +293,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.SELECT,
                         FullPresentMode.selectLevel(),
                         selectGridMounted,
-                        selectGridMounted,
+                        "select".equals(scene),
                         overlayObserve));
         list.add(
                 entry(
@@ -301,7 +301,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.SELECT,
                         FullPresentMode.selectLevel(),
                         selectHandMounted,
-                        selectHandMounted,
+                        "select".equals(scene),
                         overlayObserve));
         list.add(
                 entry(

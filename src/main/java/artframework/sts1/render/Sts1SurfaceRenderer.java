@@ -246,7 +246,10 @@ public final class Sts1SurfaceRenderer {
                     SurfaceIds.EVENT, itemId,
                     new artframework.component.Rect(item.x - item.w / 2f,
                             item.y - item.h / 2f, item.w, item.h), 1f,
-                    "event-option", artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED,
+                    "event-option",
+                    item.enabled
+                            ? artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED
+                            : artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED,
                     item.label, item.visible);
             visibleItems.add(itemId);
         }
@@ -268,7 +271,7 @@ public final class Sts1SurfaceRenderer {
             Set<String> visibleItems = new LinkedHashSet<String>();
             for (SelectDrawPath.DrawItem item : SelectDrawPath.buildFromProjection()) {
                 if (!item.visible) continue;
-                String itemId = item.confirm ? "confirm" : "card:" + item.cardId;
+                String itemId = item.confirm ? "confirm" : "card:" + item.instanceId;
                 artframework.presentation.PresentationVisuals.syncC2Item(
                         entry.surfaceId, itemId,
                         new artframework.component.Rect(item.x - 48f, item.y - 32f, 96f, 64f), 1f,

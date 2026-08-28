@@ -101,6 +101,17 @@ public final class ControlsDrawPath {
         return out;
     }
 
+    /** Items actually materialized/drawn by the controls C2 surface (energy is separate). */
+    public static int materializedDrawCount() {
+        int count = 0;
+        for (DrawItem item : buildFromProjection()) {
+            if (item.visible && isEndTurnItem(item.id)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public static Map<String, Object> probeSlice() {
         List<DrawItem> items = buildFromProjection();
         Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -140,5 +151,9 @@ public final class ControlsDrawPath {
         AssetResolveResult icon = ArtFramework.assets().resolve(iconKey);
         return new DrawItem(
                 c.id, c.text, c.visible, c.enabled, icon.found ? icon.source : "", icon.found);
+    }
+
+    static boolean isEndTurnItem(String id) {
+        return ControlsView.END_TURN_ID.equals(id) || "end_turn".equals(id);
     }
 }

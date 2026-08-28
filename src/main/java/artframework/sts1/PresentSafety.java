@@ -57,6 +57,7 @@ public final class PresentSafety {
         Sts1RenderPipeline.resetForTests();
         artframework.sts1.render.NativeRenderBridge.clearTransientEffectsForRecovery();
         artframework.sts1.render.NativeRenderBridge.resetForTests();
+        removeC2HudItemsForRecovery();
         artframework.sts1.render.MapDrawPath.resetForTests();
         artframework.sts1.audio.ArtAudioBridge.resetForTests();
         artframework.sts1.skeleton.Sts1SkeletonBridge.onHostRecreated();
@@ -111,6 +112,14 @@ public final class PresentSafety {
         } catch (Throwable e) {
             c1HostRecreation = "failed: " + e.getClass().getSimpleName();
         }
+    }
+
+    private static void removeC2HudItemsForRecovery() {
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_CONTROLS);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_ENERGY);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_INTENTS);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_PROCEED);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
     }
 
     private static void unmountAllPresentSurfaces() {

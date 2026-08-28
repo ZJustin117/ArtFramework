@@ -373,7 +373,11 @@ public final class SurfaceDrawPlan {
                         PresentLayer.TOP_PANEL,
                         FullPresentMode.topPanelLevel(),
                         topPanelMounted,
-                        topPanelMounted || roomScene || "combat".equals(scene) || "map".equals(scene),
+                        roomScene
+                                || "combat".equals(scene)
+                                || "map".equals(scene)
+                                || "event".equals(scene)
+                                || "select".equals(scene),
                         overlayObserve));
         return new SurfaceDrawPlan(scene, overlayObserve, list);
     }

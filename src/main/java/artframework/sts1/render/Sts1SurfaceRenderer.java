@@ -203,7 +203,7 @@ public final class Sts1SurfaceRenderer {
         }
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (ControlsDrawPath.DrawItem item : ControlsDrawPath.buildFromProjection()) {
-            if (!item.visible || !ControlsViewIdEndTurn(item.id)) continue;
+            if (!item.visible || !ControlsDrawPath.isEndTurnItem(item.id)) continue;
             artframework.component.Rect bounds = ControlsDrawPath.endTurnProjectedBounds(
                     com.megacrit.cardcrawl.core.Settings.WIDTH,
                     com.megacrit.cardcrawl.core.Settings.HEIGHT);
@@ -446,15 +446,17 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         Set<String> visibleItems = new LinkedHashSet<String>();
-        artframework.presentation.PresentationVisuals.syncC2Item(
-                SurfaceIds.COMBAT_ENERGY, "energy_orb",
-                new artframework.component.Rect(
-                        com.megacrit.cardcrawl.core.Settings.WIDTH * 0.06f,
-                        com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.11f,
-                        com.megacrit.cardcrawl.core.Settings.WIDTH * 0.13f,
-                        70f), 1f,
-                "energy", "", String.valueOf(ArtFramework.projection().controls().energy), true);
-        visibleItems.add("energy_orb");
+        for (EnergyDrawPath.DrawItem item : EnergyDrawPath.buildFromProjection()) {
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.COMBAT_ENERGY, item.id,
+                    new artframework.component.Rect(
+                            com.megacrit.cardcrawl.core.Settings.WIDTH * 0.06f,
+                            com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.11f,
+                            com.megacrit.cardcrawl.core.Settings.WIDTH * 0.13f,
+                            70f), 1f,
+                    "energy", "", item.label, true);
+            visibleItems.add(item.id);
+        }
         artframework.presentation.PresentationVisuals.retainC2Items(
                 SurfaceIds.COMBAT_ENERGY, visibleItems);
     }
@@ -467,14 +469,17 @@ public final class Sts1SurfaceRenderer {
             return;
         }
         Set<String> visibleItems = new LinkedHashSet<String>();
-        artframework.presentation.PresentationVisuals.syncC2Item(
-                SurfaceIds.TOP_PANEL, "top_panel_hud",
-                new artframework.component.Rect(20f,
-                        com.megacrit.cardcrawl.core.Settings.HEIGHT - 82f,
-                        com.megacrit.cardcrawl.core.Settings.WIDTH * 0.48f,
-                        58f), 1f,
-                "top_panel", "", ArtFramework.projection().topPanel().characterName, true);
-        visibleItems.add("top_panel_hud");
+        for (TopPanelDrawPath.DrawItem item : TopPanelDrawPath.buildFromProjection()) {
+            if (!item.visible) continue;
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.TOP_PANEL, item.id,
+                    new artframework.component.Rect(20f,
+                            com.megacrit.cardcrawl.core.Settings.HEIGHT - 82f,
+                            com.megacrit.cardcrawl.core.Settings.WIDTH * 0.48f,
+                            58f), 1f,
+                    "top_panel", "", item.text, item.visible);
+            visibleItems.add(item.id);
+        }
         artframework.presentation.PresentationVisuals.retainC2Items(
                 SurfaceIds.TOP_PANEL, visibleItems);
     }
@@ -544,11 +549,7 @@ public final class Sts1SurfaceRenderer {
      */
     private static void renderControls(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_CONTROLS,
-                ControlsDrawPath.buildFromProjection().size());
-    }
-
-    private static boolean ControlsViewIdEndTurn(String id) {
-        return artframework.context.ControlsView.END_TURN_ID.equals(id) || "end_turn".equals(id);
+                ControlsDrawPath.materializedDrawCount());
     }
 
     /**
@@ -713,6 +714,10 @@ public final class Sts1SurfaceRenderer {
         if (!ProceedDrawPath.shouldSuppressNativeProceed()) {
             return;
         }
+        int projectedDrawCount = 0;
+        for (ProceedDrawPath.DrawItem item : ProceedDrawPath.buildFromProjection()) {
+            if (item.visible) projectedDrawCount++;
+        }
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_PROCEED);
@@ -732,9 +737,9 @@ public final class Sts1SurfaceRenderer {
                         item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 i++;
             }
-            NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_PROCEED, 1);
         } catch (Throwable ignored) {
         }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_PROCEED, projectedDrawCount);
     }
 
     private static void renderTopPanel(SpriteBatch sb) {
@@ -744,29 +749,22 @@ public final class Sts1SurfaceRenderer {
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TOP_PANEL);
-            artframework.context.TopPanelView tv = ArtFramework.projection().topPanel();
-            if (tv.available) {
-                String line =
-                        tv.characterName
-                                + "  HP "
-                                + tv.hp
-                                + "/"
-                                + tv.maxHp
-                                + "  Gold "
-                                + tv.gold
-                                + "  Floor "
-                                + tv.floor;
+            for (TopPanelDrawPath.DrawItem item : TopPanelDrawPath.buildFromProjection()) {
+                if (!item.visible) {
+                    continue;
+                }
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontLeftTopAligned(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.topPanelInfoFont,
-                        line,
+                        item.text,
                         40f,
                         com.megacrit.cardcrawl.core.Settings.HEIGHT - 40f,
                         colorLabel(chrome));
             }
-            NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TOP_PANEL, 1);
         } catch (Throwable ignored) {
         }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TOP_PANEL,
+                TopPanelDrawPath.buildFromProjection().size());
     }
 
     /**
@@ -775,7 +773,8 @@ public final class Sts1SurfaceRenderer {
      * text chrome only, so strict evidence keeps the missing orb art visible.
      */
     private static void renderEnergy(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_ENERGY, 1);
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_ENERGY,
+                EnergyDrawPath.buildFromProjection().size());
     }
 
     /**

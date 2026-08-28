@@ -96,10 +96,10 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Map screen | `DungeonMapScreen.render` | yes | ART_DELEGATED with exposed gap: HostAssets node draw path; full native parity pending |
 | Event dialog | `GenericEventDialog.render` | yes | ART_DELEGATED with exposed gap: base pixels not reproduced |
 | Select screens | `GridCardSelectScreen.render`, `HandCardSelectScreen.render` | yes | ART_DELEGATED with exposed gap: base pixels not reproduced |
-| Reward screen | `CombatRewardScreen.render` | yes | ART_DELEGATED with exposed gap: minimal projected reward item chrome; base reward pixels not fully reproduced |
+| Reward screen | `CombatRewardScreen.render` | yes | enhanced partial pixel supply: projected visible reward rows use explicit gold/card/relic/boss-relic ResourceIds or disabled/fallback resources, stable bounds, enabled/visible state, texture+label drawing, and evidence count from visible draw items; reward screen native parity remains pending |
 | Rest room | `CampfireUI.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (campfire title + live option rows projected from `CampfireUI` buttons); campfire art not reproduced |
-| Shop screen | `ShopScreen.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (merchant/gold/entries/purge from `ShopView`); entry prices still placeholder until G4 full projection |
-| Treasure room | `TreasureRoom.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (chest state + relic label projected from the live `TreasureRoom` chest); chest art not reproduced |
+| Shop screen | `ShopScreen.render` | yes | enhanced partial pixel supply: merchant, gold, entry, purge, and sold-out/disabled rows use explicit ResourceIds/fallbacks with C2 geometry and texture+label drawing; card/relic/potion entries preserve known entry ResourceIds when cataloged; full merchant/shop native parity remains pending |
+| Treasure room | `TreasureRoom.render` | yes | enhanced partial pixel supply: title, closed/open chest, and relic rows use explicit ResourceIds/fallbacks with stable row geometry, texture+label drawing, and evidence count from current chrome rows; full chest/treasure native parity remains pending |
 
 These gaps are deliberate inventory, not silent acceptance. Until a surface
 reproduces its base pixels, its delegations keep surfacing as strict-report

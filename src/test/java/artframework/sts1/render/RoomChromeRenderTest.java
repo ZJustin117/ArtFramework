@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
 import artframework.context.EventView;
@@ -122,8 +123,8 @@ public class RoomChromeRenderTest {
         assertEquals("purge", lines.get(5).id);
         assertEquals("Card Removal  75G", lines.get(5).text);
         assertEquals(Integer.valueOf(lines.size()), ShopDrawPath.probeSlice().get("chromeLineCount"));
-        assertEquals("minimal text chrome exposes each projected entry plus title/gold/purge",
-                Integer.valueOf(3), ShopDrawPath.probeSlice().get("drawCount"));
+        assertEquals("drawCount must follow current visible chrome rows",
+                Integer.valueOf(lines.size()), ShopDrawPath.probeSlice().get("drawCount"));
     }
 
     @Test
@@ -139,9 +140,12 @@ public class RoomChromeRenderTest {
         publishFrame("treasure", RestView.empty(),
                 TreasureView.opened("Bag of Marbles", "relic.Bag of Marbles"), ShopView.empty());
         List<RoomChromeLine> openLines = TreasureDrawPath.chromeLines();
-        assertEquals(2, openLines.size());
-        assertEquals("relic", openLines.get(1).id);
-        assertEquals("Bag of Marbles", openLines.get(1).text);
+        assertEquals(3, openLines.size());
+        assertEquals("chest", openLines.get(1).id);
+        assertEquals(ResourceIds.UI_TREASURE_CHEST_OPEN, openLines.get(1).resourceId);
+        assertEquals("relic", openLines.get(2).id);
+        assertEquals("Bag of Marbles", openLines.get(2).text);
+        assertEquals(ResourceIds.UI_TREASURE_RELIC, openLines.get(2).resourceId);
         assertEquals(Integer.valueOf(openLines.size()),
                 TreasureDrawPath.probeSlice().get("chromeLineCount"));
     }
@@ -209,6 +213,12 @@ public class RoomChromeRenderTest {
         Sts1SurfaceRenderer.prepareShopVisuals(plan);
 
         assertC2ItemsMatch(SurfaceIds.SHOP, ShopDrawPath.chromeLines());
+        assertC2Item(SurfaceIds.SHOP, "title", "shop-merchant",
+                ResourceIds.UI_SHOP_MERCHANT, "Merchant", 0);
+        assertC2Item(SurfaceIds.SHOP, "gold", "shop-gold",
+                ResourceIds.UI_SHOP_GOLD, "Gold 99", 1);
+        assertC2Item(SurfaceIds.SHOP, "entry:0", "shop-entry",
+                ResourceIds.cardArt("Strike_R"), "Strike_R  50G", 2);
     }
 
     @Test
@@ -238,7 +248,8 @@ public class RoomChromeRenderTest {
         Sts1SurfaceRenderer.prepareTreasureVisuals(plan);
 
         assertC2ItemsMatch(SurfaceIds.TREASURE, TreasureDrawPath.chromeLines());
-        assertC2Item(SurfaceIds.TREASURE, "chest", "treasure-item", "", "Chest closed", 1);
+        assertC2Item(SurfaceIds.TREASURE, "chest", "treasure-chest",
+                ResourceIds.UI_TREASURE_CHEST_CLOSED, "Chest closed", 1);
     }
 
     @Test
@@ -387,11 +398,13 @@ public class RoomChromeRenderTest {
         assertEquals(resourceId, draw.resourceId);
         assertEquals(text, draw.text);
         BoundsComponent bounds = context.world().get(found, BoundsComponent.class);
-        float expectedX = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f - 180f;
+        float expectedW = "title".equals(localId) && !SurfaceIds.REST.equals(surfaceId)
+                ? 420f : 360f;
+        float expectedX = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f - expectedW / 2f;
         float expectedY = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f - rowIndex * 40f - 20f;
         assertEquals(expectedX, bounds.rect.x, 0.01f);
         assertEquals(expectedY, bounds.rect.y, 0.01f);
-        assertEquals(360f, bounds.rect.width, 0.01f);
+        assertEquals(expectedW, bounds.rect.width, 0.01f);
         assertEquals(40f, bounds.rect.height, 0.01f);
     }
 }

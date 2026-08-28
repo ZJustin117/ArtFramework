@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.context.RewardItemView;
 import artframework.context.RewardView;
 import artframework.context.SurfaceIds;
@@ -84,7 +85,8 @@ public final class RewardDrawPath {
             float h = item.h > 0f ? item.h : 48f;
             out.add(
                     new DrawItem(
-                            item.index, item.kind, item.label, item.resourceId,
+                            item.index, item.kind, item.label,
+                            resourceFor(item.kind, item.resourceId, item.enabled),
                             item.visible, item.enabled, x, y, w, h));
             i++;
         }
@@ -95,7 +97,7 @@ public final class RewardDrawPath {
         List<DrawItem> items = buildFromProjection();
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         RewardView rv = ArtFramework.projection().reward();
-        m.put("count", Integer.valueOf(items.size()));
+        m.put("count", Integer.valueOf(visibleCount(items)));
         m.put("kind", rv.kind);
         m.put("title", rv.title);
         m.put("available", Boolean.valueOf(rv.available));
@@ -105,7 +107,7 @@ public final class RewardDrawPath {
                 artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.REWARD_COMBAT);
         m.put("capability", cap.state.name());
         m.put("capabilityReason", cap.reason);
-        m.put("drawCount", Integer.valueOf(items.size()));
+        m.put("drawCount", Integer.valueOf(visibleCount(items)));
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (DrawItem d : items) {
             list.add(d.toMap());
@@ -131,4 +133,36 @@ public final class RewardDrawPath {
         }
         return base - index * 56f;
     }
+
+    private static int visibleCount(List<DrawItem> items) {
+        int count = 0;
+        for (DrawItem item : items) {
+            if (item.visible) count++;
+        }
+        return count;
+    }
+
+    public static int materializedDrawCount() {
+        return visibleCount(buildFromProjection());
+    }
+
+    private static String fallbackResource(String kind, boolean enabled) {
+        if (!enabled) return ResourceIds.UI_REWARD_DISABLED;
+        if ("gold".equals(kind)) return ResourceIds.UI_REWARD_GOLD;
+        if ("card".equals(kind)) return ResourceIds.UI_REWARD_CARD;
+        if ("boss_relic".equals(kind)) return ResourceIds.UI_REWARD_BOSS_RELIC;
+        if ("relic".equals(kind)) return ResourceIds.UI_REWARD_RELIC;
+        return ResourceIds.UI_REWARD_ITEM_PANEL;
+    }
+
+    private static boolean catalogKnows(String resourceId) {
+        return resourceId != null && !resourceId.isEmpty()
+                && artframework.sts1.assets.Sts1VanillaCatalog.isKnown(resourceId);
+    }
+
+    public static String resourceFor(String kind, String resourceId, boolean enabled) {
+        if (enabled && catalogKnows(resourceId)) return resourceId;
+        return fallbackResource(kind, enabled);
+    }
+
 }

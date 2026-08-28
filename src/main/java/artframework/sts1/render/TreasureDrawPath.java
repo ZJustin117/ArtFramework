@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.context.SurfaceIds;
 import artframework.context.TreasureView;
 import artframework.sts1.FullPresentMode;
@@ -28,14 +29,23 @@ public final class TreasureDrawPath {
         if (!tv.available) {
             return out;
         }
-        out.add(new RoomChromeLine("title", "Treasure", true));
+        out.add(line("title", "Treasure", true, "treasure-title",
+                ResourceIds.UI_TREASURE_PANEL, 0));
         if (tv.chestOpen) {
-            out.add(new RoomChromeLine(
+            out.add(line("chest", "Chest open", false, "treasure-chest",
+                    ResourceIds.UI_TREASURE_CHEST_OPEN, 1));
+            out.add(line(
                     "relic",
                     tv.relicLabel.isEmpty() ? "Chest opened" : tv.relicLabel,
-                    true));
+                    true,
+                    "treasure-relic",
+                    resourceForRelic(tv.relicResourceId),
+                    2));
         } else {
-            out.add(new RoomChromeLine("chest", "Chest closed", tv.canOpen));
+            out.add(line("chest", "Chest closed", tv.canOpen, "treasure-chest",
+                    tv.canOpen ? ResourceIds.UI_TREASURE_CHEST_CLOSED
+                            : ResourceIds.UI_EVENT_BUTTON_DISABLED,
+                    1));
         }
         return out;
     }
@@ -56,6 +66,35 @@ public final class TreasureDrawPath {
         m.put("capabilityReason", cap.reason);
         // Slice C phase 2: real ART-painted chrome rows (additive probe field).
         m.put("chromeLineCount", Integer.valueOf(chromeLines().size()));
+        m.put("drawCount", Integer.valueOf(chromeLines().size()));
         return m;
+    }
+
+    private static RoomChromeLine line(String id, String text, boolean enabled, String role,
+            String resourceId, int row) {
+        float x = defaultX();
+        float y = defaultY(row);
+        float w = "title".equals(id) ? 420f : 360f;
+        float h = 40f;
+        return new RoomChromeLine(id, text, enabled, true, role, resourceId,
+                x - w / 2f, y - h / 2f, w, h);
+    }
+
+    public static String resourceForRelic(String resourceId) {
+        if (resourceId != null && !resourceId.isEmpty()
+                && artframework.sts1.assets.Sts1VanillaCatalog.isKnown(resourceId)) {
+            return resourceId;
+        }
+        return ResourceIds.UI_TREASURE_RELIC;
+    }
+
+    private static float defaultX() {
+        try { return com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f; }
+        catch (Throwable t) { return 960f; }
+    }
+
+    private static float defaultY(int row) {
+        try { return com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f - row * 40f; }
+        catch (Throwable t) { return 712.8f - row * 40f; }
     }
 }

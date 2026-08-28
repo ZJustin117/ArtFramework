@@ -67,6 +67,10 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_EVENT_PANEL, "images/ui/event/panel.png");
         put(m, ResourceIds.UI_REWARD_PANEL, "images/ui/reward/rewardList.png");
         put(m, ResourceIds.UI_REWARD_CARD, "images/ui/reward/normalCardReward.png");
+        put(m, ResourceIds.UI_REWARD_GOLD, "images/ui/topPanel/gold.png");
+        put(m, ResourceIds.UI_REWARD_RELIC, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_REWARD_BOSS_RELIC, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_REWARD_DISABLED, "images/ui/event/disabledButton.png");
         put(m, ResourceIds.UI_CAMPFIRE_OUTLINE, "images/ui/campfire/outline.png");
         put(m, ResourceIds.UI_CAMPFIRE_SLEEP, "images/ui/campfire/sleep.png");
         put(m, ResourceIds.UI_CAMPFIRE_SMITH, "images/ui/campfire/smith.png");
@@ -91,6 +95,16 @@ public final class Sts1VanillaCatalog {
         }
         put(m, ResourceIds.UI_REWARD_TAKE_ALL, "images/ui/reward/takeAll.png");
         put(m, ResourceIds.UI_REWARD_ITEM_PANEL, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_SHOP_PANEL, "images/ui/reward/rewardList.png");
+        put(m, ResourceIds.UI_SHOP_MERCHANT, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_SHOP_GOLD, "images/ui/topPanel/gold.png");
+        put(m, ResourceIds.UI_SHOP_ENTRY_PANEL, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_SHOP_PURGE, "images/ui/event/enabledButton.png");
+        put(m, ResourceIds.UI_SHOP_SOLD_OUT, "images/ui/event/disabledButton.png");
+        put(m, ResourceIds.UI_TREASURE_PANEL, "images/ui/reward/rewardList.png");
+        put(m, ResourceIds.UI_TREASURE_CHEST_CLOSED, "images/ui/map/chest.png");
+        put(m, ResourceIds.UI_TREASURE_CHEST_OPEN, "images/ui/map/chestOutline.png");
+        put(m, ResourceIds.UI_TREASURE_RELIC, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_MAP_SELECT, "images/ui/map/selectBox.png");
         put(m, ResourceIds.UI_TOP_PANEL_BAR, "images/ui/topPanel/bar.png");
         put(m, ResourceIds.UI_TOP_PANEL_GOLD, "images/ui/topPanel/gold.png");

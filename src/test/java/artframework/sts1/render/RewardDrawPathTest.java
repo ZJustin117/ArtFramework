@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
 import artframework.context.EventView;
@@ -77,19 +78,45 @@ public class RewardDrawPathTest {
         assertEquals(0, items.get(0).index);
         assertEquals("gold", items.get(0).kind);
         assertEquals("30 Gold", items.get(0).label);
-        assertEquals("ui.reward.gold", items.get(0).resourceId);
+        assertEquals(ResourceIds.UI_REWARD_GOLD, items.get(0).resourceId);
         assertTrue(items.get(0).enabled);
         assertEquals(320f, items.get(0).x - items.get(0).w / 2f, 0.01f);
         assertEquals(498f, items.get(0).y - items.get(0).h / 2f, 0.01f);
         assertEquals(1, items.get(1).index);
         assertEquals("relic", items.get(1).kind);
         assertEquals("Pen Nib", items.get(1).label);
-        assertEquals("relic.Pen Nib", items.get(1).resourceId);
+        assertEquals(ResourceIds.UI_REWARD_DISABLED, items.get(1).resourceId);
         assertFalse("disabled projected rewards must keep enabled=false", items.get(1).enabled);
         Map<String, Object> probe = RewardDrawPath.probeSlice();
         assertEquals(Integer.valueOf(2), probe.get("count"));
         assertEquals("Victory!", probe.get("title"));
         assertEquals(Boolean.FALSE, probe.get("suppressNativeReward"));
+    }
+
+    @Test
+    public void rewardFallbacksCoverCommonKindsAndVisibilityEvidence() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        RewardView reward = RewardView.of("boss_relic", "Choose", Arrays.asList(
+                RewardItemView.of(0, "gold", "Gold"),
+                RewardItemView.of(1, "card", "Card"),
+                RewardItemView.of(2, "relic", "Relic"),
+                RewardItemView.of(3, "boss_relic", "Boss Relic"),
+                new RewardItemView(4, "gold", "Hidden", "", false, true, 0f, 0f, 0f, 0f)));
+        backend.publish(ContextFrame.ofFull(
+                1L, 1L, "reward", null, ControlsView.empty(), MapView.empty(),
+                EventView.empty(), SelectView.empty(), reward, RestView.empty(), TreasureView.empty(),
+                ShopView.empty(), TopPanelView.empty(), MonsterIntentView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
+
+        List<RewardDrawPath.DrawItem> items = RewardDrawPath.buildFromProjection();
+        assertEquals(ResourceIds.UI_REWARD_GOLD, items.get(0).resourceId);
+        assertEquals(ResourceIds.UI_REWARD_CARD, items.get(1).resourceId);
+        assertEquals(ResourceIds.UI_REWARD_RELIC, items.get(2).resourceId);
+        assertEquals(ResourceIds.UI_REWARD_BOSS_RELIC, items.get(3).resourceId);
+        assertFalse(items.get(4).visible);
+        assertEquals("probe count must come from visible draw items",
+                Integer.valueOf(4), RewardDrawPath.probeSlice().get("drawCount"));
     }
 
     @Test
@@ -196,7 +223,7 @@ public class RewardDrawPathTest {
         RenderDisposition disposition = NativeRenderBridge.beginSurface(
                 surfaceId, "native.Reward", "render", "test");
         assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
-        int projectedItems = RewardDrawPath.buildFromProjection().size();
+        int projectedItems = ((Integer) RewardDrawPath.probeSlice().get("drawCount")).intValue();
         assertTrue("test fixture must prove a non-constant projected item count", projectedItems > 1);
         NativeRenderBridge.recordSurfaceDraw(surfaceId, projectedItems);
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);

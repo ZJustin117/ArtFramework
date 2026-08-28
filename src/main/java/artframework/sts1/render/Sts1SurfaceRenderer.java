@@ -308,9 +308,7 @@ public final class Sts1SurfaceRenderer {
                         new artframework.component.Rect(item.x - item.w / 2f,
                                 item.y - item.h / 2f, item.w, item.h), 1f,
                         "reward-item",
-                        item.resourceId.isEmpty()
-                                ? artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL
-                                : item.resourceId,
+                        item.resourceId,
                         item.label, item.visible);
                 visibleItems.add(itemId);
             }
@@ -395,21 +393,24 @@ public final class Sts1SurfaceRenderer {
             java.util.List<RoomChromeLine> lines,
             String titleRole,
             String rowRole) {
-        float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-        float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
         Set<String> visibleItems = new LinkedHashSet<String>();
         int i = 0;
         for (RoomChromeLine line : lines) {
+            if (!line.visible) {
+                i++;
+                continue;
+            }
             boolean title = "title".equals(line.id);
             artframework.presentation.PresentationVisuals.syncC2Item(
                     surfaceId,
                     line.id,
-                    new artframework.component.Rect(x - 180f, y - i * 40f - 20f, 360f, 40f),
+                    roomLineBounds(line, i),
                     1f,
-                    title ? titleRole : rowRole,
-                    title || line.enabled
-                            ? ""
-                            : artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED,
+                    !line.role.isEmpty() ? line.role : (title ? titleRole : rowRole),
+                    !line.resourceId.isEmpty() ? line.resourceId
+                            : (title || line.enabled
+                                    ? ""
+                                    : artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED),
                     line.text,
                     true);
             visibleItems.add(line.id);
@@ -577,11 +578,36 @@ public final class Sts1SurfaceRenderer {
 
     /**
      * Reward surface: ART_DELEGATED when FULL_READY. The C2 items were synced in
-     * prepareRewardVisuals and are drawn by the global RenderHosts.drawFrame pass; reward chrome
-     * supply remains incomplete and visible in strict evidence.
+     * prepareRewardVisuals and are drawn by the global RenderHosts.drawFrame pass; the renderer
+     * also attempts texture + label supply for visible reward rows. Base reward parity remains
+     * incomplete and visible in strict evidence.
      */
     private static void renderReward(SpriteBatch sb, String surfaceId) {
-        NativeRenderBridge.recordSurfaceDraw(surfaceId, RewardDrawPath.buildFromProjection().size());
+        int drawn = 0;
+        try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(surfaceId);
+            for (RewardDrawPath.DrawItem item : RewardDrawPath.buildFromProjection()) {
+                if (!item.visible) {
+                    continue;
+                }
+                artframework.component.Rect bounds = new artframework.component.Rect(
+                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
+                drawResolvedTexture(sb, item.resourceId, bounds);
+                if (!item.label.isEmpty()) {
+                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                            sb,
+                            com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                            item.label,
+                            bounds.x + bounds.width * 0.5f,
+                            bounds.y + bounds.height * 0.54f,
+                            item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                }
+                drawn++;
+            }
+        } catch (Throwable ignored) {
+        }
+        NativeRenderBridge.recordSurfaceDraw(surfaceId, RewardDrawPath.materializedDrawCount());
     }
 
     /**
@@ -656,16 +682,19 @@ public final class Sts1SurfaceRenderer {
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.SHOP);
-            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
             int i = 0;
             for (RoomChromeLine line : ShopDrawPath.chromeLines()) {
+                if (!line.visible) {
+                    continue;
+                }
+                artframework.component.Rect bounds = roomLineBounds(line, i);
+                drawResolvedTexture(sb, line.resourceId, bounds);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
                         line.text,
-                        x,
-                        y - i * 40f,
+                        bounds.x + bounds.width * 0.5f,
+                        bounds.y + bounds.height * 0.54f,
                         line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 i++;
                 drawn++;
@@ -687,16 +716,19 @@ public final class Sts1SurfaceRenderer {
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TREASURE);
-            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
             int i = 0;
             for (RoomChromeLine line : TreasureDrawPath.chromeLines()) {
+                if (!line.visible) {
+                    continue;
+                }
+                artframework.component.Rect bounds = roomLineBounds(line, i);
+                drawResolvedTexture(sb, line.resourceId, bounds);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
                         line.text,
-                        x,
-                        y - i * 40f,
+                        bounds.x + bounds.width * 0.5f,
+                        bounds.y + bounds.height * 0.54f,
                         line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 i++;
                 drawn++;
@@ -784,6 +816,15 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
+    }
+
+    private static artframework.component.Rect roomLineBounds(RoomChromeLine line, int fallbackRow) {
+        if (line.w > 0f && line.h > 0f) {
+            return new artframework.component.Rect(line.x, line.y, line.w, line.h);
+        }
+        float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
+        float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
+        return new artframework.component.Rect(x - 180f, y - fallbackRow * 40f - 20f, 360f, 40f);
     }
 
     /**

@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.context.ShopView;
 import artframework.context.SurfaceIds;
 import artframework.sts1.FullPresentMode;
@@ -19,13 +20,16 @@ public final class ShopDrawPath {
         public final String label;
         public final int cost;
         public final boolean soldOut;
+        public final String resourceId;
 
-        public DrawItem(int index, String kind, String label, int cost, boolean soldOut) {
+        public DrawItem(int index, String kind, String label, int cost, boolean soldOut,
+                String resourceId) {
             this.index = index;
             this.kind = kind != null ? kind : "";
             this.label = label != null ? label : "";
             this.cost = cost;
             this.soldOut = soldOut;
+            this.resourceId = resourceId != null ? resourceId : "";
         }
 
         public Map<String, Object> toMap() {
@@ -35,6 +39,7 @@ public final class ShopDrawPath {
             m.put("label", label);
             m.put("cost", Integer.valueOf(cost));
             m.put("soldOut", Boolean.valueOf(soldOut));
+            m.put("resourceId", resourceId);
             return m;
         }
     }
@@ -48,7 +53,8 @@ public final class ShopDrawPath {
     public static List<DrawItem> buildFromProjection() {
         List<DrawItem> out = new ArrayList<DrawItem>();
         for (ShopView.ShopEntryView e : ArtFramework.projection().shop().entries) {
-            out.add(new DrawItem(e.index, e.kind, e.label, e.cost, e.soldOut));
+            out.add(new DrawItem(e.index, e.kind, e.label, e.cost, e.soldOut,
+                    resourceFor(e.kind, e.label, e.resourceId, e.soldOut)));
         }
         return out;
     }
@@ -65,16 +71,23 @@ public final class ShopDrawPath {
         if (!shop.available) {
             return out;
         }
-        out.add(new RoomChromeLine("title", "Merchant", true));
-        out.add(new RoomChromeLine("gold", "Gold " + shop.gold, true));
+        out.add(line("title", "Merchant", true, "shop-merchant",
+                ResourceIds.UI_SHOP_MERCHANT, 0));
+        out.add(line("gold", "Gold " + shop.gold, true, "shop-gold",
+                ResourceIds.UI_SHOP_GOLD, 1));
+        int row = 2;
         for (DrawItem item : buildFromProjection()) {
-            out.add(new RoomChromeLine(
+            out.add(line(
                     "entry:" + item.index,
                     item.label + "  " + item.cost + "G",
-                    !item.soldOut));
+                    !item.soldOut,
+                    "shop-entry",
+                    item.resourceId,
+                    row++));
         }
         if (shop.purgeAvailable) {
-            out.add(new RoomChromeLine("purge", "Card Removal  " + shop.purgeCost + "G", true));
+            out.add(line("purge", "Card Removal  " + shop.purgeCost + "G", true,
+                    "shop-purge", ResourceIds.UI_SHOP_PURGE, row));
         }
         return out;
     }
@@ -94,7 +107,7 @@ public final class ShopDrawPath {
                 artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.SHOP);
         m.put("capability", cap.state.name());
         m.put("capabilityReason", cap.reason);
-        m.put("drawCount", Integer.valueOf(items.size()));
+        m.put("drawCount", Integer.valueOf(chromeLines().size()));
         // Slice C phase 2: real ART-painted chrome rows (additive probe field).
         m.put("chromeLineCount", Integer.valueOf(chromeLines().size()));
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
@@ -103,5 +116,44 @@ public final class ShopDrawPath {
         }
         m.put("items", list);
         return m;
+    }
+
+    private static RoomChromeLine line(String id, String text, boolean enabled, String role,
+            String resourceId, int row) {
+        float x = defaultX();
+        float y = defaultY(row);
+        float w = "title".equals(id) ? 420f : 360f;
+        float h = 40f;
+        return new RoomChromeLine(id, text, enabled, true, role, resourceId,
+                x - w / 2f, y - h / 2f, w, h);
+    }
+
+    private static float defaultX() {
+        try { return com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f; }
+        catch (Throwable t) { return 960f; }
+    }
+
+    private static float defaultY(int row) {
+        try { return com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f - row * 40f; }
+        catch (Throwable t) { return 712.8f - row * 40f; }
+    }
+
+    public static String resourceFor(String kind, String label, String resourceId, boolean soldOut) {
+        if (soldOut) return ResourceIds.UI_SHOP_SOLD_OUT;
+        if (catalogKnows(resourceId)) return resourceId;
+        if ("card".equals(kind) && catalogKnows(ResourceIds.cardArt(label))) {
+            return ResourceIds.cardArt(label);
+        }
+        if ("card".equals(kind)) return ResourceIds.UI_REWARD_CARD;
+        if ("relic".equals(kind)) return ResourceIds.UI_REWARD_RELIC;
+        if ("potion".equals(kind)) return ResourceIds.UI_SHOP_ENTRY_PANEL;
+        if ("gold".equals(kind)) return ResourceIds.UI_SHOP_GOLD;
+        if ("purge".equals(kind)) return ResourceIds.UI_SHOP_PURGE;
+        return ResourceIds.UI_SHOP_ENTRY_PANEL;
+    }
+
+    private static boolean catalogKnows(String resourceId) {
+        return resourceId != null && !resourceId.isEmpty()
+                && artframework.sts1.assets.Sts1VanillaCatalog.isKnown(resourceId);
     }
 }

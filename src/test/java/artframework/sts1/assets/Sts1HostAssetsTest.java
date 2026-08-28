@@ -34,6 +34,20 @@ public class Sts1HostAssetsTest {
         assertTrue(cat.containsKey(ResourceIds.UI_TOP_PANEL_HP));
         assertTrue(cat.containsKey(ResourceIds.UI_TOP_PANEL_GOLD));
         assertTrue(cat.containsKey(ResourceIds.UI_TOP_PANEL_FLOOR));
+        assertTrue(cat.containsKey(ResourceIds.UI_REWARD_GOLD));
+        assertTrue(cat.containsKey(ResourceIds.UI_REWARD_CARD));
+        assertTrue(cat.containsKey(ResourceIds.UI_REWARD_RELIC));
+        assertTrue(cat.containsKey(ResourceIds.UI_REWARD_BOSS_RELIC));
+        assertTrue(cat.containsKey(ResourceIds.UI_REWARD_DISABLED));
+        assertTrue(cat.containsKey(ResourceIds.UI_SHOP_MERCHANT));
+        assertTrue(cat.containsKey(ResourceIds.UI_SHOP_GOLD));
+        assertTrue(cat.containsKey(ResourceIds.UI_SHOP_ENTRY_PANEL));
+        assertTrue(cat.containsKey(ResourceIds.UI_SHOP_PURGE));
+        assertTrue(cat.containsKey(ResourceIds.UI_SHOP_SOLD_OUT));
+        assertTrue(cat.containsKey(ResourceIds.UI_TREASURE_PANEL));
+        assertTrue(cat.containsKey(ResourceIds.UI_TREASURE_CHEST_CLOSED));
+        assertTrue(cat.containsKey(ResourceIds.UI_TREASURE_CHEST_OPEN));
+        assertTrue(cat.containsKey(ResourceIds.UI_TREASURE_RELIC));
         assertEquals(
                 "sts1:images/ui/intent/attack/attack_intent_1.png",
                 cat.get(ResourceIds.intent("attack/attack_intent_1")));

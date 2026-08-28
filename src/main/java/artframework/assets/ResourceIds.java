@@ -36,6 +36,10 @@ public final class ResourceIds {
     public static final String UI_EVENT_PANEL = "ui.event.panel";
     public static final String UI_REWARD_PANEL = "ui.reward.panel";
     public static final String UI_REWARD_CARD = "ui.reward.card";
+    public static final String UI_REWARD_GOLD = "ui.reward.gold";
+    public static final String UI_REWARD_RELIC = "ui.reward.relic";
+    public static final String UI_REWARD_BOSS_RELIC = "ui.reward.boss_relic";
+    public static final String UI_REWARD_DISABLED = "ui.reward.disabled";
     public static final String UI_CAMPFIRE_OUTLINE = "ui.campfire.outline";
     public static final String UI_CAMPFIRE_SLEEP = "ui.campfire.sleep";
     public static final String UI_CAMPFIRE_SMITH = "ui.campfire.smith";
@@ -44,6 +48,16 @@ public final class ResourceIds {
     public static final String UI_COMBAT_TARGETING_ARROW = "ui.combat.targeting_arrow";
     public static final String UI_REWARD_TAKE_ALL = "ui.reward.take_all";
     public static final String UI_REWARD_ITEM_PANEL = "ui.reward.item_panel";
+    public static final String UI_SHOP_PANEL = "ui.shop.panel";
+    public static final String UI_SHOP_MERCHANT = "ui.shop.merchant";
+    public static final String UI_SHOP_GOLD = "ui.shop.gold";
+    public static final String UI_SHOP_ENTRY_PANEL = "ui.shop.entry_panel";
+    public static final String UI_SHOP_PURGE = "ui.shop.purge";
+    public static final String UI_SHOP_SOLD_OUT = "ui.shop.sold_out";
+    public static final String UI_TREASURE_PANEL = "ui.treasure.panel";
+    public static final String UI_TREASURE_CHEST_CLOSED = "ui.treasure.chest.closed";
+    public static final String UI_TREASURE_CHEST_OPEN = "ui.treasure.chest.open";
+    public static final String UI_TREASURE_RELIC = "ui.treasure.relic";
     public static final String UI_MAP_SELECT = "ui.map.select";
     public static final String UI_MAP_OUTLINE_PREFIX = "ui.map.outline.";
     public static final String UI_TOP_PANEL_BAR = "ui.top_panel.bar";
@@ -123,6 +137,23 @@ public final class ResourceIds {
             UI_BUTTON_PROCEED_DISABLED,
             UI_BUTTON_CANCEL_ENABLED,
             UI_BUTTON_CANCEL_DISABLED,
+            UI_REWARD_PANEL,
+            UI_REWARD_ITEM_PANEL,
+            UI_REWARD_CARD,
+            UI_REWARD_GOLD,
+            UI_REWARD_RELIC,
+            UI_REWARD_BOSS_RELIC,
+            UI_REWARD_DISABLED,
+            UI_SHOP_PANEL,
+            UI_SHOP_MERCHANT,
+            UI_SHOP_GOLD,
+            UI_SHOP_ENTRY_PANEL,
+            UI_SHOP_PURGE,
+            UI_SHOP_SOLD_OUT,
+            UI_TREASURE_PANEL,
+            UI_TREASURE_CHEST_CLOSED,
+            UI_TREASURE_CHEST_OPEN,
+            UI_TREASURE_RELIC,
             UI_TOP_PANEL_BAR,
             UI_TOP_PANEL_HP,
             UI_TOP_PANEL_GOLD,

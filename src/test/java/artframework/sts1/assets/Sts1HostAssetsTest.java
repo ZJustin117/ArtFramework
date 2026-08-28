@@ -39,6 +39,17 @@ public class Sts1HostAssetsTest {
         assertTrue(cat.containsKey(ResourceIds.UI_REWARD_RELIC));
         assertTrue(cat.containsKey(ResourceIds.UI_REWARD_BOSS_RELIC));
         assertTrue(cat.containsKey(ResourceIds.UI_REWARD_DISABLED));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_PANEL));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_REST_OPTION));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_SMITH_OPTION));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_DIG_OPTION));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_RECALL_OPTION));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_TOKE_OPTION));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_OTHER_OPTION));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_DISABLED_OPTION));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_OUTLINE));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_SLEEP));
+        assertTrue(cat.containsKey(ResourceIds.UI_CAMPFIRE_SMITH));
         assertTrue(cat.containsKey(ResourceIds.UI_EVENT_PANEL));
         assertTrue(cat.containsKey(ResourceIds.UI_EVENT_TITLE));
         assertTrue(cat.containsKey(ResourceIds.UI_EVENT_BUTTON_ENABLED));
@@ -63,6 +74,14 @@ public class Sts1HostAssetsTest {
                 cat.get(ResourceIds.intent("attack/attack_intent_1")));
         assertTrue(cat.get(ResourceIds.MAP_NODE_MONSTER).startsWith(Sts1VanillaCatalog.SOURCE_PREFIX));
         assertTrue(cat.get(ResourceIds.cardArt("Strike_R")).contains("Strike_R"));
+        assertTrue(cat.get(ResourceIds.UI_CAMPFIRE_PANEL).startsWith(Sts1VanillaCatalog.SOURCE_PREFIX));
+        assertTrue(cat.get(ResourceIds.UI_CAMPFIRE_REST_OPTION).contains("campfire"));
+        assertTrue(cat.get(ResourceIds.UI_CAMPFIRE_SMITH_OPTION).contains("campfire"));
+        assertTrue(cat.get(ResourceIds.UI_CAMPFIRE_DIG_OPTION).contains("dig"));
+        assertTrue(cat.get(ResourceIds.UI_CAMPFIRE_RECALL_OPTION).contains("recall"));
+        assertTrue(cat.get(ResourceIds.UI_CAMPFIRE_TOKE_OPTION).contains("toke"));
+        assertTrue(cat.get(ResourceIds.UI_CAMPFIRE_OTHER_OPTION).contains("outline"));
+        assertTrue(cat.get(ResourceIds.UI_CAMPFIRE_DISABLED_OPTION).contains("buttonShadow"));
     }
 
     @Test

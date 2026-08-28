@@ -87,13 +87,27 @@ public class RoomChromeRenderTest {
         assertEquals("title", lines.get(0).id);
         assertEquals("Campfire", lines.get(0).text);
         assertTrue(lines.get(0).enabled);
+        assertEquals("rest-title", lines.get(0).role);
+        assertEquals(ResourceIds.UI_CAMPFIRE_PANEL, lines.get(0).resourceId);
         assertEquals("option:rest", lines.get(1).id);
         assertEquals("Rest", lines.get(1).text);
         assertTrue(lines.get(1).enabled);
+        assertEquals(ResourceIds.UI_CAMPFIRE_REST_OPTION, lines.get(1).resourceId);
         assertEquals("option:smith", lines.get(2).id);
         assertEquals("Smith", lines.get(2).text);
         assertTrue("projected availability must reach the chrome row", !lines.get(2).enabled);
+        assertEquals("rest-smith-option", lines.get(2).role);
+        assertEquals(ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, lines.get(2).resourceId);
         assertEquals(Integer.valueOf(lines.size()), RestDrawPath.probeSlice().get("chromeLineCount"));
+        assertEquals(Integer.valueOf(lines.size()), RestDrawPath.probeSlice().get("drawCount"));
+        assertEquals(ResourceIds.UI_CAMPFIRE_DIG_OPTION,
+                RestDrawPath.resourceForOption("dig", "Dig", true));
+        assertEquals(ResourceIds.UI_CAMPFIRE_RECALL_OPTION,
+                RestDrawPath.resourceForOption("recall", "Recall", true));
+        assertEquals(ResourceIds.UI_CAMPFIRE_TOKE_OPTION,
+                RestDrawPath.resourceForOption("toke", "Toke", true));
+        assertEquals(ResourceIds.UI_CAMPFIRE_OTHER_OPTION,
+                RestDrawPath.resourceForOption("unknown", "Unknown", true));
     }
 
     @Test
@@ -179,9 +193,10 @@ public class RoomChromeRenderTest {
         Sts1SurfaceRenderer.prepareRestVisuals(plan);
 
         assertC2ItemsMatch(SurfaceIds.REST, RestDrawPath.chromeLines());
-        assertC2Item(SurfaceIds.REST, "title", "rest-title", "", "Campfire", 0);
-        assertC2Item(SurfaceIds.REST, "option:smith", "rest-option",
-                artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED, "Smith", 2);
+        assertC2Item(SurfaceIds.REST, "title", "rest-title",
+                ResourceIds.UI_CAMPFIRE_PANEL, "Campfire", 0);
+        assertC2Item(SurfaceIds.REST, "option:smith", "rest-smith-option",
+                ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, "Smith", 2);
     }
 
     @Test
@@ -292,6 +307,29 @@ public class RoomChromeRenderTest {
     }
 
     @Test
+    public void restEvidenceDropsWithCurrentVisibleChromeRows() {
+        publishFrame("rest",
+                RestView.of(Arrays.asList(
+                        new RestView.RestOptionView("rest", "Rest", true, false),
+                        new RestView.RestOptionView("smith", "Smith", true, false))),
+                TreasureView.empty(), ShopView.empty());
+        fullReady(SurfaceIds.REST);
+
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.REST, "com.megacrit.cardcrawl.rooms.CampfireUI", "render", "test");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+
+        int rows = RestDrawPath.materializedDrawCount();
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.REST, rows);
+
+        PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
+        assertNotNull(evidence);
+        assertEquals("hidden options leave only the visible campfire panel/title row",
+                1, evidence.drawCount);
+        assertEquals(Integer.valueOf(rows), RestDrawPath.probeSlice().get("drawCount"));
+    }
+
+    @Test
     public void shopEvidenceRecordsRealRowCount() {
         publishFrame("shop", RestView.empty(), TreasureView.empty(),
                 ShopView.of(150, Arrays.asList(
@@ -398,8 +436,7 @@ public class RoomChromeRenderTest {
         assertEquals(resourceId, draw.resourceId);
         assertEquals(text, draw.text);
         BoundsComponent bounds = context.world().get(found, BoundsComponent.class);
-        float expectedW = "title".equals(localId) && !SurfaceIds.REST.equals(surfaceId)
-                ? 420f : 360f;
+        float expectedW = "title".equals(localId) ? 420f : 360f;
         float expectedX = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f - expectedW / 2f;
         float expectedY = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f - rowIndex * 40f - 20f;
         assertEquals(expectedX, bounds.rect.x, 0.01f);

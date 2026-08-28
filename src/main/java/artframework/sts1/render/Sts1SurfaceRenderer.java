@@ -645,34 +645,36 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Rest surface: ART_DELEGATED when FULL_READY. Paints minimal text chrome projected from
-     * RestView and records the drawn-row count; campfire art remains an exposed supply gap.
+     * Rest surface: ART_DELEGATED when FULL_READY. Paints resource-backed campfire chrome
+     * projected from RestView and records the current visible chrome-row count; campfire base
+     * animation/native parity remains an exposed supply gap.
      */
     private static void renderRest(SpriteBatch sb) {
         if (!RestDrawPath.shouldSuppressNativeRest()) {
             return;
         }
-        int drawn = 0;
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.REST);
-            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f;
             int i = 0;
             for (RoomChromeLine line : RestDrawPath.chromeLines()) {
+                if (!line.visible) {
+                    continue;
+                }
+                artframework.component.Rect bounds = roomLineBounds(line, i);
+                drawResolvedTexture(sb, line.resourceId, bounds);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
                         line.text,
-                        x,
-                        y - i * 40f,
+                        bounds.x + bounds.width * 0.5f,
+                        bounds.y + bounds.height * 0.54f,
                         line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 i++;
-                drawn++;
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.REST, drawn);
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.REST, RestDrawPath.materializedDrawCount());
     }
 
     private static void renderSkeleton(SpriteBatch sb) {

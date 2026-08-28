@@ -78,6 +78,14 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_REWARD_RELIC, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_REWARD_BOSS_RELIC, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_REWARD_DISABLED, "images/ui/event/disabledButton.png");
+        put(m, ResourceIds.UI_CAMPFIRE_PANEL, "images/ui/reward/rewardList.png");
+        put(m, ResourceIds.UI_CAMPFIRE_REST_OPTION, "images/ui/campfire/sleep.png");
+        put(m, ResourceIds.UI_CAMPFIRE_SMITH_OPTION, "images/ui/campfire/smith.png");
+        put(m, ResourceIds.UI_CAMPFIRE_DIG_OPTION, "images/ui/campfire/dig.png");
+        put(m, ResourceIds.UI_CAMPFIRE_RECALL_OPTION, "images/ui/campfire/recall.png");
+        put(m, ResourceIds.UI_CAMPFIRE_TOKE_OPTION, "images/ui/campfire/toke.png");
+        put(m, ResourceIds.UI_CAMPFIRE_OTHER_OPTION, "images/ui/campfire/outline.png");
+        put(m, ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, "images/ui/campfire/buttonShadow.png");
         put(m, ResourceIds.UI_CAMPFIRE_OUTLINE, "images/ui/campfire/outline.png");
         put(m, ResourceIds.UI_CAMPFIRE_SLEEP, "images/ui/campfire/sleep.png");
         put(m, ResourceIds.UI_CAMPFIRE_SMITH, "images/ui/campfire/smith.png");

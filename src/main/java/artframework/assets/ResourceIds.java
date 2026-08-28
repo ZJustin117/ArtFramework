@@ -47,6 +47,14 @@ public final class ResourceIds {
     public static final String UI_REWARD_RELIC = "ui.reward.relic";
     public static final String UI_REWARD_BOSS_RELIC = "ui.reward.boss_relic";
     public static final String UI_REWARD_DISABLED = "ui.reward.disabled";
+    public static final String UI_CAMPFIRE_PANEL = "ui.campfire.panel";
+    public static final String UI_CAMPFIRE_REST_OPTION = "ui.campfire.option.rest";
+    public static final String UI_CAMPFIRE_SMITH_OPTION = "ui.campfire.option.smith";
+    public static final String UI_CAMPFIRE_DIG_OPTION = "ui.campfire.option.dig";
+    public static final String UI_CAMPFIRE_RECALL_OPTION = "ui.campfire.option.recall";
+    public static final String UI_CAMPFIRE_TOKE_OPTION = "ui.campfire.option.toke";
+    public static final String UI_CAMPFIRE_OTHER_OPTION = "ui.campfire.option.other";
+    public static final String UI_CAMPFIRE_DISABLED_OPTION = "ui.campfire.option.disabled";
     public static final String UI_CAMPFIRE_OUTLINE = "ui.campfire.outline";
     public static final String UI_CAMPFIRE_SLEEP = "ui.campfire.sleep";
     public static final String UI_CAMPFIRE_SMITH = "ui.campfire.smith";
@@ -161,6 +169,17 @@ public final class ResourceIds {
             UI_REWARD_RELIC,
             UI_REWARD_BOSS_RELIC,
             UI_REWARD_DISABLED,
+            UI_CAMPFIRE_PANEL,
+            UI_CAMPFIRE_REST_OPTION,
+            UI_CAMPFIRE_SMITH_OPTION,
+            UI_CAMPFIRE_DIG_OPTION,
+            UI_CAMPFIRE_RECALL_OPTION,
+            UI_CAMPFIRE_TOKE_OPTION,
+            UI_CAMPFIRE_OTHER_OPTION,
+            UI_CAMPFIRE_DISABLED_OPTION,
+            UI_CAMPFIRE_OUTLINE,
+            UI_CAMPFIRE_SLEEP,
+            UI_CAMPFIRE_SMITH,
             UI_SHOP_PANEL,
             UI_SHOP_MERCHANT,
             UI_SHOP_GOLD,

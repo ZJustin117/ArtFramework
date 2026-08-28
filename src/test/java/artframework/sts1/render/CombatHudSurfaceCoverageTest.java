@@ -147,6 +147,8 @@ public class CombatHudSurfaceCoverageTest {
         Map<String, DrawComponent> controls = c2Draws(SurfaceIds.COMBAT_CONTROLS);
         assertEquals(1, controls.size());
         assertEquals("结束回合", controls.get(ControlsView.END_TURN_ID).text);
+        assertEquals(ResourceIds.UI_BUTTON_END_TURN,
+                controls.get(ControlsView.END_TURN_ID).resourceId);
         Rect endTurn = c2Bounds(SurfaceIds.COMBAT_CONTROLS).get(ControlsView.END_TURN_ID).rect;
         assertEquals(111f, endTurn.x, 0.01f);
         assertEquals(222f, endTurn.y, 0.01f);
@@ -157,13 +159,14 @@ public class CombatHudSurfaceCoverageTest {
         assertEquals(Integer.valueOf(EnergyDrawPath.buildFromProjection().size()),
                 Integer.valueOf(energy.size()));
         assertEquals("7", energy.get("energy_orb").text);
+        assertEquals(ResourceIds.energyOrbLayer("red", 1), energy.get("energy_orb").resourceId);
 
         Map<String, DrawComponent> intents = c2Draws(SurfaceIds.COMBAT_INTENTS);
         assertEquals(Integer.valueOf(IntentDrawPath.buildFromProjection().size()),
                 Integer.valueOf(intents.size()));
         assertEquals("3", intents.get("intent:m1").text);
         assertEquals("2", intents.get("intent:m2").text);
-        assertEquals("ui.intent.attack.attack_intent_3", intents.get("intent:m1").resourceId);
+        assertEquals(ResourceIds.intent("attack/attack_intent_3"), intents.get("intent:m1").resourceId);
         Rect intentBounds = c2Bounds(SurfaceIds.COMBAT_INTENTS).get("intent:m1").rect;
         assertEquals(168f, intentBounds.x, 0.01f);
         assertEquals(268f, intentBounds.y, 0.01f);

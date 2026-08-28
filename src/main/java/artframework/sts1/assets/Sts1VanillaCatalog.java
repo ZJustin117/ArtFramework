@@ -44,6 +44,7 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_PANEL_DEFAULT, "images/ui/reward/rewardList.png");
         put(m, ResourceIds.UI_WINDOW_DEFAULT, "images/ui/tip.png");
         put(m, ResourceIds.UI_BUTTON_END_TURN, "images/ui/topPanel/endTurnButton.png");
+        put(m, ResourceIds.UI_BUTTON_END_TURN_DISABLED, "images/ui/topPanel/endTurnButtonDisabled.png");
         // Historical C2 draw paths resolve this key; retain it while public nodes use button.end_turn.
         put(m, ResourceIds.UI_PREFIX + "endturn", "images/ui/topPanel/endTurnButton.png");
         put(m, ResourceIds.UI_BUTTON_END_TURN_HOVER, "images/ui/topPanel/endTurnHover.png");

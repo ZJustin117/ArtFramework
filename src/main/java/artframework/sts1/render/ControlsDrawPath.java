@@ -51,6 +51,9 @@ public final class ControlsDrawPath {
         public final boolean enabled;
         public final String iconSource;
         public final boolean iconFound;
+        public final String resourceId;
+        public final String hoverResourceId;
+        public final Rect bounds;
 
         public DrawItem(
                 String id,
@@ -59,12 +62,28 @@ public final class ControlsDrawPath {
                 boolean enabled,
                 String iconSource,
                 boolean iconFound) {
+            this(id, text, visible, enabled, iconSource, iconFound, "", "", null);
+        }
+
+        public DrawItem(
+                String id,
+                String text,
+                boolean visible,
+                boolean enabled,
+                String iconSource,
+                boolean iconFound,
+                String resourceId,
+                String hoverResourceId,
+                Rect bounds) {
             this.id = id;
             this.text = text;
             this.visible = visible;
             this.enabled = enabled;
             this.iconSource = iconSource;
             this.iconFound = iconFound;
+            this.resourceId = resourceId != null ? resourceId : "";
+            this.hoverResourceId = hoverResourceId != null ? hoverResourceId : "";
+            this.bounds = bounds;
         }
 
         public Map<String, Object> toMap() {
@@ -75,6 +94,14 @@ public final class ControlsDrawPath {
             m.put("enabled", Boolean.valueOf(enabled));
             m.put("iconSource", iconSource);
             m.put("iconFound", Boolean.valueOf(iconFound));
+            m.put("resourceId", resourceId);
+            m.put("hoverResourceId", hoverResourceId);
+            if (bounds != null) {
+                m.put("x", Float.valueOf(bounds.x));
+                m.put("y", Float.valueOf(bounds.y));
+                m.put("width", Float.valueOf(bounds.width));
+                m.put("height", Float.valueOf(bounds.height));
+            }
             return m;
         }
     }
@@ -130,7 +157,10 @@ public final class ControlsDrawPath {
     }
 
     private static DrawItem itemFromEndTurn(ControlsView cv) {
-        String iconKey = ResourceIds.UI_PREFIX + "endturn";
+        String iconKey = cv.endTurnEnabled
+                ? ResourceIds.UI_BUTTON_END_TURN
+                : ResourceIds.UI_BUTTON_END_TURN_DISABLED;
+        String hoverKey = ResourceIds.UI_BUTTON_END_TURN_HOVER;
         AssetResolveResult icon = ArtFramework.assets().resolve(iconKey);
         return new DrawItem(
                 ControlsView.END_TURN_ID,
@@ -138,7 +168,10 @@ public final class ControlsDrawPath {
                 cv.endTurnVisible,
                 cv.endTurnEnabled,
                 icon.found ? icon.source : "",
-                icon.found);
+                icon.found,
+                iconKey,
+                hoverKey,
+                endTurnProjectedBounds(screenWidth(), screenHeight()));
     }
 
     private static DrawItem fromControl(ControlView c) {
@@ -146,14 +179,36 @@ public final class ControlsDrawPath {
                 c.iconResourceId != null && !c.iconResourceId.isEmpty()
                         ? c.iconResourceId
                         : (ControlsView.END_TURN_ID.equals(c.id)
-                                ? ResourceIds.UI_PREFIX + "endturn"
+                                ? (c.enabled ? ResourceIds.UI_BUTTON_END_TURN
+                                        : ResourceIds.UI_BUTTON_END_TURN_DISABLED)
                                 : ResourceIds.UI_BUTTON_DEFAULT);
+        if (ControlsView.END_TURN_ID.equals(c.id)) {
+            return itemFromEndTurn(ArtFramework.projection().controls());
+        }
         AssetResolveResult icon = ArtFramework.assets().resolve(iconKey);
         return new DrawItem(
-                c.id, c.text, c.visible, c.enabled, icon.found ? icon.source : "", icon.found);
+                c.id,
+                c.text,
+                c.visible,
+                c.enabled,
+                icon.found ? icon.source : "",
+                icon.found,
+                iconKey,
+                "",
+                null);
     }
 
     static boolean isEndTurnItem(String id) {
         return ControlsView.END_TURN_ID.equals(id) || "end_turn".equals(id);
+    }
+
+    private static float screenWidth() {
+        return com.megacrit.cardcrawl.core.Settings.WIDTH > 0f
+                ? com.megacrit.cardcrawl.core.Settings.WIDTH : 1920f;
+    }
+
+    private static float screenHeight() {
+        return com.megacrit.cardcrawl.core.Settings.HEIGHT > 0f
+                ? com.megacrit.cardcrawl.core.Settings.HEIGHT : 1080f;
     }
 }

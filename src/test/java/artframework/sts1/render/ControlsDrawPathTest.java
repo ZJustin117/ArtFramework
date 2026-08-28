@@ -58,6 +58,23 @@ public class ControlsDrawPathTest {
         assertTrue(items.get(0).visible);
         assertTrue(items.get(0).iconFound);
         assertTrue(items.get(0).iconSource.startsWith("sts1:images/"));
+        assertEquals(ResourceIds.UI_BUTTON_END_TURN, items.get(0).resourceId);
+        assertEquals(ResourceIds.UI_BUTTON_END_TURN_HOVER, items.get(0).hoverResourceId);
+        assertEquals(ControlsDrawPath.endTurnProjectedBounds(1920f, 1080f).x,
+                items.get(0).bounds.x, 0.01f);
+    }
+
+    @Test
+    public void disabledEndTurnUsesDisabledPixelResource() {
+        Sts1HostAssets.install();
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(ContextFrame.of(1L, 1L, "combat", null,
+                ControlsView.combat(3, 5, 10, 0, 0, false, true), MapView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
+        assertEquals(ResourceIds.UI_BUTTON_END_TURN_DISABLED,
+                ControlsDrawPath.buildFromProjection().get(0).resourceId);
+        assertEquals(1, ControlsDrawPath.materializedDrawCount());
     }
 
     @Test

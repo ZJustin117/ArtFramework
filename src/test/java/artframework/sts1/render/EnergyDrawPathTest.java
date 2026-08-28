@@ -6,6 +6,8 @@ import artframework.context.ControlsView;
 import artframework.context.FakeSignalBackend;
 import artframework.context.MapView;
 import artframework.context.SurfaceIds;
+import artframework.assets.ResourceIds;
+import artframework.component.Rect;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.input.CombatInputRouter;
@@ -72,5 +74,14 @@ public class EnergyDrawPathTest {
         assertEquals(Integer.valueOf(3), m.get("energy"));
         assertEquals("OBSERVE", m.get("presentLevel"));
         assertEquals(Boolean.FALSE, m.get("suppressNativeEnergy"));
+    }
+
+    @Test
+    public void projectionProvidesOrbResourceAndStableGeometry() {
+        mountedCombat();
+        EnergyDrawPath.DrawItem item = EnergyDrawPath.buildFromProjection().get(0);
+        assertEquals(ResourceIds.energyOrbLayer("red", 1), item.resourceId);
+        assertEquals(new Rect(115.2f, 118.8f, 249.6f, 70f).x, item.bounds.x, 0.01f);
+        assertEquals(1, EnergyDrawPath.buildFromProjection().size());
     }
 }

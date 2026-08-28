@@ -25,6 +25,7 @@ public final class ResourceIds {
     public static final String UI_PANEL_DEFAULT = "ui.panel.default";
     public static final String UI_WINDOW_DEFAULT = "ui.window.default";
     public static final String UI_BUTTON_END_TURN = "ui.button.end_turn";
+    public static final String UI_BUTTON_END_TURN_DISABLED = "ui.button.end_turn.disabled";
     public static final String UI_BUTTON_END_TURN_HOVER = "ui.button.end_turn.hover";
     public static final String UI_BUTTON_PROCEED_ENABLED = "ui.button.proceed.enabled";
     public static final String UI_BUTTON_PROCEED_DISABLED = "ui.button.proceed.disabled";
@@ -113,6 +114,9 @@ public final class ResourceIds {
     public static String[] minimalVanillaKeys() {
         return new String[] {
             UI_BUTTON_DEFAULT,
+            UI_BUTTON_END_TURN,
+            UI_BUTTON_END_TURN_DISABLED,
+            UI_BUTTON_END_TURN_HOVER,
             UI_PANEL_DEFAULT,
             UI_WINDOW_DEFAULT,
             UI_BUTTON_PROCEED_ENABLED,

@@ -867,6 +867,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                  m.name != null ? m.name : "",
                                  intent,
                                  intentResource(intent, amount),
+                                 amount,
                                  multiAmount,
                                  x,
                                  y));

@@ -50,6 +50,7 @@ public final class MonsterIntentView {
         public final String monsterName;
         public final String intentType;
         public final String iconResourceId;
+        public final int amount;
         public final int multiAmount;
         public final float x;
         public final float y;
@@ -62,10 +63,17 @@ public final class MonsterIntentView {
                 int multiAmount,
                 float x,
                 float y) {
+            this(monsterId, monsterName, intentType, iconResourceId, multiAmount, multiAmount, x, y);
+        }
+
+        public IntentEntry(
+                String monsterId, String monsterName, String intentType, String iconResourceId,
+                int amount, int multiAmount, float x, float y) {
             this.monsterId = monsterId != null ? monsterId : "";
             this.monsterName = monsterName != null ? monsterName : "";
             this.intentType = intentType != null ? intentType : "";
             this.iconResourceId = iconResourceId != null ? iconResourceId : "";
+            this.amount = amount;
             this.multiAmount = multiAmount;
             this.x = x;
             this.y = y;
@@ -77,6 +85,7 @@ public final class MonsterIntentView {
             m.put("monsterName", monsterName);
             m.put("intentType", intentType);
             m.put("iconResourceId", iconResourceId);
+            m.put("amount", Integer.valueOf(amount));
             m.put("multiAmount", Integer.valueOf(multiAmount));
             m.put("x", Float.valueOf(x));
             m.put("y", Float.valueOf(y));

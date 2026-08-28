@@ -209,7 +209,7 @@ public final class Sts1SurfaceRenderer {
                     com.megacrit.cardcrawl.core.Settings.HEIGHT);
             artframework.presentation.PresentationVisuals.syncC2Item(
                     SurfaceIds.COMBAT_CONTROLS, item.id, bounds, 2f,
-                    "control", item.iconSource, item.text, item.visible);
+                     "control", item.resourceId, item.text, item.visible);
             visibleItems.add(item.id);
         }
         artframework.presentation.PresentationVisuals.retainC2Items(
@@ -430,8 +430,8 @@ public final class Sts1SurfaceRenderer {
             String itemId = "intent:" + item.monsterId;
             artframework.presentation.PresentationVisuals.syncC2Item(
                     SurfaceIds.COMBAT_INTENTS, itemId,
-                    new artframework.component.Rect(item.x - 32f, item.y - 32f, 64f, 64f), 1f,
-                    "intent", item.iconResourceId, String.valueOf(item.multiAmount), true);
+                     item.bounds, 1f,
+                     "intent", item.iconResourceId, item.text, true);
             visibleItems.add(itemId);
         }
         artframework.presentation.PresentationVisuals.retainC2Items(
@@ -449,12 +449,7 @@ public final class Sts1SurfaceRenderer {
         for (EnergyDrawPath.DrawItem item : EnergyDrawPath.buildFromProjection()) {
             artframework.presentation.PresentationVisuals.syncC2Item(
                     SurfaceIds.COMBAT_ENERGY, item.id,
-                    new artframework.component.Rect(
-                            com.megacrit.cardcrawl.core.Settings.WIDTH * 0.06f,
-                            com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.11f,
-                            com.megacrit.cardcrawl.core.Settings.WIDTH * 0.13f,
-                            70f), 1f,
-                    "energy", "", item.label, true);
+                     item.bounds, 1f, "energy", item.resourceId, item.label, true);
             visibleItems.add(item.id);
         }
         artframework.presentation.PresentationVisuals.retainC2Items(
@@ -546,7 +541,7 @@ public final class Sts1SurfaceRenderer {
     /**
      * Controls surface: ART_DELEGATED when FULL_READY. The C2 item was already synced in
      * prepareControlsVisuals and drawn by the global RenderHosts.drawFrame pass, but current
-     * supply is text chrome only; strict evidence keeps the missing button art visible.
+     * supply includes the projected button texture; native hover/animation parity remains pending.
      */
     private static void renderControls(SpriteBatch sb) {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_CONTROLS,
@@ -794,9 +789,12 @@ public final class Sts1SurfaceRenderer {
     /**
      * Energy surface: ART_DELEGATED when FULL_READY. The C2 item was synced in
      * prepareEnergyVisuals and drawn by the global RenderHosts.drawFrame pass; current supply is
-     * text chrome only, so strict evidence keeps the missing orb art visible.
+     * projected orb texture; native animation/layer parity remains pending.
      */
     private static void renderEnergy(SpriteBatch sb) {
+        for (EnergyDrawPath.DrawItem item : EnergyDrawPath.buildFromProjection()) {
+            drawResolvedTexture(sb, item.resourceId, item.bounds);
+        }
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_ENERGY,
                 EnergyDrawPath.buildFromProjection().size());
     }
@@ -804,9 +802,12 @@ public final class Sts1SurfaceRenderer {
     /**
      * Intents surface: ART_DELEGATED when FULL_READY. The C2 items were synced in
      * prepareIntentVisuals and drawn by the global RenderHosts.drawFrame pass; current supply is
-     * projection chrome only, so strict evidence keeps missing base pixels visible.
+     * projected intent textures and amounts; native animation parity remains pending.
      */
     private static void renderIntents(SpriteBatch sb) {
+        for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
+            drawResolvedTexture(sb, item.iconResourceId, item.bounds);
+        }
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS,
                 IntentDrawPath.buildFromProjection().size());
     }

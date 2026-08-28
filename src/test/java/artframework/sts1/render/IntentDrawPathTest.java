@@ -14,6 +14,7 @@ import artframework.context.ShopView;
 import artframework.context.SurfaceIds;
 import artframework.context.TopPanelView;
 import artframework.context.TreasureView;
+import artframework.assets.ResourceIds;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.input.CombatInputRouter;
@@ -119,5 +120,9 @@ public class IntentDrawPathTest {
         List<IntentDrawPath.DrawItem> items = IntentDrawPath.buildFromProjection();
         assertEquals(1, items.size());
         assertEquals(3, items.get(0).multiAmount);
+        assertEquals(3, items.get(0).amount);
+        assertEquals(ResourceIds.intent("attack/attack_intent_1"), items.get(0).iconResourceId);
+        assertEquals("3", items.get(0).text);
+        assertEquals(64f, items.get(0).bounds.width, 0.01f);
     }
 }

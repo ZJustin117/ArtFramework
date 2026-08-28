@@ -3,6 +3,8 @@ package artframework.sts1.render;
 import artframework.api.ArtFramework;
 import artframework.context.SurfaceIds;
 import artframework.sts1.FullPresentMode;
+import artframework.assets.ResourceIds;
+import artframework.component.Rect;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -16,11 +18,19 @@ public final class EnergyDrawPath {
         public final String id;
         public final String label;
         public final int energy;
+        public final String resourceId;
+        public final Rect bounds;
 
         public DrawItem(String id, String label, int energy) {
+            this(id, label, energy, ResourceIds.energyOrbLayer("red", 1), null);
+        }
+
+        public DrawItem(String id, String label, int energy, String resourceId, Rect bounds) {
             this.id = id;
             this.label = label;
             this.energy = energy;
+            this.resourceId = resourceId != null ? resourceId : "";
+            this.bounds = bounds;
         }
 
         public Map<String, Object> toMap() {
@@ -28,6 +38,13 @@ public final class EnergyDrawPath {
             m.put("id", id);
             m.put("label", label);
             m.put("energy", Integer.valueOf(energy));
+            m.put("resourceId", resourceId);
+            if (bounds != null) {
+                m.put("x", Float.valueOf(bounds.x));
+                m.put("y", Float.valueOf(bounds.y));
+                m.put("width", Float.valueOf(bounds.width));
+                m.put("height", Float.valueOf(bounds.height));
+            }
             return m;
         }
     }
@@ -41,7 +58,13 @@ public final class EnergyDrawPath {
     public static List<DrawItem> buildFromProjection() {
         List<DrawItem> out = new ArrayList<DrawItem>();
         int energy = ArtFramework.projection().controls().energy;
-        out.add(new DrawItem("energy_orb", String.valueOf(energy), energy));
+        float sw = com.megacrit.cardcrawl.core.Settings.WIDTH > 0f
+                ? com.megacrit.cardcrawl.core.Settings.WIDTH : 1920f;
+        float sh = com.megacrit.cardcrawl.core.Settings.HEIGHT > 0f
+                ? com.megacrit.cardcrawl.core.Settings.HEIGHT : 1080f;
+        out.add(new DrawItem("energy_orb", String.valueOf(energy), energy,
+                ResourceIds.energyOrbLayer("red", 1),
+                new Rect(sw * 0.06f, sh * 0.11f, sw * 0.13f, 70f)));
         return out;
     }
 

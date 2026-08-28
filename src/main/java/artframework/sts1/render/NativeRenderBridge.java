@@ -74,6 +74,19 @@ public final class NativeRenderBridge {
         recordSurfaceDraw(id.longValue(), drawCount);
     }
 
+    /**
+     * Records surface evidence only when both the surface and invocation token correlate.
+     * Rejected correlation is diagnostic input, not ART output, so it must not consume or
+     * invalidate a pending invocation.
+     */
+    public static void recordSurfaceDraw(String ownerId, long invocationId, int drawCount) {
+        NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
+        if (invocation == null || !sameSurface(ownerId, invocation.ownerId)) {
+            return;
+        }
+        recordSurfaceDraw(invocationId, drawCount);
+    }
+
     /** Preferred API: evidence is correlated by the invocation token returned by beginSurface. */
     public static void recordSurfaceDraw(long invocationId, int drawCount) {
         RenderDisposition disposition = LEDGER.disposition(invocationId);
@@ -94,6 +107,12 @@ public final class NativeRenderBridge {
             if (ids.isEmpty()) SURFACE_INVOCATIONS.remove(ownerId);
             return id;
         }
+    }
+
+    private static boolean sameSurface(String left, String right) {
+        String canonicalLeft = artframework.context.SurfaceIds.canonicalize(left);
+        String canonicalRight = artframework.context.SurfaceIds.canonicalize(right);
+        return canonicalLeft == null ? canonicalRight == null : canonicalLeft.equals(canonicalRight);
     }
 
     private static Long takeSkeletonInvocation(String ownerId) {

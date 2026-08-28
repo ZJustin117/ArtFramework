@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.context.CardRef;
 import artframework.context.CardPose;
 import artframework.context.CardView;
@@ -13,6 +14,7 @@ import artframework.context.MapView;
 import artframework.context.SelectView;
 import artframework.context.SurfaceIds;
 import artframework.ecs.EntityId;
+import artframework.presentation.BoundsComponent;
 import artframework.presentation.DrawComponent;
 import artframework.presentation.NodeIdentityComponent;
 import artframework.presentation.PresentationContext;
@@ -137,11 +139,21 @@ public class SelectDrawPathTest {
         assertEquals("g1", items.get(0).instanceId);
         assertEquals("Strike_R", items.get(0).cardId);
         assertFalse(items.get(0).selected);
+        assertTrue(items.get(0).enabled);
+        assertEquals(ResourceIds.UI_SELECT_CARD, items.get(0).resourceId);
+        assertEquals(ResourceIds.UI_SELECT_CARD_FRAME, items.get(0).frameResourceId);
+        assertEquals(250f, items.get(0).w, 0.001f);
+        assertEquals(350f, items.get(0).h, 0.001f);
         assertEquals(111f, items.get(0).x, 0.001f);
         assertEquals(222f, items.get(0).y, 0.001f);
         assertEquals("g2", items.get(1).instanceId);
         assertTrue("selectedInstanceIds must mark the draw item selected", items.get(1).selected);
+        assertEquals(ResourceIds.UI_SELECT_CARD_SELECTED, items.get(1).resourceId);
         assertTrue("confirm row must be a projected item, not an evidence constant", items.get(2).confirm);
+        assertTrue(items.get(2).enabled);
+        assertEquals(ResourceIds.UI_SELECT_CONFIRM, items.get(2).resourceId);
+        assertEquals(360f, items.get(2).w, 0.001f);
+        assertEquals(48f, items.get(2).h, 0.001f);
     }
 
     @Test
@@ -169,6 +181,29 @@ public class SelectDrawPathTest {
         assertEquals("Bash", items.get(0).cardId);
         assertTrue(items.get(0).selected);
         assertTrue(items.get(1).confirm);
+        assertFalse(items.get(1).enabled);
+        assertEquals(ResourceIds.UI_SELECT_CONFIRM_DISABLED, items.get(1).resourceId);
+    }
+
+    @Test
+    public void disabledSelectCardUsesDisabledFallbackResource() {
+        publishSelectFrame(
+                SelectView.grid(
+                        Collections.singletonList(
+                                CardView.builder(new CardRef("g1", "Strike_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(0)
+                                        .playable(false)
+                                        .build()),
+                        Collections.<String>emptyList(),
+                        false,
+                        false));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+
+        assertFalse(item.enabled);
+        assertEquals(ResourceIds.UI_SELECT_CARD_DISABLED, item.resourceId);
+        assertEquals(ResourceIds.UI_SELECT_CARD_FRAME, item.frameResourceId);
     }
 
     @Test
@@ -198,8 +233,13 @@ public class SelectDrawPathTest {
         Map<String, DrawComponent> first = c2Draws(SurfaceIds.SELECT_GRID);
         assertEquals(3, first.size());
         assertEquals("Strike_R", first.get("card:g1").text);
+        assertEquals(ResourceIds.UI_SELECT_CARD, first.get("card:g1").resourceId);
+        assertEquals(250f, c2Bounds(SurfaceIds.SELECT_GRID).get("card:g1").rect.width, 0.001f);
+        assertEquals(350f, c2Bounds(SurfaceIds.SELECT_GRID).get("card:g1").rect.height, 0.001f);
         assertEquals("Strike_R", first.get("card:g2").text);
+        assertEquals(ResourceIds.UI_SELECT_CARD_SELECTED, first.get("card:g2").resourceId);
         assertEquals("Confirm", first.get("confirm").text);
+        assertEquals(ResourceIds.UI_SELECT_CONFIRM, first.get("confirm").resourceId);
 
         publishSelectFrame(
                 SelectView.grid(
@@ -278,10 +318,44 @@ public class SelectDrawPathTest {
 
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
-        assertEquals(SelectDrawPath.buildFromProjection().size(), evidence.drawCount);
         assertEquals(3, evidence.drawCount);
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
+    public void selectEvidenceDrawCountIgnoresInvisibleProjectedItems() {
+        publishSelectFrame(
+                SelectView.grid(
+                        Arrays.asList(
+                                CardView.builder(new CardRef("g1", "Strike_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(0)
+                                        .pose(new CardPose(100f, 200f, 0f, 1f, 0f, true))
+                                        .build(),
+                                CardView.builder(new CardRef("g2", "Defend_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(1)
+                                        .pose(new CardPose(220f, 200f, 0f, 1f, 0f, false))
+                                        .build()),
+                        Collections.singletonList("g1"),
+                        true,
+                        false));
+        FullPresentMode.setSelectLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.SELECT_GRID).mount();
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.SELECT_GRID,
+                "com.megacrit.cardcrawl.screens.select.GridCardSelectScreen",
+                "render",
+                "grid");
+
+        invokeRenderSelect(SurfaceIds.SELECT_GRID);
+
+        PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
+        assertNotNull(evidence);
+        assertEquals(SelectDrawPath.materializedDrawCount(), evidence.drawCount);
+        assertEquals(1, evidence.drawCount);
     }
 
     private static void invokePrepareSelectVisuals(SurfaceDrawPlan plan) {
@@ -316,6 +390,19 @@ public class SelectDrawPathTest {
             assertTrue("duplicate C2 item id " + identity.key.localId,
                     duplicateGuard.add(identity.key.localId));
             out.put(identity.key.localId, context.world().get(entity, DrawComponent.class));
+        }
+        return out;
+    }
+
+    private static Map<String, BoundsComponent> c2Bounds(String surfaceId) {
+        PresentationContext context = PresentationRegistry.context("c2-surfaces");
+        String scope = "sts1.visual." + surfaceId;
+        Map<String, BoundsComponent> out = new LinkedHashMap<String, BoundsComponent>();
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity != null && scope.equals(identity.key.scope)) {
+                out.put(identity.key.localId, context.world().get(entity, BoundsComponent.class));
+            }
         }
         return out;
     }

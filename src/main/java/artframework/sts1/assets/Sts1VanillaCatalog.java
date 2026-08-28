@@ -65,6 +65,13 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_EVENT_BUTTON_ENABLED, "images/ui/event/enabledButton.png");
         put(m, ResourceIds.UI_EVENT_BUTTON_DISABLED, "images/ui/event/disabledButton.png");
         put(m, ResourceIds.UI_EVENT_PANEL, "images/ui/event/panel.png");
+        put(m, ResourceIds.UI_EVENT_TITLE, "images/ui/event/panel.png");
+        put(m, ResourceIds.UI_SELECT_CARD, "cardui/frame");
+        put(m, ResourceIds.UI_SELECT_CARD_DISABLED, "images/ui/event/disabledButton.png");
+        put(m, ResourceIds.UI_SELECT_CARD_SELECTED, "cardui/frame");
+        put(m, ResourceIds.UI_SELECT_CARD_FRAME, "cardui/frame");
+        put(m, ResourceIds.UI_SELECT_CONFIRM, "images/ui/event/enabledButton.png");
+        put(m, ResourceIds.UI_SELECT_CONFIRM_DISABLED, "images/ui/event/disabledButton.png");
         put(m, ResourceIds.UI_REWARD_PANEL, "images/ui/reward/rewardList.png");
         put(m, ResourceIds.UI_REWARD_CARD, "images/ui/reward/normalCardReward.png");
         put(m, ResourceIds.UI_REWARD_GOLD, "images/ui/topPanel/gold.png");

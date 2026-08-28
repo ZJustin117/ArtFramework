@@ -4,6 +4,7 @@ import artframework.api.ArtFramework;
 import artframework.context.CardView;
 import artframework.context.SelectView;
 import artframework.context.SurfaceIds;
+import artframework.assets.ResourceIds;
 import artframework.sts1.FullPresentMode;
 
 import java.util.ArrayList;
@@ -25,6 +26,11 @@ public final class SelectDrawPath {
         public final float x;
         public final float y;
         public final boolean confirm;
+        public final boolean enabled;
+        public final float w;
+        public final float h;
+        public final String resourceId;
+        public final String frameResourceId;
 
         public DrawItem(
                 String instanceId,
@@ -35,6 +41,14 @@ public final class SelectDrawPath {
                 float x,
                 float y,
                 boolean confirm) {
+            this(instanceId, cardId, slot, selected, visible, true, x, y,
+                    confirm, confirm ? ResourceIds.UI_SELECT_CONFIRM : ResourceIds.UI_SELECT_CARD,
+                    confirm ? "" : ResourceIds.UI_SELECT_CARD_FRAME, 250f, 350f);
+        }
+
+        public DrawItem(String instanceId, String cardId, int slot, boolean selected,
+                boolean visible, boolean enabled, float x, float y, boolean confirm,
+                String resourceId, String frameResourceId, float w, float h) {
             this.instanceId = instanceId != null ? instanceId : "";
             this.cardId = cardId != null ? cardId : "";
             this.slot = slot;
@@ -43,6 +57,11 @@ public final class SelectDrawPath {
             this.x = x;
             this.y = y;
             this.confirm = confirm;
+            this.enabled = enabled;
+            this.w = w;
+            this.h = h;
+            this.resourceId = resourceId != null ? resourceId : "";
+            this.frameResourceId = frameResourceId != null ? frameResourceId : "";
         }
 
         public Map<String, Object> toMap() {
@@ -55,6 +74,11 @@ public final class SelectDrawPath {
             m.put("x", Float.valueOf(x));
             m.put("y", Float.valueOf(y));
             m.put("confirm", Boolean.valueOf(confirm));
+            m.put("enabled", Boolean.valueOf(enabled));
+            m.put("w", Float.valueOf(w));
+            m.put("h", Float.valueOf(h));
+            m.put("resourceId", resourceId);
+            m.put("frameResourceId", frameResourceId);
             return m;
         }
     }
@@ -90,9 +114,14 @@ public final class SelectDrawPath {
                             c.slotIndex,
                             selected,
                             c.pose == null || c.pose.visible,
+                            c.playable,
                             x,
                             y,
-                            false));
+                            false,
+                            cardResource(selected, c.playable),
+                            knownOrFallback(c.frameResourceId, ResourceIds.UI_SELECT_CARD_FRAME),
+                            250f,
+                            350f));
             i++;
         }
         if (sv.confirmVisible || sv.confirmEnabled) {
@@ -103,9 +132,13 @@ public final class SelectDrawPath {
                             -1,
                             false,
                             sv.confirmVisible,
+                            sv.confirmEnabled,
                             defaultConfirmX(),
                             defaultConfirmY(),
-                            true));
+                            true,
+                            sv.confirmEnabled ? ResourceIds.UI_SELECT_CONFIRM
+                                    : ResourceIds.UI_SELECT_CONFIRM_DISABLED,
+                            "", 360f, 48f));
         }
         return out;
     }
@@ -114,7 +147,7 @@ public final class SelectDrawPath {
         List<DrawItem> items = buildFromProjection();
         SelectView sv = ArtFramework.projection().select();
         Map<String, Object> m = new LinkedHashMap<String, Object>();
-        m.put("count", Integer.valueOf(items.size()));
+        m.put("count", Integer.valueOf(visibleCount(items)));
         m.put("kind", sv.kind);
         m.put("available", Boolean.valueOf(sv.available));
         m.put("poolCount", Integer.valueOf(sv.poolCount()));
@@ -129,6 +162,25 @@ public final class SelectDrawPath {
         }
         m.put("items", list);
         return m;
+    }
+
+    public static int materializedDrawCount() { return visibleCount(buildFromProjection()); }
+
+    private static int visibleCount(List<DrawItem> items) {
+        int count = 0;
+        for (DrawItem item : items) if (item.visible) count++;
+        return count;
+    }
+
+    private static String knownOrFallback(String resourceId, String fallback) {
+        return resourceId != null && !resourceId.isEmpty()
+                && artframework.sts1.assets.Sts1VanillaCatalog.isKnown(resourceId)
+                ? resourceId : fallback;
+    }
+
+    private static String cardResource(boolean selected, boolean enabled) {
+        if (!enabled) return ResourceIds.UI_SELECT_CARD_DISABLED;
+        return selected ? ResourceIds.UI_SELECT_CARD_SELECTED : ResourceIds.UI_SELECT_CARD;
     }
 
     private static float defaultCardX(int index, int total) {

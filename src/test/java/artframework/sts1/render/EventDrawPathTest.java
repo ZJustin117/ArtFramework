@@ -11,6 +11,7 @@ import artframework.context.MapView;
 import artframework.context.SelectView;
 import artframework.context.SurfaceIds;
 import artframework.ecs.EntityId;
+import artframework.presentation.BoundsComponent;
 import artframework.presentation.DrawComponent;
 import artframework.presentation.NodeIdentityComponent;
 import artframework.presentation.PresentationContext;
@@ -73,9 +74,9 @@ public class EventDrawPathTest {
     @Test
     public void buildFromProjectionListsOptions() {
         publishEventFrame();
-        assertEquals(2, EventDrawPath.buildFromProjection().size());
+        assertEquals(4, EventDrawPath.buildFromProjection().size());
         Map<String, Object> probe = EventDrawPath.probeSlice();
-        assertEquals(Integer.valueOf(2), probe.get("count"));
+        assertEquals(Integer.valueOf(4), probe.get("count"));
         assertEquals("Neow", probe.get("title"));
         assertEquals(Boolean.FALSE, probe.get("suppressNativeEvent"));
     }
@@ -113,17 +114,23 @@ public class EventDrawPathTest {
         assertEquals("Golden Idol", probe.get("title"));
         assertEquals(Boolean.TRUE, probe.get("available"));
         assertEquals(Integer.valueOf(items.size()), probe.get("count"));
-        assertEquals(2, items.size());
-        assertEquals(0, items.get(0).index);
-        assertEquals("Take", items.get(0).label);
-        assertTrue(items.get(0).enabled);
-        assertEquals(111f, items.get(0).x, 0.001f);
-        assertEquals(222f, items.get(0).y, 0.001f);
-        assertEquals(333f, items.get(0).w, 0.001f);
-        assertEquals(44f, items.get(0).h, 0.001f);
-        assertEquals(1, items.get(1).index);
-        assertEquals("Leave", items.get(1).label);
-        assertFalse("disabled event option state must be exposed to C2", items.get(1).enabled);
+        assertEquals(4, items.size());
+        assertEquals("panel", items.get(0).id);
+        assertEquals(ResourceIds.UI_EVENT_PANEL, items.get(0).resourceId);
+        assertEquals("title", items.get(1).id);
+        assertEquals(ResourceIds.UI_EVENT_TITLE, items.get(1).resourceId);
+        assertEquals(0, items.get(2).index);
+        assertEquals("Take", items.get(2).label);
+        assertTrue(items.get(2).enabled);
+        assertEquals(ResourceIds.UI_EVENT_BUTTON_ENABLED, items.get(2).resourceId);
+        assertEquals(111f, items.get(2).x, 0.001f);
+        assertEquals(222f, items.get(2).y, 0.001f);
+        assertEquals(333f, items.get(2).w, 0.001f);
+        assertEquals(44f, items.get(2).h, 0.001f);
+        assertEquals(1, items.get(3).index);
+        assertEquals("Leave", items.get(3).label);
+        assertEquals(ResourceIds.UI_EVENT_BUTTON_DISABLED, items.get(3).resourceId);
+        assertFalse("disabled event option state must be exposed to C2", items.get(3).enabled);
     }
 
     @Test
@@ -139,9 +146,14 @@ public class EventDrawPathTest {
         invokePrepareEventVisuals(Sts1RenderPipeline.plan());
 
         Map<String, DrawComponent> first = c2Draws(SurfaceIds.EVENT);
-        assertEquals(2, first.size());
+        assertEquals(4, first.size());
+        assertEquals(ResourceIds.UI_EVENT_PANEL, first.get("panel").resourceId);
+        assertEquals("Golden Idol", first.get("title").text);
+        assertEquals(ResourceIds.UI_EVENT_TITLE, first.get("title").resourceId);
         assertEquals("Take", first.get("option:0").text);
         assertEquals(ResourceIds.UI_EVENT_BUTTON_ENABLED, first.get("option:0").resourceId);
+        assertEquals(300f, c2Bounds(SurfaceIds.EVENT).get("option:0").rect.width, 0.001f);
+        assertEquals(40f, c2Bounds(SurfaceIds.EVENT).get("option:0").rect.height, 0.001f);
         assertEquals("Leave", first.get("option:1").text);
         assertEquals(ResourceIds.UI_EVENT_BUTTON_DISABLED, first.get("option:1").resourceId);
 
@@ -151,8 +163,10 @@ public class EventDrawPathTest {
         invokePrepareEventVisuals(Sts1RenderPipeline.plan());
 
         Map<String, DrawComponent> retained = c2Draws(SurfaceIds.EVENT);
-        assertEquals("stale option:0 item must be removed when projection shrinks", 1, retained.size());
+        assertEquals("stale option:0 item must be removed when projection shrinks", 3, retained.size());
         assertFalse(retained.containsKey("option:0"));
+        assertTrue(retained.containsKey("panel"));
+        assertTrue(retained.containsKey("title"));
         assertEquals("Leave", retained.get("option:1").text);
     }
 
@@ -174,10 +188,29 @@ public class EventDrawPathTest {
 
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
-        assertEquals(EventDrawPath.buildFromProjection().size(), evidence.drawCount);
-        assertEquals(3, evidence.drawCount);
+        assertEquals(5, evidence.drawCount);
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
+    public void eventEvidenceDrawCountIgnoresInvisibleProjectedItems() {
+        publishEventFrame(
+                "Neow",
+                EventOptionView.of(0, "Talk", true),
+                new EventOptionView(1, "Hidden", true, false, 100f, 100f, 300f, 40f));
+        FullPresentMode.setEventLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.EVENT).mount();
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.EVENT, "com.megacrit.cardcrawl.events.GenericEventDialog", "render", "event");
+
+        invokeRenderEvent();
+
+        PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
+        assertNotNull(evidence);
+        assertEquals(EventDrawPath.materializedDrawCount(), evidence.drawCount);
+        assertEquals(3, evidence.drawCount);
     }
 
     private static void invokePrepareEventVisuals(SurfaceDrawPlan plan) {
@@ -211,6 +244,19 @@ public class EventDrawPathTest {
             assertTrue("duplicate C2 item id " + identity.key.localId,
                     duplicateGuard.add(identity.key.localId));
             out.put(identity.key.localId, context.world().get(entity, DrawComponent.class));
+        }
+        return out;
+    }
+
+    private static Map<String, BoundsComponent> c2Bounds(String surfaceId) {
+        PresentationContext context = PresentationRegistry.context("c2-surfaces");
+        String scope = "sts1.visual." + surfaceId;
+        Map<String, BoundsComponent> out = new LinkedHashMap<String, BoundsComponent>();
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity != null && scope.equals(identity.key.scope)) {
+                out.put(identity.key.localId, context.world().get(entity, BoundsComponent.class));
+            }
         }
         return out;
     }

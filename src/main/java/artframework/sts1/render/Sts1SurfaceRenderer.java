@@ -241,17 +241,13 @@ public final class Sts1SurfaceRenderer {
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
             if (!item.visible) continue;
-            String itemId = "option:" + item.index;
             artframework.presentation.PresentationVisuals.syncC2Item(
-                    SurfaceIds.EVENT, itemId,
+                    SurfaceIds.EVENT, item.id,
                     new artframework.component.Rect(item.x - item.w / 2f,
                             item.y - item.h / 2f, item.w, item.h), 1f,
-                    "event-option",
-                    item.enabled
-                            ? artframework.assets.ResourceIds.UI_EVENT_BUTTON_ENABLED
-                            : artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED,
+                    item.role, item.resourceId,
                     item.label, item.visible);
-            visibleItems.add(itemId);
+            visibleItems.add(item.id);
         }
         artframework.presentation.PresentationVisuals.retainC2Items(SurfaceIds.EVENT, visibleItems);
     }
@@ -274,8 +270,9 @@ public final class Sts1SurfaceRenderer {
                 String itemId = item.confirm ? "confirm" : "card:" + item.instanceId;
                 artframework.presentation.PresentationVisuals.syncC2Item(
                         entry.surfaceId, itemId,
-                        new artframework.component.Rect(item.x - 48f, item.y - 32f, 96f, 64f), 1f,
-                        item.confirm ? "select-confirm" : "select-card", "", item.cardId,
+                        new artframework.component.Rect(item.x - item.w / 2f, item.y - item.h / 2f,
+                                item.w, item.h), 1f,
+                        item.confirm ? "select-confirm" : "select-card", item.resourceId, item.cardId,
                         item.visible);
                 visibleItems.add(itemId);
             }
@@ -564,7 +561,22 @@ public final class Sts1SurfaceRenderer {
      * supply gap.
      */
     private static void renderEvent(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT, EventDrawPath.buildFromProjection().size());
+        int drawn = 0;
+        try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.EVENT);
+            for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
+                if (!item.visible) continue;
+                artframework.component.Rect b = new artframework.component.Rect(
+                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
+                drawResolvedTexture(sb, item.resourceId, b);
+                if (!item.label.isEmpty()) com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont, item.label,
+                        item.x, item.y, item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                drawn++;
+            }
+        } catch (Throwable ignored) { }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT, EventDrawPath.materializedDrawCount());
     }
 
     /**
@@ -573,7 +585,26 @@ public final class Sts1SurfaceRenderer {
      * parity remains an exposed supply gap.
      */
     private static void renderSelect(SpriteBatch sb, String surfaceId) {
-        NativeRenderBridge.recordSurfaceDraw(surfaceId, SelectDrawPath.buildFromProjection().size());
+        int drawn = 0;
+        try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(surfaceId);
+            for (SelectDrawPath.DrawItem item : SelectDrawPath.buildFromProjection()) {
+                if (!item.visible) continue;
+                artframework.component.Rect b = new artframework.component.Rect(
+                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
+                drawResolvedTexture(sb, item.resourceId, b);
+                if (!item.confirm && !item.cardId.isEmpty()) {
+                    drawResolvedTexture(sb, item.frameResourceId, b);
+                }
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                        sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        item.confirm ? "Confirm" : item.cardId, item.x, item.y,
+                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                drawn++;
+            }
+        } catch (Throwable ignored) { }
+        NativeRenderBridge.recordSurfaceDraw(surfaceId, SelectDrawPath.materializedDrawCount());
     }
 
     /**

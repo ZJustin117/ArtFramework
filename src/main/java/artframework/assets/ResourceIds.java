@@ -34,6 +34,13 @@ public final class ResourceIds {
     public static final String UI_EVENT_BUTTON_ENABLED = "ui.event.button.enabled";
     public static final String UI_EVENT_BUTTON_DISABLED = "ui.event.button.disabled";
     public static final String UI_EVENT_PANEL = "ui.event.panel";
+    public static final String UI_EVENT_TITLE = "ui.event.title";
+    public static final String UI_SELECT_CARD = "ui.select.card";
+    public static final String UI_SELECT_CARD_DISABLED = "ui.select.card.disabled";
+    public static final String UI_SELECT_CARD_SELECTED = "ui.select.card.selected";
+    public static final String UI_SELECT_CARD_FRAME = "ui.select.card.frame";
+    public static final String UI_SELECT_CONFIRM = "ui.select.confirm";
+    public static final String UI_SELECT_CONFIRM_DISABLED = "ui.select.confirm.disabled";
     public static final String UI_REWARD_PANEL = "ui.reward.panel";
     public static final String UI_REWARD_CARD = "ui.reward.card";
     public static final String UI_REWARD_GOLD = "ui.reward.gold";
@@ -133,6 +140,16 @@ public final class ResourceIds {
             UI_BUTTON_END_TURN_HOVER,
             UI_PANEL_DEFAULT,
             UI_WINDOW_DEFAULT,
+            UI_EVENT_PANEL,
+            UI_EVENT_TITLE,
+            UI_EVENT_BUTTON_ENABLED,
+            UI_EVENT_BUTTON_DISABLED,
+            UI_SELECT_CARD,
+            UI_SELECT_CARD_DISABLED,
+            UI_SELECT_CARD_SELECTED,
+            UI_SELECT_CARD_FRAME,
+            UI_SELECT_CONFIRM,
+            UI_SELECT_CONFIRM_DISABLED,
             UI_BUTTON_PROCEED_ENABLED,
             UI_BUTTON_PROCEED_DISABLED,
             UI_BUTTON_CANCEL_ENABLED,

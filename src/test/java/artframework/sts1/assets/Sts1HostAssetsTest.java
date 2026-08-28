@@ -39,6 +39,16 @@ public class Sts1HostAssetsTest {
         assertTrue(cat.containsKey(ResourceIds.UI_REWARD_RELIC));
         assertTrue(cat.containsKey(ResourceIds.UI_REWARD_BOSS_RELIC));
         assertTrue(cat.containsKey(ResourceIds.UI_REWARD_DISABLED));
+        assertTrue(cat.containsKey(ResourceIds.UI_EVENT_PANEL));
+        assertTrue(cat.containsKey(ResourceIds.UI_EVENT_TITLE));
+        assertTrue(cat.containsKey(ResourceIds.UI_EVENT_BUTTON_ENABLED));
+        assertTrue(cat.containsKey(ResourceIds.UI_EVENT_BUTTON_DISABLED));
+        assertTrue(cat.containsKey(ResourceIds.UI_SELECT_CARD));
+        assertTrue(cat.containsKey(ResourceIds.UI_SELECT_CARD_DISABLED));
+        assertTrue(cat.containsKey(ResourceIds.UI_SELECT_CARD_SELECTED));
+        assertTrue(cat.containsKey(ResourceIds.UI_SELECT_CARD_FRAME));
+        assertTrue(cat.containsKey(ResourceIds.UI_SELECT_CONFIRM));
+        assertTrue(cat.containsKey(ResourceIds.UI_SELECT_CONFIRM_DISABLED));
         assertTrue(cat.containsKey(ResourceIds.UI_SHOP_MERCHANT));
         assertTrue(cat.containsKey(ResourceIds.UI_SHOP_GOLD));
         assertTrue(cat.containsKey(ResourceIds.UI_SHOP_ENTRY_PANEL));

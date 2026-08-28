@@ -57,9 +57,18 @@ public class RestDrawPathTest {
     @Test
     public void buildFromProjectionListsOptions() {
         publishRestFrame();
-        assertEquals(2, RestDrawPath.buildFromProjection().size());
+        java.util.List<RestDrawPath.DrawItem> items = RestDrawPath.buildFromProjection();
+        assertEquals(2, items.size());
+        assertEquals("rest", items.get(0).id);
+        assertEquals("Rest", items.get(0).label);
+        assertTrue(items.get(0).visible);
+        assertTrue(items.get(0).enabled);
+        assertEquals("smith", items.get(1).id);
+        assertEquals("Smith", items.get(1).label);
         Map<String, Object> probe = RestDrawPath.probeSlice();
         assertEquals(Integer.valueOf(2), probe.get("count"));
+        assertEquals("drawCount must come from live projected options, not a constant",
+                probe.get("count"), probe.get("drawCount"));
         assertEquals(Boolean.FALSE, probe.get("suppressNativeRest"));
     }
 

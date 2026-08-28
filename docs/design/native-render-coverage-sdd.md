@@ -96,7 +96,7 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Map screen | `DungeonMapScreen.render` | yes | ART_DELEGATED with exposed gap: HostAssets node draw path; full native parity pending |
 | Event dialog | `GenericEventDialog.render` | yes | ART_DELEGATED with exposed gap: base pixels not reproduced |
 | Select screens | `GridCardSelectScreen.render`, `HandCardSelectScreen.render` | yes | ART_DELEGATED with exposed gap: base pixels not reproduced |
-| Reward screen | `CombatRewardScreen.render` | yes | ART_DELEGATED with exposed gap: reward item sync missing |
+| Reward screen | `CombatRewardScreen.render` | yes | ART_DELEGATED with exposed gap: minimal projected reward item chrome; base reward pixels not fully reproduced |
 | Rest room | `CampfireUI.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (campfire title + live option rows projected from `CampfireUI` buttons); campfire art not reproduced |
 | Shop screen | `ShopScreen.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (merchant/gold/entries/purge from `ShopView`); entry prices still placeholder until G4 full projection |
 | Treasure room | `TreasureRoom.render` | yes | ART_DELEGATED with exposed gap: minimal text chrome (chest state + relic label projected from the live `TreasureRoom` chest); chest art not reproduced |

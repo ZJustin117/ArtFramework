@@ -18,6 +18,7 @@ public final class RewardDrawPath {
         public final int index;
         public final String kind;
         public final String label;
+        public final String resourceId;
         public final boolean visible;
         public final boolean enabled;
         public final float x;
@@ -29,6 +30,7 @@ public final class RewardDrawPath {
                 int index,
                 String kind,
                 String label,
+                String resourceId,
                 boolean visible,
                 boolean enabled,
                 float x,
@@ -38,6 +40,7 @@ public final class RewardDrawPath {
             this.index = index;
             this.kind = kind != null ? kind : "";
             this.label = label != null ? label : "";
+            this.resourceId = resourceId != null ? resourceId : "";
             this.visible = visible;
             this.enabled = enabled;
             this.x = x;
@@ -51,6 +54,7 @@ public final class RewardDrawPath {
             m.put("index", Integer.valueOf(index));
             m.put("kind", kind);
             m.put("label", label);
+            m.put("resourceId", resourceId);
             m.put("visible", Boolean.valueOf(visible));
             m.put("enabled", Boolean.valueOf(enabled));
             m.put("x", Float.valueOf(x));
@@ -80,7 +84,8 @@ public final class RewardDrawPath {
             float h = item.h > 0f ? item.h : 48f;
             out.add(
                     new DrawItem(
-                            item.index, item.kind, item.label, item.visible, item.enabled, x, y, w, h));
+                            item.index, item.kind, item.label, item.resourceId,
+                            item.visible, item.enabled, x, y, w, h));
             i++;
         }
         return out;

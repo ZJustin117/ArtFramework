@@ -285,8 +285,8 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareRewardVisuals(SurfaceDrawPlan plan) {
-        // Reward screen is ART_DELEGATED when FULL_READY; reward item sync remains incomplete, so
-        // keep C2 input items synced and expose the missing supply through strict evidence gaps.
+        // Reward screen is ART_DELEGATED when FULL_READY; this is minimal projected item chrome,
+        // not complete native reward parity, so strict evidence keeps missing base pixels visible.
         boolean hasReward = containsSurface(plan, SurfaceIds.REWARD_COMBAT)
                 || containsSurface(plan, SurfaceIds.REWARD_CARD)
                 || containsSurface(plan, SurfaceIds.REWARD_BOSS_RELIC);
@@ -307,7 +307,10 @@ public final class Sts1SurfaceRenderer {
                         entry.surfaceId, itemId,
                         new artframework.component.Rect(item.x - item.w / 2f,
                                 item.y - item.h / 2f, item.w, item.h), 1f,
-                        "reward-item", artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL,
+                        "reward-item",
+                        item.resourceId.isEmpty()
+                                ? artframework.assets.ResourceIds.UI_REWARD_ITEM_PANEL
+                                : item.resourceId,
                         item.label, item.visible);
                 visibleItems.add(itemId);
             }
@@ -345,7 +348,10 @@ public final class Sts1SurfaceRenderer {
      * minimal text chrome, not complete campfire pixel parity.
      */
     static void prepareRestVisuals(SurfaceDrawPlan plan) {
-        if (!containsSurface(plan, SurfaceIds.REST)) return;
+        if (!containsSurface(plan, SurfaceIds.REST)) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.REST);
+            return;
+        }
         if (!RestDrawPath.shouldSuppressNativeRest()) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.REST);
             return;
@@ -370,7 +376,10 @@ public final class Sts1SurfaceRenderer {
 
     /** Slice C phase 2: treasure chrome rows (title + chest/relic state) from TreasureView. */
     static void prepareTreasureVisuals(SurfaceDrawPlan plan) {
-        if (!containsSurface(plan, SurfaceIds.TREASURE)) return;
+        if (!containsSurface(plan, SurfaceIds.TREASURE)) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TREASURE);
+            return;
+        }
         if (!TreasureDrawPath.shouldSuppressNativeTreasure()) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TREASURE);
             return;
@@ -571,7 +580,7 @@ public final class Sts1SurfaceRenderer {
 
     /**
      * Reward surface: ART_DELEGATED when FULL_READY. The C2 items were synced in
-     * prepareRewardVisuals and are drawn by the global RenderHosts.drawFrame pass; reward-item
+     * prepareRewardVisuals and are drawn by the global RenderHosts.drawFrame pass; reward chrome
      * supply remains incomplete and visible in strict evidence.
      */
     private static void renderReward(SpriteBatch sb, String surfaceId) {

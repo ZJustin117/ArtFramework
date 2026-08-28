@@ -146,6 +146,15 @@ public class RoomRenderPatchesTest {
     }
 
     @Test
+    public void roomSurfaceSuppressionRequiresFullMountedMatchingSceneAndExecutorReady() {
+        assertSurfaceGate(SurfaceIds.REWARD_COMBAT, "reward");
+        assertSurfaceGate(SurfaceIds.REWARD_CARD, "reward");
+        assertSurfaceGate(SurfaceIds.REWARD_BOSS_RELIC, "reward");
+        assertSurfaceGate(SurfaceIds.REST, "rest");
+        assertSurfaceGate(SurfaceIds.TREASURE, "treasure");
+    }
+
+    @Test
     public void fullReadySuppressesNativeTreasureRender() {
         publishTreasureFrame();
         FullPresentMode.setTreasureLevel(PresentLevel.FULL);
@@ -239,5 +248,107 @@ public class RoomRenderPatchesTest {
                         TopPanelView.empty(), MonsterIntentView.empty(), null));
         ArtFramework.publishFrame(backend.currentFrame());
         ArtFramework.component(SurfaceIds.TREASURE).mount();
+    }
+
+    private void assertSurfaceGate(String surfaceId, String scene) {
+        resetRoomState();
+        publishFrame(scene);
+        FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(surfaceId).mount();
+        RenderDisposition suppress = NativeRenderBridge.beginSurface(surfaceId,
+                "native." + surfaceId, "render", "ready");
+        assertEquals(surfaceId + " FULL + mounted + matching scene + ready executor suppresses",
+                RenderDisposition.Mode.DELEGATE_TO_ART, suppress.mode);
+        assertFalse(suppress.nativeContinuation);
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("delegateToArt"));
+
+        resetRoomState();
+        publishFrame(scene);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(surfaceId).mount();
+        RenderDisposition off = NativeRenderBridge.beginSurface(surfaceId,
+                "native." + surfaceId, "render", "off");
+        assertTrue(surfaceId + " OFF continues native", off.nativeContinuation);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("delegateToArt"));
+
+        resetRoomState();
+        publishFrame(scene);
+        FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
+        ArtFramework.component(surfaceId).mount();
+        RenderDisposition executorless = NativeRenderBridge.beginSurface(surfaceId,
+                "native." + surfaceId, "render", "executorless");
+        assertTrue(surfaceId + " executor-less FULL continues native", executorless.nativeContinuation);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("delegateToArt"));
+
+        resetRoomState();
+        publishFrame(scene);
+        FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        RenderDisposition unmounted = NativeRenderBridge.beginSurface(surfaceId,
+                "native." + surfaceId, "render", "unmounted");
+        assertTrue(surfaceId + " unmounted FULL continues native", unmounted.nativeContinuation);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("delegateToArt"));
+
+        resetRoomState();
+        publishFrame("combat");
+        FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(surfaceId).mount();
+        RenderDisposition mismatch = NativeRenderBridge.beginSurface(surfaceId,
+                "native." + surfaceId, "render", "scene-mismatch");
+        assertTrue(surfaceId + " scene mismatch continues native", mismatch.nativeContinuation);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("delegateToArt"));
+
+        resetRoomState();
+        publishFrame(scene);
+        FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(surfaceId).mount();
+        PresentSafety.panic("room-gate-test");
+        RenderDisposition panic = NativeRenderBridge.beginSurface(surfaceId,
+                "native." + surfaceId, "render", "panic");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, panic.mode);
+        assertTrue(surfaceId + " panic fail-opens to native", panic.nativeContinuation);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("delegateToArt"));
+
+        resetRoomState();
+        publishFrame(scene);
+        FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(surfaceId).mount();
+        RenderDisposition unknown = NativeRenderBridge.beginSurface(surfaceId + ".unknown",
+                "native.Unknown", "render", "unknown-owner");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, unknown.mode);
+        assertTrue(surfaceId + " unknown owner fail-opens to native", unknown.nativeContinuation);
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.strictReport().get("runtimeUNKNOWN"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("delegateToArt"));
+    }
+
+    private void resetRoomState() {
+        ArtFramework.resetForTests();
+        Sts1RenderPipeline.resetForTests();
+        FullPresentMode.resetForTests();
+        CombatInputRouter.resetForTests();
+        PresentSafety.resetForTests();
+    }
+
+    private void publishFrame(String scene) {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        RewardView reward = "reward".equals(scene)
+                ? RewardView.of("combat", "Rewards", Arrays.asList(RewardItemView.of(0, "gold", "30 Gold")))
+                : RewardView.empty();
+        RestView rest = "rest".equals(scene)
+                ? RestView.of(Collections.singletonList(RestView.RestOptionView.of("rest", "Rest")))
+                : RestView.empty();
+        TreasureView treasure = "treasure".equals(scene) ? TreasureView.closed() : TreasureView.empty();
+        backend.publish(
+                ContextFrame.ofFull(
+                        1L, 1L, scene, null, ControlsView.empty(), MapView.empty(),
+                        EventView.empty(), SelectView.empty(), reward, rest,
+                        treasure, ShopView.empty(), TopPanelView.empty(),
+                        MonsterIntentView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
     }
 }

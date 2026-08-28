@@ -19,6 +19,7 @@ import artframework.presentation.DrawComponent;
 import artframework.presentation.NodeIdentityComponent;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationRegistry;
+import artframework.presentation.BoundsComponent;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.input.CombatInputRouter;
@@ -174,6 +175,25 @@ public class RoomChromeRenderTest {
         Sts1SurfaceRenderer.prepareRestVisuals(plan);
 
         assertC2ItemsMatch(SurfaceIds.REST, RestDrawPath.chromeLines());
+        assertC2Item(SurfaceIds.REST, "title", "rest-title", "", "Campfire", 0);
+        assertC2Item(SurfaceIds.REST, "option:smith", "rest-option",
+                artframework.assets.ResourceIds.UI_EVENT_BUTTON_DISABLED, "Smith", 2);
+    }
+
+    @Test
+    public void prepareRestVisualsClearsStaleC2ItemsWhenNotFullReady() {
+        publishFrame("rest",
+                RestView.of(java.util.Collections.singletonList(
+                        new RestView.RestOptionView("rest", "Rest", true, true))),
+                TreasureView.empty(), ShopView.empty());
+        fullReady(SurfaceIds.REST);
+        Sts1SurfaceRenderer.prepareRestVisuals(Sts1RenderPipeline.plan());
+        assertC2ItemsMatch(SurfaceIds.REST, RestDrawPath.chromeLines());
+
+        CombatInputRouter.resetForTests();
+        Sts1SurfaceRenderer.prepareRestVisuals(Sts1RenderPipeline.plan());
+
+        assertC2ItemsMatch(SurfaceIds.REST, java.util.Collections.<RoomChromeLine>emptyList());
     }
 
     @Test
@@ -218,13 +238,28 @@ public class RoomChromeRenderTest {
         Sts1SurfaceRenderer.prepareTreasureVisuals(plan);
 
         assertC2ItemsMatch(SurfaceIds.TREASURE, TreasureDrawPath.chromeLines());
+        assertC2Item(SurfaceIds.TREASURE, "chest", "treasure-item", "", "Chest closed", 1);
+    }
+
+    @Test
+    public void prepareTreasureVisualsClearsStaleC2ItemsWhenNotFullReady() {
+        publishFrame("treasure", RestView.empty(), TreasureView.closed(), ShopView.empty());
+        fullReady(SurfaceIds.TREASURE);
+        Sts1SurfaceRenderer.prepareTreasureVisuals(Sts1RenderPipeline.plan());
+        assertC2ItemsMatch(SurfaceIds.TREASURE, TreasureDrawPath.chromeLines());
+
+        CombatInputRouter.resetForTests();
+        Sts1SurfaceRenderer.prepareTreasureVisuals(Sts1RenderPipeline.plan());
+
+        assertC2ItemsMatch(SurfaceIds.TREASURE, java.util.Collections.<RoomChromeLine>emptyList());
     }
 
     @Test
     public void restEvidenceRecordsRealRowCount() {
         publishFrame("rest",
-                RestView.of(java.util.Collections.singletonList(
-                        new RestView.RestOptionView("rest", "Rest", true, true))),
+                RestView.of(Arrays.asList(
+                        new RestView.RestOptionView("rest", "Rest", true, true),
+                        new RestView.RestOptionView("smith", "Smith", false, true))),
                 TreasureView.empty(), ShopView.empty());
         fullReady(SurfaceIds.REST);
 
@@ -239,6 +274,8 @@ public class RoomChromeRenderTest {
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
         assertEquals(rows, evidence.drawCount);
+        assertEquals("rest evidence must carry title + live options row count",
+                3, evidence.drawCount);
         assertEquals(Integer.valueOf(0),
                 NativeRenderBridge.strictReport().get("orphanArtOutput"));
     }
@@ -287,8 +324,28 @@ public class RoomChromeRenderTest {
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
         assertEquals(rows, evidence.drawCount);
+        assertEquals("treasure evidence must carry current chrome row count",
+                TreasureDrawPath.chromeLines().size(), evidence.drawCount);
         assertEquals(Integer.valueOf(0),
                 NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
+    public void treasureEvidenceDropsToZeroWhenProjectionUnavailable() {
+        publishFrame("treasure", RestView.empty(), TreasureView.empty(), ShopView.empty());
+        fullReady(SurfaceIds.TREASURE);
+
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.TREASURE, "com.megacrit.cardcrawl.rooms.TreasureRoom", "render", "test");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+
+        int rows = TreasureDrawPath.chromeLines().size();
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TREASURE, rows);
+
+        PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
+        assertNotNull(evidence);
+        assertEquals("draw count must be projection-derived, not hard-coded to the normal two rows",
+                0, evidence.drawCount);
     }
 
     private static void assertC2ItemsMatch(String surfaceId, List<RoomChromeLine> lines) {
@@ -309,5 +366,32 @@ public class RoomChromeRenderTest {
             assertTrue("missing C2 item " + line.id + " for " + surfaceId, ids.contains(line.id));
             assertEquals(line.text, texts.get(line.id));
         }
+    }
+
+    private static void assertC2Item(String surfaceId, String localId, String role,
+            String resourceId, String text, int rowIndex) {
+        PresentationContext context = PresentationRegistry.context("c2-surfaces");
+        String scope = "sts1.visual." + surfaceId;
+        EntityId found = null;
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity != null && scope.equals(identity.key.scope)
+                    && localId.equals(identity.key.localId)) {
+                found = entity;
+                break;
+            }
+        }
+        assertNotNull("missing C2 item " + localId + " for " + surfaceId, found);
+        DrawComponent draw = context.world().get(found, DrawComponent.class);
+        assertEquals(role, draw.role);
+        assertEquals(resourceId, draw.resourceId);
+        assertEquals(text, draw.text);
+        BoundsComponent bounds = context.world().get(found, BoundsComponent.class);
+        float expectedX = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f - 180f;
+        float expectedY = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f - rowIndex * 40f - 20f;
+        assertEquals(expectedX, bounds.rect.x, 0.01f);
+        assertEquals(expectedY, bounds.rect.y, 0.01f);
+        assertEquals(360f, bounds.rect.width, 0.01f);
+        assertEquals(40f, bounds.rect.height, 0.01f);
     }
 }

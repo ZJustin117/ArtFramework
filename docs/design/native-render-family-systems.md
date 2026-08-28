@@ -11,9 +11,10 @@ disposition rule defined there.
 
 ## 1. Purpose and scope
 
-The classification object is the set of **488 `(class, method)` native render paths** produced
+The classification object is the set of **544 descriptor-aware native render paths** produced
 by [`tools/nrcc/scan_sts_render.py`](../../tools/nrcc/scan_sts_render.py) from the STS1 jar
-(report schema `nrcc.static-scan.v3`). Every scanned path row carries a `family` field.
+(report schema `nrcc.static-scan.v4`). Every scanned path row carries a `family` field plus
+`nativeDescriptor` / `nativeMethodDescriptor` so byte-code overloads stay distinct.
 
 Family assignment is decided exclusively by the ordered rule table in
 [`tools/nrcc/families.py`](../../tools/nrcc/families.py):
@@ -47,8 +48,7 @@ without a policy decision:
   fullscreens): future delegation candidates whose native authority stays in
   place until individually triaged;
 - `OUT_OF_SCOPE` for `meta-outofrun-screens`;
-- `UNKNOWN` only for the zero-path `overlay-targeting` placeholder so Slice D
-  paths fail the strict gate loudly instead of silently counting as covered.
+- `OBSERVED` for `overlay-targeting`, the observe-first card/potion targeting pilot.
 
 Explicit per-entry policies still override the family default; entries resolved
 from a family default omit the `policy` field so re-triage stays a one-table
@@ -57,18 +57,18 @@ the suppressing `ART_DELEGATED` paths (some with SDD-visible pixel-supply gaps),
 `AbstractCard#render` `OUT_OF_SCOPE`, `AbstractDungeon#render` `OBSERVED`
 (container instrument), and `TestGame#render` `OUT_OF_SCOPE`.
 
-Current distribution baseline (static scan, 490 paths total, 18 `hooked` / 472 `unclassified`):
+Current distribution baseline (static scan, 544 paths total, 21 `hooked` / 523 `unclassified`):
 
 ```text
-buttons-controls 17        cards-piles-soul 6        core-game-root 6
-draw-primitives-tips 6     event-dialogs 10          hud-top-panel 11
-inrun-fullscreens 18       map-graph 5               meta-outofrun-screens 61
-monsters-bosses 8          orbs 6                    player-character 5
-relics-blights-potions 5   room-shells 10            shop-rewards-chests 8
-skeleton-runtime 1         stances-state 2           vfx-campfire-rest 10
-vfx-card-manipulation 10   vfx-combat 145            vfx-misc-root 97
-vfx-scene-world 29         vfx-stance-aura 8         word-tip-ui 4
-overlay-targeting 2 (recipe B pilot, see recipe B)
+buttons-controls 19        cards-piles-soul 7        core-game-root 8
+draw-primitives-tips 9     event-dialogs 10          hud-top-panel 17
+inrun-fullscreens 18       map-graph 5               meta-outofrun-screens 62
+monsters-bosses 8          orbs 6                    overlay-targeting 2
+player-character 20        relics-blights-potions 9  room-shells 10
+shop-rewards-chests 8      skeleton-runtime 2        stances-state 2
+vfx-campfire-rest 11       vfx-card-manipulation 10  vfx-combat 148
+vfx-misc-root 105          vfx-scene-world 34        vfx-stance-aura 8
+word-tip-ui 6
 ```
 
 ## 2. Family inventory
@@ -77,20 +77,20 @@ Directions are semantic, not coverage claims. `hooked n/m` means n of the family
 currently have a matching ART patch. Counts are the scan baseline above; regenerate with
 `scripts/scan-sts-render.sh` before quoting new numbers.
 
-### Delegation-governed (the groups containing the 16 hooked paths)
+### Delegation-governed (the groups containing the 16 delegated manifest entries)
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
 | `inrun-fullscreens` | 18 | `DungeonMapScreen`, `GridCardSelectScreen`, `HandCardSelectScreen`, `CombatRewardScreen`, `DeathScreen` | Delegation-governed (hooked 4/18: map, grid/hand select, combat reward); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; native authority until triaged) |
-| `buttons-controls` | 17 | `EndTurnButton`, `ProceedButton`, `ConfirmButton`, `CancelButton` | Delegation-governed (hooked 2/17: end turn, proceed); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `hud-top-panel` | 11 | `TopPanel`, `EnergyPanel`, `DrawPilePanel`, `DiscardPilePanel` | Delegation-governed (hooked 2/11: top panel, energy); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
+| `buttons-controls` | 19 | `EndTurnButton`, `ProceedButton`, `ConfirmButton`, `CancelButton` | Delegation-governed (hooked 2/19: end turn, proceed); helper methods such as `renderHoldEndTurn` / `renderGlowEffect` inherit `NATIVE_WITH_ART_OVERLAY`, not delegation; hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps |
+| `hud-top-panel` | 17 | `TopPanel`, `EnergyPanel`, `DrawPilePanel`, `DiscardPilePanel` | Delegation-governed (hooked 2/17: top panel, energy); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 | `room-shells` | 10 | `AbstractRoom`, `CampfireUI`, `TreasureRoom`, `NeowRoom` | Delegation-governed (hooked 2/10: rest, treasure); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 | `event-dialogs` | 10 | `GenericEventDialog`, `RoomEventDialog`, `AbstractEvent` | Delegation-governed (hooked 1/10: generic event dialog); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 | `shop-rewards-chests` | 8 | `ShopScreen`, `RewardItem`, `Merchant`, `AbstractChest` | Delegation-governed (hooked 1/8: shop screen); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 | `monsters-bosses` | 8 | `AbstractMonster`, `MonsterGroup` | Delegation-governed (hooked 1/8: `renderIntent`); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `player-character` | 5 | `AbstractPlayer`, `AnimatedNpc` | Delegation-governed (hooked 1/5: `renderHand`); combat hand delegates the hand invocation while live `AbstractCard.render` keeps card-pixel responsibility; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `skeleton-runtime` | 1 | `SkeletonMeshRenderer` | Delegation-governed; per-instance claims only (`ART_DELEGATED` member), unclaimed skeletons pass through; family default is the `OBSERVED` semantic note |
-| `vfx-misc-root` | 97 | `AbstractGameEffect`, `SpeechBubble`, `RelicAboveCreatureEffect` | `OBSERVED` by family default: observed through the `AbstractDungeon` container instrument plus the base-class direct-draw hook (see observe-only below); hooked 1/97 (`ART_DELEGATED` base-class member) |
+| `player-character` | 20 | `AbstractPlayer`, `AnimatedNpc` | Delegation-governed (hooked 1/20: `renderHand`); `renderOrb` / `renderStatScreen` / `renderPowerTips` / `renderHoverReticle` / `renderBlights` are inventoried as native-with-overlay candidates, not delegated; combat hand delegates the hand invocation while live `AbstractCard.render` keeps card-pixel responsibility |
+| `skeleton-runtime` | 2 | `SkeletonMeshRenderer` | Delegation-governed; descriptor rows cover the `Batch` and `PolygonSpriteBatch` overloads, with per-instance claims only and unclaimed skeletons passing through; family default is the `OBSERVED` semantic note |
+| `vfx-misc-root` | 105 | `AbstractGameEffect`, `SpeechBubble`, `RelicAboveCreatureEffect` | `OBSERVED` by family default: observed through the `AbstractDungeon` container instrument plus the base-class direct-draw hook (see observe-only below); hooked descriptor rows are observation entries, not queue-wide delegation |
 
 ### Observe-only (container call sites + direct-draw hook)
 
@@ -108,9 +108,9 @@ covered by virtual dispatch at the container sites, not by their own patches.
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `vfx-combat` | 145 | `StrikeEffect`, `DamageNumberEffect`, `FlashAtkImgEffect` | `OBSERVED` (family default): observe-only via the `AbstractDungeon` container call sites |
-| `vfx-scene-world` | 29 | `TorchParticleLEffect`, `DustEffect`, `BonfireParticleEffect` | `OBSERVED` (family default): observe-only via the container call sites |
-| `vfx-campfire-rest` | 10 | `CampfireSmithEffect`, `CampfireSleepEffect` | `OBSERVED` (family default): observe-only via the container call sites |
+| `vfx-combat` | 148 | `StrikeEffect`, `DamageNumberEffect`, `FlashAtkImgEffect` | `OBSERVED` (family default): observe-only via the `AbstractDungeon` container call sites |
+| `vfx-scene-world` | 34 | `TorchParticleLEffect`, `DustEffect`, `BonfireParticleEffect` | `OBSERVED` (family default): observe-only via the container call sites |
+| `vfx-campfire-rest` | 11 | `CampfireSmithEffect`, `CampfireSleepEffect` | `OBSERVED` (family default): observe-only via the container call sites |
 | `vfx-card-manipulation` | 10 | `ShowCardAndAddToHandEffect`, `ExhaustCardEffect` | `OBSERVED` (family default): observe-only via the container call sites |
 | `vfx-stance-aura` | 8 | `DivinityParticleEffect`, `WrathParticleEffect`, `StanceAuraEffect` | `OBSERVED` (family default): observe-only via the container call sites |
 
@@ -124,19 +124,19 @@ covered by virtual dispatch at the container sites, not by their own patches.
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `draw-primitives-tips` | 6 | `TipHelper`, `Hitbox`, `Label`, `DrawMaster`, `Sprite`, `AbstractDrawable` | `NATIVE_PASSTHROUGH` (family default): drawing primitives shared by every surface; closed exact-set, never intercepted |
-| `core-game-root` | 6 | `CardCrawlGame`, `OverlayMenu`, `AbstractCreature`, `GameCursor` | `NATIVE_PASSTHROUGH` (family default): structural root / overlay plumbing, never intercepted per pixel; explicit member exceptions — `AbstractDungeon#render` is `OBSERVED` (hosts the observe-only effect-container instrument, recipe C) and `TestGame#render` is `OUT_OF_SCOPE` |
+| `draw-primitives-tips` | 9 | `TipHelper`, `Hitbox`, `Label`, `DrawMaster`, `Sprite`, `AbstractDrawable` | `NATIVE_PASSTHROUGH` (family default): drawing primitives shared by every surface; includes `TipHelper#renderGenericTip` and `#renderTipForCard`; closed exact-set, never intercepted |
+| `core-game-root` | 8 | `CardCrawlGame`, `OverlayMenu`, `AbstractCreature`, `GameCursor` | `NATIVE_PASSTHROUGH` (family default): structural root / overlay plumbing, including `OverlayMenu#renderBlackScreen`, never intercepted per pixel; explicit member exceptions — `AbstractDungeon#render` is `OBSERVED` (hosts the observe-only effect-container instrument, recipe C) and `TestGame#render` is `OUT_OF_SCOPE` |
 
 ### Out of scope and untriaged
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
-| `meta-outofrun-screens` | 61 | `MainMenuScreen`, `CreditsScreen`, `Cutscene`, char-select/options/stats screens | `OUT_OF_SCOPE` by family default policy; upgrade path is recipe A and stays reversible |
-| `cards-piles-soul` | 6 | `AbstractCard`, `CardGroup`, `Soul`, `SoulGroup` | Mixed: `AbstractCard#render` is `OUT_OF_SCOPE` by SDD boundary (ART never suppresses card pixels); rest inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; native authority until triaged) |
+| `meta-outofrun-screens` | 62 | `MainMenuScreen`, `CreditsScreen`, `Cutscene`, char-select/options/stats screens | `OUT_OF_SCOPE` by family default policy; upgrade path is recipe A and stays reversible |
+| `cards-piles-soul` | 7 | `AbstractCard`, `CardGroup`, `Soul`, `SoulGroup` | Mixed: `AbstractCard#render` is `OUT_OF_SCOPE` by SDD boundary (ART never suppresses card pixels); rest inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; native authority until triaged) |
 | `orbs` | 6 | `AbstractOrb`, `Frost`, `Dark`, `EmptyOrbSlot` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate); combat-chrome promotion only through the §5 checklist |
-| `relics-blights-potions` | 5 | `AbstractRelic`, `AbstractPotion`, `AbstractBlight` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; adjacent to top-panel chrome governance) |
+| `relics-blights-potions` | 9 | `AbstractRelic`, `AbstractPotion`, `AbstractBlight`, `AbstractPower` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate; adjacent to top-panel chrome governance); includes `AbstractPower#renderIcons` / `#renderAmount` |
 | `map-graph` | 5 | `DungeonMap`, `MapEdge`, `Legend`, `LegendItem` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate); screen-level map delegation is owned by the `inrun-fullscreens` member `DungeonMapScreen` |
-| `word-tip-ui` | 4 | `DialogWord`, `FtueTip`, `MultiPageFtue`, `SpeechWord` | `NATIVE_PASSTHROUGH` (family default): text layout helpers never intercepted; Ftue members are an out-of-run meta-interface property, recorded as a justification note |
+| `word-tip-ui` | 6 | `DialogWord`, `FtueTip`, `MultiPageFtue`, `SpeechWord` | `NATIVE_PASSTHROUGH` (family default): text layout helpers never intercepted; Ftue members are an out-of-run meta-interface property, recorded as a justification note |
 | `stances-state` | 2 | `AbstractStance`, `NeutralStance` | Inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 
 ## 3. Group → three-layer mapping framework
@@ -336,9 +336,9 @@ containers — they belong to their host-surface families, not to the vfx famili
 1. Prefer **containers, base classes, or single call sites** over per-concrete-class patches.
    A hook that scales with subclass count is a design smell in this contract.
 2. Before writing any patch, verify the exact target method descriptor with `javap`. The
-   scanner deduplicates by method **name**, so overload folding hides parameter differences;
-   a patch compiled against the wrong descriptor fails at load time or, worse, attaches to a
-   different overload.
+   scanner now preserves descriptors in `nativeDescriptor` / `nativeMethodDescriptor`, but
+   a patch compiled against the wrong descriptor still fails at load time or, worse, attaches
+   to a different overload.
 3. Record the choice (site, descriptor, observed branch conditions) in the manifest
    justification so the next auditor can re-derive it without decompiling.
 
@@ -371,22 +371,18 @@ is ready for implementation only when every box is checkable:
 
 ## 6. Known limitations
 
-- **Overload folding undercounts.** Paths are `(class, method-name)` pairs; distinct
-  byte-code overloads collapse into one row, so the true invocation-entry count is higher
-  than 488.
-- **Name-granularity vs byte-code entries.** For the same reason, hook targets recorded by
-  name cannot distinguish which overload actually ran; dynamic ledger correlation must key on
-  descriptors, not names.
-- **Method-name whitelist misses.** The scanner only accepts
-  `render|draw|renderHand|renderTip|renderRelics|renderPowers|renderIntent`. Verified
-  rendering methods outside that set include: `renderTargetingUi` (`AbstractPlayer`,
-  `PotionPopUp` — reserved by `overlay-targeting`), `AbstractPower#renderIcons` /
-  `AbstractPower#renderAmount`, `AbstractPlayer#renderOrb` / `#renderStatScreen` /
-  `#renderPowerTips` / `#renderHoverReticle` / `#renderBlights`,
-  `EndTurnButton#renderHoldEndTurn` / `#renderGlowEffect`,
-  `OverlayMenu#renderBlackScreen`, and `TipHelper#renderGenericTip` / `#renderTipForCard`.
-  They are invisible to the inventory until the whitelist or an explicit extra-names rule
-  grows; do not treat their absence as nonexistence.
+- **Descriptor-aware static identity.** Schema v4 rows are keyed by `(class,
+  nativeMethodDescriptor)` when descriptors are available; this prevents overload folding in
+  the scanner output and manifest closure while retaining `nativeMethod` for compatibility.
+- **Patch target granularity.** ModTheSpire annotations are still parsed by class + method name;
+  suppressing ownership checks therefore remain conservative and must be backed by descriptor
+  audits in patch design notes.
+- **Method-name whitelist is explicit.** The scanner accepts `render`, `draw`, the historical
+  helper names, `renderTargetingUi`, and the Slice E inventory additions:
+  `AbstractPower#renderIcons` / `#renderAmount`, `AbstractPlayer#renderOrb` /
+  `#renderStatScreen` / `#renderPowerTips` / `#renderHoverReticle` / `#renderBlights`,
+  `EndTurnButton#renderHoldEndTurn` / `#renderGlowEffect`, `OverlayMenu#renderBlackScreen`,
+  and `TipHelper#renderGenericTip` / `#renderTipForCard`.
 - **Base-class / subclass double counting.** Abstract bases and their concrete children both
   appear (e.g. `AbstractGameEffect` plus its subclasses, `AbstractRoom` plus room shells).
   Governance resolves this by ruling on the **base-class hook + subclass difference audit**,

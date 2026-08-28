@@ -79,6 +79,30 @@ def load_manifest(path):
     return data, entries
 
 
+def path_key(item):
+    """Stable inventory identity, descriptor-aware when available.
+
+    Older name-only reports/manifests still compare at name granularity; once
+    nativeDescriptor/nativeMethodDescriptor is present, closure compares at
+    byte-code method granularity so overloads do not fold into one manifest row.
+    """
+    method_descriptor = item.get("nativeMethodDescriptor")
+    if method_descriptor:
+        return (item.get("nativeClass"), method_descriptor)
+    descriptor = item.get("nativeDescriptor")
+    if descriptor:
+        return (item.get("nativeClass"), "{}:{}".format(item.get("nativeMethod"), descriptor))
+    return (item.get("nativeClass"), item.get("nativeMethod"))
+
+
+def legacy_path_key(item):
+    return (item.get("nativeClass"), item.get("nativeMethod"))
+
+
+def _key_label(key):
+    return "{}#{}".format(key[0], key[1])
+
+
 def check_manifest(report, manifest_path, strict_unknown=False):
     """Return deterministic errors and counts for a static scan/manifest pair."""
     data, entries = load_manifest(manifest_path)
@@ -117,11 +141,11 @@ def check_manifest(report, manifest_path, strict_unknown=False):
                     "entries[{}] OBSERVED justification must reference the "
                     "observation patch file".format(index)
                 )
-        key = (entry.get("nativeClass"), entry.get("nativeMethod"))
+        key = path_key(entry)
         if key in seen:
             errors.append(
-                "entries[{}] duplicates native path from entries[{}]: {}#{}".format(
-                    index, seen[key], key[0], key[1]
+                "entries[{}] duplicates native path from entries[{}]: {}".format(
+                    index, seen[key], _key_label(key)
                 )
             )
         else:
@@ -129,32 +153,27 @@ def check_manifest(report, manifest_path, strict_unknown=False):
         manifest_keys.add(key)
 
     static_paths = report.get("paths", [])
-    static_keys = set(
-        (path.get("nativeClass"), path.get("nativeMethod"))
-        for path in static_paths
-    )
+    static_keys = set(path_key(path) for path in static_paths)
     missing = sorted(static_keys - manifest_keys)
     stale = sorted(manifest_keys - static_keys)
     unknown = sorted(
-        (entry.get("nativeClass"), entry.get("nativeMethod"))
+        path_key(entry)
         for entry in entries
         if entry.get("policy") == "UNKNOWN"
     )
 
     errors.extend(
-        "missing manifest entry: {}#{}".format(native_class, native_method)
-        for native_class, native_method in missing
+        "missing manifest entry: {}".format(_key_label(key))
+        for key in missing
     )
     errors.extend(
-        "manifest entry not found in static scan: {}#{}".format(
-            native_class, native_method
-        )
-        for native_class, native_method in stale
+        "manifest entry not found in static scan: {}".format(_key_label(key))
+        for key in stale
     )
     if strict_unknown:
         errors.extend(
-            "manifest UNKNOWN policy: {}#{}".format(native_class, native_method)
-            for native_class, native_method in unknown
+            "manifest UNKNOWN policy: {}".format(_key_label(key))
+            for key in unknown
         )
 
     return {
@@ -180,7 +199,7 @@ def check_patch_ownership(report, manifest_path):
     data, entries = load_manifest(manifest_path)
     errors = []
     manifest_by_key = {
-        (entry.get("nativeClass"), entry.get("nativeMethod")): entry
+        legacy_path_key(entry): entry
         for entry in entries
         if isinstance(entry, dict)
     }
@@ -254,7 +273,7 @@ def inventory_entries(report, existing_entries=None):
     existing = {}
     for entry in existing_entries or []:
         if isinstance(entry, dict):
-            existing[(entry.get("nativeClass"), entry.get("nativeMethod"))] = entry
+            existing[path_key(entry)] = entry
 
     def resolve_policy(key, family, existing_entry):
         """Return (policy, inherited).
@@ -474,46 +493,53 @@ def inventory_entries(report, existing_entries=None):
     result = []
     for path in sorted(
         report.get("paths", []),
-        key=lambda item: (item.get("nativeClass", ""), item.get("nativeMethod", "")),
+        key=lambda item: (item.get("nativeClass", ""), item.get("nativeMethod", ""), item.get("nativeDescriptor", "")),
     ):
-        key = (path.get("nativeClass"), path.get("nativeMethod"))
+        key = path_key(path)
+        legacy_key = legacy_path_key(path)
         existing_entry = existing.get(key)
-        family = family_for(*key)
-        policy, inherited = resolve_policy(key, family, existing_entry)
+        if existing_entry is None:
+            existing_entry = existing.get(legacy_key)
+        family = family_for(*legacy_key)
+        policy, inherited = resolve_policy(legacy_key, family, existing_entry)
         if existing_entry is not None and existing_entry.get("policy") not in (None, "UNKNOWN"):
             # Preserve the existing entry but overlay any known ownership metadata.
             entry = dict(existing_entry)
             entry["family"] = family
             entry["policy"] = policy
-            _overlay_ownership_metadata(entry, key, policy, known_justification, known_test)
-            if key in known_surface_id:
-                entry["surfaceId"] = known_surface_id[key]
+            if path.get("nativeDescriptor"):
+                entry["nativeDescriptor"] = path.get("nativeDescriptor")
+                entry["nativeMethodDescriptor"] = path.get("nativeMethodDescriptor")
+            _overlay_ownership_metadata(entry, legacy_key, policy, known_justification, known_test)
+            if legacy_key in known_surface_id:
+                entry["surfaceId"] = known_surface_id[legacy_key]
             result.append(entry)
             continue
         patches = path.get("artPatches") or []
         hook = patches[0].get("source", "") if patches else ""
         entry = {
-            "ownerId": _owner_id(*key),
-            "nativeClass": key[0],
-            "nativeMethod": key[1],
+            "ownerId": _owner_id(*legacy_key),
+            "nativeClass": legacy_key[0],
+            "nativeMethod": legacy_key[1],
             "family": family,
             "pathKind": path.get("kind", "unknown"),
-            "surfaceId": known_surface_id.get(key, ""),
+            "surfaceId": known_surface_id.get(legacy_key, ""),
             "effectFamily": "abstract_game_effect" if path.get("kind") == "transient-effect" else "none",
             "hook": hook,
         }
+        if path.get("nativeDescriptor"):
+            entry["nativeDescriptor"] = path.get("nativeDescriptor")
+            entry["nativeMethodDescriptor"] = path.get("nativeMethodDescriptor")
         if not inherited:
             # Family-default resolutions stay unwritten so inheritance remains
             # live; explicit decisions are recorded on the entry.
             entry["policy"] = policy
-        _overlay_ownership_metadata(entry, key, policy, known_justification, known_test)
+        _overlay_ownership_metadata(entry, legacy_key, policy, known_justification, known_test)
         result.append(entry)
-    current_keys = set(
-        (path.get("nativeClass"), path.get("nativeMethod"))
-        for path in report.get("paths", [])
-    )
+    current_keys = set(path_key(path) for path in report.get("paths", []))
+    current_legacy_keys = set(legacy_path_key(path) for path in report.get("paths", []))
     for key, entry in sorted(existing.items()):
-        if key not in current_keys:
+        if key not in current_keys and legacy_path_key(entry) not in current_legacy_keys:
             result.append(entry)
     return result
 
@@ -528,6 +554,7 @@ def write_inventory_manifest(report, path, existing_path=None):
         "status": "inventory",
         "notes": [
             "Generated from the current static scan; entries without an explicit policy inherit their family default.",
+            "Inventory identity is descriptor-aware when nativeDescriptor/nativeMethodDescriptor is present; nativeMethod remains for compatibility.",
             "Generation does not prove patch loading or runtime delegation.",
             "Entries may omit policy to inherit their family default; see tools/nrcc/families.py.",
         ],

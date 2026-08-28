@@ -53,6 +53,41 @@ class StaticScanTest(unittest.TestCase):
             )
         )
 
+    def test_explicit_render_whitelist_covers_slice_five_methods(self):
+        for method in (
+            "renderIcons", "renderAmount", "renderOrb", "renderStatScreen",
+            "renderPowerTips", "renderHoverReticle", "renderBlights",
+            "renderHoldEndTurn", "renderGlowEffect", "renderBlackScreen",
+            "renderGenericTip", "renderTipForCard", "renderTargetingUi",
+        ):
+            self.assertIn(method, scan_sts_render.RENDER_METHOD_NAMES)
+            self.assertTrue(
+                scan_sts_render.is_render_patch(
+                    {"targetMethod": method, "source": "NativeRenderPatches.java"}
+                ),
+                method,
+            )
+
+    def test_parse_javap_render_methods_keeps_descriptors_for_overloads(self):
+        text = """
+  public void render(com.badlogic.gdx.graphics.g2d.SpriteBatch);
+    descriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  public void render(com.badlogic.gdx.graphics.g2d.SpriteBatch, float);
+    descriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;F)V
+  public void renderGenericTip(float, float, java.lang.String, java.lang.String);
+    descriptor: (FFLjava/lang/String;Ljava/lang/String;)V
+"""
+        rows = scan_sts_render.parse_javap_render_methods(text)
+        descriptors = [row["methodDescriptor"] for row in rows]
+        self.assertEqual(
+            [
+                "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;F)V",
+                "renderGenericTip:(FFLjava/lang/String;Ljava/lang/String;)V",
+            ],
+            descriptors,
+        )
+
     def test_classification_marks_effects(self):
         self.assertEqual(
             "transient-effect",
@@ -62,7 +97,7 @@ class StaticScanTest(unittest.TestCase):
         )
 
     def test_static_scan_uses_hooked_vocabulary(self):
-        self.assertEqual("nrcc.static-scan.v3", scan_sts_render.STATIC_SCAN_SCHEMA)
+        self.assertEqual("nrcc.static-scan.v4", scan_sts_render.STATIC_SCAN_SCHEMA)
         self.assertEqual(
             "relic-power",
             scan_sts_render.classify(
@@ -93,12 +128,12 @@ class StaticScanTest(unittest.TestCase):
         )
 
     def test_candidate_classes_include_explicit_non_sts_patch_targets(self):
-        self.assertEqual(
-            ["com.esotericsoftware.spine.SkeletonMeshRenderer"],
-            scan_sts_render.candidate_classes(
-                [], ["com.esotericsoftware.spine.SkeletonMeshRenderer"]
-            ),
+        classes = scan_sts_render.candidate_classes(
+            [], ["com.esotericsoftware.spine.SkeletonMeshRenderer"]
         )
+        self.assertEqual("com.esotericsoftware.spine.SkeletonMeshRenderer", classes[0])
+        for explicit in scan_sts_render.EXPLICIT_RENDER_CLASSES:
+            self.assertIn(explicit, classes)
 
 if __name__ == "__main__":
     unittest.main()

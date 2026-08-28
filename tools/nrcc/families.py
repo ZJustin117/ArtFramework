@@ -191,7 +191,7 @@ _RULES = (
     ({"prefix": (_PREFIX + "monsters.",)}, "monsters-bosses"),
     ({"prefix": (_PREFIX + "orbs.",)}, "orbs"),
     (
-        {"prefix": (_PREFIX + "blights.", _PREFIX + "potions.", _PREFIX + "relics.")},
+        {"prefix": (_PREFIX + "blights.", _PREFIX + "potions.", _PREFIX + "powers.", _PREFIX + "relics.")},
         "relics-blights-potions",
     ),
     ({"prefix": (_PREFIX + "stances.",)}, "stances-state"),

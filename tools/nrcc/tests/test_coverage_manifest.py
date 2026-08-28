@@ -74,6 +74,75 @@ class CoverageManifestTest(unittest.TestCase):
         self.assertEqual([("native.Stale", "draw"), ("native.Unknown", "render")], result["stale"])
         self.assertEqual([("native.Unknown", "render")], result["unknown"])
 
+    def test_descriptor_identity_distinguishes_overloaded_paths(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: one\n"
+            "    nativeClass: native.Owner\n"
+            "    nativeMethod: render\n"
+            "    nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V\n"
+            "    nativeMethodDescriptor: 'render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V'\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: OUT_OF_SCOPE\n"
+            "  - ownerId: two\n"
+            "    nativeClass: native.Owner\n"
+            "    nativeMethod: render\n"
+            "    nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;F)V\n"
+            "    nativeMethodDescriptor: 'render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;F)V'\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: OUT_OF_SCOPE\n"
+        )
+        self.paths = [path]
+        report = {"paths": [
+            {
+                "nativeClass": "native.Owner",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+            },
+            {
+                "nativeClass": "native.Owner",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;F)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;F)V",
+            },
+        ]}
+        result = coverage_manifest.check_manifest(report, path, strict_unknown=True)
+        self.assertTrue(result["ok"])
+        self.assertEqual([], result["errors"])
+
+    def test_descriptor_identity_reports_missing_overload(self):
+        path = self.write_manifest(
+            "entries:\n"
+            "  - ownerId: one\n"
+            "    nativeClass: native.Owner\n"
+            "    nativeMethod: render\n"
+            "    nativeDescriptor: ()V\n"
+            "    nativeMethodDescriptor: 'render:()V'\n"
+            "    pathKind: native_surface\n"
+            "    surfaceId: surface\n"
+            "    effectFamily: none\n"
+            "    hook: Hook\n"
+            "    policy: OUT_OF_SCOPE\n"
+        )
+        self.paths = [path]
+        result = coverage_manifest.check_manifest(
+            {"paths": [
+                {"nativeClass": "native.Owner", "nativeMethod": "render", "nativeDescriptor": "()V", "nativeMethodDescriptor": "render:()V"},
+                {"nativeClass": "native.Owner", "nativeMethod": "render", "nativeDescriptor": "(F)V", "nativeMethodDescriptor": "render:(F)V"},
+            ]},
+            path,
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual([("native.Owner", "render:(F)V")], result["missing"])
+
     def test_rejects_invalid_policy(self):
         path = self.write_manifest("entries:\n  - policy: MAYBE\n")
         self.paths = [path]
@@ -199,6 +268,25 @@ class CoverageManifestTest(unittest.TestCase):
             coverage_manifest.effective_policy(entries[1]),
         )
         self.assertEqual(2, len(entries))
+
+    def test_inventory_entries_write_descriptors_when_present(self):
+        entries = coverage_manifest.inventory_entries({
+            "paths": [{
+                "nativeClass": "com.megacrit.cardcrawl.helpers.TipHelper",
+                "nativeMethod": "renderTipForCard",
+                "nativeDescriptor": "(Lcom/megacrit/cardcrawl/cards/AbstractCard;Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;Ljava/util/ArrayList;)V",
+                "nativeMethodDescriptor": "renderTipForCard:(Lcom/megacrit/cardcrawl/cards/AbstractCard;Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;Ljava/util/ArrayList;)V",
+                "kind": "render-owner",
+            }]
+        })
+        self.assertEqual(
+            "(Lcom/megacrit/cardcrawl/cards/AbstractCard;Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;Ljava/util/ArrayList;)V",
+            entries[0]["nativeDescriptor"],
+        )
+        self.assertEqual(
+            "renderTipForCard:(Lcom/megacrit/cardcrawl/cards/AbstractCard;Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;Ljava/util/ArrayList;)V",
+            entries[0]["nativeMethodDescriptor"],
+        )
 
     def test_unpatched_native_card_render_is_explicitly_out_of_scope(self):
         # AbstractCard.render is not hooked: card pixels come from the live,

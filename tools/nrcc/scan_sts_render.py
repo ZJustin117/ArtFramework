@@ -21,13 +21,47 @@ from families import family_for
 
 
 STS_PREFIX = "com.megacrit.cardcrawl."
-STATIC_SCAN_SCHEMA = "nrcc.static-scan.v3"
+STATIC_SCAN_SCHEMA = "nrcc.static-scan.v4"
 CLASS_HINTS = re.compile(
-    r"(render|effect|relic|power|screen|room|creature|player|energy|card|dialog|panel|button|map)",
+    r"(render|effect|relic|power|screen|room|creature|player|energy|card|dialog|panel|button|map|menu|tip)",
     re.IGNORECASE,
 )
-RENDER_METHOD = re.compile(r"\b(public|protected|private)?\s*(static\s+)?[^ ]+\s+"
-                            r"(render|draw|renderHand|renderTip|renderRelics|renderPowers|renderIntent|renderTargetingUi)\s*\(")
+EXPLICIT_RENDER_CLASSES = (
+    STS_PREFIX + "powers.AbstractPower",
+    STS_PREFIX + "characters.AbstractPlayer",
+    STS_PREFIX + "ui.buttons.EndTurnButton",
+    STS_PREFIX + "core.OverlayMenu",
+    STS_PREFIX + "helpers.TipHelper",
+    STS_PREFIX + "ui.panels.PotionPopUp",
+)
+RENDER_METHOD_NAMES = (
+    "draw",
+    "render",
+    "renderAmount",
+    "renderBlackScreen",
+    "renderBlights",
+    "renderGenericTip",
+    "renderGlowEffect",
+    "renderHand",
+    "renderHoldEndTurn",
+    "renderHoverReticle",
+    "renderIcons",
+    "renderIntent",
+    "renderOrb",
+    "renderPowerTips",
+    "renderPowers",
+    "renderRelics",
+    "renderStatScreen",
+    "renderTargetingUi",
+    "renderTip",
+    "renderTipForCard",
+)
+RENDER_METHOD_NAMES_BY_LENGTH = sorted(RENDER_METHOD_NAMES, key=len, reverse=True)
+RENDER_METHOD_PATTERN = "|".join(re.escape(name) for name in RENDER_METHOD_NAMES_BY_LENGTH)
+RENDER_METHOD = re.compile(
+    r"\b(public|protected|private)?\s*(static\s+)?[^ ]+\s+(" + RENDER_METHOD_PATTERN + r")\s*\("
+)
+JAVAP_METHOD_DECLARATION = re.compile(r"^\s*(?:public|protected|private)\s+(?:static\s+)?(?:abstract\s+)?(?:final\s+)?[^=;]+\s+(%s)\s*\(" % RENDER_METHOD_PATTERN)
 PATCH_TARGET = re.compile(
     r"@SpirePatch\s*\(.*?clz\s*=\s*([A-Za-z0-9_.$]+).*?method\s*=\s*\"([^\"]+)\"",
     re.DOTALL,
@@ -103,6 +137,15 @@ def continuation_hint(text):
     return hints[:8]
 
 
+def _normalize_descriptor(descriptor):
+    return descriptor.strip() if descriptor else ""
+
+
+def _method_descriptor(name, descriptor):
+    descriptor = _normalize_descriptor(descriptor)
+    return "{}:{}".format(name, descriptor) if descriptor else name
+
+
 def javap_methods(jar, name):
     try:
         result = subprocess.run(
@@ -116,14 +159,30 @@ def javap_methods(jar, name):
         raise RuntimeError("javap is required: {}".format(exc))
     if result.returncode != 0:
         return []
+    return [method["name"] for method in parse_javap_render_methods(result.stdout)]
+
+
+def parse_javap_render_methods(text):
+    """Parse javap -p -s output into render method rows with descriptors."""
     methods = []
-    for line in result.stdout.splitlines():
-        match = RENDER_METHOD.search(line)
+    pending = None
+    for line in text.splitlines():
+        match = JAVAP_METHOD_DECLARATION.match(line)
         if match:
-            method = re.search(r"\b(renderHand|renderRelics|renderPowers|renderTip|renderIntent|renderTargetingUi|render|draw)\s*\(", line)
-            if method:
-                methods.append(method.group(1))
-    return sorted(set(methods))
+            pending = match.group(1)
+            continue
+        descriptor = re.match(r"^\s*descriptor:\s*(\S+)\s*$", line)
+        if descriptor and pending:
+            methods.append({
+                "name": pending,
+                "descriptor": _normalize_descriptor(descriptor.group(1)),
+                "methodDescriptor": _method_descriptor(pending, descriptor.group(1)),
+            })
+            pending = None
+            continue
+        if line.strip() and not line.startswith(" "):
+            pending = None
+    return sorted(methods, key=lambda item: (item["name"], item["descriptor"]))
 
 
 def javap_candidate_methods(jar, names):
@@ -132,7 +191,7 @@ def javap_candidate_methods(jar, names):
         return {}
     try:
         result = subprocess.run(
-            ["javap", "-classpath", jar, "-p"] + names,
+            ["javap", "-classpath", jar, "-p", "-s"] + names,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
@@ -141,23 +200,35 @@ def javap_candidate_methods(jar, names):
     except OSError as exc:
         raise RuntimeError("javap is required: {}".format(exc))
     wanted = set(names)
-    methods = dict((name, set()) for name in names)
+    methods = dict((name, []) for name in names)
     current = None
+    pending = None
     for line in result.stdout.splitlines():
         header = re.match(r"^(public |protected |private )?(abstract )?(class|interface|enum) ([A-Za-z0-9_.$]+)", line)
         if header:
             current = header.group(4)
+            pending = None
             if current not in wanted:
                 current = None
             continue
         if current is None:
             continue
-        match = RENDER_METHOD.search(line)
+        match = JAVAP_METHOD_DECLARATION.match(line)
         if match:
-            method = re.search(r"\b(renderHand|renderRelics|renderPowers|renderTip|renderIntent|renderTargetingUi|render|draw)\s*\(", line)
-            if method:
-                methods[current].add(method.group(1))
-    return dict((name, sorted(values)) for name, values in methods.items())
+            pending = match.group(1)
+            continue
+        descriptor = re.match(r"^\s*descriptor:\s*(\S+)\s*$", line)
+        if descriptor and pending:
+            methods[current].append({
+                "name": pending,
+                "descriptor": _normalize_descriptor(descriptor.group(1)),
+                "methodDescriptor": _method_descriptor(pending, descriptor.group(1)),
+            })
+            pending = None
+    return dict(
+        (name, sorted(values, key=lambda item: (item["name"], item["descriptor"])))
+        for name, values in methods.items()
+    )
 
 
 def patch_index(patches):
@@ -177,7 +248,7 @@ def candidate_classes(entries, extra_names=None):
         if not name.startswith(STS_PREFIX) or not CLASS_HINTS.search(name):
             continue
         result.append(name)
-    for name in extra_names or []:
+    for name in tuple(extra_names or ()) + EXPLICIT_RENDER_CLASSES:
         if name not in result and "$" not in name:
             result.append(name)
     return result
@@ -197,11 +268,15 @@ def scan(args):
     discovered_methods = javap_candidate_methods(args.sts_jar, candidates)
     paths = []
     for name in candidates:
-        for method in discovered_methods.get(name, []):
+        for method_info in discovered_methods.get(name, []):
+            method = method_info["name"]
+            descriptor = method_info.get("descriptor", "")
             rows = indexed.get((name, method), [])
             paths.append({
                 "nativeClass": name,
                 "nativeMethod": method,
+                "nativeDescriptor": descriptor,
+                "nativeMethodDescriptor": method_info.get("methodDescriptor", _method_descriptor(method, descriptor)),
                 "family": family_for(name, method),
                 "kind": classify(name, method),
                 "artPatches": rows,
@@ -226,6 +301,7 @@ def scan(args):
         "limitations": [
             "Method declarations are static candidates; runtime execution still needs a dynamic ledger.",
             "Obfuscated, generated, reflective, and third-party draw paths require explicit additions.",
+            "Rows include nativeDescriptor/nativeMethodDescriptor when javap -s reports them; patch annotations are still parsed at method-name granularity.",
             "The scan does not prove that a SpirePatch was loaded by ModTheSpire.",
         ],
     }
@@ -254,10 +330,7 @@ def scan(args):
 
 def is_render_patch(patch):
     method = patch["targetMethod"].lower()
-    return method in {
-        "render", "draw", "renderhand", "renderrelics", "renderpowers", "rendertip",
-        "renderintent", "rendertargetingui"
-    } or "render" in patch["source"].lower()
+    return method in set(name.lower() for name in RENDER_METHOD_NAMES) or "render" in patch["source"].lower()
 
 
 def classify(name, method):

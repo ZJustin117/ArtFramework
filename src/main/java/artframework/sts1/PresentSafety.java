@@ -42,6 +42,7 @@ public final class PresentSafety {
         artframework.sts1.render.NativeRenderBridge.clearTransientEffectsForRecovery();
         artframework.sts1.skeleton.Sts1SkeletonBridge.stopAll();
         unmountAllPresentSurfaces();
+        removeC2SurfaceItemsForRecovery();
     }
 
     public static void clearPanic() {
@@ -115,12 +116,23 @@ public final class PresentSafety {
     }
 
     private static void removeC2SurfaceItemsForRecovery() {
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_HAND);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_CARD_SLOTS);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.MAP);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_CONTROLS);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_ENERGY);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_INTENTS);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_PROCEED);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.EVENT);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.SELECT_GRID);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.SELECT_HAND);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.REWARD_COMBAT);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.REWARD_CARD);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.REWARD_BOSS_RELIC);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.REST);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.SHOP);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TREASURE);
     }
 
     private static void unmountAllPresentSurfaces() {

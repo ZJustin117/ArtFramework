@@ -275,6 +275,8 @@ public final class NativeRenderBridge {
     public static void clearTransientEffectsForRecovery() {
         EFFECT_LIFECYCLE.cleanupAll();
         LEDGER.closeForRecovery("recovery");
+        synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
+        synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
         Sts1NativePresentationAdapter.clear();
     }
 

@@ -26,6 +26,10 @@ public final class ResourceIds {
     public static final String UI_WINDOW_DEFAULT = "ui.window.default";
     public static final String UI_BUTTON_END_TURN = "ui.button.end_turn";
     public static final String UI_BUTTON_END_TURN_HOVER = "ui.button.end_turn.hover";
+    public static final String UI_BUTTON_PROCEED_ENABLED = "ui.button.proceed.enabled";
+    public static final String UI_BUTTON_PROCEED_DISABLED = "ui.button.proceed.disabled";
+    public static final String UI_BUTTON_CANCEL_ENABLED = "ui.button.cancel.enabled";
+    public static final String UI_BUTTON_CANCEL_DISABLED = "ui.button.cancel.disabled";
     public static final String UI_EVENT_BUTTON_ENABLED = "ui.event.button.enabled";
     public static final String UI_EVENT_BUTTON_DISABLED = "ui.event.button.disabled";
     public static final String UI_EVENT_PANEL = "ui.event.panel";
@@ -43,6 +47,10 @@ public final class ResourceIds {
     public static final String UI_MAP_OUTLINE_PREFIX = "ui.map.outline.";
     public static final String UI_TOP_PANEL_BAR = "ui.top_panel.bar";
     public static final String UI_TOP_PANEL_GOLD = "ui.top_panel.gold";
+    public static final String UI_TOP_PANEL_HP = "ui.top_panel.hp";
+    public static final String UI_TOP_PANEL_FLOOR = "ui.top_panel.floor";
+    public static final String UI_TOP_PANEL_ASCENSION = "ui.top_panel.ascension";
+    public static final String UI_TOP_PANEL_STATUS = "ui.top_panel.status";
     public static final String CARD_FRAME_RED = "card.frame.red";
     public static final String CARD_FRAME_GREEN = "card.frame.green";
     public static final String CARD_FRAME_BLUE = "card.frame.blue";
@@ -107,6 +115,16 @@ public final class ResourceIds {
             UI_BUTTON_DEFAULT,
             UI_PANEL_DEFAULT,
             UI_WINDOW_DEFAULT,
+            UI_BUTTON_PROCEED_ENABLED,
+            UI_BUTTON_PROCEED_DISABLED,
+            UI_BUTTON_CANCEL_ENABLED,
+            UI_BUTTON_CANCEL_DISABLED,
+            UI_TOP_PANEL_BAR,
+            UI_TOP_PANEL_HP,
+            UI_TOP_PANEL_GOLD,
+            UI_TOP_PANEL_FLOOR,
+            UI_TOP_PANEL_ASCENSION,
+            UI_TOP_PANEL_STATUS,
             CARD_FRAME_RED,
             CARD_FRAME_GREEN,
             CARD_FRAME_BLUE,

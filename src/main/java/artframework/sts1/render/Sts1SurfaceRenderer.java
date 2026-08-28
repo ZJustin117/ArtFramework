@@ -320,23 +320,23 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareProceedVisuals(SurfaceDrawPlan plan) {
-        if (!containsSurface(plan, SurfaceIds.COMBAT_PROCEED)) return;
+        if (!containsSurface(plan, SurfaceIds.COMBAT_PROCEED)) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_PROCEED);
+            return;
+        }
         if (!ProceedDrawPath.shouldSuppressNativeProceed()) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_PROCEED);
             return;
         }
-        float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-        float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.2f;
-        int i = 0;
+        float sw = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        float sh = com.megacrit.cardcrawl.core.Settings.HEIGHT;
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (ProceedDrawPath.DrawItem item : ProceedDrawPath.buildFromProjection()) {
             if (!item.visible) continue;
             artframework.presentation.PresentationVisuals.syncC2Item(
-                    SurfaceIds.COMBAT_PROCEED, item.id,
-                    new artframework.component.Rect(x - 180f, y - i * 40f - 20f, 360f, 40f), 1f,
-                    "proceed", "", item.text, item.visible);
+                    SurfaceIds.COMBAT_PROCEED, item.id, item.bounds(sw, sh), 1f,
+                    "proceed", item.resourceId, item.text, item.visible);
             visibleItems.add(item.id);
-            i++;
         }
         artframework.presentation.PresentationVisuals.retainC2Items(
                 SurfaceIds.COMBAT_PROCEED, visibleItems);
@@ -462,22 +462,23 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void prepareTopPanelVisuals(SurfaceDrawPlan plan) {
-        if (!containsSurface(plan, SurfaceIds.TOP_PANEL)) return;
+        if (!containsSurface(plan, SurfaceIds.TOP_PANEL)) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
+            return;
+        }
         SurfaceDrawPlan.Entry entry = plan.find(SurfaceIds.TOP_PANEL);
         if (entry == null || entry.mode != SurfaceDrawPlan.DrawMode.DRAW) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
             return;
         }
         Set<String> visibleItems = new LinkedHashSet<String>();
+        float sw = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        float sh = com.megacrit.cardcrawl.core.Settings.HEIGHT;
         for (TopPanelDrawPath.DrawItem item : TopPanelDrawPath.buildFromProjection()) {
             if (!item.visible) continue;
             artframework.presentation.PresentationVisuals.syncC2Item(
-                    SurfaceIds.TOP_PANEL, item.id,
-                    new artframework.component.Rect(20f,
-                            com.megacrit.cardcrawl.core.Settings.HEIGHT - 82f,
-                            com.megacrit.cardcrawl.core.Settings.WIDTH * 0.48f,
-                            58f), 1f,
-                    "top_panel", "", item.text, item.visible);
+                    SurfaceIds.TOP_PANEL, item.id, item.bounds(sw, sh), 1f,
+                    "top_panel", item.resourceId, item.text, item.visible);
             visibleItems.add(item.id);
         }
         artframework.presentation.PresentationVisuals.retainC2Items(
@@ -714,28 +715,26 @@ public final class Sts1SurfaceRenderer {
         if (!ProceedDrawPath.shouldSuppressNativeProceed()) {
             return;
         }
-        int projectedDrawCount = 0;
-        for (ProceedDrawPath.DrawItem item : ProceedDrawPath.buildFromProjection()) {
-            if (item.visible) projectedDrawCount++;
-        }
+        java.util.List<ProceedDrawPath.DrawItem> items = ProceedDrawPath.buildFromProjection();
+        int projectedDrawCount = ProceedDrawPath.materializedDrawCount();
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_PROCEED);
-            float x = com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-            float y = com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.2f;
-            int i = 0;
-            for (ProceedDrawPath.DrawItem item : ProceedDrawPath.buildFromProjection()) {
+            for (ProceedDrawPath.DrawItem item : items) {
                 if (!item.visible) {
                     continue;
                 }
+                artframework.component.Rect bounds = item.bounds(
+                        com.megacrit.cardcrawl.core.Settings.WIDTH,
+                        com.megacrit.cardcrawl.core.Settings.HEIGHT);
+                drawResolvedTexture(sb, item.resourceId, bounds);
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
                         item.text,
-                        x,
-                        y - i * 40f,
+                        bounds.x + bounds.width * 0.5f,
+                        bounds.y + bounds.height * 0.54f,
                         item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
-                i++;
             }
         } catch (Throwable ignored) {
         }
@@ -749,22 +748,47 @@ public final class Sts1SurfaceRenderer {
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TOP_PANEL);
-            for (TopPanelDrawPath.DrawItem item : TopPanelDrawPath.buildFromProjection()) {
+            java.util.List<TopPanelDrawPath.DrawItem> items = TopPanelDrawPath.buildFromProjection();
+            for (TopPanelDrawPath.DrawItem item : items) {
                 if (!item.visible) {
                     continue;
                 }
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontLeftTopAligned(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.topPanelInfoFont,
-                        item.text,
-                        40f,
-                        com.megacrit.cardcrawl.core.Settings.HEIGHT - 40f,
-                        colorLabel(chrome));
+                artframework.component.Rect bounds = item.bounds(
+                        com.megacrit.cardcrawl.core.Settings.WIDTH,
+                        com.megacrit.cardcrawl.core.Settings.HEIGHT);
+                drawResolvedTexture(sb, item.resourceId, bounds);
+                if (!item.text.isEmpty()) {
+                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontLeftTopAligned(
+                            sb,
+                            com.megacrit.cardcrawl.helpers.FontHelper.topPanelInfoFont,
+                            item.text,
+                            bounds.x + 8f,
+                            bounds.y + bounds.height - 7f,
+                            colorLabel(chrome));
+                }
             }
         } catch (Throwable ignored) {
         }
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TOP_PANEL,
-                TopPanelDrawPath.buildFromProjection().size());
+                TopPanelDrawPath.materializedDrawCount());
+    }
+
+    private static void drawResolvedTexture(
+            SpriteBatch sb, String resourceId, artframework.component.Rect bounds) {
+        if (sb == null || bounds == null || bounds.width <= 0f || bounds.height <= 0f
+                || resourceId == null || resourceId.isEmpty()) {
+            return;
+        }
+        try {
+            artframework.assets.AssetResolveResult result =
+                    ArtFramework.assets().resolve(resourceId);
+            com.badlogic.gdx.graphics.Texture texture =
+                    artframework.sts1.assets.Sts1AssetMaterializer.resolveTexture(result);
+            if (texture != null) {
+                sb.draw(texture, bounds.x, bounds.y, bounds.width, bounds.height);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     /**

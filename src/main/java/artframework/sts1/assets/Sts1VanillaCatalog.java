@@ -47,6 +47,10 @@ public final class Sts1VanillaCatalog {
         // Historical C2 draw paths resolve this key; retain it while public nodes use button.end_turn.
         put(m, ResourceIds.UI_PREFIX + "endturn", "images/ui/topPanel/endTurnButton.png");
         put(m, ResourceIds.UI_BUTTON_END_TURN_HOVER, "images/ui/topPanel/endTurnHover.png");
+        put(m, ResourceIds.UI_BUTTON_PROCEED_ENABLED, "images/ui/topPanel/buttonL.png");
+        put(m, ResourceIds.UI_BUTTON_PROCEED_DISABLED, "images/ui/topPanel/buttonLRed.png");
+        put(m, ResourceIds.UI_BUTTON_CANCEL_ENABLED, "images/ui/topPanel/buttonL.png");
+        put(m, ResourceIds.UI_BUTTON_CANCEL_DISABLED, "images/ui/topPanel/buttonLRed.png");
         put(m, ResourceIds.energyOrb("red"), "images/ui/topPanel/red/layer1.png");
         put(m, ResourceIds.energyOrbLayer("red", 1), "images/ui/topPanel/red/layer1.png");
         put(m, ResourceIds.energyOrbLayer("red", 2), "images/ui/topPanel/red/layer2.png");
@@ -89,6 +93,13 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_MAP_SELECT, "images/ui/map/selectBox.png");
         put(m, ResourceIds.UI_TOP_PANEL_BAR, "images/ui/topPanel/bar.png");
         put(m, ResourceIds.UI_TOP_PANEL_GOLD, "images/ui/topPanel/gold.png");
+        put(m, ResourceIds.UI_TOP_PANEL_HP, "images/ui/topPanel/panel_heart_white.png");
+        put(m, ResourceIds.UI_TOP_PANEL_FLOOR, "images/ui/topPanel/floor.png");
+        // STS1 does not expose distinct ascension/status HUD sprites in the current catalog.
+        // Keep explicit resource ids, but fall back to the top panel bar so reports show partial
+        // supply instead of silently claiming full native parity.
+        put(m, ResourceIds.UI_TOP_PANEL_ASCENSION, "images/ui/topPanel/bar.png");
+        put(m, ResourceIds.UI_TOP_PANEL_STATUS, "images/ui/topPanel/bar.png");
     }
 
     private static void putCardFrames(Map<String, String> m) {

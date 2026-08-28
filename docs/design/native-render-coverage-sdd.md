@@ -91,8 +91,8 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Energy panel | `EnergyPanel.render` | yes | ART_DELEGATED with exposed gap: text chrome only |
 | Intents | `AbstractMonster.renderIntent` | yes | ART_DELEGATED with exposed gap: projection chrome only |
 | Targeting arrow | `AbstractPlayer.renderTargetingUi`, `PotionPopUp.renderTargetingUi` | no (observe-only by default; FULL self-draw optional) | OBSERVE: projection only, native arrow stays authoritative; FULL: self-drawn bezier arrow via `TargetingDrawPath`, texture fallback to plain line |
-| Proceed button | `ProceedButton.render` | yes | text chrome only |
-| Top panel | `TopPanel.render` | yes | text chrome only |
+| Proceed button | `ProceedButton.render` | yes | enhanced partial pixel supply: stable C2 button items with enabled/disabled background ResourceIds, label text, bounds, and evidence count from visible projected items; native glow/hover/animation parity still pending |
+| Top panel | `TopPanel.render` | yes | enhanced partial pixel supply: stable C2 HUD items for bar, HP, gold, floor, ascension, and status with explicit ResourceIds/bounds and evidence count from visible projected items; ascension/status currently use catalog fallback resources, so full native HUD parity remains pending |
 | Map screen | `DungeonMapScreen.render` | yes | ART_DELEGATED with exposed gap: HostAssets node draw path; full native parity pending |
 | Event dialog | `GenericEventDialog.render` | yes | ART_DELEGATED with exposed gap: base pixels not reproduced |
 | Select screens | `GridCardSelectScreen.render`, `HandCardSelectScreen.render` | yes | ART_DELEGATED with exposed gap: base pixels not reproduced |

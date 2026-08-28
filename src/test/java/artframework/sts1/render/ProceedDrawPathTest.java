@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
 import artframework.context.FakeSignalBackend;
@@ -14,6 +15,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -71,5 +73,28 @@ public class ProceedDrawPathTest {
         Map<String, Object> m = ProceedDrawPath.probeSlice();
         assertEquals("OBSERVE", m.get("presentLevel"));
         assertEquals(Boolean.FALSE, m.get("suppressNativeProceed"));
+    }
+
+    @Test
+    public void buildsStableButtonItemsWithStateResourcesAndGeometry() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(ContextFrame.of(1L, 1L, "combat", Arrays.asList(),
+                ControlsView.combatWithProceed(3, 1, 0, 0, 0,
+                        true, true, true, true, false, true), MapView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
+
+        List<ProceedDrawPath.DrawItem> items = ProceedDrawPath.buildFromProjection();
+
+        assertEquals(2, items.size());
+        assertEquals(ControlsView.PROCEED_ID, items.get(0).id);
+        assertEquals("Proceed", items.get(0).text);
+        assertEquals(ResourceIds.UI_BUTTON_PROCEED_ENABLED, items.get(0).resourceId);
+        assertTrue(items.get(0).enabled);
+        assertEquals(780f, items.get(0).bounds(1920f, 1080f).x, 0.01f);
+        assertEquals(ControlsView.CANCEL_ID, items.get(1).id);
+        assertEquals(ResourceIds.UI_BUTTON_CANCEL_DISABLED, items.get(1).resourceId);
+        assertFalse(items.get(1).enabled);
+        assertEquals(items.size(), ProceedDrawPath.materializedDrawCount());
     }
 }

@@ -28,6 +28,12 @@ public class Sts1HostAssetsTest {
         assertEquals("sts1:cardui/frame", cat.get(ResourceIds.CARD_FRAME_RED));
         assertTrue(cat.containsKey(ResourceIds.MAP_NODE_ELITE));
         assertTrue(cat.containsKey(ResourceIds.UI_BUTTON_DEFAULT));
+        assertTrue(cat.containsKey(ResourceIds.UI_BUTTON_PROCEED_ENABLED));
+        assertTrue(cat.containsKey(ResourceIds.UI_BUTTON_PROCEED_DISABLED));
+        assertTrue(cat.containsKey(ResourceIds.UI_TOP_PANEL_BAR));
+        assertTrue(cat.containsKey(ResourceIds.UI_TOP_PANEL_HP));
+        assertTrue(cat.containsKey(ResourceIds.UI_TOP_PANEL_GOLD));
+        assertTrue(cat.containsKey(ResourceIds.UI_TOP_PANEL_FLOOR));
         assertEquals(
                 "sts1:images/ui/intent/attack/attack_intent_1.png",
                 cat.get(ResourceIds.intent("attack/attack_intent_1")));

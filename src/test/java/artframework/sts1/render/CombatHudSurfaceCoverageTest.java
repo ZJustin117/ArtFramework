@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
 import artframework.component.Rect;
 import artframework.context.ContextFrame;
 import artframework.context.ControlsView;
@@ -168,16 +169,41 @@ public class CombatHudSurfaceCoverageTest {
         assertEquals(268f, intentBounds.y, 0.01f);
 
         Map<String, DrawComponent> proceed = c2Draws(SurfaceIds.COMBAT_PROCEED);
-        assertEquals(Integer.valueOf(ProceedDrawPath.buildFromProjection().size()),
+        assertEquals(Integer.valueOf(ProceedDrawPath.materializedDrawCount()),
                 Integer.valueOf(proceed.size()));
         assertEquals("Proceed", proceed.get(ControlsView.PROCEED_ID).text);
+        assertEquals(ResourceIds.UI_BUTTON_PROCEED_ENABLED,
+                proceed.get(ControlsView.PROCEED_ID).resourceId);
         assertEquals("Cancel", proceed.get(ControlsView.CANCEL_ID).text);
+        assertEquals(ResourceIds.UI_BUTTON_CANCEL_DISABLED,
+                proceed.get(ControlsView.CANCEL_ID).resourceId);
+        Rect proceedBounds = c2Bounds(SurfaceIds.COMBAT_PROCEED).get(ControlsView.PROCEED_ID).rect;
+        Rect projectedProceed = ProceedDrawPath.buildFromProjection().get(0).bounds(
+                com.megacrit.cardcrawl.core.Settings.WIDTH,
+                com.megacrit.cardcrawl.core.Settings.HEIGHT);
+        assertEquals(projectedProceed.x, proceedBounds.x, 0.01f);
+        assertEquals(projectedProceed.y, proceedBounds.y, 0.01f);
+        assertEquals(projectedProceed.width, proceedBounds.width, 0.01f);
+        assertEquals(projectedProceed.height, proceedBounds.height, 0.01f);
 
         Map<String, DrawComponent> topPanel = c2Draws(SurfaceIds.TOP_PANEL);
-        assertEquals(Integer.valueOf(TopPanelDrawPath.buildFromProjection().size()),
+        assertEquals(Integer.valueOf(TopPanelDrawPath.materializedDrawCount()),
                 Integer.valueOf(topPanel.size()));
-        assertEquals("Ironclad  HP 66/80  Gold 123  Floor 9  A17",
-                topPanel.get("top_panel_hud").text);
+        assertEquals("", topPanel.get("top_panel.bar").text);
+        assertEquals(ResourceIds.UI_TOP_PANEL_BAR, topPanel.get("top_panel.bar").resourceId);
+        assertEquals("HP 66/80", topPanel.get("top_panel.hp").text);
+        assertEquals(ResourceIds.UI_TOP_PANEL_HP, topPanel.get("top_panel.hp").resourceId);
+        assertEquals("123", topPanel.get("top_panel.gold").text);
+        assertEquals("Floor 9", topPanel.get("top_panel.floor").text);
+        assertEquals("A17", topPanel.get("top_panel.ascension").text);
+        assertEquals("Ironclad", topPanel.get("top_panel.status").text);
+        Rect hpBounds = c2Bounds(SurfaceIds.TOP_PANEL).get("top_panel.hp").rect;
+        Rect projectedHp = TopPanelDrawPath.buildFromProjection().get(1).bounds(
+                com.megacrit.cardcrawl.core.Settings.WIDTH,
+                com.megacrit.cardcrawl.core.Settings.HEIGHT);
+        assertEquals(projectedHp.x, hpBounds.x, 0.01f);
+        assertEquals(projectedHp.y, hpBounds.y, 0.01f);
+        assertEquals(projectedHp.width, hpBounds.width, 0.01f);
     }
 
     @Test
@@ -198,11 +224,11 @@ public class CombatHudSurfaceCoverageTest {
         assertEvidenceCount(SurfaceIds.COMBAT_INTENTS,
                 IntentDrawPath.buildFromProjection().size(), "renderIntents");
         assertEvidenceCount(SurfaceIds.COMBAT_PROCEED,
-                ProceedDrawPath.buildFromProjection().size(), "renderProceed");
+                ProceedDrawPath.materializedDrawCount(), "renderProceed");
         assertTrue("proceed evidence must vary with projected proceed/cancel rows",
                 ProceedDrawPath.buildFromProjection().size() > 1);
         assertEvidenceCount(SurfaceIds.TOP_PANEL,
-                TopPanelDrawPath.buildFromProjection().size(), "renderTopPanel");
+                TopPanelDrawPath.materializedDrawCount(), "renderTopPanel");
     }
 
     @Test

@@ -57,7 +57,7 @@ public final class PresentSafety {
         Sts1RenderPipeline.resetForTests();
         artframework.sts1.render.NativeRenderBridge.clearTransientEffectsForRecovery();
         artframework.sts1.render.NativeRenderBridge.resetForTests();
-        removeC2HudItemsForRecovery();
+        removeC2SurfaceItemsForRecovery();
         artframework.sts1.render.MapDrawPath.resetForTests();
         artframework.sts1.audio.ArtAudioBridge.resetForTests();
         artframework.sts1.skeleton.Sts1SkeletonBridge.onHostRecreated();
@@ -114,7 +114,8 @@ public final class PresentSafety {
         }
     }
 
-    private static void removeC2HudItemsForRecovery() {
+    private static void removeC2SurfaceItemsForRecovery() {
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.MAP);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_CONTROLS);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_ENERGY);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_INTENTS);

@@ -1202,7 +1202,7 @@ entries:
     only when FULL_READY and panic or unknown owners fail open. Delegation must close
     PresentationDrawEvidence or count as a strict report gap; HostAssets supplies
     the node draw path while full native parity is pending.
-  test: artframework.sts1.render.MapDrawPathTest.suppressesNativeMapOnlyWhenFullReady
+  test: artframework.sts1.render.MapDrawPathTest.mapPatchSuppressesOnlyWhenFullMountedSceneAndExecutorReady
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.dungeontransitionscreen.render

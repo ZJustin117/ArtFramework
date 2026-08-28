@@ -213,6 +213,29 @@ public class EventDrawPathTest {
         assertEquals(3, evidence.drawCount);
     }
 
+    @Test
+    public void eventRenderFailureStillRecordsEvidenceWithoutStrictPollution() {
+        publishEventFrame(
+                "Neow",
+                EventOptionView.of(0, "Talk", true),
+                EventOptionView.of(1, "Leave", true));
+        FullPresentMode.setEventLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.EVENT).mount();
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.EVENT, "com.megacrit.cardcrawl.events.GenericEventDialog", "render", "event");
+
+        // A null SpriteBatch makes the native draw calls fail; the renderer must still close
+        // evidence for the delegated invocation and keep strict diagnostics clean.
+        invokeRenderEvent();
+
+        PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
+        assertNotNull(evidence);
+        assertEquals(EventDrawPath.materializedDrawCount(), evidence.drawCount);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
     private static void invokePrepareEventVisuals(SurfaceDrawPlan plan) {
         invokePrivate("prepareEventVisuals", new Class<?>[] {SurfaceDrawPlan.class}, plan);
     }

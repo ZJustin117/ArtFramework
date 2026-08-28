@@ -561,22 +561,24 @@ public final class Sts1SurfaceRenderer {
      * supply gap.
      */
     private static void renderEvent(SpriteBatch sb) {
-        int drawn = 0;
+        artframework.core.PresentChromeStyle chrome = resolveSurfaceChrome(SurfaceIds.EVENT);
         try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.EVENT);
             for (EventDrawPath.DrawItem item : EventDrawPath.buildFromProjection()) {
                 if (!item.visible) continue;
-                artframework.component.Rect b = new artframework.component.Rect(
-                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
-                drawResolvedTexture(sb, item.resourceId, b);
-                if (!item.label.isEmpty()) com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont, item.label,
-                        item.x, item.y, item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
-                drawn++;
+                try {
+                    artframework.component.Rect b = new artframework.component.Rect(
+                            item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
+                    drawResolvedTexture(sb, item.resourceId, b);
+                    if (!item.label.isEmpty()) com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                            sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont, item.label,
+                            item.x, item.y, item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                } catch (Throwable ignored) { }
             }
-        } catch (Throwable ignored) { }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT, EventDrawPath.materializedDrawCount());
+        } catch (Throwable ignored) {
+        } finally {
+            NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT,
+                    EventDrawPath.materializedDrawCount());
+        }
     }
 
     /**
@@ -585,26 +587,27 @@ public final class Sts1SurfaceRenderer {
      * parity remains an exposed supply gap.
      */
     private static void renderSelect(SpriteBatch sb, String surfaceId) {
-        int drawn = 0;
+        artframework.core.PresentChromeStyle chrome = resolveSurfaceChrome(surfaceId);
         try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(surfaceId);
             for (SelectDrawPath.DrawItem item : SelectDrawPath.buildFromProjection()) {
                 if (!item.visible) continue;
-                artframework.component.Rect b = new artframework.component.Rect(
-                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
-                drawResolvedTexture(sb, item.resourceId, b);
-                if (!item.confirm && !item.cardId.isEmpty()) {
-                    drawResolvedTexture(sb, item.frameResourceId, b);
-                }
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        item.confirm ? "Confirm" : item.cardId, item.x, item.y,
-                        item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
-                drawn++;
+                try {
+                    artframework.component.Rect b = new artframework.component.Rect(
+                            item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
+                    drawResolvedTexture(sb, item.resourceId, b);
+                    if (!item.confirm && !item.cardId.isEmpty()) {
+                        drawResolvedTexture(sb, item.frameResourceId, b);
+                    }
+                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                            sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                            item.confirm ? "Confirm" : item.cardId, item.x, item.y,
+                            item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                } catch (Throwable ignored) { }
             }
-        } catch (Throwable ignored) { }
-        NativeRenderBridge.recordSurfaceDraw(surfaceId, SelectDrawPath.materializedDrawCount());
+        } catch (Throwable ignored) {
+        } finally {
+            NativeRenderBridge.recordSurfaceDraw(surfaceId, SelectDrawPath.materializedDrawCount());
+        }
     }
 
     /**
@@ -1002,6 +1005,14 @@ public final class Sts1SurfaceRenderer {
 
     private static Color colorAccent(artframework.core.PresentChromeStyle c) {
         return new Color(c.accentR, c.accentG, c.accentB, c.accentA);
+    }
+
+    private static artframework.core.PresentChromeStyle resolveSurfaceChrome(String surfaceId) {
+        try {
+            return artframework.core.PresentResolve.chromeForSurface(surfaceId);
+        } catch (Throwable ignored) {
+            return artframework.core.PresentChromeStyle.stsDefault();
+        }
     }
 
     private static AbstractCard find(String instanceId) {

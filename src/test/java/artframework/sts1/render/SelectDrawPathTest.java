@@ -358,6 +358,42 @@ public class SelectDrawPathTest {
         assertEquals(1, evidence.drawCount);
     }
 
+    @Test
+    public void selectRenderFailureStillRecordsEvidenceWithoutStrictPollution() {
+        publishSelectFrame(
+                SelectView.grid(
+                        Arrays.asList(
+                                CardView.builder(new CardRef("g1", "Strike_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(0)
+                                        .build(),
+                                CardView.builder(new CardRef("g2", "Defend_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(1)
+                                        .build()),
+                        Collections.singletonList("g1"),
+                        true,
+                        true));
+        FullPresentMode.setSelectLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.SELECT_GRID).mount();
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.SELECT_GRID,
+                "com.megacrit.cardcrawl.screens.select.GridCardSelectScreen",
+                "render",
+                "grid");
+
+        // A null SpriteBatch makes the per-item native draw calls fail; evidence must still close
+        // for the delegated invocation and strict diagnostics must remain clean.
+        invokeRenderSelect(SurfaceIds.SELECT_GRID);
+
+        PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
+        assertNotNull(evidence);
+        assertEquals(SelectDrawPath.materializedDrawCount(), evidence.drawCount);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
     private static void invokePrepareSelectVisuals(SurfaceDrawPlan plan) {
         invokePrivate("prepareSelectVisuals", new Class<?>[] {SurfaceDrawPlan.class}, plan);
     }

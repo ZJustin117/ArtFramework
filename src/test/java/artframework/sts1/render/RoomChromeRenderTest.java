@@ -99,12 +99,13 @@ public class RoomChromeRenderTest {
         publishFrame("shop", RestView.empty(), TreasureView.empty(),
                 ShopView.of(150, Arrays.asList(
                         ShopView.ShopEntryView.of(0, "card", "Strike_R", 50),
-                        new ShopView.ShopEntryView(1, "relic", "Bag of Marbles", 150, true, "")),
+                        new ShopView.ShopEntryView(1, "relic", "Bag of Marbles", 150, true, ""),
+                        ShopView.ShopEntryView.of(2, "potion", "Fire Potion", 75)),
                         true, 75));
 
         List<RoomChromeLine> lines = ShopDrawPath.chromeLines();
 
-        assertEquals(5, lines.size());
+        assertEquals(6, lines.size());
         assertEquals("Merchant", lines.get(0).text);
         assertEquals("gold", lines.get(1).id);
         assertEquals("Gold 150", lines.get(1).text);
@@ -112,10 +113,16 @@ public class RoomChromeRenderTest {
         assertEquals("Strike_R  50G", lines.get(2).text);
         assertTrue(lines.get(2).enabled);
         assertEquals("entry:1", lines.get(3).id);
+        assertEquals("Bag of Marbles  150G", lines.get(3).text);
         assertTrue("sold-out entry must render disabled", !lines.get(3).enabled);
-        assertEquals("purge", lines.get(4).id);
-        assertEquals("Card Removal  75G", lines.get(4).text);
+        assertEquals("entry:2", lines.get(4).id);
+        assertEquals("Fire Potion  75G", lines.get(4).text);
+        assertTrue(lines.get(4).enabled);
+        assertEquals("purge", lines.get(5).id);
+        assertEquals("Card Removal  75G", lines.get(5).text);
         assertEquals(Integer.valueOf(lines.size()), ShopDrawPath.probeSlice().get("chromeLineCount"));
+        assertEquals("minimal text chrome exposes each projected entry plus title/gold/purge",
+                Integer.valueOf(3), ShopDrawPath.probeSlice().get("drawCount"));
     }
 
     @Test
@@ -185,6 +192,23 @@ public class RoomChromeRenderTest {
     }
 
     @Test
+    public void prepareShopVisualsClearsC2ItemsWhenNotFullReady() {
+        publishFrame("shop", RestView.empty(), TreasureView.empty(),
+                ShopView.of(99, java.util.Collections.singletonList(
+                        ShopView.ShopEntryView.of(0, "card", "Strike_R", 50)),
+                        false, 0));
+        fullReady(SurfaceIds.SHOP);
+        SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
+        Sts1SurfaceRenderer.prepareShopVisuals(plan);
+        assertC2ItemsMatch(SurfaceIds.SHOP, ShopDrawPath.chromeLines());
+
+        CombatInputRouter.resetForTests();
+        Sts1SurfaceRenderer.prepareShopVisuals(Sts1RenderPipeline.plan());
+
+        assertC2ItemsMatch(SurfaceIds.SHOP, java.util.Collections.<RoomChromeLine>emptyList());
+    }
+
+    @Test
     public void prepareTreasureVisualsMaterializesC2ItemsMatchingChromeLines() {
         publishFrame("treasure", RestView.empty(), TreasureView.closed(), ShopView.empty());
         fullReady(SurfaceIds.TREASURE);
@@ -222,8 +246,9 @@ public class RoomChromeRenderTest {
     @Test
     public void shopEvidenceRecordsRealRowCount() {
         publishFrame("shop", RestView.empty(), TreasureView.empty(),
-                ShopView.of(150, java.util.Collections.singletonList(
-                        ShopView.ShopEntryView.of(0, "card", "Strike_R", 50)),
+                ShopView.of(150, Arrays.asList(
+                        ShopView.ShopEntryView.of(0, "card", "Strike_R", 50),
+                        ShopView.ShopEntryView.of(1, "relic", "Bag of Marbles", 150)),
                         true, 75));
         fullReady(SurfaceIds.SHOP);
 
@@ -238,6 +263,10 @@ public class RoomChromeRenderTest {
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
         assertEquals(rows, evidence.drawCount);
+        assertEquals("evidence count is one invocation, not a hard-coded row count",
+                Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+        assertEquals("draw evidence must carry title/gold/entries/purge real row count",
+                5, evidence.drawCount);
         assertEquals(Integer.valueOf(0),
                 NativeRenderBridge.strictReport().get("orphanArtOutput"));
     }

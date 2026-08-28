@@ -15,6 +15,7 @@ import artframework.context.SurfaceIds;
 import artframework.context.TopPanelView;
 import artframework.context.TreasureView;
 import artframework.sts1.FullPresentMode;
+import artframework.sts1.PresentSafety;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
@@ -36,6 +37,7 @@ public class ShopDrawPathTest {
         Sts1RenderPipeline.resetForTests();
         FullPresentMode.resetForTests();
         CombatInputRouter.resetForTests();
+        PresentSafety.resetForTests();
     }
 
     private void publishShopFrame() {
@@ -78,9 +80,53 @@ public class ShopDrawPathTest {
     }
 
     @Test
+    public void shopSuppressesOnlyWhenFullReadySceneMountedAndExecutorReady() {
+        publishShopFrame();
+        ArtFramework.component(SurfaceIds.SHOP).mount();
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+
+        assertFalse("OFF is not delegated coverage", ShopDrawPath.shouldSuppressNativeShop());
+
+        FullPresentMode.setShopLevel(PresentLevel.FULL);
+        assertTrue("FULL + shop scene + mounted + executor-ready suppresses native shop",
+                ShopDrawPath.shouldSuppressNativeShop());
+
+        CombatInputRouter.resetForTests();
+        assertFalse("executor-less FULL shop must continue native",
+                ShopDrawPath.shouldSuppressNativeShop());
+
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.SHOP).unmount();
+        assertFalse("unmounted FULL shop must continue native",
+                ShopDrawPath.shouldSuppressNativeShop());
+
+        ArtFramework.component(SurfaceIds.SHOP).mount();
+        publishNonShopSceneFrame();
+        assertFalse("scene mismatch must continue native",
+                ShopDrawPath.shouldSuppressNativeShop());
+
+        publishShopFrame();
+        PresentSafety.panic("shop-test");
+        assertFalse("panic fail-open must not be counted as coverage",
+                ShopDrawPath.shouldSuppressNativeShop());
+    }
+
+    @Test
     public void offDoesNotSuppress() {
         publishShopFrame();
         ArtFramework.component(SurfaceIds.SHOP).mount();
         assertFalse(ShopDrawPath.shouldSuppressNativeShop());
+    }
+
+    private void publishNonShopSceneFrame() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                ContextFrame.ofFull(
+                        1L, 1L, "event", null, ControlsView.empty(), MapView.empty(),
+                        EventView.of("Other", java.util.Collections.<artframework.context.EventOptionView>emptyList()),
+                        SelectView.empty(), RewardView.empty(), RestView.empty(), TreasureView.empty(),
+                        ShopView.empty(), TopPanelView.empty(), MonsterIntentView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
     }
 }

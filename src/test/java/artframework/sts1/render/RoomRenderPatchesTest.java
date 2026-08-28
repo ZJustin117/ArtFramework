@@ -16,6 +16,7 @@ import artframework.context.SurfaceIds;
 import artframework.context.TopPanelView;
 import artframework.context.TreasureView;
 import artframework.sts1.FullPresentMode;
+import artframework.sts1.PresentSafety;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class RoomRenderPatchesTest {
@@ -38,6 +40,7 @@ public class RoomRenderPatchesTest {
         Sts1RenderPipeline.resetForTests();
         FullPresentMode.resetForTests();
         CombatInputRouter.resetForTests();
+        PresentSafety.resetForTests();
     }
 
     @Test
@@ -110,6 +113,39 @@ public class RoomRenderPatchesTest {
     }
 
     @Test
+    public void shopPatchContinuesForFailOpenAndIncompleteReadinessStates() {
+        publishShopFrame();
+        FullPresentMode.setShopLevel(PresentLevel.FULL);
+
+        assertFalse("executor-less FULL shop must continue ShopScreen.render",
+                RoomRenderPatches.ObserveNativeShopRender.Prefix(null, null).isPresent());
+
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.SHOP).unmount();
+        assertFalse("unmounted FULL shop must continue ShopScreen.render",
+                RoomRenderPatches.ObserveNativeShopRender.Prefix(null, null).isPresent());
+
+        publishShopFrame();
+        publishMismatchedShopOwnerFrame();
+        assertFalse("scene mismatch must continue ShopScreen.render",
+                RoomRenderPatches.ObserveNativeShopRender.Prefix(null, null).isPresent());
+
+        publishShopFrame();
+        PresentSafety.panic("shop-test");
+        assertFalse("panic fail-open must continue ShopScreen.render",
+                RoomRenderPatches.ObserveNativeShopRender.Prefix(null, null).isPresent());
+
+        PresentSafety.resetForTests();
+        NativeRenderBridge.resetForTests();
+        RenderDisposition unknown = NativeRenderBridge.beginSurface(
+                "sts1.unknown-owner", "native.Unknown", "render", "unknown");
+        assertTrue("unknown owner fail-opens to native", unknown.nativeContinuation);
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, unknown.mode);
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.strictReport().get("runtimeUNKNOWN"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("delegateToArt"));
+    }
+
+    @Test
     public void fullReadySuppressesNativeTreasureRender() {
         publishTreasureFrame();
         FullPresentMode.setTreasureLevel(PresentLevel.FULL);
@@ -174,6 +210,19 @@ public class RoomRenderPatchesTest {
                         1L, 1L, "shop", null, ControlsView.empty(), MapView.empty(),
                         EventView.empty(), SelectView.empty(), RewardView.empty(),
                         RestView.empty(), TreasureView.empty(), shop, TopPanelView.empty(),
+                        MonsterIntentView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
+        ArtFramework.component(SurfaceIds.SHOP).mount();
+    }
+
+    private void publishMismatchedShopOwnerFrame() {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                ContextFrame.ofFull(
+                        1L, 1L, "rest", null, ControlsView.empty(), MapView.empty(),
+                        EventView.empty(), SelectView.empty(), RewardView.empty(), RestView.empty(),
+                        TreasureView.empty(), ShopView.empty(), TopPanelView.empty(),
                         MonsterIntentView.empty(), null));
         ArtFramework.publishFrame(backend.currentFrame());
         ArtFramework.component(SurfaceIds.SHOP).mount();

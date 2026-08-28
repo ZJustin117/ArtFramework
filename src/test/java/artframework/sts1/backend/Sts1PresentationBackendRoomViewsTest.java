@@ -348,6 +348,7 @@ public class Sts1PresentationBackendRoomViewsTest {
 
     public static class StubShopScreen {
         public final java.util.List<Object> coloredCards = new java.util.ArrayList<Object>();
+        public final java.util.List<Object> colorlessCards = new java.util.ArrayList<Object>();
         public final java.util.List<Object> relics = new java.util.ArrayList<Object>();
         public final java.util.List<Object> potions = new java.util.ArrayList<Object>();
         public boolean purgeAvailable = true;
@@ -358,8 +359,14 @@ public class Sts1PresentationBackendRoomViewsTest {
     public void readShopViewProjectsLiveInventoryAndPrices() {
         StubShopScreen screen = new StubShopScreen();
         screen.coloredCards.add(new StubShopCard());
+        StubShopCard colorless = new StubShopCard();
+        colorless.name = "Dramatic Entrance";
+        colorless.cardID = "Dramatic Entrance";
+        colorless.price = 60;
+        screen.colorlessCards.add(colorless);
         StubShopRelic relic = new StubShopRelic();
         relic.relic = new StubRelicInfo();
+        relic.isPurchased = true;
         screen.relics.add(relic);
         StubShopPotion potion = new StubShopPotion();
         potion.potion = new StubPotionInfo();
@@ -369,16 +376,21 @@ public class Sts1PresentationBackendRoomViewsTest {
 
         assertTrue(view.available);
         assertEquals(200, view.gold);
-        assertEquals(3, view.entryCount());
+        assertEquals(4, view.entryCount());
         assertEquals("card", view.entries.get(0).kind);
         assertEquals("Strike_R", view.entries.get(0).label);
         assertEquals(50, view.entries.get(0).cost);
-        assertEquals("relic", view.entries.get(1).kind);
-        assertEquals("Bag of Marbles", view.entries.get(1).label);
-        assertEquals(150, view.entries.get(1).cost);
-        assertEquals("potion", view.entries.get(2).kind);
-        assertEquals("Fire Potion", view.entries.get(2).label);
-        assertEquals(75, view.entries.get(2).cost);
+        assertFalse("unpurchased card must project as enabled/not sold-out",
+                view.entries.get(0).soldOut);
+        assertEquals("card.art.Dramatic Entrance", view.entries.get(1).resourceId);
+        assertEquals("relic", view.entries.get(2).kind);
+        assertEquals("Bag of Marbles", view.entries.get(2).label);
+        assertEquals(150, view.entries.get(2).cost);
+        assertTrue("purchased relic must project sold-out", view.entries.get(2).soldOut);
+        assertEquals("potion", view.entries.get(3).kind);
+        assertEquals("Fire Potion", view.entries.get(3).label);
+        assertEquals(75, view.entries.get(3).cost);
+        assertEquals("potion.Fire Potion", view.entries.get(3).resourceId);
         assertEquals(125, view.purgeCost);
         assertTrue(view.purgeAvailable);
     }

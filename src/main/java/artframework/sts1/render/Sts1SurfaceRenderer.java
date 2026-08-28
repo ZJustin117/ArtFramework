@@ -353,7 +353,10 @@ public final class Sts1SurfaceRenderer {
 
     /** Slice C phase 2: shop chrome rows (title/gold/entries/purge) from the live ShopView. */
     static void prepareShopVisuals(SurfaceDrawPlan plan) {
-        if (!containsSurface(plan, SurfaceIds.SHOP)) return;
+        if (!containsSurface(plan, SurfaceIds.SHOP)) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.SHOP);
+            return;
+        }
         if (!ShopDrawPath.shouldSuppressNativeShop()) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.SHOP);
             return;

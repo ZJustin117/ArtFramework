@@ -785,7 +785,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
         String name = stringValue(card, "name");
         String cardId = stringValue(card, "cardID");
         int price = intValue(card, "price", 0);
-        boolean sold = !booleanValue(card, "isPurchased", false);
+        boolean sold = booleanValue(card, "isPurchased", false);
         entries.add(ShopView.ShopEntryView.of(index, "card", name, price, sold,
                 cardId.isEmpty() ? "" : ResourceIds.cardArt(cardId)));
     }

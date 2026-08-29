@@ -1,11 +1,11 @@
 # Native Render Coverage SDD
 
-Status: fixed architecture, static implementation in progress
+Status: fixed architecture; static manifest and runtime ledger implemented
 
-This document defines the Native Render Coverage Contract (NRCC) and its static
-inventory. It does not claim runtime coverage. Its purpose is to enumerate STS1
-native rendering candidates and define how ArtFramework intercepts their render
-invocations without rewriting STS rendering implementations or game authority.
+This document defines the Native Render Coverage Contract (NRCC), its static
+inventory, and its runtime evidence contract. The descriptor-aware manifest is
+currently closed over all 544 scanned paths. That static closure is not runtime
+acceptance: each exercised invocation must still satisfy the strict runtime ledger.
 
 ## Fixed architecture
 
@@ -109,12 +109,21 @@ The map remains `ART_DELEGATED with exposed gap` while its enhanced partial
 pixel supply is expanded; this wording is intentional and keeps the ownership
 ledger compatible with the incomplete-supply policy.
 
+This table is a visual parity inventory. Its pending items describe pixels,
+animation, interaction feel, or scene coverage that still need D1 inspection.
+They are distinct from strict runtime evidence gaps such as an open invocation,
+`delegatedWithoutEvidence`, native continuation after delegation, orphan ART
+output, or an unrecorded fail-open. Recent runtime closure work drains every
+pending invocation for a surface draw, cancels stale invocations on native/off
+transitions, and closes recovery state; those ledger mechanics are implemented,
+but map/event/select/room still require scene-specific D1 visual acceptance.
+
 Per-instance claims stay granular:
 
 | Surface / effect | Native invocation | Ownership justification |
 |---|---|---|
 | Per-instance skeleton | `SkeletonMeshRenderer.draw` | Only individual skeleton instances claimed by ART through `Sts1SkeletonBridge` are suppressed; unclaimed skeletons continue through the native renderer. |
-| Per-instance transient effect | `AbstractGameEffect.render` (observed at the `AbstractDungeon.render` container call sites and at direct three-arg host draws) | Effect observation is capture-and-pass only: the native effect queue stays authoritative, every observed call still executes the original `render`, and no effect instance is ever suppressed. |
+| Transient effect observation | `AbstractGameEffect.render` (observed at the `AbstractDungeon.render` container call sites and at direct three-arg host draws) | Current implementation is capture-and-pass only: the native effect queue stays authoritative, every observed call still executes the original `render`, and no effect instance is suppressed. Per-instance effect delegation is an allowed future granularity, not current behavior. |
 
 ### AbstractCard.render boundary
 
@@ -122,9 +131,10 @@ Per-instance claims stay granular:
 including hand cards — are drawn by the live, un-intercepted
 `AbstractCard.render` call. ART owns hand layout only: the hand draw path
 hard-syncs each card pose (`current_x`, `current_y`, `angle`, `drawScale`)
-before invoking the live render. The manifest records `AbstractCard#render` as
-`OUT_OF_SCOPE` because no ART hook intercepts this invocation, not because an
-atlas shell replaced it.
+before invoking the live render. The manifest records both descriptor-aware
+`AbstractCard#render` paths as explicit `OUT_OF_SCOPE` entries because ART does
+not patch those methods. Runtime hand delegation still calls the live card
+renderer; an atlas shell does not replace card pixels.
 
 The `cards-piles-soul` overlay slice does not change that boundary. ART may
 observe `CardGroup`, draw/discard/exhaust/deck piles, and `Soul` / `SoulGroup`
@@ -357,7 +367,10 @@ No layer may move STS authority into ART. In particular:
 
 ## Ownership granularity
 
-There are two fixed interception granularities:
+There are two allowed interception granularities. Surface delegation is
+implemented. Per-instance skeleton delegation is implemented; per-instance
+transient-effect delegation is a future option, while current transient effects
+remain capture-and-pass.
 
 ### Surface owner
 
@@ -376,9 +389,10 @@ native surface render invocation
 
 ### Transient effect instance
 
-Use per-instance delegation for relic, Power, buff, card, and system effects.
-The effect queue remains native and authoritative. An uncovered instance in the
-same queue must continue through STS:
+If transient-effect delegation is introduced, use per-instance delegation for
+relic, Power, buff, card, and system effects. The effect queue must remain native
+and authoritative, and an uncovered instance in the same queue must continue
+through STS:
 
 ```text
 effect A -> DELEGATE_TO_ART
@@ -388,7 +402,8 @@ effect C -> CAPTURE_AND_PASS
 
 ART must never skip an entire effect queue because one instance is delegated.
 The transient entity identity must retain the native effect instance identity
-for the duration of the delegation.
+for the duration of the delegation. Today all observed transient effects take
+the `CAPTURE_AND_PASS` branch; none take `DELEGATE_TO_ART`.
 
 ## Disposition semantics
 
@@ -498,10 +513,10 @@ In particular, static discovery of `AbstractGameEffect` is not proof that relic
 or buff trigger ghosts are delegated. The dynamic slice must record effect
 create, update, render, completion, and cleanup events by instance identity.
 
-## Planned follow-up
+## Current closure and follow-up
 
-The next NRCC slice consumes this inventory to define a checked manifest and a
-runtime ledger:
+The checked manifest, runtime owner instrumentation, invocation/disposition
+ledger, and strict report are implemented:
 
 ```text
 static candidates
@@ -514,3 +529,10 @@ static candidates
 
 Lightwave remains a visual diagnostic and does not participate in the strict
 coverage decision.
+
+The remaining acceptance work is evidence collection: exercise relevant scenes,
+confirm the runtime strict report stays closed, and separately assess the visual
+parity inventory. Existing D1 fixtures provide executable map and event paths.
+The current lab navigation API does not provide deterministic standalone entry
+into grid/hand select, rest, shop, or treasure, so those scenarios must not be
+claimed until executable navigation support exists.

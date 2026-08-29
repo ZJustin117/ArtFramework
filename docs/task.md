@@ -333,8 +333,10 @@ full-present scenarios. Lab-only (not consumer API).
 
 - [x] 19.1 Effective capability state: FULL requires mounted scene + ready executor before ART
   suppresses native UI or owns input; probe state/reason + JUnit
-- [x] 19.2 HostAssets-native hand/card draw path (no `AbstractCard.render` delegation); D1
-  `fight Cultist` combat-ready scenario confirms FULL_READY, native suppression, and ART hand draw
+- [x] 19.2 Native card-pixel hand draw path: ART delegates the hand surface, hard-syncs
+  live card poses, and invokes the unpatched `AbstractCard.render`; D1 `fight Cultist`
+  combat-ready scenario confirms FULL_READY, hand-surface suppression, and ART-orchestrated
+  native card drawing
 - [x] 19.3 HostAssets controls/map draw path + real STS1 map intent execution;
   D1 `d1_full_present_map_ready` (FULL_READY, texture nodes, `art op map first` leaves map)
 - [x] 19.4 Scene lifecycle/recovery: PresentSafety matrix JUnit + D1
@@ -636,7 +638,8 @@ FULL acceptance requires zero static unknowns and zero runtime strict-report gap
       `Sts1EndTurnChrome` is deleted (NRO-06)
 - [x] 47.10 Design: native render family → three-layer system contract
       ([`native-render-family-systems.md`](design/native-render-family-systems.md)):
-      25-family taxonomy over the 488-path static scan (schema v3, families.py as the
+      25-family taxonomy over the then-current 488-path static-scan snapshot (schema v3,
+      families.py as the
       assignment authority), family → collection/projection/system mapping framework with
       the TransientEffect four-piece template, meta-screen / targeting / transient-VFX
       integration recipes, the new-`@SpirePatch` precondition checklist, and known
@@ -664,7 +667,8 @@ FULL acceptance requires zero static unknowns and zero runtime strict-report gap
       `AbstractDungeon#render` → explicit `OBSERVED` (container instrument) and
       `TestGame#render` → `OUT_OF_SCOPE`; generator now omits policy for family-default
       resolutions so re-triage stays a one-table change; regenerated
-      `sts1-native-coverage.yaml` (488 paths: 16 `ART_DELEGATED`, 63 `OUT_OF_SCOPE`,
+      `sts1-native-coverage.yaml` (historical 488-path snapshot: 16 `ART_DELEGATED`,
+      63 `OUT_OF_SCOPE`,
       1 `OBSERVED`, 408 inherited; unknown=0) so
       `--check-manifest --strict-manifest` passes with zero ownership errors
 - [x] 47.14 Slice C: eliminate the rest/shop/treasure "suppress-native but zero-pixel"
@@ -747,8 +751,12 @@ FULL acceptance requires zero static unknowns and zero runtime strict-report gap
       passed `d1_full_present_combat_ready` (1/1). This is combat-path evidence
       only; map/event/select/room visual parity still requires their own D1 scenarios.
 
-**Current state:** static strict manifest remains 544/544 clean and the Java full
-gate has passed; native parity gaps remain documented in
+**Current state:** the descriptor-aware static manifest is closed for the current
+544/544 inventory and the Java full gate has passed. This is static inventory closure,
+not proof that every runtime path or visual scene was exercised. Recent runtime-ledger
+work closes all queued invocations for each rendered surface, cancels stale pending
+invocations on native/off transitions, and closes lifecycle/recovery gaps; native visual
+parity gaps remain documented in
 [`native-render-coverage-sdd.md`](design/native-render-coverage-sdd.md).
 
 - [x] 47.28 D1 deployment and combat smoke completed (2026-08-29): fresh jar
@@ -757,3 +765,13 @@ gate has passed; native parity gaps remain documented in
       not run because the first `connect_console()` attempt blocked on the
       existing connector stream; `scripts/art-lab status` still reports READY.
       No room/map UI result is claimed from that blocked batch.
+- [ ] 47.29 D1 map/event/select/room acceptance: executable FULL_READY fixtures already
+      exist for map (`d1_full_present_map_ready`) and event (`d1_full_present_event`).
+      The current runner can execute console/probe/assert steps, but `art lab` has no
+      deterministic standalone navigation command for grid/hand select, rest, shop, or
+      treasure. Add those device scenarios only after supported navigation exists; do not
+      infer select/room visual evidence from combat, map, event, or offline/JUnit coverage.
+      The 2026-08-29 post-cold-start map and event attempts reached their console steps
+      (`executed: true`) but failed because the D1 game-probe sidecar was not refreshed;
+      no FULL_READY, draw, continuation, or cleanup evidence was produced. This is a
+      game-probe transport blocker, not a surface assertion result.

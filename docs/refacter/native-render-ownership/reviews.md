@@ -1,5 +1,12 @@
 # Native Render Ownership Reviews
 
+Status: historical and frozen. Findings and PASS results below are preserved as review facts
+for their original revisions. Current policy supersedes the R2/R3/R5 blanket
+native-continuation conclusions: manifest `ART_DELEGATED` surfaces may now suppress per
+invocation only when FULL_READY, with fail-open recovery and strict draw-evidence closure.
+Transient effects remain `CAPTURE_AND_PASS`; this superseding note does not rewrite the
+historical findings.
+
 ## Baseline - Explore Audit
 
 - Session: `ses_fc86b09b2ffeUkSx5KgMQvOd0X`

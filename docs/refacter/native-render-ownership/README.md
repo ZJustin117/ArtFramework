@@ -1,5 +1,10 @@
 # Native Render Ownership Refacter
 
+Status: historical project, complete and frozen. This directory records the policy and
+reviews at the time of NRO. The current runtime policy is manifest-backed conditional
+delegation: an `ART_DELEGATED` invocation may suppress native rendering only after its
+FULL_READY capability gate passes, and strict runtime evidence must close the invocation.
+
 ## Goal
 
 Make STS1 native renderers the visual authority for existing Slay the Spire UI and card pixels. ART may observe, project, route input, and draw explicit overlays, but must not hand-reimplement native card, control, room, map, event, reward, shop, treasure, intent, or skeleton pixels when an original STS renderer exists.
@@ -13,13 +18,15 @@ Make STS1 native renderers the visual authority for existing Slay the Spire UI a
 
 ## Architecture Authority
 
-- `docs/design/native-render-coverage-sdd.md` is the primary ownership contract, but must be tightened so `DELEGATE_TO_ART` cannot mean hand-reimplementing native pixels.
-- `docs/design/c2-full-present.md` currently permits full native surface delegation and must be reconciled with the new rule that ART should use native render functions where they exist.
+- `docs/design/native-render-coverage-sdd.md` is the current ownership and evidence contract.
+- `docs/design/c2-full-present.md` defines the current full-present capability boundary.
 - Runtime code authority is `NativeRenderBridge`, render patch adapters, `SurfaceDrawPlan`, and `Sts1SurfaceRenderer`.
 
 ## Current Checkpoint
 
-Active slice: `NRO-05` static manifest and native pixel authority gate. NRO-01..NRO-04 source slices are complete; docs and regression gates now enforce the native-pixel-authority policy.
+NRO-01..NRO-06 are complete. The project is frozen; later NRCC work superseded its
+blanket native-continuation policy with manifest-backed conditional delegation. The ledger
+and reviews remain historical evidence and are not a current implementation backlog.
 
 ## Review Tree
 
@@ -45,4 +52,5 @@ Active slice: `NRO-05` static manifest and native pixel authority gate. NRO-01..
 
 ## Next Action
 
-Implement `NRO-01`: restore hand/card to call native `AbstractCard.render` instead of `Sts1HandCardRenderer` hand-built pixels, then add tests/docs that prohibit future card-pixel rewrites.
+None. Follow current work in `docs/task.md` and use
+`docs/design/native-render-coverage-sdd.md` for current policy.

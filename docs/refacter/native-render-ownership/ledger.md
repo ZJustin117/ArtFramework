@@ -1,5 +1,10 @@
 # Native Render Ownership Ledger
 
+Status: historical and frozen. Rows describe the implementation and verification completed
+during NRO. Where a row says a surface always continued natively, that statement was true at
+the NRO checkpoint but is superseded by the current manifest-backed conditional-delegation
+policy in `docs/design/native-render-coverage-sdd.md`. Historical evidence is retained below.
+
 | ID | Scope | Before | Target after | Evidence before | Evidence after | Tests | Review | Status |
 |---|---|---|---|---|---|---|---|---|
 | NRO-01 | Combat hand/card render ownership | `AbstractPlayer.renderHand` can be suppressed and ART hand-builds card pixels via `Sts1HandCardRenderer` / `Sts1VanillaDraw` | Hand/card pixels are drawn by live STS cards through native render functions; ART only syncs pose, projection, input, and overlays | `CombatHandRenderPatches.java`, `Sts1SurfaceRenderer.renderHand`, `Sts1HandCardRenderer.java`, D1 screenshot mismatch | `Sts1HandCardRenderer.java` delegates to `AbstractCard.render`; `Sts1VanillaDraw` hand-built card pixel helpers removed; `Sts1SurfaceRenderer.find` resolves live card by uuid or identity hash; D1 combat verify passed | `Sts1HandCardRendererTest.drawItemBoundsRemainHostNeutral`, `Sts1HandCardRendererTest.returnsZeroWhenNoLiveCardSupplied`, `Sts1HandCardRendererTest.classifiedAsNativeCardAuthoritative`; default JUnit gate 766 tests passed | Pending | complete |

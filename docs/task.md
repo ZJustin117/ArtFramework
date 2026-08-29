@@ -735,6 +735,12 @@ FULL acceptance requires zero static unknowns and zero runtime strict-report gap
 - [x] 47.26 D1 deploy/smoke status: device verification is blocked by adb
       shell/push timeout after `get-state=device`; no D1 success is claimed for
       this slice.
+- [x] 47.27 D1 combat runtime evidence after recovery (2026-08-29): latest
+      `ArtFramework.jar` deployed to D1 with matching 1,080,139-byte size and
+      SHA-256 `c81b9a6ef227600fab775aa4b2934275e514b4a7f5cc4358f2e03fae3e612cc4`;
+      `scripts/art-lab ready` reached READY and `scripts/art-lab combat verify-full`
+      passed `d1_full_present_combat_ready` (1/1). This is combat-path evidence
+      only; map/event/select/room visual parity still requires their own D1 scenarios.
 
 **Current state:** static strict manifest remains 544/544 clean and the Java full
 gate has passed; native parity gaps remain documented in

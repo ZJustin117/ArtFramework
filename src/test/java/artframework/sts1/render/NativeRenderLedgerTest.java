@@ -128,6 +128,41 @@ public class NativeRenderLedgerTest {
     }
 
     @Test
+    public void dispositionCommitAcceptsRecoveryFailOpenInsertedAfterInvocation() {
+        NativeRenderLedger ledger = new NativeRenderLedger();
+        ledger.recordInvocation(invocation(1L, 4L));
+        ledger.closeForRecovery("panic");
+
+        RenderDisposition effective = ledger.recordDispositionOrRecovery(
+                RenderDisposition.delegate(1L, "full", "entity"));
+
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, effective.mode);
+        assertTrue(effective.nativeContinuation);
+        assertEquals("panic", effective.reason);
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.dispositionCount()));
+        Map<String, Object> report = ledger.strictReport();
+        assertEquals(Integer.valueOf(0), report.get("recoveryFailOpen"));
+        assertEquals(Integer.valueOf(0), report.get("unrecordedFAIL_OPEN"));
+        assertEquals(Boolean.TRUE, report.get("accepted"));
+        try {
+            ledger.recordDispositionOrRecovery(RenderDisposition.pass(1L, "late_duplicate"));
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("duplicate disposition"));
+            return;
+        }
+        throw new AssertionError("second disposition commit was accepted");
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void dispositionCommitStillRejectsOrdinaryDuplicate() {
+        NativeRenderLedger ledger = new NativeRenderLedger();
+        ledger.recordInvocation(invocation(1L, 4L));
+        ledger.recordDisposition(RenderDisposition.pass(1L, "off"));
+
+        ledger.recordDispositionOrRecovery(RenderDisposition.capture(1L, "observe"));
+    }
+
+    @Test
     public void recoveryClosesDelegatedInvocationAsMismatchWithoutEvidence() {
         NativeRenderLedger ledger = new NativeRenderLedger();
         ledger.recordInvocation(invocation(1L, 4L));

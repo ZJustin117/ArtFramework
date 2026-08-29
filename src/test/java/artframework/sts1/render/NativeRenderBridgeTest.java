@@ -11,6 +11,7 @@ import artframework.context.SelectView;
 import artframework.context.SurfaceIds;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
+import artframework.sts1.PresentSafety;
 import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
@@ -31,6 +32,7 @@ public class NativeRenderBridgeTest {
         ArtFramework.resetForTests();
         Sts1RenderPipeline.resetForTests();
         FullPresentMode.resetForTests();
+        PresentSafety.resetForTests();
         CombatInputRouter.resetForTests();
     }
 
@@ -454,7 +456,60 @@ public class NativeRenderBridgeTest {
 
     @Test
     public void transientEffectRenderAlwaysCapturesAndPasses() {
-        AbstractGameEffect effect = new AbstractGameEffect() {
+        AbstractGameEffect effect = effect();
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render_at");
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
+        assertTrue("native effect queue must continue after observation",
+                disposition.nativeContinuation);
+    }
+
+    @Test
+    public void panicKeepsEffectCleanupEmptyAndNativeLedgerAcceptedAcrossRepeatedCallbacks() {
+        AbstractGameEffect effect = effect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        PresentSafety.panic("effect-cleanup");
+        int invocationCount = NativeRenderBridge.ledger().invocationCount();
+        int dispositionCount = NativeRenderBridge.ledger().dispositionCount();
+        for (int i = 0; i < 3; i++) {
+            RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+            assertEquals(RenderDisposition.Mode.FAIL_OPEN, disposition.mode);
+            assertTrue("panic must continue native effect rendering", disposition.nativeContinuation);
+            NativeRenderBridge.observeEffectUpdate(effect);
+            NativeRenderBridge.observeEffectDispose(effect);
+        }
+
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(invocationCount),
+                NativeRenderBridge.probeSlice().get("invocationCount"));
+        assertEquals(Integer.valueOf(dispositionCount),
+                NativeRenderBridge.probeSlice().get("dispositionCount"));
+        assertEquals(Boolean.TRUE, NativeRenderBridge.strictReport().get("accepted"));
+    }
+
+    @Test
+    public void effectObservationResumesAfterPanicClears() {
+        AbstractGameEffect effect = effect();
+        PresentSafety.panic("effect-cleanup");
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        PresentSafety.clearPanic();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("invocationCount"));
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("dispositionCount"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> transientEffects() {
+        return (Map<String, Object>) NativeRenderBridge.probeSlice().get("transientEffects");
+    }
+
+    private AbstractGameEffect effect() {
+        return new AbstractGameEffect() {
             @Override
             public void render(SpriteBatch sb) {
             }
@@ -463,10 +518,6 @@ public class NativeRenderBridgeTest {
             public void dispose() {
             }
         };
-        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render_at");
-        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
-        assertTrue("native effect queue must continue after observation",
-                disposition.nativeContinuation);
     }
 
     @Test

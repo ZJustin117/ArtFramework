@@ -12,9 +12,25 @@ require:
     - SLAY_THE_AMETHYST_ROOT
 steps:
   - console: "art lab ensure-fresh-menu"
-  - wait_ms: 8000
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
   - console: "art lab start-run IRONCLAD"
-  - wait_ms: 25000
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
   - console: "art present combat on"
   - console: "fight Cultist"
   - wait_probe:
@@ -91,10 +107,10 @@ steps:
       path: backend.renderPlan.nativeRenderStrict.orphanArtOutput
       eq: 0
   - assert:
-      path: backend.renderPlan.transientEffects.active
+      path: backend.renderPlan.nativeRender.transientEffects.active
       eq: 0
   - assert:
-      path: backend.renderPlan.transientEffects.leaked
+      path: backend.renderPlan.nativeRender.transientEffects.leaked
       eq: 0
   - console: "art present clear-panic"
   - wait_ms: 400

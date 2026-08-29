@@ -19,6 +19,7 @@ public final class NativeRenderLedger {
             new LinkedHashMap<Long, PresentationDrawEvidence>();
     private final Map<Long, State> states = new LinkedHashMap<Long, State>();
     private final Set<Long> transitionCancelled = new HashSet<Long>();
+    private final Set<Long> recoveryDispositions = new HashSet<Long>();
     private int unknownOwnerCount;
     private int orphanArtOutputCount;
     private int dispositionMismatchCount;
@@ -43,6 +44,24 @@ public final class NativeRenderLedger {
     }
 
     public synchronized void recordDisposition(RenderDisposition disposition) {
+        recordNewDisposition(disposition);
+    }
+
+    /** Returns a recovery fail-open that won the race, otherwise records the proposed decision. */
+    public synchronized RenderDisposition recordDispositionOrRecovery(
+            RenderDisposition disposition) {
+        if (disposition == null) throw new IllegalArgumentException("disposition required");
+        Long id = Long.valueOf(disposition.invocationId);
+        RenderDisposition existing = dispositions.get(id);
+        if (existing != null && recoveryDispositions.remove(id)) {
+            recoveryFailOpenCount--;
+            return existing;
+        }
+        recordNewDisposition(disposition);
+        return disposition;
+    }
+
+    private void recordNewDisposition(RenderDisposition disposition) {
         if (disposition == null) throw new IllegalArgumentException("disposition required");
         Long id = Long.valueOf(disposition.invocationId);
         if (!invocations.containsKey(id)) throw new IllegalStateException("unknown invocation: " + id);
@@ -104,6 +123,7 @@ public final class NativeRenderLedger {
             RenderDisposition disposition = dispositions.get(id);
             if (disposition == null) {
                 dispositions.put(id, RenderDisposition.failOpen(id, value));
+                recoveryDispositions.add(id);
                 recoveryFailOpenCount++;
             } else if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
                     && evidence.get(id) == null) {
@@ -272,6 +292,7 @@ public final class NativeRenderLedger {
         evidence.clear();
         states.clear();
         transitionCancelled.clear();
+        recoveryDispositions.clear();
         unknownOwnerCount = 0;
         orphanArtOutputCount = 0;
         dispositionMismatchCount = 0;

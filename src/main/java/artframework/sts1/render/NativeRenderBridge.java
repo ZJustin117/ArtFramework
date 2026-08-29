@@ -56,7 +56,7 @@ public final class NativeRenderBridge {
             disposition = RenderDisposition.failOpen(invocation.invocationId,
                     "bridge_error:" + error.getClass().getSimpleName());
         }
-        LEDGER.recordDisposition(disposition);
+        disposition = LEDGER.recordDispositionOrRecovery(disposition);
         if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART) {
             synchronized (SURFACE_INVOCATIONS) {
                 ArrayDeque<Long> ids = SURFACE_INVOCATIONS.get(ownerId);
@@ -191,7 +191,7 @@ public final class NativeRenderBridge {
             disposition = RenderDisposition.failOpen(invocation.invocationId,
                     "skeleton_renderer_unavailable");
         }
-        LEDGER.recordDisposition(disposition);
+        disposition = LEDGER.recordDispositionOrRecovery(disposition);
         if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART) {
             synchronized (SKELETON_INVOCATIONS) {
                 ArrayDeque<Long> ids = SKELETON_INVOCATIONS.get(owner);
@@ -252,6 +252,9 @@ public final class NativeRenderBridge {
     /** Observe one effect instance without suppressing the native effect queue. */
     public static RenderDisposition beginEffectRender(
             com.megacrit.cardcrawl.vfx.AbstractGameEffect effect, String method) {
+        if (PresentSafety.isPanic()) {
+            return RenderDisposition.failOpen(-1L, "panic");
+        }
         TransientEffectIdentity identity = effectIdentity(effect);
         if (identity == null) {
             LEDGER.recordUnknownOwner();
@@ -265,13 +268,14 @@ public final class NativeRenderBridge {
         LEDGER.recordInvocation(invocation);
         RenderDisposition disposition = RenderDisposition.capture(invocation.invocationId,
                 "transient_effect_observe");
-        LEDGER.recordDisposition(disposition);
+        disposition = LEDGER.recordDispositionOrRecovery(disposition);
         projectPendingEffectsOncePerFrame();
         return disposition;
     }
 
     public static void observeEffectUpdate(
             com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
+        if (PresentSafety.isPanic()) return;
         TransientEffectIdentity identity = effectIdentity(effect);
         if (identity == null) return;
         EFFECT_LIFECYCLE.create(identity);
@@ -281,6 +285,7 @@ public final class NativeRenderBridge {
 
     public static void observeEffectDispose(
             com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
+        if (PresentSafety.isPanic()) return;
         TransientEffectIdentity identity = effectIdentity(effect);
         if (identity == null) return;
         EFFECT_LIFECYCLE.create(identity);

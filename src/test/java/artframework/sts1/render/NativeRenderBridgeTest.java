@@ -173,6 +173,17 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void abstractCardRenderIsNotABridgeSuppressionSurface() {
+        mountedCombat();
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                "sts1.inventory.com.megacrit.cardcrawl.cards.abstractcard.render",
+                "com.megacrit.cardcrawl.cards.AbstractCard", "render", "card");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, disposition.mode);
+        assertTrue("AbstractCard.render pixels must continue natively", disposition.nativeContinuation);
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.strictReport().get("runtimeUNKNOWN"));
+    }
+
+    @Test
     public void targetingFullStillPassesWithoutDelegatedEvidence() {
         mountedCombat();
         FullPresentMode.setTargetingLevel(PresentLevel.FULL);

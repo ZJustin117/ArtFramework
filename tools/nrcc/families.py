@@ -111,7 +111,11 @@ FAMILY_DEFAULT_JUSTIFICATION = {
     "relics-blights-potions": _ROADMAP_OVERLAY_JUSTIFICATION,
     "stances-state": _ROADMAP_OVERLAY_JUSTIFICATION,
     "map-graph": _ROADMAP_OVERLAY_JUSTIFICATION,
-    "cards-piles-soul": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "cards-piles-soul": (
+        "Native card pixels remain authoritative: AbstractCard.render is unpatched and "
+        "OUT_OF_SCOPE, while CardGroup/Soul observations publish pile/soul chrome through "
+        "PileSoulView / Sts1PileSoulProjection and draw only non-authoritative resource overlays."
+    ),
     "room-shells": _ROADMAP_OVERLAY_JUSTIFICATION,
     "event-dialogs": _ROADMAP_OVERLAY_JUSTIFICATION,
     "shop-rewards-chests": _ROADMAP_OVERLAY_JUSTIFICATION,

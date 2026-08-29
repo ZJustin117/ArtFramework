@@ -125,6 +125,24 @@ public class RenderPatchOwnershipTest {
     }
 
     @Test
+    public void abstractCardRenderIsNeverPatchedForSuppression() throws IOException {
+        List<Path> patchFiles = Files.walk(PATCH_ROOT)
+                .filter(p -> p.toString().endsWith(".java"))
+                .collect(Collectors.toList());
+        for (Path file : patchFiles) {
+            String text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+            assertFalse(
+                    file.getFileName() + " must not target AbstractCard.render; card pixels stay native",
+                    text.contains("clz = AbstractCard.class") && text.contains("method = \"render\""));
+            assertFalse(
+                    file.getFileName() + " must not target AbstractCard.render by class name",
+                    text.contains("com.megacrit.cardcrawl.cards.AbstractCard")
+                            && text.contains("method = \"render\"")
+                            && text.contains("SpirePatch"));
+        }
+    }
+
+    @Test
     public void controlsPatchSuppressesNativeEndTurnRender() throws IOException {
         Path file = PATCH_ROOT.resolve("CombatControlsRenderPatches.java");
         String text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);

@@ -95,6 +95,12 @@ public final class ResourceIds {
     public static final String UI_TOP_PANEL_FLOOR = "ui.top_panel.floor";
     public static final String UI_TOP_PANEL_ASCENSION = "ui.top_panel.ascension";
     public static final String UI_TOP_PANEL_STATUS = "ui.top_panel.status";
+    public static final String UI_PILE_DRAW = "ui.pile.draw";
+    public static final String UI_PILE_DISCARD = "ui.pile.discard";
+    public static final String UI_PILE_EXHAUST = "ui.pile.exhaust";
+    public static final String UI_PILE_DECK = "ui.pile.deck";
+    public static final String UI_CARD_GROUP_UNKNOWN = "ui.card_group.unknown";
+    public static final String UI_SOUL_UNKNOWN = "ui.soul.unknown";
     public static final String CARD_FRAME_RED = "card.frame.red";
     public static final String CARD_FRAME_GREEN = "card.frame.green";
     public static final String CARD_FRAME_BLUE = "card.frame.blue";
@@ -220,6 +226,12 @@ public final class ResourceIds {
             UI_TOP_PANEL_FLOOR,
             UI_TOP_PANEL_ASCENSION,
             UI_TOP_PANEL_STATUS,
+            UI_PILE_DRAW,
+            UI_PILE_DISCARD,
+            UI_PILE_EXHAUST,
+            UI_PILE_DECK,
+            UI_CARD_GROUP_UNKNOWN,
+            UI_SOUL_UNKNOWN,
             CARD_FRAME_RED,
             CARD_FRAME_GREEN,
             CARD_FRAME_BLUE,

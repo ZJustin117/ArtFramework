@@ -100,6 +100,7 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Rest room | `CampfireUI.render` | yes | enhanced partial pixel supply: campfire title and visible option rows (`rest`/`smith`/`dig`/`recall`/`toke`/unknown) use explicit ResourceIds/fallbacks with stable row geometry, roles, enabled/visible state, C2 sync, texture+label drawing, and evidence count from visible chrome rows; campfire base art/animation parity remains pending |
 | Shop screen | `ShopScreen.render` | yes | enhanced partial pixel supply: merchant, gold, entry, purge, and sold-out/disabled rows use explicit ResourceIds/fallbacks with C2 geometry and texture+label drawing; card/relic/potion entries preserve known entry ResourceIds when cataloged; full merchant/shop native parity remains pending |
 | Treasure room | `TreasureRoom.render` | yes | enhanced partial pixel supply: title, closed/open chest, and relic rows use explicit ResourceIds/fallbacks with stable row geometry, texture+label drawing, and evidence count from current chrome rows; full chest/treasure native parity remains pending |
+| Cards / piles / soul | `CardGroup.render*`, `Soul.render`, `SoulGroup.render` | no | OBSERVE/OVERLAY: pile, card-group, and soul chrome is projected as dependency-neutral ids/zones/counts/bounds/resource labels and drawn as optional resource-backed overlay; live `AbstractCard.render` card pixels remain native and unpatched |
 
 These gaps are deliberate inventory, not silent acceptance. Until a surface
 reproduces its base pixels, its delegations keep surfacing as strict-report
@@ -124,6 +125,13 @@ hard-syncs each card pose (`current_x`, `current_y`, `angle`, `drawScale`)
 before invoking the live render. The manifest records `AbstractCard#render` as
 `OUT_OF_SCOPE` because no ART hook intercepts this invocation, not because an
 atlas shell replaced it.
+
+The `cards-piles-soul` overlay slice does not change that boundary. ART may
+observe `CardGroup`, draw/discard/exhaust/deck piles, and `Soul` / `SoulGroup`
+movement as chrome metadata (`pile` / `card_group` / `soul`, zone, count,
+bounds, label, ResourceId), but it must not claim `card.art.*` as replacement
+card pixels. Unknown or card-art resources soft-fallback to family chrome ids;
+native card rendering continues even when the overlay is present.
 
 ### Suppression bookkeeping
 

@@ -70,6 +70,7 @@ public final class Sts1RenderPipeline {
         m.put("overlayObserve", Boolean.valueOf(overlayObserve));
         m.put("nativeRender", NativeRenderBridge.probeSlice());
         m.put("nativeRenderStrict", NativeRenderBridge.strictReport());
+        m.put("cardsPilesSoul", Sts1PileSoulDrawPath.probeSlice());
         return m;
     }
 

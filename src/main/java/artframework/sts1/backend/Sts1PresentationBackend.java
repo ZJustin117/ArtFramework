@@ -14,6 +14,7 @@ import artframework.context.IntentResult;
 import artframework.context.MapNodeView;
 import artframework.context.MapView;
 import artframework.context.MonsterIntentView;
+import artframework.context.PileSoulView;
 import artframework.context.RestView;
 import artframework.context.RewardItemView;
 import artframework.context.RewardView;
@@ -84,6 +85,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 }
             }
             frameId++;
+            publishPileSoulProjection();
             publishRelicPotionBlightProjection();
             publishOrbStanceProjection();
             publishTargetingSession();
@@ -871,6 +873,30 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
     }
 
+    /** Observe native card piles, CardGroup chrome, and Soul travel without suppressing card pixels. */
+    private static void publishPileSoulProjection() {
+        try {
+            if (artframework.sts1.PresentSafety.isPanic()) {
+                Sts1PileSoulProjection.clear();
+                return;
+            }
+            List<PileSoulView.Entry> entries = new ArrayList<PileSoulView.Entry>();
+            if (AbstractDungeon.player != null) {
+                AbstractPlayer p = AbstractDungeon.player;
+                appendPileSoulGroup(entries, p.masterDeck, "deck", "Master Deck", 0);
+                appendPileSoulGroup(entries, p.drawPile, "draw", "Draw", 1);
+                appendPileSoulGroup(entries, p.discardPile, "discard", "Discard", 2);
+                appendPileSoulGroup(entries, p.exhaustPile, "exhaust", "Exhaust", 3);
+                appendPileSoulGroup(entries, p.hand, "hand", "Hand", 4);
+                appendPileSoulGroup(entries, p.limbo, "limbo", "Limbo", 5);
+            }
+            appendSouls(entries, safeCurrRoom() != null ? safeCurrRoom().souls : null);
+            Sts1PileSoulProjection.publish(new PileSoulView(entries, !entries.isEmpty()));
+        } catch (Throwable ignored) {
+            Sts1PileSoulProjection.publish(PileSoulView.empty());
+        }
+    }
+
     /** Observe native orb slots and current stance without importing concrete classes or suppressing pixels. */
     private static void publishOrbStanceProjection() {
         try {
@@ -973,6 +999,81 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 // A broken third-party entry must not hide the remaining native inventory.
             }
         }
+    }
+
+    private static void appendPileSoulGroup(
+            List<PileSoulView.Entry> out, CardGroup group, String zone, String label, int index) {
+        if (group == null) return;
+        int count = group.group != null ? group.group.size() : 0;
+        String id = firstString(group, "type");
+        if (id.isEmpty() && group.type != null) id = group.type.name();
+        String stableId = "pile:" + zone + ":" + (id.isEmpty() ? index : id);
+        out.add(new PileSoulView.Entry(stableId, "draw".equals(zone)
+                || "discard".equals(zone) || "exhaust".equals(zone) || "deck".equals(zone)
+                ? "pile" : "card_group", zone, count, pileBounds(zone, index), true,
+                pileResource(zone), label != null ? label : zone));
+    }
+
+    private static void appendSouls(List<PileSoulView.Entry> out, Object soulGroup) {
+        if (soulGroup == null) return;
+        Object raw = softField(soulGroup.getClass(), soulGroup, "souls");
+        if (!(raw instanceof List)) return;
+        int index = 0;
+        for (Object soul : (List<?>) raw) {
+            if (soul == null) continue;
+            try {
+                Object card = softField(soul.getClass(), soul, "card");
+                boolean done = firstBoolean(soul, false, "isDone", "isReadyForReuse");
+                boolean invisible = firstBoolean(soul, false, "isInvisible");
+                int count = card != null ? 1 : 0;
+                String cardId = card instanceof AbstractCard ? ((AbstractCard) card).cardID : "";
+                String label = card instanceof AbstractCard && ((AbstractCard) card).name != null
+                        ? ((AbstractCard) card).name : "Soul";
+                artframework.component.Rect bounds = soulBounds(soul, index);
+                out.add(new PileSoulView.Entry(
+                        "soul:" + index + "@" + Integer.toHexString(System.identityHashCode(soul)),
+                        "soul", "soul", count, bounds, !done && !invisible,
+                        ResourceIds.UI_SOUL_UNKNOWN, !cardId.isEmpty() ? label : "Soul"));
+                index++;
+            } catch (Throwable ignored) {
+                // A broken Soul observation must not block remaining native soul rendering.
+            }
+        }
+    }
+
+    private static String pileResource(String zone) {
+        if ("draw".equals(zone)) return ResourceIds.UI_PILE_DRAW;
+        if ("discard".equals(zone)) return ResourceIds.UI_PILE_DISCARD;
+        if ("exhaust".equals(zone)) return ResourceIds.UI_PILE_EXHAUST;
+        if ("deck".equals(zone)) return ResourceIds.UI_PILE_DECK;
+        return ResourceIds.UI_CARD_GROUP_UNKNOWN;
+    }
+
+    private static artframework.component.Rect pileBounds(String zone, int index) {
+        float w = 96f;
+        float h = 128f;
+        float sw = screenWidth();
+        float sh = screenHeight();
+        if ("draw".equals(zone)) return new artframework.component.Rect(34f, 44f, w, h);
+        if ("discard".equals(zone)) return new artframework.component.Rect(sw - 130f, 44f, w, h);
+        if ("exhaust".equals(zone)) return new artframework.component.Rect(sw - 244f, 44f, w, h);
+        if ("deck".equals(zone)) return new artframework.component.Rect(34f, sh - 154f, w, h);
+        return new artframework.component.Rect(34f + index * 108f, 188f, w, h);
+    }
+
+    private static artframework.component.Rect soulBounds(Object soul, int index) {
+        Object pos = softField(soul.getClass(), soul, "pos");
+        float x = number(pos, "x", 160f + index * 24f);
+        float y = number(pos, "y", 160f + index * 24f);
+        return new artframework.component.Rect(x - 24f, y - 32f, 48f, 64f);
+    }
+
+    private static float screenWidth() {
+        try { return com.megacrit.cardcrawl.core.Settings.WIDTH; } catch (Throwable t) { return 1920f; }
+    }
+
+    private static float screenHeight() {
+        try { return com.megacrit.cardcrawl.core.Settings.HEIGHT; } catch (Throwable t) { return 1080f; }
     }
 
     private static String firstString(Object owner, String... fields) {

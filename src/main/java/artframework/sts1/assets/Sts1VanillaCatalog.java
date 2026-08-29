@@ -25,6 +25,7 @@ public final class Sts1VanillaCatalog {
         putCommonCardArt(m);
         putRelicFamily(m);
         putOrbStanceFamily(m);
+        putPileSoulFamily(m);
         putAudio(m);
         return Collections.unmodifiableMap(m);
     }
@@ -220,6 +221,17 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.stance("Calm"), "images/ui/stance/calm.png");
         put(m, ResourceIds.stance("Wrath"), "images/ui/stance/wrath.png");
         put(m, ResourceIds.stance("Divinity"), "images/ui/stance/divinity.png");
+    }
+
+    private static void putPileSoulFamily(Map<String, String> m) {
+        // Pile/soul resources are chrome overlays only. Do not use card.art.* here;
+        // live AbstractCard.render remains the sole native card-pixel path.
+        put(m, ResourceIds.UI_PILE_DRAW, "images/ui/topPanel/cardPile.png");
+        put(m, ResourceIds.UI_PILE_DISCARD, "images/ui/topPanel/cardPile.png");
+        put(m, ResourceIds.UI_PILE_EXHAUST, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_PILE_DECK, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_CARD_GROUP_UNKNOWN, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_SOUL_UNKNOWN, "images/ui/reward/rewardListItemPanel.png");
     }
 
     private static void put(Map<String, String> m, String resourceId, String path) {

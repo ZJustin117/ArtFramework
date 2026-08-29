@@ -93,6 +93,96 @@ public class NativeRenderBridgeTest {
         assertEquals(Integer.valueOf(0), after.get("orphanArtOutput"));
     }
 
+    @Test
+    public void ownerDrawDrainsEveryPendingInvocationForThatSurface() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_INTENTS);
+        RenderDisposition first = beginDelegatedSurface(SurfaceIds.COMBAT_INTENTS, "m1");
+        RenderDisposition second = beginDelegatedSurface(SurfaceIds.COMBAT_INTENTS, "m2");
+        RenderDisposition third = beginDelegatedSurface(SurfaceIds.COMBAT_INTENTS, "m3");
+
+        assertPendingSurfaceInvocations(3, SurfaceIds.COMBAT_INTENTS, 3);
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS, 4);
+
+        assertEquals(4, NativeRenderBridge.ledger().evidence(first.invocationId).drawCount);
+        assertEquals(4, NativeRenderBridge.ledger().evidence(second.invocationId).drawCount);
+        assertEquals(4, NativeRenderBridge.ledger().evidence(third.invocationId).drawCount);
+        assertPendingSurfaceInvocations(0, SurfaceIds.COMBAT_INTENTS, 0);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("openInvocation"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get(
+                "delegatedWithoutEvidence"));
+        assertEquals(Boolean.TRUE, NativeRenderBridge.strictReport().get("accepted"));
+    }
+
+    @Test
+    public void ownerDrawDoesNotConsumeAnotherOwnersPendingInvocations() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        armFullSurface(SurfaceIds.COMBAT_INTENTS);
+        RenderDisposition hand = beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "hand");
+        RenderDisposition firstIntent = beginDelegatedSurface(SurfaceIds.COMBAT_INTENTS, "m1");
+        RenderDisposition secondIntent = beginDelegatedSurface(SurfaceIds.COMBAT_INTENTS, "m2");
+
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_HAND, 2);
+
+        assertEquals(2, NativeRenderBridge.ledger().evidence(hand.invocationId).drawCount);
+        assertEquals(null, NativeRenderBridge.ledger().evidence(firstIntent.invocationId));
+        assertEquals(null, NativeRenderBridge.ledger().evidence(secondIntent.invocationId));
+        assertPendingSurfaceInvocations(2, SurfaceIds.COMBAT_HAND, 0);
+        assertPendingSurfaceInvocations(2, SurfaceIds.COMBAT_INTENTS, 2);
+
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS, 3);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get(
+                "delegatedWithoutEvidence"));
+        assertEquals(Boolean.TRUE, NativeRenderBridge.strictReport().get("accepted"));
+    }
+
+    @Test
+    public void explicitDrawApisRemoveOnlyTheirTokensBeforeOwnerDrawClosesTheRest() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_INTENTS);
+        RenderDisposition directExplicit = beginDelegatedSurface(SurfaceIds.COMBAT_INTENTS, "m1");
+        RenderDisposition ownerExplicit = beginDelegatedSurface(SurfaceIds.COMBAT_INTENTS, "m2");
+        RenderDisposition third = beginDelegatedSurface(SurfaceIds.COMBAT_INTENTS, "m3");
+
+        NativeRenderBridge.recordSurfaceDraw(
+                SurfaceIds.COMBAT_INTENTS, ownerExplicit.invocationId, 7);
+
+        assertEquals(7, NativeRenderBridge.ledger().evidence(ownerExplicit.invocationId).drawCount);
+        assertPendingSurfaceInvocations(2, SurfaceIds.COMBAT_INTENTS, 2);
+        NativeRenderBridge.recordSurfaceDraw(directExplicit.invocationId, 6);
+
+        assertEquals(6, NativeRenderBridge.ledger().evidence(directExplicit.invocationId).drawCount);
+        assertPendingSurfaceInvocations(1, SurfaceIds.COMBAT_INTENTS, 1);
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS, 5);
+
+        assertEquals(5, NativeRenderBridge.ledger().evidence(third.invocationId).drawCount);
+        assertEquals(Integer.valueOf(3), NativeRenderBridge.probeSlice().get("evidenceCount"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+        assertEquals(Boolean.TRUE, NativeRenderBridge.strictReport().get("accepted"));
+    }
+
+    @Test
+    public void duplicateExplicitEvidenceIsRejectedAndEmptyOwnerDrawIsOrphaned() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        RenderDisposition disposition = beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "hand");
+        NativeRenderBridge.recordSurfaceDraw(disposition.invocationId, 1);
+        assertPendingSurfaceInvocations(0, SurfaceIds.COMBAT_HAND, 0);
+
+        try {
+            NativeRenderBridge.recordSurfaceDraw(disposition.invocationId, 1);
+            throw new AssertionError("duplicate evidence must be rejected");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("duplicate evidence"));
+        }
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_HAND, 1);
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+        assertEquals(Boolean.FALSE, NativeRenderBridge.strictReport().get("accepted"));
+    }
+
     @Test(expected = IllegalStateException.class)
     public void duplicateDispositionIsRejected() {
         mountedCombat();
@@ -378,6 +468,29 @@ public class NativeRenderBridgeTest {
                 Integer.valueOf(1), report.get("evidenceCount"));
         assertEquals(Integer.valueOf(0), report.get("delegatedWithoutEvidence"));
         assertEquals(Integer.valueOf(0), report.get("orphanArtOutput"));
+    }
+
+    private void armFullSurface(String surfaceId) {
+        FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(surfaceId).mount();
+    }
+
+    private RenderDisposition beginDelegatedSurface(String surfaceId, String sourceIdentity) {
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                surfaceId, "native.Owner", "render", sourceIdentity);
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        return disposition;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertPendingSurfaceInvocations(int total, String ownerId, int ownerCount) {
+        Map<String, Object> probe = NativeRenderBridge.probeSlice();
+        assertEquals(Integer.valueOf(total), probe.get("pendingSurfaceInvocationCount"));
+        Map<String, Integer> byOwner =
+                (Map<String, Integer>) probe.get("pendingSurfaceInvocationsByOwner");
+        assertEquals(Integer.valueOf(ownerCount),
+                Integer.valueOf(byOwner.containsKey(ownerId) ? byOwner.get(ownerId).intValue() : 0));
     }
 
     private void publishEventFrame() {

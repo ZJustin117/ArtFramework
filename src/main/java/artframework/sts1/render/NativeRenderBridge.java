@@ -4,8 +4,13 @@ import artframework.api.ArtFramework;
 import artframework.component.Rect;
 import artframework.sts1.PresentSafety;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /** Typed host-boundary bridge for STS1 native render invocations. */
 public final class NativeRenderBridge {
@@ -66,12 +71,14 @@ public final class NativeRenderBridge {
     }
 
     public static void recordSurfaceDraw(String ownerId, int drawCount) {
-        Long id = takeSurfaceInvocation(ownerId);
-        if (id == null) {
+        List<Long> ids = drainSurfaceInvocations(ownerId);
+        if (ids.isEmpty()) {
             LEDGER.recordOrphanArtOutput();
             return;
         }
-        recordSurfaceDraw(id.longValue(), drawCount);
+        for (Long id : ids) {
+            recordSurfaceDrawEvidence(id.longValue(), drawCount);
+        }
     }
 
     /**
@@ -84,11 +91,18 @@ public final class NativeRenderBridge {
         if (invocation == null || !sameSurface(ownerId, invocation.ownerId)) {
             return;
         }
-        recordSurfaceDraw(invocationId, drawCount);
+        recordSurfaceDrawEvidence(invocationId, drawCount);
+        removeSurfaceInvocation(invocation.ownerId, invocationId);
     }
 
     /** Preferred API: evidence is correlated by the invocation token returned by beginSurface. */
     public static void recordSurfaceDraw(long invocationId, int drawCount) {
+        NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
+        recordSurfaceDrawEvidence(invocationId, drawCount);
+        if (invocation != null) removeSurfaceInvocation(invocation.ownerId, invocationId);
+    }
+
+    private static void recordSurfaceDrawEvidence(long invocationId, int drawCount) {
         RenderDisposition disposition = LEDGER.disposition(invocationId);
         if (disposition == null || disposition.mode != RenderDisposition.Mode.DELEGATE_TO_ART) {
             LEDGER.recordOrphanArtOutput();
@@ -99,13 +113,20 @@ public final class NativeRenderBridge {
                 invocation.frameId, drawCount, "active");
     }
 
-    private static Long takeSurfaceInvocation(String ownerId) {
+    private static List<Long> drainSurfaceInvocations(String ownerId) {
+        synchronized (SURFACE_INVOCATIONS) {
+            ArrayDeque<Long> ids = SURFACE_INVOCATIONS.remove(ownerId);
+            if (ids == null || ids.isEmpty()) return Collections.emptyList();
+            return new ArrayList<Long>(ids);
+        }
+    }
+
+    private static void removeSurfaceInvocation(String ownerId, long invocationId) {
         synchronized (SURFACE_INVOCATIONS) {
             ArrayDeque<Long> ids = SURFACE_INVOCATIONS.get(ownerId);
-            if (ids == null || ids.isEmpty()) return null;
-            Long id = ids.removeFirst();
+            if (ids == null) return;
+            ids.remove(Long.valueOf(invocationId));
             if (ids.isEmpty()) SURFACE_INVOCATIONS.remove(ownerId);
-            return id;
         }
     }
 
@@ -270,9 +291,24 @@ public final class NativeRenderBridge {
 
     public static java.util.Map<String, Object> probeSlice() {
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<String, Object>(LEDGER.probeSlice());
+        Map<String, Integer> pendingByOwner = pendingSurfaceInvocationsByOwner();
+        int pendingCount = 0;
+        for (Integer count : pendingByOwner.values()) pendingCount += count.intValue();
+        out.put("pendingSurfaceInvocationCount", Integer.valueOf(pendingCount));
+        out.put("pendingSurfaceInvocationsByOwner", pendingByOwner);
         out.put("transientEffects", EFFECT_LEDGER.probeSlice());
         out.put("transientEffectEntities", Integer.valueOf(EFFECT_REGISTRY.activeCount()));
         return out;
+    }
+
+    private static Map<String, Integer> pendingSurfaceInvocationsByOwner() {
+        synchronized (SURFACE_INVOCATIONS) {
+            Map<String, Integer> snapshot = new TreeMap<String, Integer>();
+            for (Map.Entry<String, ArrayDeque<Long>> entry : SURFACE_INVOCATIONS.entrySet()) {
+                snapshot.put(entry.getKey(), Integer.valueOf(entry.getValue().size()));
+            }
+            return Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(snapshot));
+        }
     }
 
     public static java.util.Map<String, Object> strictReport() {

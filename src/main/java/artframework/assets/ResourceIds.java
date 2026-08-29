@@ -12,6 +12,7 @@ public final class ResourceIds {
     public static final String MAP_EDGE_PREFIX = "map.edge.";
     public static final String UI_PREFIX = "ui.";
     public static final String CHAR_PREFIX = "char.";
+    public static final String CHAR_UNKNOWN = "char.unknown";
     public static final String AUDIO_SFX_PREFIX = "audio.sfx.";
     public static final String AUDIO_BGM_PREFIX = "audio.bgm.";
     public static final String UI_EVENT_PREFIX = "ui.event.";
@@ -218,6 +219,7 @@ public final class ResourceIds {
             CARD_FRAME_BLUE,
             CARD_FRAME_PURPLE,
             CARD_FRAME_COLORLESS,
+            CHAR_UNKNOWN,
             MAP_NODE_MONSTER,
             MAP_NODE_ELITE,
             MAP_NODE_REST,

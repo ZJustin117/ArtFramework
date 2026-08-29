@@ -40,10 +40,11 @@ public final class SkeletonRenderPatches {
                 boolean rendered = Sts1SkeletonBridge.renderClaimedNative(skeleton, batch);
                 if (rendered) {
                     NativeRenderBridge.recordSkeletonDraw(disposition.invocationId, 1);
+                    return SpireReturn.Return(null);
                 } else {
                     NativeRenderBridge.recordSkeletonFailure(disposition.invocationId);
+                    return SpireReturn.Continue();
                 }
-                return SpireReturn.Return(null);
             }
             return SpireReturn.Continue();
         }

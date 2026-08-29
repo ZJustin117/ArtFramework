@@ -87,9 +87,9 @@ currently have a matching ART patch. Counts are the scan baseline above; regener
 | `room-shells` | 10 | `AbstractRoom`, `CampfireUI`, `TreasureRoom`, `NeowRoom` | Delegation-governed (hooked 2/10: rest, treasure); hooked members are `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 | `event-dialogs` | 10 | `GenericEventDialog`, `RoomEventDialog`, `AbstractEvent` | Delegation-governed (hooked 1/10: generic event dialog); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
 | `shop-rewards-chests` | 8 | `ShopScreen`, `RewardItem`, `Merchant`, `AbstractChest` | Delegation-governed (hooked 1/8: shop screen); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `monsters-bosses` | 8 | `AbstractMonster`, `MonsterGroup` | Delegation-governed (hooked 1/8: `renderIntent`); hooked member is `ART_DELEGATED` with SDD-visible pixel-supply gaps; remainder inherits `NATIVE_WITH_ART_OVERLAY` (future delegation candidate) |
-| `player-character` | 20 | `AbstractPlayer`, `AnimatedNpc` | Delegation-governed (hooked 1/20: `renderHand`); `renderOrb` / `renderStatScreen` / `renderPowerTips` / `renderHoverReticle` / `renderBlights` are inventoried as native-with-overlay candidates, not delegated; combat hand delegates the hand invocation while live `AbstractCard.render` keeps card-pixel responsibility |
-| `skeleton-runtime` | 2 | `SkeletonMeshRenderer` | Delegation-governed; descriptor rows cover the `Batch` and `PolygonSpriteBatch` overloads, with per-instance claims only and unclaimed skeletons passing through; family default is the `OBSERVED` semantic note |
+| `monsters-bosses` | 8 | `AbstractMonster`, `MonsterGroup` | Observe-first native-with-overlay family. Existing `loadAnimation` observation publishes dependency-neutral entity anchors (`entityId`, kind/name, position/bounds, visible, claimed, asset id) and optional C2 chrome; native monster/body pixels remain authoritative unless that exact creature skeleton has a valid per-instance skeleton-runtime claim. Hooked `renderIntent` remains its own combat-intent surface decision. |
+| `player-character` | 20 | `AbstractPlayer`, `AnimatedNpc` | Observe-first native-with-overlay family. Player anchors share the creature skeleton observation/projection path; no `AbstractPlayer.render` / `draw` suppression is introduced. `renderOrb` / `renderStatScreen` / `renderPowerTips` / `renderHoverReticle` / `renderBlights` are inventoried as native-with-overlay candidates, not delegated; combat hand delegates only the hand invocation while live `AbstractCard.render` keeps card-pixel responsibility. |
+| `skeleton-runtime` | 2 | `SkeletonMeshRenderer` | Delegation-governed per-instance slot. Descriptor rows cover the `Batch` and `PolygonSpriteBatch` overloads; suppression is legal only for `FULL` + mounted skeleton surface + live provider binding + exact native skeleton claim. Unclaimed, unknown, panic, unmounted, recovery, and renderer-failure paths fail open to native continuation; native creature pixels must not be reported as ART output unless the claimed skeleton slot records correlated draw evidence. |
 | `vfx-misc-root` | 105 | `AbstractGameEffect`, `SpeechBubble`, `RelicAboveCreatureEffect` | `OBSERVED` by family default: observed through the `AbstractDungeon` container instrument plus the base-class direct-draw hook (see observe-only below); hooked descriptor rows are observation entries, not queue-wide delegation |
 
 ### Observe-only (container call sites + direct-draw hook)
@@ -188,6 +188,10 @@ stateless, and host caches stay explicitly non-authoritative.
   `skeleton:<entityKey>`) so cleanup and probe slices never collide.
 - Removal is explicit: complete/cancel/scene-change/host-recreation paths destroy through the
   context so world and ownership index clean together.
+- Creature-family anchors are observation records, not pixel claims. The STS1 skeleton bridge may
+  project them into `EntityPresent` with empty creature art resources so C2 chrome can align to
+  native bodies, but native monster/player draw remains the visual authority except for a
+  separately claimed `skeleton-runtime` instance with ledger-correlated ART draw evidence.
 
 ### System layer
 

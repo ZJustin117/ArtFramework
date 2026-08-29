@@ -1,11 +1,16 @@
 package artframework.sts1.skeleton;
 
 import artframework.api.ArtFramework;
+import artframework.c2.EntityAnchorView;
+import artframework.c2.EntityKind;
+import artframework.c2.EntitySlot;
 import artframework.context.SurfaceIds;
 import artframework.skeleton.FakeSkeletonProvider;
 import artframework.skeleton.SkeletonHandle;
+import artframework.skeleton.SkeletonProvider;
 import artframework.skeleton.SkeletonPresentationFrames;
 import artframework.skeleton.SkeletonPresentationView;
+import artframework.skeleton.SkeletonSource;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.PresentSafety;
@@ -162,6 +167,104 @@ public class Sts1SkeletonBridgeTest {
     }
 
     @Test
+    public void observedNativeSkeletonExposesDependencyNeutralAnchorAndEntityProjection() {
+        String entityKey = "monster-cultist-1";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey, EntityKind.MONSTER,
+                "Cultist", 320f, 180f, 90f, 140f, true,
+                "images/monsters/theBottom/cultist/skeleton.atlas",
+                "images/monsters/theBottom/cultist/skeleton.json");
+
+        Sts1SkeletonBridge.syncPresentation(1L,
+                java.util.Arrays.asList(viewFor(entityKey, fake.id())));
+
+        EntityAnchorView anchor = Sts1SkeletonBridge.nativeAnchorView(skeleton);
+        assertNotNull(anchor);
+        assertEquals(entityKey, anchor.entityId);
+        assertEquals(EntityKind.MONSTER, anchor.kind);
+        assertEquals("Cultist", anchor.name);
+        assertEquals(320f, anchor.x, 0.001f);
+        assertEquals(180f, anchor.y, 0.001f);
+        assertEquals(275f, anchor.bounds.x, 0.001f);
+        assertEquals(90f, anchor.bounds.width, 0.001f);
+        assertTrue(anchor.visible);
+        assertTrue(anchor.claimed);
+        assertEquals("char.skeleton.skeleton", anchor.assetId);
+
+        EntitySlot slot = ArtFramework.entities().get("sts1.native.skeleton/" + entityKey);
+        assertNotNull(slot);
+        assertEquals(EntityKind.MONSTER, slot.kind);
+        assertEquals("Cultist", slot.snapshot().label);
+        assertEquals("", slot.snapshot().artResourceId);
+        assertEquals(Boolean.FALSE, slot.snapshot().extras.get("nativePixelsAuthoritative"));
+        assertEquals(anchor.assetId, slot.snapshot().extras.get("anchorAssetId"));
+    }
+
+    @Test
+    public void duplicateNativeSkeletonClaimKeepsOnlyOneInstanceSuppressed() {
+        String entityKey = "duplicate-creature";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton first = new Skeleton(new SkeletonData());
+        Skeleton second = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(first, entityKey, EntityKind.PLAYER,
+                "Ironclad", 100f, 200f, 120f, 160f, true, "char.ironclad", "ironclad.json");
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(second, entityKey, EntityKind.PLAYER,
+                "Ironclad", 100f, 200f, 120f, 160f, true, "char.ironclad", "ironclad.json");
+
+        Sts1SkeletonBridge.syncPresentation(1L,
+                java.util.Arrays.asList(viewFor(entityKey, fake.id())));
+
+        int claimed = (Sts1SkeletonBridge.canRenderClaimedNative(first) ? 1 : 0)
+                + (Sts1SkeletonBridge.canRenderClaimedNative(second) ? 1 : 0);
+        assertEquals(1, claimed);
+        assertEquals(Integer.valueOf(1), Sts1SkeletonBridge.probeSlice().get("nativeClaimedCount"));
+        assertEquals(Integer.valueOf(1), Sts1SkeletonBridge.probeSlice().get("duplicateNativeClaims"));
+    }
+
+    @Test
+    public void claimReleaseAndUnmountFailOpenCloseLedger() {
+        String entityKey = "claimed-release";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey,
+                "atlas", "skeleton");
+        Sts1SkeletonBridge.syncPresentation(1L,
+                java.util.Arrays.asList(viewFor(entityKey, fake.id())));
+        assertTrue(Sts1SkeletonBridge.canRenderClaimedNative(skeleton));
+
+        FullPresentMode.setSkeletonLevel(PresentLevel.OFF);
+        RenderDisposition failOpen = NativeRenderBridge.beginSkeletonRender(skeleton);
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, failOpen.mode);
+        assertTrue(failOpen.nativeContinuation);
+
+        FullPresentMode.setSkeletonLevel(PresentLevel.FULL);
+        Sts1SkeletonBridge.syncPresentation(2L, java.util.Collections.<SkeletonPresentationView>emptyList());
+        assertFalse(Sts1SkeletonBridge.canRenderClaimedNative(skeleton));
+        assertEquals(Integer.valueOf(0), Sts1SkeletonBridge.probeSlice().get("nativeClaimedCount"));
+        assertTrue(((Number) Sts1SkeletonBridge.probeSlice().get("nativeClaimReleases")).intValue() >= 1);
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH,
+                NativeRenderBridge.beginSkeletonRender(skeleton).mode);
+        assertFalse(ArtFramework.entities().isAttached("sts1.native.skeleton/" + entityKey));
+    }
+
+    @Test
+    public void delegatedSkeletonRenderFailureFallsBackToNativeContinuation() {
+        String entityKey = "missing-renderer";
+        registerAndMountSkeletonProvider();
+        ArtFramework.skeletons().register(new PlainSkeletonProvider());
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey,
+                "atlas", "skeleton");
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(
+                viewFor(entityKey, PlainSkeletonProvider.ID)));
+
+        RenderDisposition disposition = NativeRenderBridge.beginSkeletonRender(skeleton);
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, disposition.mode);
+        assertTrue(disposition.nativeContinuation);
+    }
+
+    @Test
     public void hostRecreationRestoresSkeletonClaimWithoutDoubleDraw() {
         String entityKey = "claimed-creature-2";
         FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
@@ -197,5 +300,19 @@ public class Sts1SkeletonBridgeTest {
                         100f, 200f, 0f, 1f, 1f, false, false, 0),
                 new artframework.skeleton.SkeletonAnimationComponent(0, "idle", true),
                 new artframework.skeleton.SkeletonVisualComponent(true));
+    }
+
+    private static final class PlainSkeletonProvider implements SkeletonProvider {
+        private static final String ID = "plain";
+
+        @Override public String id() { return ID; }
+
+        @Override public SkeletonHandle load(SkeletonSource source) {
+            return new SkeletonHandle(ID, source.skeletonId, source);
+        }
+
+        @Override public void unload(SkeletonHandle handle) {
+            if (handle != null) handle.markDisposed();
+        }
     }
 }

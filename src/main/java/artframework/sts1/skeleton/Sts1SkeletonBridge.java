@@ -1,6 +1,10 @@
 package artframework.sts1.skeleton;
 
 import artframework.api.ArtFramework;
+import artframework.assets.ResourceIds;
+import artframework.c2.EntityAnchorView;
+import artframework.c2.EntityKind;
+import artframework.component.Rect;
 import artframework.context.SurfaceIds;
 import artframework.skeleton.SkeletonHandle;
 import artframework.skeleton.BoneTransform;
@@ -53,7 +57,11 @@ public final class Sts1SkeletonBridge {
             new IdentityHashMap<Object, NativeCreature>();
     private static final Map<Skeleton, String> NATIVE_SKELETONS =
             new IdentityHashMap<Skeleton, String>();
+    private static final Set<String> PROJECTED_NATIVE_ENTITY_SLOTS = new HashSet<String>();
     private static long nextNativeEntityId;
+    private static int nativeClaimAttempts;
+    private static int nativeClaimReleases;
+    private static int duplicateNativeClaims;
 
     private Sts1SkeletonBridge() {}
 
@@ -214,6 +222,7 @@ public final class Sts1SkeletonBridge {
         if (artframework.sts1.PresentSafety.isPanic()) return;
         PRESENTATION.sync(frameId, views);
         reconcileNativeClaims(views);
+        projectNativeEntityAnchors();
     }
 
     /** Subscribe once to the host-neutral backend snapshot signal. */
@@ -258,6 +267,7 @@ public final class Sts1SkeletonBridge {
             stop(id);
         }
         PRESENTATION.clear();
+        cleanupProjectedNativeEntitySlots();
         NATIVE_CREATURES.clear();
         NATIVE_SKELETONS.clear();
         Sts1NativeSkeletonRenderPolicy.clear();
@@ -268,6 +278,7 @@ public final class Sts1SkeletonBridge {
         for (String id : new ArrayList<String>(LIVE.keySet())) stop(id);
         PRESENTATION.recreateHostBindings();
         reconcileNativeClaims(PRESENTATION.views());
+        projectNativeEntityAnchors();
     }
 
     public static int liveCount() {
@@ -296,6 +307,7 @@ public final class Sts1SkeletonBridge {
             current.atlasPath = atlasPath;
             current.skeletonPath = skeletonPath;
         }
+        updateNativeCreatureAnchor(current, creature);
     }
 
     /** Test-only helper to register a native creature mapping without instantiating AbstractCreature. */
@@ -306,10 +318,27 @@ public final class Sts1SkeletonBridge {
                 new NativeCreature(entityKey, skeleton, atlasPath, skeletonPath));
     }
 
+    /** Test-only helper to register a native skeleton with complete host-neutral anchor metadata. */
+    static synchronized void observeNativeSkeletonForTests(Skeleton skeleton, String entityKey,
+            EntityKind kind, String name, float x, float y, float width, float height,
+            boolean visible, String atlasPath, String skeletonPath) {
+        if (skeleton == null || entityKey == null || entityKey.isEmpty()) return;
+        NativeCreature nativeCreature = new NativeCreature(entityKey, skeleton, atlasPath, skeletonPath);
+        nativeCreature.kind = kind != null ? kind : EntityKind.MONSTER;
+        nativeCreature.name = name != null ? name : "";
+        nativeCreature.x = x;
+        nativeCreature.y = y;
+        nativeCreature.bounds = new Rect(x - width * 0.5f, y, Math.max(0f, width), Math.max(0f, height));
+        nativeCreature.visible = visible;
+        nativeCreature.assetId = assetIdFor(atlasPath, skeletonPath, entityKey);
+        NATIVE_CREATURES.put(new Object(), nativeCreature);
+    }
+
     /** Creates a host-neutral snapshot; null means the creature has no captured Spine source. */
     public static synchronized SkeletonPresentationView presentationView(AbstractCreature creature) {
         NativeCreature nativeCreature = NATIVE_CREATURES.get(creature);
         if (nativeCreature == null || nativeCreature.skeleton != nativeSkeleton(creature)) return null;
+        updateNativeCreatureAnchor(nativeCreature, creature);
         AnimationState state = creature.state;
         String animation = "";
         boolean loop = true;
@@ -335,10 +364,31 @@ public final class Sts1SkeletonBridge {
                         color.g, color.b, color.a));
     }
 
+    /** Dependency-neutral observation anchor; claimed reflects exact per-instance skeleton ownership. */
+    public static synchronized EntityAnchorView anchorView(AbstractCreature creature) {
+        NativeCreature nativeCreature = NATIVE_CREATURES.get(creature);
+        if (nativeCreature == null || nativeCreature.skeleton != nativeSkeleton(creature)) return null;
+        updateNativeCreatureAnchor(nativeCreature, creature);
+        return anchorFor(nativeCreature);
+    }
+
+    public static synchronized EntityAnchorView nativeAnchorView(Skeleton nativeSkeleton) {
+        NativeCreature nativeCreature = nativeCreature(nativeSkeleton);
+        return nativeCreature != null ? anchorFor(nativeCreature) : null;
+    }
+
+    public static synchronized List<EntityAnchorView> nativeAnchorViews() {
+        List<EntityAnchorView> anchors = new ArrayList<EntityAnchorView>();
+        for (NativeCreature creature : NATIVE_CREATURES.values()) {
+            anchors.add(anchorFor(creature));
+        }
+        return java.util.Collections.unmodifiableList(anchors);
+    }
+
     /** Called from the native mesh-render patch. Returns false to retain STS1's original draw. */
     public static synchronized boolean renderClaimedNative(Skeleton nativeSkeleton, Object activeBatch) {
         String entityKey = NATIVE_SKELETONS.get(nativeSkeleton);
-        if (entityKey == null || !Sts1NativeSkeletonRenderPolicy.suppress(nativeSkeleton)) return false;
+        if (!shouldDraw() || entityKey == null || !Sts1NativeSkeletonRenderPolicy.suppress(nativeSkeleton)) return false;
         artframework.skeleton.SkeletonRuntimeBinding binding = PRESENTATION.binding(entityKey);
         if (binding == null || !binding.handle.isAlive()) return false;
         SkeletonProvider provider = ArtFramework.skeletons().get(binding.handle.providerId);
@@ -349,7 +399,7 @@ public final class Sts1SkeletonBridge {
     /** Whether ART has a complete native-slot presentation for this exact Spine instance. */
     public static synchronized boolean canRenderClaimedNative(Skeleton nativeSkeleton) {
         String entityKey = NATIVE_SKELETONS.get(nativeSkeleton);
-        if (entityKey == null || !Sts1NativeSkeletonRenderPolicy.suppress(nativeSkeleton)) return false;
+        if (!shouldDraw() || entityKey == null || !Sts1NativeSkeletonRenderPolicy.suppress(nativeSkeleton)) return false;
         artframework.skeleton.SkeletonRuntimeBinding binding = PRESENTATION.binding(entityKey);
         if (binding == null || !binding.handle.isAlive()) return false;
         SkeletonProvider provider = ArtFramework.skeletons().get(binding.handle.providerId);
@@ -361,24 +411,69 @@ public final class Sts1SkeletonBridge {
     }
 
     private static void reconcileNativeClaims(List<SkeletonPresentationView> views) {
+        Set<Skeleton> previouslyClaimed = java.util.Collections.newSetFromMap(
+                new IdentityHashMap<Skeleton, Boolean>());
+        previouslyClaimed.addAll(NATIVE_SKELETONS.keySet());
         Set<String> active = new HashSet<String>();
         if (views != null) {
             for (SkeletonPresentationView view : views) active.add(view.entityKey);
         }
         NATIVE_SKELETONS.clear();
         Sts1NativeSkeletonRenderPolicy.clear();
-        if (!shouldDraw()) return;
         for (java.util.Iterator<Map.Entry<Object, NativeCreature>> iterator =
                 NATIVE_CREATURES.entrySet().iterator(); iterator.hasNext();) {
             if (!active.contains(iterator.next().getValue().entityKey)) iterator.remove();
         }
-        for (NativeCreature creature : NATIVE_CREATURES.values()) {
-            if (active.contains(creature.entityKey) && PRESENTATION.binding(creature.entityKey) != null) {
-                NATIVE_SKELETONS.put(creature.skeleton, creature.entityKey);
-                Sts1NativeSkeletonRenderPolicy.claim(creature.skeleton);
+        if (shouldDraw()) {
+            Set<String> claimedEntityKeys = new HashSet<String>();
+            for (NativeCreature creature : NATIVE_CREATURES.values()) {
+                if (active.contains(creature.entityKey) && PRESENTATION.binding(creature.entityKey) != null) {
+                    if (!claimedEntityKeys.add(creature.entityKey)) {
+                        duplicateNativeClaims++;
+                        continue;
+                    }
+                    NATIVE_SKELETONS.put(creature.skeleton, creature.entityKey);
+                    Sts1NativeSkeletonRenderPolicy.claim(creature.skeleton);
+                    if (!previouslyClaimed.contains(creature.skeleton)) nativeClaimAttempts++;
+                }
             }
         }
+        for (Skeleton skeleton : previouslyClaimed) {
+            if (!NATIVE_SKELETONS.containsKey(skeleton)) nativeClaimReleases++;
+        }
         Sts1NativeSkeletonRenderPolicy.enable(!NATIVE_SKELETONS.isEmpty());
+    }
+
+    private static void projectNativeEntityAnchors() {
+        Set<String> activeSlots = new HashSet<String>();
+        for (EntityAnchorView anchor : nativeAnchorViews()) {
+            String slotId = nativeEntitySlotId(anchor.entityId);
+            activeSlots.add(slotId);
+            try {
+                ArtFramework.entities().present(slotId, anchor.kind.name().toLowerCase(),
+                        anchor.entityId, anchor.toSnapshot(), anchor.x, anchor.y, 1f);
+                PROJECTED_NATIVE_ENTITY_SLOTS.add(slotId);
+            } catch (RuntimeException ignored) {
+                // Anchor projection is non-authoritative observation; native pixels remain fail-open.
+            }
+        }
+        for (String slotId : new HashSet<String>(PROJECTED_NATIVE_ENTITY_SLOTS)) {
+            if (!activeSlots.contains(slotId)) {
+                ArtFramework.entities().detach(slotId);
+                PROJECTED_NATIVE_ENTITY_SLOTS.remove(slotId);
+            }
+        }
+    }
+
+    private static void cleanupProjectedNativeEntitySlots() {
+        for (String slotId : new HashSet<String>(PROJECTED_NATIVE_ENTITY_SLOTS)) {
+            ArtFramework.entities().detach(slotId);
+        }
+        PROJECTED_NATIVE_ENTITY_SLOTS.clear();
+    }
+
+    private static String nativeEntitySlotId(String entityKey) {
+        return "sts1.native.skeleton/" + entityKey;
     }
 
     private static Skeleton nativeSkeleton(AbstractCreature creature) {
@@ -392,6 +487,83 @@ public final class Sts1SkeletonBridge {
         }
     }
 
+    private static NativeCreature nativeCreature(Skeleton skeleton) {
+        if (skeleton == null) return null;
+        for (NativeCreature creature : NATIVE_CREATURES.values()) {
+            if (creature.skeleton == skeleton) return creature;
+        }
+        return null;
+    }
+
+    private static EntityAnchorView anchorFor(NativeCreature creature) {
+        return new EntityAnchorView(creature.entityKey, creature.kind, creature.name,
+                creature.x, creature.y, creature.bounds, creature.visible,
+                NATIVE_SKELETONS.containsKey(creature.skeleton), creature.assetId);
+    }
+
+    private static void updateNativeCreatureAnchor(NativeCreature nativeCreature,
+            AbstractCreature creature) {
+        if (nativeCreature == null || creature == null) return;
+        nativeCreature.kind = creature instanceof com.megacrit.cardcrawl.characters.AbstractPlayer
+                ? EntityKind.PLAYER : EntityKind.MONSTER;
+        nativeCreature.name = strField(creature, "name", creature.getClass().getSimpleName());
+        nativeCreature.x = creature.drawX + creature.animX;
+        nativeCreature.y = creature.drawY + creature.animY;
+        nativeCreature.bounds = boundsFromCreature(creature, nativeCreature.x, nativeCreature.y);
+        nativeCreature.visible = !creature.isDeadOrEscaped();
+        nativeCreature.assetId = assetIdFor(nativeCreature.atlasPath, nativeCreature.skeletonPath,
+                nativeCreature.entityKey);
+    }
+
+    private static Rect boundsFromCreature(AbstractCreature creature, float x, float y) {
+        Object hb = field(creature, "hb");
+        if (hb != null) {
+            return new Rect(floatField(hb, "x", x - 60f), floatField(hb, "y", y),
+                    Math.max(0f, floatField(hb, "width", 120f)),
+                    Math.max(0f, floatField(hb, "height", 160f)));
+        }
+        return new Rect(x - 60f, y, 120f, 160f);
+    }
+
+    private static String assetIdFor(String atlasPath, String skeletonPath, String entityKey) {
+        if (ResourceIds.isValid(atlasPath) && atlasPath.startsWith(ResourceIds.CHAR_PREFIX)) {
+            return atlasPath;
+        }
+        String base = !empty(skeletonPath) ? skeletonPath : entityKey;
+        if (empty(base)) return ResourceIds.CHAR_UNKNOWN;
+        int slash = Math.max(base.lastIndexOf('/'), base.lastIndexOf('\\'));
+        if (slash >= 0 && slash + 1 < base.length()) base = base.substring(slash + 1);
+        int dot = base.lastIndexOf('.');
+        if (dot > 0) base = base.substring(0, dot);
+        base = base.toLowerCase().replaceAll("[^a-z0-9]+", "_").replaceAll("^_+|_+$", "");
+        return !base.isEmpty() ? ResourceIds.CHAR_PREFIX + "skeleton." + base : ResourceIds.CHAR_UNKNOWN;
+    }
+
+    private static Object field(Object target, String name) {
+        try {
+            java.lang.reflect.Field f = target.getClass().getField(name);
+            return f.get(target);
+        } catch (Throwable ignored) {
+            try {
+                java.lang.reflect.Field f = target.getClass().getDeclaredField(name);
+                f.setAccessible(true);
+                return f.get(target);
+            } catch (Throwable ignoredAgain) {
+                return null;
+            }
+        }
+    }
+
+    private static String strField(Object target, String name, String fallback) {
+        Object value = field(target, name);
+        return value != null ? String.valueOf(value) : fallback;
+    }
+
+    private static float floatField(Object target, String name, float fallback) {
+        Object value = field(target, name);
+        return value instanceof Number ? ((Number) value).floatValue() : fallback;
+    }
+
     private static boolean empty(String value) { return value == null || value.isEmpty(); }
 
     private static final class NativeCreature {
@@ -399,12 +571,20 @@ public final class Sts1SkeletonBridge {
         private final Skeleton skeleton;
         private String atlasPath;
         private String skeletonPath;
+        private EntityKind kind = EntityKind.MONSTER;
+        private String name = "";
+        private float x;
+        private float y;
+        private Rect bounds = Rect.ZERO;
+        private boolean visible = true;
+        private String assetId = ResourceIds.CHAR_UNKNOWN;
 
         private NativeCreature(String entityKey, Skeleton skeleton, String atlasPath, String skeletonPath) {
             this.entityKey = entityKey;
             this.skeleton = skeleton;
             this.atlasPath = atlasPath;
             this.skeletonPath = skeletonPath;
+            this.assetId = assetIdFor(atlasPath, skeletonPath, entityKey);
         }
     }
 
@@ -416,6 +596,13 @@ public final class Sts1SkeletonBridge {
         m.put("presentLevel", FullPresentMode.skeletonLevel().name());
         m.put("nativeCreatureCount", Integer.valueOf(NATIVE_CREATURES.size()));
         m.put("nativeClaimedCount", Integer.valueOf(Sts1NativeSkeletonRenderPolicy.claimedCount()));
+        m.put("nativeAnchorCount", Integer.valueOf(NATIVE_CREATURES.size()));
+        m.put("nativeClaimAttempts", Integer.valueOf(nativeClaimAttempts));
+        m.put("nativeClaimReleases", Integer.valueOf(nativeClaimReleases));
+        m.put("duplicateNativeClaims", Integer.valueOf(duplicateNativeClaims));
+        List<Map<String, Object>> anchors = new ArrayList<Map<String, Object>>();
+        for (EntityAnchorView anchor : nativeAnchorViews()) anchors.add(anchor.toMap());
+        m.put("nativeAnchors", anchors);
         m.put("events", new ArrayList<String>(EVENTS));
         m.put("lastError", lastError);
         m.put("lastDevCommand", lastDevCommand);
@@ -482,6 +669,10 @@ public final class Sts1SkeletonBridge {
         }
         devBundle = null;
         providerId = "fake";
+        nextNativeEntityId = 0L;
+        nativeClaimAttempts = 0;
+        nativeClaimReleases = 0;
+        duplicateNativeClaims = 0;
     }
 
     private static void trimEvents() {

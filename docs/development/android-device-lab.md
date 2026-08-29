@@ -65,11 +65,21 @@ scripts/art-lab combat verify-full
 scripts/art-lab stop
 ```
 
+Use the same wrapper to change connector state:
+
+```bash
+scripts/art-lab connector start
+scripts/art-lab connector status
+scripts/art-lab connector stop
+scripts/art-lab connector restart
+```
+
 `ready` starts `mts_basemod` with game-probe enabled and polls until Harness
 observes `READY`. `combat verify-full` reuses
 `d1_full_present_combat_ready.yaml`: ART lab navigation, BaseMod `fight
 Cultist`, and `FULL_READY` probe assertions remain in the evidence-producing
-scenario. The wrapper never starts, stops, or restarts the shared connector.
+scenario. Use its `connector` subcommand when the requested operation requires
+a connector state change.
 Arthas remains on its native CLI because its start/query/cleanup choice is a
 diagnostic decision, not a device-lab default.
 
@@ -83,7 +93,7 @@ device unless their interaction is intentional.
 
 1. ADB: `adb connect` / `adb -s "$ART_D1_SERIAL" get-state` → `device`
 2. `.env.local` loaded (keys above)
-3. Connector (once per session):
+3. Connector:
 
 ```bash
 cd "$SLAY_THE_AMETHYST_ROOT"
@@ -162,11 +172,12 @@ python3 tools/art-verify/run.py tests/ui-scenarios/device/d1_full_present_event.
 
 - Art lab `enabled_mods.txt` enables **ArtFramework only**.
 - Do **not** use ArtFramework lab for dual host/join life.
-- The connector daemon is external tooling; this repo does not own its lifecycle.
+- The connector daemon is external tooling, but device-lab operations in this
+  repo may change its lifecycle when requested.
 
 ## OpenCode order
 
-`junit-test` → `android-deploy-jar` → connector up → `@android-harness` start / console / stop → `@art-verify` device. Use `@android-arthas` separately for a bounded JVM diagnosis; it does not manage connector lifecycle or replace UI verification.
+`junit-test` → `android-deploy-jar` → connector start/status as needed → `@android-harness` start / console / stop → `@art-verify` device. Use `@android-arthas` separately for a bounded JVM diagnosis; it may manage connector lifecycle but does not replace UI verification.
 
 ## Related
 

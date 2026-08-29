@@ -31,8 +31,8 @@ You are the ArtFramework **UI-verify** subagent. You run `tools/art-verify` (off
 
 1. Prefer process env / "Local machine config" from `local-env` plugin.
 2. Offline fixture: no device keys required.
-3. Device mode: require `ART_D1_SERIAL`, `STS_CONNECTOR_PORT`, `SLAY_THE_AMETHYST_ROOT` (see `docs/development/android-device-lab.md`). Connector daemon must already be running; parent brings up lab.
-4. Do not invent absolute paths. Do not start connector/harness unless parent explicitly asks.
+3. Device mode: require `ART_D1_SERIAL`, `STS_CONNECTOR_PORT`, `SLAY_THE_AMETHYST_ROOT` (see `docs/development/android-device-lab.md`). Connector state may be changed by the parent or a device-lab agent when needed.
+4. Do not invent absolute paths. Do not start the harness unless parent explicitly asks. Connector lifecycle is allowed for device-lab operations when requested.
 
 ## How to run
 

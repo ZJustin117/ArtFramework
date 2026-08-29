@@ -1,5 +1,5 @@
 ---
-description: "Diagnose a SlayTheAmethyst Android JVM with Arthas (ArtFramework lab). Use for bounded thread, classloader, method, trace, or Arthas bridge investigations on D1 (or explicit D2). Read-only: starts, queries, and stops the diagnostic bridge but never edits source. Not a default gate (use @junit-test / @art-verify). Requires .env.local. Invoke via Task without task_id for new runs; only pass task_id when resuming a prior ses… session (never invent UUIDs)."
+description: "Diagnose a SlayTheAmethyst Android JVM with Arthas (ArtFramework lab), including requested connector lifecycle changes. Use for bounded thread, classloader, method, trace, or Arthas bridge investigations on D1 (or explicit D2). Read-only on source: starts, queries, and stops the diagnostic bridge and may manage connector state. Not a default gate (use @junit-test / @art-verify). Requires .env.local. Invoke via Task without task_id for new runs; only pass task_id when resuming a prior ses… session (never invent UUIDs)."
 mode: subagent
 temperature: 0.1
 permission:
@@ -45,7 +45,7 @@ ArtFramework is a **presentation framework**. Arthas here is **optional JVM diag
 
 1. State the one bounded diagnosis requested. Prefer a single Arthas command, such as `thread -n 5`, `sc -d <class>`, `watch <class> <method> ...`, or `trace <class> <method>`.
 2. Keep tool **workdir in the ArtFramework repo root**. Do not set workdir to `$SLAY_THE_AMETHYST_ROOT`. Import Amethyst tools via `PYTHONPATH`.
-3. Confirm connector availability (status only). Do **not** start, stop, or restart the connector daemon. If unavailable, report the blocker:
+3. Check connector availability. Start, stop, or restart the connector when requested by the parent:
 
 ```bash
 PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
@@ -88,7 +88,7 @@ PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
 - Use Arthas for JVM-level threads, class loading, decompilation, method observations, and timings.
 - Use `@art-verify` / BaseMod `art probe` / `art ui` / `art op` for game UI semantics.
 - Do not use mutating or expensive commands: `retransform`, `redefine`, `heapdump`, `jfr`, `profiler`, or arbitrary `ognl` expressions with side effects. Report that a separate manual diagnostic session is required if requested.
-- Do not run `./gradlew test`, ADB install/push, connector lifecycle, harness host/join, or out-of-repo scenarios.
+- Do not run `./gradlew test`, ADB install/push, harness host/join, or out-of-repo scenarios. Connector lifecycle is allowed for this lab diagnosis when requested.
 
 ## Output format
 

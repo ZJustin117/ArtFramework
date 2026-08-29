@@ -37,23 +37,23 @@ Developer machine
     └── arthas bridge :$ART_ARTHAS_PORT -> query stream
 ```
 
-The connector must already be running. Its lifecycle is outside this subagent and may be shared with the ArtFramework single-device lab. The Arthas port is device-side forwarding and is unrelated to any game network port.
+The connector is managed by the device-lab workflow. Its lifecycle may be changed when the requested diagnosis needs it, and it may be shared with the ArtFramework single-device lab. The Arthas port is device-side forwarding and is unrelated to any game network port.
 
 ## Preconditions
 
 1. The game is running in a debug-compatible mode and game-probe can accept `LOAD_AGENT`.
-2. The connector daemon is already online on `$STS_CONNECTOR_PORT`.
+2. The connector daemon can be brought to the requested state on `$STS_CONNECTOR_PORT`.
 3. A target device is explicit, preferably `--device "$ART_D1_SERIAL"`.
 4. The Arthas tooling is available below `$ART_AMETHYST_TOOLS_DIR`.
 
-Check connector status from the Amethyst root:
+Check or change connector state from the Amethyst root:
 
 ```bash
 PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
   python3 -m scripts.tools.connector status --port "$STS_CONNECTOR_PORT"
 ```
 
-Do not start or stop the connector from the diagnostic subagent. If status fails, report the connector blocker and stop.
+Start, stop, restart, or check the connector when the parent requests that state change. Concurrent debugging is intentionally not serialized.
 
 ## Quick start
 

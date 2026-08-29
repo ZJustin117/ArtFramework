@@ -33,13 +33,14 @@ done
 usage() {
   printf '%s\n' \
     'Usage:' \
+    '  scripts/art-lab connector <start|status|stop|restart>' \
     '  scripts/art-lab ready [--timeout-seconds N] [--poll-interval-seconds N]' \
     '  scripts/art-lab status' \
     '  scripts/art-lab stop' \
     '  scripts/art-lab console "<BaseMod command>"' \
     '  scripts/art-lab combat verify-full [--out-dir DIR]' \
     '' \
-    'The connector daemon must already be running. This script never manages it.' >&2
+    'Connector state may be changed with the connector subcommand.' >&2
 }
 
 die() {
@@ -63,15 +64,41 @@ tools_dir() {
   printf '%s\n' "${ART_AMETHYST_TOOLS_DIR:-$SLAY_THE_AMETHYST_ROOT/scripts/tools}"
 }
 
-require_device_env() {
-  require_env SLAY_THE_AMETHYST_ROOT ART_D1_SERIAL STS_CONNECTOR_PORT \
-    ART_HARNESS_OUT_DIR ART_GAME_PROBE_PORT
+require_connector_env() {
+  require_env SLAY_THE_AMETHYST_ROOT STS_CONNECTOR_PORT
   [[ -d "$SLAY_THE_AMETHYST_ROOT" ]] || die "SLAY_THE_AMETHYST_ROOT does not exist: $SLAY_THE_AMETHYST_ROOT"
+}
+
+require_device_env() {
+  require_connector_env
+  require_env ART_D1_SERIAL \
+    ART_HARNESS_OUT_DIR ART_GAME_PROBE_PORT
   [[ -f "$(tools_dir)/main.py" ]] || die "Amethyst harness entrypoint not found under $(tools_dir)"
   [[ -d "$ART_HARNESS_OUT_DIR" ]] || mkdir -p "$ART_HARNESS_OUT_DIR"
   adb -s "$ART_D1_SERIAL" get-state >/dev/null
   PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
     python3 -m scripts.tools.connector status --port "$STS_CONNECTOR_PORT" >/dev/null
+}
+
+connector() {
+  local action="$1"
+  case "$action" in
+    start|status|stop)
+      ;;
+    restart)
+      connector stop
+      connector start
+      return
+      ;;
+    *)
+      die 'connector supports: start, status, stop, restart'
+      ;;
+  esac
+  (
+    cd "$SLAY_THE_AMETHYST_ROOT"
+    PYTHONPATH="$SLAY_THE_AMETHYST_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+      python3 -m scripts.tools.connector "$action" --port "$STS_CONNECTOR_PORT"
+  )
 }
 
 harness() {
@@ -231,6 +258,12 @@ combat_verify_full() {
 
 main() {
   [[ $# -gt 0 ]] || { usage; exit 2; }
+  if [[ "$1" == connector ]]; then
+    [[ $# -eq 2 ]] || die 'connector requires exactly one action'
+    require_connector_env
+    connector "$2"
+    return
+  fi
   require_device_env
   case "$1" in
     ready) shift; ready "$@";;

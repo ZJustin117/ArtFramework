@@ -92,6 +92,7 @@ public final class Sts1SurfaceRenderer {
         renderEntityChrome(sb);
         renderRelicPotionBlightOverlay(sb);
         renderPileSoulOverlay(sb);
+        Sts1RoomShellDrawPath.render(sb);
     }
 
     private static void disableInactiveSurfaceEffects(SurfaceDrawPlan plan) {

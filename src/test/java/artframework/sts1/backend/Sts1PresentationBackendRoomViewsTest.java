@@ -5,6 +5,9 @@ import artframework.context.RewardItemView;
 import artframework.context.RewardView;
 import artframework.context.ShopView;
 import artframework.context.TreasureView;
+import artframework.context.RoomShellView;
+import artframework.assets.ResourceIds;
+import artframework.component.Rect;
 import com.megacrit.cardcrawl.helpers.Hitbox;
 import org.junit.Test;
 
@@ -216,6 +219,18 @@ public class Sts1PresentationBackendRoomViewsTest {
         RestView first = Sts1PresentationBackend.liveRestView(room);
         RestView second = Sts1PresentationBackend.liveRestView(room);
         assertEquals(first.optionCount(), second.optionCount());
+    }
+
+    @Test
+    public void roomShellViewIsImmutableAndDependencyNeutral() {
+        RoomShellView view = new RoomShellView("generic", "room-1", "Room", "COMPLETE",
+                true, new Rect(1f, 2f, 3f, 4f), ResourceIds.UI_ROOM_SHELL_GENERIC, true);
+        assertEquals("generic", view.kind);
+        assertEquals("room-1", view.id);
+        assertEquals("COMPLETE", view.phase);
+        assertEquals(3f, view.bounds.width, 0.01f);
+        assertTrue(view.available);
+        assertTrue(view.visible);
     }
 
     // --- Event (G2) stubs ---

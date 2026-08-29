@@ -123,6 +123,10 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_TREASURE_CHEST_CLOSED, "images/ui/map/chest.png");
         put(m, ResourceIds.UI_TREASURE_CHEST_OPEN, "images/ui/map/chestOutline.png");
         put(m, ResourceIds.UI_TREASURE_RELIC, "images/ui/reward/rewardListItemPanel.png");
+        put(m, ResourceIds.UI_ROOM_SHELL_EVENT, "images/ui/event/panel.png");
+        put(m, ResourceIds.UI_ROOM_SHELL_NEOW, "images/ui/event/panel.png");
+        put(m, ResourceIds.UI_ROOM_SHELL_GENERIC, "images/ui/reward/rewardList.png");
+        put(m, ResourceIds.UI_ROOM_SHELL_UNKNOWN, "images/ui/reward/rewardList.png");
         put(m, ResourceIds.UI_MAP_SELECT, "images/ui/map/selectBox.png");
         put(m, ResourceIds.UI_MAP_HIGHLIGHT, "images/ui/map/selectBox.png");
         put(m, ResourceIds.UI_MAP_PIN, "images/ui/map/selectBox.png");

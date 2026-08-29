@@ -65,6 +65,7 @@ final class FrameworkTestReset {
         artframework.sts1.assets.Sts1HostAssets.resetForTests();
         artframework.sts1.render.Sts1RenderPipeline.resetForTests();
         artframework.sts1.backend.Sts1OrbStanceProjection.resetForTests();
+        artframework.sts1.backend.Sts1RoomShellProjection.resetForTests();
         artframework.sts1.render.MapDrawPath.resetForTests();
         artframework.sts1.input.CombatInputRouter.resetForTests();
         artframework.sts1.audio.ArtAudioBridge.resetForTests();

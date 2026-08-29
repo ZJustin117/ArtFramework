@@ -85,6 +85,11 @@ public final class ResourceIds {
     public static final String UI_TREASURE_CHEST_CLOSED = "ui.treasure.chest.closed";
     public static final String UI_TREASURE_CHEST_OPEN = "ui.treasure.chest.open";
     public static final String UI_TREASURE_RELIC = "ui.treasure.relic";
+    public static final String UI_ROOM_SHELL_PREFIX = "ui.room_shell.";
+    public static final String UI_ROOM_SHELL_EVENT = "ui.room_shell.event";
+    public static final String UI_ROOM_SHELL_NEOW = "ui.room_shell.neow";
+    public static final String UI_ROOM_SHELL_GENERIC = "ui.room_shell.generic";
+    public static final String UI_ROOM_SHELL_UNKNOWN = "ui.room_shell.unknown";
     public static final String UI_MAP_SELECT = "ui.map.select";
     public static final String UI_MAP_HIGHLIGHT = "ui.map.highlight";
     public static final String UI_MAP_PIN = "ui.map.pin";
@@ -160,6 +165,10 @@ public final class ResourceIds {
 
     public static String mapEdge(String kind) {
         return MAP_EDGE_PREFIX + (kind != null ? kind : "default");
+    }
+
+    public static String roomShell(String kind) {
+        return UI_ROOM_SHELL_PREFIX + (kind != null && !kind.isEmpty() ? kind : "unknown");
     }
 
     public static boolean isValid(String resourceId) {

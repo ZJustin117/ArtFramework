@@ -16,6 +16,7 @@ import artframework.context.MapView;
 import artframework.context.MonsterIntentView;
 import artframework.context.PileSoulView;
 import artframework.context.RestView;
+import artframework.context.RoomShellView;
 import artframework.context.RewardItemView;
 import artframework.context.RewardView;
 import artframework.context.SelectView;
@@ -85,6 +86,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 }
             }
             frameId++;
+            publishRoomShellProjection(nextScene);
             publishPileSoulProjection();
             publishRelicPotionBlightProjection();
             publishOrbStanceProjection();
@@ -270,6 +272,50 @@ public final class Sts1PresentationBackend implements SignalBackend {
         try {
             artframework.sts1.skeleton.Sts1CreatureSkeletonSnapshots.publish(frameId);
         } catch (Throwable ignored) {
+        }
+    }
+
+    /** Observe only the non-delegated room shell metadata; delegated room views remain separate. */
+    private void publishRoomShellProjection(String nextScene) {
+        try {
+            if ("reward".equals(nextScene) || "rest".equals(nextScene)
+                    || "shop".equals(nextScene) || "treasure".equals(nextScene)) {
+                Sts1RoomShellProjection.clear();
+                return;
+            }
+            AbstractRoom room = safeCurrRoom();
+            Sts1RoomShellProjection.publish(readRoomShellView(room));
+        } catch (Throwable ignored) {
+            Sts1RoomShellProjection.clear();
+        }
+    }
+
+    static RoomShellView readRoomShellView(Object room) {
+        try {
+            if (room == null || room instanceof com.megacrit.cardcrawl.rooms.RestRoom
+                    || room instanceof com.megacrit.cardcrawl.rooms.ShopRoom
+                    || room instanceof com.megacrit.cardcrawl.rooms.TreasureRoom
+                    || room instanceof com.megacrit.cardcrawl.rooms.TreasureRoomBoss) {
+                return RoomShellView.empty();
+            }
+            String className = room.getClass().getName();
+            String kind = className.endsWith("NeowRoom") ? "neow"
+                    : room instanceof com.megacrit.cardcrawl.rooms.EventRoom ? "event" : "generic";
+            String id = stringValue(room, "roomID");
+            if (id.isEmpty()) id = stringValue(room, "id");
+            if (id.isEmpty()) id = room.getClass().getSimpleName();
+            String title = stringValue(room, "title");
+            if (title.isEmpty()) title = kind.substring(0, 1).toUpperCase() + kind.substring(1);
+            Object phase = softField(room.getClass(), room, "phase");
+            String phaseName = phase instanceof Enum ? ((Enum) phase).name() : String.valueOf(phase != null ? phase : "");
+            float sw = com.megacrit.cardcrawl.core.Settings.WIDTH;
+            float sh = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+            artframework.component.Rect bounds =
+                    new artframework.component.Rect(sw * 0.18f, sh * 0.72f, sw * 0.64f, 58f);
+            return new RoomShellView(kind, id, title, phaseName, true, bounds,
+                    ResourceIds.roomShell(kind), true);
+        } catch (Throwable ignored) {
+            return RoomShellView.empty();
         }
     }
 

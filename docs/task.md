@@ -2,6 +2,9 @@
 
 Checkbox list for open work. Tick when done; milestone notes stay short.
 
+- [x] ART 24 room-shells observe-first metadata/overlay: event, Neow, and generic fallback paths
+  retain native pixels; delegated rest/shop/reward/treasure policy is unchanged.
+
 ## Infrastructure (P0–P2)
 
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

@@ -248,8 +248,7 @@ public final class StageHost
         }
         probeSidecarTicks = 0;
         try {
-            Gdx.files.local("art_probe_latest.log")
-                    .writeString(ArtFramework.probe().toJsonLine() + "\n", false, "UTF-8");
+            artframework.console.ProbeSidecar.write(ArtFramework.probe().toJsonLine());
         } catch (Throwable t) {
             if (!probeSidecarWarned) {
                 probeSidecarWarned = true;

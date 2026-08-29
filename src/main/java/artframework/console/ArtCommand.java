@@ -202,10 +202,7 @@ public class ArtCommand extends ConsoleCommand {
     }
 
     private static void writeLocalProbe(String line) {
-        try {
-            com.badlogic.gdx.Gdx.files.local("art_probe_latest.log").writeString(line + "\n", false, "UTF-8");
-        } catch (Throwable ignored) {
-        }
+        ProbeSidecar.write(line);
     }
 
     private void cmdProfile(String[] tokens, int depth) {

@@ -765,13 +765,19 @@ parity gaps remain documented in
       not run because the first `connect_console()` attempt blocked on the
       existing connector stream; `scripts/art-lab status` still reports READY.
       No room/map UI result is claimed from that blocked batch.
-- [ ] 47.29 D1 map/event/select/room acceptance: executable FULL_READY fixtures already
+- [ ] 47.29 D1 map/event/select/room acceptance: map/event executable FULL_READY fixtures
+      pass on D1; select/room remain pending until deterministic navigation exists. The
+      executable map/event fixtures already
       exist for map (`d1_full_present_map_ready`) and event (`d1_full_present_event`).
       The current runner can execute console/probe/assert steps, but `art lab` has no
       deterministic standalone navigation command for grid/hand select, rest, shop, or
       treasure. Add those device scenarios only after supported navigation exists; do not
       infer select/room visual evidence from combat, map, event, or offline/JUnit coverage.
-      The 2026-08-29 post-cold-start map and event attempts reached their console steps
+      The 2026-08-29 post-cold-start attempts initially reached their console steps
       (`executed: true`) but failed because the D1 game-probe sidecar was not refreshed;
-      no FULL_READY, draw, continuation, or cleanup evidence was produced. This is a
-      game-probe transport blocker, not a surface assertion result.
+      the probe sidecar writer was then fixed to publish to the Harness-readable device
+      path. Final artifacts `debug-artifacts/art-verify/fixture-fix-20260829/` pass map
+      and event: map strict acceptance is closed, and event reaches `FULL_READY` with
+      `eventDraw.count=4`, `suppressNativeEvent=true`, and final strict acceptance.
+      Select/room remain intentionally unclaimed because deterministic standalone
+      navigation is still unavailable.

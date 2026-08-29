@@ -9,6 +9,8 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
   - console: "art lab start-run IRONCLAD"
   - wait_probe:
       timeout_ms: 45000

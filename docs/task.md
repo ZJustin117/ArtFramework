@@ -745,3 +745,10 @@ FULL acceptance requires zero static unknowns and zero runtime strict-report gap
 **Current state:** static strict manifest remains 544/544 clean and the Java full
 gate has passed; native parity gaps remain documented in
 [`native-render-coverage-sdd.md`](design/native-render-coverage-sdd.md).
+
+- [x] 47.28 D1 deployment and combat smoke completed (2026-08-29): fresh jar
+      deployment, READY polling, and `d1_full_present_combat_ready` passed.
+      The follow-up map/event/reward/combat-chrome/lifecycle verifier batch did
+      not run because the first `connect_console()` attempt blocked on the
+      existing connector stream; `scripts/art-lab status` still reports READY.
+      No room/map UI result is claimed from that blocked batch.

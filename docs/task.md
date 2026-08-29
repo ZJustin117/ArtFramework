@@ -7,6 +7,8 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 
 ## Infrastructure (P0–P2)
 
+- [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
+  lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`
 - [x] AGENTS subagent table + delegation order
 - [x] `docs/development` testing + deploy notes

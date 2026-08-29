@@ -122,23 +122,24 @@ if not files:
     raise SystemExit("art-lab: no Harness result.json found")
 path = files[0]
 try:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    json.loads(path.read_text(encoding="utf-8"))
 except (OSError, ValueError) as exc:
     raise SystemExit(f"art-lab: cannot read {path}: {exc}")
-print(json.dumps({"path": str(path), "result": data}, separators=(",", ":")))
+print(path)
 PY
 }
 
 print_result() {
-  local payload="$1"
-  python3 - "$payload" <<'PY'
+  local result_path="$1"
+  python3 - "$result_path" <<'PY'
 import json
 import sys
+from pathlib import Path
 
-payload = json.loads(sys.argv[1])
-data = payload["result"]
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
 snapshot = data.get("statusSnapshot") or {}
-print(f"result={payload['path']}")
+print(f"result={path}")
 print(f"success={data.get('success')} status={data.get('status')} observedState={snapshot.get('observedState', '')}")
 if data.get("message"):
     print(f"message={data['message']}")
@@ -156,7 +157,9 @@ is_ready() {
   python3 - "$1" <<'PY'
 import json
 import sys
-data = json.loads(sys.argv[1])["result"]
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 snapshot = data.get("statusSnapshot") or {}
 raise SystemExit(0 if snapshot.get("observedState") == "READY" else 1)
 PY

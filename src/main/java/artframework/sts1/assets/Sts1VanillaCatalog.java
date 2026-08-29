@@ -24,6 +24,7 @@ public final class Sts1VanillaCatalog {
         putMapNodes(m);
         putCommonCardArt(m);
         putRelicFamily(m);
+        putOrbStanceFamily(m);
         putAudio(m);
         return Collections.unmodifiableMap(m);
     }
@@ -204,6 +205,21 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.potion("fire_potion"), "images/potions/firePotion.png");
         put(m, ResourceIds.blight("Grotesque Statue"), "images/blights/grotesqueStatue.png");
         put(m, ResourceIds.blight("grotesque_statue"), "images/blights/grotesqueStatue.png");
+    }
+
+    private static void putOrbStanceFamily(Map<String, String> m) {
+        put(m, ResourceIds.ORB_UNKNOWN, "images/orbs/empty.png");
+        put(m, ResourceIds.orb("Empty"), "images/orbs/empty.png");
+        put(m, ResourceIds.orb("EmptyOrbSlot"), "images/orbs/empty.png");
+        put(m, ResourceIds.orb("Lightning"), "images/orbs/lightning.png");
+        put(m, ResourceIds.orb("Frost"), "images/orbs/frost.png");
+        put(m, ResourceIds.orb("Dark"), "images/orbs/dark.png");
+        put(m, ResourceIds.orb("Plasma"), "images/orbs/plasma.png");
+        put(m, ResourceIds.STANCE_UNKNOWN, "images/ui/stance/neutral.png");
+        put(m, ResourceIds.stance("Neutral"), "images/ui/stance/neutral.png");
+        put(m, ResourceIds.stance("Calm"), "images/ui/stance/calm.png");
+        put(m, ResourceIds.stance("Wrath"), "images/ui/stance/wrath.png");
+        put(m, ResourceIds.stance("Divinity"), "images/ui/stance/divinity.png");
     }
 
     private static void put(Map<String, String> m, String resourceId, String path) {

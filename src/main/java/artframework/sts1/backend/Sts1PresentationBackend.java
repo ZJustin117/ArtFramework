@@ -85,6 +85,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
             }
             frameId++;
             publishRelicPotionBlightProjection();
+            publishOrbStanceProjection();
             publishTargetingSession();
             if ("combat".equals(scene)) {
                 return publish(combatFrame());
@@ -868,6 +869,84 @@ public final class Sts1PresentationBackend implements SignalBackend {
             Sts1RelicPotionBlightProjection.publish(
                     artframework.context.RelicPotionBlightView.empty());
         }
+    }
+
+    /** Observe native orb slots and current stance without importing concrete classes or suppressing pixels. */
+    private static void publishOrbStanceProjection() {
+        try {
+            if (artframework.sts1.PresentSafety.isPanic()) {
+                Sts1OrbStanceProjection.clear();
+                return;
+            }
+            if (AbstractDungeon.player == null) {
+                Sts1OrbStanceProjection.publish(artframework.context.OrbStanceView.empty());
+                return;
+            }
+            List<artframework.context.OrbStanceView.Entry> entries =
+                    new ArrayList<artframework.context.OrbStanceView.Entry>();
+            appendOrbFamily(entries, softField(AbstractDungeon.player.getClass(), AbstractDungeon.player, "orbs"));
+            appendCurrentStance(entries, softField(AbstractDungeon.player.getClass(), AbstractDungeon.player, "stance"));
+            Sts1OrbStanceProjection.publish(
+                    new artframework.context.OrbStanceView(entries, !entries.isEmpty()));
+        } catch (Throwable ignored) {
+            Sts1OrbStanceProjection.publish(artframework.context.OrbStanceView.empty());
+        }
+    }
+
+    private static void appendOrbFamily(
+            List<artframework.context.OrbStanceView.Entry> out, Object raw) {
+        if (!(raw instanceof List)) return;
+        Set<String> seen = new HashSet<String>();
+        int index = 0;
+        for (Object item : (List<?>) raw) {
+            if (item == null) continue;
+            try {
+                String id = firstString(item, "ID", "orbID", "id", "name");
+                String label = firstString(item, "name", "ID", "id");
+                int passive = firstInt(item, 0, "passiveAmount", "basePassiveAmount", "passive");
+                int evoke = firstInt(item, 0, "evokeAmount", "baseEvokeAmount", "evoke");
+                int count = firstInt(item, index, "channelAnimTimer", "slotChannelCount", "count");
+                boolean active = !"Empty".equals(id) && !"EmptyOrbSlot".equals(item.getClass().getSimpleName());
+                Object hb = softField(item.getClass(), item, "hb");
+                artframework.component.Rect bounds = boundsOf(hb, index, "orb");
+                String stable = uniqueId(seen, "orb", id, item, index);
+                out.add(new artframework.context.OrbStanceView.Entry(
+                        stable, "orb", label, count, passive, evoke, active,
+                        ResourceIds.orb(id), bounds, visibleOf(hb)));
+                index++;
+            } catch (Throwable ignored) {
+                // A broken third-party orb must not hide remaining native orb slots.
+            }
+        }
+    }
+
+    private static void appendCurrentStance(
+            List<artframework.context.OrbStanceView.Entry> out, Object stance) {
+        if (stance == null) return;
+        try {
+            String id = firstString(stance, "ID", "stanceId", "id", "name");
+            if (id.isEmpty()) id = stance.getClass().getSimpleName();
+            String label = firstString(stance, "name", "ID", "id");
+            if (label.isEmpty()) label = id;
+            int count = firstInt(stance, 0, "counter", "amount", "turns");
+            int passive = firstInt(stance, 0, "passiveAmount", "passive");
+            int evoke = firstInt(stance, 0, "evokeAmount", "evoke");
+            Object hb = softField(stance.getClass(), stance, "hb");
+            artframework.component.Rect bounds = boundsOf(hb, 0, "stance");
+            out.add(new artframework.context.OrbStanceView.Entry(
+                    "stance:" + id, "stance", label, count, passive, evoke, true,
+                    ResourceIds.stance(id), bounds, visibleOf(hb)));
+        } catch (Throwable ignored) {
+            // Current stance is optional observation state; native stance rendering continues.
+        }
+    }
+
+    private static String uniqueId(Set<String> seen, String kind, String id, Object item, int index) {
+        String base = kind + ":" + (!id.isEmpty() ? id : item.getClass().getSimpleName());
+        if (seen.add(base)) return base;
+        String withIndex = base + "#" + index;
+        if (seen.add(withIndex)) return withIndex;
+        return base + "@" + Integer.toHexString(System.identityHashCode(item));
     }
 
     private static void appendRelicFamily(

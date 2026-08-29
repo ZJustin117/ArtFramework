@@ -708,3 +708,34 @@ FULL acceptance requires zero static unknowns and zero runtime strict-report gap
       0→52 with `failOpen=0`/`unknownLifecycle=0`, confirming no regression
       across container effect observation, room chrome, targeting family, backend
       field projection, and render hygiene changes.
+- [x] 47.19 Top panel / proceed partial pixel supply (32c285f): supplied stable
+      C2 HUD and proceed-button visual items, ResourceIds, bounds, labels, and
+      focused tests while keeping native glow/hover/animation parity documented
+      as pending.
+- [x] 47.20 Controls / energy / intents partial pixel supply (db9423c): supplied
+      enhanced end-turn, energy-orb, and monster-intent visual projections plus
+      tests; remaining native animation/layer parity stays an exposed gap.
+- [x] 47.21 Reward / shop / treasure partial pixel supply (661e644): supplied
+      visible reward rows, shop chrome/entries, treasure chest/relic rows, and
+      tests with explicit fallback resources; full room-native parity remains
+      tracked.
+- [x] 47.22 Event / select partial pixel supply (328d3df): supplied event dialog
+      panel/options and grid/hand select projected items, labels, states, and
+      tests; base dialog/select parity remains pending.
+- [x] 47.23 Event / select renderer evidence fail-open (8b7b846): hardened render
+      evidence so missing projected items fail open visibly instead of being
+      counted as delegated draw success.
+- [x] 47.24 Rest / campfire partial pixel supply (f80a054): supplied campfire title
+      and option-row chrome with ResourceIds, geometry, roles, state, and tests;
+      base art/animation parity remains pending.
+- [x] 47.25 Map node partial pixel supply (87d750c): supplied projected map-node
+      textures, symbols, overlays, row:col identity, pan/zoom geometry, evidence,
+      and tests; map background, edges, legend, and full pan/zoom parity remain
+      documented gaps.
+- [x] 47.26 D1 deploy/smoke status: device verification is blocked by adb
+      shell/push timeout after `get-state=device`; no D1 success is claimed for
+      this slice.
+
+**Current state:** static strict manifest remains 544/544 clean and the Java full
+gate has passed; native parity gaps remain documented in
+[`native-render-coverage-sdd.md`](design/native-render-coverage-sdd.md).

@@ -73,6 +73,9 @@ public class Sts1HostAssetsTest {
         assertTrue(cat.containsKey(ResourceIds.UI_TREASURE_CHEST_CLOSED));
         assertTrue(cat.containsKey(ResourceIds.UI_TREASURE_CHEST_OPEN));
         assertTrue(cat.containsKey(ResourceIds.UI_TREASURE_RELIC));
+        assertTrue(cat.containsKey(ResourceIds.relic("burning_blood")));
+        assertTrue(cat.containsKey(ResourceIds.potion("fire_potion")));
+        assertTrue(cat.containsKey(ResourceIds.blight("grotesque_statue")));
         assertEquals(
                 "sts1:images/ui/intent/attack/attack_intent_1.png",
                 cat.get(ResourceIds.intent("attack/attack_intent_1")));

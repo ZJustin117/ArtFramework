@@ -23,6 +23,7 @@ public final class Sts1VanillaCatalog {
         putCardFrames(m);
         putMapNodes(m);
         putCommonCardArt(m);
+        putRelicFamily(m);
         putAudio(m);
         return Collections.unmodifiableMap(m);
     }
@@ -191,6 +192,18 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.AUDIO_SFX_PREFIX + "card_select", "audio/sound/card_select.ogg");
         put(m, ResourceIds.AUDIO_SFX_PREFIX + "end_turn", "audio/sound/end_turn.ogg");
         put(m, ResourceIds.AUDIO_BGM_PREFIX + "exordium", "audio/music/Exordium.ogg");
+    }
+
+    private static void putRelicFamily(Map<String, String> m) {
+        put(m, ResourceIds.RELIC_UNKNOWN, "images/relics/relic.png");
+        put(m, ResourceIds.POTION_UNKNOWN, "images/potions/potion.png");
+        put(m, ResourceIds.BLIGHT_UNKNOWN, "images/blights/blight.png");
+        put(m, ResourceIds.relic("Burning Blood"), "images/relics/burningBlood.png");
+        put(m, ResourceIds.relic("burning_blood"), "images/relics/burningBlood.png");
+        put(m, ResourceIds.potion("Fire Potion"), "images/potions/firePotion.png");
+        put(m, ResourceIds.potion("fire_potion"), "images/potions/firePotion.png");
+        put(m, ResourceIds.blight("Grotesque Statue"), "images/blights/grotesqueStatue.png");
+        put(m, ResourceIds.blight("grotesque_statue"), "images/blights/grotesqueStatue.png");
     }
 
     private static void put(Map<String, String> m, String resourceId, String path) {

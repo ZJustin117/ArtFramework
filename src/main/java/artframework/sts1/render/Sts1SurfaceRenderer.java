@@ -90,6 +90,7 @@ public final class Sts1SurfaceRenderer {
         // geometry is rendered here as a tail-slot overlay.
         renderTargetingOverlay(sb);
         renderEntityChrome(sb);
+        renderRelicPotionBlightOverlay(sb);
     }
 
     private static void disableInactiveSurfaceEffects(SurfaceDrawPlan plan) {
@@ -1011,6 +1012,27 @@ public final class Sts1SurfaceRenderer {
                         item.x,
                         item.y,
                         colorDisabled(chrome));
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Decorative resource overlay only; the native relic-family renderer always continues. */
+    private static void renderRelicPotionBlightOverlay(SpriteBatch sb) {
+        try {
+            artframework.core.PresentChromeStyle chrome = artframework.core.PresentResolve.chrome();
+            for (Sts1RelicPotionBlightDrawPath.DrawItem item :
+                    Sts1RelicPotionBlightDrawPath.buildFromProjection()) {
+                if (!item.visible) continue;
+                drawResolvedTexture(sb, item.resourceId, item.bounds);
+                String text = item.label;
+                if (item.count != 0) text = text + " " + item.count;
+                if (!text.isEmpty()) {
+                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                            sb, com.megacrit.cardcrawl.helpers.FontHelper.cardDescFont_N, text,
+                            item.bounds.x + item.bounds.width * 0.5f,
+                            item.bounds.y - 8f, item.usable ? colorLabel(chrome) : colorDisabled(chrome));
+                }
             }
         } catch (Throwable ignored) {
         }

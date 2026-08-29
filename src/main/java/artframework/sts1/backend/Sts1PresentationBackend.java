@@ -84,6 +84,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 }
             }
             frameId++;
+            publishRelicPotionBlightProjection();
             publishTargetingSession();
             if ("combat".equals(scene)) {
                 return publish(combatFrame());
@@ -842,6 +843,100 @@ public final class Sts1PresentationBackend implements SignalBackend {
         } catch (Throwable t) {
             return TopPanelView.empty();
         }
+    }
+
+    /** Observe the native player inventory without importing concrete mod classes or suppressing pixels. */
+    private static void publishRelicPotionBlightProjection() {
+        try {
+            if (artframework.sts1.PresentSafety.isPanic()) {
+                Sts1RelicPotionBlightProjection.clear();
+                return;
+            }
+            if (AbstractDungeon.player == null) {
+                Sts1RelicPotionBlightProjection.publish(
+                        artframework.context.RelicPotionBlightView.empty());
+                return;
+            }
+            List<artframework.context.RelicPotionBlightView.Entry> entries =
+                    new ArrayList<artframework.context.RelicPotionBlightView.Entry>();
+            appendRelicFamily(entries, softField(AbstractDungeon.player.getClass(), AbstractDungeon.player, "relics"), "relic");
+            appendRelicFamily(entries, softField(AbstractDungeon.player.getClass(), AbstractDungeon.player, "potions"), "potion");
+            appendRelicFamily(entries, softField(AbstractDungeon.player.getClass(), AbstractDungeon.player, "blights"), "blight");
+            Sts1RelicPotionBlightProjection.publish(
+                    new artframework.context.RelicPotionBlightView(entries, !entries.isEmpty()));
+        } catch (Throwable ignored) {
+            Sts1RelicPotionBlightProjection.publish(
+                    artframework.context.RelicPotionBlightView.empty());
+        }
+    }
+
+    private static void appendRelicFamily(
+            List<artframework.context.RelicPotionBlightView.Entry> out, Object raw, String kind) {
+        if (!(raw instanceof List)) return;
+        int index = 0;
+        for (Object item : (List<?>) raw) {
+            if (item == null) continue;
+            try {
+                String id = firstString(item, "relicId", "potionId", "ID", "id", "name");
+                String label = firstString(item, "name", "description", "ID");
+                int count = firstInt(item, 0, "counter", "amount", "uses", "potency");
+                boolean usable = firstBoolean(item, true, "usable", "isUsable", "canUse");
+                Object hb = softField(item.getClass(), item, "hb");
+                artframework.component.Rect bounds = boundsOf(hb, index, kind);
+                String resourceId = "relic".equals(kind)
+                        ? ResourceIds.relic(id) : "potion".equals(kind)
+                        ? ResourceIds.potion(id) : ResourceIds.blight(id);
+                out.add(new artframework.context.RelicPotionBlightView.Entry(
+                        kind + ":" + (id.isEmpty() ? index : id), kind, label, resourceId,
+                        count, usable, bounds, visibleOf(hb)));
+                index++;
+            } catch (Throwable ignored) {
+                // A broken third-party entry must not hide the remaining native inventory.
+            }
+        }
+    }
+
+    private static String firstString(Object owner, String... fields) {
+        for (String field : fields) {
+            String value = stringValue(owner, field);
+            if (!value.isEmpty()) return value;
+        }
+        return "";
+    }
+
+    private static int firstInt(Object owner, int fallback, String... fields) {
+        for (String field : fields) {
+            Object value = softField(owner.getClass(), owner, field);
+            if (value instanceof Number) return ((Number) value).intValue();
+        }
+        return fallback;
+    }
+
+    private static boolean firstBoolean(Object owner, boolean fallback, String... fields) {
+        for (String field : fields) {
+            Object value = softField(owner.getClass(), owner, field);
+            if (value instanceof Boolean) return ((Boolean) value).booleanValue();
+        }
+        return fallback;
+    }
+
+    private static boolean visibleOf(Object hb) {
+        return hb == null || (number(hb, "width", 0f) > 0f && number(hb, "height", 0f) > 0f);
+    }
+
+    private static artframework.component.Rect boundsOf(Object hb, int index, String kind) {
+        float x = number(hb, "x", 0f);
+        float y = number(hb, "y", 0f);
+        float w = number(hb, "width", 64f);
+        float h = number(hb, "height", 64f);
+        if (hb == null) { x = 24f + index * 72f; y = 72f; }
+        return new artframework.component.Rect(x, y, w > 0f ? w : 64f, h > 0f ? h : 64f);
+    }
+
+    private static float number(Object owner, String field, float fallback) {
+        if (owner == null) return fallback;
+        Object value = softField(owner.getClass(), owner, field);
+        return value instanceof Number ? ((Number) value).floatValue() : fallback;
     }
 
     private static MonsterIntentView readIntentsView() {

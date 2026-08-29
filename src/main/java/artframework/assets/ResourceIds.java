@@ -21,6 +21,12 @@ public final class ResourceIds {
     public static final String UI_INTENT_PREFIX = "ui.intent.";
     public static final String CARD_BANNER_PREFIX = "card.banner.";
     public static final String CARD_ORB_PREFIX = "card.orb.";
+    public static final String RELIC_PREFIX = "relic.";
+    public static final String POTION_PREFIX = "potion.";
+    public static final String BLIGHT_PREFIX = "blight.";
+    public static final String RELIC_UNKNOWN = "relic.unknown";
+    public static final String POTION_UNKNOWN = "potion.unknown";
+    public static final String BLIGHT_UNKNOWN = "blight.unknown";
 
     public static final String UI_BUTTON_DEFAULT = "ui.button.default";
     public static final String UI_PANEL_DEFAULT = "ui.panel.default";
@@ -114,6 +120,10 @@ public final class ResourceIds {
     public static String cardOrb(String color) {
         return CARD_ORB_PREFIX + (color != null ? color : "colorless");
     }
+
+    public static String relic(String id) { return RELIC_PREFIX + (id != null ? id : ""); }
+    public static String potion(String id) { return POTION_PREFIX + (id != null ? id : ""); }
+    public static String blight(String id) { return BLIGHT_PREFIX + (id != null ? id : ""); }
 
     public static String energyOrb(String color) {
         return UI_PREFIX + "energy." + (color != null ? color : "red");

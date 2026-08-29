@@ -241,6 +241,9 @@ Log prefix **`ART_LAB`**.
 | `art lab abandon-confirm` | Confirm abandon popup |
 | `art lab return-menu` | Death/victory return-to-menu |
 | `art lab proceed` | Overlay proceed hitbox |
+| `art lab enter-event [id]` | Enter a supported vanilla event through native map navigation |
+| `art lab enter-room <rest|shop|treasure>` | Enter a reachable native room through map navigation |
+| `art lab enter-select <grid|hand>` | Open a native selection screen over real run cards |
 | `art lab tick` | One debug step toward run |
 | `art lab entity-attach` / `entity-detach` | Attach or detach the fixed EntityPresent D1 verification slot |
 | `art lab host-recreate` | Recreate Skeleton and RenderHost caches from current ECS state |

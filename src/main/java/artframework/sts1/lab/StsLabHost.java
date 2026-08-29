@@ -83,6 +83,7 @@ public final class StsLabHost implements LabHost {
                                 .newInstance(play, Integer.valueOf(buttons.size()));
                 buttons.add(nb);
             }
+            clearStaleNativeScreens();
             return UiOpResult.ok("stripped " + removed);
         } catch (Throwable t) {
             return unavailable(t);
@@ -290,6 +291,24 @@ public final class StsLabHost implements LabHost {
         }
     }
 
+    /** Enter a reachable native rest, shop, or treasure room through the map gesture path. */
+    public UiOpResult enterRoom(String roomKind) {
+        if (roomKind == null || roomKind.trim().isEmpty()) {
+            return UiOpResult.unavailable("room required");
+        }
+        return LabNavigationSignals.dispatch(
+                LabNavigationIntent.of(LabIntentNames.ENTER_ROOM, roomKind));
+    }
+
+    /** Open a native selection screen over the run's actual cards. */
+    public UiOpResult enterSelect(String selectKind) {
+        if (selectKind == null || selectKind.trim().isEmpty()) {
+            return UiOpResult.unavailable("select kind required");
+        }
+        return LabNavigationSignals.dispatch(
+                LabNavigationIntent.of(LabIntentNames.ENTER_SELECT, selectKind));
+    }
+
     @Override
     public UiOpResult menuClick(String clickResult) {
         if (clickResult == null || clickResult.isEmpty()) {
@@ -482,6 +501,32 @@ public final class StsLabHost implements LabHost {
     private static Object mainMenu() throws Exception {
         Class<?> game = Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame");
         return StsLabState.field(game, null, "mainMenuScreen");
+    }
+
+    /**
+     * A previous lab run can leave a native select/map screen alive after STS returns to the menu.
+     * Clear only presentation-screen state here; the fresh-menu recipe already owns save cleanup.
+     */
+    private static void clearStaleNativeScreens() {
+        try {
+            Class<?> dungeon = Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon");
+            Object grid = StsLabState.field(dungeon, null, "gridSelectScreen");
+            if (grid != null) {
+                try {
+                    grid.getClass().getMethod("hide").invoke(grid);
+                } catch (Throwable ignored) {
+                }
+            }
+            Object hand = StsLabState.field(dungeon, null, "handCardSelectScreen");
+            if (hand != null) {
+                StsLabState.setField(hand.getClass(), hand, "numSelected", Integer.valueOf(0));
+            }
+            StsLabState.setField(dungeon, null, "screen", null);
+            StsLabState.setField(dungeon, null, "previousScreen", null);
+            StsLabState.setField(dungeon, null, "nextRoom", null);
+            StsLabState.setField(dungeon, null, "isScreenUp", Boolean.FALSE);
+        } catch (Throwable ignored) {
+        }
     }
 
     private static String clickResultName(Object button) throws Exception {

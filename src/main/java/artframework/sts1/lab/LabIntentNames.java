@@ -4,6 +4,8 @@ package artframework.sts1.lab;
 public final class LabIntentNames {
 
     public static final String ENTER_EVENT_ROOM = "enter_event_room";
+    public static final String ENTER_ROOM = "enter_room";
+    public static final String ENTER_SELECT = "enter_select";
 
     private LabIntentNames() {}
 }

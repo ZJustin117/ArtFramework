@@ -87,6 +87,14 @@ public final class StsLabNav {
         return host.enterEvent(eventId);
     }
 
+    public static UiOpResult enterRoom(String roomKind) {
+        return host.enterRoom(roomKind);
+    }
+
+    public static UiOpResult enterSelect(String selectKind) {
+        return host.enterSelect(selectKind);
+    }
+
     /**
      * Synchronous recipe (FakeLabHost / unit tests). On device prefer {@link #armEnsureMenu()} so
      * the game thread is not blocked.

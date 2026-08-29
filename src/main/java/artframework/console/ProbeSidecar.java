@@ -7,12 +7,20 @@ import com.badlogic.gdx.files.FileHandle;
 public final class ProbeSidecar {
     private static final String LOCAL_NAME = "art_probe_latest.log";
     private static final String EXTERNAL_PATH = "Android/data/io.stamethyst/files/sts/art_probe_latest.log";
+    private static final String COMMAND_LOCAL_NAME = "art_command_latest.log";
+    private static final String COMMAND_EXTERNAL_PATH =
+            "Android/data/io.stamethyst/files/sts/art_command_latest.log";
 
     private ProbeSidecar() {}
 
     public static void write(String line) {
         write(Gdx.files.local(LOCAL_NAME), line);
         write(Gdx.files.external(EXTERNAL_PATH), line);
+    }
+
+    public static void writeCommand(String line) {
+        write(Gdx.files.local(COMMAND_LOCAL_NAME), line);
+        write(Gdx.files.external(COMMAND_EXTERNAL_PATH), line);
     }
 
     private static void write(FileHandle file, String line) {

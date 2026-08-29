@@ -44,6 +44,12 @@ public final class StsLabNativeNavigator {
         if (LabIntentNames.ENTER_EVENT_ROOM.equals(intent.name)) {
             return enterEventRoom();
         }
+        if (LabIntentNames.ENTER_ROOM.equals(intent.name)) {
+            return enterRoom(intent.argString(0));
+        }
+        if (LabIntentNames.ENTER_SELECT.equals(intent.name)) {
+            return enterSelect(intent.argString(0));
+        }
         return SignalDecision.stopRejected("unknown lab intent: " + intent.name);
     }
 
@@ -74,6 +80,119 @@ public final class StsLabNativeNavigator {
             return SignalDecision.stopRejected(
                     t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName());
         }
+    }
+
+    private static SignalDecision enterRoom(String roomKind) {
+        String normalized = roomKind != null ? roomKind.trim().toLowerCase() : "";
+        if (!"rest".equals(normalized)
+                && !"shop".equals(normalized)
+                && !"treasure".equals(normalized)) {
+            return SignalDecision.stopRejected("unsupported room: " + roomKind);
+        }
+        try {
+            if (com.megacrit.cardcrawl.dungeons.AbstractDungeon.player == null) {
+                return SignalDecision.stopRejected("run not ready");
+            }
+            com.megacrit.cardcrawl.rooms.AbstractRoom room = currentRoom();
+            if (room != null
+                    && room.getClass().getSimpleName().toLowerCase().contains(normalized)) {
+                return SignalDecision.stopHandled("already in " + normalized + " room");
+            }
+            if (room != null
+                    && room.phase == com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMBAT
+                    && !room.isBattleOver) {
+                return SignalDecision.stopRejected("cannot enter room during live combat");
+            }
+            com.megacrit.cardcrawl.rooms.AbstractRoom next;
+            if ("rest".equals(normalized)) {
+                next = new com.megacrit.cardcrawl.rooms.RestRoom();
+            } else if ("shop".equals(normalized)) {
+                next = new com.megacrit.cardcrawl.rooms.ShopRoom();
+            } else {
+                next = new com.megacrit.cardcrawl.rooms.TreasureRoom();
+            }
+            com.megacrit.cardcrawl.map.MapRoomNode node =
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.currMapNode;
+            if (node == null) {
+                return SignalDecision.stopRejected("current map node unavailable");
+            }
+            node.room = next;
+            com.megacrit.cardcrawl.dungeons.AbstractDungeon.screen =
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.CurrentScreen.NONE;
+            com.megacrit.cardcrawl.dungeons.AbstractDungeon.previousScreen =
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.CurrentScreen.NONE;
+            com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom = null;
+            com.megacrit.cardcrawl.dungeons.AbstractDungeon.isScreenUp = false;
+            next.onPlayerEntry();
+            return SignalDecision.stopHandled(normalized + " room entered");
+        } catch (Throwable t) {
+            return SignalDecision.stopRejected(
+                    t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName());
+        }
+    }
+
+    private static SignalDecision enterSelect(String selectKind) {
+        String normalized = selectKind != null ? selectKind.trim().toLowerCase() : "";
+        if (!"grid".equals(normalized) && !"hand".equals(normalized)) {
+            return SignalDecision.stopRejected("unsupported select: " + selectKind);
+        }
+        try {
+            if (com.megacrit.cardcrawl.dungeons.AbstractDungeon.player == null) {
+                return SignalDecision.stopRejected("run not ready");
+            }
+            final com.megacrit.cardcrawl.characters.AbstractPlayer player =
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.player;
+            if ("grid".equals(normalized)) {
+                if (player.masterDeck == null || player.masterDeck.group.isEmpty()) {
+                    return SignalDecision.stopRejected("master deck is empty");
+                }
+                final com.megacrit.cardcrawl.cards.CardGroup group =
+                        new com.megacrit.cardcrawl.cards.CardGroup(
+                                player.masterDeck,
+                                com.megacrit.cardcrawl.cards.CardGroup.CardGroupType.UNSPECIFIED);
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        com.megacrit.cardcrawl.screens.select.GridCardSelectScreen screen =
+                                com.megacrit.cardcrawl.dungeons.AbstractDungeon.gridSelectScreen;
+                        if (screen == null) {
+                            return;
+                        }
+                        screen.open(group, 1, false, "ART lab grid select");
+                    }
+                });
+                return SignalDecision.stopHandled("grid select scheduled cards=" + group.group.size());
+            }
+            if (player.hand == null || player.hand.group.isEmpty()) {
+                return SignalDecision.stopRejected("hand is empty");
+            }
+            post(new Runnable() {
+                @Override
+                public void run() {
+                    com.megacrit.cardcrawl.screens.select.HandCardSelectScreen screen =
+                            com.megacrit.cardcrawl.dungeons.AbstractDungeon.handCardSelectScreen;
+                    if (screen == null) {
+                        return;
+                    }
+                    screen.open("ART lab hand select", 1, false, false, false);
+                }
+            });
+            return SignalDecision.stopHandled("hand select scheduled cards=" + player.hand.group.size());
+        } catch (Throwable t) {
+            return SignalDecision.stopRejected(
+                    t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName());
+        }
+    }
+
+    private static void post(Runnable runnable) {
+        try {
+            if (com.badlogic.gdx.Gdx.app != null) {
+                com.badlogic.gdx.Gdx.app.postRunnable(runnable);
+                return;
+            }
+        } catch (Throwable ignored) {
+        }
+        runnable.run();
     }
 
     private static com.megacrit.cardcrawl.rooms.AbstractRoom currentRoom() {

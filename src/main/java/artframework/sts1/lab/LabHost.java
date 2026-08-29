@@ -36,6 +36,12 @@ public interface LabHost {
     /** Enter one validated vanilla event without invoking the native event console command. */
     UiOpResult enterEvent(String eventId);
 
+    /** Enter a reachable native rest, shop, or treasure room through map navigation. */
+    UiOpResult enterRoom(String roomKind);
+
+    /** Open a native grid or hand selection screen using the current run's real cards. */
+    UiOpResult enterSelect(String selectKind);
+
     /**
      * Yield so scheduled GL/input work can apply before the next recipe tick.
      * Fake hosts no-op; STS host sleeps briefly.

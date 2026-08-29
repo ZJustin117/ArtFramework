@@ -77,8 +77,8 @@ class ArtLabTest(unittest.TestCase):
                     def __init__(self, stream):
                         pass
 
-                    def send(self, command):
-                        return "STATE READY"
+                    def ready(self):
+                        return True
 
                     def close(self):
                         pass

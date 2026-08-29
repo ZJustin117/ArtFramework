@@ -317,6 +317,26 @@ public final class FakeLabHost implements LabHost {
     }
 
     @Override
+    public UiOpResult enterRoom(String roomKind) {
+        actions.add("room:" + roomKind);
+        if (!state.inGame) {
+            return UiOpResult.unavailable("not in game");
+        }
+        return LabNavigationSignals.dispatch(
+                LabNavigationIntent.of(LabIntentNames.ENTER_ROOM, roomKind));
+    }
+
+    @Override
+    public UiOpResult enterSelect(String selectKind) {
+        actions.add("select:" + selectKind);
+        if (!state.inGame) {
+            return UiOpResult.unavailable("not in game");
+        }
+        return LabNavigationSignals.dispatch(
+                LabNavigationIntent.of(LabIntentNames.ENTER_SELECT, selectKind));
+    }
+
+    @Override
     public void yieldFrame() {
         // Instant state transitions in tests — no wait.
     }

@@ -222,7 +222,7 @@ def _run_step(
             rec["status"] = "skip"
             rec["error"] = "op/console ignored in fixture mode"
             return rec
-        from device_console import console_exec, console_output_text, scrape_command_log
+        from device_console import console_exec, console_exec_once, scrape_command_log, wait_for_command_log
 
         if "console" in step:
             cmd = str(step["console"])
@@ -235,21 +235,34 @@ def _run_step(
                 cmd = "art op " + " ".join(str(x) for x in op)
             else:
                 cmd = "art op " + str(op)
-        raw = console_exec(client, cmd)
+        previous_command = scrape_command_log(cmd) if cmd.startswith("art ") else None
+        raw = console_exec_once(cmd) if cmd.startswith("art ") else console_exec(client, cmd)
         rec["console"] = cmd
         rec["console_raw"] = {
             k: raw.get(k) for k in ("executed", "command", "output", "error") if k in raw
         }
-        # game-probe often returns output "ok" without raising; only fail hard errors
-        if raw.get("executed") is False and raw.get("error"):
+        # ART commands publish a structured result. Prefer that fresh game-side evidence when the
+        # connector loses the protocol response after executing the command.
+        if mode == "device":
+            command = (
+                wait_for_command_log(cmd, previous_command)
+                if cmd.startswith("art ")
+                else scrape_command_log(cmd)
+            )
+            if command is not None:
+                rec["command_log"] = command
+                if str(command.get("status", "")).upper() == "ERROR":
+                    rec["status"] = "fail"
+                    rec["error"] = str(command.get("message") or "command failed")
+            elif cmd.startswith("art lab "):
+                rec["status"] = "fail"
+                rec["error"] = "no fresh ART_COMMAND result for lab command"
+            elif raw.get("executed") is False and raw.get("error"):
+                rec["status"] = "fail"
+                rec["error"] = str(raw.get("error"))
+        elif raw.get("executed") is False and raw.get("error"):
             rec["status"] = "fail"
             rec["error"] = str(raw.get("error"))
-        elif mode == "device":
-            command = scrape_command_log(cmd)
-            if command is not None and str(command.get("status", "")).upper() == "ERROR":
-                rec["status"] = "fail"
-                rec["error"] = str(command.get("message") or "command failed")
-                rec["command_log"] = command
         return rec
 
     if "set" in step and isinstance(step["set"], dict):

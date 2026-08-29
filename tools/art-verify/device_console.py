@@ -14,6 +14,7 @@ from command_parse import last_command_for_text
 
 DEFAULT_STS_LATEST_LOG = "/sdcard/Android/data/io.stamethyst/files/sts/latest.log"
 DEFAULT_STS_PROBE_SIDECAR = "/sdcard/Android/data/io.stamethyst/files/sts/art_probe_latest.log"
+DEFAULT_STS_COMMAND_SIDECAR = "/sdcard/Android/data/io.stamethyst/files/sts/art_command_latest.log"
 PROBE_MARKER = "ART_PROBE"
 
 
@@ -65,19 +66,30 @@ def connect_console(serial: Optional[str] = None) -> Tuple[Any, Any]:
 
     def reconnect() -> None:
         nonlocal conn, stream
-        try:
-            client.close()
-        except Exception:
-            pass
-        try:
-            conn.close()
-        except Exception:
-            pass
-        conn = ConnectorClient(auto_start=False)
-        conn.connect()
-        conn.select(ser)
-        stream = conn.connect_stream(port=port)
-        client._stream = stream
+        last_error: Optional[Exception] = None
+        for attempt in range(5):
+            try:
+                client.close()
+            except Exception:
+                pass
+            client._stream = None
+            try:
+                conn.close()
+            except Exception:
+                pass
+            try:
+                conn = ConnectorClient(auto_start=False)
+                conn.connect()
+                conn.select(ser)
+                stream = conn.connect_stream(port=port)
+                client._stream = stream
+                if client.ready():
+                    return
+                last_error = RuntimeError("game-probe console not ready")
+            except Exception as error:
+                last_error = error
+            time.sleep(0.2 * (attempt + 1))
+        raise RuntimeError(f"game-probe reconnect failed: {last_error}")
 
     client._art_reconnect = reconnect
 
@@ -106,28 +118,50 @@ def console_exec(client: Any, command: str, *, retries: int = 3) -> Dict[str, An
                 err = result.get("error")
                 if err and not result.get("executed", False):
                     last_err = str(err)
-                    if "unexpected response:" in last_err and not getattr(client, "_art_reconnected", False):
+                    # A connector stream can return one empty line while the game-probe
+                    # socket is being reattached. Reconnect on every remaining attempt,
+                    # rather than spending the retry budget after the first reconnect.
+                    if "unexpected response:" in last_err and attempt + 1 < retries:
                         reconnect = getattr(client, "_art_reconnect", None)
                         if reconnect is not None:
-                            reconnect()
-                            client._art_reconnected = True
-                            continue
+                            try:
+                                reconnect()
+                            except Exception as reconnect_error:
+                                last_err = f"{last_err}; reconnect failed: {reconnect_error}"
+                            else:
+                                time.sleep(0.2)
+                                continue
                 else:
                     client._art_reconnected = False
                     return result
         except Exception as e:
             last_err = f"{type(e).__name__}: {e}"
-            if isinstance(e, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, EOFError)):
+            if isinstance(e, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, EOFError)) \
+                    or "DevConsole not loaded" in str(e):
                 reconnect = getattr(client, "_art_reconnect", None)
-                if reconnect is not None and not getattr(client, "_art_reconnected", False):
-                    reconnect()
-                    client._art_reconnected = True
-                    continue
+                if reconnect is not None and attempt + 1 < retries:
+                    try:
+                        reconnect()
+                    except Exception as reconnect_error:
+                        last_err = f"{last_err}; reconnect failed: {reconnect_error}"
+                    else:
+                        time.sleep(0.2)
+                        continue
         if attempt + 1 < retries:
-            import time
-
             time.sleep(0.8 * (attempt + 1))
     return {"executed": False, "error": last_err or "console_exec failed"}
+
+
+def console_exec_once(command: str, serial: Optional[str] = None) -> Dict[str, Any]:
+    """Execute one command on a fresh connector/game-probe stream."""
+    client, close = connect_console(serial)
+    try:
+        reconnect = getattr(client, "_art_reconnect", None)
+        if reconnect is not None:
+            reconnect()
+        return console_exec(client, command)
+    finally:
+        close()
 
 
 def console_output_text(raw: Dict[str, Any]) -> str:
@@ -176,7 +210,7 @@ def scrape_command_log(
         conn.connect()
         conn.select(ser)
         response = conn.shell(
-            f"tail -n {lines} {DEFAULT_STS_LATEST_LOG} 2>/dev/null || true",
+            f"cat '{DEFAULT_STS_COMMAND_SIDECAR}' 2>/dev/null || true",
             timeout_ms=10000,
         )
         conn.close()
@@ -192,6 +226,30 @@ def scrape_command_log(
         except Exception:
             return None
     return last_command_for_text(text, command)
+
+
+def wait_for_command_log(
+    command: str,
+    previous: Optional[Dict[str, Any]],
+    *,
+    serial: Optional[str] = None,
+    timeout_seconds: float = 3.0,
+) -> Optional[Dict[str, Any]]:
+    previous_sequence = previous.get("sequence") if isinstance(previous, dict) else None
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        current = scrape_command_log(command, serial)
+        if current is not None:
+            current_sequence = current.get("sequence")
+            # Older builds did not emit a sequence. In that case a matching command
+            # cannot prove freshness and must not satisfy a device step.
+            if current_sequence is not None and (
+                previous_sequence is None or current_sequence != previous_sequence
+            ):
+                return current
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(0.1)
 
 
 def scrape_probe_sidecar(serial: Optional[str] = None) -> Optional[Any]:

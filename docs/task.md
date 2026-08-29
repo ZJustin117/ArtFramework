@@ -765,19 +765,22 @@ parity gaps remain documented in
       not run because the first `connect_console()` attempt blocked on the
       existing connector stream; `scripts/art-lab status` still reports READY.
       No room/map UI result is claimed from that blocked batch.
-- [ ] 47.29 D1 map/event/select/room acceptance: map/event executable FULL_READY fixtures
-      pass on D1; select/room remain pending until deterministic navigation exists. The
+- [x] 47.29 D1 map/event/select/room acceptance: map/event executable FULL_READY fixtures
+      pass on D1; deterministic navigation now also covers select and room surfaces. The
       executable map/event fixtures already
       exist for map (`d1_full_present_map_ready`) and event (`d1_full_present_event`).
-      The current runner can execute console/probe/assert steps, but `art lab` has no
-      deterministic standalone navigation command for grid/hand select, rest, shop, or
-      treasure. Add those device scenarios only after supported navigation exists; do not
-      infer select/room visual evidence from combat, map, event, or offline/JUnit coverage.
+      The lab now has native-state navigation commands for rooms
+      (`art lab enter-room rest|shop|treasure`) and real-card selection
+      (`art lab enter-select grid|hand`), with executable D1 fixtures. These commands
+      preserve STS room/card authority and do not manufacture fixture cards. Final D1
+      artifacts pass independently: select (`47-29-fixed-select-v13`), rest
+      (`47-29-fixed-rest-v10`), shop (`47-29-fixed-shop-v2`), and treasure
+      (`47-29-fixed-treasure-v3`) under `debug-artifacts/art-verify/`. Each verifies the
+      matching scene, FULL policy, native suppression, and non-zero ART draw evidence.
       The 2026-08-29 post-cold-start attempts initially reached their console steps
       (`executed: true`) but failed because the D1 game-probe sidecar was not refreshed;
       the probe sidecar writer was then fixed to publish to the Harness-readable device
       path. Final artifacts `debug-artifacts/art-verify/fixture-fix-20260829/` pass map
       and event: map strict acceptance is closed, and event reaches `FULL_READY` with
       `eventDraw.count=4`, `suppressNativeEvent=true`, and final strict acceptance.
-      Select/room remain intentionally unclaimed because deterministic standalone
-      navigation is still unavailable.
+      Select/room acceptance is now closed by the independent artifacts above.

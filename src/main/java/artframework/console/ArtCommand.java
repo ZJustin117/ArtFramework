@@ -27,6 +27,8 @@ import java.util.Map;
  */
 public class ArtCommand extends ConsoleCommand {
 
+    private static long commandSequence;
+
     @Override
     protected void execute(String[] tokens, int depth) {
         if (tokens.length <= depth) {
@@ -124,13 +126,15 @@ public class ArtCommand extends ConsoleCommand {
         return e.getMessage() != null && !e.getMessage().isEmpty() ? e.getMessage() : fallback;
     }
 
-    private static void commandResult(String command, String status, String message) {
+    private static synchronized void commandResult(String command, String status, String message) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("sequence", Long.valueOf(++commandSequence));
         result.put("status", status);
         result.put("command", command);
         result.put("message", message != null ? message : "");
         String line = "ART_COMMAND " + artframework.inspect.UiInspect.toJson(result);
         DevConsole.log(line);
+        ProbeSidecar.writeCommand(line);
         if ("ERROR".equals(status)) {
             BaseMod.logger.error(line);
         } else {
@@ -451,7 +455,9 @@ public class ArtCommand extends ConsoleCommand {
             DevConsole.log(
                     "Usage: art lab dump|clear-saves|strip-resume|open-char-select|char <id>|embark|"
                             + "seed [text]|menu-click <R>|abandon|abandon-confirm|return-menu|proceed|"
-                            + "ensure-menu|ensure-fresh-menu|start-run [char] [seed=…]|entity-attach|"
+                            + "enter-event [id]|enter-room <rest|shop|treasure>|enter-select <grid|hand>|"
+                            + "ensure-menu|ensure-fresh-menu|"
+                            + "start-run [char] [seed=…]|entity-attach|"
                             + "entity-detach|host-recreate|reset|tick");
             return;
         }
@@ -511,6 +517,18 @@ public class ArtCommand extends ConsoleCommand {
             r = StsLabNav.proceed();
         } else if ("enter-event".equals(action) || "enter_event".equals(action)) {
             r = StsLabNav.enterEvent(tokens.length > depth + 1 ? tokens[depth + 1] : "");
+        } else if ("enter-room".equals(action) || "enter_room".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art lab enter-room <rest|shop|treasure>");
+                return;
+            }
+            r = StsLabNav.enterRoom(tokens[depth + 1]);
+        } else if ("enter-select".equals(action) || "enter_select".equals(action)) {
+            if (tokens.length < depth + 2) {
+                DevConsole.log("Usage: art lab enter-select <grid|hand>");
+                return;
+            }
+            r = StsLabNav.enterSelect(tokens[depth + 1]);
         } else if ("ensure-menu".equals(action) || "ensure_menu".equals(action)) {
             // Async: advanced each postUpdate so hitbox clicks can apply.
             r = StsLabNav.armEnsureMenu();
@@ -558,6 +576,7 @@ public class ArtCommand extends ConsoleCommand {
             r = UiOpResult.ok("host caches recreated");
         } else {
             DevConsole.log("Unknown lab action: " + action);
+            commandResult(labCommand(tokens, depth), "ERROR", "unknown lab action: " + action);
             return;
         }
         String line =
@@ -568,10 +587,15 @@ public class ArtCommand extends ConsoleCommand {
                         + (r.message.isEmpty() ? "" : " " + r.message);
         DevConsole.log(line);
         BaseMod.logger.info(line);
-        if ("entity-attach".equals(action) || "entity-detach".equals(action)
-                || "host-recreate".equals(action)) {
-            commandResult("art lab " + action, r.isOk() ? "OK" : "ERROR", r.message);
+        commandResult(labCommand(tokens, depth), r.isOk() ? "OK" : "ERROR", r.message);
+    }
+
+    private static String labCommand(String[] tokens, int depth) {
+        StringBuilder command = new StringBuilder("art lab");
+        for (int i = depth; i < tokens.length; i++) {
+            command.append(' ').append(tokens[i]);
         }
+        return command.toString();
     }
 
     private void cmdPresent(String[] tokens, int depth) {

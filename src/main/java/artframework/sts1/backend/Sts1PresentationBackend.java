@@ -1321,11 +1321,11 @@ public final class Sts1PresentationBackend implements SignalBackend {
     private static SelectView readSelectView() {
         try {
             if (AbstractDungeon.gridSelectScreen != null
-                    && isSelectVisible(AbstractDungeon.gridSelectScreen)) {
+                    && isSelectVisible(AbstractDungeon.gridSelectScreen, "GRID")) {
                 return readGridSelect(AbstractDungeon.gridSelectScreen);
             }
             if (AbstractDungeon.handCardSelectScreen != null
-                    && isSelectVisible(AbstractDungeon.handCardSelectScreen)) {
+                    && isSelectVisible(AbstractDungeon.handCardSelectScreen, "HAND_SELECT")) {
                 return readHandSelect(AbstractDungeon.handCardSelectScreen);
             }
         } catch (Throwable ignored) {
@@ -1333,8 +1333,13 @@ public final class Sts1PresentationBackend implements SignalBackend {
         return SelectView.empty();
     }
 
-    private static boolean isSelectVisible(Object screen) {
+    private static boolean isSelectVisible(Object screen, String expectedDungeonScreen) {
         try {
+            if (AbstractDungeon.screen == null
+                    || !expectedDungeonScreen.equals(AbstractDungeon.screen.name())
+                    || !AbstractDungeon.isScreenUp) {
+                return false;
+            }
             Object forWhat = softField(screen.getClass(), screen, "forUpgrade");
             Object isShown = softField(screen.getClass(), screen, "isShown");
             if (isShown instanceof Boolean) {
@@ -1614,21 +1619,21 @@ public final class Sts1PresentationBackend implements SignalBackend {
         if (!AbstractDungeon.isPlayerInDungeon() || AbstractDungeon.player == null) {
             return "";
         }
+        try {
+            if (AbstractDungeon.gridSelectScreen != null
+                    && isSelectVisible(AbstractDungeon.gridSelectScreen, "GRID")) {
+                return "select";
+            }
+            if (AbstractDungeon.handCardSelectScreen != null
+                    && isSelectVisible(AbstractDungeon.handCardSelectScreen, "HAND_SELECT")) {
+                return "select";
+            }
+        } catch (Throwable ignored) {
+        }
         if (room != null
                 && room.phase == AbstractRoom.RoomPhase.COMBAT
                 && !room.isBattleOver) {
             return "combat";
-        }
-        try {
-            if (AbstractDungeon.gridSelectScreen != null
-                    && isSelectVisible(AbstractDungeon.gridSelectScreen)) {
-                return "select";
-            }
-            if (AbstractDungeon.handCardSelectScreen != null
-                    && isSelectVisible(AbstractDungeon.handCardSelectScreen)) {
-                return "select";
-            }
-        } catch (Throwable ignored) {
         }
         try {
             if (AbstractDungeon.screen != null) {

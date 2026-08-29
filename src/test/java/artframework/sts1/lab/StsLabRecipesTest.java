@@ -255,6 +255,35 @@ public class StsLabRecipesTest {
     }
 
     @Test
+    public void fakeHostQueuesNativeRoomAndSelectNavigationWithoutMutatingState() {
+        SignalGroups.nativeGroup()
+                .connect(
+                        LabNavigationSignals.REQUEST,
+                        new SignalListener() {
+                            @Override
+                            public SignalDecision onSignal(UiSignal signal) {
+                                LabNavigationIntent intent = (LabNavigationIntent) signal.payload;
+                                assertTrue(
+                                        LabIntentNames.ENTER_ROOM.equals(intent.name)
+                                                || LabIntentNames.ENTER_SELECT.equals(intent.name));
+                                return SignalDecision.stopHandled("queued native navigation");
+                            }
+                        });
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .inGame(true)
+                                .roomPhase("COMPLETE")
+                                .build());
+        assertTrue(host.enterRoom("rest").isOk());
+        assertTrue(host.enterSelect("grid").isOk());
+        assertEquals("COMPLETE", host.dump().roomPhase);
+        assertTrue(host.actions.contains("room:rest"));
+        assertTrue(host.actions.contains("select:grid"));
+    }
+
+    @Test
     public void labNavigationDispatchFailsWithoutNativeNavigator() {
         UiOpResult result =
                 LabNavigationSignals.dispatch(

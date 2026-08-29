@@ -1,8 +1,9 @@
 # Lab run navigation (`art lab`)
 
 BaseMod console surface for **deterministic lab navigation**: return to main menu,
-clear saves, open character select, embark, optional seed, and smart recipes that
-compose those steps. Enables D1 full-present scenarios without manual menu clicking.
+clear saves, open character select, embark, optional seed, native map-room entry,
+native grid/hand selection, and smart recipes that compose those steps. Enables D1
+full-present scenarios without manual menu clicking.
 
 Complements [`dev-ui-console.md`](./dev-ui-console.md) (`art ui native` whitelist)
 and [`android-device-lab.md`](../development/android-device-lab.md).
@@ -68,6 +69,9 @@ Console L2 commands **return immediately** (`… armed`). Progress via
 | `art lab abandon-confirm` | Confirm abandon popup only |
 | `art lab return-menu` | Death/victory return-to-menu whitelist |
 | `art lab proceed` | Overlay proceed hitbox |
+| `art lab enter-event [id]` | Enter a supported vanilla event through the native map path |
+| `art lab enter-room <rest|shop|treasure>` | Enter a reachable native room through the map path |
+| `art lab enter-select <grid|hand>` | Open selection over the run's real deck or hand |
 | `art lab tick` | One recipe engine step (debug) |
 
 ### L2
@@ -92,6 +96,7 @@ Console L2 commands **return immediately** (`… armed`). Progress via
 ## Non-goals
 
 - Consumer public API stability for lab commands
+- Creating or mutating cards solely to manufacture a selection fixture
 - Dual-device life
 - Replacing Amethyst `single-room` harness (optional external; not default gate)
 - Arbitrary reflection REPL

@@ -180,7 +180,18 @@ try:
     conn.connect()
     conn.select(serial)
     client = AgentClient(stream=conn.connect_stream(port=port))
-    raise SystemExit(0 if client.send("OBSERVE").startswith("STATE ") else 1)
+    import time
+    stable = 0
+    for _ in range(3):
+        # READY is a console/classloader handshake, unlike OBSERVE which depends on
+        # the optional PlayMonitor attachment.
+        if client.ready():
+            stable += 1
+        else:
+            stable = 0
+        if stable < 3:
+            time.sleep(0.2)
+    raise SystemExit(0 if stable == 3 else 1)
 except Exception:
     raise SystemExit(1)
 finally:

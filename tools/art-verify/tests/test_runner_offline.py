@@ -42,9 +42,9 @@ class RunnerOfflineTest(unittest.TestCase):
     def test_device_command_error_fails_step(self):
         raw = {"executed": True, "command": "art open bad", "output": "ok"}
         error = {"status": "ERROR", "command": "art open bad", "message": "textfield style missing"}
-        with patch("device_console.console_exec", return_value=raw), patch(
-            "device_console.scrape_command_log", return_value=error
-        ):
+        with patch("device_console.console_exec_once", return_value=raw), patch(
+            "device_console.scrape_command_log", return_value=None
+        ), patch("device_console.wait_for_command_log", return_value=error):
             rec = _run_step(
                 {"console": "art open bad"},
                 0,
@@ -55,6 +55,62 @@ class RunnerOfflineTest(unittest.TestCase):
             )
         self.assertEqual("fail", rec["status"])
         self.assertEqual("textfield style missing", rec["error"])
+
+    def test_lab_command_without_fresh_structured_result_fails_step(self):
+        raw = {"executed": True, "command": "art lab start-run IRONCLAD", "output": "ok"}
+        with patch("device_console.console_exec_once", return_value=raw), patch(
+            "device_console.scrape_command_log", return_value=None
+        ), patch("device_console.wait_for_command_log", return_value=None):
+            rec = _run_step(
+                {"console": "art lab start-run IRONCLAD"},
+                0,
+                mode="device",
+                last_probe=None,
+                vars_map={},
+                client=object(),
+            )
+        self.assertEqual("fail", rec["status"])
+        self.assertIn("fresh ART_COMMAND", rec["error"])
+
+    def test_fresh_lab_result_recovers_lost_connector_response(self):
+        raw = {"executed": False, "error": "unexpected response: "}
+        result = {
+            "sequence": 8,
+            "status": "OK",
+            "command": "art lab start-run IRONCLAD",
+            "message": "start-run armed",
+        }
+        with patch("device_console.console_exec", return_value=raw), patch(
+            "device_console.scrape_command_log", return_value=None
+        ), patch("device_console.wait_for_command_log", return_value=result):
+            rec = _run_step(
+                {"console": "art lab start-run IRONCLAD"},
+                0,
+                mode="device",
+                last_probe=None,
+                vars_map={},
+                client=object(),
+            )
+        self.assertEqual("pass", rec["status"])
+        self.assertEqual(result, rec["command_log"])
+
+    def test_art_command_reconnects_after_freshness_baseline_scrape(self):
+        client = unittest.mock.Mock()
+        with patch("device_console.console_exec_once", return_value={"executed": True}), patch(
+            "device_console.scrape_command_log", return_value=None
+        ), patch(
+            "device_console.wait_for_command_log",
+            return_value={"sequence": 1, "status": "OK"},
+        ):
+            rec = _run_step(
+                {"console": "art lab ensure-fresh-menu"},
+                0,
+                mode="device",
+                last_probe=None,
+                vars_map={},
+                client=client,
+            )
+        self.assertEqual("pass", rec["status"])
 
     def test_fixture_pass(self):
         r = run_scenario(FIXTURE)

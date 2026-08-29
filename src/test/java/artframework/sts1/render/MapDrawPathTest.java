@@ -87,6 +87,23 @@ public class MapDrawPathTest {
         assertEquals(200f * 2f + 20f, items.get(0).screenY, 0.01f);
         assertTrue(items.get(0).artFound);
         assertTrue(items.get(0).artSource.startsWith("sts1:images/"));
+        assertEquals(ResourceIds.mapOutline("monster"), items.get(0).outlineResourceId);
+        assertEquals(ResourceIds.UI_MAP_HIGHLIGHT, items.get(0).highlightResourceId);
+        assertEquals(160f, items.get(0).bounds.width, 0.01f);
+    }
+
+    @Test
+    public void projectionExposesReachablePinnedStateAndChoosesPinResource() {
+        Sts1HostAssets.install();
+        MapNodeView n = new MapNodeView(4, 5, 30f, 40f, false, false, false, true,
+                48f, 52f, "P", "shop", ResourceIds.MAP_NODE_SHOP);
+        publishMapFrame("map", Collections.singletonList(n));
+        MapDrawPath.DrawItem item = MapDrawPath.buildFromProjection().get(0);
+        assertFalse(item.reachable);
+        assertTrue(item.pinned);
+        assertEquals(ResourceIds.UI_MAP_PIN, item.highlightResourceId);
+        assertEquals(48f, item.bounds.width, 0.01f);
+        assertEquals(52f, item.bounds.height, 0.01f);
     }
 
     @Test
@@ -182,7 +199,7 @@ public class MapDrawPathTest {
         List<MapDrawPath.DrawItem> projected = MapDrawPath.buildFromProjection();
         assertEquals("fixture must cover multiple real projected nodes", 2, projected.size());
         assertEquals(Integer.valueOf(projected.size()), MapDrawPath.probeSlice().get("count"));
-        assertEquals("projected drawCount must be node-derived", projected.size(), draws.size());
+        assertEquals("projected drawCount must include visible node overlays", 5, draws.size());
 
         for (MapDrawPath.DrawItem item : projected) {
             String id = "node:" + item.row + ":" + item.col;
@@ -192,11 +209,11 @@ public class MapDrawPathTest {
             assertEquals("symbol/label must come from projected node " + id, item.symbol, draw.text);
             assertEquals("resource must resolve from projected kind/resource " + id, item.artSource, draw.resourceId);
             BoundsComponent b = bounds.get(id);
-            float size = item.highlighted ? 80f : 64f;
-            assertEquals(item.screenX - size / 2f, b.rect.x, 0.01f);
-            assertEquals(item.screenY - size / 2f, b.rect.y, 0.01f);
-            assertEquals("highlight controls node chrome size " + id, size, b.rect.width, 0.01f);
-            assertEquals(size, b.rect.height, 0.01f);
+            assertEquals(item.bounds.x, b.rect.x, 0.01f);
+            assertEquals(item.bounds.y, b.rect.y, 0.01f);
+            assertEquals("projected geometry must control node bounds", item.bounds.width,
+                    b.rect.width, 0.01f);
+            assertEquals(item.bounds.height, b.rect.height, 0.01f);
         }
         assertEquals("M", draws.get("node:1:2").text);
         assertEquals("R", draws.get("node:3:1").text);
@@ -209,8 +226,8 @@ public class MapDrawPathTest {
         invokeRenderMap();
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
-        assertEquals("map evidence count must come from current projected nodes",
-                projected.size(), evidence.drawCount);
+        assertEquals("map evidence count must come from current projected nodes/overlays",
+                5, evidence.drawCount);
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
     }

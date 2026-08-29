@@ -222,14 +222,26 @@ public final class Sts1SurfaceRenderer {
         // native parity. Keep C2 input items synced and let strict evidence expose supply gaps.
         Set<String> visibleItems = new LinkedHashSet<String>();
         for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
-            float nodeSize = item.highlighted ? 80f : 64f;
             String itemId = "node:" + item.row + ":" + item.col;
             artframework.presentation.PresentationVisuals.syncC2Item(
-                    SurfaceIds.MAP, itemId,
-                    new artframework.component.Rect(item.screenX - nodeSize / 2f,
-                            item.screenY - nodeSize / 2f, nodeSize, nodeSize), 1f,
-                    "map-node", item.artSource, item.symbol, true);
+                    SurfaceIds.MAP, itemId, item.bounds, 1f, "map-node",
+                    item.artSource, item.symbol, true);
             visibleItems.add(itemId);
+            if (item.outlineResourceId != null && !item.outlineResourceId.isEmpty()) {
+                String outlineId = "outline:" + item.row + ":" + item.col;
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        SurfaceIds.MAP, outlineId, item.bounds, 2f, "map-node-outline",
+                        item.outlineResourceId, "", item.reachable || item.highlighted);
+                if (item.reachable || item.highlighted) visibleItems.add(outlineId);
+            }
+            if (item.highlightResourceId != null && !item.highlightResourceId.isEmpty()) {
+                String overlayId = "overlay:" + item.row + ":" + item.col;
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        SurfaceIds.MAP, overlayId, item.bounds, 3f,
+                        item.pinned ? "map-pin" : "map-highlight",
+                        item.highlightResourceId, "", true);
+                visibleItems.add(overlayId);
+            }
         }
         artframework.presentation.PresentationVisuals.retainC2Items(SurfaceIds.MAP, visibleItems);
     }
@@ -552,7 +564,14 @@ public final class Sts1SurfaceRenderer {
      * as an exposed pixel-supply gap.
      */
     private static void renderMap(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.MAP, MapDrawPath.buildFromProjection().size());
+        int drawn = 0;
+        for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
+            if (item.bounds.width <= 0f || item.bounds.height <= 0f) continue;
+            drawn++;
+            if (item.reachable || item.highlighted) drawn++;
+            if (item.pinned || item.highlighted) drawn++;
+        }
+        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.MAP, drawn);
     }
 
     /**

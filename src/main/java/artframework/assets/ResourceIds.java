@@ -9,6 +9,7 @@ public final class ResourceIds {
     public static final String CARD_FRAME_PREFIX = "card.frame.";
     public static final String MAP_NODE_PREFIX = "map.node.";
     public static final String MAP_BG_PREFIX = "map.bg.";
+    public static final String MAP_EDGE_PREFIX = "map.edge.";
     public static final String UI_PREFIX = "ui.";
     public static final String CHAR_PREFIX = "char.";
     public static final String AUDIO_SFX_PREFIX = "audio.sfx.";
@@ -74,6 +75,8 @@ public final class ResourceIds {
     public static final String UI_TREASURE_CHEST_OPEN = "ui.treasure.chest.open";
     public static final String UI_TREASURE_RELIC = "ui.treasure.relic";
     public static final String UI_MAP_SELECT = "ui.map.select";
+    public static final String UI_MAP_HIGHLIGHT = "ui.map.highlight";
+    public static final String UI_MAP_PIN = "ui.map.pin";
     public static final String UI_MAP_OUTLINE_PREFIX = "ui.map.outline.";
     public static final String UI_TOP_PANEL_BAR = "ui.top_panel.bar";
     public static final String UI_TOP_PANEL_GOLD = "ui.top_panel.gold";
@@ -130,6 +133,10 @@ public final class ResourceIds {
 
     public static String mapNode(String kind) {
         return MAP_NODE_PREFIX + (kind != null ? kind : "unknown");
+    }
+
+    public static String mapEdge(String kind) {
+        return MAP_EDGE_PREFIX + (kind != null ? kind : "default");
     }
 
     public static boolean isValid(String resourceId) {
@@ -206,9 +213,11 @@ public final class ResourceIds {
             MAP_NODE_REST,
             MAP_NODE_SHOP,
             MAP_NODE_TREASURE,
-            MAP_NODE_EVENT,
-            MAP_NODE_BOSS,
-            cardArt("Strike_R"),
+             MAP_NODE_EVENT,
+             MAP_NODE_BOSS,
+             UI_MAP_HIGHLIGHT,
+             UI_MAP_PIN,
+             cardArt("Strike_R"),
             cardArt("Defend_R"),
             cardArt("Strike_G"),
             cardArt("Defend_G"),

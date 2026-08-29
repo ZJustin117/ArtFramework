@@ -27,6 +27,10 @@ public class Sts1HostAssetsTest {
         assertTrue(cat.containsKey(ResourceIds.CARD_FRAME_RED));
         assertEquals("sts1:cardui/frame", cat.get(ResourceIds.CARD_FRAME_RED));
         assertTrue(cat.containsKey(ResourceIds.MAP_NODE_ELITE));
+        assertTrue(cat.containsKey(ResourceIds.UI_MAP_HIGHLIGHT));
+        assertTrue(cat.containsKey(ResourceIds.UI_MAP_PIN));
+        assertFalse("map edge parity is intentionally not claimed",
+                cat.containsKey(ResourceIds.mapEdge("default")));
         assertTrue(cat.containsKey(ResourceIds.UI_BUTTON_DEFAULT));
         assertTrue(cat.containsKey(ResourceIds.UI_BUTTON_PROCEED_ENABLED));
         assertTrue(cat.containsKey(ResourceIds.UI_BUTTON_PROCEED_DISABLED));

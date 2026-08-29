@@ -93,7 +93,7 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Targeting arrow | `AbstractPlayer.renderTargetingUi`, `PotionPopUp.renderTargetingUi` | no (observe-only by default; FULL self-draw optional) | OBSERVE: projection only, native arrow stays authoritative; FULL: self-drawn bezier arrow via `TargetingDrawPath`, texture fallback to plain line |
 | Proceed button | `ProceedButton.render` | yes | enhanced partial pixel supply: stable C2 button items with enabled/disabled background ResourceIds, label text, bounds, and evidence count from visible projected items; native glow/hover/animation parity still pending |
 | Top panel | `TopPanel.render` | yes | enhanced partial pixel supply: stable C2 HUD items for bar, HP, gold, floor, ascension, and status with explicit ResourceIds/bounds and evidence count from visible projected items; ascension/status currently use catalog fallback resources, so full native HUD parity remains pending |
-| Map screen | `DungeonMapScreen.render` | yes | ART_DELEGATED with exposed gap: HostAssets node draw path; full native parity pending |
+| Map screen | `DungeonMapScreen.render` | yes | enhanced partial pixel supply: projected node textures, role/resourceId/symbol labels, outline and highlight/pin overlays, stable row:col identity, pan/zoom geometry, and visible node/overlay evidence; HostAssets fallback is explicit. Full map background, edge, legend, and native pan/zoom parity remain pending |
 | Event dialog | `GenericEventDialog.render` | yes | enhanced partial pixel supply: panel/title/options use explicit HostAssets ResourceIds/fallbacks, projected bounds and enabled/visible state, C2 stable items, texture + label draw, and evidence count from visible panel items/options; dialog base native parity remains pending |
 | Select screens | `GridCardSelectScreen.render`, `HandCardSelectScreen.render` | yes | enhanced partial pixel supply: card items, selected/card frames, and confirm row use explicit HostAssets ResourceIds/fallbacks, stable instance ids, projected bounds and selected/enabled/visible state, C2 sync, texture + label draw, and evidence count from visible projected items; dialog/card-select base native parity remains pending |
 | Reward screen | `CombatRewardScreen.render` | yes | enhanced partial pixel supply: projected visible reward rows use explicit gold/card/relic/boss-relic ResourceIds or disabled/fallback resources, stable bounds, enabled/visible state, texture+label drawing, and evidence count from visible draw items; reward screen native parity remains pending |
@@ -104,6 +104,9 @@ pixel supply differs per surface and is recorded here instead of hidden:
 These gaps are deliberate inventory, not silent acceptance. Until a surface
 reproduces its base pixels, its delegations keep surfacing as strict-report
 evidence gaps so the missing supply cannot be mistaken for coverage.
+The map remains `ART_DELEGATED with exposed gap` while its enhanced partial
+pixel supply is expanded; this wording is intentional and keeps the ownership
+ledger compatible with the incomplete-supply policy.
 
 Per-instance claims stay granular:
 

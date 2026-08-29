@@ -121,6 +121,8 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_TREASURE_CHEST_OPEN, "images/ui/map/chestOutline.png");
         put(m, ResourceIds.UI_TREASURE_RELIC, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_MAP_SELECT, "images/ui/map/selectBox.png");
+        put(m, ResourceIds.UI_MAP_HIGHLIGHT, "images/ui/map/selectBox.png");
+        put(m, ResourceIds.UI_MAP_PIN, "images/ui/map/selectBox.png");
         put(m, ResourceIds.UI_TOP_PANEL_BAR, "images/ui/topPanel/bar.png");
         put(m, ResourceIds.UI_TOP_PANEL_GOLD, "images/ui/topPanel/gold.png");
         put(m, ResourceIds.UI_TOP_PANEL_HP, "images/ui/topPanel/panel_heart_white.png");
@@ -156,6 +158,7 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.MAP_NODE_EVENT, "images/ui/map/event.png");
         put(m, ResourceIds.MAP_NODE_BOSS, "images/ui/map/boss.png");
         put(m, ResourceIds.MAP_BG_PREFIX + "act1", "images/ui/map/mapBg.png");
+        // Edges/legend are intentionally absent: these fallbacks do not claim native parity.
         put(m, ResourceIds.mapOutline("monster"), "images/ui/map/monsterOutline.png");
         put(m, ResourceIds.mapOutline("elite"), "images/ui/map/eliteOutline.png");
         put(m, ResourceIds.mapOutline("rest"), "images/ui/map/restOutline.png");

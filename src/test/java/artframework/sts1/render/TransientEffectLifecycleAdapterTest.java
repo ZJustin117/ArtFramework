@@ -78,4 +78,17 @@ public class TransientEffectLifecycleAdapterTest {
         assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.leakedCount()));
         assertFalse(Sts1NativePresentationAdapter.hasEntity("effect:leaked"));
     }
+
+    @Test
+    public void recoveryCleanupDoesNotCountRecoveryOwnedEffectAsLeak() {
+        adapter.render(identity("recovery"), 1L, "render");
+        drain();
+        adapter.cleanupForRecovery();
+        drain();
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.leakedCount()));
+        assertFalse(Sts1NativePresentationAdapter.hasEntity("effect:recovery"));
+    }
 }

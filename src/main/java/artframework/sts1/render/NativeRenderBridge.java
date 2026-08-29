@@ -66,6 +66,8 @@ public final class NativeRenderBridge {
                 }
                 ids.addLast(Long.valueOf(invocation.invocationId));
             }
+        } else {
+            cancelPendingSurfaceInvocations(ownerId);
         }
         return disposition;
     }
@@ -79,6 +81,13 @@ public final class NativeRenderBridge {
         for (Long id : ids) {
             recordSurfaceDrawEvidence(id.longValue(), drawCount);
         }
+    }
+
+    /** Renderer-side evidence hook; a native/off-transition callback is not ART output. */
+    public static void recordSurfaceDrawIfPending(String ownerId, int drawCount) {
+        List<Long> ids = drainSurfaceInvocations(ownerId);
+        if (ids.isEmpty()) return;
+        for (Long id : ids) recordSurfaceDrawEvidence(id.longValue(), drawCount);
     }
 
     /**
@@ -127,6 +136,20 @@ public final class NativeRenderBridge {
             if (ids == null) return;
             ids.remove(Long.valueOf(invocationId));
             if (ids.isEmpty()) SURFACE_INVOCATIONS.remove(ownerId);
+        }
+    }
+
+    private static void cancelPendingSurfaceInvocations(String ownerId) {
+        List<Long> ids;
+        synchronized (SURFACE_INVOCATIONS) {
+            ArrayDeque<Long> queued = SURFACE_INVOCATIONS.remove(ownerId);
+            if (queued == null || queued.isEmpty()) return;
+            ids = new ArrayList<Long>(queued);
+        }
+        for (Long id : ids) {
+            if (LEDGER.isOpen(id.longValue())) {
+                LEDGER.cancelForTransition(id.longValue());
+            }
         }
     }
 
@@ -328,7 +351,7 @@ public final class NativeRenderBridge {
     }
 
     public static void clearTransientEffectsForRecovery() {
-        EFFECT_LIFECYCLE.cleanupAll();
+        EFFECT_LIFECYCLE.cleanupForRecovery();
         LEDGER.closeForRecovery("recovery");
         synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
         synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }

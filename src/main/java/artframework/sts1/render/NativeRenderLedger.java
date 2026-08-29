@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 /** Process-local evidence ledger for native render invocation decisions. */
 public final class NativeRenderLedger {
@@ -16,11 +18,13 @@ public final class NativeRenderLedger {
     private final Map<Long, PresentationDrawEvidence> evidence =
             new LinkedHashMap<Long, PresentationDrawEvidence>();
     private final Map<Long, State> states = new LinkedHashMap<Long, State>();
+    private final Set<Long> transitionCancelled = new HashSet<Long>();
     private int unknownOwnerCount;
     private int orphanArtOutputCount;
     private int dispositionMismatchCount;
     private int leakedTransientEntityCount;
     private int recoveryFailOpenCount;
+    private int cancelledInvocationCount;
 
     /** Records ART output for the exact native invocation that produced it. */
     public synchronized void recordEvidence(long invocationId, String entityId, long frameId,
@@ -74,6 +78,19 @@ public final class NativeRenderLedger {
         if (states.get(key) == State.OPEN) states.put(key, State.COMPLETE);
     }
 
+    /** Closes delegation retired by an OFF transition before PostRender consumes it. */
+    public synchronized void cancelForTransition(long id) {
+        Long key = Long.valueOf(id);
+        RenderDisposition disposition = dispositions.get(key);
+        if (disposition == null || disposition.mode != RenderDisposition.Mode.DELEGATE_TO_ART) {
+            throw new IllegalStateException("transition cancel for non-delegated invocation: " + id);
+        }
+        if (states.get(key) == State.COMPLETE) return;
+        states.put(key, State.COMPLETE);
+        transitionCancelled.add(key);
+        cancelledInvocationCount++;
+    }
+
     public synchronized void recordLeakedTransientEntity() {
         leakedTransientEntityCount++;
     }
@@ -90,7 +107,12 @@ public final class NativeRenderLedger {
                 recoveryFailOpenCount++;
             } else if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
                     && evidence.get(id) == null) {
-                dispositionMismatchCount++;
+                if ("recovery".equals(value)) {
+                    transitionCancelled.add(id);
+                    cancelledInvocationCount++;
+                } else {
+                    dispositionMismatchCount++;
+                }
             }
             entry.setValue(State.COMPLETE);
         }
@@ -123,7 +145,8 @@ public final class NativeRenderLedger {
         int count = 0;
         for (RenderDisposition disposition : dispositions.values()) {
             if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
-                    && !evidence.containsKey(Long.valueOf(disposition.invocationId))) count++;
+                    && !evidence.containsKey(Long.valueOf(disposition.invocationId))
+                    && !transitionCancelled.contains(Long.valueOf(disposition.invocationId))) count++;
         }
         return count;
     }
@@ -175,7 +198,8 @@ public final class NativeRenderLedger {
             if (d.mode == RenderDisposition.Mode.CAPTURE_AND_PASS) capture++;
             if (d.mode == RenderDisposition.Mode.DELEGATE_TO_ART) {
                 delegate++;
-                if (!evidence.containsKey(Long.valueOf(d.invocationId))) missingEvidence++;
+                if (!evidence.containsKey(Long.valueOf(d.invocationId))
+                        && !transitionCancelled.contains(Long.valueOf(d.invocationId))) missingEvidence++;
             }
             if (d.mode == RenderDisposition.Mode.FAIL_OPEN) failOpen++;
         }
@@ -194,6 +218,7 @@ public final class NativeRenderLedger {
         out.put("dispositionMismatch", Integer.valueOf(dispositionMismatchCount));
         out.put("openInvocation", Integer.valueOf(openCount()));
         out.put("leakedTransientEntity", Integer.valueOf(leakedTransientEntityCount));
+        out.put("cancelledInvocation", Integer.valueOf(cancelledInvocationCount));
         return out;
     }
 
@@ -246,11 +271,13 @@ public final class NativeRenderLedger {
         dispositions.clear();
         evidence.clear();
         states.clear();
+        transitionCancelled.clear();
         unknownOwnerCount = 0;
         orphanArtOutputCount = 0;
         dispositionMismatchCount = 0;
         leakedTransientEntityCount = 0;
         recoveryFailOpenCount = 0;
+        cancelledInvocationCount = 0;
     }
 
     private int openCount() {

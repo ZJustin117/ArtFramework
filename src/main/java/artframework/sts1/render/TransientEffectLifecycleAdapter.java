@@ -41,4 +41,10 @@ public final class TransientEffectLifecycleAdapter {
         registry.clear();
         ledger.clearLeaked();
     }
+
+    /** Recovery owns the teardown, so unfinished effects are cancelled rather than leaked. */
+    public void cleanupForRecovery() {
+        registry.clear();
+        ledger.clearCompletedForRecovery();
+    }
 }

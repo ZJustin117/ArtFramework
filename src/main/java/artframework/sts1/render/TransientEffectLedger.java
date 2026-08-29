@@ -82,6 +82,11 @@ public final class TransientEffectLedger {
         records.clear();
     }
 
+    /** Drops recovery-owned records without classifying them as application leaks. */
+    public synchronized void clearCompletedForRecovery() {
+        records.clear();
+    }
+
     public synchronized int activeCount() {
         int count = 0;
         for (Record record : records.values()) {

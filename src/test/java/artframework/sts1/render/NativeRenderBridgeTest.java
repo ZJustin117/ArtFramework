@@ -138,6 +138,47 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void threeSurfaceOwnersAreRetiredWhenNativeReturnsAfterFullIsOff() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        armFullSurface(SurfaceIds.COMBAT_CONTROLS);
+        armFullSurface(SurfaceIds.COMBAT_ENERGY);
+        beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "hand");
+        beginDelegatedSurface(SurfaceIds.COMBAT_CONTROLS, "controls");
+        beginDelegatedSurface(SurfaceIds.COMBAT_ENERGY, "energy");
+
+        FullPresentMode.setCombatHandLevel(PresentLevel.OFF);
+        FullPresentMode.setCombatControlsLevel(PresentLevel.OFF);
+        FullPresentMode.setEnergyLevel(PresentLevel.OFF);
+        NativeRenderBridge.beginSurface(SurfaceIds.COMBAT_HAND, "native.Hand", "render", "off");
+        NativeRenderBridge.beginSurface(SurfaceIds.COMBAT_CONTROLS, "native.Controls", "render", "off");
+        NativeRenderBridge.beginSurface(SurfaceIds.COMBAT_ENERGY, "native.Energy", "render", "off");
+
+        Map<String, Object> report = NativeRenderBridge.strictReport();
+        assertEquals(Integer.valueOf(0), report.get("openInvocation"));
+        assertEquals(Integer.valueOf(0), report.get("delegatedWithoutEvidence"));
+        assertEquals(Integer.valueOf(0), report.get("orphanArtOutput"));
+        assertEquals(Boolean.TRUE, report.get("accepted"));
+    }
+
+    @Test
+    public void recoveryClosesPendingDelegatedSurfaceWithoutStrictMismatch() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_CONTROLS);
+        RenderDisposition pending = beginDelegatedSurface(SurfaceIds.COMBAT_CONTROLS, "old");
+
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+
+        assertTrue(NativeRenderBridge.ledger().isOpen(pending.invocationId) == false);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("openInvocation"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get(
+                "delegatedWithoutEvidence"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get(
+                "dispositionMismatch"));
+        assertEquals(Boolean.TRUE, NativeRenderBridge.strictReport().get("accepted"));
+    }
+
+    @Test
     public void explicitDrawApisRemoveOnlyTheirTokensBeforeOwnerDrawClosesTheRest() {
         mountedCombat();
         armFullSurface(SurfaceIds.COMBAT_INTENTS);

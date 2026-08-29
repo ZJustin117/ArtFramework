@@ -548,7 +548,7 @@ public final class Sts1SurfaceRenderer {
         }
         artframework.presentation.PresentationVisuals.retainC2Items(SurfaceIds.COMBAT_HAND, visibleItems);
         HandRenderMetrics.end(started, projectedCount, renderedCards, missingArt, invalidBounds);
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_HAND, drawCount);
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_HAND, drawCount);
     }
 
     /**
@@ -557,7 +557,7 @@ public final class Sts1SurfaceRenderer {
      * supply includes the projected button texture; native hover/animation parity remains pending.
      */
     private static void renderControls(SpriteBatch sb) {
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_CONTROLS,
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_CONTROLS,
                 ControlsDrawPath.materializedDrawCount());
     }
 
@@ -574,7 +574,7 @@ public final class Sts1SurfaceRenderer {
             if (item.reachable || item.highlighted) drawn++;
             if (item.pinned || item.highlighted) drawn++;
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.MAP, drawn);
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.MAP, drawn);
     }
 
     /**
@@ -598,7 +598,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         } finally {
-            NativeRenderBridge.recordSurfaceDraw(SurfaceIds.EVENT,
+            NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.EVENT,
                     EventDrawPath.materializedDrawCount());
         }
     }
@@ -628,7 +628,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         } finally {
-            NativeRenderBridge.recordSurfaceDraw(surfaceId, SelectDrawPath.materializedDrawCount());
+            NativeRenderBridge.recordSurfaceDrawIfPending(surfaceId, SelectDrawPath.materializedDrawCount());
         }
     }
 
@@ -663,7 +663,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDraw(surfaceId, RewardDrawPath.materializedDrawCount());
+        NativeRenderBridge.recordSurfaceDrawIfPending(surfaceId, RewardDrawPath.materializedDrawCount());
     }
 
     /**
@@ -696,7 +696,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.REST, RestDrawPath.materializedDrawCount());
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.REST, RestDrawPath.materializedDrawCount());
     }
 
     private static void renderSkeleton(SpriteBatch sb) {
@@ -724,7 +724,7 @@ public final class Sts1SurfaceRenderer {
                 }
             }
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.SKELETON, 1);
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.SKELETON, 1);
     }
 
     /**
@@ -759,7 +759,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.SHOP, drawn);
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.SHOP, drawn);
     }
 
     /**
@@ -793,7 +793,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TREASURE, drawn);
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.TREASURE, drawn);
     }
 
     private static void renderProceed(SpriteBatch sb) {
@@ -823,7 +823,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_PROCEED, projectedDrawCount);
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_PROCEED, projectedDrawCount);
     }
 
     private static void renderTopPanel(SpriteBatch sb) {
@@ -854,7 +854,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TOP_PANEL,
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.TOP_PANEL,
                 TopPanelDrawPath.materializedDrawCount());
     }
 
@@ -894,7 +894,7 @@ public final class Sts1SurfaceRenderer {
         for (EnergyDrawPath.DrawItem item : EnergyDrawPath.buildFromProjection()) {
             drawResolvedTexture(sb, item.resourceId, item.bounds);
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_ENERGY,
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_ENERGY,
                 EnergyDrawPath.buildFromProjection().size());
     }
 
@@ -907,7 +907,7 @@ public final class Sts1SurfaceRenderer {
         for (IntentDrawPath.DrawItem item : IntentDrawPath.buildFromProjection()) {
             drawResolvedTexture(sb, item.iconResourceId, item.bounds);
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_INTENTS,
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_INTENTS,
                 IntentDrawPath.buildFromProjection().size());
     }
 
@@ -974,7 +974,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_TARGETING, Math.max(1, drawn));
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_TARGETING, Math.max(1, drawn));
     }
 
     private static com.badlogic.gdx.graphics.Texture resolveTargetingArrow() {

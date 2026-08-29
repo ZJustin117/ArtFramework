@@ -45,6 +45,18 @@ steps:
   - assert:
       path: backend.input.handState
       eq: "OFF"
+  - assert:
+      path: backend.nativeRenderStrict.accepted
+      eq: true
+  - assert:
+      path: backend.nativeRenderStrict.openInvocation
+      eq: 0
+  - assert:
+      path: backend.nativeRenderStrict.delegatedWithoutEvidence
+      eq: 0
+  - assert:
+      path: backend.nativeRenderStrict.orphanArtOutput
+      eq: 0
   # Re-arm FULL while still in combat.
   - console: "art present combat on"
   - wait_probe:
@@ -66,6 +78,24 @@ steps:
   - assert:
       path: backend.fullPresent.combatHand
       eq: "OFF"
+  - assert:
+      path: backend.nativeRenderStrict.accepted
+      eq: true
+  - assert:
+      path: backend.nativeRenderStrict.openInvocation
+      eq: 0
+  - assert:
+      path: backend.nativeRenderStrict.delegatedWithoutEvidence
+      eq: 0
+  - assert:
+      path: backend.nativeRenderStrict.orphanArtOutput
+      eq: 0
+  - assert:
+      path: backend.transientEffects.active
+      eq: 0
+  - assert:
+      path: backend.transientEffects.leaked
+      eq: 0
   - console: "art present clear-panic"
   - wait_ms: 400
   - probe: all

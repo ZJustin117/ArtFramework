@@ -80,7 +80,7 @@ class RunnerOfflineTest(unittest.TestCase):
             "command": "art lab start-run IRONCLAD",
             "message": "start-run armed",
         }
-        with patch("device_console.console_exec", return_value=raw), patch(
+        with patch("device_console.console_exec_once", return_value=raw), patch(
             "device_console.scrape_command_log", return_value=None
         ), patch("device_console.wait_for_command_log", return_value=result):
             rec = _run_step(

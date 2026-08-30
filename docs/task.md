@@ -787,4 +787,22 @@ parity gaps remain documented in
 - [x] 47.30 Spine 4.2 RegionAttachment render adapter: the shaded provider now emits supported
       region quads into the active legacy libGDX batch through reflection, with pose/visual state
       application, draw-order traversal, color multiplication, and a pure vertex-order contract
-      test. Mesh, clipping, two-color batch, and pixel-parity validation remain explicit gaps.
+      test.
+- [x] 47.31 Spine 4.2 MeshAttachment batch compatibility: indexed mesh triangles are expanded
+      into legacy Batch quad submissions with world vertices, UVs, and fail-open malformed-data
+      handling. Clipping and two-color capability gates are implemented; pixel-parity validation
+      remains the final explicit gap.
+- [x] 47.32 Spine 4.2 clipping capability gate: the legacy Batch path pre-scans for
+      `ClippingAttachment` and returns zero ART draws without mutating batch state, allowing the
+      native renderer to recover.
+- [x] 47.33 Spine 4.2 two-color batch capability gate: legacy `Batch.draw(Texture, float[], int,
+      int)` exposes only the five-float position/packed-light-color/UV vertex contract, so the
+      provider pre-scans slot/attachment dark-color presence and returns zero before any draw when
+       two-color data is present. No partial rendering or false draw count is claimed.
+- [x] 47.34 Spine 4.2 CPU parity contract: `Spine42Parity` validates RegionAttachment and
+       MeshAttachment expansion, UV preservation, packed color propagation, triangle coverage,
+       winding, degenerate geometry, malformed data, and expected-vector mismatches with a
+       diagnostic `ParityResult`. This is
+       a pure Java contract and does not claim GL or screenshot pixel equivalence.
+- [ ] 47.35 Spine 4.2 real GL/screenshot pixel parity: remains open pending a device/runtime fixture,
+       controlled rendering capture, and image comparison evidence.

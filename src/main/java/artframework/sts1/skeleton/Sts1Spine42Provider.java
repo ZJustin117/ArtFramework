@@ -68,6 +68,19 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         return runtimeClassName;
     }
 
+    /** Legacy Batch has no scoped polygon clip or stencil host capability. */
+    public boolean supportsClipping() {
+        return false;
+    }
+
+    /**
+     * The legacy Batch vertex contract is position, packed light color, and UV only.
+     * It has no dark-color attribute or indexed two-color draw entry.
+     */
+    public boolean supportsTwoColor(Object batch) {
+        return false;
+    }
+
     public synchronized void setRuntimeClassLoader(ClassLoader loader) {
         if (loader == null) {
             throw new IllegalArgumentException("runtime classloader required");
@@ -281,44 +294,117 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         return renderInternal(handle, batch, true) > 0;
     }
 
-    /** Number of region quads submitted; mesh and clipping attachments are deliberately skipped. */
+    /** Number of quads submitted; indexed meshes are expanded into degenerate quads. */
     private int renderInternal(SkeletonHandle handle, Object batch, boolean nativeSlot) {
         RuntimeInstance i = instance(handle);
         if (i == null || batch == null || !isVisible(i.skeleton)) return 0;
         int rendered = 0;
+        lastRenderError = "";
         try {
             Object drawOrder = i.skeleton.getClass().getMethod("getDrawOrder").invoke(i.skeleton);
             int size = ((Number) drawOrder.getClass().getField("size").get(drawOrder)).intValue();
             Object items = drawOrder.getClass().getField("items").get(drawOrder);
             Class<?> regionType = type("attachments.RegionAttachment");
+            Class<?> meshType = type("attachments.MeshAttachment");
+            Class<?> clippingType = optionalType("attachments.ClippingAttachment");
             Method draw = batch.getClass().getMethod("draw", Texture.class, float[].class, int.class, int.class);
             Object[] slots = (Object[]) items;
+            if (containsUnsupportedClipping(slots, size, clippingType)) {
+                lastRenderError = "ClippingAttachment unsupported by legacy Batch; fail-open";
+                return 0;
+            }
+            if (containsUnsupportedTwoColor(slots, size) && !supportsTwoColor(batch)) {
+                lastRenderError = "two-color attachment unsupported by legacy Batch; fail-open";
+                return 0;
+            }
             for (int slotIndex = 0; slotIndex < size; slotIndex++) {
                 Object slot = slots[slotIndex];
-                Object attachment = slot.getClass().getMethod("getAttachment").invoke(slot);
-                if (attachment == null || !regionType.isInstance(attachment)) continue;
-                Object region = attachment.getClass().getMethod("getRegion").invoke(attachment);
-                if (region == null) continue;
-                float[] world = new float[8];
-                attachment.getClass().getMethod("computeWorldVertices", slot.getClass(), float[].class, int.class, int.class)
-                        .invoke(attachment, slot, world, 0, 2);
-                float[] uvs = (float[]) attachment.getClass().getMethod("getUVs").invoke(attachment);
-                Object slotColor = slot.getClass().getMethod("getColor").invoke(slot);
-                Object attachmentColor = attachment.getClass().getMethod("getColor").invoke(attachment);
-                float[] rgba = multipliedColor(i.skeleton, slotColor, attachmentColor);
-                float packed = Color.toFloatBits(rgba[0], rgba[1], rgba[2], rgba[3]);
-                float[] vertices = regionVertices(world, uvs, packed);
-                Object texture = region.getClass().getMethod("getTexture").invoke(region);
-                draw.invoke(batch, texture, vertices, 0, vertices.length);
-                rendered++;
+                try {
+                    Object attachment = slot.getClass().getMethod("getAttachment").invoke(slot);
+                    if (attachment == null || (!regionType.isInstance(attachment) && !meshType.isInstance(attachment))) continue;
+                    Object region = attachment.getClass().getMethod("getRegion").invoke(attachment);
+                    if (region == null) continue;
+                    Object slotColor = slot.getClass().getMethod("getColor").invoke(slot);
+                    Object attachmentColor = attachment.getClass().getMethod("getColor").invoke(attachment);
+                    float[] rgba = multipliedColor(i.skeleton, slotColor, attachmentColor);
+                    float packed = Color.toFloatBits(rgba[0], rgba[1], rgba[2], rgba[3]);
+                    Object texture = region.getClass().getMethod("getTexture").invoke(region);
+                    if (regionType.isInstance(attachment)) {
+                        float[] world = new float[8];
+                        attachment.getClass().getMethod("computeWorldVertices", slot.getClass(), float[].class, int.class, int.class)
+                                .invoke(attachment, slot, world, 0, 2);
+                        float[] uvs = (float[]) attachment.getClass().getMethod("getUVs").invoke(attachment);
+                        draw.invoke(batch, texture, regionVertices(world, uvs, packed), 0, 20);
+                        rendered++;
+                    } else {
+                        float[] uvs = (float[]) attachment.getClass().getMethod("getUVs").invoke(attachment);
+                        short[] triangles = (short[]) attachment.getClass().getMethod("getTriangles").invoke(attachment);
+                        int vertexCount = ((Number) attachment.getClass().getMethod("getWorldVerticesLength").invoke(attachment)).intValue();
+                        float[] world = new float[vertexCount];
+                        attachment.getClass().getMethod("computeWorldVertices", slot.getClass(), int.class, int.class,
+                                float[].class, int.class, int.class).invoke(attachment, slot, 0, vertexCount, world, 0, 2);
+                        for (int triangle = 0; triangle < triangles.length; triangle += 3) {
+                            float[] vertices = meshTriangleVertices(world, uvs, triangles, triangle, packed);
+                            draw.invoke(batch, texture, vertices, 0, vertices.length);
+                            rendered++;
+                        }
+                    }
+                } catch (Throwable t) {
+                    lastRenderError = describe(t.getCause() != null ? t.getCause() : t);
+                }
             }
-            lastRenderError = "";
         } catch (Throwable t) {
             Throwable root = t;
             if (t.getCause() != null) root = t.getCause();
-            lastRenderError = root.getClass().getSimpleName() + ": " + root.getMessage();
+            lastRenderError = describe(root);
         }
         return rendered;
+    }
+
+    private static boolean containsUnsupportedClipping(Object[] slots, int size, Class<?> clippingType) {
+        if (slots == null || clippingType == null) return false;
+        int limit = Math.min(size, slots.length);
+        for (int index = 0; index < limit; index++) {
+            Object slot = slots[index];
+            if (slot == null) continue;
+            try {
+                Object attachment = slot.getClass().getMethod("getAttachment").invoke(slot);
+                if (isClippingAttachment(attachment == null ? null : attachment.getClass(), clippingType)) return true;
+            } catch (Throwable ignored) {
+                // The normal attachment loop owns malformed-slot fail-open handling.
+            }
+        }
+        return false;
+    }
+
+    static boolean isClippingAttachment(Class<?> attachmentType, Class<?> clippingType) {
+        return attachmentType != null && clippingType != null && clippingType.isAssignableFrom(attachmentType);
+    }
+
+    static boolean containsUnsupportedTwoColor(Object[] slots, int size) {
+        if (slots == null) return false;
+        int limit = Math.min(size, slots.length);
+        for (int index = 0; index < limit; index++) {
+            Object slot = slots[index];
+            if (slot == null) continue;
+            if (hasNonNullDarkColor(slot)) return true;
+            try {
+                Object attachment = slot.getClass().getMethod("getAttachment").invoke(slot);
+                if (attachment != null && hasNonNullDarkColor(attachment)) return true;
+            } catch (Throwable ignored) {
+                // The normal attachment loop owns malformed-slot fail-open handling.
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasNonNullDarkColor(Object value) {
+        try {
+            Method method = value.getClass().getMethod("getDarkColor");
+            return method.invoke(value) != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static boolean isVisible(Object skeleton) {
@@ -332,7 +418,39 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
 
     /** Converts Spine's BR, BL, UL, UR order to libGDX Batch's BL, TL, TR, BR order. */
     static float[] regionVertices(float[] world, float[] uvs, float packedColor) {
+        if (world == null || uvs == null || world.length < 8 || uvs.length < 8) {
+            throw new IllegalArgumentException("region vertices require four positions and UVs");
+        }
         int[] order = {1, 2, 3, 0};
+        float[] result = new float[20];
+        for (int out = 0; out < 4; out++) {
+            int in = order[out];
+            result[out * 5] = world[in * 2];
+            result[out * 5 + 1] = world[in * 2 + 1];
+            result[out * 5 + 2] = packedColor;
+            result[out * 5 + 3] = uvs[in * 2];
+            result[out * 5 + 4] = uvs[in * 2 + 1];
+        }
+        return result;
+    }
+
+    /** Expands one indexed mesh triangle into the four-vertex format accepted by legacy Batch.draw. */
+    static float[] meshTriangleVertices(float[] world, float[] uvs, short[] triangles,
+            int triangleOffset, float packedColor) {
+        if (world == null || uvs == null || triangles == null || triangleOffset < 0
+                || triangleOffset + 2 >= triangles.length || world.length == 0
+                || (world.length & 1) != 0 || uvs.length < world.length
+                || (triangles.length % 3) != 0) {
+            throw new IllegalArgumentException("mesh vertices, UVs, and triangle indices are incomplete");
+        }
+        int a = triangles[triangleOffset] & 0xffff;
+        int b = triangles[triangleOffset + 1] & 0xffff;
+        int c = triangles[triangleOffset + 2] & 0xffff;
+        int vertexCount = world.length / 2;
+        if (a >= vertexCount || b >= vertexCount || c >= vertexCount) {
+            throw new IllegalArgumentException("mesh triangle index outside world vertices");
+        }
+        int[] order = {a, b, c, c};
         float[] result = new float[20];
         for (int out = 0; out < 4; out++) {
             int in = order[out];
@@ -363,6 +481,14 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
 
     private Class<?> type(String simpleName) throws ClassNotFoundException {
         return Class.forName(packagePrefix + "." + simpleName, true, runtimeClassLoader);
+    }
+
+    private Class<?> optionalType(String simpleName) {
+        try {
+            return type(simpleName);
+        } catch (ClassNotFoundException ignored) {
+            return null;
+        }
     }
 
     private synchronized void refreshAvailability() {

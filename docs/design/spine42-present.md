@@ -58,15 +58,35 @@ from parsed atlas metadata and applies blend state directly through GL. The init
 keeps this boundary explicit and safely degrades when the shaded runtime is not installed.
 
 The current source-patched runtime validates binary skeleton data, animation state, bone
-transforms, and a reflective RegionAttachment render path on D1. The provider draws supported
-region quads into an already-active legacy libGDX batch without linking the incompatible stock
-renderer. Mesh, clipping, two-color batch, and pixel-parity validation remain separately pending;
-unsupported attachment types are skipped and never cause native suppression to claim pixels.
+transforms, and reflective RegionAttachment and MeshAttachment batch paths. The provider draws
+supported attachments into an already-active legacy libGDX batch without linking the incompatible
+stock renderer. Because legacy `Batch.draw(Texture, float[], int, int)` has no indexed-mesh entry,
+each mesh triangle is expanded to a four-vertex quad with a repeated final vertex. This preserves
+triangle coverage through the quad shader but adds one draw call per triangle and does not provide
+native indexed-mesh performance. Clipping is explicitly capability-gated: legacy STS1 Batch has no
+polygon clip or stencil host SPI, so the provider pre-scans draw order and returns zero when a
+`ClippingAttachment` is present. This prevents partially rendered, incorrectly unclipped output
+and lets the native renderer recover; the batch is never begun, ended, or otherwise mutated by
+this path. Unsupported attachment types and malformed attachment data are skipped fail-open and
+never cause native suppression to claim pixels. Two-color attachments are also pre-scanned:
+legacy Batch's fixed five-float vertex format has no dark-color attribute, so a non-null
+`getDarkColor()` on a slot or attachment returns zero for the entire ART draw before any
+submission. `supportsTwoColor(batch)` remains explicitly false until a host exposes a
+compatible vertex contract; no partial two-color rendering or incorrect draw count is claimed.
+The pure `Spine42Parity` contract validates the CPU side of this boundary: RegionAttachment and
+MeshAttachment expanded positions, UVs, packed color propagation, triangle coverage,
+counter-clockwise winding, and explicit invalid/degenerate results. Its `ParityResult` is
+diagnostic and reusable in tests; `compareCoverage` also compares expected five-float vectors with
+an explicit tolerance. This is CPU vertex/coverage parity only. It does not execute
+GL, rasterization, blending, clipping, texture sampling, or image comparison. Real screenshot
+pixel parity therefore remains an explicit open gap.
 
 ## Testing
 
 Pure JUnit covers atlas parsing, animation graphs, mix tables, fake-provider commands, provider
-availability probes, and the RegionAttachment vertex contract. Device verification is optional and
+availability probes, the RegionAttachment/MeshAttachment vertex contracts, the reusable CPU
+parity report (including UV/coverage, winding, degenerate, and malformed-data cases), and the
+explicit clipping capability/fail-open contract. Device verification is optional and
 must use user-owned local assets.
 
 `tests/spine42-assets` is a separate developer-only layer. It accepts `ART_STS2_ASSET_JAR`, or

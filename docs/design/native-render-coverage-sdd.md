@@ -116,7 +116,8 @@ They are distinct from strict runtime evidence gaps such as an open invocation,
 output, or an unrecorded fail-open. Recent runtime closure work drains every
 pending invocation for a surface draw, cancels stale invocations on native/off
 transitions, and closes recovery state; those ledger mechanics are implemented,
-but map/event/select/room still require scene-specific D1 visual acceptance.
+but the visual parity inventory for map/event/select/room still requires scene-specific D1
+inspection beyond the completed runtime acceptance fixtures.
 
 Per-instance claims stay granular:
 
@@ -530,9 +531,9 @@ static candidates
 Lightwave remains a visual diagnostic and does not participate in the strict
 coverage decision.
 
-The remaining acceptance work is evidence collection: exercise relevant scenes,
+The remaining visual work is evidence collection: exercise relevant scenes,
 confirm the runtime strict report stays closed, and separately assess the visual
-parity inventory. Existing D1 fixtures provide executable map and event paths.
-The current lab navigation API does not provide deterministic standalone entry
-into grid/hand select, rest, shop, or treasure, so those scenarios must not be
-claimed until executable navigation support exists.
+parity inventory. D1 fixtures and lab navigation now provide executable map,
+event, grid/hand select, rest, shop, and treasure paths. Their runtime acceptance
+is recorded in `docs/task.md`; visual parity remains a separate, explicitly
+incomplete assessment.

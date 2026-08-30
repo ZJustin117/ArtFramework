@@ -6,19 +6,18 @@ import artframework.skeleton.BoneTransform;
 import artframework.skeleton.SkeletonCommandProvider;
 import artframework.skeleton.SkeletonHandle;
 import artframework.skeleton.SkeletonSource;
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
 
 import java.io.File;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Map;
 /**
  * Safe shell for a user-provided shaded Spine 4.2 runtime.
  */
-public final class Sts1Spine42Provider implements SkeletonCommandProvider {
+public final class Sts1Spine42Provider implements SkeletonCommandProvider, SkeletonNativeSlotRenderer {
 
     public static final String ID = "spine42";
     public static final String DEFAULT_RUNTIME_CLASS = "artframework.shaded.spine42.com.esotericsoftware.spine.Skeleton";
@@ -26,6 +25,7 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider {
     private final String runtimeClassName;
     private volatile boolean available;
     private volatile String unavailableReason;
+    private volatile String lastRenderError = "";
     private final String packagePrefix;
     private Sts2AssetBundle configuredBundle;
     private ClassLoader runtimeClassLoader;
@@ -121,7 +121,9 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider {
             Object state = type("AnimationState").getConstructor(type("AnimationStateData")).newInstance(stateData);
             applyScale(source.params, skeleton);
             RuntimeInstance instance = new RuntimeInstance(atlas, skeleton, stateData, state);
-            return new SkeletonHandle(ID, source.skeletonId, instance);
+            SkeletonHandle handle = new SkeletonHandle(ID, source.skeletonId, instance);
+            instance.handle = handle;
+            return handle;
         } catch (Exception e) {
             throw new IllegalStateException("spine42 skeleton load failed at " + stage + ": " + describe(e), e);
         }
@@ -240,9 +242,123 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider {
     }
 
     @Override
+    public void setPose(SkeletonHandle handle, float x, float y, float rotation,
+            float scaleX, float scaleY, boolean flipX, boolean flipY) {
+        RuntimeInstance i = instance(handle);
+        if (i == null) return;
+        invoke(i.skeleton, "setPosition", new Class<?>[] {float.class, float.class}, x, y);
+        invoke(i.skeleton, "setScale", new Class<?>[] {float.class, float.class}, scaleX, scaleY);
+        invoke(i.skeleton, "setFlip", new Class<?>[] {boolean.class, boolean.class}, flipX, flipY);
+        try {
+            Object root = i.skeleton.getClass().getMethod("getRootBone").invoke(i.skeleton);
+            invoke(root, "setRotation", new Class<?>[] {float.class}, rotation);
+            apply(i.handle);
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Override
+    public void setVisual(SkeletonHandle handle, boolean visible, float red, float green,
+            float blue, float alpha) {
+        RuntimeInstance i = instance(handle);
+        if (i == null) return;
+        try {
+            Object color = i.skeleton.getClass().getMethod("getColor").invoke(i.skeleton);
+            color.getClass().getMethod("set", float.class, float.class, float.class, float.class)
+                    .invoke(color, red, green, blue, visible ? alpha : 0f);
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Override
     public void render(SkeletonHandle handle, Object batch) {
-        // The source-built 4.2 runtime currently supplies the data/animation path only.
-        // Rendering is withheld until the libGDX 1.9.5 mesh/clipping adapter is validated.
+        renderInternal(handle, batch, false);
+    }
+
+    /** Draws the supported subset without changing the host batch lifecycle. */
+    @Override
+    public boolean renderAtNativeSlot(SkeletonHandle handle, Object batch) {
+        return renderInternal(handle, batch, true) > 0;
+    }
+
+    /** Number of region quads submitted; mesh and clipping attachments are deliberately skipped. */
+    private int renderInternal(SkeletonHandle handle, Object batch, boolean nativeSlot) {
+        RuntimeInstance i = instance(handle);
+        if (i == null || batch == null || !isVisible(i.skeleton)) return 0;
+        int rendered = 0;
+        try {
+            Object drawOrder = i.skeleton.getClass().getMethod("getDrawOrder").invoke(i.skeleton);
+            int size = ((Number) drawOrder.getClass().getField("size").get(drawOrder)).intValue();
+            Object items = drawOrder.getClass().getField("items").get(drawOrder);
+            Class<?> regionType = type("attachments.RegionAttachment");
+            Method draw = batch.getClass().getMethod("draw", Texture.class, float[].class, int.class, int.class);
+            Object[] slots = (Object[]) items;
+            for (int slotIndex = 0; slotIndex < size; slotIndex++) {
+                Object slot = slots[slotIndex];
+                Object attachment = slot.getClass().getMethod("getAttachment").invoke(slot);
+                if (attachment == null || !regionType.isInstance(attachment)) continue;
+                Object region = attachment.getClass().getMethod("getRegion").invoke(attachment);
+                if (region == null) continue;
+                float[] world = new float[8];
+                attachment.getClass().getMethod("computeWorldVertices", slot.getClass(), float[].class, int.class, int.class)
+                        .invoke(attachment, slot, world, 0, 2);
+                float[] uvs = (float[]) attachment.getClass().getMethod("getUVs").invoke(attachment);
+                Object slotColor = slot.getClass().getMethod("getColor").invoke(slot);
+                Object attachmentColor = attachment.getClass().getMethod("getColor").invoke(attachment);
+                float[] rgba = multipliedColor(i.skeleton, slotColor, attachmentColor);
+                float packed = Color.toFloatBits(rgba[0], rgba[1], rgba[2], rgba[3]);
+                float[] vertices = regionVertices(world, uvs, packed);
+                Object texture = region.getClass().getMethod("getTexture").invoke(region);
+                draw.invoke(batch, texture, vertices, 0, vertices.length);
+                rendered++;
+            }
+            lastRenderError = "";
+        } catch (Throwable t) {
+            Throwable root = t;
+            if (t.getCause() != null) root = t.getCause();
+            lastRenderError = root.getClass().getSimpleName() + ": " + root.getMessage();
+        }
+        return rendered;
+    }
+
+    private static boolean isVisible(Object skeleton) {
+        try {
+            Object color = skeleton.getClass().getMethod("getColor").invoke(skeleton);
+            return ((Number) color.getClass().getField("a").get(color)).floatValue() > 0f;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /** Converts Spine's BR, BL, UL, UR order to libGDX Batch's BL, TL, TR, BR order. */
+    static float[] regionVertices(float[] world, float[] uvs, float packedColor) {
+        int[] order = {1, 2, 3, 0};
+        float[] result = new float[20];
+        for (int out = 0; out < 4; out++) {
+            int in = order[out];
+            result[out * 5] = world[in * 2];
+            result[out * 5 + 1] = world[in * 2 + 1];
+            result[out * 5 + 2] = packedColor;
+            result[out * 5 + 3] = uvs[in * 2];
+            result[out * 5 + 4] = uvs[in * 2 + 1];
+        }
+        return result;
+    }
+
+    private static float[] multipliedColor(Object skeleton, Object slot, Object attachment) throws Exception {
+        float[] result = {1f, 1f, 1f, 1f};
+        Object[] colors = {skeleton.getClass().getMethod("getColor").invoke(skeleton), slot, attachment};
+        for (Object color : colors) {
+            result[0] *= numberField(color, "r");
+            result[1] *= numberField(color, "g");
+            result[2] *= numberField(color, "b");
+            result[3] *= numberField(color, "a");
+        }
+        return result;
+    }
+
+    private static float numberField(Object object, String name) throws Exception {
+        return ((Number) object.getClass().getField(name).get(object)).floatValue();
     }
 
     private Class<?> type(String simpleName) throws ClassNotFoundException {
@@ -332,6 +448,7 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider {
         private final Object skeleton;
         private final Object stateData;
         private final Object state;
+        private SkeletonHandle handle;
 
         private RuntimeInstance(TextureAtlas atlas, Object skeleton, Object stateData, Object state) {
             this.atlas = atlas;

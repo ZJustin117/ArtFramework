@@ -47,4 +47,24 @@ public class Sts1SpineProviderTest {
     public void spine42LoadFailsClearlyWhenRuntimeMissing() {
         new Sts1Spine42Provider("missing.ShadedSkeleton").load(null);
     }
+
+    @Test
+    public void regionVerticesUseBatchOrderAndPreserveUvs() {
+        float[] world = {10f, 11f, 20f, 21f, 30f, 31f, 40f, 41f};
+        float[] uvs = {.1f, .2f, .3f, .4f, .5f, .6f, .7f, .8f};
+
+        float[] vertices = Sts1Spine42Provider.regionVertices(world, uvs, 9f);
+
+        assertEquals(20, vertices.length);
+        // Batch order is BL, TL, TR, BR; Spine's source order is BR, BL, UL, UR.
+        assertEquals(20f, vertices[0], 0f);
+        assertEquals(21f, vertices[1], 0f);
+        assertEquals(.3f, vertices[3], 0f);
+        assertEquals(30f, vertices[5], 0f);
+        assertEquals(40f, vertices[10], 0f);
+        assertEquals(.7f, vertices[13], 0f);
+        assertEquals(10f, vertices[15], 0f);
+        assertEquals(.1f, vertices[18], 0f);
+        assertEquals(9f, vertices[2], 0f);
+    }
 }

@@ -57,14 +57,17 @@ therefore must either use a patched/shaded runtime adapter or a custom renderer 
 from parsed atlas metadata and applies blend state directly through GL. The initial provider shell
 keeps this boundary explicit and safely degrades when the shaded runtime is not installed.
 
-The current source-patched runtime validates binary skeleton data, animation state, and bone
-transforms on D1. It deliberately excludes the incompatible stock renderer, scene2d helpers, and
-two-color batch. Pixel rendering remains a later, separately verified capability.
+The current source-patched runtime validates binary skeleton data, animation state, bone
+transforms, and a reflective RegionAttachment render path on D1. The provider draws supported
+region quads into an already-active legacy libGDX batch without linking the incompatible stock
+renderer. Mesh, clipping, two-color batch, and pixel-parity validation remain separately pending;
+unsupported attachment types are skipped and never cause native suppression to claim pixels.
 
 ## Testing
 
-Pure JUnit covers atlas parsing, animation graphs, mix tables, fake-provider commands, and provider
-availability probes. Device verification is optional and must use user-owned local assets.
+Pure JUnit covers atlas parsing, animation graphs, mix tables, fake-provider commands, provider
+availability probes, and the RegionAttachment vertex contract. Device verification is optional and
+must use user-owned local assets.
 
 `tests/spine42-assets` is a separate developer-only layer. It accepts `ART_STS2_ASSET_JAR`, or
 uses `ART_STS2_ROOT` to invoke the local bundle script. It is not a Gradle source set, is not

@@ -784,3 +784,7 @@ parity gaps remain documented in
       and event: map strict acceptance is closed, and event reaches `FULL_READY` with
       `eventDraw.count=4`, `suppressNativeEvent=true`, and final strict acceptance.
       Select/room acceptance is now closed by the independent artifacts above.
+- [x] 47.30 Spine 4.2 RegionAttachment render adapter: the shaded provider now emits supported
+      region quads into the active legacy libGDX batch through reflection, with pose/visual state
+      application, draw-order traversal, color multiplication, and a pure vertex-order contract
+      test. Mesh, clipping, two-color batch, and pixel-parity validation remain explicit gaps.

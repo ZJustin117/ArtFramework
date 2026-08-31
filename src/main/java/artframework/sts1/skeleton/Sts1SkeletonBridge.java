@@ -140,8 +140,17 @@ public final class Sts1SkeletonBridge {
         params.put("assetBundle", devBundle);
         params.put("atlasEntry", atlasEntry);
         params.put("skeletonEntry", skeletonEntry);
+        // STS2 developer assets use a larger authoring unit than the STS1 viewport.
+        params.put("scale", Float.valueOf(0.25f));
         setProviderId(Sts1Spine42Provider.ID);
         SkeletonHandle handle = play(id, atlasEntry, skeletonEntry, params);
+        SkeletonCommandProvider provider = commandProvider(handle);
+        if (provider != null) {
+            provider.setPose(handle,
+                    com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f,
+                    com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.48f,
+                    0f, 0.32f, 0.32f, false, false);
+        }
         lastDevCommand = "loaded:" + id;
         return handle;
     }
@@ -196,6 +205,52 @@ public final class Sts1SkeletonBridge {
         EVENTS.add("setMix:" + skeletonId + ":" + from + "->" + to);
         trimEvents();
         return true;
+    }
+
+    /** Set the development skeleton's primary track time without exposing provider details. */
+    public static boolean setTrackTime(String skeletonId, float seconds) {
+        if (!finite(seconds)) {
+            return rejectDevControl(skeletonId, "trackTime");
+        }
+        SkeletonHandle h = LIVE.get(skeletonId);
+        SkeletonCommandProvider p = commandProvider(h);
+        if (p == null) {
+            return false;
+        }
+        p.setTrackTime(h, 0, seconds);
+        EVENTS.add("setTrackTime:" + skeletonId + ":" + seconds);
+        lastDevCommand = "seek:" + skeletonId + ":" + seconds;
+        trimEvents();
+        return true;
+    }
+
+    /** Set the development skeleton's primary track time scale. */
+    public static boolean setTimeScale(String skeletonId, float scale) {
+        if (!finite(scale)) {
+            return rejectDevControl(skeletonId, "timeScale");
+        }
+        SkeletonHandle h = LIVE.get(skeletonId);
+        SkeletonCommandProvider p = commandProvider(h);
+        if (p == null) {
+            return false;
+        }
+        p.setTimeScale(h, 0, scale);
+        EVENTS.add("setTimeScale:" + skeletonId + ":" + scale);
+        lastDevCommand = "timeScale:" + skeletonId + ":" + scale;
+        trimEvents();
+        return true;
+    }
+
+    private static boolean finite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
+    }
+
+    private static boolean rejectDevControl(String skeletonId, String field) {
+        lastError = field + " must be finite";
+        EVENTS.add("error:" + skeletonId);
+        lastDevCommand = field + ":" + skeletonId + ":invalid";
+        trimEvents();
+        return false;
     }
 
     public static String currentAnimation(String skeletonId) {

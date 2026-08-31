@@ -46,4 +46,9 @@ public class Sts1RelicPotionBlightDrawPathTest {
         assertEquals(ResourceIds.POTION_UNKNOWN, items.get(1).resourceId);
         assertTrue((Boolean) Sts1RelicPotionBlightDrawPath.probeSlice().get("nativeContinuation"));
     }
+
+    @Test
+    public void nativeContinuationObservationDoesNotEnableArtOverlayPixels() {
+        assertFalse(Sts1SurfaceRenderer.shouldDrawNativeContinuationOverlay());
+    }
 }

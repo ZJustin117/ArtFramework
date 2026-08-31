@@ -152,7 +152,9 @@ public final class Sts1SurfaceRenderer {
         artframework.core.PresentChromeStyle chrome =
                 artframework.core.PresentResolve.chromeForSurface(surfaceId);
         try {
-            artframework.render.RenderStateEcs.surface(surfaceId, x, y, w, h, false);
+            // Active surfaces must remain enabled so the render host can expose their target
+            // state; skeleton pixels are still submitted by renderSkeleton below.
+            artframework.render.RenderStateEcs.surface(surfaceId, x, y, w, h, true);
             // C2 surface bounds are layout regions, not pixel-precise chrome. Keep ambient
             // effects on item targets so a surface cannot paint a large fallback rectangle.
         } catch (RuntimeException ignored) {
@@ -705,24 +707,11 @@ public final class Sts1SurfaceRenderer {
         }
         // The provider renders ART-owned skeletons (or at the native slot for claimed instances).
         // No hand-drawn skeleton fallback/chrome pixels are ever drawn here.
-        // The skeleton bridge manages its own SpriteBatch end/begin so it does not rely on the
-        // outer batch guard (which was removed in Slice E1). This self-contained lifecycle is
-        // correct because skeleton rendering may need to swap to the native Spine renderer.
-        boolean drawing = false;
         try {
-            drawing = sb.isDrawing();
-            if (drawing) {
-                sb.end();
-            }
+            // Provider-backed Spine42 rendering submits directly to the active SpriteBatch.
+            // Ending it here makes batch.draw fail while the exception is intentionally fail-open.
             artframework.sts1.skeleton.Sts1SkeletonBridge.renderAll(sb);
         } catch (Throwable ignored) {
-        } finally {
-            if (drawing) {
-                try {
-                    sb.begin();
-                } catch (Throwable ignored) {
-                }
-            }
         }
         NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.SKELETON, 1);
     }
@@ -1021,6 +1010,9 @@ public final class Sts1SurfaceRenderer {
 
     /** Decorative resource overlay only; the native relic-family renderer always continues. */
     private static void renderRelicPotionBlightOverlay(SpriteBatch sb) {
+        if (!shouldDrawNativeContinuationOverlay()) {
+            return;
+        }
         try {
             artframework.core.PresentChromeStyle chrome = artframework.core.PresentResolve.chrome();
             for (Sts1RelicPotionBlightDrawPath.DrawItem item :
@@ -1042,6 +1034,9 @@ public final class Sts1SurfaceRenderer {
 
     /** Decorative resource overlay only; native CardGroup/Soul and AbstractCard pixels continue. */
     private static void renderPileSoulOverlay(SpriteBatch sb) {
+        if (!shouldDrawNativeContinuationOverlay()) {
+            return;
+        }
         try {
             artframework.core.PresentChromeStyle chrome = artframework.core.PresentResolve.chrome();
             for (Sts1PileSoulDrawPath.DrawItem item : Sts1PileSoulDrawPath.buildFromProjection()) {
@@ -1058,6 +1053,11 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
+    }
+
+    /** Native continuation owns observation-only inventory/pile/soul pixels. */
+    static boolean shouldDrawNativeContinuationOverlay() {
+        return false;
     }
 
     private static Color colorLabel(artframework.core.PresentChromeStyle c) {

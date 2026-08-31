@@ -1,0 +1,77 @@
+# D1: real GL capture of the Spine42 developer skeleton. This is not pixel parity evidence.
+name: d1_spine42_screenshot
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - ART_GAME_PROBE_PORT
+    - ART_HARNESS_OUT_DIR
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - wait_ms: 15000
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.inCombat
+        eq: true
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: lab.roomPhase
+        eq: COMBAT
+  - console: "art present skeleton on"
+  - console: "art skeleton dev load d1_ironclad animations/characters/ironclad/ironclad.atlas animations/characters/ironclad/ironclad.skel"
+  - wait_ms: 1000
+  - console: "art skeleton dev play d1_ironclad idle_loop"
+  - wait_ms: 1000
+  - console: "art skeleton dev seek d1_ironclad 0.0"
+  - wait_ms: 500
+  - console: "art skeleton dev freeze d1_ironclad"
+  - probe: all
+  - assert:
+      path: backend.skeleton.providerId
+      eq: spine42
+  - assert:
+      path: backend.skeleton.liveCount
+      eq: 1
+  - assert:
+      path: backend.skeleton.lastError
+      eq: ""
+  - assert:
+      path: present[4].id
+      eq: sts1.skeleton
+  - assert:
+      path: present[4].mounted
+      eq: true
+  - assert:
+      path: render.targetsById.c2_surface_sts1_skeleton.enabled
+      eq: true
+  - screenshot: true
+  - wait_ms: 250
+  - screenshot: true

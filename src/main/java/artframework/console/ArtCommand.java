@@ -144,7 +144,7 @@ public class ArtCommand extends ConsoleCommand {
 
     private void cmdSkeleton(String[] tokens, int depth) {
         if (tokens.length <= depth) {
-            DevConsole.log("Usage: art skeleton dev status|load ... or art skeleton sts1 load <id> <atlas> <json>");
+            DevConsole.log("Usage: art skeleton dev status|load|play|bone|seek|freeze|stop ... or art skeleton sts1 load <id> <atlas> <json>");
             return;
         }
         String scope = tokens[depth].toLowerCase();
@@ -166,7 +166,7 @@ public class ArtCommand extends ConsoleCommand {
             return;
         }
         if (!"dev".equals(scope)) {
-            DevConsole.log("Usage: art skeleton dev status|load|play|bone|stop");
+            DevConsole.log("Usage: art skeleton dev status|load|play|bone|seek|freeze|stop");
             return;
         }
         String action = tokens.length > depth + 1 ? tokens[depth + 1].toLowerCase() : "status";
@@ -192,8 +192,17 @@ public class ArtCommand extends ConsoleCommand {
                 artframework.skeleton.BoneTransform bone = artframework.sts1.skeleton.Sts1SkeletonBridge.devBone(
                         tokens[depth + 2], tokens[depth + 3]);
                 logSkeletonDev("ART_SKELETON_DEV bone " + (bone != null));
+            } else if ("seek".equals(action) && tokens.length >= depth + 4) {
+                float seconds = Float.parseFloat(tokens[depth + 3]);
+                boolean ok = artframework.sts1.skeleton.Sts1SkeletonBridge.setTrackTime(
+                        tokens[depth + 2], seconds);
+                logSkeletonDev("ART_SKELETON_DEV seek " + ok);
+            } else if ("freeze".equals(action) && tokens.length >= depth + 3) {
+                boolean ok = artframework.sts1.skeleton.Sts1SkeletonBridge.setTimeScale(
+                        tokens[depth + 2], 0f);
+                logSkeletonDev("ART_SKELETON_DEV freeze " + ok);
             } else {
-                logSkeletonDev("Usage: art skeleton dev status|load <id> <atlasEntry> <skeletonEntry>|play <id> <animation>|bone <id> <bone>|stop <id>");
+                logSkeletonDev("Usage: art skeleton dev status|load <id> <atlasEntry> <skeletonEntry>|play <id> <animation>|bone <id> <bone>|seek <id> <seconds>|freeze <id>|stop <id>");
             }
         } catch (Throwable t) {
             logSkeletonDev("ART_SKELETON_DEV failed: " + t.getClass().getSimpleName() + ": " + t.getMessage());

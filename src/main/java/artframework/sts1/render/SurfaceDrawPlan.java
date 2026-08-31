@@ -389,8 +389,9 @@ public final class SurfaceDrawPlan {
             boolean mounted,
             boolean sceneOk,
             boolean overlayObserve) {
-        // Targeting is observe-first and needs no input executor; readiness is scene + mount only.
+        // Render-only surfaces need no input executor; readiness is scene + mount only.
         boolean executorReady = SurfaceIds.COMBAT_TARGETING.equals(surfaceId)
+                || SurfaceIds.SKELETON.equals(surfaceId)
                 || CombatInputRouter.isExecutorReady(surfaceId);
         FullPresentCapability capability = FullPresentCapability.resolve(
                 level,

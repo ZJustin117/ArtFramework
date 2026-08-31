@@ -1,8 +1,13 @@
 import unittest
+import json
+import os
+import subprocess
+import tempfile
 from unittest.mock import patch
 from pathlib import Path
 
-from runner import _run_step, run_scenario
+from runner import _harness_screenshot, _run_step, run_scenario
+from scenario_loader import load_scenario
 from command_parse import last_command_for_text, parse_command_line
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -19,6 +24,7 @@ PRESENT_PROFILE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f14_present_pr
 LIGHTWAVE_EFFECTS = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f15_lightwave_demo_effects.yaml"
 LIGHTWAVE_COVERAGE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f19_lightwave_component_coverage.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
+SPINE42_SCREENSHOT = ROOT / "tests" / "ui-scenarios" / "device" / "d1_spine42_screenshot.yaml"
 
 
 class RunnerOfflineTest(unittest.TestCase):
@@ -172,6 +178,25 @@ class RunnerOfflineTest(unittest.TestCase):
             if old is not None:
                 os.environ["ART_D1_SERIAL"] = old
 
+    def test_spine42_screenshot_scenario_enters_combat_before_screenshot(self):
+        sc = load_scenario(SPINE42_SCREENSHOT)
+        steps = sc["steps"]
+        self.assertEqual("art lab ensure-fresh-menu", steps[1]["console"])
+        self.assertEqual("art lab start-run IRONCLAD", steps[3]["console"])
+        self.assertEqual("lab.runReady", steps[5]["wait_probe"]["assert"]["path"])
+        self.assertEqual(True, steps[5]["wait_probe"]["assert"]["eq"])
+        self.assertEqual("fight Cultist", steps[6]["console"])
+        self.assertEqual("lab.inCombat", steps[7]["wait_probe"]["assert"]["path"])
+        self.assertEqual(True, steps[7]["wait_probe"]["assert"]["eq"])
+        self.assertEqual("lab.roomPhase", steps[8]["wait_probe"]["assert"]["path"])
+        self.assertEqual("COMBAT", steps[8]["wait_probe"]["assert"]["eq"])
+        self.assertEqual("art present skeleton on", steps[9]["console"])
+        self.assertEqual(
+            "render.targetsById.c2_surface_sts1_skeleton.enabled",
+            steps[23]["assert"]["path"],
+        )
+        self.assertEqual(True, steps[24]["screenshot"])
+
     def test_wait_probe_checks_fixture_without_sleep(self):
         probe = {"projection": {"scene": "combat"}}
         rec = _run_step(
@@ -184,6 +209,91 @@ class RunnerOfflineTest(unittest.TestCase):
         )
         self.assertEqual("pass", rec["status"])
         self.assertEqual(1, rec["attempts"])
+
+    def test_fixture_screenshot_is_skipped(self):
+        with patch("runner._harness_screenshot") as capture:
+            rec = _run_step(
+                {"screenshot": True}, 0, mode="fixture", last_probe=None, vars_map={}, client=None
+            )
+        self.assertEqual("skip", rec["status"])
+        self.assertIn("device-only", rec["error"])
+        capture.assert_not_called()
+
+    def test_device_screenshot_records_harness_artifacts(self):
+        capture = {"result_json": "/tmp/result.json", "png": "/tmp/capture.png", "harness": {}}
+        with patch("runner._harness_screenshot", return_value=capture) as mocked:
+            rec = _run_step(
+                {"screenshot": True}, 0, mode="device", last_probe=None, vars_map={}, client=None
+            )
+        self.assertEqual("pass", rec["status"])
+        self.assertEqual(
+            {"result_json": "/tmp/result.json", "png": "/tmp/capture.png"}, rec["screenshot"]
+        )
+        mocked.assert_called_once_with()
+
+    def test_harness_screenshot_builds_expected_command_and_reads_result(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "harness"
+            result_dir = out_dir / "screenshot-123"
+            result_dir.mkdir(parents=True)
+            png = result_dir / "capture.png"
+            png.write_bytes(b"PNG")
+            result = {
+                "success": True,
+                "status": "SCREENSHOT_CAPTURED",
+                "message": "Screenshot captured.",
+                "artifacts": {"screenshot": str(png)},
+            }
+            result_path = result_dir / "result.json"
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+
+            def run_process(command, **kwargs):
+                self.assertEqual(command[1:4], ["/tmp/amethyst/scripts/tools/main.py", "sts-harness", "-Command"])
+                self.assertIn("screenshot", command)
+                self.assertIn("-DeviceSerial", command)
+                self.assertIn("device-1", command)
+                self.assertIn("-ConnectorPort", command)
+                self.assertIn("39999", command)
+                self.assertIn("-AgentPort", command)
+                self.assertIn("9099", command)
+                self.assertIn("-OutDir", command)
+                self.assertIn(str(out_dir), command)
+                self.assertEqual("/tmp/amethyst", kwargs["env"]["SLAY_THE_AMETHYST_ROOT"])
+                return unittest.mock.Mock(returncode=0, stdout=f"Harness result: {result_path}\n", stderr="")
+
+            with patch.dict(
+                os.environ,
+                {
+                    "ART_D1_SERIAL": "device-1",
+                    "STS_CONNECTOR_PORT": "39999",
+                    "ART_GAME_PROBE_PORT": "9099",
+                    "ART_HARNESS_OUT_DIR": str(out_dir),
+                    "SLAY_THE_AMETHYST_ROOT": "/tmp/amethyst",
+                },
+                clear=False,
+            ), patch("runner.subprocess.run", side_effect=run_process):
+                capture = _harness_screenshot()
+            self.assertEqual(str(result_path), capture["result_json"])
+            self.assertEqual(str(png), capture["png"])
+
+    def test_harness_screenshot_timeout_is_bounded(self):
+        with patch.dict(
+            os.environ,
+            {
+                "ART_D1_SERIAL": "device-1",
+                "STS_CONNECTOR_PORT": "39999",
+                "ART_GAME_PROBE_PORT": "9099",
+                "ART_HARNESS_OUT_DIR": "/tmp/harness",
+                "SLAY_THE_AMETHYST_ROOT": "/tmp/amethyst",
+                "ART_SCREENSHOT_TIMEOUT_SECONDS": "0.1",
+            },
+            clear=False,
+        ), patch(
+            "runner.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["harness"], 0.1),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "timed out after 0.1s"):
+                _harness_screenshot()
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -57,6 +59,88 @@ def _check_require(require: Dict[str, Any], *, device: bool) -> Optional[str]:
     if missing:
         return "missing env: " + ", ".join(missing)
     return None
+
+
+def _harness_screenshot() -> Dict[str, Any]:
+    """Run the existing Harness screenshot command without owning its lifecycle."""
+    required = (
+        "ART_D1_SERIAL",
+        "STS_CONNECTOR_PORT",
+        "ART_GAME_PROBE_PORT",
+        "ART_HARNESS_OUT_DIR",
+    )
+    missing = [key for key in required if not os.environ.get(key, "").strip()]
+    if not (os.environ.get("ART_AMETHYST_TOOLS_DIR", "").strip()
+            or os.environ.get("SLAY_THE_AMETHYST_ROOT", "").strip()):
+        missing.append("ART_AMETHYST_TOOLS_DIR or SLAY_THE_AMETHYST_ROOT")
+    if missing:
+        raise RuntimeError("screenshot requires env: " + ", ".join(missing))
+
+    root = os.environ.get("SLAY_THE_AMETHYST_ROOT", "").strip()
+    if not root:
+        root = str(Path(os.environ["ART_AMETHYST_TOOLS_DIR"]).resolve().parents[1])
+    out_dir = os.environ["ART_HARNESS_OUT_DIR"].strip()
+    command = [
+        sys.executable,
+        str(Path(root) / "scripts" / "tools" / "main.py"),
+        "sts-harness",
+        "-Command", "screenshot",
+        "-DeviceSerial", os.environ["ART_D1_SERIAL"].strip(),
+        "-ConnectorPort", os.environ["STS_CONNECTOR_PORT"].strip(),
+        "-AgentPort", os.environ["ART_GAME_PROBE_PORT"].strip(),
+        "-OutDir", out_dir,
+    ]
+    env = os.environ.copy()
+    env["SLAY_THE_AMETHYST_ROOT"] = root
+    if env.get("ART_AMETHYST_TOOLS_DIR", "").strip():
+        env["ART_AMETHYST_TOOLS_DIR"] = env["ART_AMETHYST_TOOLS_DIR"].strip()
+    env["PYTHONPATH"] = root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    timeout_seconds = float(os.environ.get("ART_SCREENSHOT_TIMEOUT_SECONDS", "30"))
+    if timeout_seconds <= 0:
+        raise RuntimeError("ART_SCREENSHOT_TIMEOUT_SECONDS must be positive")
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Harness screenshot timed out after {timeout_seconds:g}s"
+        ) from exc
+    result_path: Optional[Path] = None
+    for line in (proc.stdout or "").splitlines():
+        marker = "Harness result:"
+        if marker in line:
+            candidate = Path(line.split(marker, 1)[1].strip())
+            if candidate.is_file():
+                result_path = candidate
+                break
+    if result_path is None:
+        candidates = sorted(Path(out_dir).glob("*/result.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if candidates:
+            result_path = candidates[0]
+    if result_path is None:
+        raise RuntimeError(
+            f"Harness screenshot produced no result.json (exit {proc.returncode}): "
+            f"{(proc.stderr or proc.stdout or '').strip()[-500:]}"
+        )
+    harness_result = json.loads(result_path.read_text(encoding="utf-8"))
+    success = harness_result.get("success") is True
+    status = str(harness_result.get("status", "")).upper()
+    if proc.returncode != 0 or not success or status not in {"OK", "SCREENSHOT_CAPTURED"}:
+        raise RuntimeError(
+            f"Harness screenshot failed: exit={proc.returncode}, success={harness_result.get('success')}, "
+            f"status={harness_result.get('status')}, message={harness_result.get('message') or harness_result.get('error')}"
+        )
+    artifacts = harness_result.get("artifacts") or {}
+    png_path = artifacts.get("screenshot")
+    if not png_path or not Path(str(png_path)).is_file():
+        raise RuntimeError(f"Harness screenshot result has no PNG: {png_path}")
+    return {"result_json": str(result_path), "png": str(png_path), "harness": harness_result}
 
 
 def run_scenario(
@@ -153,6 +237,18 @@ def _run_step(
     client: Any,
 ) -> Dict[str, Any]:
     rec: Dict[str, Any] = {"index": index, "status": "pass", "step": step}
+    if "screenshot" in step:
+        if mode != "device":
+            rec["status"] = "skip"
+            rec["error"] = "screenshot is device-only and was not executed in fixture mode"
+            return rec
+        capture = _harness_screenshot()
+        rec["screenshot"] = {
+            "result_json": capture["result_json"],
+            "png": capture["png"],
+        }
+        return rec
+
     if "wait_ms" in step:
         ms = int(step["wait_ms"])
         if mode == "device":

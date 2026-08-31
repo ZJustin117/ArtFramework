@@ -74,6 +74,22 @@ Env (device):
 
 Device probe: `art probe` console → scrape `ART_PROBE` from device `sts/latest.log` if console body is only `ok`.
 
+### Real screenshot pixel parity (D1 only)
+
+After a D1 Harness run has produced a real GL `screencap` PNG, compare it with the reference image using the dependency-free tool:
+
+```bash
+python3 tools/art-verify/compare_png.py \
+  tests/ui-scenarios/references/example.png \
+  debug-artifacts/harness/screencap.png \
+  --threshold 2 --max-diff-pixels 20 --max-diff-ratio 0.001 \
+  --diff debug-artifacts/harness/screencap.diff.png
+```
+
+The tool checks dimensions, reports the maximum channel error and the count/ratio of pixels over the per-pixel threshold, and optionally writes a diff PNG. It supports non-interlaced 8-bit RGB/RGBA PNGs without extra dependencies. This is only real GL evidence when the actual image came from D1 Harness `screencap`; offline YAML fixtures and offline tool tests cannot establish or claim pixel parity.
+
+Device `screenshot` steps use a bounded 30-second Harness subprocess timeout by default. Override it with the positive `ART_SCREENSHOT_TIMEOUT_SECONDS` environment key when necessary; a timeout fails the scenario instead of leaving it running indefinitely.
+
 Lab intercept (device): `art gate map block` then `art op map …` → ops return BLOCKED; clear with `art gate all clear`. See `d1_gate_block_ops.yaml`.
 
 Dev UI inspect (device): `art open demo` then `art ui list` / `art ui tree demo` / `art ui emit demo/… pressed`.
@@ -111,6 +127,14 @@ Device steps (when console exists):
 | `wait_ms` | Sleep |
 | `wait_probe` | Poll `art probe` until its nested `assert` succeeds; supports `timeout_ms` / `interval_ms` |
 | `assert` | Same path operators as fixture mode |
+| `screenshot` | Device-only: invokes the existing Amethyst Harness `screenshot` command and records its result JSON and PNG |
+
+`screenshot` is skipped in fixture mode because fixtures cannot produce a real GL image. In device mode it
+requires `ART_D1_SERIAL`, `STS_CONNECTOR_PORT`, `ART_GAME_PROBE_PORT`, `ART_HARNESS_OUT_DIR`, and either
+`ART_AMETHYST_TOOLS_DIR` or `SLAY_THE_AMETHYST_ROOT`; the runner does not manage Harness or connector lifecycle.
+Use `tests/ui-scenarios/device/d1_spine42_screenshot.yaml` for a Spine42 `idle_loop` capture. The resulting PNG
+is real D1 GL evidence only. A reference PNG must still be captured independently through the native capture
+workflow before using `compare_png.py`; this scenario does not establish or claim pixel parity.
 
 Combat-ready device validation may use BaseMod's `fight Cultist` after `art lab start-run` has
 initialized a run. It requires a current map node, so it cannot run from the title menu. See

@@ -87,6 +87,22 @@ public class Sts1PileSoulProjectionTest {
     }
 
     @Test
+    public void nativeContinuationObservationDoesNotBecomeArtDrawItems() throws Exception {
+        Sts1PileSoulProjection.publish(new PileSoulView(Arrays.asList(
+                new PileSoulView.Entry("pile:draw", "pile", "draw", 7,
+                        new Rect(10f, 20f, 30f, 40f), true,
+                        ResourceIds.UI_PILE_DRAW, "Draw"),
+                new PileSoulView.Entry("soul:0", "soul", "soul", 1,
+                        new Rect(50f, 60f, 30f, 40f), true,
+                        ResourceIds.UI_SOUL_UNKNOWN, "Soul")), true));
+
+        assertFalse(nativeContinuationOverlayEnabled());
+        assertEquals(2, Sts1PileSoulProjection.current().entryCount());
+        assertEquals(Integer.valueOf(2), Sts1PileSoulDrawPath.probeSlice().get("entryCount"));
+        assertTrue((Boolean) Sts1PileSoulDrawPath.probeSlice().get("nativeContinuation"));
+    }
+
+    @Test
     public void publishSoftFallsBackWhenReflectionPanicsOrPlayerMissing() throws Exception {
         Sts1PileSoulProjection.publish(new PileSoulView(Arrays.asList(
                 new PileSoulView.Entry("stale", "pile", "draw", 1,
@@ -107,5 +123,12 @@ public class Sts1PileSoulProjectionTest {
         Method m = Sts1PresentationBackend.class.getDeclaredMethod("publishPileSoulProjection");
         m.setAccessible(true);
         m.invoke(Sts1PresentationBackend.INSTANCE);
+    }
+
+    private static boolean nativeContinuationOverlayEnabled() throws Exception {
+        Method m = artframework.sts1.render.Sts1SurfaceRenderer.class
+                .getDeclaredMethod("shouldDrawNativeContinuationOverlay");
+        m.setAccessible(true);
+        return ((Boolean) m.invoke(null)).booleanValue();
     }
 }

@@ -88,6 +88,37 @@ public class Sts1SkeletonBridgeTest {
     }
 
     @Test
+    public void forwardsDevelopmentTrackControlsAndRecordsCommands() {
+        FakeSkeletonProvider fake = new FakeSkeletonProvider();
+        ArtFramework.skeletons().register(fake);
+        Sts1SkeletonBridge.setProviderId(FakeSkeletonProvider.ID);
+        Sts1SkeletonBridge.play("hero", "", "");
+
+        assertTrue(Sts1SkeletonBridge.setTrackTime("hero", 0f));
+        assertTrue(Sts1SkeletonBridge.setTimeScale("hero", 0f));
+        assertEquals(0f, fake.trackTime("hero"), 0.001f);
+        assertEquals(0f, fake.timeScale("hero"), 0.001f);
+        assertEquals("timeScale:hero:0.0", Sts1SkeletonBridge.probeSlice().get("lastDevCommand"));
+        assertTrue(((java.util.List<?>) Sts1SkeletonBridge.probeSlice().get("events"))
+                .contains("setTrackTime:hero:0.0"));
+        assertTrue(((java.util.List<?>) Sts1SkeletonBridge.probeSlice().get("events"))
+                .contains("setTimeScale:hero:0.0"));
+    }
+
+    @Test
+    public void rejectsNonFiniteDevelopmentTrackControls() {
+        FakeSkeletonProvider fake = new FakeSkeletonProvider();
+        ArtFramework.skeletons().register(fake);
+        Sts1SkeletonBridge.setProviderId(FakeSkeletonProvider.ID);
+        Sts1SkeletonBridge.play("hero", "", "");
+
+        assertFalse(Sts1SkeletonBridge.setTrackTime("hero", Float.NaN));
+        assertFalse(Sts1SkeletonBridge.setTimeScale("hero", Float.POSITIVE_INFINITY));
+        assertEquals("timeScale:hero:invalid", Sts1SkeletonBridge.probeSlice().get("lastDevCommand"));
+        assertEquals("timeScale must be finite", Sts1SkeletonBridge.probeSlice().get("lastError"));
+    }
+
+    @Test
     public void hostRecreationReleasesPresentationBindingsAndNativeClaims() {
         FakeSkeletonProvider fake = new FakeSkeletonProvider();
         ArtFramework.skeletons().register(fake);

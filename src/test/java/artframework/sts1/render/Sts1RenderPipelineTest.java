@@ -108,6 +108,18 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
+    public void fullMountedSkeletonDoesNotRequireInputExecutor() {
+        combatFrameMounted();
+        ArtFramework.component(SurfaceIds.SKELETON).mount();
+        FullPresentMode.setSkeletonLevel(PresentLevel.FULL);
+
+        SurfaceDrawPlan.Entry skeleton = Sts1RenderPipeline.plan().find(SurfaceIds.SKELETON);
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, skeleton.mode);
+        assertEquals("FULL_READY", skeleton.effectiveState.name());
+        assertEquals("ready", skeleton.reason);
+    }
+
+    @Test
     public void fullMountedIntentsDrawsAndSuppressesNative() {
         combatFrameMounted();
         ArtFramework.component(SurfaceIds.COMBAT_INTENTS).mount();

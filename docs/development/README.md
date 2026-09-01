@@ -27,7 +27,7 @@ OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local
 | `art-verify` | `@art-verify` | `tools/art-verify` fixture YAML + offline unittest; optional D1 later |
 | `android-arthas` | `@android-arthas` | Read-only Android JVM diagnostics; bounded `start -> query -> stop`; not a default gate |
 
-Recommended flow: parent scopes the task → `@developer` implements the bounded change → `@junit-test` verifies pure logic/API → `@art-verify` or device-specific agents run only when the touched area requires them → parent reviews the diff and owns final integration.
+Recommended flow: parent scopes the task → a fresh `@developer` session implements the bounded change → a separate fresh `@junit-test` session verifies pure logic/API → separate fresh `@art-verify` or device-specific sessions run only when the touched area requires them → parent reviews the diff and owns final integration. Use `task_id` only to continue the same bounded task or its directly related follow-up; do not reuse one subagent session for independent tasks or pipeline stages.
 
 ## Docs in this folder
 

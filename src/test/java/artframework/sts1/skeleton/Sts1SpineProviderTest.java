@@ -44,6 +44,19 @@ public class Sts1SpineProviderTest {
         assertEquals("missing.ShadedSkeleton", probe.get("spine42RuntimeClass"));
     }
 
+    @Test
+    public void bridgeProbeReportsZeroDrawEvidenceWhenDeveloperHandleIsAbsent() {
+        Sts1Spine42Provider provider = new Sts1Spine42Provider("missing.ShadedSkeleton");
+        artframework.api.ArtFramework.skeletons().register(provider);
+        artframework.sts1.skeleton.Sts1SkeletonBridge.setProviderId(Sts1Spine42Provider.ID);
+
+        Map<String, Object> evidence = (Map<String, Object>)
+                Sts1SkeletonBridge.probeSlice().get("drawEvidence");
+
+        assertEquals("d1_ironclad", evidence.get("handle"));
+        assertEquals(Integer.valueOf(0), evidence.get("count"));
+    }
+
     @Test(expected = IllegalStateException.class)
     public void spine42LoadFailsClearlyWhenRuntimeMissing() {
         new Sts1Spine42Provider("missing.ShadedSkeleton").load(null);
@@ -196,6 +209,27 @@ public class Sts1SpineProviderTest {
     public void malformedMeshIndexIsRejectedForFailOpenCaller() {
         Sts1Spine42Provider.meshTriangleVertices(new float[] {0f, 0f, 1f, 1f},
                 new float[] {0f, 0f, 1f, 1f}, new short[] {0, 1, 2}, 0, 1f);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void legacyBatchVerticesRejectNonFinitePreparedData() {
+        Sts1Spine42Provider.validateBatchVertices(new float[] {
+                0f, 0f, 1f, 0f, 0f, 0f, Float.NaN, 0f, 0f, 0f,
+                1f, 1f, 1f, 0f, 0f, 1f, 0f, 0f, 0f, 1f
+        });
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void meshPreflightRejectsLaterMalformedTriangleData() throws Exception {
+        java.lang.reflect.Method validate = Sts1Spine42Provider.class
+                .getDeclaredMethod("validateMeshData", int.class, float[].class, short[].class);
+        validate.setAccessible(true);
+        try {
+            validate.invoke(null, 6, new float[] {0f, 0f, 1f, 0f, 0f, 1f},
+                    new short[] {0, 1, 2, 0, 2, 3});
+        } catch (java.lang.reflect.InvocationTargetException error) {
+            throw (Exception) error.getCause();
+        }
     }
 
     @Test

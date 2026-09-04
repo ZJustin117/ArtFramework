@@ -71,6 +71,9 @@ Env (device):
 | `ART_AMETHYST_TOOLS_DIR` | Optional tools path |
 | `ART_GAME_PROBE_PORT` | Default 9099 |
 | `ART_UI_VERIFY_OUT_DIR` | Optional result JSON dir |
+| `ART_SPINE42_REFERENCE_PNG` | Required local reference PNG for `d1_spine42_screenshot` |
+| `ART_SPINE42_CROP` | Required `X,Y,W,H` crop for `d1_spine42_screenshot`; set for the device orientation/capture geometry |
+| `ART_SPINE42_DIFF_PNG` | Optional local diff PNG path when used by a screenshot scenario |
 
 Device probe: `art probe` console → scrape `ART_PROBE` from device `sts/latest.log` if console body is only `ok`.
 
@@ -128,13 +131,24 @@ Device steps (when console exists):
 | `wait_probe` | Poll `art probe` until its nested `assert` succeeds; supports `timeout_ms` / `interval_ms` |
 | `assert` | Same path operators as fixture mode |
 | `screenshot` | Device-only: invokes the existing Amethyst Harness `screenshot` command and records its result JSON and PNG |
+| `compare_screenshot` | Device-only: compares the most recent screenshot with a local reference; supports optional `reference_kind`, `crop`, `threshold`, `max_diff_pixels`, `max_diff_ratio`, and `diff` |
 
 `screenshot` is skipped in fixture mode because fixtures cannot produce a real GL image. In device mode it
 requires `ART_D1_SERIAL`, `STS_CONNECTOR_PORT`, `ART_GAME_PROBE_PORT`, `ART_HARNESS_OUT_DIR`, and either
 `ART_AMETHYST_TOOLS_DIR` or `SLAY_THE_AMETHYST_ROOT`; the runner does not manage Harness or connector lifecycle.
 Use `tests/ui-scenarios/device/d1_spine42_screenshot.yaml` for a Spine42 `idle_loop` capture. The resulting PNG
-is real D1 GL evidence only. A reference PNG must still be captured independently through the native capture
-workflow before using `compare_png.py`; this scenario does not establish or claim pixel parity.
+is real D1 GL evidence only. Its developer-local reference must still be captured independently through the
+native capture workflow; the scenario does not generate native pixels.
+`compare_screenshot` uses the same comparator inline. It requires a prior screenshot, resolves relative
+reference and diff paths from the scenario file, and also accepts a whole-path `${ENV_KEY}` reference.
+`crop` accepts either a four-integer list or a whole-value `${ENV_KEY}` with an `X,Y,W,H` value; an unset or
+invalid crop key reports that key and its configuration error. The Spine42 scenario requires
+`ART_SPINE42_REFERENCE_PNG` and orientation-specific `ART_SPINE42_CROP`; `ART_SPINE42_DIFF_PNG` is optional
+for scenarios that want to configure diff output. Its `reference_kind: native_capture` is recorded in the
+comparison result: the developer-local reference must be a paired native capture from the same fixed frozen
+state, while the scenario itself captures only ART output and does not generate native pixels. The step records
+metrics and artifacts in the result JSON and fails on missing/invalid inputs, size mismatch, or configured
+limits. Do not commit reference images.
 
 Combat-ready device validation may use BaseMod's `fight Cultist` after `art lab start-run` has
 initialized a run. It requires a current map node, so it cannot run from the title menu. See

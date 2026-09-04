@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+import re
 import subprocess
 import sys
 import time
+import zlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from assert_ops import AssertError, run_assert
+from png_compare import compare_pngs, write_diff_png
 from scenario_loader import expand_steps, load_scenario
 
 
@@ -23,6 +27,63 @@ def _default_out_dir() -> Path:
     if env:
         return Path(env)
     return _repo_root() / "debug-artifacts" / "art-verify"
+
+
+_ENV_PATH_REFERENCE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+
+
+def _resolve_compare_path(path_value: str, base: Path, field: str) -> Path:
+    """Resolve a literal or explicit ${ENV_KEY} screenshot path without exposing env values."""
+    value = path_value.strip()
+    env_reference = _ENV_PATH_REFERENCE.fullmatch(value)
+    if env_reference:
+        key = env_reference.group(1)
+        value = os.environ.get(key, "").strip()
+        if not value:
+            raise ValueError(f"compare_screenshot {field} environment variable is unset: {key}")
+    candidate = Path(value)
+    return candidate if candidate.is_absolute() else base / candidate
+
+
+def _resolve_compare_crop(crop_value: Any) -> tuple[Optional[tuple[int, int, int, int]], Optional[str]]:
+    """Resolve a literal four-int crop or an explicit ${ENV_KEY} X,Y,W,H crop."""
+    env_key = None
+    if isinstance(crop_value, str):
+        env_reference = _ENV_PATH_REFERENCE.fullmatch(crop_value.strip())
+        if not env_reference:
+            raise ValueError("crop must contain four integers or be ${ENV_KEY}")
+        env_key = env_reference.group(1)
+        crop_value = os.environ.get(env_key, "").strip()
+        if not crop_value:
+            raise ValueError(f"compare_screenshot crop environment variable is unset: {env_key}")
+        parts = [part.strip() for part in crop_value.split(",")]
+        if len(parts) != 4:
+            raise ValueError(
+                f"compare_screenshot crop environment variable {env_key} must be X,Y,W,H"
+            )
+        try:
+            crop_value = tuple(int(part) for part in parts)
+        except ValueError as exc:
+            raise ValueError(
+                f"compare_screenshot crop environment variable {env_key} must be X,Y,W,H"
+            ) from exc
+    if crop_value is None:
+        return None, env_key
+    if not isinstance(crop_value, (list, tuple)) or len(crop_value) != 4 or any(
+        isinstance(value, bool) or not isinstance(value, int) for value in crop_value
+    ):
+        raise ValueError("crop must contain four integers")
+    crop = tuple(crop_value)
+    if env_key:
+        x, y, width, height = crop
+        if x < 0 or y < 0 or width <= 0 or height <= 0:
+            raise ValueError(
+                f"compare_screenshot crop environment variable {env_key} must use non-negative X,Y and positive W,H"
+            )
+    elif any(value < 0 for value in crop):
+        # Preserve literal crop validation by deferring its bounds/configuration error to the comparator.
+        pass
+    return crop, env_key
 
 
 def _load_fixture(scenario_path: Path, fixture_rel: Optional[str]) -> Any:
@@ -199,6 +260,7 @@ def run_scenario(
                 last_probe=last_probe,
                 vars_map=vars_map,
                 client=client,
+                scenario_path=path,
             )
             result["steps"].append(rec)
             if rec.get("probe") is not None:
@@ -235,6 +297,7 @@ def _run_step(
     last_probe: Any,
     vars_map: Dict[str, Any],
     client: Any,
+    scenario_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     rec: Dict[str, Any] = {"index": index, "status": "pass", "step": step}
     if "screenshot" in step:
@@ -247,6 +310,91 @@ def _run_step(
             "result_json": capture["result_json"],
             "png": capture["png"],
         }
+        vars_map["_last_screenshot"] = rec["screenshot"]
+        return rec
+
+    if "compare_screenshot" in step:
+        if mode != "device":
+            rec["status"] = "skip"
+            rec["error"] = "compare_screenshot is device-only and was not executed in fixture mode"
+            return rec
+        spec = step["compare_screenshot"]
+        if not isinstance(spec, dict):
+            raise ValueError("compare_screenshot requires a mapping")
+        allowed = {
+            "reference", "reference_kind", "crop", "threshold", "max_diff_pixels",
+            "max_diff_ratio", "diff",
+        }
+        unknown = set(spec) - allowed
+        if unknown:
+            raise ValueError("compare_screenshot has unknown keys: " + ", ".join(sorted(unknown)))
+        reference = spec.get("reference")
+        if not isinstance(reference, str) or not reference.strip():
+            raise ValueError("compare_screenshot requires reference: path")
+        previous = vars_map.get("_last_screenshot")
+        actual = previous.get("png") if isinstance(previous, dict) else None
+        if not actual:
+            raise ValueError("compare_screenshot requires a prior screenshot step")
+        actual_path = Path(str(actual))
+        if not actual_path.is_file():
+            raise ValueError(f"prior screenshot PNG not found: {actual_path}")
+        base = scenario_path.parent if scenario_path is not None else _repo_root()
+
+        reference_path = _resolve_compare_path(reference, base, "reference")
+        if not reference_path.is_file():
+            raise ValueError(f"reference PNG not found: {reference_path}")
+
+        reference_kind = spec.get("reference_kind")
+        if reference_kind is not None and (
+            not isinstance(reference_kind, str) or not reference_kind.strip()
+        ):
+            raise ValueError("reference_kind must be a non-empty string")
+        crop, crop_env_key = _resolve_compare_crop(spec.get("crop"))
+        threshold = spec.get("threshold", 0)
+        if isinstance(threshold, bool) or not isinstance(threshold, int) or not 0 <= threshold <= 255:
+            raise ValueError("threshold must be an integer between 0 and 255")
+        max_pixels = spec.get("max_diff_pixels", 0)
+        if isinstance(max_pixels, bool) or not isinstance(max_pixels, int) or max_pixels < 0:
+            raise ValueError("max_diff_pixels must be a non-negative integer")
+        max_ratio = spec.get("max_diff_ratio", 0.0)
+        if (isinstance(max_ratio, bool) or not isinstance(max_ratio, (int, float))
+                or not math.isfinite(max_ratio) or not 0 <= max_ratio <= 1):
+            raise ValueError("max_diff_ratio must be between 0 and 1")
+        diff_value = spec.get("diff")
+        if diff_value is not None and (not isinstance(diff_value, str) or not diff_value.strip()):
+            raise ValueError("diff must be a path")
+        try:
+            comparison = compare_pngs(reference_path, actual_path, threshold=threshold, crop=crop)
+        except (OSError, ValueError, zlib.error) as exc:
+            rec["status"] = "fail"
+            crop_context = f" for crop environment variable {crop_env_key}" if crop_env_key else ""
+            rec["error"] = f"screenshot comparison invalid{crop_context}: {exc}"
+            return rec
+        rec["comparison"] = {
+            "reference": str(reference_path), "actual": str(actual_path), "diff": None,
+            "reference_kind": reference_kind,
+            "crop": list(crop) if crop is not None else None,
+            "width": comparison.width, "height": comparison.height,
+            "differing_pixels": comparison.differing_pixels,
+            "differing_ratio": comparison.differing_ratio, "max_error": comparison.max_error,
+            "threshold": threshold, "max_diff_pixels": max_pixels, "max_diff_ratio": max_ratio,
+        }
+        if diff_value is not None and comparison.same_size:
+            diff_path = _resolve_compare_path(diff_value, base, "diff")
+            diff_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                write_diff_png(reference_path, actual_path, diff_path, crop=crop)
+            except (OSError, ValueError, zlib.error) as exc:
+                rec["status"] = "fail"
+                rec["error"] = f"could not write comparison diff: {exc}"
+                return rec
+            rec["comparison"]["diff"] = str(diff_path)
+        if not comparison.same_size:
+            rec["status"] = "fail"
+            rec["error"] = "screenshot dimensions do not match reference"
+        elif comparison.differing_pixels > max_pixels or comparison.differing_ratio > float(max_ratio):
+            rec["status"] = "fail"
+            rec["error"] = "screenshot comparison exceeded configured limits"
         return rec
 
     if "wait_ms" in step:

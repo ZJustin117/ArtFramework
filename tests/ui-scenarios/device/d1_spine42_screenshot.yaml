@@ -1,4 +1,5 @@
-# D1: real GL capture of the Spine42 developer skeleton. This is not pixel parity evidence.
+# D1 acceptance: frozen Spine42 draw evidence is present and the second GL capture stays within
+# the configured pixel-difference limits against ${ART_SPINE42_REFERENCE_PNG}.
 name: d1_spine42_screenshot
 schemaVersion: 1
 mode: device
@@ -10,6 +11,8 @@ require:
     - ART_GAME_PROBE_PORT
     - ART_HARNESS_OUT_DIR
     - SLAY_THE_AMETHYST_ROOT
+    - ART_SPINE42_REFERENCE_PNG
+    - ART_SPINE42_CROP
 steps:
   - wait_ms: 15000
   - console: "art lab ensure-fresh-menu"
@@ -72,6 +75,19 @@ steps:
   - assert:
       path: render.targetsById.c2_surface_sts1_skeleton.enabled
       eq: true
+  - assert:
+      path: backend.skeleton.drawEvidence.count
+      gte: 1
   - screenshot: true
   - wait_ms: 250
   - screenshot: true
+  - compare_screenshot:
+      reference: ${ART_SPINE42_REFERENCE_PNG}
+      # Local reference must be a paired native capture of this exact frozen idle_loop state.
+      # This scenario captures ART output only; it does not generate native reference pixels.
+      reference_kind: native_capture
+      crop: ${ART_SPINE42_CROP}
+      threshold: 16
+      max_diff_ratio: 0.01
+      max_diff_pixels: 20000
+      diff: ../../../debug-artifacts/d1_spine42_screenshot_diff.png

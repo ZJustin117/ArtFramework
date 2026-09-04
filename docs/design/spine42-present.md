@@ -81,13 +81,51 @@ an explicit tolerance. This is CPU vertex/coverage parity only. It does not exec
 GL, rasterization, blending, clipping, texture sampling, or image comparison. Real screenshot
 pixel parity therefore remains an explicit open gap.
 
+## 47.35 Real GL/screenshot parity acceptance contract
+
+47.35 is not complete until a controlled D1 capture compares the ART path with a native reference
+for one canonical fixture. The fixture record must name the approved developer-local skeleton,
+atlas, and texture identities, one named animation state, and one fixed primary-track time (or
+an explicitly documented setup pose). Both paths must use that same record. The reference is
+approved by the developer running the check and remains outside the repository; assets are not committed,
+copied into tests, or included in a release artifact. Both paths must use the same viewport,
+camera/scale, origin, clear color, texture filtering, blend mode, and device orientation.
+
+The comparison input is a screenshot of the rendered fixture, not a probe claim or a CPU vertex
+report. Before comparison, crop both images to the same documented rectangle in pixel coordinates;
+the crops must have identical dimensions. Record the crop rectangle, full image dimensions, color
+format, alpha policy, and color-space/format conversion. Choose and record thresholds before the
+comparison: a per-channel absolute-difference threshold T and a maximum differing-pixel ratio R.
+After conversion, a pixel is differing when any compared channel has absolute difference greater
+than T; acceptance requires the maximum compared-channel difference to be at most T and the
+differing-pixel ratio to be at most R. If alpha is ignored, it is excluded from both calculations.
+Exact equality is not required unless the capture metadata says the pipeline is byte-stable.
+Pass/fail must report T, R, the measured maximum difference, and differing-pixel count/ratio.
+
+Required evidence is: native and ART screenshots, the comparison result, the canonical fixture
+identity and state/pose, asset provenance recorded as developer-local reference paths or stable
+identifiers (not asset contents), device/build/runtime identifiers, viewport and crop metadata,
+threshold values, measured comparison metrics, and the ART/native draw and fail-open evidence.
+Evidence must be retained in the developer-only debug-artifacts area or equivalent local output;
+it is not a new committed asset fixture. A successful load, lifecycle run, CPU parity result, or
+single screenshot without the paired native capture and metadata is not acceptance evidence.
+
+This contract is fail-open. A fixture containing `ClippingAttachment`, two-color data, an
+unsupported attachment type, malformed attachment data, or any other capability outside the
+legacy batch contract is excluded from the pixel-parity claim. ART must contribute zero and leave
+native rendering responsible for that fixture; the result must identify the exclusion rather than
+counting a partial image as a pass. No parity claim may suppress native output when the ART path
+cannot render the complete fixture.
+
 ## Testing
 
 Pure JUnit covers atlas parsing, animation graphs, mix tables, fake-provider commands, provider
 availability probes, the RegionAttachment/MeshAttachment vertex contracts, the reusable CPU
 parity report (including UV/coverage, winding, degenerate, and malformed-data cases), and the
 explicit clipping capability/fail-open contract. Device verification is optional and
-must use user-owned local assets.
+must use user-owned local assets. The 47.35 real GL/screenshot contract additionally requires the
+paired native/ART capture, fixed fixture metadata, crop and threshold record, comparison metrics,
+and fail-open evidence described above; it is not satisfied by these pure tests.
 
 `tests/spine42-assets` is a separate developer-only layer. It accepts `ART_STS2_ASSET_JAR`, or
 uses `ART_STS2_ROOT` to invoke the local bundle script. It is not a Gradle source set, is not

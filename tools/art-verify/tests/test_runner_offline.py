@@ -7,6 +7,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 from runner import _harness_screenshot, _run_step, run_scenario
+from test_png_compare import write_test_png
 from scenario_loader import load_scenario
 from command_parse import last_command_for_text, parse_command_line
 
@@ -178,9 +179,10 @@ class RunnerOfflineTest(unittest.TestCase):
             if old is not None:
                 os.environ["ART_D1_SERIAL"] = old
 
-    def test_spine42_screenshot_scenario_enters_combat_before_screenshot(self):
+    def test_spine42_screenshot_scenario_enters_combat_and_compares_capture(self):
         sc = load_scenario(SPINE42_SCREENSHOT)
         steps = sc["steps"]
+        self.assertIn("ART_SPINE42_CROP", sc["require"]["env"])
         self.assertEqual("art lab ensure-fresh-menu", steps[1]["console"])
         self.assertEqual("art lab start-run IRONCLAD", steps[3]["console"])
         self.assertEqual("lab.runReady", steps[5]["wait_probe"]["assert"]["path"])
@@ -195,7 +197,22 @@ class RunnerOfflineTest(unittest.TestCase):
             "render.targetsById.c2_surface_sts1_skeleton.enabled",
             steps[23]["assert"]["path"],
         )
-        self.assertEqual(True, steps[24]["screenshot"])
+        self.assertEqual("backend.skeleton.drawEvidence.count", steps[24]["assert"]["path"])
+        self.assertEqual(1, steps[24]["assert"]["gte"])
+        self.assertEqual(True, steps[25]["screenshot"])
+        self.assertEqual(True, steps[27]["screenshot"])
+        self.assertEqual(
+            {
+                "reference": "${ART_SPINE42_REFERENCE_PNG}",
+                "reference_kind": "native_capture",
+                "crop": "${ART_SPINE42_CROP}",
+                "threshold": 16,
+                "max_diff_ratio": 0.01,
+                "max_diff_pixels": 20000,
+                "diff": "../../../debug-artifacts/d1_spine42_screenshot_diff.png",
+            },
+            steps[28]["compare_screenshot"],
+        )
 
     def test_wait_probe_checks_fixture_without_sleep(self):
         probe = {"projection": {"scene": "combat"}}
@@ -230,6 +247,150 @@ class RunnerOfflineTest(unittest.TestCase):
             {"result_json": "/tmp/result.json", "png": "/tmp/capture.png"}, rec["screenshot"]
         )
         mocked.assert_called_once_with()
+
+    def test_compare_screenshot_passes_and_records_metrics_and_diff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference = root / "reference.png"
+            actual = root / "actual.png"
+            diff = root / "artifacts" / "diff.png"
+            write_test_png(reference, 1, 1, bytes((0, 0, 0, 255)))
+            write_test_png(actual, 1, 1, bytes((1, 0, 0, 255)))
+            with patch("runner._harness_screenshot", return_value={"result_json": "r", "png": str(actual)}):
+                vars_map = {}
+                _run_step({"screenshot": True}, 0, mode="device", last_probe=None, vars_map=vars_map, client=None, scenario_path=root / "s.yaml")
+            rec = _run_step(
+                {"compare_screenshot": {"reference": "reference.png", "threshold": 1, "max_diff_pixels": 0, "diff": "artifacts/diff.png"}},
+                1, mode="device", last_probe=None, vars_map=vars_map, client=None, scenario_path=root / "s.yaml",
+            )
+            self.assertEqual("pass", rec["status"])
+            self.assertEqual(0, rec["comparison"]["differing_pixels"])
+            self.assertEqual(str(diff), rec["comparison"]["diff"])
+            self.assertTrue(diff.is_file())
+
+    def test_compare_screenshot_expands_explicit_environment_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference, actual = root / "reference.png", root / "actual.png"
+            diff = root / "artifacts" / "diff.png"
+            write_test_png(reference, 1, 1, bytes((0, 0, 0, 255)))
+            write_test_png(actual, 1, 1, bytes((0, 0, 0, 255)))
+            with patch.dict(
+                os.environ,
+                {"ART_SPINE42_REFERENCE_PNG": str(reference), "ART_SPINE42_DIFF_PNG": str(diff)},
+                clear=False,
+            ):
+                rec = _run_step(
+                    {"compare_screenshot": {"reference": "${ART_SPINE42_REFERENCE_PNG}", "diff": "${ART_SPINE42_DIFF_PNG}"}},
+                    0, mode="device", last_probe=None,
+                    vars_map={"_last_screenshot": {"png": str(actual)}}, client=None,
+                    scenario_path=root / "s.yaml",
+                )
+            self.assertEqual("pass", rec["status"])
+            self.assertEqual(str(reference), rec["comparison"]["reference"])
+            self.assertEqual(str(diff), rec["comparison"]["diff"])
+
+    def test_compare_screenshot_expands_environment_crop_and_records_reference_kind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference, actual = root / "reference.png", root / "actual.png"
+            write_test_png(reference, 2, 1, bytes((0, 0, 0, 255) * 2))
+            write_test_png(actual, 2, 1, bytes((100, 0, 0, 255, 0, 0, 0, 255)))
+            with patch.dict(os.environ, {"ART_SPINE42_CROP": "1, 0, 1, 1"}, clear=False):
+                rec = _run_step(
+                    {"compare_screenshot": {"reference": "reference.png", "reference_kind": "native_capture", "crop": "${ART_SPINE42_CROP}"}},
+                    0, mode="device", last_probe=None,
+                    vars_map={"_last_screenshot": {"png": str(actual)}}, client=None,
+                    scenario_path=root / "s.yaml",
+                )
+            self.assertEqual("pass", rec["status"])
+            self.assertEqual([1, 0, 1, 1], rec["comparison"]["crop"])
+            self.assertEqual("native_capture", rec["comparison"]["reference_kind"])
+
+    def test_compare_screenshot_rejects_unset_or_invalid_environment_crop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference, actual = root / "reference.png", root / "actual.png"
+            write_test_png(reference, 1, 1, bytes((0, 0, 0, 255)))
+            write_test_png(actual, 1, 1, bytes((0, 0, 0, 255)))
+            step = {"compare_screenshot": {"reference": "reference.png", "crop": "${ART_SPINE42_CROP}"}}
+            kwargs = {"mode": "device", "last_probe": None, "vars_map": {"_last_screenshot": {"png": str(actual)}}, "client": None, "scenario_path": root / "s.yaml"}
+            with patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(
+                ValueError, "environment variable is unset: ART_SPINE42_CROP"
+            ):
+                _run_step(step, 0, **kwargs)
+            with patch.dict(os.environ, {"ART_SPINE42_CROP": "bad-crop"}, clear=False), self.assertRaisesRegex(
+                ValueError, "ART_SPINE42_CROP.*X,Y,W,H"
+            ):
+                _run_step(step, 0, **kwargs)
+            with patch.dict(os.environ, {"ART_SPINE42_CROP": "0,0,0,1"}, clear=False), self.assertRaisesRegex(
+                ValueError, "ART_SPINE42_CROP.*positive W,H"
+            ):
+                _run_step(step, 0, **kwargs)
+
+    def test_compare_screenshot_rejects_unset_environment_path_without_value(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            actual = root / "actual.png"
+            write_test_png(actual, 1, 1, bytes((0, 0, 0, 255)))
+            with patch.dict(os.environ, {}, clear=True), self.assertRaisesRegex(
+                ValueError, "environment variable is unset: ART_SPINE42_REFERENCE_PNG"
+            ):
+                _run_step(
+                    {"compare_screenshot": {"reference": "${ART_SPINE42_REFERENCE_PNG}"}},
+                    0, mode="device", last_probe=None,
+                    vars_map={"_last_screenshot": {"png": str(actual)}}, client=None,
+                    scenario_path=root / "s.yaml",
+                )
+
+    def test_compare_screenshot_fails_for_difference_crop_and_bad_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference, actual = root / "reference.png", root / "actual.png"
+            write_test_png(reference, 2, 1, bytes((0, 0, 0, 255) * 2))
+            write_test_png(actual, 2, 1, bytes((100, 0, 0, 255, 0, 0, 0, 255)))
+            vars_map = {"_last_screenshot": {"png": str(actual)}}
+            rec = _run_step({"compare_screenshot": {"reference": "reference.png"}}, 0, mode="device", last_probe=None, vars_map=vars_map, client=None, scenario_path=root / "s.yaml")
+            self.assertEqual("fail", rec["status"])
+            rec = _run_step({"compare_screenshot": {"reference": "reference.png", "crop": [1, 0, 1, 1]}}, 0, mode="device", last_probe=None, vars_map=vars_map, client=None, scenario_path=root / "s.yaml")
+            self.assertEqual("pass", rec["status"])
+            with self.assertRaisesRegex(ValueError, "threshold"):
+                _run_step({"compare_screenshot": {"reference": "reference.png", "threshold": 256}}, 0, mode="device", last_probe=None, vars_map=vars_map, client=None, scenario_path=root / "s.yaml")
+
+    def test_compare_screenshot_missing_reference_and_prior_capture_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            actual = root / "actual.png"
+            write_test_png(actual, 1, 1, bytes((0, 0, 0, 255)))
+            with self.assertRaisesRegex(ValueError, "prior screenshot"):
+                _run_step({"compare_screenshot": {"reference": "missing.png"}}, 0, mode="device", last_probe=None, vars_map={}, client=None, scenario_path=root / "s.yaml")
+            with self.assertRaisesRegex(ValueError, "reference PNG"):
+                _run_step({"compare_screenshot": {"reference": "missing.png"}}, 0, mode="device", last_probe=None, vars_map={"_last_screenshot": {"png": str(actual)}}, client=None, scenario_path=root / "s.yaml")
+
+    def test_compare_screenshot_is_skipped_in_fixture_mode(self):
+        rec = _run_step({"compare_screenshot": {"reference": "reference.png"}}, 0, mode="fixture", last_probe=None, vars_map={}, client=None)
+        self.assertEqual("skip", rec["status"])
+
+    def test_compare_screenshot_metrics_are_written_to_result_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            actual = root / "actual.png"
+            reference = root / "reference.png"
+            scenario = root / "compare.yaml"
+            out_dir = root / "out"
+            write_test_png(reference, 1, 1, bytes((0, 0, 0, 255)))
+            write_test_png(actual, 1, 1, bytes((0, 0, 0, 255)))
+            scenario.write_text(
+                "name: compare\nmode: device\nsteps:\n  - screenshot: true\n  - compare_screenshot:\n      reference: reference.png\n",
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {"ART_D1_SERIAL": "d", "STS_CONNECTOR_PORT": "p", "SLAY_THE_AMETHYST_ROOT": "r"}, clear=False), patch(
+                "device_console.connect_console", return_value=(object(), lambda: None)
+            ), patch("runner._harness_screenshot", return_value={"result_json": "result.json", "png": str(actual)}):
+                result = run_scenario(scenario, out_dir=out_dir)
+            self.assertEqual("pass", result["status"])
+            payload = json.loads(Path(result["out_file"]).read_text(encoding="utf-8"))
+            self.assertEqual(0, payload["steps"][1]["comparison"]["differing_pixels"])
 
     def test_harness_screenshot_builds_expected_command_and_reads_result(self):
         with tempfile.TemporaryDirectory() as tmp:

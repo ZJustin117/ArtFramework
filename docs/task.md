@@ -804,5 +804,14 @@ parity gaps remain documented in
        winding, degenerate geometry, malformed data, and expected-vector mismatches with a
        diagnostic `ParityResult`. This is
        a pure Java contract and does not claim GL or screenshot pixel equivalence.
-- [ ] 47.35 Spine 4.2 real GL/screenshot pixel parity: remains open pending a device/runtime fixture,
-       controlled rendering capture, and image comparison evidence.
+- [ ] 47.35 Spine 4.2 real GL/screenshot pixel parity: remains open pending a controlled D1 capture
+        of one canonical, approved developer-local reference skeleton/atlas/texture, named state,
+        and fixed pose/time rendered by both native and ART with identical viewport, camera, clear,
+        filtering, blend, and orientation settings. Crop both screenshots to the same documented
+        pixel rectangle and record dimensions, format, color conversion, alpha policy, and thresholds
+        T/R chosen before comparison. A pixel differs when any compared channel is > T; acceptance
+        requires maximum channel difference <= T and differing-pixel ratio <= R. Evidence requires
+        paired screenshots, comparison metrics, fixture/provenance, device/build/runtime metadata,
+        crop/conversion metadata, and ART/native draw plus fail-open evidence. Clipping, two-color,
+        unsupported attachments, and malformed data are explicit fail-open exclusions and cannot be
+        counted as parity passes; no assets may be committed.

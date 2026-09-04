@@ -655,6 +655,20 @@ public final class Sts1SkeletonBridge {
         m.put("nativeClaimAttempts", Integer.valueOf(nativeClaimAttempts));
         m.put("nativeClaimReleases", Integer.valueOf(nativeClaimReleases));
         m.put("duplicateNativeClaims", Integer.valueOf(duplicateNativeClaims));
+        Map<String, Object> drawEvidence = new LinkedHashMap<String, Object>();
+        SkeletonHandle selectedDeveloperHandle = LIVE.get("d1_ironclad");
+        drawEvidence.put("handle", "d1_ironclad");
+        drawEvidence.put("count", Integer.valueOf(0));
+        if (selectedDeveloperHandle != null
+                && Sts1Spine42Provider.ID.equals(selectedDeveloperHandle.providerId)) {
+            SkeletonProvider selectedProvider = ArtFramework.skeletons().get(selectedDeveloperHandle.providerId);
+            if (selectedProvider instanceof Sts1Spine42Provider) {
+                drawEvidence.put("count", Integer.valueOf(
+                        ((Sts1Spine42Provider) selectedProvider)
+                                .lastNativeSlotDrawCount(selectedDeveloperHandle)));
+            }
+        }
+        m.put("drawEvidence", drawEvidence);
         List<Map<String, Object>> anchors = new ArrayList<Map<String, Object>>();
         for (EntityAnchorView anchor : nativeAnchorViews()) anchors.add(anchor.toMap());
         m.put("nativeAnchors", anchors);

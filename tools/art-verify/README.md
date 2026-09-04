@@ -33,5 +33,31 @@ Device mode (`--device`): see `docs/development/android-device-lab.md`
 
 The device-only `screenshot` step invokes the existing Amethyst Harness screenshot command and records both
 the Harness `result.json` and captured PNG. Fixture mode skips this step because it cannot produce real GL.
+Immediately after (or later than) a device `screenshot`, `compare_screenshot` compares the most recent
+capture with a developer-local PNG using the existing dependency-free comparator:
+
+```yaml
+- screenshot: true
+- compare_screenshot:
+    reference: ${ART_SPINE42_REFERENCE_PNG}
+    reference_kind: native_capture
+    crop: ${ART_SPINE42_CROP}
+    threshold: 2
+    max_diff_pixels: 20
+    max_diff_ratio: 0.001
+    diff: debug-artifacts/my-screen-diff.png
+```
+
+The step is device-only and requires a prior screenshot; fixture runs skip it. It records image paths,
+reference provenance (`reference_kind`, when supplied), crop, dimensions, difference metrics, and limits in
+the scenario result. Relative `reference` and `diff` paths
+are resolved relative to the scenario file; absolute paths are used as-is. A whole-path `${ENV_KEY}` value
+is also supported and resolves only that environment variable; an unset key fails while reporting its key
+name, never its value. `crop` also accepts a whole-value `${ENV_KEY}` whose value must be `X,Y,W,H`; an unset
+or malformed key fails with its key name and crop configuration. Literal four-integer list crops remain supported.
+Spine42 uses `ART_SPINE42_REFERENCE_PNG` and requires `ART_SPINE42_CROP`; `ART_SPINE42_DIFF_PNG` is optional when a
+developer wants to override the diff output path. Missing files, invalid config, size mismatches, and limit
+violations fail the step. Reference images are developer-local and must not be committed.
 Use `tests/ui-scenarios/device/d1_spine42_screenshot.yaml` for a Spine42 `idle_loop` capture. Reference PNGs
-for comparison must still come from an independent native capture; the scenario does not claim pixel parity.
+for comparison must be paired native captures from the same fixed frozen state (`reference_kind: native_capture`);
+the scenario captures ART output and does not generate or claim native pixels.

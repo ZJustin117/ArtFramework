@@ -56,6 +56,38 @@ GL/rasterization or screenshot pixel-parity test. Human testing must inspect
 first load, idle, one-shot animation, atlas rotation, PMA edges, bone anchors, surface teardown,
 and repeated load/unload behavior.
 
+## 47.35 GL/screenshot acceptance
+
+The real parity check uses one canonical, approved developer-local reference fixture only. Record
+the exact skeleton plus atlas/texture identity, the named animation state, and a fixed primary-track
+time (or a documented setup pose); both native and ART must use that same record. The reference
+files are not committed assets and must not be copied into repository tests or release artifacts.
+Render the native and ART paths on the same D1 device
+with the same viewport, camera/scale, origin, clear color, filtering, blend mode, and orientation.
+
+Capture one native screenshot and one ART screenshot for that fixed state. Crop both to the same
+documented pixel rectangle, with identical crop dimensions, before comparison. Record full image
+dimensions, crop coordinates, image format, alpha handling, and color-space/format conversion.
+Choose and record the per-channel absolute-difference threshold T and maximum differing-pixel
+ratio R before comparison. After conversion, a pixel differs when any compared channel is greater
+than T; pass requires maximum channel difference <= T and differing-pixel ratio <= R. If alpha is
+ignored, exclude it from both calculations. The comparison output must include T, R, measured maximum
+difference, differing-pixel count/ratio, and pass/fail. Do not use an undocumented visual
+inspection threshold or infer parity from draw counts, probe state, lifecycle success, or the
+CPU `Spine42Parity` result.
+
+The acceptance bundle must contain the paired native/ART screenshots, comparison output, fixture
+state/pose and asset provenance identifiers, device/build/runtime identifiers, viewport and crop
+metadata, threshold values, measured metrics, and ART/native draw plus fail-open evidence. Keep
+these outputs under the developer-only debug-artifacts area or equivalent local output; no asset
+image becomes a committed fixture. 47.35 remains open until this complete bundle passes.
+
+The check is fail-open and excludes any fixture with `ClippingAttachment`, two-color data,
+unsupported attachment types, malformed attachment data, or another capability not supported by
+the legacy batch contract. For an excluded fixture, ART must draw zero without claiming native
+suppression, native rendering must recover, and the result must be marked excluded rather than
+passed as pixel parity. Partial rendering is never acceptance evidence.
+
 ## Current Capability
 
 The current optional runtime is source-patched for the STS1 libGDX 1.9.5 data/animation path.

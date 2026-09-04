@@ -13,6 +13,8 @@ import com.badlogic.gdx.graphics.Texture;
 
 import java.io.File;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 /**
  * Safe shell for a user-provided shaded Spine 4.2 runtime.
@@ -291,74 +293,189 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
     /** Draws the supported subset without changing the host batch lifecycle. */
     @Override
     public boolean renderAtNativeSlot(SkeletonHandle handle, Object batch) {
-        return renderInternal(handle, batch, true) > 0;
+        RuntimeInstance instance = instance(handle);
+        if (instance != null) {
+            // Evidence is a per-render observation. Reset before entering the renderer so every
+            // zero/error path is observable as zero rather than inheriting an earlier success.
+            instance.lastNativeSlotDrawCount = 0;
+        }
+        int rendered = 0;
+        try {
+            rendered = renderInternal(handle, batch, true);
+            return rendered > 0;
+        } finally {
+            if (instance != null) {
+                instance.lastNativeSlotDrawCount = rendered;
+            }
+        }
+    }
+
+    /** Host-only diagnostic count from the most recent native-slot render for this handle. */
+    public int lastNativeSlotDrawCount(SkeletonHandle handle) {
+        RuntimeInstance instance = instance(handle);
+        return instance != null ? instance.lastNativeSlotDrawCount : 0;
     }
 
     /** Number of quads submitted; indexed meshes are expanded into degenerate quads. */
     private int renderInternal(SkeletonHandle handle, Object batch, boolean nativeSlot) {
         RuntimeInstance i = instance(handle);
         if (i == null || batch == null || !isVisible(i.skeleton)) return 0;
-        int rendered = 0;
         lastRenderError = "";
         try {
             Object drawOrder = i.skeleton.getClass().getMethod("getDrawOrder").invoke(i.skeleton);
+            if (drawOrder == null) throw new IllegalArgumentException("missing skeleton draw order");
             int size = ((Number) drawOrder.getClass().getField("size").get(drawOrder)).intValue();
             Object items = drawOrder.getClass().getField("items").get(drawOrder);
             Class<?> regionType = type("attachments.RegionAttachment");
             Class<?> meshType = type("attachments.MeshAttachment");
             Class<?> clippingType = optionalType("attachments.ClippingAttachment");
             Method draw = batch.getClass().getMethod("draw", Texture.class, float[].class, int.class, int.class);
+            if (!(items instanceof Object[]) || size < 0 || size > ((Object[]) items).length) {
+                throw new IllegalArgumentException("malformed skeleton draw order");
+            }
             Object[] slots = (Object[]) items;
-            if (containsUnsupportedClipping(slots, size, clippingType)) {
-                lastRenderError = "ClippingAttachment unsupported by legacy Batch; fail-open";
-                return 0;
-            }
-            if (containsUnsupportedTwoColor(slots, size) && !supportsTwoColor(batch)) {
-                lastRenderError = "two-color attachment unsupported by legacy Batch; fail-open";
-                return 0;
-            }
+            List<PreparedDraw> prepared = new ArrayList<PreparedDraw>();
             for (int slotIndex = 0; slotIndex < size; slotIndex++) {
                 Object slot = slots[slotIndex];
+                if (slot == null) throw new IllegalArgumentException("null slot in skeleton draw order");
                 try {
+                    // Preserve whole-skeleton two-color fail-open, including slots whose
+                    // attachment is currently null.
+                    rejectTwoColor(slot);
                     Object attachment = slot.getClass().getMethod("getAttachment").invoke(slot);
-                    if (attachment == null || (!regionType.isInstance(attachment) && !meshType.isInstance(attachment))) continue;
+                    if (attachment == null) continue;
+                    if (isClippingAttachment(attachment.getClass(), clippingType)) {
+                        throw new IllegalArgumentException("ClippingAttachment unsupported by legacy Batch; fail-open");
+                    }
+                    if (!regionType.isInstance(attachment) && !meshType.isInstance(attachment)) {
+                        throw new IllegalArgumentException("unsupported attachment in skeleton draw order; fail-open");
+                    }
                     Object region = attachment.getClass().getMethod("getRegion").invoke(attachment);
-                    if (region == null) continue;
+                    if (region == null || !(region.getClass().getMethod("getTexture").invoke(region) instanceof Texture)) {
+                        throw new IllegalArgumentException("attachment has no valid texture");
+                    }
                     Object slotColor = slot.getClass().getMethod("getColor").invoke(slot);
                     Object attachmentColor = attachment.getClass().getMethod("getColor").invoke(attachment);
                     float[] rgba = multipliedColor(i.skeleton, slotColor, attachmentColor);
+                    validateFinite(rgba, "attachment colors");
                     float packed = Color.toFloatBits(rgba[0], rgba[1], rgba[2], rgba[3]);
                     Object texture = region.getClass().getMethod("getTexture").invoke(region);
+                    rejectTwoColor(attachment);
                     if (regionType.isInstance(attachment)) {
                         float[] world = new float[8];
                         attachment.getClass().getMethod("computeWorldVertices", slot.getClass(), float[].class, int.class, int.class)
                                 .invoke(attachment, slot, world, 0, 2);
                         float[] uvs = (float[]) attachment.getClass().getMethod("getUVs").invoke(attachment);
-                        draw.invoke(batch, texture, regionVertices(world, uvs, packed), 0, 20);
-                        rendered++;
+                        prepared.add(new PreparedDraw((Texture) texture, regionVerticesChecked(world, uvs, packed)));
                     } else {
                         float[] uvs = (float[]) attachment.getClass().getMethod("getUVs").invoke(attachment);
                         short[] triangles = (short[]) attachment.getClass().getMethod("getTriangles").invoke(attachment);
                         int vertexCount = ((Number) attachment.getClass().getMethod("getWorldVerticesLength").invoke(attachment)).intValue();
+                        validateMeshData(vertexCount, uvs, triangles);
                         float[] world = new float[vertexCount];
                         attachment.getClass().getMethod("computeWorldVertices", slot.getClass(), int.class, int.class,
                                 float[].class, int.class, int.class).invoke(attachment, slot, 0, vertexCount, world, 0, 2);
                         for (int triangle = 0; triangle < triangles.length; triangle += 3) {
-                            float[] vertices = meshTriangleVertices(world, uvs, triangles, triangle, packed);
-                            draw.invoke(batch, texture, vertices, 0, vertices.length);
-                            rendered++;
+                            prepared.add(new PreparedDraw((Texture) texture,
+                                    meshTriangleVerticesChecked(world, uvs, triangles, triangle, packed)));
                         }
                     }
                 } catch (Throwable t) {
                     lastRenderError = describe(t.getCause() != null ? t.getCause() : t);
+                    return 0;
                 }
             }
+            // Commit only after the complete draw order has been prepared. A Batch failure cannot
+            // roll back earlier submissions; return zero conservatively so native suppression is
+            // not claimed (the already-submitted prefix remains the host limitation).
+            int rendered = 0;
+            try {
+                for (PreparedDraw command : prepared) {
+                    draw.invoke(batch, command.texture, command.vertices, 0, command.vertices.length);
+                    rendered++;
+                }
+            } catch (Throwable t) {
+                lastRenderError = describe(t.getCause() != null ? t.getCause() : t);
+                return 0;
+            }
+            return rendered;
         } catch (Throwable t) {
             Throwable root = t;
             if (t.getCause() != null) root = t.getCause();
             lastRenderError = describe(root);
+            return 0;
         }
-        return rendered;
+    }
+
+    private static void rejectTwoColor(Object value) throws Exception {
+        Method method;
+        try {
+            method = value.getClass().getMethod("getDarkColor");
+        } catch (NoSuchMethodException absentOnLegacyRuntime) {
+            return;
+        }
+        if (method.invoke(value) != null) {
+            throw new IllegalArgumentException("two-color attachment unsupported by legacy Batch; fail-open");
+        }
+    }
+
+    private static float[] regionVerticesChecked(float[] world, float[] uvs, float packedColor) {
+        validateFinite(world, "region world vertices");
+        validateFinite(uvs, "region UVs");
+        if (world.length != 8 || uvs.length != 8) throw new IllegalArgumentException("region vertices require exactly four positions and UVs");
+        return regionVertices(world, uvs, packedColor);
+    }
+
+    private static float[] meshTriangleVerticesChecked(float[] world, float[] uvs, short[] triangles,
+            int triangleOffset, float packedColor) {
+        validateFinite(world, "mesh world vertices");
+        validateFinite(uvs, "mesh UVs");
+        float[] vertices = meshTriangleVertices(world, uvs, triangles, triangleOffset, packedColor);
+        validateBatchVertices(vertices);
+        return vertices;
+    }
+
+    private static void validateMeshData(int vertexCount, float[] uvs, short[] triangles) {
+        if (vertexCount <= 0 || (vertexCount & 1) != 0) {
+            throw new IllegalArgumentException("invalid mesh world vertex count");
+        }
+        if (uvs == null || uvs.length != vertexCount) {
+            throw new IllegalArgumentException("mesh UV count does not match world vertex count");
+        }
+        validateFinite(uvs, "mesh UVs");
+        if (triangles == null || triangles.length == 0 || triangles.length % 3 != 0) {
+            throw new IllegalArgumentException("mesh triangles are incomplete");
+        }
+        int vertexTotal = vertexCount / 2;
+        for (short triangle : triangles) {
+            if ((triangle & 0xffff) >= vertexTotal) {
+                throw new IllegalArgumentException("mesh triangle index outside world vertices");
+            }
+        }
+    }
+
+    static void validateBatchVertices(float[] vertices) {
+        if (vertices == null || vertices.length != 20) {
+            throw new IllegalArgumentException("legacy Batch requires one four-vertex command");
+        }
+        validateFinite(vertices, "legacy Batch vertices");
+    }
+
+    private static void validateFinite(float[] values, String name) {
+        if (values == null) throw new IllegalArgumentException(name + " missing");
+        for (float value : values) if (Float.isNaN(value) || Float.isInfinite(value)) {
+            throw new IllegalArgumentException(name + " contains non-finite data");
+        }
+    }
+
+    private static final class PreparedDraw {
+        private final Texture texture;
+        private final float[] vertices;
+
+        private PreparedDraw(Texture texture, float[] vertices) {
+            this.texture = texture;
+            this.vertices = vertices;
+        }
     }
 
     private static boolean containsUnsupportedClipping(Object[] slots, int size, Class<?> clippingType) {
@@ -439,7 +556,7 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
             int triangleOffset, float packedColor) {
         if (world == null || uvs == null || triangles == null || triangleOffset < 0
                 || triangleOffset + 2 >= triangles.length || world.length == 0
-                || (world.length & 1) != 0 || uvs.length < world.length
+                || (world.length & 1) != 0 || uvs.length != world.length
                 || (triangles.length % 3) != 0) {
             throw new IllegalArgumentException("mesh vertices, UVs, and triangle indices are incomplete");
         }
@@ -574,6 +691,7 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         private final Object skeleton;
         private final Object stateData;
         private final Object state;
+        private volatile int lastNativeSlotDrawCount;
         private SkeletonHandle handle;
 
         private RuntimeInstance(TextureAtlas atlas, Object skeleton, Object stateData, Object state) {

@@ -73,6 +73,31 @@ public class BackendContextTest {
         assertFalse(ArtFramework.projection().world().contains(entity));
     }
 
+    @Test public void staleFrameWithinTheCurrentSceneEpochDoesNotMutateProjection() {
+        assertTrue(ArtFramework.publishFrame(ContextFrame.of(5L, 2L, "map", Arrays.asList(
+                CardView.builder(new CardRef("current", "Defend_R")).build()),
+                ControlsView.empty(), MapView.empty(), null)).applied);
+        ArtFramework.projection().setDragInstanceId("current");
+
+        assertFalse(ArtFramework.publishFrame(ContextFrame.of(4L, 2L, "map", null,
+                ControlsView.empty(), MapView.empty(), null)).applied);
+        assertNotNull(ArtFramework.projection().get("current"));
+        assertEquals("current", ArtFramework.projection().dragInstanceId());
+    }
+
+    @Test public void staleCrossEpochFrameDoesNotMutateProjection() {
+        assertTrue(ArtFramework.publishFrame(ContextFrame.of(5L, 2L, "map", Arrays.asList(
+                CardView.builder(new CardRef("current", "Defend_R")).build()),
+                ControlsView.empty(), MapView.empty(), null)).applied);
+        ArtFramework.projection().setDragInstanceId("current");
+
+        assertFalse(ArtFramework.publishFrame(ContextFrame.of(99L, 1L, "combat", null,
+                ControlsView.empty(), MapView.empty(), null)).applied);
+        assertNotNull(ArtFramework.projection().get("current"));
+        assertEquals("current", ArtFramework.projection().dragInstanceId());
+        assertEquals(2L, ArtFramework.projection().sceneEpoch());
+    }
+
     @Test public void cardProjectionStoresLongLivedStateInPresentationComponents() {
         CardView card = CardView.builder(new CardRef("instance", "Strike_R"))
                 .zone(CardZone.HAND).slot(2).selected(true).art("card-art").frame("card-frame").build();

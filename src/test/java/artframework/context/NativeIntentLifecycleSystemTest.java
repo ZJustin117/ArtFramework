@@ -1,79 +1,104 @@
 package artframework.context;
 
-import artframework.ecs.EcsPipeline;
-import artframework.ecs.EcsSystem;
-import artframework.ecs.EcsTick;
+import artframework.api.ArtFramework;
+import artframework.core.SignalGroups;
+import artframework.core.TransientSignalPaths;
+import artframework.core.TransientSignalRuntime;
+import artframework.core.UiSignal;
 import artframework.ecs.EntityId;
-import artframework.ecs.PresentationWorld;
-import java.util.Collections;
+import artframework.presentation.PresentationContext;
+import artframework.presentation.PresentationKey;
+import artframework.presentation.PresentationRegistry;
+import artframework.sts1.input.NativeInputRecords;
 import org.junit.Test;
+import org.junit.Before;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 public class NativeIntentLifecycleSystemTest {
-    private final EcsSystem system = new NativeIntentLifecycleSystem();
+    @Before public void setUp() { ArtFramework.resetForTests(); }
+    @org.junit.After public void tearDown() { ArtFramework.resetForTests(); }
 
-    @Test public void eventsAdvanceLifecycleAndAreConsumed() {
-        PresentationWorld world = new PresentationWorld("intent-test");
-        EntityId entity = world.createEntity();
-
-        advance(world, entity, "play_card", NativeIntentLifecycleComponent.State.REQUESTED, "");
-        assertState(world, entity, NativeIntentLifecycleComponent.State.REQUESTED);
-        advance(world, entity, "play_card", NativeIntentLifecycleComponent.State.SENT, "");
-        assertState(world, entity, NativeIntentLifecycleComponent.State.SENT);
-        advance(world, entity, "play_card", NativeIntentLifecycleComponent.State.EXECUTED, "accepted");
-        assertState(world, entity, NativeIntentLifecycleComponent.State.EXECUTED);
-
-        world.put(entity, NativeIntentObservationComponent.class,
-                NativeIntentObservationComponent.available(7L, 3L, "combat"));
-        run(world, 4L);
-
-        assertState(world, entity, NativeIntentLifecycleComponent.State.CONFIRMED);
-        assertNull(world.get(entity, NativeIntentLifecycleEventComponent.class));
-        assertEquals(7L, world.get(entity, NativeIntentObservationComponent.class).frameId);
+    @Test public void intentWritesLifecycleStateImmediately() {
+        NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, "play_card",
+                NativeIntentLifecycleComponent.State.EXECUTED, "accepted");
+        assertState(inputEntity(), NativeIntentLifecycleComponent.State.EXECUTED);
     }
 
-    @Test public void unavailableAuthorityFrameFailsExecutedIntent() {
-        PresentationWorld world = new PresentationWorld("intent-test");
-        EntityId entity = world.createEntity();
-        advance(world, entity, "play_card", NativeIntentLifecycleComponent.State.EXECUTED, "accepted");
+    @Test public void requestedAndSentClearOldObservation() {
+        NativeInputRecords.observe(SurfaceIds.COMBAT_HAND, 5L, 2L, "combat");
+        NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, "play_card",
+                NativeIntentLifecycleComponent.State.REQUESTED, "");
+        assertNull(PresentationRegistry.world().get(inputEntity(), NativeIntentObservationComponent.class));
+        NativeInputRecords.observe(SurfaceIds.COMBAT_HAND, 6L, 2L, "combat");
+        NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, "play_card",
+                NativeIntentLifecycleComponent.State.SENT, "");
+        assertNull(PresentationRegistry.world().get(inputEntity(), NativeIntentObservationComponent.class));
+    }
 
-        world.put(entity, NativeIntentObservationComponent.class,
-                NativeIntentObservationComponent.unavailable(8L, "authority frame unavailable"));
-        run(world, 2L);
+    @Test public void observationsStillConfirmOrFailDurableExecutedLifecycle() {
+        NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, "play_card",
+                NativeIntentLifecycleComponent.State.EXECUTED, "accepted");
+        NativeInputRecords.observe(SurfaceIds.COMBAT_HAND, 7L, 3L, "combat");
+        assertState(inputEntity(), NativeIntentLifecycleComponent.State.CONFIRMED);
 
-        assertState(world, entity, NativeIntentLifecycleComponent.State.FAILED);
+        NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, "play_card",
+                NativeIntentLifecycleComponent.State.EXECUTED, "accepted");
+        NativeInputRecords.failed(SurfaceIds.COMBAT_HAND, 8L, "authority frame unavailable");
+        assertState(inputEntity(), NativeIntentLifecycleComponent.State.FAILED);
         assertEquals("authority frame unavailable",
-                world.get(entity, NativeIntentLifecycleComponent.class).message);
+                PresentationRegistry.world().get(inputEntity(), NativeIntentLifecycleComponent.class)
+                        .message);
     }
 
-    @Test public void oldObservationCannotConfirmANewIntent() {
-        PresentationWorld world = new PresentationWorld("intent-test");
-        EntityId entity = world.createEntity();
-        world.put(entity, NativeIntentObservationComponent.class,
-                NativeIntentObservationComponent.available(5L, 2L, "combat"));
-
-        advance(world, entity, "begin_drag", NativeIntentLifecycleComponent.State.REQUESTED, "");
-        advance(world, entity, "begin_drag", NativeIntentLifecycleComponent.State.EXECUTED, "accepted");
-
-        assertState(world, entity, NativeIntentLifecycleComponent.State.EXECUTED);
-        assertNull(world.get(entity, NativeIntentObservationComponent.class));
+    @Test public void invalidPayloadAndMissingContextAreRejectedWithoutStateWrite() {
+        PresentationRegistry.close("sts1-input");
+        SignalGroups.transientRuntimeRawGroup().dispatch(new UiSignal(
+                SignalGroups.TRANSIENT_RUNTIME, null, TransientSignalPaths.NATIVE_INTENT_LIFECYCLE,
+                "invalid", java.util.Collections.emptyMap(), null));
+        assertNull(PresentationRegistry.existingContext("sts1-input"));
     }
 
-    private void advance(PresentationWorld world, EntityId entity, String name,
-            NativeIntentLifecycleComponent.State state, String message) {
-        world.put(entity, NativeIntentLifecycleEventComponent.class,
-                new NativeIntentLifecycleEventComponent(name, state, message));
-        run(world, state.ordinal());
+    @Test public void missingKeyedInputEntityIsRejectedWithoutLifecycleWrite() {
+        SignalGroups.resetForTests();
+        TransientSignalRuntime runtime = new TransientSignalRuntime(
+                SignalGroups.isolatedTransientRuntimeGroup(), false);
+        new NativeIntentLifecycleSystem(runtime);
+        PresentationContext context = PresentationRegistry.context("sts1-input");
+        EntityId unrelatedEntity = context.create(
+                new PresentationKey("sts1.input", "other-surface"),
+                "other-surface", "surface", "test");
+        java.util.Map<String, Object> payload = new java.util.LinkedHashMap<String, Object>();
+        payload.put("surfaceId", SurfaceIds.COMBAT_HAND);
+        payload.put("name", "play_card");
+        payload.put("state", NativeIntentLifecycleComponent.State.EXECUTED.name());
+        payload.put("message", "accepted");
+
+        artframework.core.SignalDispatchResult result = runtime.dispatch(
+                TransientSignalPaths.NATIVE_INTENT_LIFECYCLE, "sts1-input", payload);
+
+        assertEquals(Boolean.TRUE, Boolean.valueOf(result.isRejected()));
+        assertNull(context.world().get(unrelatedEntity, NativeIntentLifecycleComponent.class));
     }
 
-    private void run(PresentationWorld world, long sequence) {
-        EcsPipeline.run(world, new EcsTick(0f, sequence), Collections.singletonList(system));
+    @Test public void resetRecreatesScheduleOwnedLifecycleConsumer() {
+        NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, "play_card",
+                NativeIntentLifecycleComponent.State.EXECUTED, "accepted");
+        ArtFramework.resetForTests();
+        NativeInputRecords.intent(SurfaceIds.COMBAT_HAND, "play_card",
+                NativeIntentLifecycleComponent.State.REJECTED, "rejected");
+        assertState(inputEntity(), NativeIntentLifecycleComponent.State.REJECTED);
     }
 
-    private static void assertState(PresentationWorld world, EntityId entity,
+    private static EntityId inputEntity() {
+        return PresentationRegistry.context("sts1-input").entity(
+                new artframework.presentation.PresentationKey("sts1.input", SurfaceIds.COMBAT_HAND));
+    }
+
+    private static void assertState(EntityId entity,
             NativeIntentLifecycleComponent.State expected) {
-        assertEquals(expected, world.get(entity, NativeIntentLifecycleComponent.class).state);
+        assertEquals(expected, PresentationRegistry.world().get(entity,
+                NativeIntentLifecycleComponent.class).state);
     }
 }

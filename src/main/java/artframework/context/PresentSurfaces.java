@@ -174,9 +174,7 @@ public final class PresentSurfaces {
         public void unmount() {
             EntityId entity = surfaceEntity();
             if (entity != null) {
-                world().put(entity, SurfaceLifecycleRequestComponent.class,
-                        new SurfaceLifecycleRequestComponent(false));
-                artframework.api.ArtFramework.executeSurfaceLifecycle();
+                artframework.api.ArtFramework.dispatchSurfaceLifecycle(id, false);
                 context().destroy(entity);
             }
             HUB.clearInstance(id);
@@ -256,9 +254,7 @@ public final class PresentSurfaces {
                         new SurfaceIdentityComponent(id, kind()));
             }
             artframework.sts1.PresentLevel level = artframework.sts1.FullPresentMode.levelOf(id);
-            world().put(entity, SurfaceLifecycleRequestComponent.class,
-                    new SurfaceLifecycleRequestComponent(mounted));
-            artframework.api.ArtFramework.executeSurfaceLifecycle();
+            artframework.api.ArtFramework.dispatchSurfaceLifecycle(id, mounted);
             world().put(entity, SurfacePolicyComponent.class,
                     new SurfacePolicyComponent(level.name(), level.allowsFullPresent(),
                             level.allowsObserve(), artframework.sts1.FullPresentMode.maySuppressNative(id)));
@@ -284,17 +280,34 @@ public final class PresentSurfaces {
                         new SurfaceActionComponent(intentName));
                 world().put(entity, SurfaceIntentComponent.class,
                         new SurfaceIntentComponent(intentName, id));
-                world().put(entity, SurfaceIntentExecutionComponent.class,
-                        new SurfaceIntentExecutionComponent(intentName, id, args));
                 world().put(entity, BusinessConfirmationComponent.class,
                         new BusinessConfirmationComponent(intentName,
                                 BusinessConfirmationComponent.domain(id, intentName),
                                 BusinessConfirmationComponent.State.PENDING,
                                 -1L, -1L, -1L, -1L, "awaiting authority snapshot"));
             }
-            artframework.api.ArtFramework.executeSurfaceIntents();
+            SignalDispatchResult dispatch = artframework.api.ArtFramework.dispatchSurfaceIntent(
+                    intentName, id, args);
             SurfaceResultComponent result = entity != null
                     ? world().get(entity, SurfaceResultComponent.class) : null;
+            if (dispatch != null && dispatch.isStopped() && entity != null) {
+                world().put(entity, BusinessConfirmationComponent.class,
+                        new BusinessConfirmationComponent(intentName,
+                                BusinessConfirmationComponent.domain(id, intentName),
+                                BusinessConfirmationComponent.State.FAILED,
+                                 -1L, -1L, -1L, -1L, dispatch.message));
+                String stoppedMessage = dispatch.message != null ? dispatch.message : "";
+                IntentResult stoppedResult = dispatch.isRejected()
+                        ? IntentResult.rejected(stoppedMessage)
+                        : (stoppedMessage.startsWith("queued:")
+                                ? IntentResult.queued(stoppedMessage.substring("queued:".length()))
+                                : IntentResult.accepted(stoppedMessage));
+                result = new SurfaceResultComponent(stoppedResult.status, stoppedResult.message);
+                world().put(entity, SurfaceResultComponent.class, result);
+            }
+            if (result == null && dispatch != null && dispatch.isRejected()) {
+                return recordResult(entity, IntentResult.rejected(dispatch.message));
+            }
             if (result == null) return IntentResult.rejected("no result");
             return IntentResult.of(result.status, result.message);
         }

@@ -1,6 +1,7 @@
 package artframework.sts1.input;
 
 import artframework.component.MapNodeRef;
+import artframework.presentation.PresentationRegistry;
 import org.junit.After;
 import org.junit.Test;
 
@@ -43,6 +44,16 @@ public class Sts1MapIntentBridgeTest {
                 artframework.context.IntentResult.Status.REJECTED,
                 Sts1MapIntentBridge.click(new MapNodeRef(0, 0, "")).status);
         assertEquals("node_unavailable", Sts1MapIntentBridge.probeSlice().get("status"));
+    }
+
+    @Test
+    public void resetRecreatesGestureAfterInputContextIsRetired() {
+        Sts1MapIntentBridge.resetForTests();
+        PresentationRegistry.close("sts1-input");
+
+        Sts1MapIntentBridge.resetForTests();
+
+        assertEquals("idle", Sts1MapIntentBridge.probeSlice().get("status"));
     }
 
 }

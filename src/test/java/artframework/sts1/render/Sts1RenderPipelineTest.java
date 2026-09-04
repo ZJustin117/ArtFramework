@@ -159,7 +159,9 @@ public class Sts1RenderPipelineTest {
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, targeting.mode);
         assertFalse(targeting.suppressNative);
 
-        ArtFramework.publishFrame(ContextFrame.of(9L, "map", java.util.Collections.<CardView>emptyList()));
+        // The map frame is the next scene at the current authority epoch; epoch 0 would be stale.
+        ArtFramework.publishFrame(ContextFrame.of(9L, 1L, "map",
+                java.util.Collections.<CardView>emptyList(), ControlsView.empty(), MapView.empty(), null));
         targeting = Sts1RenderPipeline.plan().find(SurfaceIds.COMBAT_TARGETING);
         assertEquals(SurfaceDrawPlan.DrawMode.SKIP, targeting.mode);
         assertFalse(targeting.suppressNative);

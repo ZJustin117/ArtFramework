@@ -181,7 +181,8 @@ public class CombatInputRouterTest {
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
         CombatInputRouter.beginDrag("h1");
-        ArtFramework.publishFrame(ContextFrame.unavailable(2L));
+        ArtFramework.publishFrame(new ContextFrame(2L, 1L, "combat", null,
+                ControlsView.empty(), MapView.empty(), false, null));
 
         EntityId entity = artframework.presentation.PresentationRegistry.context("sts1-input")
                 .entity(new artframework.presentation.PresentationKey("sts1.input", SurfaceIds.COMBAT_HAND));

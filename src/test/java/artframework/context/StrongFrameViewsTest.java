@@ -123,9 +123,10 @@ public class StrongFrameViewsTest {
         assertEquals(5L, ArtFramework.projection().sceneEpoch());
         assertEquals(1, ArtFramework.projection().size());
 
-        FrameDiff d = ArtFramework.publishFrame(ContextFrame.unavailable(2L));
+        FrameDiff d = ArtFramework.publishFrame(new ContextFrame(2L, 4L, "combat", null,
+                ControlsView.empty(), MapView.empty(), false, null));
         assertFalse(d.applied);
-        assertTrue(ArtFramework.projection().isStale());
+        assertTrue(ArtFramework.projection().isAvailable());
         assertEquals(1, ArtFramework.projection().size());
         assertEquals(5L, ArtFramework.projection().sceneEpoch());
         assertNotNull(ArtFramework.projection().get("keep"));

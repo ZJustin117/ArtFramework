@@ -27,9 +27,6 @@ import java.util.Map;
  */
 public final class Sts1MapIntentBridge {
 
-    private static final PresentationContext CONTEXT =
-            PresentationRegistry.context("sts1-input");
-
     private Sts1MapIntentBridge() {}
 
     /** Lab helper: first presentable floor-0 node (valid hitbox, not offscreen sentinel). */
@@ -242,13 +239,18 @@ public final class Sts1MapIntentBridge {
     }
 
     private static PresentationWorld world() {
-        return CONTEXT.world();
+        return context().world();
     }
 
     private static EntityId entity() {
         PresentationKey key = new PresentationKey("sts1.map", "gesture");
-        EntityId entity = CONTEXT.entity(key);
-        return entity != null ? entity : CONTEXT.create(key, "gesture", "map-input", "sts1");
+        PresentationContext context = context();
+        EntityId entity = context.entity(key);
+        return entity != null ? entity : context.create(key, "gesture", "map-input", "sts1");
+    }
+
+    private static PresentationContext context() {
+        return PresentationRegistry.context("sts1-input");
     }
 
     private static MapGestureComponent state() {

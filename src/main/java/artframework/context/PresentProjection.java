@@ -43,26 +43,35 @@ public final class PresentProjection {
         if (frame == null) {
             return FrameDiff.skipped("frame required");
         }
-        ProjectionFrameComponent metadata = metadataForWrite();
-        ContextFrame previousFrame = snapshotForWrite().frame;
+        ProjectionFrameComponent metadata = metadata();
+        if (isStale(frame, metadata)) {
+            if (metadata.sceneEpoch >= 0L && frame.sceneEpoch < metadata.sceneEpoch) {
+                return FrameDiff.skipped("stale sceneEpoch " + frame.sceneEpoch + " < "
+                        + metadata.sceneEpoch);
+            }
+            return FrameDiff.skipped("stale frameId " + frame.frameId + " < " + metadata.frameId);
+        }
         if (!frame.available) {
-            recordBusinessConfirmationFrame(previousFrame, frame);
+            if (metadata.sceneEpoch >= 0L && frame.sceneEpoch > metadata.sceneEpoch) {
+                // An unavailable frame can still announce a new Backend scene. Do the same
+                // bounded cleanup as an available frame from that new epoch.
+                clearCards();
+                clearDrag();
+                clearVisualItems();
+            }
             observeNativeIntents(frame);
-            putMetadata(metadata.frameId, metadata.sceneEpoch, metadata.scene, false,
-                    metadata.frameId >= 0);
+            putMetadata(frame.frameId, frame.sceneEpoch, frame.scene, false, true);
             putSnapshot(frame);
             return FrameDiff.skipped("frame unavailable");
         }
-        if (metadata.sceneEpoch >= 0L && frame.sceneEpoch != metadata.sceneEpoch) {
+        metadata = metadataForWrite();
+        if (metadata.sceneEpoch >= 0L && frame.sceneEpoch > metadata.sceneEpoch) {
             // Epoch is Backend authority. A new scene must never inherit card/drag state.
             clearCards();
             clearDrag();
             clearVisualItems();
             metadata = new ProjectionFrameComponent(-1L, metadata.sceneEpoch, metadata.scene,
                     metadata.available, metadata.stale);
-        }
-        if (frame.frameId < metadata.frameId) {
-            return FrameDiff.skipped("stale frameId " + frame.frameId + " < " + metadata.frameId);
         }
         if (frame.frameId == metadata.frameId && metadata.frameId >= 0) {
             // same-frame reapply: last wins (replace projection from frame)
@@ -119,15 +128,13 @@ public final class PresentProjection {
 
         putMetadata(frame.frameId, frame.sceneEpoch, frame.scene, true, false);
         putSnapshot(frame);
-        recordBusinessConfirmationFrame(previousFrame, frame);
         observeNativeIntents(frame);
         return new FrameDiff(added, removed, updated, true, "");
     }
 
-    private void recordBusinessConfirmationFrame(ContextFrame before, ContextFrame after) {
-        EntityId metadata = ensureMetadataEntity();
-        worldForWrite().put(metadata, BusinessConfirmationFrameComponent.class,
-                new BusinessConfirmationFrameComponent(before, after));
+    private boolean isStale(ContextFrame frame, ProjectionFrameComponent metadata) {
+        return metadata.sceneEpoch >= 0L && frame.sceneEpoch < metadata.sceneEpoch
+                || frame.sceneEpoch == metadata.sceneEpoch && frame.frameId < metadata.frameId;
     }
 
     public long lastFrameId() {

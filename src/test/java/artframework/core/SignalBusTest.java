@@ -117,6 +117,82 @@ public class SignalBusTest {
     }
 
     @Test
+    public void stopHandledPreventsLaterListeners() {
+        SignalBus bus = new SignalBus();
+        final List<String> seen = new ArrayList<String>();
+        bus.connect("op", signal -> { seen.add("first"); return SignalDecision.stopHandled("done"); });
+        bus.connect("op", signal -> { seen.add("later"); return SignalDecision.continueSignal(); });
+
+        SignalDispatchResult result = bus.emit(new UiSignal("op", "test", null));
+
+        assertEquals(Arrays.asList("first"), seen);
+        assertEquals(SignalDecision.Kind.STOP_HANDLED, result.terminal);
+    }
+
+    @Test
+    public void invalidReplacementIdIsRejectedAndPreventsLaterListeners() {
+        SignalBus bus = new SignalBus();
+        final List<String> seen = new ArrayList<String>();
+        bus.connect("op", signal -> SignalDecision.replace(new UiSignal(
+                signal.group, "other-id", signal.name, signal.source, null, null)));
+        bus.connect("op", signal -> { seen.add("later"); return SignalDecision.continueSignal(); });
+
+        SignalDispatchResult result = bus.emit(new UiSignal(
+                SignalGroups.DEFAULT, "id", "op", "test", null, null));
+
+        assertTrue(result.isRejected());
+        assertEquals(Arrays.<String>asList(), seen);
+    }
+
+    @Test
+    public void invalidReplacementNameIsRejected() {
+        SignalBus bus = new SignalBus();
+        bus.connect("op", signal -> SignalDecision.replace(new UiSignal(
+                signal.group, signal.id, "other-name", signal.source, null, null)));
+
+        SignalDispatchResult result = bus.emit(new UiSignal(
+                SignalGroups.DEFAULT, "id", "op", "test", null, null));
+
+        assertTrue(result.isRejected());
+    }
+
+    @Test
+    public void listenerExceptionPropagatesAndPreventsLaterListeners() {
+        SignalBus bus = new SignalBus();
+        final List<String> seen = new ArrayList<String>();
+        bus.connect("op", signal -> { throw new IllegalStateException("boom"); });
+        bus.connect("op", signal -> { seen.add("later"); return SignalDecision.continueSignal(); });
+
+        try {
+            bus.emit(new UiSignal("op", "test", null));
+        } catch (IllegalStateException expected) {
+            assertEquals("boom", expected.getMessage());
+            assertEquals(Arrays.<String>asList(), seen);
+            return;
+        }
+        throw new AssertionError("listener exception was not propagated");
+    }
+
+    @Test
+    public void emitUsesListenerSnapshotWhenListenersConnectOrDisconnect() {
+        SignalBus bus = new SignalBus();
+        final List<String> seen = new ArrayList<String>();
+        final SignalSubscription[] second = new SignalSubscription[1];
+        bus.connect("op", signal -> {
+            seen.add("first");
+            second[0].disconnect();
+            bus.connect("op", later -> { seen.add("new"); return SignalDecision.continueSignal(); });
+            return SignalDecision.continueSignal();
+        });
+        second[0] = bus.connect("op", signal -> { seen.add("second"); return SignalDecision.continueSignal(); });
+
+        bus.emit(new UiSignal("op", "test", null));
+        assertEquals(Arrays.asList("first", "second"), seen);
+        bus.emit(new UiSignal("op", "test", null));
+        assertEquals(Arrays.asList("first", "second", "first", "new"), seen);
+    }
+
+    @Test
     public void subscriptionsDisconnectIndependently() {
         SignalHub hub = new SignalHub();
         final int[] seen = new int[2];

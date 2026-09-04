@@ -1,16 +1,20 @@
 package artframework.context;
 
 import artframework.api.ArtFramework;
+import artframework.api.FrameworkTransientFixture;
 import artframework.api.UiOpResult;
 import artframework.assets.AssetPack;
 import artframework.assets.AssetDomain;
 import artframework.assets.ResourceIds;
 import artframework.core.SignalHandler;
 import artframework.core.SignalNames;
+import artframework.core.TransientSignalPaths;
+import artframework.core.SignalDecision;
 import artframework.core.UiComponent;
 import artframework.ecs.EntityId;
 import artframework.presentation.PresentationRegistry;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -22,9 +26,17 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class PresentSurfacesTest {
+    private FrameworkTransientFixture transientFixture;
+
+    @Before
+    public void setUp() {
+        ArtFramework.resetForTests();
+        transientFixture = new FrameworkTransientFixture();
+    }
 
     @After
     public void tearDown() {
+        transientFixture.close();
         ArtFramework.resetForTests();
     }
 
@@ -98,15 +110,12 @@ public class PresentSurfacesTest {
     }
 
     @Test
-    public void facadeLifecycleCommandsAreConsumedByTheSchedule() {
+    public void facadeLifecycleCommandsAreSynchronous() {
         UiComponent hand = ArtFramework.component(SurfaceIds.COMBAT_HAND);
         hand.mount();
         EntityId entity = PresentSurfaces.world().query(SurfaceIdentityComponent.class).get(0);
 
         assertTrue(PresentSurfaces.world().get(entity, SurfaceLifecycleComponent.class).mounted);
-        assertEquals(null, PresentSurfaces.world().get(entity,
-                SurfaceLifecycleRequestComponent.class));
-
         hand.unmount();
         assertFalse(PresentSurfaces.world().contains(entity));
     }
@@ -158,6 +167,28 @@ public class PresentSurfacesTest {
         assertEquals(IntentNames.BEGIN_DRAG, intent.name);
         assertEquals(SurfaceIds.COMBAT_HAND, intent.surfaceId);
         assertEquals(IntentResult.Status.REJECTED, outcome.status);
+    }
+
+    @Test
+    public void handledQueuedIntentRecordsResultAndFailsConfirmation() {
+        UiComponent hand = ArtFramework.component(SurfaceIds.COMBAT_HAND);
+        hand.mount();
+        ArtFramework.publishFrame(ContextFrame.of(1L, "combat", Arrays.asList(
+                CardView.builder(new CardRef("card", "Strike_R")).build())));
+        transientFixture.connect(TransientSignalPaths.SURFACE_INTENT,
+                signal -> SignalDecision.stopHandled("queued:host"));
+
+        UiOpResult result = hand.action("begin_drag", "card");
+
+        EntityId entity = PresentSurfaces.world().query(SurfaceIdentityComponent.class).get(0);
+        SurfaceResultComponent outcome = PresentSurfaces.world().get(entity, SurfaceResultComponent.class);
+        BusinessConfirmationComponent confirmation =
+                PresentSurfaces.world().get(entity, BusinessConfirmationComponent.class);
+        assertEquals(UiOpResult.Status.OK, result.status);
+        assertEquals("queued:host", result.message);
+        assertEquals(IntentResult.Status.QUEUED, outcome.status);
+        assertEquals("host", outcome.message);
+        assertEquals(BusinessConfirmationComponent.State.FAILED, confirmation.state);
     }
 
     @Test
@@ -243,7 +274,7 @@ public class PresentSurfacesTest {
         UiOpResult begin =
                 ArtFramework.ops().invoke(SurfaceIds.COMBAT_HAND, "begin_drag", "h1");
         assertEquals(UiOpResult.Status.BLOCKED, begin.status);
-        // Backend subscribed during binding, so it observes this signal before a later stopper.
+        // This stopper is on the raw native bus, where the backend keeps registration order.
         assertEquals(1, backend.signalLog().size());
     }
 

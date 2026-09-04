@@ -15,12 +15,19 @@ final class FrameworkScheduleBridge {
         schedule.advance(deltaSeconds, authorityFrame);
     }
 
-    void executeSurfaceIntents() {
-        schedule.executeSurfaceIntents();
+    artframework.core.SignalDispatchResult dispatchSurfaceIntent(
+            String name, String surfaceId, Object... args) {
+        return schedule.dispatchSurfaceIntent(name, surfaceId, args);
     }
 
-    void executeSurfaceLifecycle() {
-        schedule.executeSurfaceLifecycle();
+    void dispatchSurfaceLifecycle(String surfaceId, boolean mounted) {
+        schedule.dispatchSurfaceLifecycle(surfaceId, mounted);
+    }
+
+    artframework.core.SignalDispatchResult dispatchNativeIntentLifecycle(String surfaceId,
+            String name, artframework.context.NativeIntentLifecycleComponent.State state,
+            String message) {
+        return schedule.dispatchNativeIntentLifecycle(surfaceId, name, state, message);
     }
 
     void processNativeIntentLifecycle() {

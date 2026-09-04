@@ -84,6 +84,10 @@ tasks.register("installDistJar") {
 }
 
 tasks.test {
+    val junitXml = reports.getByName("junitXml") as org.gradle.api.tasks.testing.JUnitXmlReport
+    junitXml.includeSystemOutLog.set(false)
+    junitXml.includeSystemErrLog.set(false)
+    reports.html.required.set(false)
     testLogging {
         events("passed", "failed", "skipped")
     }

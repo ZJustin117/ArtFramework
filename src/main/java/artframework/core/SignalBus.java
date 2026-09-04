@@ -32,6 +32,10 @@ final class SignalBus {
         if (original == null) {
             throw new IllegalArgumentException("signal required");
         }
+        return emitCaptured(original, capture(original));
+    }
+
+    List<Entry> capture(UiSignal original) {
         List<Entry> matching = new ArrayList<Entry>();
         synchronized (this) {
             for (Entry entry : entries) {
@@ -41,6 +45,10 @@ final class SignalBus {
         Collections.sort(matching, new Comparator<Entry>() {
             @Override public int compare(Entry a, Entry b) { return a.sequence < b.sequence ? -1 : a.sequence == b.sequence ? 0 : 1; }
         });
+        return matching;
+    }
+
+    SignalDispatchResult emitCaptured(UiSignal original, List<Entry> matching) {
         UiSignal current = original;
         for (Entry entry : matching) {
             SignalDecision decision = entry.listener.onSignal(current);
@@ -71,7 +79,7 @@ final class SignalBus {
         return entry;
     }
 
-    private final class Entry implements SignalSubscription {
+    final class Entry implements SignalSubscription {
         final long sequence;
         final String name;
         final Pattern pattern;

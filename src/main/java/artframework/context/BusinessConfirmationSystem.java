@@ -1,28 +1,59 @@
 package artframework.context;
 
+import artframework.core.SignalDecision;
+import artframework.core.SignalListener;
+import artframework.core.TransientSignalPaths;
+import artframework.core.TransientSignalRuntime;
+import artframework.core.UiSignal;
 import artframework.ecs.EcsSystem;
 import artframework.ecs.EcsTick;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
 import java.util.List;
+import java.util.Map;
 
 /** Stateless snapshot comparison system for native business intent confirmation. */
 public final class BusinessConfirmationSystem implements EcsSystem {
+    public BusinessConfirmationSystem(TransientSignalRuntime runtime) {
+        if (runtime == null) throw new IllegalArgumentException("runtime required");
+        runtime.connectConsumer(TransientSignalPaths.AUTHORITY_BUSINESS_CONFIRMATION,
+                new SignalListener() {
+                    @Override public SignalDecision onSignal(UiSignal signal) {
+                        return consume(signal);
+                    }
+                });
+    }
+
+    private SignalDecision consume(UiSignal signal) {
+        if (!"presentation-schedule".equals(signal.source)
+                || !(signal.payload instanceof Map)) {
+            return SignalDecision.stopRejected("invalid business confirmation signal");
+        }
+        Map<?, ?> payload = (Map<?, ?>) signal.payload;
+        Object before = payload.get("before");
+        Object after = payload.get("after");
+        if ((before != null && !(before instanceof ContextFrame))
+                || !(after instanceof ContextFrame) || payload.size() != 2) {
+            return SignalDecision.stopRejected("invalid business confirmation payload");
+        }
+        PresentationWorld world = artframework.ecs.ArtEcs.world();
+        for (EntityId entity : world.query(BusinessConfirmationComponent.class)) {
+            BusinessConfirmationComponent request = world.get(entity, BusinessConfirmationComponent.class);
+            if (request.state == BusinessConfirmationComponent.State.PENDING) {
+                world.put(entity, BusinessConfirmationComponent.class,
+                        evaluate(request, (ContextFrame) before, (ContextFrame) after));
+            }
+        }
+        return SignalDecision.continueSignal();
+    }
+
+    public BusinessConfirmationSystem() {
+        // Compatibility constructor for isolated pure-ECS callers; no transient transport.
+    }
+
     @Override
     public void run(PresentationWorld world, EcsTick tick) {
-        for (EntityId frameEntity : world.query(BusinessConfirmationFrameComponent.class)) {
-            BusinessConfirmationFrameComponent frames =
-                    world.get(frameEntity, BusinessConfirmationFrameComponent.class);
-            for (EntityId entity : world.query(BusinessConfirmationComponent.class)) {
-                BusinessConfirmationComponent request =
-                        world.get(entity, BusinessConfirmationComponent.class);
-                if (request.state == BusinessConfirmationComponent.State.PENDING) {
-                    world.put(entity, BusinessConfirmationComponent.class,
-                            evaluate(request, frames.before, frames.after));
-                }
-            }
-            world.remove(frameEntity, BusinessConfirmationFrameComponent.class);
-        }
+        // Frame pairs arrive through the synchronous transient listener.
     }
 
     public static BusinessConfirmationComponent evaluate(

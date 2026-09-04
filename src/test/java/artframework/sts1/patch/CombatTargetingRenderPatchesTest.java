@@ -12,6 +12,7 @@ import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
 import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -21,6 +22,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class CombatTargetingRenderPatchesTest {
+
+    @Before
+    public void setUp() {
+        ArtFramework.resetForTests();
+        artframework.sts1.render.Sts1RenderPipeline.resetForTests();
+        FullPresentMode.resetForTests();
+        CombatInputRouter.resetForTests();
+    }
 
     @After
     public void tearDown() {

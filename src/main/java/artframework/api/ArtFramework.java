@@ -54,7 +54,7 @@ public final class ArtFramework {
 
     private static final UiOps OPS = new UiOps();
     private static final UiProbe PROBE = new UiProbe();
-    private static final PresentationSchedule SCHEDULE = new PresentationSchedule();
+    private static final PresentationSchedule SCHEDULE = new PresentationSchedule(true);
     private static final FrameworkScheduleBridge SCHEDULE_BRIDGE =
             new FrameworkScheduleBridge(SCHEDULE);
     private static final FrameworkLifecycleCoordinator LIFECYCLE =
@@ -125,6 +125,10 @@ public final class ArtFramework {
     public static void resetForTests() {
         FrameworkTestReset.reset(LIFECYCLE, SCHEDULE_BRIDGE, OPS);
         nativeOpsBackend = NoOpNativeOps.INSTANCE;
+    }
+
+    static artframework.core.TransientSignalRuntime transientSignalRuntimeForTests() {
+        return SCHEDULE.transientSignalRuntimeForTests();
     }
 
     /** The default native operation group. */
@@ -398,14 +402,21 @@ public final class ArtFramework {
         SCHEDULE_BRIDGE.advance(deltaSeconds, authorityFrame);
     }
 
-    /** Internal compatibility bridge to the schedule-owned surface command phase. */
-    public static void executeSurfaceIntents() {
-        SCHEDULE_BRIDGE.executeSurfaceIntents();
+    /** Internal compatibility bridge for synchronous C2 surface intent signals. */
+    public static SignalDispatchResult dispatchSurfaceIntent(
+            String name, String surfaceId, Object... args) {
+        return SCHEDULE_BRIDGE.dispatchSurfaceIntent(name, surfaceId, args);
     }
 
-    /** Internal compatibility bridge to the schedule-owned surface lifecycle command. */
-    public static void executeSurfaceLifecycle() {
-        SCHEDULE_BRIDGE.executeSurfaceLifecycle();
+    /** Internal compatibility bridge for synchronous C2 surface lifecycle signals. */
+    public static void dispatchSurfaceLifecycle(String surfaceId, boolean mounted) {
+        SCHEDULE_BRIDGE.dispatchSurfaceLifecycle(surfaceId, mounted);
+    }
+
+    /** Internal host-hook bridge for synchronous STS1 native lifecycle signals. */
+    public static SignalDispatchResult dispatchNativeIntentLifecycle(String surfaceId, String name,
+            artframework.context.NativeIntentLifecycleComponent.State state, String message) {
+        return SCHEDULE_BRIDGE.dispatchNativeIntentLifecycle(surfaceId, name, state, message);
     }
 
     /** Internal compatibility bridge for synchronous native host hooks. */

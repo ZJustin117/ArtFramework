@@ -32,7 +32,7 @@ historical findings.
 - Evidence:
   - JUnit gate: 766 tests passed, `BUILD SUCCESSFUL`.
   - D1 combat verify: `pass d1_full_present_combat_ready`.
-  - D1 screenshot: `/home/justinz/SpireUI/debug-artifacts/harness/20260825-095210-996221/sts-screen-20260825-095211-006989.png`
+  - D1 screenshot: `/home/justinz/ArtFramework/debug-artifacts/harness/20260825-095210-996221/sts-screen-20260825-095211-006989.png`
 - Residual risk: duplicate-card identity still maps by `cardId` fallback in `Sts1VanillaDraw` if any helpers remain; this path is now unused for hand cards but other surfaces may still use similar lookup and should be reviewed in later slices.
 
 ## Round R3 - Map/Event/Select/Room Native Render Restoration
@@ -48,7 +48,7 @@ historical findings.
 - Evidence:
   - JUnit gate (full): 769 tests passed, `BUILD SUCCESSFUL`.
   - D1 combat verify: `pass d1_full_present_combat_ready`.
-  - D1 screenshot: `/home/justinz/SpireUI/debug-artifacts/harness/20260825-111610-606246/sts-screen-20260825-111610-614752.png`
+  - D1 screenshot: `/home/justinz/ArtFramework/debug-artifacts/harness/20260825-111610-606246/sts-screen-20260825-111610-614752.png`
 - Residual risk: later slice NRO-04 must apply the same native-authority policy to skeleton/effect surfaces; the `SurfaceDrawPlan.keepsNativePixelAuthority` helper is scoped to all non-hand/card surfaces except skeleton/effect.
 
 ## Round R2 - Combat Controls/Energy/Intents Native Render Restoration
@@ -64,7 +64,7 @@ historical findings.
 - Evidence:
   - JUnit gate (full): 769 tests passed, `BUILD SUCCESSFUL`.
   - D1 combat verify: `pass d1_full_present_combat_ready` after updating `tests/ui-scenarios/device/d1_full_present_combat_ready.yaml` to expect `backend.controlsDraw.suppressNativeEndTurn == false`.
-  - D1 screenshot: `/home/justinz/SpireUI/debug-artifacts/harness/20260825-111610-606246/sts-screen-20260825-111610-614752.png`
+  - D1 screenshot: `/home/justinz/ArtFramework/debug-artifacts/harness/20260825-111610-606246/sts-screen-20260825-111610-614752.png`
 - Residual risk: later slices (NRO-03/NRO-04) must apply the same native-authority policy to map/event/select/room/skeleton/effect surfaces; the `SurfaceDrawPlan.keepsNativePixelAuthority` helper is intentionally scoped to controls/energy/intents only.
 
 ## Round R5 - Static Manifest and Native Pixel Authority Gate
@@ -84,7 +84,7 @@ historical findings.
   - Python gate: `tools/nrcc/tests` passed (16 tests).
   - NRCC manifest check: `ok: true`, `ownershipErrors: []` after regenerating `tools/nrcc/manifests/sts1-native-coverage.yaml`.
   - D1 combat verify: `pass d1_full_present_combat_ready`.
-  - D1 screenshot: `/home/justinz/SpireUI/debug-artifacts/harness/20260825-141431-023778/sts-screen-20260825-141431-050497.png`
+  - D1 screenshot: `/home/justinz/ArtFramework/debug-artifacts/harness/20260825-141431-023778/sts-screen-20260825-141431-050497.png`
 - Residual risk: the static manifest still contains many `UNKNOWN` entries for unpatched native methods; these are acceptable as long as no render patch suppresses them without an `ART_DELEGATED` entry. Future work can classify additional surfaces as needed.
 
 ## Round R4 - Skeleton/Effect Native Render Ownership
@@ -102,5 +102,5 @@ historical findings.
 - Evidence:
   - JUnit gate (full): all tests passed, `BUILD SUCCESSFUL`.
   - D1 combat verify: `pass d1_full_present_combat_ready`.
-  - D1 screenshot: `/home/justinz/SpireUI/debug-artifacts/harness/20260825-130143-653636/sts-screen-20260825-130143-662489.png`
+  - D1 screenshot: `/home/justinz/ArtFramework/debug-artifacts/harness/20260825-130143-653636/sts-screen-20260825-130143-662489.png`
 - Residual risk: the new `SkeletonNativeSlotRenderer` interface is a runtime capability check; future 3rd-party providers must implement it to claim a native slot safely.

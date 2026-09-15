@@ -66,6 +66,7 @@ Project subagents live in `.opencode/agent/*.md`. The **main agent owns task fra
 | `android-arthas` | Explicit bounded Android JVM diagnosis: threads, classloading, methods, traces, bridge failures, and requested connector lifecycle changes; default `start -> query -> stop` cleanup | Default gate; UI semantics; jar deploy; out-of-repo life/co-op |
 | `android-harness` | D1 logs/screenshots, connector lifecycle, `doctor` / `mods` / `set-mods`, or a bounded Harness command not exposed by `scripts/art-lab` | Standard `scripts/art-lab ready/status/stop/console/combat verify-full`; source edits; jar deploy; Arthas; out-of-repo life/co-op |
 | `art-reviewer` | Read-only, explicitly scoped refactor/diff review through the `refacter` skill; reports evidence-based findings | Source edits; task/ledger ownership; test/deploy gates; recursive delegation |
+| `visual-reviewer` | Read a supplied ART screenshot bundle and provide an independent qualitative visual review; advisory only, never a gate | Screenshot capture; device/Harness lifecycle; source edits; baseline updates; release decisions |
 
 **Do not add** dual-device **life** suites or protocol assertions here. Arthas remains optional JVM diagnostics, not a default ArtFramework gate. Connector lifecycle may be changed by device-lab agents. ArtFramework may run **single-device UI** smoke via `@art-verify`.
 

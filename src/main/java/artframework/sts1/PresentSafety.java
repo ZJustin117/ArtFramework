@@ -14,10 +14,34 @@ import java.util.Map;
  */
 public final class PresentSafety {
 
+    /** Admission outcome for a host recreation request. */
+    public enum HostRecreationAdmission {
+        SCHEDULED,
+        SYNCHRONOUS,
+        DISPATCHER_FAILURE
+    }
+
     private static boolean panic;
     private static String panicReason = "";
     private static int recreationCount;
-    private static String c1HostRecreation = "not attempted";
+    private static volatile String c1HostRecreation = "not attempted";
+    private static volatile String materializerRecreation = "not attempted";
+    private static HostRecreationStepRunner hostRecreationStepRunner =
+            new HostRecreationStepRunner() {
+                public void run(String name, Runnable step) { step.run(); }
+            };
+    private static HostRecreationDispatcher hostRecreationDispatcher =
+            new HostRecreationDispatcher() {
+                public HostRecreationAdmission dispatch(Runnable task) {
+                    if (com.badlogic.gdx.Gdx.app != null) {
+                        com.badlogic.gdx.Gdx.app.postRunnable(task);
+                        return HostRecreationAdmission.SCHEDULED;
+                    } else {
+                        task.run();
+                        return HostRecreationAdmission.SYNCHRONOUS;
+                    }
+                }
+            };
 
     private PresentSafety() {}
 
@@ -55,25 +79,73 @@ public final class PresentSafety {
     }
 
     /**
-     * Android / GL context recreation: drop transient host state, keep policy levels unless panic.
+     * Compatibility entry point retained with the original {@code (void)V} JVM descriptor.
+     * Callers using this legacy lifecycle hook do not wait for asynchronous completion.
      */
     public static void onHostRecreated() {
+        requestHostRecreation();
+    }
+
+    /**
+     * Request Android / GL host recreation and report whether dispatch accepted the lifecycle
+     * work. Transient host state is dropped while policy levels are retained unless panic is set.
+     */
+    public static HostRecreationAdmission requestHostRecreation() {
         recreationCount++;
-        Sts1RenderPipeline.resetForTests();
-        artframework.sts1.backend.Sts1RelicPotionBlightProjection.clear();
-        artframework.sts1.backend.Sts1OrbStanceProjection.clear();
-        artframework.sts1.backend.Sts1PileSoulProjection.clear();
-        artframework.sts1.backend.Sts1RoomShellProjection.clear();
-        artframework.sts1.render.NativeRenderBridge.clearTransientEffectsForRecovery();
-        artframework.sts1.render.NativeRenderBridge.resetForTests();
-        removeC2SurfaceItemsForRecovery();
-        artframework.sts1.render.MapDrawPath.resetForTests();
-        artframework.sts1.audio.ArtAudioBridge.resetForTests();
-        artframework.sts1.skeleton.Sts1SkeletonBridge.onHostRecreated();
-        recreateC1HostIfAvailable();
-        artframework.render.RenderHosts.get().recreateHostCache();
-        artframework.sts1.assets.Sts1AssetMaterializer.clearCache();
-        artframework.render.RenderProjectionQueue.projectNow();
+        c1HostRecreation = "scheduled";
+        materializerRecreation = "scheduled";
+        try {
+            // Connector console commands may run on agent-session. Disposable libGDX resources
+            // must be destroyed and recreated on the application thread with a current GL context.
+            HostRecreationAdmission admission = hostRecreationDispatcher.dispatch(new Runnable() {
+                public void run() { recreateHostState(); }
+            });
+            if (admission == null || admission == HostRecreationAdmission.DISPATCHER_FAILURE) {
+                c1HostRecreation = "failed: dispatcher rejected";
+                materializerRecreation = "failed: dispatcher rejected";
+                return HostRecreationAdmission.DISPATCHER_FAILURE;
+            }
+            return admission;
+        } catch (Throwable e) {
+            c1HostRecreation = "failed: dispatcher " + e.getClass().getSimpleName();
+            materializerRecreation = "failed: dispatcher " + e.getClass().getSimpleName();
+            return HostRecreationAdmission.DISPATCHER_FAILURE;
+        }
+    }
+
+    private static void recreateHostState() {
+        // Keep each disposable-host step failure-isolated. ECS authority must remain available
+        // for the final projection even when one host/cache disposer fails.
+        runHostRecreationStep("presentationState", new Runnable() {
+            public void run() {
+                Sts1RenderPipeline.resetForTests();
+                artframework.sts1.backend.Sts1RelicPotionBlightProjection.clear();
+                artframework.sts1.backend.Sts1OrbStanceProjection.clear();
+                artframework.sts1.backend.Sts1PileSoulProjection.clear();
+                artframework.sts1.backend.Sts1RoomShellProjection.clear();
+                artframework.sts1.render.NativeRenderBridge.clearTransientEffectsForRecovery();
+                artframework.sts1.render.NativeRenderBridge.resetForTests();
+                removeC2SurfaceItemsForRecovery();
+                artframework.sts1.render.MapDrawPath.resetForTests();
+                artframework.sts1.audio.ArtAudioBridge.resetForTests();
+                artframework.sts1.skeleton.Sts1SkeletonBridge.onHostRecreated();
+            }
+        });
+        runHostRecreationStep("c1Host", new Runnable() {
+            public void run() { recreateC1HostIfAvailable(); }
+        });
+        runHostRecreationStep("renderHost", new Runnable() {
+            public void run() { artframework.render.RenderHosts.get().recreateHostCache(); }
+        });
+        runHostRecreationStep("materializer", new Runnable() {
+            public void run() {
+                artframework.sts1.assets.Sts1AssetMaterializer.onHostRecreated();
+                materializerRecreation = "cleared";
+            }
+        });
+        runHostRecreationStep("projection", new Runnable() {
+            public void run() { artframework.render.RenderProjectionQueue.projectNow(); }
+        });
         if (panic) {
             // stay safe
             CombatInputRouter.setSuppressNativeInput(false);
@@ -84,12 +156,53 @@ public final class PresentSafety {
         return recreationCount;
     }
 
+    interface HostRecreationStepRunner {
+        void run(String name, Runnable step);
+    }
+
+    interface HostRecreationDispatcher {
+        HostRecreationAdmission dispatch(Runnable task);
+    }
+
+    static void setHostRecreationStepRunnerForTests(HostRecreationStepRunner runner) {
+        hostRecreationStepRunner = runner != null ? runner : new HostRecreationStepRunner() {
+            public void run(String name, Runnable step) { step.run(); }
+        };
+    }
+
+    static void setHostRecreationDispatcherForTests(HostRecreationDispatcher dispatcher) {
+        hostRecreationDispatcher = dispatcher != null ? dispatcher : new HostRecreationDispatcher() {
+            public HostRecreationAdmission dispatch(Runnable task) {
+                if (com.badlogic.gdx.Gdx.app != null) {
+                    com.badlogic.gdx.Gdx.app.postRunnable(task);
+                    return HostRecreationAdmission.SCHEDULED;
+                } else {
+                    task.run();
+                    return HostRecreationAdmission.SYNCHRONOUS;
+                }
+            }
+        };
+    }
+
+    private static void runHostRecreationStep(String name, Runnable step) {
+        try {
+            hostRecreationStepRunner.run(name, step);
+        } catch (Throwable e) {
+            // Host recreation is fail-open: the next frame can retry projection/materialization.
+            if ("c1Host".equals(name)) c1HostRecreation = "failed: c1Host";
+            if ("materializer".equals(name)) {
+                materializerRecreation = "failed: " + e.getClass().getSimpleName();
+            }
+        }
+    }
+
     public static Map<String, Object> probeSlice() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("panic", Boolean.valueOf(panic));
         m.put("panicReason", panicReason);
         m.put("recreationCount", Integer.valueOf(recreationCount));
         m.put("c1HostRecreation", c1HostRecreation);
+        m.put("materializerRecreation", materializerRecreation);
         return m;
     }
 
@@ -98,6 +211,9 @@ public final class PresentSafety {
         panicReason = "";
         recreationCount = 0;
         c1HostRecreation = "not attempted";
+        materializerRecreation = "not attempted";
+        setHostRecreationStepRunnerForTests(null);
+        setHostRecreationDispatcherForTests(null);
     }
 
     /** C1 is an optional BaseMod host; keep pure runtime recreation independent of its classes. */
@@ -112,7 +228,12 @@ public final class PresentSafety {
             }
             bindings.getMethod("clearAll").invoke(null);
             Object rebuilt = type.getMethod("recreateHost").invoke(host);
-            c1HostRecreation = Boolean.TRUE.equals(rebuilt) ? "rebuilt" : "failed: StageHost";
+            if (Boolean.TRUE.equals(rebuilt)) {
+                c1HostRecreation = "rebuilt";
+            } else {
+                Object status = type.getMethod("recreationStatus").invoke(host);
+                c1HostRecreation = status != null ? String.valueOf(status) : "failed: StageHost";
+            }
         } catch (ClassNotFoundException e) {
             c1HostRecreation = "unavailable";
         } catch (LinkageError e) {

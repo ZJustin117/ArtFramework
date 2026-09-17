@@ -881,10 +881,22 @@ public final class Sts1SurfaceRenderer {
      */
     private static void renderEnergy(SpriteBatch sb) {
         for (EnergyDrawPath.DrawItem item : EnergyDrawPath.buildFromProjection()) {
-            drawResolvedTexture(sb, item.resourceId, item.bounds);
+            drawEnergyTexture(sb, item.resourceId, item.bounds);
         }
         NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_ENERGY,
                 EnergyDrawPath.buildFromProjection().size());
+    }
+
+    private static void drawEnergyTexture(
+            SpriteBatch sb, String resourceId, artframework.component.Rect bounds) {
+        if (sb == null || bounds == null || resourceId == null || resourceId.isEmpty()) return;
+        try {
+            artframework.assets.AssetResolveResult result = ArtFramework.assets().resolve(resourceId);
+            com.badlogic.gdx.graphics.Texture texture =
+                    artframework.sts1.assets.Sts1AssetMaterializer.resolveEnergyTexture(resourceId, result);
+            if (texture != null) sb.draw(texture, bounds.x, bounds.y, bounds.width, bounds.height);
+        } catch (Throwable ignored) {
+        }
     }
 
     /**

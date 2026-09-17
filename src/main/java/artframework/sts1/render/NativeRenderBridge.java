@@ -20,6 +20,8 @@ public final class NativeRenderBridge {
     private static final TransientEffectLifecycleAdapter EFFECT_LIFECYCLE =
             new TransientEffectLifecycleAdapter(EFFECT_LEDGER, EFFECT_REGISTRY);
     private static long nextInvocationId;
+    private static final Object BRIDGE_LOCK = new Object();
+    private static Runnable beforeTokenPublicationForTests;
     private static long lastProjectionFrameId = -1L;
     private static final Map<String, ArrayDeque<Long>> SURFACE_INVOCATIONS =
             new HashMap<String, ArrayDeque<Long>>();
@@ -56,38 +58,42 @@ public final class NativeRenderBridge {
             disposition = RenderDisposition.failOpen(invocation.invocationId,
                     "bridge_error:" + error.getClass().getSimpleName());
         }
-        disposition = LEDGER.recordDispositionOrRecovery(disposition);
-        if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART) {
-            synchronized (SURFACE_INVOCATIONS) {
+        synchronized (BRIDGE_LOCK) {
+            disposition = LEDGER.recordDispositionOrRecovery(disposition);
+            if (beforeTokenPublicationForTests != null) beforeTokenPublicationForTests.run();
+            if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
+                    && LEDGER.isPendingDelegated(invocation.invocationId)) {
                 ArrayDeque<Long> ids = SURFACE_INVOCATIONS.get(ownerId);
                 if (ids == null) {
                     ids = new ArrayDeque<Long>();
                     SURFACE_INVOCATIONS.put(ownerId, ids);
                 }
                 ids.addLast(Long.valueOf(invocation.invocationId));
+            } else {
+                cancelPendingSurfaceInvocationsLocked(ownerId);
             }
-        } else {
-            cancelPendingSurfaceInvocations(ownerId);
         }
         return disposition;
     }
 
     public static void recordSurfaceDraw(String ownerId, int drawCount) {
-        List<Long> ids = drainSurfaceInvocations(ownerId);
-        if (ids.isEmpty()) {
-            LEDGER.recordOrphanArtOutput();
-            return;
-        }
-        for (Long id : ids) {
-            recordSurfaceDrawEvidence(id.longValue(), drawCount);
+        synchronized (BRIDGE_LOCK) {
+            List<Long> ids = drainSurfaceInvocations(ownerId);
+            if (ids.isEmpty()) {
+                LEDGER.recordOrphanArtOutput();
+                return;
+            }
+            for (Long id : ids) recordSurfaceDrawEvidenceLocked(id.longValue(), drawCount);
         }
     }
 
     /** Renderer-side evidence hook; a native/off-transition callback is not ART output. */
     public static void recordSurfaceDrawIfPending(String ownerId, int drawCount) {
-        List<Long> ids = drainSurfaceInvocations(ownerId);
-        if (ids.isEmpty()) return;
-        for (Long id : ids) recordSurfaceDrawEvidence(id.longValue(), drawCount);
+        synchronized (BRIDGE_LOCK) {
+            List<Long> ids = drainSurfaceInvocations(ownerId);
+            if (ids.isEmpty()) return;
+            for (Long id : ids) recordSurfaceDrawEvidenceLocked(id.longValue(), drawCount);
+        }
     }
 
     /**
@@ -96,30 +102,32 @@ public final class NativeRenderBridge {
      * invalidate a pending invocation.
      */
     public static void recordSurfaceDraw(String ownerId, long invocationId, int drawCount) {
-        NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
-        if (invocation == null || !sameSurface(ownerId, invocation.ownerId)) {
-            return;
+        synchronized (BRIDGE_LOCK) {
+            NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
+            if (invocation == null) return;
+            if (!sameSurface(ownerId, invocation.ownerId)) return;
+            recordSurfaceDrawEvidenceLocked(invocationId, drawCount);
+            removeSurfaceInvocation(invocation.ownerId, invocationId);
         }
-        recordSurfaceDrawEvidence(invocationId, drawCount);
-        removeSurfaceInvocation(invocation.ownerId, invocationId);
     }
 
     /** Preferred API: evidence is correlated by the invocation token returned by beginSurface. */
     public static void recordSurfaceDraw(long invocationId, int drawCount) {
-        NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
-        recordSurfaceDrawEvidence(invocationId, drawCount);
-        if (invocation != null) removeSurfaceInvocation(invocation.ownerId, invocationId);
+        synchronized (BRIDGE_LOCK) {
+            NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
+            recordSurfaceDrawEvidenceLocked(invocationId, drawCount);
+            if (invocation != null) removeSurfaceInvocation(invocation.ownerId, invocationId);
+        }
     }
 
     private static void recordSurfaceDrawEvidence(long invocationId, int drawCount) {
-        RenderDisposition disposition = LEDGER.disposition(invocationId);
-        if (disposition == null || disposition.mode != RenderDisposition.Mode.DELEGATE_TO_ART) {
+        synchronized (BRIDGE_LOCK) { recordSurfaceDrawEvidenceLocked(invocationId, drawCount); }
+    }
+
+    private static void recordSurfaceDrawEvidenceLocked(long invocationId, int drawCount) {
+        if (!LEDGER.recordDelegatedEvidence(invocationId, drawCount, "active")) {
             LEDGER.recordOrphanArtOutput();
-            return;
         }
-        NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
-        LEDGER.recordEvidence(invocationId, disposition.presentationEntityId,
-                invocation.frameId, drawCount, "active");
     }
 
     private static List<Long> drainSurfaceInvocations(String ownerId) {
@@ -140,23 +148,34 @@ public final class NativeRenderBridge {
     }
 
     private static void cancelPendingSurfaceInvocations(String ownerId) {
+        synchronized (BRIDGE_LOCK) {
+            cancelPendingSurfaceInvocationsLocked(ownerId);
+        }
+    }
+
+    private static void cancelPendingSurfaceInvocationsLocked(String ownerId) {
         List<Long> ids;
         synchronized (SURFACE_INVOCATIONS) {
             ArrayDeque<Long> queued = SURFACE_INVOCATIONS.remove(ownerId);
             if (queued == null || queued.isEmpty()) return;
             ids = new ArrayList<Long>(queued);
         }
-        for (Long id : ids) {
-            if (LEDGER.isOpen(id.longValue())) {
-                LEDGER.cancelForTransition(id.longValue());
-            }
-        }
+        for (Long id : ids) if (LEDGER.isOpen(id.longValue())) LEDGER.cancelForTransition(id.longValue());
     }
 
     private static boolean sameSurface(String left, String right) {
         String canonicalLeft = artframework.context.SurfaceIds.canonicalize(left);
         String canonicalRight = artframework.context.SurfaceIds.canonicalize(right);
         return canonicalLeft == null ? canonicalRight == null : canonicalLeft.equals(canonicalRight);
+    }
+
+    private static Long peekSkeletonInvocation(String ownerId) {
+        if (ownerId == null) return null;
+        synchronized (SKELETON_INVOCATIONS) {
+            ArrayDeque<Long> ids = SKELETON_INVOCATIONS.get(ownerId);
+            if (ids == null || ids.isEmpty()) return null;
+            return ids.peekFirst();
+        }
     }
 
     private static Long takeSkeletonInvocation(String ownerId) {
@@ -167,6 +186,28 @@ public final class NativeRenderBridge {
             Long id = ids.removeFirst();
             if (ids.isEmpty()) SKELETON_INVOCATIONS.remove(ownerId);
             return id;
+        }
+    }
+
+    /** Retire only the exact ID callback token; object callbacks retain FIFO compatibility. */
+    private static void removeSkeletonInvocation(String ownerId, long invocationId) {
+        if (ownerId == null) return;
+        synchronized (SKELETON_INVOCATIONS) {
+            ArrayDeque<Long> ids = SKELETON_INVOCATIONS.get(ownerId);
+            if (ids == null) return;
+            ids.remove(Long.valueOf(invocationId));
+            if (ids.isEmpty()) SKELETON_INVOCATIONS.remove(ownerId);
+        }
+    }
+
+    private static void removeSkeletonInvocation(long invocationId) {
+        synchronized (SKELETON_INVOCATIONS) {
+            List<String> emptyOwners = new ArrayList<String>();
+            for (Map.Entry<String, ArrayDeque<Long>> entry : SKELETON_INVOCATIONS.entrySet()) {
+                entry.getValue().remove(Long.valueOf(invocationId));
+                if (entry.getValue().isEmpty()) emptyOwners.add(entry.getKey());
+            }
+            for (String owner : emptyOwners) SKELETON_INVOCATIONS.remove(owner);
         }
     }
 
@@ -191,9 +232,11 @@ public final class NativeRenderBridge {
             disposition = RenderDisposition.failOpen(invocation.invocationId,
                     "skeleton_renderer_unavailable");
         }
-        disposition = LEDGER.recordDispositionOrRecovery(disposition);
-        if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART) {
-            synchronized (SKELETON_INVOCATIONS) {
+        synchronized (BRIDGE_LOCK) {
+            disposition = LEDGER.recordDispositionOrRecovery(disposition);
+            if (beforeTokenPublicationForTests != null) beforeTokenPublicationForTests.run();
+            if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
+                    && LEDGER.isPendingDelegated(invocation.invocationId)) {
                 ArrayDeque<Long> ids = SKELETON_INVOCATIONS.get(owner);
                 if (ids == null) {
                     ids = new ArrayDeque<Long>();
@@ -207,46 +250,56 @@ public final class NativeRenderBridge {
 
     public static void recordSkeletonDraw(
             com.esotericsoftware.spine.Skeleton skeleton, int drawCount) {
-        String owner = artframework.sts1.skeleton.Sts1SkeletonBridge.nativeEntityKey(skeleton);
-        Long id = takeSkeletonInvocation(owner);
-        if (id == null) {
-            LEDGER.recordOrphanArtOutput();
-            return;
+        synchronized (BRIDGE_LOCK) {
+            String owner = artframework.sts1.skeleton.Sts1SkeletonBridge.nativeEntityKey(skeleton);
+            Long id = takeSkeletonInvocation(owner);
+            if (id == null) {
+                LEDGER.recordOrphanArtOutput();
+                return;
+            }
+            recordSkeletonDraw(id.longValue(), drawCount);
         }
-        recordSkeletonDraw(id.longValue(), drawCount);
     }
 
     public static void recordSkeletonDraw(long invocationId, int drawCount) {
-        RenderDisposition disposition = LEDGER.disposition(invocationId);
-        if (disposition == null || disposition.mode != RenderDisposition.Mode.DELEGATE_TO_ART) {
-            LEDGER.recordOrphanArtOutput();
-            return;
+        synchronized (BRIDGE_LOCK) {
+            if (LEDGER.recordDelegatedEvidence(invocationId, drawCount, "active")) {
+                removeSkeletonInvocation(invocationId);
+            } else {
+                LEDGER.recordOrphanArtOutput();
+            }
         }
-        NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
-        LEDGER.recordEvidence(invocationId, disposition.presentationEntityId,
-                invocation.frameId, drawCount, "active");
     }
 
     public static void recordSkeletonFailure(com.esotericsoftware.spine.Skeleton skeleton) {
-        String owner = artframework.sts1.skeleton.Sts1SkeletonBridge.nativeEntityKey(skeleton);
-        Long id = takeSkeletonInvocation(owner);
-        if (id == null) {
-            LEDGER.recordOrphanArtOutput();
-            return;
+        synchronized (BRIDGE_LOCK) {
+            String owner = artframework.sts1.skeleton.Sts1SkeletonBridge.nativeEntityKey(skeleton);
+            Long id = peekSkeletonInvocation(owner);
+            if (id == null || !LEDGER.recordDelegatedFallbackIfPending(id.longValue())) {
+                if (id != null) removeSkeletonInvocation(owner, id.longValue());
+                LEDGER.recordOrphanArtOutput();
+                return;
+            }
+            removeSkeletonInvocation(owner, id.longValue());
+            Sts1NativePresentationAdapter.remove(owner);
         }
-        recordSkeletonFailure(id.longValue());
     }
 
     public static void recordSkeletonFailure(long invocationId) {
-        NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
-        RenderDisposition disposition = LEDGER.disposition(invocationId);
-        if (invocation == null || disposition == null
-                || disposition.mode != RenderDisposition.Mode.DELEGATE_TO_ART) {
-            LEDGER.recordOrphanArtOutput();
-            return;
+        synchronized (BRIDGE_LOCK) {
+            if (!LEDGER.recordDelegatedFallbackIfPending(invocationId)) {
+                removeSkeletonInvocation(invocationId);
+                LEDGER.recordOrphanArtOutput();
+                return;
+            }
+            NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
+            if (invocation != null) {
+                Sts1NativePresentationAdapter.remove(invocation.ownerId);
+                removeSkeletonInvocation(invocation.ownerId, invocationId);
+            } else {
+                removeSkeletonInvocation(invocationId);
+            }
         }
-        LEDGER.recordDelegatedFallback(invocationId);
-        Sts1NativePresentationAdapter.remove(invocation.ownerId);
     }
 
     /** Observe one effect instance without suppressing the native effect queue. */
@@ -278,7 +331,6 @@ public final class NativeRenderBridge {
         if (PresentSafety.isPanic()) return;
         TransientEffectIdentity identity = effectIdentity(effect);
         if (identity == null) return;
-        EFFECT_LIFECYCLE.create(identity);
         EFFECT_LIFECYCLE.update(identity, effect.isDone);
         projectPendingEffectsOncePerFrame();
     }
@@ -288,7 +340,6 @@ public final class NativeRenderBridge {
         if (PresentSafety.isPanic()) return;
         TransientEffectIdentity identity = effectIdentity(effect);
         if (identity == null) return;
-        EFFECT_LIFECYCLE.create(identity);
         EFFECT_LIFECYCLE.cancel(identity);
         projectPendingEffectsOncePerFrame();
     }
@@ -324,6 +375,7 @@ public final class NativeRenderBridge {
         for (Integer count : pendingByOwner.values()) pendingCount += count.intValue();
         out.put("pendingSurfaceInvocationCount", Integer.valueOf(pendingCount));
         out.put("pendingSurfaceInvocationsByOwner", pendingByOwner);
+        out.put("pendingSkeletonInvocationCount", Integer.valueOf(pendingSkeletonInvocationCount()));
         out.put("transientEffects", EFFECT_LEDGER.probeSlice());
         out.put("transientEffectEntities", Integer.valueOf(EFFECT_REGISTRY.activeCount()));
         return out;
@@ -336,6 +388,14 @@ public final class NativeRenderBridge {
                 snapshot.put(entry.getKey(), Integer.valueOf(entry.getValue().size()));
             }
             return Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(snapshot));
+        }
+    }
+
+    private static int pendingSkeletonInvocationCount() {
+        synchronized (SKELETON_INVOCATIONS) {
+            int count = 0;
+            for (ArrayDeque<Long> ids : SKELETON_INVOCATIONS.values()) count += ids.size();
+            return count;
         }
     }
 
@@ -357,10 +417,12 @@ public final class NativeRenderBridge {
 
     public static void clearTransientEffectsForRecovery() {
         EFFECT_LIFECYCLE.cleanupForRecovery();
-        LEDGER.closeForRecovery("recovery");
-        synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
-        synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
-        Sts1NativePresentationAdapter.clear();
+        synchronized (BRIDGE_LOCK) {
+            LEDGER.closeForRecovery("recovery");
+            synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
+            synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
+        }
+        Sts1NativePresentationAdapter.clearTransientEffects();
     }
 
     public static TransientEffectLedger effectLedger() { return EFFECT_LEDGER; }
@@ -375,7 +437,12 @@ public final class NativeRenderBridge {
         EFFECT_REGISTRY.clear();
         synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
         synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
+        beforeTokenPublicationForTests = null;
         Sts1NativePresentationAdapter.clear();
+    }
+
+    public static void setBeforeTokenPublicationForTests(Runnable hook) {
+        beforeTokenPublicationForTests = hook;
     }
 
     private static TransientEffectIdentity effectIdentity(

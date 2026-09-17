@@ -22,6 +22,7 @@ public final class Sts1NativePresentationAdapter {
     private static final String CONTEXT_SCOPE = "nrcc-native";
     private static final String KEY_SCOPE = "sts1.native";
     private static final String HOST_KIND = "STS1_NATIVE";
+    private static final String TRANSIENT_EFFECT_OWNER_PREFIX = "effect:";
 
     private Sts1NativePresentationAdapter() {}
 
@@ -73,6 +74,19 @@ public final class Sts1NativePresentationAdapter {
         if (context == null) return;
         for (EntityId entity : new java.util.ArrayList<EntityId>(context.entities())) {
             context.destroy(entity);
+        }
+        RenderProjectionQueue.request(CONTEXT_SCOPE);
+    }
+
+    /** Clears only transient-effect entities from the shared native presentation context. */
+    public static void clearTransientEffects() {
+        PresentationContext context = PresentationRegistry.existingContext(CONTEXT_SCOPE);
+        if (context == null) return;
+        for (EntityId entity : new java.util.ArrayList<EntityId>(context.entities())) {
+            HostBindingComponent binding = context.world().get(entity, HostBindingComponent.class);
+            if (binding != null && binding.localKey.startsWith(TRANSIENT_EFFECT_OWNER_PREFIX)) {
+                context.destroy(entity);
+            }
         }
         RenderProjectionQueue.request(CONTEXT_SCOPE);
     }

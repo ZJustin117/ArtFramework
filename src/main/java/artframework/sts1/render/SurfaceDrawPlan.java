@@ -21,6 +21,15 @@ import java.util.Map;
  */
 public final class SurfaceDrawPlan {
 
+    private static final String[] READINESS_SURFACES = {
+        SurfaceIds.COMBAT_HAND, SurfaceIds.COMBAT_CARD_SLOTS, SurfaceIds.COMBAT_CONTROLS,
+        SurfaceIds.MAP, SurfaceIds.EVENT, SurfaceIds.SELECT_GRID, SurfaceIds.SELECT_HAND,
+        SurfaceIds.REWARD_COMBAT, SurfaceIds.REST, SurfaceIds.TREASURE, SurfaceIds.SHOP,
+        SurfaceIds.TOP_PANEL, SurfaceIds.COMBAT_INTENTS, SurfaceIds.COMBAT_PROCEED,
+        SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_TARGETING, SurfaceIds.SKELETON,
+        SurfaceIds.REWARD_CARD, SurfaceIds.REWARD_BOSS_RELIC
+    };
+
     public enum DrawMode {
         SKIP,
         OBSERVE,
@@ -71,6 +80,7 @@ public final class SurfaceDrawPlan {
     }
 
     private final List<Entry> entries;
+    private final List<Entry> drawOrder;
     private final String scene;
     private final boolean overlayObserve;
 
@@ -82,6 +92,11 @@ public final class SurfaceDrawPlan {
         } else {
             this.entries = Collections.unmodifiableList(new ArrayList<Entry>(entries));
         }
+        List<Entry> ordered = new ArrayList<Entry>();
+        for (Entry entry : this.entries) {
+            if (entry.mode == DrawMode.DRAW) ordered.add(entry);
+        }
+        this.drawOrder = Collections.unmodifiableList(ordered);
     }
 
     public String scene() {
@@ -117,13 +132,7 @@ public final class SurfaceDrawPlan {
     }
 
     public List<Entry> drawOrder() {
-        List<Entry> out = new ArrayList<Entry>();
-        for (Entry e : entries) {
-            if (e.mode == DrawMode.DRAW) {
-                out.add(e);
-            }
-        }
-        return Collections.unmodifiableList(out);
+        return drawOrder;
     }
 
     public Map<String, Object> toMap() {
@@ -217,6 +226,37 @@ public final class SurfaceDrawPlan {
             boolean energyMounted,
             boolean targetingMounted,
             boolean overlayObserve) {
+        return buildFromSnapshot(
+                scene, handMounted, slotsMounted, controlsMounted, mapMounted, skeletonMounted,
+                eventMounted, selectGridMounted, selectHandMounted, rewardMounted, restMounted,
+                treasureMounted, shopMounted, topPanelMounted, intentsMounted, proceedMounted,
+                energyMounted, targetingMounted, overlayObserve, readinessFlags(),
+                artframework.sts1.PresentSafety.isPanic());
+    }
+
+    /** Builds from one readiness/panic sample supplied by the render pipeline. */
+    static SurfaceDrawPlan buildFromSnapshot(
+            String scene,
+            boolean handMounted,
+            boolean slotsMounted,
+            boolean controlsMounted,
+            boolean mapMounted,
+            boolean skeletonMounted,
+            boolean eventMounted,
+            boolean selectGridMounted,
+            boolean selectHandMounted,
+            boolean rewardMounted,
+            boolean restMounted,
+            boolean treasureMounted,
+            boolean shopMounted,
+            boolean topPanelMounted,
+            boolean intentsMounted,
+            boolean proceedMounted,
+            boolean energyMounted,
+            boolean targetingMounted,
+            boolean overlayObserve,
+            long readinessFlags,
+            boolean panic) {
         List<Entry> list = new ArrayList<Entry>();
         list.add(
                 entry(
@@ -225,7 +265,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.mapLevel(),
                         mapMounted,
                         "map".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         boolean roomScene =
                 "reward".equals(scene)
                         || "rest".equals(scene)
@@ -238,7 +278,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.rewardLevel(),
                         rewardMounted,
                         "reward".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.REWARD_CARD,
@@ -246,7 +286,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.rewardLevel(),
                         rewardMounted,
                         "reward".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.REWARD_BOSS_RELIC,
@@ -254,7 +294,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.rewardLevel(),
                         rewardMounted,
                         "reward".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.REST,
@@ -262,7 +302,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.restLevel(),
                         restMounted,
                         "rest".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.TREASURE,
@@ -270,7 +310,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.treasureLevel(),
                         treasureMounted,
                         "treasure".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.SHOP,
@@ -278,7 +318,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.shopLevel(),
                         shopMounted,
                         "shop".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.EVENT,
@@ -286,7 +326,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.eventLevel(),
                         eventMounted,
                         "event".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.SELECT_GRID,
@@ -294,7 +334,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.selectLevel(),
                         selectGridMounted,
                         "select".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.SELECT_HAND,
@@ -302,7 +342,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.selectLevel(),
                         selectHandMounted,
                         "select".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.COMBAT_CARD_SLOTS,
@@ -310,7 +350,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.combatHandLevel(),
                         slotsMounted,
                         "combat".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.COMBAT_HAND,
@@ -318,7 +358,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.combatHandLevel(),
                         handMounted,
                         "combat".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.COMBAT_CONTROLS,
@@ -326,7 +366,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.combatControlsLevel(),
                         controlsMounted,
                         "combat".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.COMBAT_PROCEED,
@@ -334,7 +374,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.proceedLevel(),
                         proceedMounted,
                         "combat".equals(scene) || "reward".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.COMBAT_ENERGY,
@@ -342,7 +382,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.energyLevel(),
                         energyMounted,
                         "combat".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.COMBAT_INTENTS,
@@ -350,7 +390,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.intentsLevel(),
                         intentsMounted,
                         "combat".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.COMBAT_TARGETING,
@@ -358,7 +398,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.targetingLevel(),
                         targetingMounted,
                         "combat".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.SKELETON,
@@ -366,7 +406,7 @@ public final class SurfaceDrawPlan {
                         FullPresentMode.skeletonLevel(),
                         skeletonMounted,
                         true,
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
                         SurfaceIds.TOP_PANEL,
@@ -378,7 +418,7 @@ public final class SurfaceDrawPlan {
                                 || "map".equals(scene)
                                 || "event".equals(scene)
                                 || "select".equals(scene),
-                        overlayObserve));
+                        overlayObserve, readinessFlags, panic));
         return new SurfaceDrawPlan(scene, overlayObserve, list);
     }
 
@@ -388,18 +428,20 @@ public final class SurfaceDrawPlan {
             PresentLevel level,
             boolean mounted,
             boolean sceneOk,
-            boolean overlayObserve) {
+            boolean overlayObserve,
+            long readinessFlags,
+            boolean panic) {
         // Render-only surfaces need no input executor; readiness is scene + mount only.
         boolean executorReady = SurfaceIds.COMBAT_TARGETING.equals(surfaceId)
                 || SurfaceIds.SKELETON.equals(surfaceId)
-                || CombatInputRouter.isExecutorReady(surfaceId);
+                || isReady(surfaceId, readinessFlags);
         FullPresentCapability capability = FullPresentCapability.resolve(
                 level,
                 mounted,
                 sceneOk,
                 executorReady,
                 overlayObserve,
-                artframework.sts1.PresentSafety.isPanic());
+                panic);
         DrawMode mode = capability.shouldDraw() ? DrawMode.DRAW
                 : capability.state == FullPresentCapability.State.OBSERVING ? DrawMode.OBSERVE : DrawMode.SKIP;
         // ART_DELEGATED surfaces may suppress only through the capability gate. Minimal or
@@ -407,6 +449,23 @@ public final class SurfaceDrawPlan {
         // surfaces as native-authoritative here.
         boolean suppressNative = capability.shouldSuppressNative() && !keepsNativePixelAuthority(surfaceId);
         return new Entry(surfaceId, layer, mode, level, mounted, suppressNative, capability.state, capability.reason);
+    }
+
+    private static long readinessFlags() {
+        long flags = 0L;
+        for (int i = 0; i < READINESS_SURFACES.length; i++) {
+            if (CombatInputRouter.isExecutorReady(READINESS_SURFACES[i])) flags |= 1L << (18 + i);
+        }
+        return flags;
+    }
+
+    private static boolean isReady(String surfaceId, long flags) {
+        for (int i = 0; i < READINESS_SURFACES.length; i++) {
+            if (READINESS_SURFACES[i].equals(surfaceId)) {
+                return (flags & (1L << (18 + i))) != 0L;
+            }
+        }
+        return false;
     }
 
     static boolean keepsNativePixelAuthority(String surfaceId) {
@@ -420,5 +479,14 @@ public final class SurfaceDrawPlan {
         // Skeletons are handled through per-instance claims in SkeletonRenderPatches rather than
         // wholesale surface authority.
         return false;
+    }
+
+    /**
+     * Captures readiness and panic into one primitive value so the same sample can drive cache
+     * identity and construction without allocating a snapshot object on a cache hit.
+     */
+    static long captureReadinessAndPanic() {
+        long flags = readinessFlags();
+        return artframework.sts1.PresentSafety.isPanic() ? flags | (1L << 37) : flags;
     }
 }

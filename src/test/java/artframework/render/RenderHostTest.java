@@ -66,6 +66,18 @@ public class RenderHostTest {
         assertEquals(Integer.valueOf(1), probe.get("bindingCount"));
     }
 
+    @Test
+    public void sameTargetIdWithDifferentKindFailsFast() {
+        RenderHost host = new RenderHost();
+        host.ensureTarget("same-id", RenderTargetKind.OVERLAY);
+        try {
+            host.ensureTarget("same-id", RenderTargetKind.SYNTHETIC_WINDOW);
+            throw new AssertionError("expected target kind mismatch");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("target kind mismatch"));
+        }
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void fullFrameDisabledByDefault() {
         RenderHost host = ArtFramework.render();

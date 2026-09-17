@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -29,6 +30,10 @@ public final class RenderHost {
     private final Map<String, RenderTarget> targets = new ConcurrentHashMap<String, RenderTarget>();
     private final Map<String, List<EffectBinding>> bindings =
             new ConcurrentHashMap<String, List<EffectBinding>>();
+    private final Set<String> planOwnedTargetIds = Collections.newSetFromMap(
+            new ConcurrentHashMap<String, Boolean>());
+    private final Set<String> activeSurfaceManagedTargetIds = Collections.newSetFromMap(
+            new ConcurrentHashMap<String, Boolean>());
     private HostRenderBackend hostBackend = DirectHostRenderBackend.INSTANCE;
     private boolean shadersReady;
     private float timeSeconds;
@@ -257,12 +262,12 @@ public final class RenderHost {
     }
 
     /** Drop disposable host targets and bindings; retained presentation data stays in ECS. */
-    public void clearHostCacheForRecreation() {
+    public synchronized void clearHostCacheForRecreation() {
         clearTargets();
     }
 
     /** Release disposable host resources while retaining ECS render state and configuration. */
-    public void recreateHostCache() {
+    public synchronized void recreateHostCache() {
         clearTargets();
         shaderRuntime.disposeAll();
         frameCapture.dispose();
@@ -276,32 +281,131 @@ public final class RenderHost {
         rebuildFromEcsPlan(null);
     }
 
-    void rebuildFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
+    synchronized void rebuildFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
         RenderPlan plan = RenderPlan.fromEcs(activeSurfaceIds);
-        clearTargets();
         applyPlan(plan);
     }
 
-    /** Rebuild only active C2 surfaces, retaining all other host targets and bindings. */
-    void rebuildActiveC2SurfacesFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
-        removeTargetsWithPrefix(C2_SURFACE_PREFIX);
-        applyPlan(RenderPlan.fromActiveC2Surfaces(activeSurfaceIds));
+    /** Compatibility entry for the active-surface system's locally managed desired targets. */
+    synchronized void rebuildActiveC2SurfacesFromEcsPlan(java.util.Set<String> activeSurfaceIds) {
+        reconcilePlan(RenderPlan.fromActiveC2Surfaces(activeSurfaceIds),
+                activeSurfaceManagedTargetIds);
     }
 
-    private void applyPlan(RenderPlan plan) {
+    private synchronized void applyPlan(RenderPlan plan) {
+        reconcilePlan(plan, planOwnedTargetIds);
+    }
+
+    /** Track-agnostic reconcile kernel over one system's desired plan and managed cache ids. */
+    private void reconcilePlan(RenderPlan plan, Set<String> managedTargetIds) {
+        Map<String, RenderPlan.Entry> desired = new LinkedHashMap<String, RenderPlan.Entry>();
+        List<StagedPlanEntry> staged = new ArrayList<StagedPlanEntry>();
         for (RenderPlan.Entry entry : plan.entries()) {
+            RenderPlan.Entry prior = desired.put(entry.id, entry);
+            if (prior != null) {
+                throw new IllegalArgumentException(
+                        "duplicate target id in render plan: " + entry.id);
+            }
+            if (entry.id == null || entry.id.isEmpty()) {
+                throw new IllegalArgumentException("target id required");
+            }
+            if (entry.kind == null) {
+                throw new IllegalArgumentException("target kind required for " + entry.id);
+            }
+            RenderTarget current = targets.get(entry.id);
+            if (current != null && current.kind != entry.kind) {
+                throw new IllegalArgumentException(
+                        "target kind mismatch for " + entry.id + ": "
+                                + current.kind + " vs " + entry.kind);
+            }
+        }
+        for (RenderPlan.Entry entry : plan.entries()) {
+            RenderTarget current = targets.get(entry.id);
+            staged.add(stagePlanEntry(entry, current));
+        }
+
+        for (String id : new ArrayList<String>(managedTargetIds)) {
+            if (!desired.containsKey(id)) {
+                removeManagedTarget(id, managedTargetIds);
+            }
+        }
+        for (StagedPlanEntry stagedEntry : staged) {
+            RenderPlan.Entry entry = stagedEntry.entry;
             RenderTarget target = ensureTarget(entry.id, entry.kind);
             target.setBounds(entry.bounds);
             target.setZ(entry.z);
             target.setEnabled(entry.enabled);
-            clearEffects(entry.id);
-            for (EffectAttachment attachment : entry.effects) {
-                if (!effects.contains(attachment.effectId)) continue;
-                bindPlannedEffect(entry.id, attachment.effectId, attachment.params());
-                EffectBinding binding = findEffect(entry.id, attachment.effectId, attachment.layer);
-                if (binding != null) binding.setEnabled(attachment.isEnabled());
+            commitPlannedEffects(target, stagedEntry);
+            managedTargetIds.add(entry.id);
+        }
+    }
+
+    private StagedPlanEntry stagePlanEntry(RenderPlan.Entry entry, RenderTarget currentTarget) {
+        List<EffectBinding> candidates = new ArrayList<EffectBinding>();
+        for (EffectAttachment attachment : entry.effects) {
+            Effect effect = effects.get(attachment.effectId);
+            // Compatibility: planned effects unknown to this host are omitted from the cache.
+            if (effect == null) {
+                continue;
+            }
+            EffectBinding candidate = new EffectBinding(
+                    attachment.effectId, plannedParams(attachment));
+            effect.validate(candidate);
+            candidates.add(candidate);
+        }
+        List<EffectBinding> current = currentTarget == null ? null : bindings.get(entry.id);
+        boolean identitiesMatch = current != null && current.size() == candidates.size();
+        if (identitiesMatch) {
+            for (int i = 0; i < candidates.size(); i++) {
+                EffectBinding candidate = candidates.get(i);
+                EffectBinding binding = current.get(i);
+                if (!candidate.effectId.equals(binding.effectId)
+                        || !candidate.layer().equals(binding.layer())) {
+                    identitiesMatch = false;
+                    break;
+                }
             }
         }
+        return new StagedPlanEntry(entry, candidates, identitiesMatch);
+    }
+
+    private void commitPlannedEffects(RenderTarget target, StagedPlanEntry staged) {
+        if (staged.retainBindings) {
+            List<EffectBinding> current = bindings.get(target.id);
+            for (int i = 0; i < staged.bindings.size(); i++) {
+                EffectBinding candidate = staged.bindings.get(i);
+                current.get(i).replaceParams(candidate.paramsView(), candidate.isEnabled());
+            }
+            return;
+        }
+        List<EffectBinding> replacements = new CopyOnWriteArrayList<EffectBinding>();
+        replacements.addAll(staged.bindings);
+        bindings.put(target.id, replacements);
+    }
+
+    private static final class StagedPlanEntry {
+        final RenderPlan.Entry entry;
+        final List<EffectBinding> bindings;
+        final boolean retainBindings;
+
+        StagedPlanEntry(RenderPlan.Entry entry, List<EffectBinding> bindings,
+                boolean retainBindings) {
+            this.entry = entry;
+            this.bindings = bindings;
+            this.retainBindings = retainBindings;
+        }
+    }
+
+    private static Map<String, Object> plannedParams(EffectAttachment attachment) {
+        Map<String, Object> params = new LinkedHashMap<String, Object>(attachment.params());
+        params.put("layer", normalizedLayer(attachment.layer));
+        params.put("enabled", Boolean.valueOf(attachment.isEnabled()));
+        return params;
+    }
+
+    private static String normalizedLayer(String layer) {
+        return layer == null || layer.trim().isEmpty()
+                ? EffectBinding.LAYER_AMBIENT : layer.trim();
     }
 
     private void removeTarget(String id) {
@@ -310,23 +414,24 @@ public final class RenderHost {
         }
         targets.remove(id);
         bindings.remove(id);
+        planOwnedTargetIds.remove(id);
+        activeSurfaceManagedTargetIds.remove(id);
     }
 
-    private void removeTargetsWithPrefix(String prefix) {
-        if (prefix == null) {
+    private void removeManagedTarget(String id, Set<String> ownerSet) {
+        ownerSet.remove(id);
+        if (planOwnedTargetIds.contains(id) || activeSurfaceManagedTargetIds.contains(id)) {
             return;
         }
-        List<String> ids = new ArrayList<String>(targets.keySet());
-        for (String id : ids) {
-            if (id.startsWith(prefix)) {
-                removeTarget(id);
-            }
-        }
+        targets.remove(id);
+        bindings.remove(id);
     }
 
-    void clearTargets() {
+    synchronized void clearTargets() {
         targets.clear();
         bindings.clear();
+        planOwnedTargetIds.clear();
+        activeSurfaceManagedTargetIds.clear();
     }
 
     /**
@@ -340,15 +445,6 @@ public final class RenderHost {
         if (target.kind != RenderTargetKind.OVERLAY) {
             throw new IllegalArgumentException(
                     "ECS-owned target effects must be written to presentation state: " + targetId);
-        }
-        return bindEffectUnchecked(target, effectId, params);
-    }
-
-    private EffectBinding bindPlannedEffect(String targetId, String effectId,
-            Map<String, Object> params) {
-        RenderTarget target = targets.get(targetId);
-        if (target == null) {
-            throw new IllegalArgumentException("unknown target: " + targetId);
         }
         return bindEffectUnchecked(target, effectId, params);
     }

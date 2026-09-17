@@ -91,6 +91,36 @@ public class TransientEffectProjectionSystemTest {
     }
 
     @Test
+    public void pendingProjectionStateIsCoalescedAndBounded() {
+        TransientEffectRegistry bounded = new TransientEffectRegistry(2);
+        TransientEffectIdentity first = identity("first-pending");
+        TransientEffectIdentity second = identity("second-pending");
+        TransientEffectIdentity third = identity("third-pending");
+
+        bounded.present(first, 1L, "render");
+        bounded.present(first, 2L, "render-again");
+        bounded.cleanup(first);
+        bounded.present(second, 3L, "render");
+        bounded.present(third, 4L, "render");
+
+        java.util.List<TransientEffectRegistry.PendingProjection> drained =
+                bounded.drainPendingProjections();
+        assertEquals(Integer.valueOf(2), Integer.valueOf(drained.size()));
+        assertEquals(second.instanceId, drained.get(0).instanceId);
+        assertEquals(third.instanceId, drained.get(1).instanceId);
+        assertFalse("terminal cleanup must not retain an obsolete present event",
+                containsInstance(drained, first.instanceId));
+    }
+
+    private boolean containsInstance(
+            java.util.List<TransientEffectRegistry.PendingProjection> events, String instanceId) {
+        for (TransientEffectRegistry.PendingProjection event : events) {
+            if (instanceId.equals(event.instanceId)) return true;
+        }
+        return false;
+    }
+
+    @Test
     public void scheduleCompatEntryDrainsTheSameOwnedInstance() {
         TransientEffectIdentity viaSchedule = identity("schedule-compat");
         PresentationSchedule schedule = new PresentationSchedule();

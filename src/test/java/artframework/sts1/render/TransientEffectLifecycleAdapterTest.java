@@ -34,6 +34,13 @@ public class TransientEffectLifecycleAdapterTest {
                 Collections.singletonList(projection));
     }
 
+    private void renderEntities(int count, String prefix) {
+        for (int index = 0; index < count; index++) {
+            adapter.render(identity(prefix + index), index, "render");
+        }
+        drain();
+    }
+
     @Test
     public void renderCreatesOneEntityAndCompletionRemovesIt() {
         TransientEffectIdentity identity = identity("a");
@@ -80,6 +87,21 @@ public class TransientEffectLifecycleAdapterTest {
     }
 
     @Test
+    public void cleanupAllClearsEveryEntityWhenActiveCountExceedsPendingCapacity() {
+        renderEntities(TransientEffectRegistry.DEFAULT_PENDING_CAPACITY + 1, "cleanup-all-");
+
+        adapter.cleanupAll();
+        drain();
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(
+                artframework.presentation.PresentationRegistry.context("nrcc-native")
+                        .entities().size()));
+        assertEquals(Integer.valueOf(0),
+                Integer.valueOf(registry.drainPendingProjections().size()));
+    }
+
+    @Test
     public void recoveryCleanupDoesNotCountRecoveryOwnedEffectAsLeak() {
         adapter.render(identity("recovery"), 1L, "render");
         drain();
@@ -90,5 +112,100 @@ public class TransientEffectLifecycleAdapterTest {
         assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
         assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.leakedCount()));
         assertFalse(Sts1NativePresentationAdapter.hasEntity("effect:recovery"));
+    }
+
+    @Test
+    public void recoveryCleanupClearsEveryEntityWhenActiveCountExceedsPendingCapacity() {
+        renderEntities(TransientEffectRegistry.DEFAULT_PENDING_CAPACITY + 1, "recovery-all-");
+
+        adapter.cleanupForRecovery();
+        drain();
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(
+                artframework.presentation.PresentationRegistry.context("nrcc-native")
+                        .entities().size()));
+        assertEquals(Integer.valueOf(0),
+                Integer.valueOf(registry.drainPendingProjections().size()));
+    }
+
+    @Test
+    public void recoveryCleanupClearsTransientEntitiesWithoutRemovingNativeSurfaceEntities() {
+        Sts1NativePresentationAdapter.present(new NativeRenderInvocation(1L, 1L, "combat",
+                "surface:unrelated", "NativeSurface", "render", "surface", "surface",
+                artframework.component.Rect.ZERO));
+        renderEntities(TransientEffectRegistry.DEFAULT_PENDING_CAPACITY + 1, "recovery-mixed-");
+
+        adapter.cleanupForRecovery();
+        drain();
+
+        assertTrue(Sts1NativePresentationAdapter.hasEntity("surface:unrelated"));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(
+                artframework.presentation.PresentationRegistry.context("nrcc-native")
+                        .entities().size()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(registry.drainPendingProjections().size()));
+        for (int index = 0; index < TransientEffectRegistry.DEFAULT_PENDING_CAPACITY + 1; index++) {
+            assertFalse(Sts1NativePresentationAdapter.hasEntity("effect:recovery-mixed-" + index));
+        }
+    }
+
+    @Test
+    public void terminalRenderDoesNotRecreatePresentationEntity() {
+        TransientEffectIdentity identity = identity("terminal-render");
+        adapter.render(identity, 1L, "render");
+        drain();
+        adapter.complete(identity);
+        drain();
+
+        adapter.render(identity, 2L, "late-render");
+        drain();
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.totalCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.unknownLifecycleCount()));
+    }
+
+    @Test
+    public void recoveryRenderDoesNotRecreatePresentationEntity() {
+        TransientEffectIdentity identity = identity("recovery-render");
+        adapter.render(identity, 1L, "render");
+        drain();
+        adapter.cleanupForRecovery();
+        drain();
+
+        adapter.render(identity, 2L, "late-render");
+        drain();
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.unknownLifecycleCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.totalCount()));
+    }
+
+    @Test
+    public void disposedAndEvictedRendersDoNotRecreatePresentationEntity() {
+        TransientEffectLedger boundedLedger = new TransientEffectLedger(1);
+        TransientEffectLifecycleAdapter boundedAdapter =
+                new TransientEffectLifecycleAdapter(boundedLedger, registry);
+        TransientEffectIdentity disposed = identity("disposed-render");
+        boundedAdapter.render(disposed, 1L, "render");
+        boundedAdapter.cancel(disposed);
+        drain();
+        boundedAdapter.render(disposed, 2L, "late-render");
+
+        TransientEffectIdentity evicted = identity("evicted-render");
+        boundedAdapter.render(evicted, 3L, "render");
+        boundedAdapter.cancel(evicted);
+        drain();
+        TransientEffectIdentity newer = identity("newer-render");
+        boundedAdapter.render(newer, 4L, "render");
+        boundedAdapter.cancel(newer);
+        drain();
+        boundedAdapter.render(evicted, 5L, "late-render");
+        drain();
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(boundedLedger.activeCount()));
+        assertEquals(Integer.valueOf(3), Integer.valueOf(boundedLedger.totalCount()));
+        assertEquals(Integer.valueOf(2), Integer.valueOf(boundedLedger.unknownLifecycleCount()));
     }
 }

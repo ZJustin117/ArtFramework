@@ -1,6 +1,5 @@
 package artframework.sts1.render;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -12,8 +11,22 @@ import java.util.Map;
  * projection queue drained by {@link TransientEffectProjectionSystem}.
  */
 public final class TransientEffectRegistry {
+    public static final int DEFAULT_PENDING_CAPACITY = 256;
+
     private final Map<String, String> entities = new LinkedHashMap<String, String>();
-    private final ArrayDeque<PendingProjection> pending = new ArrayDeque<PendingProjection>();
+    private final LinkedHashMap<String, PendingProjection> pending =
+            new LinkedHashMap<String, PendingProjection>();
+    private final int pendingCapacity;
+    private boolean clearAllPending;
+
+    public TransientEffectRegistry() {
+        this(DEFAULT_PENDING_CAPACITY);
+    }
+
+    TransientEffectRegistry(int pendingCapacity) {
+        if (pendingCapacity < 1) throw new IllegalArgumentException("pending capacity required");
+        this.pendingCapacity = pendingCapacity;
+    }
 
     /** One deferred projection event; data-only value consumed by the projection system. */
     public static final class PendingProjection {
@@ -34,7 +47,7 @@ public final class TransientEffectRegistry {
     public synchronized void present(TransientEffectIdentity identity, long frameId,
             String method) {
         requireIdentity(identity);
-        pending.add(new PendingProjection(identity.instanceId, ownerId(identity), false,
+        enqueue(new PendingProjection(identity.instanceId, ownerId(identity), false,
                 new NativeRenderInvocation(-1L, frameId, "", ownerId(identity),
                         identity.nativeClass, method, "transient_effect",
                         identity.instanceId, artframework.component.Rect.ZERO)));
@@ -42,9 +55,19 @@ public final class TransientEffectRegistry {
 
     /** Pops every pending projection event; only the projection system consumes these. */
     public synchronized List<PendingProjection> drainPendingProjections() {
-        List<PendingProjection> drained = new ArrayList<PendingProjection>(pending);
+        List<PendingProjection> drained = new ArrayList<PendingProjection>(pending.values());
         pending.clear();
         return drained;
+    }
+
+    /**
+     * Consumes the deferred clear-all marker. The marker is separate from the bounded per-instance
+     * queue so cleanup remains complete even when more entities are active than its capacity.
+     */
+    synchronized boolean consumeClearAll() {
+        boolean requested = clearAllPending;
+        clearAllPending = false;
+        return requested;
     }
 
     /** Write-back after the projection system presented one entity. */
@@ -61,13 +84,12 @@ public final class TransientEffectRegistry {
     public synchronized void cleanup(TransientEffectIdentity identity) {
         if (identity == null) return;
         entities.remove(identity.instanceId);
-        pending.add(new PendingProjection(identity.instanceId, ownerId(identity), true, null));
+        enqueue(new PendingProjection(identity.instanceId, ownerId(identity), true, null));
     }
 
     public synchronized void clear() {
-        for (String instanceId : entities.keySet()) {
-            pending.add(new PendingProjection(instanceId, "effect:" + instanceId, true, null));
-        }
+        pending.clear();
+        clearAllPending = true;
         entities.clear();
     }
 
@@ -79,6 +101,19 @@ public final class TransientEffectRegistry {
 
     private static String ownerId(TransientEffectIdentity identity) {
         return "effect:" + identity.instanceId;
+    }
+
+    /**
+     * Keep only the latest operation for an instance. Lifecycle callbacks can run repeatedly
+     * before the schedule-owned projection phase; retaining every intermediate render/cleanup
+     * would make this queue grow with callback volume rather than current presentation state.
+     */
+    private void enqueue(PendingProjection projection) {
+        pending.remove(projection.instanceId);
+        while (pending.size() >= pendingCapacity) {
+            pending.remove(pending.keySet().iterator().next());
+        }
+        pending.put(projection.instanceId, projection);
     }
 
     private static void requireIdentity(TransientEffectIdentity identity) {

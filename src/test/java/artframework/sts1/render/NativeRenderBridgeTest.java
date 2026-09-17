@@ -21,6 +21,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -181,6 +182,50 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void recoveryClearsOnlyTransientNativePresentationEntities() {
+        Sts1NativePresentationAdapter.present(new NativeRenderInvocation(1L, 1L, "combat",
+                "nrcc-native-surface", "NativeSurface", "render", "surface", "surface",
+                artframework.component.Rect.ZERO));
+        for (int index = 0; index < TransientEffectRegistry.DEFAULT_PENDING_CAPACITY + 1; index++) {
+            Sts1NativePresentationAdapter.present(new NativeRenderInvocation(2L, 1L, "combat",
+                    "effect:bridge-recovery-" + index, "NativeEffect", "render",
+                    "transient_effect", "effect", artframework.component.Rect.ZERO));
+        }
+
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+
+        assertTrue(Sts1NativePresentationAdapter.hasEntity("nrcc-native-surface"));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(
+                artframework.presentation.PresentationRegistry.context("nrcc-native")
+                        .entities().size()));
+        for (int index = 0; index < TransientEffectRegistry.DEFAULT_PENDING_CAPACITY + 1; index++) {
+            assertFalse(Sts1NativePresentationAdapter.hasEntity("effect:bridge-recovery-" + index));
+        }
+    }
+
+    @Test
+    public void recoveryBetweenDispositionAndSurfaceTokenPublicationCannotLeaveToken() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_CONTROLS);
+        final CountDownLatch publicationWindow = new CountDownLatch(1);
+        NativeRenderBridge.setBeforeTokenPublicationForTests(new Runnable() {
+            @Override public void run() {
+                publicationWindow.countDown();
+                NativeRenderBridge.clearTransientEffectsForRecovery();
+            }
+        });
+
+        RenderDisposition disposition = beginDelegatedSurface(SurfaceIds.COMBAT_CONTROLS, "race");
+
+        assertEquals(Long.valueOf(0L), Long.valueOf(publicationWindow.getCount()));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get(
+                "pendingSurfaceInvocationCount"));
+        NativeRenderBridge.recordSurfaceDraw(disposition.invocationId, 1);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("evidenceCount"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("pendingSurfaceInvocationCount"));
+    }
+
+    @Test
     public void explicitDrawApisRemoveOnlyTheirTokensBeforeOwnerDrawClosesTheRest() {
         mountedCombat();
         armFullSurface(SurfaceIds.COMBAT_INTENTS);
@@ -224,6 +269,40 @@ public class NativeRenderBridgeTest {
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.COMBAT_HAND, 1);
         assertEquals(Integer.valueOf(1), NativeRenderBridge.strictReport().get("orphanArtOutput"));
         assertEquals(Boolean.FALSE, NativeRenderBridge.strictReport().get("accepted"));
+    }
+
+    @Test
+    public void directSkeletonFailureIsOrphanSafeAcrossTerminalAndEvictedStates() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+
+        RenderDisposition evidenced = beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "evidence");
+        NativeRenderBridge.recordSurfaceDraw(evidenced.invocationId, 1);
+        RenderDisposition recovered = beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "recovery");
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+        RenderDisposition fallback = beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "fallback");
+        NativeRenderBridge.recordSkeletonFailure(fallback.invocationId);
+        FullPresentMode.setCombatHandLevel(PresentLevel.OFF);
+        RenderDisposition nonDelegated = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "native.Owner", "render", "non-delegated");
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+
+        int evidenceCount = NativeRenderBridge.ledger().evidenceCount();
+        NativeRenderBridge.recordSkeletonFailure(evidenced.invocationId);
+        NativeRenderBridge.recordSkeletonFailure(recovered.invocationId);
+        NativeRenderBridge.recordSkeletonFailure(fallback.invocationId);
+        NativeRenderBridge.recordSkeletonFailure(nonDelegated.invocationId);
+
+        for (int i = 0; i < NativeRenderLedger.RECENT_HISTORY_CAPACITY + 2; i++) {
+            RenderDisposition extra = beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "evict-" + i);
+            NativeRenderBridge.recordSurfaceDraw(extra.invocationId, 1);
+        }
+        NativeRenderBridge.recordSkeletonFailure(evidenced.invocationId);
+
+        assertEquals(evidenceCount + NativeRenderLedger.RECENT_HISTORY_CAPACITY + 2,
+                NativeRenderBridge.ledger().evidenceCount());
+        assertEquals(Integer.valueOf(5), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("openInvocation"));
     }
 
     @Test(expected = IllegalStateException.class)
@@ -455,12 +534,79 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void lateBeginEffectRenderAfterCompletionDoesNotRecreateActiveEffect() {
+        AbstractGameEffect effect = effect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        effect.isDone = true;
+        NativeRenderBridge.observeEffectUpdate(effect);
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        int total = ((Integer) transientEffects().get("total")).intValue();
+
+        RenderDisposition late = NativeRenderBridge.beginEffectRender(effect, "late-render");
+
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, late.mode);
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(total), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(1), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("failOpen"));
+    }
+
+    @Test
     public void transientEffectRenderAlwaysCapturesAndPasses() {
         AbstractGameEffect effect = effect();
         RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render_at");
         assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
         assertTrue("native effect queue must continue after observation",
                 disposition.nativeContinuation);
+    }
+
+    @Test
+    public void lateBeginEffectRenderAfterRecoveryClearRemainsFailOpenAndInactive() {
+        AbstractGameEffect effect = effect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+
+        RenderDisposition late = NativeRenderBridge.beginEffectRender(effect, "late-render");
+
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, late.mode);
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(1), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("total"));
+    }
+
+    @Test
+    public void lateBeginEffectRenderAfterDisposeDoesNotRecreateActiveEffect() {
+        AbstractGameEffect effect = effect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        NativeRenderBridge.observeEffectDispose(effect);
+
+        NativeRenderBridge.beginEffectRender(effect, "late-render");
+
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(1), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(1), transientEffects().get("unknownLifecycle"));
+    }
+
+    @Test
+    public void lateBeginEffectRenderAfterRecentEvictionDoesNotRecreateActiveEffect() {
+        AbstractGameEffect evicted = effect();
+        NativeRenderBridge.beginEffectRender(evicted, "render");
+        NativeRenderBridge.observeEffectDispose(evicted);
+        for (int i = 0; i < TransientEffectLedger.DEFAULT_RECENT_CAPACITY; i++) {
+            AbstractGameEffect newer = effect();
+            NativeRenderBridge.beginEffectRender(newer, "render");
+            NativeRenderBridge.observeEffectDispose(newer);
+        }
+
+        NativeRenderBridge.beginEffectRender(evicted, "late-render");
+
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(TransientEffectLedger.DEFAULT_RECENT_CAPACITY + 1),
+                transientEffects().get("total"));
+        assertEquals(Integer.valueOf(1), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(1), transientEffects().get("evicted"));
+        assertEquals(Integer.valueOf(TransientEffectLedger.DEFAULT_RECENT_CAPACITY),
+                transientEffects().get("recent"));
     }
 
     @Test

@@ -25,6 +25,7 @@ public final class TransientEffectProjectionSystem implements EcsSystem {
 
     /** Shared drain for the scheduled run and synchronous compatibility callers. */
     public void drain() {
+        if (registry.consumeClearAll()) Sts1NativePresentationAdapter.clearTransientEffects();
         List<TransientEffectRegistry.PendingProjection> events =
                 registry.drainPendingProjections();
         for (TransientEffectRegistry.PendingProjection event : events) {

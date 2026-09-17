@@ -11,8 +11,12 @@ import artframework.context.MapView;
 import artframework.context.SurfaceIds;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
+import artframework.sts1.PresentSafety;
 import artframework.sts1.input.CombatInputRouter;
+import artframework.sts1.input.IntentExecutor;
 import artframework.sts1.input.RecordingIntentExecutor;
+import artframework.context.IntentResult;
+import artframework.context.UiIntent;
 import org.junit.After;
 import org.junit.Test;
 
@@ -57,6 +61,130 @@ public class Sts1RenderPipelineTest {
         assertFalse(plan.shouldDraw(SurfaceIds.COMBAT_HAND));
         assertFalse(plan.shouldSuppressNative(SurfaceIds.COMBAT_HAND));
         assertEquals(SurfaceDrawPlan.DrawMode.SKIP, plan.find(SurfaceIds.COMBAT_HAND).mode);
+    }
+
+    @Test
+    public void sameFrameAndInputsReusePlanAndDrawSnapshot() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan first = Sts1RenderPipeline.plan();
+        SurfaceDrawPlan second = Sts1RenderPipeline.plan();
+        assertTrue(first == second);
+        assertTrue(first.drawOrder() == second.drawOrder());
+    }
+
+    @Test
+    public void frameAndPolicyInputsInvalidatePlanWithoutChangingOutput() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan first = Sts1RenderPipeline.plan();
+        ArtFramework.publishFrame(ContextFrame.of(2L, 1L, "combat",
+                java.util.Collections.<CardView>emptyList(), ControlsView.empty(), MapView.empty(), null));
+        SurfaceDrawPlan second = Sts1RenderPipeline.plan();
+        assertFalse(first == second);
+        assertEquals(first.toMap(), second.toMap());
+        FullPresentMode.setCombatHandLevel(PresentLevel.OBSERVE);
+        assertFalse(second == Sts1RenderPipeline.plan());
+    }
+
+    @Test
+    public void frameIdInvalidatesDerivedIdentityButListedPresentationInputsRemainAuthoritative() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan first = Sts1RenderPipeline.plan();
+
+        // The new frame changes projection data that is not a listed draw-plan input. The frame
+        // ID still invalidates derived identity, while the current scene/mount/policy/readiness
+        // inputs continue to determine the exact plan content.
+        ArtFramework.publishFrame(ContextFrame.of(2L, 1L, "combat",
+                java.util.Collections.<CardView>emptyList(), ControlsView.empty(), MapView.empty(), null));
+        SurfaceDrawPlan second = Sts1RenderPipeline.plan();
+
+        assertFalse(first == second);
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, second.find(SurfaceIds.COMBAT_HAND).mode);
+        assertTrue(second.find(SurfaceIds.COMBAT_HAND).suppressNative);
+        assertEquals(Integer.valueOf(2), Integer.valueOf(second.drawOrder().size()));
+    }
+
+    @Test
+    public void readinessChangesInvalidatePlanWithoutExecutorReplacement() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        MutableReadyExecutor executor = new MutableReadyExecutor(true);
+        CombatInputRouter.setExecutor(executor);
+        SurfaceDrawPlan ready = Sts1RenderPipeline.plan();
+
+        executor.ready = false;
+        SurfaceDrawPlan unavailable = Sts1RenderPipeline.plan();
+        assertFalse(ready == unavailable);
+        assertEquals(SurfaceDrawPlan.DrawMode.SKIP, unavailable.find(SurfaceIds.COMBAT_HAND).mode);
+
+        executor.ready = true;
+        SurfaceDrawPlan readyAgain = Sts1RenderPipeline.plan();
+        assertFalse(unavailable == readyAgain);
+        assertEquals(ready.toMap(), readyAgain.toMap());
+    }
+
+    @Test
+    public void planUsesOnePrimitiveReadinessSampleForKeyAndConstruction() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        FlippingReadyExecutor executor = new FlippingReadyExecutor();
+        CombatInputRouter.setExecutor(executor);
+
+        SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
+
+        // The first sampled value for hand is true. A second read would flip it to false and
+        // make construction disagree with the cache key; construction must use the same packed
+        // primitive sample rather than allocating or recapturing readiness.
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, plan.find(SurfaceIds.COMBAT_HAND).mode);
+        assertEquals(19, executor.reads);
+    }
+
+    @Test
+    public void mountAndOverlayChangesInvalidatePlanAndRestoreEquivalentOutput() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan initial = Sts1RenderPipeline.plan();
+
+        ArtFramework.component(SurfaceIds.COMBAT_HAND).unmount();
+        SurfaceDrawPlan unmounted = Sts1RenderPipeline.plan();
+        assertFalse(initial == unmounted);
+        assertEquals(SurfaceDrawPlan.DrawMode.SKIP, unmounted.find(SurfaceIds.COMBAT_HAND).mode);
+
+        ArtFramework.component(SurfaceIds.COMBAT_HAND).mount();
+        SurfaceDrawPlan remounted = Sts1RenderPipeline.plan();
+        assertFalse(unmounted == remounted);
+        assertEquals(initial.toMap(), remounted.toMap());
+
+        Sts1RenderPipeline.setOverlayObserve(true);
+        SurfaceDrawPlan observing = Sts1RenderPipeline.plan();
+        assertFalse(remounted == observing);
+        assertEquals(SurfaceDrawPlan.DrawMode.OBSERVE, observing.find(SurfaceIds.COMBAT_HAND).mode);
+
+        Sts1RenderPipeline.setOverlayObserve(false);
+        SurfaceDrawPlan restored = Sts1RenderPipeline.plan();
+        assertFalse(observing == restored);
+        assertEquals(initial.toMap(), restored.toMap());
+    }
+
+    @Test
+    public void panicChangeInvalidatesPlanAndDisablesFullPresentOutput() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan beforePanic = Sts1RenderPipeline.plan();
+
+        PresentSafety.panic("test");
+        SurfaceDrawPlan duringPanic = Sts1RenderPipeline.plan();
+
+        assertFalse(beforePanic == duringPanic);
+        assertEquals(SurfaceDrawPlan.DrawMode.SKIP, duringPanic.find(SurfaceIds.COMBAT_HAND).mode);
+        assertFalse(duringPanic.shouldSuppressNative(SurfaceIds.COMBAT_HAND));
     }
 
     @Test
@@ -316,6 +444,36 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
+    public void planIsReusedOnlyForSameFrameAndInputs() {
+        combatFrameMounted();
+        SurfaceDrawPlan first = Sts1RenderPipeline.plan();
+        assertTrue(first == Sts1RenderPipeline.plan());
+        FullPresentMode.setCombatHandLevel(PresentLevel.OBSERVE);
+        SurfaceDrawPlan policyChanged = Sts1RenderPipeline.plan();
+        assertFalse(first == policyChanged);
+        ArtFramework.publishFrame(ContextFrame.of(2L, 1L, "combat", null,
+                ControlsView.empty(), MapView.empty(), null));
+        assertFalse(policyChanged == Sts1RenderPipeline.plan());
+    }
+
+    @Test
+    public void frameInvalidatesIdentityButCurrentPresentationInputsDriveContent() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        SurfaceDrawPlan combat = Sts1RenderPipeline.plan();
+
+        ArtFramework.publishFrame(ContextFrame.of(2L, 1L, "map", null,
+                ControlsView.empty(), MapView.empty(), null));
+        SurfaceDrawPlan map = Sts1RenderPipeline.plan();
+
+        assertFalse("frame ID must invalidate derived plan identity", combat == map);
+        assertEquals("map", map.scene());
+        assertEquals(SurfaceDrawPlan.DrawMode.SKIP, map.find(SurfaceIds.COMBAT_HAND).mode);
+        assertEquals("scene_unavailable", map.find(SurfaceIds.COMBAT_HAND).reason);
+    }
+
+    @Test
     public void wrongSceneNoHandDraw() {
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
@@ -354,5 +512,38 @@ public class Sts1RenderPipelineTest {
         SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, plan.find(SurfaceIds.EVENT).mode);
         assertTrue(plan.shouldSuppressNative(SurfaceIds.EVENT));
+    }
+
+    private static final class MutableReadyExecutor implements IntentExecutor {
+        private boolean ready;
+
+        private MutableReadyExecutor(boolean ready) {
+            this.ready = ready;
+        }
+
+        @Override
+        public IntentResult execute(UiIntent intent) {
+            return IntentResult.accepted("test");
+        }
+
+        @Override
+        public boolean isReady(String surfaceId) {
+            return ready;
+        }
+    }
+
+    private static final class FlippingReadyExecutor implements IntentExecutor {
+        private int reads;
+
+        @Override
+        public IntentResult execute(UiIntent intent) {
+            return IntentResult.accepted("test");
+        }
+
+        @Override
+        public boolean isReady(String surfaceId) {
+            reads++;
+            return reads == 1;
+        }
     }
 }

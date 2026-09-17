@@ -17,9 +17,7 @@ public final class TransientEffectLifecycleAdapter {
     }
 
     public void render(TransientEffectIdentity identity, long frameId, String method) {
-        ledger.create(identity);
-        ledger.render(identity);
-        registry.present(identity, frameId, method);
+        if (ledger.admitRender(identity)) registry.present(identity, frameId, method);
     }
 
     public void update(TransientEffectIdentity identity, boolean done) {

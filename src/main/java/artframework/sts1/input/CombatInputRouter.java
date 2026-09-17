@@ -26,12 +26,16 @@ public final class CombatInputRouter {
 
     private static IntentExecutor executor = new RejectingExecutor();
     private static boolean suppressNativeInput;
+    private static long executorRevision;
 
     private CombatInputRouter() {}
 
     public static void setExecutor(IntentExecutor exec) {
         executor = exec != null ? exec : new RejectingExecutor();
+        executorRevision++;
     }
+
+    public static long executorRevision() { return executorRevision; }
 
     public static IntentExecutor executor() {
         return executor;
@@ -269,6 +273,7 @@ public final class CombatInputRouter {
     public static void resetForTests() {
         executor = new RejectingExecutor();
         suppressNativeInput = false;
+        executorRevision = 0L;
         NativeInputRecords.resetForTests();
     }
 

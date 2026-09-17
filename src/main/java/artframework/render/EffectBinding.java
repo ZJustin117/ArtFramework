@@ -15,35 +15,37 @@ public final class EffectBinding {
     public static final String LAYER_PULSE = "pulse";
 
     public final String effectId;
-    private final Map<String, Object> params;
-    private boolean enabled = true;
+    private volatile Snapshot snapshot;
 
     public EffectBinding(String effectId, Map<String, Object> params) {
         if (effectId == null || effectId.isEmpty()) {
             throw new IllegalArgumentException("effectId required");
         }
         this.effectId = effectId;
-        this.params = new LinkedHashMap<String, Object>();
+        Map<String, Object> initial = new LinkedHashMap<String, Object>();
         if (params != null) {
-            this.params.putAll(params);
+            initial.putAll(params);
         }
-        if (!this.params.containsKey("layer")) {
-            this.params.put("layer", LAYER_AMBIENT);
+        if (!initial.containsKey("layer")) {
+            initial.put("layer", LAYER_AMBIENT);
         }
-        Object en = this.params.get("enabled");
+        boolean enabled = true;
+        Object en = initial.get("enabled");
         if (en instanceof Boolean) {
-            this.enabled = ((Boolean) en).booleanValue();
+            enabled = ((Boolean) en).booleanValue();
         } else if (en instanceof Number) {
-            this.enabled = ((Number) en).floatValue() > 0.5f;
+            enabled = ((Number) en).floatValue() > 0.5f;
         } else if (en instanceof String) {
-            this.enabled =
+            enabled =
                     !"false".equalsIgnoreCase(((String) en).trim())
                             && !"0".equals(((String) en).trim());
         }
+        this.snapshot = new Snapshot(immutableCopy(initial), enabled);
     }
 
     /** Logical layer id ({@link #LAYER_AMBIENT}, {@link #LAYER_PULSE}, …). */
     public String layer() {
+        Map<String, Object> params = snapshot.params;
         Object v = params.get("layer");
         if (v == null) {
             return LAYER_AMBIENT;
@@ -53,19 +55,33 @@ public final class EffectBinding {
     }
 
     public boolean isEnabled() {
-        return enabled;
+        return snapshot.enabled;
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-        params.put("enabled", Boolean.valueOf(enabled));
+    public synchronized void setEnabled(boolean enabled) {
+        Map<String, Object> next = new LinkedHashMap<String, Object>(snapshot.params);
+        next.put("enabled", Boolean.valueOf(enabled));
+        snapshot = new Snapshot(immutableCopy(next), enabled);
     }
 
     public Map<String, Object> paramsView() {
-        return Collections.unmodifiableMap(new LinkedHashMap<String, Object>(params));
+        return snapshot.params;
+    }
+
+    synchronized void replaceParams(Map<String, Object> next, boolean enabled) {
+        Map<String, Object> replacement = new LinkedHashMap<String, Object>();
+        if (next != null) {
+            replacement.putAll(next);
+        }
+        if (!replacement.containsKey("layer")) {
+            replacement.put("layer", LAYER_AMBIENT);
+        }
+        replacement.put("enabled", Boolean.valueOf(enabled));
+        snapshot = new Snapshot(immutableCopy(replacement), enabled);
     }
 
     public float paramFloat(String key, float defaultValue) {
+        Map<String, Object> params = snapshot.params;
         Object v = params.get(key);
         if (v instanceof Number) {
             return ((Number) v).floatValue();
@@ -73,18 +89,35 @@ public final class EffectBinding {
         return defaultValue;
     }
 
-    public void setParam(String key, Object value) {
+    public synchronized void setParam(String key, Object value) {
         if (key == null || key.isEmpty()) {
             return;
         }
+        Snapshot current = snapshot;
+        Map<String, Object> next = new LinkedHashMap<String, Object>(current.params);
         if (value == null) {
-            params.remove(key);
+            next.remove(key);
         } else {
-            params.put(key, value);
+            next.put(key, value);
         }
+        snapshot = new Snapshot(immutableCopy(next), current.enabled);
     }
 
     public void setParamFloat(String key, float value) {
         setParam(key, Float.valueOf(value));
+    }
+
+    private static Map<String, Object> immutableCopy(Map<String, Object> source) {
+        return Collections.unmodifiableMap(new LinkedHashMap<String, Object>(source));
+    }
+
+    private static final class Snapshot {
+        final Map<String, Object> params;
+        final boolean enabled;
+
+        Snapshot(Map<String, Object> params, boolean enabled) {
+            this.params = params;
+            this.enabled = enabled;
+        }
     }
 }

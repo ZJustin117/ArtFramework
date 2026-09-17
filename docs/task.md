@@ -142,6 +142,38 @@ Persistent recursive review, before/after evidence, findings, and verification p
   resolves its context/world on demand, allowing ECS registry recreation without stale writes;
   `ArtFramework.OPEN` is now a handle/layout-root cache and close falls back to ECS lifecycle data.
 
+### Native render memory lifecycle
+
+- [ ] NRM-07 Derived frame plan cache: bounded same-frame plan/draw-order reuse is implemented and
+      covered by focused/default JUnit and D1 FULL combat; allocation comparison evidence remains
+      pending.
+- [x] NRM-08 Differential projection/ECS/render-target updates: identical surface/full-frame ECS
+  writes preserve component identity, and the unified generic RenderPlan reconcile algorithm retains equal
+  target/binding identities, synchronizes mutable state, removes stale plan ownership, preserves
+  manual overlays, stages full-plan validation atomically, rejects duplicate ids, preserves unknown-
+  effect skip compatibility, publishes concurrent-safe binding snapshots, and keeps explicit
+  recreation destructive. The active-surface system now submits only its local desired/managed set
+  after the initial deployed jar `fbf4d6fd...` exposed and the subsequent fix removed the active-
+  surface full-plan hot-path regression. Focused tests passed 39/39, the default JUnit gate passed
+  1227/1227, final jar `47ac04adafba602f9f5fc1d492f99783dcf22d527b41b5dd6f354122ec8cfad3` was
+  deployed to D1, and `scripts/art-lab combat verify-full` passed 1/1. Independent final review
+  passed with no findings; no paired allocation improvement is claimed.
+- [x] NRM-09 Heartbeat/full-probe split: `StageHost` owns one post-update monotonic publisher;
+  heartbeat/full cadence and files are separate, explicit `art probe` remains immediate, and
+  ART_PROBE v1 shape/prefix is preserved. Pure publisher tests cover cadence, lightweight payload,
+  freshness/sequence, fail-open sink isolation, serialized explicit publication, and atomic
+  same-directory replacement. R15-05/06/07 are fixed; focused JUnit passed 40/40, default JUnit
+  passed 1239/1239, and corrected-jar D1 sidecar sampling passed with complete schema-v1 payloads.
+  NRM-09 is complete; no paired allocation or GC improvement claim is made.
+- [x] NRM-10 Sts1AssetMaterializer lifecycle: pure exactly-once disposal seam and Texture clear
+      disposal plus pure host recreation/fallback integration are implemented; D1 counter-based
+      disposal-attempt/rematerialization/cache-hit evidence and independent review are complete.
+      GL-driver deletion and pixel parity are explicitly out of scope.
+- [x] NRM-11 Integrated semantic, D1, and Arthas closure: default JUnit, repeated D1 FULL combat,
+      lifecycle review, bounded negative inventory, and post-fix Arthas operational-health evidence
+      pass under the user-scoped standard. Equivalent pre-fix stress comparison is unavailable and
+      no allocation-rate improvement is claimed.
+
 - [x] 0. Scaffold — registry API + tests
 - [x] 1a. C1 logic runtime + layout DSL + demo resource + open dispatch
 - [x] 1b. Stage host + StsSkin + StageBackend (optional on-device when D1 set)
@@ -815,3 +847,38 @@ parity gaps remain documented in
         crop/conversion metadata, and ART/native draw plus fail-open evidence. Clipping, two-color,
         unsupported attachments, and malformed data are explicit fail-open exclusions and cannot be
         counted as parity passes; no assets may be committed.
+
+### 48. Native Render Memory Lifecycle
+
+Supervised plan: [`docs/refacter/native-render-memory-lifecycle/`](refacter/native-render-memory-lifecycle/).
+First bound retained native-render evidence without weakening exact NRCC correlation or strict
+acceptance. Only after that closure is verified, use measured slices to reduce FULL-presentation
+allocation and Young GC pressure.
+
+- [x] 48.1 Freeze cumulative-count, retained-state, recent-history, and ID-query semantics; contract
+      and focused tests are recorded in the refacter ledger.
+- [x] 48.2 Reclaim terminal native-render correlation state with one-time cumulative accounting;
+      default JUnit gate passes.
+- [x] 48.3 Add bounded recent evidence and recovery-race tombstones; preserve strict failures;
+      default JUnit gate passes.
+- [x] 48.4 Prove bridge callback queues retire exact tokens and remain bounded; bridge/lifecycle
+      focused tests and the default JUnit gate pass.
+- [x] 48.5 Reclaim terminal transient-effect records in an independent lifecycle slice; semantic
+      evidence is recorded in the native-render-memory-lifecycle ledger.
+- [x] 48.6 Add bounded same-frame `SurfaceDrawPlan`/draw-order reuse with explicit frame, policy,
+      scene, mount, readiness, overlay, executor, and panic invalidation; allocation measurement
+      and D1 evidence remain pending.
+- [x] 48.7 Verify the implemented generic differential RenderPlan reconciliation contract with
+      system-local desired/managed sets. Focused tests passed 39/39, default JUnit passed 1227/1227,
+      final D1 FULL combat passed 1/1, and independent review found no issues; no paired allocation
+      improvement is claimed.
+- [x] 48.8 Split lightweight automatic heartbeat from full probe snapshots with a 500ms/5000ms
+      post-update cadence, separate schema/files, 2000ms stale marker, and unchanged ART_PROBE v1;
+      semantic gates and corrected-jar D1 verification pass.
+- [x] 48.9 Define and verify asset materializer cache/disposal lifecycle independently; bounded
+      pure-Java value/missing caches, identity-safe disposal, and production clear disposal are
+      implemented. Live GL/host evidence remains pending.
+- [x] 48.10 Close with JUnit, applicable D1 FULL combat, bounded Arthas operational-health sample,
+      review, and negative inventory evidence. Equivalent pre-fix stress comparison is unavailable;
+      NRM-11 closes under the user-scoped original-game performance standard with no paired
+      allocation-rate improvement claim.

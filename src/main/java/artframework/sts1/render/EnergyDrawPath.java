@@ -39,6 +39,7 @@ public final class EnergyDrawPath {
             m.put("label", label);
             m.put("energy", Integer.valueOf(energy));
             m.put("resourceId", resourceId);
+            m.put("materializer", artframework.sts1.assets.Sts1AssetMaterializer.energyAttributionProbe());
             if (bounds != null) {
                 m.put("x", Float.valueOf(bounds.x));
                 m.put("y", Float.valueOf(bounds.y));
@@ -87,6 +88,8 @@ public final class EnergyDrawPath {
             list.add(d.toMap());
         }
         m.put("items", list);
+        m.put("materializerAttribution",
+                artframework.sts1.assets.Sts1AssetMaterializer.energyAttributionProbe());
         return m;
     }
 }

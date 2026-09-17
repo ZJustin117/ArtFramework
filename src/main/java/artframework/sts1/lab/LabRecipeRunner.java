@@ -204,28 +204,36 @@ public final class LabRecipeRunner {
         synchronized (LabRecipeRunner.class) {
             didEmbark = embarkDone;
         }
+        // A non-empty room phase is the authoritative completed-run boundary, even when
+        // MainMenuScreen still exposes stale character-select/fade fields during embark.
         if (s.isRunReady()) {
-            if (didEmbark) {
-                synchronized (LabRecipeRunner.class) {
-                    if (!seedDone) {
-                        seedDone = true;
-                        host.setSeed(seed);
-                        return;
-                    }
-                }
-                succeed("embark ready char=" + s.selectedCharacter + " seed=" + seed);
+            if (!applySeedOnce(host)) {
                 return;
             }
-            host.abandon();
+            succeed("embark ready char=" + s.selectedCharacter + " seed=" + seed);
+            return;
+        }
+        // MainMenuScreen can leave char-select visible during the embark transition, but a
+        // non-empty room phase above is the authoritative completed-run boundary.
+        if (s.charSelectOpen) {
+            String want;
+            synchronized (LabRecipeRunner.class) {
+                want = characterId;
+            }
+            if (!s.characterSelected
+                    || (s.selectedCharacter != null
+                            && !s.selectedCharacter.isEmpty()
+                            && !s.selectedCharacter.equalsIgnoreCase(want))) {
+                host.selectCharacter(want);
+                return;
+            }
+            if (s.embarkEnabled) {
+                embarkOnce(host);
+            }
             return;
         }
         if (s.inGame && didEmbark) {
-            synchronized (LabRecipeRunner.class) {
-                if (!seedDone) {
-                    seedDone = true;
-                    host.setSeed(seed);
-                }
-            }
+            applySeedOnce(host);
             return;
         }
         if (s.inGame && !s.charSelectOpen) {
@@ -253,10 +261,6 @@ public final class LabRecipeRunner {
             stepEnsureMenu(true);
             return;
         }
-        if (s.charSelectOpen && s.inGame && s.isRunReady() && !s.embarkEnabled) {
-            host.openCharSelect();
-            return;
-        }
         if (!s.charSelectOpen && !s.onCharSelect()) {
             host.openCharSelect();
             return;
@@ -266,24 +270,49 @@ public final class LabRecipeRunner {
             want = characterId;
         }
         if (!s.characterSelected
-                || (s.charSelectOpen && !s.embarkEnabled)
                 || (s.selectedCharacter != null
                         && !s.selectedCharacter.isEmpty()
                         && !s.selectedCharacter.equalsIgnoreCase(want))) {
             host.selectCharacter(want);
             return;
         }
-        if (!s.embarkEnabled && s.characterSelected) {
-            synchronized (LabRecipeRunner.class) {
-                embarkDone = true;
-            }
-            host.embark();
+        if (s.embarkEnabled && s.characterSelected) {
+            embarkOnce(host);
             return;
         }
+        // Wait for STS to enable embark after character selection.
+    }
+
+    private static boolean embarkOnce(LabHost host) {
         synchronized (LabRecipeRunner.class) {
+            if (embarkDone) {
+                return true;
+            }
             embarkDone = true;
         }
-        host.embark();
+        UiOpResult result = host.embark();
+        if (!result.isOk()) {
+            fail(result.message);
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean applySeedOnce(LabHost host) {
+        String seedToApply;
+        synchronized (LabRecipeRunner.class) {
+            if (seedDone) {
+                return true;
+            }
+            seedDone = true;
+            seedToApply = seed;
+        }
+        UiOpResult result = host.setSeed(seedToApply);
+        if (!result.isOk()) {
+            fail(result.message);
+            return false;
+        }
+        return true;
     }
 
     private static synchronized void succeed(String message) {

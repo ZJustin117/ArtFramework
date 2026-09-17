@@ -402,9 +402,132 @@ public class StsLabRecipesTest {
             LabRecipeRunner.tick();
         }
         assertEquals("ok", LabRecipeRunner.statusMap().get("status"));
-        assertTrue(host.actions.contains("char:IRONCLAD"));
-        assertTrue(host.actions.contains("embark"));
+        assertFalse(host.actions.contains("abandon"));
+        assertFalse(host.actions.contains("embark"));
+        assertEquals(1, countActions(host.actions, "seed:" + StsLabRecipes.DEFAULT_SEED));
         assertTrue(host.dump().inGame);
+    }
+
+    @Test
+    public void asyncRunnerStartRunRecoversCharSelectBeforeRunReady() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .menuScreen("CHAR_SELECT")
+                                .inGame(true)
+                                .fading(true)
+                                .charSelectOpen(true)
+                                .characterSelected(true)
+                                .selectedCharacter("IRONCLAD")
+                                .embarkEnabled(false)
+                                .roomPhase("")
+                                .build());
+        StsLabNav.install(host);
+
+        assertTrue(LabRecipeRunner.armStartRun("IRONCLAD", null, 12).isOk());
+        LabRecipeRunner.tick();
+        assertTrue(LabRecipeRunner.isBusy());
+        assertFalse(host.actions.contains("abandon"));
+        assertFalse(host.actions.contains("embark"));
+
+        // Character select can remain visible while STS finishes enabling the embark button.
+        host.setState(
+                LabStateSnapshot.builder()
+                        .mode("GAMEPLAY")
+                        .menuScreen("CHAR_SELECT")
+                        .inGame(true)
+                        .fading(true)
+                        .charSelectOpen(true)
+                        .characterSelected(true)
+                        .selectedCharacter("IRONCLAD")
+                        .embarkEnabled(true)
+                        .roomPhase("")
+                        .build());
+        LabRecipeRunner.tick();
+        assertTrue(host.actions.contains("embark"));
+        assertEquals(1, countActions(host.actions, "embark"));
+
+        // A further enabled pre-room frame must not issue a second embark request.
+        host.setState(
+                LabStateSnapshot.builder()
+                        .mode("GAMEPLAY")
+                        .menuScreen("CHAR_SELECT")
+                        .inGame(true)
+                        .fading(true)
+                        .charSelectOpen(true)
+                        .characterSelected(true)
+                        .selectedCharacter("IRONCLAD")
+                        .embarkEnabled(true)
+                        .roomPhase("")
+                        .build());
+        LabRecipeRunner.tick();
+        assertTrue(LabRecipeRunner.isBusy());
+        assertEquals(1, countActions(host.actions, "embark"));
+
+        // After embark, STS may retain the character-select fields while the room becomes ready.
+        host.setState(
+                LabStateSnapshot.builder()
+                        .mode("GAMEPLAY")
+                        .menuScreen("CHAR_SELECT")
+                        .inGame(true)
+                        .fading(true)
+                        .charSelectOpen(true)
+                        .characterSelected(true)
+                        .selectedCharacter("IRONCLAD")
+                        .embarkEnabled(false)
+                        .roomPhase("EVENT")
+                        .build());
+
+        for (int i = 0; i < 12 && LabRecipeRunner.isBusy(); i++) {
+            LabRecipeRunner.tick();
+        }
+
+        assertFalse(LabRecipeRunner.isBusy());
+        assertEquals("ok", LabRecipeRunner.statusMap().get("status"));
+        assertFalse(host.actions.contains("abandon"));
+        assertEquals(1, countActions(host.actions, "embark"));
+        assertEquals(1, countActions(host.actions, "seed:" + StsLabRecipes.DEFAULT_SEED));
+    }
+
+    @Test
+    public void asyncRunnerStartRunFailsWhenPostEmbarkSeedIsUnavailable() {
+        FakeLabHost delegate =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .menuScreen("CHAR_SELECT")
+                                .inGame(true)
+                                .charSelectOpen(true)
+                                .characterSelected(true)
+                                .selectedCharacter("IRONCLAD")
+                                .embarkEnabled(true)
+                                .roomPhase("")
+                                .build());
+        SeedFailingLabHost host = new SeedFailingLabHost(delegate);
+        StsLabNav.install(host);
+
+        assertTrue(LabRecipeRunner.armStartRun("IRONCLAD", "FAIL-SEED", 8).isOk());
+        LabRecipeRunner.tick();
+        assertEquals(1, countActions(delegate.actions, "embark"));
+
+        delegate.setState(
+                LabStateSnapshot.builder()
+                        .mode("GAMEPLAY")
+                        .inGame(true)
+                        .selectedCharacter("IRONCLAD")
+                        .roomPhase("")
+                        .build());
+        LabRecipeRunner.tick();
+
+        assertFalse(LabRecipeRunner.isBusy());
+        assertEquals("unavailable", LabRecipeRunner.statusMap().get("status"));
+        assertEquals("seed unavailable", LabRecipeRunner.statusMap().get("message"));
+        assertEquals(1, countActions(delegate.actions, "seed:FAIL-SEED"));
+
+        LabRecipeRunner.tick();
+        assertEquals("unavailable", LabRecipeRunner.statusMap().get("status"));
+        assertEquals(1, countActions(delegate.actions, "seed:FAIL-SEED"));
     }
 
     @Test
@@ -479,6 +602,95 @@ public class StsLabRecipesTest {
         assertFalse(host.actions.contains("abandon"));
         assertTrue(host.dump().onMainMenu());
         assertFalse(host.dump().hasResume);
+    }
+
+    private static final class SeedFailingLabHost implements LabHost {
+        private final FakeLabHost delegate;
+
+        private SeedFailingLabHost(FakeLabHost delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public LabStateSnapshot dump() {
+            return delegate.dump();
+        }
+
+        @Override
+        public UiOpResult clearSaves() {
+            return delegate.clearSaves();
+        }
+
+        @Override
+        public UiOpResult stripResumeButtons() {
+            return delegate.stripResumeButtons();
+        }
+
+        @Override
+        public UiOpResult openCharSelect() {
+            return delegate.openCharSelect();
+        }
+
+        @Override
+        public UiOpResult selectCharacter(String characterId) {
+            return delegate.selectCharacter(characterId);
+        }
+
+        @Override
+        public UiOpResult embark() {
+            return delegate.embark();
+        }
+
+        @Override
+        public UiOpResult setSeed(String seedText) {
+            delegate.actions.add("seed:" + (seedText != null ? seedText : ""));
+            return UiOpResult.unavailable("seed unavailable");
+        }
+
+        @Override
+        public UiOpResult menuClick(String clickResult) {
+            return delegate.menuClick(clickResult);
+        }
+
+        @Override
+        public UiOpResult abandon() {
+            return delegate.abandon();
+        }
+
+        @Override
+        public UiOpResult abandonConfirm() {
+            return delegate.abandonConfirm();
+        }
+
+        @Override
+        public UiOpResult returnToMenu() {
+            return delegate.returnToMenu();
+        }
+
+        @Override
+        public UiOpResult proceed() {
+            return delegate.proceed();
+        }
+
+        @Override
+        public UiOpResult enterEvent(String eventId) {
+            return delegate.enterEvent(eventId);
+        }
+
+        @Override
+        public UiOpResult enterRoom(String roomKind) {
+            return delegate.enterRoom(roomKind);
+        }
+
+        @Override
+        public UiOpResult enterSelect(String selectKind) {
+            return delegate.enterSelect(selectKind);
+        }
+
+        @Override
+        public void yieldFrame() {
+            delegate.yieldFrame();
+        }
     }
 
     private static int countActions(java.util.List<String> actions, String wanted) {

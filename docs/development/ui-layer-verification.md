@@ -130,8 +130,17 @@ Device steps (when console exists):
 | `wait_ms` | Sleep |
 | `wait_probe` | Poll `art probe` until its nested `assert` succeeds; supports `timeout_ms` / `interval_ms` |
 | `assert` | Same path operators as fixture mode |
+| `capture` | Resolve `path` from the latest probe and store its typed value as `var` |
 | `screenshot` | Device-only: invokes the existing Amethyst Harness `screenshot` command and records its result JSON and PNG |
 | `compare_screenshot` | Device-only: compares the most recent screenshot with a local reference; supports optional `reference_kind`, `crop`, `threshold`, `max_diff_pixels`, `max_diff_ratio`, and `diff` |
+
+Assertions support `eq_var` and numeric `gt_var` references to variables created by literal `set` or typed
+probe `capture`. `gt_var` requires both values to be YAML/JSON numbers; strings and booleans are rejected.
+
+```yaml
+- capture: {path: backend.drawCount, var: before}
+- assert: {path: backend.drawCountAfter, gt_var: before}
+```
 
 `screenshot` is skipped in fixture mode because fixtures cannot produce a real GL image. In device mode it
 requires `ART_D1_SERIAL`, `STS_CONNECTOR_PORT`, `ART_GAME_PROBE_PORT`, `ART_HARNESS_OUT_DIR`, and either

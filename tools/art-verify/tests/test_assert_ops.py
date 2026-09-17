@@ -22,6 +22,27 @@ class AssertOpsTest(unittest.TestCase):
         run_assert(data, {"path": "x", "exists": True})
         run_assert(data, {"path": "y", "exists": False})
 
+    def test_gt_var_compares_numeric_values(self):
+        run_assert({"count": 2.5}, {"path": "count", "gt_var": "before"}, vars={"before": 2})
+        with self.assertRaisesRegex(AssertError, "op=gt_var"):
+            run_assert({"count": 2}, {"path": "count", "gt_var": "before"}, vars={"before": 2})
+
+    def test_gt_var_rejects_missing_and_non_numeric_variables(self):
+        with self.assertRaisesRegex(AssertError, "missing var"):
+            run_assert({"count": 2}, {"path": "count", "gt_var": "before"})
+        with self.assertRaisesRegex(AssertError, "requires numeric"):
+            run_assert(
+                {"count": "3"},
+                {"path": "count", "gt_var": "before"},
+                vars={"before": 2},
+            )
+        with self.assertRaisesRegex(AssertError, "requires numeric"):
+            run_assert(
+                {"count": 3},
+                {"path": "count", "gt_var": "before"},
+                vars={"before": "2"},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

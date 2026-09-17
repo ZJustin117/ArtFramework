@@ -70,3 +70,72 @@ steps:
       assert:
         path: backend.handRender.ok
         eq: true
+  # Energy rendering must establish a resident texture before lifecycle baselines are captured.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.materializer.residentCount
+        gte: 1
+  - capture:
+      path: backend.materializer.putCount
+      var: materializer_put_before_recreate
+  # disposeCount records disposal attempts, not successful GL disposal.
+  - capture:
+      path: backend.materializer.disposeCount
+      var: materializer_dispose_attempts_before_recreate
+  - capture:
+      path: backend.materializer.hitCount
+      var: materializer_hit_before_recreate
+  - console: "art lab host-recreate"
+  # Admission is asynchronous; cleared is the terminal successful materializer state.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.safety.materializerRecreation
+        eq: cleared
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.materializer.disposeCount
+        gt_var: materializer_dispose_attempts_before_recreate
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.materializer.putCount
+        gt_var: materializer_put_before_recreate
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.materializer.residentCount
+        gte: 1
+  # Capture again after rematerialization so only later render-frame cache hits satisfy reuse.
+  - capture:
+      path: backend.materializer.hitCount
+      var: materializer_hit_after_rematerialize
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.materializer.hitCount
+        gt_var: materializer_hit_after_rematerialize
+  # Materializer lifecycle success must not hide a strict FULL-present gap.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRenderStrict.accepted
+        eq: true
+  - assert:
+      path: backend.renderPlan.nativeRenderStrict.openInvocation
+      eq: 0
+  - assert:
+      path: backend.renderPlan.nativeRenderStrict.delegatedWithoutEvidence
+      eq: 0
+  - assert:
+      path: backend.renderPlan.nativeRenderStrict.orphanArtOutput
+      eq: 0

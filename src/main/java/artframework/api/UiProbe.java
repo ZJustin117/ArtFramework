@@ -112,6 +112,7 @@ public final class UiProbe {
         m.put("audio", artframework.sts1.audio.ArtAudioBridge.probeSlice());
         m.put("skeleton", artframework.sts1.skeleton.Sts1SkeletonBridge.probeSlice());
         m.put("safety", artframework.sts1.PresentSafety.probeSlice());
+        m.put("materializer", artframework.sts1.assets.Sts1AssetMaterializer.probeSlice());
         return m;
     }
 

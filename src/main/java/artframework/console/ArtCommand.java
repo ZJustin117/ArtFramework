@@ -41,8 +41,13 @@ public class ArtCommand extends ConsoleCommand {
             return;
         }
         if ("probe".equals(sub)) {
-            String line = ArtFramework.probe().toJsonLine();
-            writeLocalProbe(line);
+            artframework.c1.host.StageHost host = artframework.c1.host.StageHost.get();
+            String line = host != null ? host.publishFullProbeNow() : ArtFramework.probe().toJsonLine();
+            if (line == null) {
+                DevConsole.log("Probe snapshot unavailable");
+                return;
+            }
+            if (host == null) writeLocalProbe(line);
             DevConsole.log(line);
             BaseMod.logger.info(line);
             return;
@@ -581,8 +586,7 @@ public class ArtCommand extends ConsoleCommand {
             ArtFramework.entities().detach("art-lab-entity");
             r = UiOpResult.ok("entity detached");
         } else if ("host-recreate".equals(action)) {
-            artframework.sts1.PresentSafety.onHostRecreated();
-            r = UiOpResult.ok("host caches recreated");
+            r = hostRecreateResult();
         } else {
             DevConsole.log("Unknown lab action: " + action);
             commandResult(labCommand(tokens, depth), "ERROR", "unknown lab action: " + action);
@@ -597,6 +601,14 @@ public class ArtCommand extends ConsoleCommand {
         DevConsole.log(line);
         BaseMod.logger.info(line);
         commandResult(labCommand(tokens, depth), r.isOk() ? "OK" : "ERROR", r.message);
+    }
+
+    static UiOpResult hostRecreateResult() {
+        artframework.sts1.PresentSafety.HostRecreationAdmission admission =
+                artframework.sts1.PresentSafety.requestHostRecreation();
+        return admission == artframework.sts1.PresentSafety.HostRecreationAdmission.DISPATCHER_FAILURE
+                ? UiOpResult.unavailable("host cache recreation dispatcher rejected")
+                : UiOpResult.ok("host cache recreation requested");
     }
 
     private static String labCommand(String[] tokens, int depth) {

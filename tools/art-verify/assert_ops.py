@@ -83,7 +83,7 @@ def run_assert(
 ) -> None:
     """
     Supported keys (exactly one operator besides path / optional message):
-      path, eq, neq, exists, gte, lte, contains, truthy, falsey, eq_var
+      path, eq, neq, exists, gte, lte, contains, truthy, falsey, eq_var, gt_var
     """
     if not isinstance(spec, Mapping):
         raise AssertError("", "spec", "mapping", type(spec).__name__)
@@ -114,6 +114,22 @@ def run_assert(
             raise AssertError(path, "eq_var", f"var {key}", "missing var")
         if actual != var_map[key]:
             raise AssertError(path, "eq_var", var_map[key], actual)
+        return
+    if "gt_var" in spec:
+        key = str(spec["gt_var"])
+        if key not in var_map:
+            raise AssertError(path, "gt_var", f"var {key}", "missing var")
+        expected = var_map[key]
+        if not _is_number(actual) or not _is_number(expected):
+            raise AssertError(
+                path,
+                "gt_var",
+                expected,
+                actual,
+                "gt_var requires numeric actual and variable values",
+            )
+        if not actual > expected:
+            raise AssertError(path, "gt_var", expected, actual)
         return
     if "gte" in spec:
         if not (actual >= spec["gte"]):
@@ -146,3 +162,7 @@ def run_assert(
         return
 
     raise AssertError(path, "operator", "one of eq/neq/…", "none")
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)

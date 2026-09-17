@@ -13,7 +13,7 @@ import zlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from assert_ops import AssertError, run_assert
+from assert_ops import AssertError, resolve_path, run_assert
 from png_compare import compare_pngs, write_diff_png
 from scenario_loader import expand_steps, load_scenario
 
@@ -406,6 +406,26 @@ def _run_step(
 
     if "assert" in step:
         run_assert(last_probe, step["assert"], vars=vars_map)
+        return rec
+
+    if "capture" in step:
+        spec = step["capture"]
+        if not isinstance(spec, dict):
+            raise ValueError("capture requires a mapping")
+        unknown = set(spec) - {"path", "var"}
+        if unknown:
+            raise ValueError("capture has unknown keys: " + ", ".join(sorted(unknown)))
+        path = spec.get("path")
+        key = spec.get("var")
+        if not isinstance(path, str) or not path.strip():
+            raise ValueError("capture requires path: non-empty string")
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError("capture requires var: non-empty string")
+        found, value = resolve_path(last_probe, path)
+        if not found:
+            raise ValueError(f"capture path is missing: {path}")
+        vars_map[key] = value
+        rec["capture"] = {"path": path, "var": key, "value": value}
         return rec
 
     if "wait_probe" in step:

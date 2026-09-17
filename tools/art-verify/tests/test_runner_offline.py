@@ -227,6 +227,64 @@ class RunnerOfflineTest(unittest.TestCase):
         self.assertEqual("pass", rec["status"])
         self.assertEqual(1, rec["attempts"])
 
+    def test_capture_preserves_probe_value_type(self):
+        vars_map = {}
+        rec = _run_step(
+            {"capture": {"path": "draw.count", "var": "before"}},
+            0,
+            mode="fixture",
+            last_probe={"draw": {"count": 1.5}},
+            vars_map=vars_map,
+            client=None,
+        )
+        self.assertEqual("pass", rec["status"])
+        self.assertEqual(1.5, vars_map["before"])
+        self.assertIsInstance(vars_map["before"], float)
+
+    def test_capture_rejects_malformed_and_missing_path(self):
+        for step, message in (
+            ({"capture": "draw.count"}, "requires a mapping"),
+            ({"capture": {"var": "before"}}, "requires path"),
+            ({"capture": {"path": "draw.count"}}, "requires var"),
+            ({"capture": {"path": "draw.missing", "var": "before"}}, "path is missing"),
+        ):
+            with self.subTest(step=step), self.assertRaisesRegex(ValueError, message):
+                _run_step(
+                    step,
+                    0,
+                    mode="fixture",
+                    last_probe={"draw": {"count": 1}},
+                    vars_map={},
+                    client=None,
+                )
+
+    def test_yaml_capture_and_gt_var_runner_integration(self):
+        scenario = """\
+name: capture_gt_var
+schemaVersion: 1
+mode: fixture
+fixture: probe.json
+steps:
+  - capture:
+      path: before.count
+      var: baseline
+  - assert:
+      path: after.count
+      gt_var: baseline
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "scenario.yaml").write_text(scenario, encoding="utf-8")
+            (root / "probe.json").write_text(
+                json.dumps({"before": {"count": 4}, "after": {"count": 5}}),
+                encoding="utf-8",
+            )
+            loaded = load_scenario(root / "scenario.yaml")
+            result = run_scenario(root / "scenario.yaml", out_dir=root / "out")
+        self.assertEqual("baseline", loaded["steps"][0]["capture"]["var"])
+        self.assertEqual("baseline", loaded["steps"][1]["assert"]["gt_var"])
+        self.assertEqual("pass", result["status"], result.get("error"))
+
     def test_fixture_screenshot_is_skipped(self):
         with patch("runner._harness_screenshot") as capture:
             rec = _run_step(

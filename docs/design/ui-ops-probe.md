@@ -108,6 +108,21 @@ P0–P5 status above is **done** and not reopened by this section.
 - Room FULL_READY requires matching `projection.scene` (`reward`/`rest`/`shop`/`treasure`); mount alone falls back to native.
 - Shop/rest/treasure ART paint is chrome/labels; native atlas fidelity is not a 26 goal.
 
+### Probe sidecar compatibility and heartbeat (NRM-09)
+
+`ART_PROBE ` and `art_probe_latest.log` remain the schema-v1 full snapshot and unchanged in
+shape/prefix. `StageHost` is the sole automatic publisher: one `postUpdate` monotonic clock drives
+`ART_HEARTBEAT ` every 500ms and a full snapshot every 5000ms; `postRender` never advances either
+cadence. Heartbeat schema v1 contains `heartbeatSchemaVersion`, `writerId`, `sequence`, `frameId`,
+`monotonicNanos`, `runtimeReady`, `hostReady`, `probeSequence`, `lastFullProbeFrame`,
+`lastFullProbeNanos`, and `staleAfterMillis=2000`. Explicit `art probe` is immediate. Consumers
+use heartbeat for liveness and the separate latest full file for payload. Full freshness advances
+only after snapshot construction and at least one local/external atomic rename succeeds; failures
+retry after 500ms. Each mount writes a same-directory temporary file and uses Java 8
+`Files.move(ATOMIC_MOVE, REPLACE_EXISTING)` to replace the destination, including an existing file.
+If atomic replacement fails or is unsupported, that mount fails without truncating the existing
+destination; temporary cleanup is best-effort. No non-atomic fallback is used.
+
 ## Related
 
 - [`dev-ui-console.md`](./dev-ui-console.md) — `art ui` inspect / emit / invoke / native dump (lab)

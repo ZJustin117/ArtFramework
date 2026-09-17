@@ -48,8 +48,27 @@ public final class StageHost
     private Stage stage;
     private Skin skin;
     private boolean ready;
-    private int probeSidecarTicks;
-    private boolean probeSidecarWarned;
+    private volatile String recreationStatus = "not attempted";
+    private final artframework.console.ProbePublisher probePublisher;
+
+    private static artframework.console.ProbePublisher defaultProbePublisher() {
+        return new artframework.console.ProbePublisher(
+                    "artframework-stage-host",
+                    new artframework.console.ProbePublisher.Clock() {
+                        @Override public long nanoTime() { return System.nanoTime(); }
+                    },
+                    new artframework.console.ProbePublisher.Sink() {
+                        @Override public boolean writeFull(String line) {
+                            return artframework.console.ProbeSidecar.write(line);
+                        }
+                        @Override public boolean writeHeartbeat(String line) {
+                            return artframework.console.ProbeSidecar.writeHeartbeat(line);
+                        }
+                    },
+                    new artframework.console.ProbePublisher.FullSnapshot() {
+                        @Override public String line() { return ArtFramework.probe().toJsonLine(); }
+                    });
+    }
     private final Map<String, Actor> actors = new LinkedHashMap<String, Actor>();
     private final SkinOwnership skinOwnership = new SkinOwnership(new SkinOwnership.Releaser() {
         @Override
@@ -60,7 +79,11 @@ public final class StageHost
     private InputProcessor previousInput;
     private boolean inputCaptured;
 
-    private StageHost() {}
+    private StageHost() { this(defaultProbePublisher()); }
+
+    StageHost(artframework.console.ProbePublisher probePublisher) {
+        this.probePublisher = probePublisher;
+    }
 
     public static StageHost install() {
         if (instance == null) {
@@ -87,7 +110,11 @@ public final class StageHost
 
     /** Rebuild the disposable Stage/actor cache from still-open C1 ECS declarations. */
     public boolean recreateHost() {
-        if (!ready) return false;
+        recreationStatus = "rebuilding";
+        if (!ready) {
+            recreationStatus = "failed: not ready";
+            return false;
+        }
         java.util.List<String> openIds = new java.util.ArrayList<String>(
                 artframework.presentation.PresentationRuntime.openWindowIds());
         for (String id : new java.util.ArrayList<String>(actors.keySet())) detach(id);
@@ -95,7 +122,8 @@ public final class StageHost
         if (stage != null) {
             try {
                 stage.dispose();
-            } catch (Throwable ignored) {
+            } catch (Throwable failure) {
+                recreationStatus = failureStatus("stage dispose", failure);
                 discardRecreatedHost();
                 return false;
             }
@@ -108,6 +136,7 @@ public final class StageHost
             skin = StsSkin.create(Themes.getDefault());
             stage = new Stage(new ScreenViewport());
         } catch (Throwable e) {
+            recreationStatus = failureStatus("stage create", e);
             if (stage != null) {
                 try { stage.dispose(); } catch (Throwable ignored) {}
             }
@@ -121,21 +150,36 @@ public final class StageHost
             UiNode declaration = artframework.presentation.PresentationRuntime.declaration(
                     artframework.presentation.PresentationRuntime.context(id));
             if (declaration == null) {
+                recreationStatus = "failed: missing declaration " + id;
                 discardRecreatedHost();
                 return false;
             }
             try {
                 attachComposition(id, declaration);
                 if (!isAttached(id)) {
+                    recreationStatus = "failed: attach " + id;
                     discardRecreatedHost();
                     return false;
                 }
-            } catch (Throwable ignored) {
+            } catch (Throwable failure) {
+                recreationStatus = failureStatus("attach " + id, failure);
                 discardRecreatedHost();
                 return false;
             }
         }
+        recreationStatus = "rebuilt";
         return true;
+    }
+
+    public String recreationStatus() {
+        return recreationStatus;
+    }
+
+    private static String failureStatus(String phase, Throwable failure) {
+        String type = failure != null ? failure.getClass().getSimpleName() : "unknown";
+        String message = failure != null ? failure.getMessage() : null;
+        return "failed: " + phase + " " + type
+                + (message == null || message.isEmpty() ? "" : ": " + message);
     }
 
     private void discardRecreatedHost() {
@@ -197,6 +241,7 @@ public final class StageHost
     @Override
     public void receivePostUpdate() {
         if (!ready || stage == null) {
+            tickProbePublisher();
             return;
         }
         float dt = Gdx.graphics != null ? Gdx.graphics.getDeltaTime() : 0f;
@@ -221,11 +266,11 @@ public final class StageHost
             artframework.sts1.lab.LabRecipeRunner.tick();
         } catch (Throwable ignored) {
         }
-        writeProbeSidecarOnInterval();
         try {
             ArtFramework.advanceFrame(dt, authorityFrame);
         } catch (Throwable ignored) {
         }
+        tickProbePublisher();
         if (Gdx.graphics != null) {
             // Always track screen size for capture UV mapping
             RenderHosts.get()
@@ -241,23 +286,14 @@ public final class StageHost
         syncActorPropsFromTree();
     }
 
-    private void writeProbeSidecarOnInterval() {
-        probeSidecarTicks++;
-        if (probeSidecarTicks < 30) {
-            return;
-        }
-        probeSidecarTicks = 0;
-        try {
-            artframework.console.ProbeSidecar.write(ArtFramework.probe().toJsonLine());
-        } catch (Throwable t) {
-            if (!probeSidecarWarned) {
-                probeSidecarWarned = true;
-                try {
-                    BaseMod.logger.warn("ArtFramework probe sidecar skipped: " + t.getMessage());
-                } catch (Throwable ignored) {
-                }
-            }
-        }
+    public String publishFullProbeNow() {
+        return probePublisher.publishFullNow(artframework.sts1.StsRuntimeReady.isReady(), ready,
+                ArtFramework.projection().lastFrameId());
+    }
+
+    private void tickProbePublisher() {
+        probePublisher.tick(artframework.sts1.StsRuntimeReady.isReady(), ready,
+                ArtFramework.projection().lastFrameId());
     }
 
     @Override
@@ -265,7 +301,6 @@ public final class StageHost
         if (!ready) {
             return;
         }
-        writeProbeSidecarOnInterval();
         boolean hasStage = stage != null && !actors.isEmpty();
         boolean hasFx = RenderHosts.get().bindingCount() > 0 || RenderHosts.get().targetCount() > 0;
         boolean hasPresentDraw = !artframework.sts1.render.Sts1RenderPipeline.plan().drawOrder().isEmpty();

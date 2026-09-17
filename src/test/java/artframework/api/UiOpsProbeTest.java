@@ -495,6 +495,8 @@ public class UiOpsProbeTest {
         Map<String, Object> snap = ArtFramework.probe().asMap();
         assertEquals(Integer.valueOf(1), snap.get("schemaVersion"));
         assertEquals("artframework", snap.get("modId"));
+        assertFalse(snap.containsKey("heartbeatSchemaVersion"));
+        assertFalse(snap.containsKey("staleAfterMillis"));
         @SuppressWarnings("unchecked")
         Map<String, Object> templates = (Map<String, Object>) snap.get("templates");
         assertEquals(Boolean.TRUE, templates.get("mapBound"));

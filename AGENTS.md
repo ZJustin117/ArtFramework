@@ -82,6 +82,17 @@ Project subagents live in `.opencode/agent/*.md`. The **main agent owns task fra
 8. Task resume: `task_id` may contain only a real `ses…` id returned by the Task tool; **omit `task_id` for every new independent task** (do not invent UUIDs). Plugin strips non-`ses` ids.
 9. Missing env: scripts and subagents stop and list **key names**; parent must not invent absolute paths.
 
+### Subagent context budget
+
+- Treat every independent goal, implementation slice, verification, deployment, or diagnosis as a bounded session.
+- The parent must provide the goal, allowed paths, exclusions, expected verification, and a stopping condition. A vague request is a reason to return `BLOCKED`, not to expand the search.
+- Prefer `@bounded-explore` for repository exploration. Scope it to named directories, file patterns, and search terms; do not ask for a general repository tour.
+- Read only the smallest relevant file windows. Do not paste complete files, complete diffs, or complete build/device logs into the session or final report.
+- Stop after establishing the requested definition, call path, test location, or first credible root cause. Report uncertainty instead of continuing an open-ended scan.
+- Pass work between stages as a short structured summary containing confirmed facts, file locations, constraints, and the next bounded action. Do not forward the previous session transcript.
+- Start a fresh session for each independent stage. Resume an existing session only for a direct follow-up to the same bounded task and only with a real `ses...` identifier.
+- Final subagent reports should contain only result, scope, changes or findings, verification, and blockers. Keep them concise; never include raw tool transcripts.
+
 ### Refacter supervision
 
 - Long-running refactor state lives under `docs/refacter/<project-name>/`. Supplying that directory

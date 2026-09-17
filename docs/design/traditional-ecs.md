@@ -146,3 +146,29 @@ presentation facts or be reclassified as ECS state merely by wrapping them.
 | `RenderHost` targets/bindings, `EffectTargetActors` | Surface/full-frame target mutation and host actor lookup | `RenderSurfaceComponent`, `FullFrameRenderComponent`, and immutable per-frame ECS plans consumed by host cache; C1 and C2 item targets rebuild from ECS bindings/visuals; no RenderHost full-frame enabled mirror |
 | `NodeConnections` declaration maps | Parsed connection declaration retention | Dedicated immutable connection component plus rebuilt disposable subscriptions |
 | `NodePropertiesComponent`, `EffectsComponent` | Mutable in-component overlays/attachments | Immutable value components replaced through the world on writes |
+
+### Render-plan reconciliation contract
+
+C1 and C2 components and draw systems remain distinct, but the generic `RenderHost` reconcile
+algorithm contains no track policy. Each render system submits its own immutable `RenderPlan`
+desired entry set plus the existing plan-owned target ids managed by that system. Host
+targets/bindings are disposable, non-authoritative cache.
+
+- Target identity is entry `id` plus `kind`. Equal identity retains the `RenderTarget` while bounds,
+  z, and enabled state synchronize. Every target id must be unique within a plan; any duplicate or
+  reuse of an existing id with another kind fails before cache mutation.
+- Ordinary reconciliation removes only ids in the caller's managed set that are absent from its
+  desired plan. Other systems' targets and manually created host `OVERLAY` targets remain untouched.
+  Explicit host-cache recreation is destructive and clears ownership before later ECS rebuilds.
+- Binding identity is target id plus ordered index, effect id, and layer. Equal ordered identity
+  retains the `EffectBinding` while its complete parameter set and enabled state synchronize;
+  identity or ordering changes may replace that target's binding list. The complete plan and every
+  known-effect binding are staged and validated before stale removal or mutation, so validation
+  failure leaves target/binding identities and values unchanged. Unknown planned effect ids retain
+  compatibility behavior: they are skipped, do not disturb valid-effect order, and may materialize
+  on a later rebuild after registration.
+- `EffectBinding` parameter maps are immutable snapshots published atomically; enabled state is
+  volatile and parameter writes copy-and-swap, allowing draw/probe reads during reconciliation.
+- The package-private active-surface adapter builds only `RenderPlan.fromActiveC2Surfaces(...)`,
+  retains its own previously submitted managed-id set, and calls the same generic kernel. It does
+  not scan, materialize, or reconcile unrelated full-frame, entity, native, C1, or manual targets.

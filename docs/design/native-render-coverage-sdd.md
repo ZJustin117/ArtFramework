@@ -451,6 +451,43 @@ The correlation rules are strict:
 5. Transient delegated entities are removed when the native effect completes,
    is cancelled, the scene changes, the host is recreated, or panic is entered.
 
+`NativeRenderLedger` is the sole writer and source of truth for these records.
+Invocation, disposition, evidence, and disposition-mode counts are cumulative
+`int` values since reset; they are independent of retained diagnostic detail.
+The ledger retains full correlation data only while an invocation is open, then
+moves completed detail into a fixed-capacity recent window. Collection queries
+and ID lookup expose only open plus retained-recent records, so their sizes are
+not cumulative guarantees and eviction cannot change counters or strict results.
+Invocation IDs are strictly increasing and non-reusable within a reset epoch.
+The additive probe fields are `totalInvocationCount`, `totalDispositionCount`,
+`totalEvidenceCount`, `openInvocationCount`, `recentInvocationCount`,
+`retainedInvocationCount`, `recentHistoryCapacity`, `evictedCompletedCount`,
+`recoveryTombstoneCount`, and `recoveryTombstoneCapacity`; legacy count fields
+keep their cumulative meanings.
+
+Delegated evidence is accepted exactly once and only for an open invocation with
+the exact invocation, presentation-entity, and frame identity. Fallback,
+transition cancellation, recovery closure, and ordinary completion are immutable
+terminal outcomes; late evidence and duplicate terminal input are rejected. A
+recovery fail-open that wins before disposition commit is represented by a
+fixed-capacity tombstone: exactly one late disposition may observe and settle the
+provisional recovery strict gap, but no late draw evidence is admitted. Inputs
+older than the recent/tombstone windows are stale and cannot recreate state.
+
+`delegatedWithoutEvidence` combines current open delegated gaps with cumulative
+terminal missing-evidence errors. Successful evidence and transition/recovery
+cancellation do not add a terminal error; delegated fallback and
+non-cancellation recovery do. Probe and strict-report reads are pure and do not
+retain, evict, settle, or otherwise mutate ledger state.
+
+The retained `closeInvocation` cleanup API cannot erase an undecided strict gap:
+it rejects an open invocation with no disposition and leaves it OPEN. For an
+open delegated invocation, it is an explicit non-cancellation missing-evidence
+terminal closure, incrementing `delegatedWithoutEvidence` exactly once without
+incrementing `dispositionMismatch` or `cancelledInvocation`. A disposition that
+already continues natively is already terminal, so `closeInvocation` rejects it
+as duplicate/unknown.
+
 The report must distinguish `UNKNOWN`, `UNDECIDED`, `MISMATCH`,
 `ORPHAN_ART_OUTPUT`, and `LEAKED_TRANSIENT_ENTITY`; none may be silently folded
 into a percentage denominator.

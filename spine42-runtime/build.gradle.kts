@@ -19,7 +19,6 @@ val spineSources = configurations.create("spineSources")
 
 dependencies {
     compileOnly(files(System.getenv("ART_STS_JAR") ?: ""))
-    compileOnly("com.badlogicgames.gdx:gdx:1.14.0")
     add(spineSources.name, "com.esotericsoftware.spine:spine-libgdx:4.2.12:sources")
 }
 
@@ -49,6 +48,10 @@ val prepareSpineSources = tasks.register("prepareSpineSources") {
             }
             var text = file.readText()
             text = text.replace("com.esotericsoftware.spine", "artframework.shaded.spine42.com.esotericsoftware.spine")
+            // Spine 4.2 annotates nullable values with libGDX's newer @Null marker. STS1's
+            // host libGDX 1.9.5 does not provide that annotation; it is not runtime behavior.
+            text = text.replace("import com.badlogic.gdx.utils.Null;", "")
+            text = text.replace("@Null ", "")
             text = text.replace("region.degrees", "(region.rotate ? 90 : 0)")
             if (file.name == "BlendMode.java") {
                 text = text.replace(

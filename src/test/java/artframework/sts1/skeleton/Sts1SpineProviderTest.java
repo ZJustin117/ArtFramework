@@ -32,6 +32,20 @@ public class Sts1SpineProviderTest {
     }
 
     @Test
+    public void spine42ProviderRefreshUsesConfiguredRuntimeClassLoader() {
+        Sts1Spine42Provider provider = new Sts1Spine42Provider("java.lang.String");
+        provider.setRuntimeClassLoader(new ClassLoader(null) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                throw new ClassNotFoundException("runtime loader rejected " + name);
+            }
+        });
+
+        assertFalse(provider.isAvailable());
+        assertTrue(provider.unavailableReason().contains("runtime loader rejected java.lang.String"));
+    }
+
+    @Test
     public void bridgeProbeReportsSpine42Availability() {
         Sts1Spine42Provider provider = new Sts1Spine42Provider("missing.ShadedSkeleton");
         artframework.api.ArtFramework.skeletons().register(provider);
@@ -55,6 +69,8 @@ public class Sts1SpineProviderTest {
 
         assertEquals("d1_ironclad", evidence.get("handle"));
         assertEquals(Integer.valueOf(0), evidence.get("count"));
+        assertEquals("standalone-art", evidence.get("kind"));
+        assertEquals("renderAll->provider.render", evidence.get("path"));
     }
 
     @Test(expected = IllegalStateException.class)
@@ -263,6 +279,12 @@ public class Sts1SpineProviderTest {
     }
 
     @Test
+    public void twoColorDetectionTreatsMalformedReflectionAsUnsupported() {
+        assertTrue(Sts1Spine42Provider.containsUnsupportedTwoColor(
+                new Object[] {new BrokenDarkColorSlotFixture()}, 1));
+    }
+
+    @Test
     public void cpuParityAcceptsBatchRegionWinding() {
         Spine42Parity.ParityResult result = Spine42Parity.region(
                 new float[] {1f, 0f, 0f, 0f, 0f, 1f, 1f, 1f},
@@ -292,5 +314,10 @@ public class Sts1SpineProviderTest {
 
     public static class TwoColorAttachmentFixture {
         public Object getDarkColor() { return new Object(); }
+    }
+
+    public static class BrokenDarkColorSlotFixture {
+        public Object getDarkColor() { throw new IllegalStateException("broken runtime"); }
+        public Object getAttachment() { return null; }
     }
 }

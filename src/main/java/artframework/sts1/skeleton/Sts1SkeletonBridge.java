@@ -442,13 +442,23 @@ public final class Sts1SkeletonBridge {
 
     /** Called from the native mesh-render patch. Returns false to retain STS1's original draw. */
     public static synchronized boolean renderClaimedNative(Skeleton nativeSkeleton, Object activeBatch) {
-        String entityKey = NATIVE_SKELETONS.get(nativeSkeleton);
-        if (!shouldDraw() || entityKey == null || !Sts1NativeSkeletonRenderPolicy.suppress(nativeSkeleton)) return false;
-        artframework.skeleton.SkeletonRuntimeBinding binding = PRESENTATION.binding(entityKey);
-        if (binding == null || !binding.handle.isAlive()) return false;
-        SkeletonProvider provider = ArtFramework.skeletons().get(binding.handle.providerId);
-        return provider instanceof SkeletonNativeSlotRenderer
-                && ((SkeletonNativeSlotRenderer) provider).renderAtNativeSlot(binding.handle, activeBatch);
+        try {
+            String entityKey = NATIVE_SKELETONS.get(nativeSkeleton);
+            if (!shouldDraw() || entityKey == null
+                    || !Sts1NativeSkeletonRenderPolicy.suppress(nativeSkeleton)) return false;
+            artframework.skeleton.SkeletonRuntimeBinding binding = PRESENTATION.binding(entityKey);
+            if (binding == null || !binding.handle.isAlive()) return false;
+            SkeletonProvider provider = ArtFramework.skeletons().get(binding.handle.providerId);
+            return provider instanceof SkeletonNativeSlotRenderer
+                    && ((SkeletonNativeSlotRenderer) provider).renderAtNativeSlot(binding.handle, activeBatch);
+        } catch (Throwable error) {
+            lastError = "native slot render failed: " + describe(error);
+            EVENTS.add("error:native-slot");
+            trimEvents();
+            // This bridge is called by the patch immediately before its ID-correlated failure
+            // record. Do not consume the object callback token here.
+            return false;
+        }
     }
 
     /** Whether ART has a complete native-slot presentation for this exact Spine instance. */
@@ -621,6 +631,12 @@ public final class Sts1SkeletonBridge {
 
     private static boolean empty(String value) { return value == null || value.isEmpty(); }
 
+    private static String describe(Throwable error) {
+        String message = error.getMessage();
+        return error.getClass().getSimpleName()
+                + (message == null || message.isEmpty() ? "" : ": " + message);
+    }
+
     private static final class NativeCreature {
         private final String entityKey;
         private final Skeleton skeleton;
@@ -659,13 +675,15 @@ public final class Sts1SkeletonBridge {
         SkeletonHandle selectedDeveloperHandle = LIVE.get("d1_ironclad");
         drawEvidence.put("handle", "d1_ironclad");
         drawEvidence.put("count", Integer.valueOf(0));
+        drawEvidence.put("kind", "standalone-art");
+        drawEvidence.put("path", "renderAll->provider.render");
         if (selectedDeveloperHandle != null
                 && Sts1Spine42Provider.ID.equals(selectedDeveloperHandle.providerId)) {
             SkeletonProvider selectedProvider = ArtFramework.skeletons().get(selectedDeveloperHandle.providerId);
             if (selectedProvider instanceof Sts1Spine42Provider) {
                 drawEvidence.put("count", Integer.valueOf(
                         ((Sts1Spine42Provider) selectedProvider)
-                                .lastNativeSlotDrawCount(selectedDeveloperHandle)));
+                                .lastRenderDrawCount(selectedDeveloperHandle)));
             }
         }
         m.put("drawEvidence", drawEvidence);

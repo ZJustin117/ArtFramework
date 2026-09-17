@@ -21,6 +21,8 @@ import com.esotericsoftware.spine.SkeletonData;
 import org.junit.After;
 import org.junit.Test;
 
+import java.util.concurrent.CountDownLatch;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -296,6 +298,68 @@ public class Sts1SkeletonBridgeTest {
     }
 
     @Test
+    public void throwingNativeSlotRendererFailsOpenAndRecordsBridgeFailure() {
+        String entityKey = "throwing-renderer";
+        ArtFramework.skeletons().register(new ThrowingNativeSlotProvider());
+        FullPresentMode.setSkeletonLevel(PresentLevel.FULL);
+        ArtFramework.component(SurfaceIds.SKELETON).mount();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey, "atlas", "skeleton");
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(
+                viewFor(entityKey, ThrowingNativeSlotProvider.ID)));
+
+        assertFalse(Sts1SkeletonBridge.renderClaimedNative(skeleton, new Object()));
+        assertTrue(String.valueOf(Sts1SkeletonBridge.probeSlice().get("lastError"))
+                .contains("native slot render failed"));
+    }
+
+    @Test
+    public void idCallbacksRetireExactPendingInvocationBeforeObjectCallback() {
+        String entityKey = "same-owner";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey, "atlas", "skeleton");
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(viewFor(entityKey, fake.id())));
+
+        RenderDisposition first = NativeRenderBridge.beginSkeletonRender(skeleton);
+        RenderDisposition second = NativeRenderBridge.beginSkeletonRender(skeleton);
+        NativeRenderBridge.recordSkeletonDraw(second.invocationId, 2);
+        NativeRenderBridge.recordSkeletonFailure(first.invocationId);
+
+        assertFalse(NativeRenderBridge.ledger().isOpen(first.invocationId));
+        assertFalse(NativeRenderBridge.ledger().isOpen(second.invocationId));
+        assertEquals(2, NativeRenderBridge.ledger().evidence(second.invocationId).drawCount);
+        NativeRenderBridge.recordSkeletonDraw(skeleton, 1);
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
+    public void recoveryBetweenDispositionAndSkeletonTokenPublicationCannotLeaveToken() {
+        String entityKey = "skeleton-race";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey, "atlas", "skeleton");
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(viewFor(entityKey, fake.id())));
+        final CountDownLatch publicationWindow = new CountDownLatch(1);
+        NativeRenderBridge.setBeforeTokenPublicationForTests(new Runnable() {
+            @Override public void run() {
+                publicationWindow.countDown();
+                NativeRenderBridge.clearTransientEffectsForRecovery();
+            }
+        });
+
+        RenderDisposition disposition = NativeRenderBridge.beginSkeletonRender(skeleton);
+
+        assertEquals(Long.valueOf(0L), Long.valueOf(publicationWindow.getCount()));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get(
+                "pendingSkeletonInvocationCount"));
+        NativeRenderBridge.recordSkeletonDraw(disposition.invocationId, 1);
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("evidenceCount"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get(
+                "pendingSkeletonInvocationCount"));
+    }
+
+    @Test
     public void hostRecreationRestoresSkeletonClaimWithoutDoubleDraw() {
         String entityKey = "claimed-creature-2";
         FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
@@ -344,6 +408,25 @@ public class Sts1SkeletonBridgeTest {
 
         @Override public void unload(SkeletonHandle handle) {
             if (handle != null) handle.markDisposed();
+        }
+    }
+
+    private static final class ThrowingNativeSlotProvider implements SkeletonProvider,
+            SkeletonNativeSlotRenderer {
+        private static final String ID = "throwing-native-slot";
+
+        @Override public String id() { return ID; }
+
+        @Override public SkeletonHandle load(SkeletonSource source) {
+            return new SkeletonHandle(ID, source.skeletonId, source);
+        }
+
+        @Override public void unload(SkeletonHandle handle) {
+            if (handle != null) handle.markDisposed();
+        }
+
+        @Override public boolean renderAtNativeSlot(SkeletonHandle handle, Object batch) {
+            throw new AssertionError("renderer failure");
         }
     }
 }

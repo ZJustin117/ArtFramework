@@ -3,6 +3,7 @@ import artframework.sts1.assets.Sts2DevRuntimeLoader;
 import artframework.sts1.skeleton.Sts1Spine42Provider;
 import artframework.skeleton.SkeletonHandle;
 import artframework.skeleton.SkeletonSource;
+import com.badlogic.gdx.utils.GdxNativesLoader;
 
 import java.io.File;
 import java.util.LinkedHashMap;
@@ -11,6 +12,9 @@ import java.util.Map;
 /** Developer-only real .skel load smoke; never compiled by the standard Gradle test task. */
 public final class Spine42LoadSmoke {
     public static void main(String[] args) throws Exception {
+        // The standalone smoke has no game launcher to initialize libGDX. Do this before opening
+        // the asset bundle or touching any class (such as TextureAtlas) that initializes Pixmap.
+        GdxNativesLoader.load();
         String assetPath = System.getenv("ART_STS2_ASSET_JAR");
         String runtimePath = System.getenv("ART_SPINE42_RUNTIME_JAR");
         if (assetPath == null || runtimePath == null) {

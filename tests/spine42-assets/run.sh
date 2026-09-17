@@ -21,11 +21,13 @@ fi
 python3 "$ROOT/tests/spine42-assets/test_bundle.py"
 
 if [[ -n "${ART_SPINE42_RUNTIME_JAR:-}" && -n "${ART_STS_JAR:-}" && -f "$ART_SPINE42_RUNTIME_JAR" ]]; then
+  SMOKE_CP="$ROOT/build/classes/java/main:$ART_STS_JAR:$ART_SPINE42_RUNTIME_JAR"
+  python3 "$ROOT/tests/spine42-assets/verify_host_abi.py" "$ART_STS_JAR" "$ART_SPINE42_RUNTIME_JAR" "$SMOKE_CP"
   CLASS_DIR="$ROOT/agent-tmp/spine42-assets-classes"
   mkdir -p "$CLASS_DIR"
-  javac -source 8 -target 8 -cp "$ROOT/build/classes/java/main:$ART_STS_JAR:$ART_SPINE42_RUNTIME_JAR" \
+  javac -source 8 -target 8 -cp "$SMOKE_CP" \
     -d "$CLASS_DIR" "$ROOT/tests/spine42-assets/Spine42LoadSmoke.java"
-  java -cp "$CLASS_DIR:$ROOT/build/classes/java/main:$ART_STS_JAR:$ART_SPINE42_RUNTIME_JAR" Spine42LoadSmoke
+  java -cp "$CLASS_DIR:$SMOKE_CP" Spine42LoadSmoke
 else
   echo "SKIP: set ART_SPINE42_RUNTIME_JAR and ART_STS_JAR for real Spine42 load smoke"
 fi

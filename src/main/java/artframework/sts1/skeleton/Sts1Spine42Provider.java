@@ -44,7 +44,7 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         String reason = null;
         boolean ok = false;
         try {
-            Class.forName(this.runtimeClassName, false, Sts1Spine42Provider.class.getClassLoader());
+            Class.forName(this.runtimeClassName, false, runtimeClassLoader);
             ok = true;
         } catch (Throwable t) {
             reason = t.getClass().getSimpleName() + ": " + t.getMessage();
@@ -287,7 +287,16 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
 
     @Override
     public void render(SkeletonHandle handle, Object batch) {
-        renderInternal(handle, batch, false);
+        RuntimeInstance instance = instance(handle);
+        if (instance != null) {
+            // Standalone evidence belongs to this ART render path, not to the native-slot hook.
+            // Reset before every attempt so stale success cannot survive an invisible/error frame.
+            instance.lastRenderDrawCount = 0;
+        }
+        int rendered = renderInternal(handle, batch, false);
+        if (instance != null && rendered > 0 && lastRenderError.isEmpty()) {
+            instance.lastRenderDrawCount = rendered;
+        }
     }
 
     /** Draws the supported subset without changing the host batch lifecycle. */
@@ -303,6 +312,9 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         try {
             rendered = renderInternal(handle, batch, true);
             return rendered > 0;
+        } catch (Throwable error) {
+            lastRenderError = describe(error);
+            return false;
         } finally {
             if (instance != null) {
                 instance.lastNativeSlotDrawCount = rendered;
@@ -314,6 +326,12 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
     public int lastNativeSlotDrawCount(SkeletonHandle handle) {
         RuntimeInstance instance = instance(handle);
         return instance != null ? instance.lastNativeSlotDrawCount : 0;
+    }
+
+    /** ART draw evidence from the standalone {@link #render(SkeletonHandle, Object)} path. */
+    public int lastRenderDrawCount(SkeletonHandle handle) {
+        RuntimeInstance instance = instance(handle);
+        return instance != null ? instance.lastRenderDrawCount : 0;
     }
 
     /** Number of quads submitted; indexed meshes are expanded into degenerate quads. */
@@ -386,8 +404,9 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
                 }
             }
             // Commit only after the complete draw order has been prepared. A Batch failure cannot
-            // roll back earlier submissions; return zero conservatively so native suppression is
-            // not claimed (the already-submitted prefix remains the host limitation).
+            // roll back earlier submissions. If it happens after a prefix was submitted, return
+            // that prefix count: the native renderer must stay suppressed or it will redraw the
+            // complete skeleton over pixels that ART has already committed.
             int rendered = 0;
             try {
                 for (PreparedDraw command : prepared) {
@@ -396,7 +415,7 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
                 }
             } catch (Throwable t) {
                 lastRenderError = describe(t.getCause() != null ? t.getCause() : t);
-                return 0;
+                return rendered;
             }
             return rendered;
         } catch (Throwable t) {
@@ -478,22 +497,6 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         }
     }
 
-    private static boolean containsUnsupportedClipping(Object[] slots, int size, Class<?> clippingType) {
-        if (slots == null || clippingType == null) return false;
-        int limit = Math.min(size, slots.length);
-        for (int index = 0; index < limit; index++) {
-            Object slot = slots[index];
-            if (slot == null) continue;
-            try {
-                Object attachment = slot.getClass().getMethod("getAttachment").invoke(slot);
-                if (isClippingAttachment(attachment == null ? null : attachment.getClass(), clippingType)) return true;
-            } catch (Throwable ignored) {
-                // The normal attachment loop owns malformed-slot fail-open handling.
-            }
-        }
-        return false;
-    }
-
     static boolean isClippingAttachment(Class<?> attachmentType, Class<?> clippingType) {
         return attachmentType != null && clippingType != null && clippingType.isAssignableFrom(attachmentType);
     }
@@ -509,7 +512,8 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
                 Object attachment = slot.getClass().getMethod("getAttachment").invoke(slot);
                 if (attachment != null && hasNonNullDarkColor(attachment)) return true;
             } catch (Throwable ignored) {
-                // The normal attachment loop owns malformed-slot fail-open handling.
+                // A malformed slot cannot establish that legacy Batch support is safe.
+                return true;
             }
         }
         return false;
@@ -519,8 +523,11 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         try {
             Method method = value.getClass().getMethod("getDarkColor");
             return method.invoke(value) != null;
-        } catch (Throwable ignored) {
+        } catch (NoSuchMethodException absentOnLegacyRuntime) {
             return false;
+        } catch (Throwable malformedReflection) {
+            // Reflection failure is not equivalent to an absent legacy-runtime accessor.
+            return true;
         }
     }
 
@@ -692,6 +699,7 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         private final Object stateData;
         private final Object state;
         private volatile int lastNativeSlotDrawCount;
+        private volatile int lastRenderDrawCount;
         private SkeletonHandle handle;
 
         private RuntimeInstance(TextureAtlas atlas, Object skeleton, Object stateData, Object state) {

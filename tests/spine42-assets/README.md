@@ -19,3 +19,7 @@ These tests do not run as part of `./scripts/with-art-env.sh test`. They inspect
 layout and metadata without loading game/runtime classes. The D1 scenarios under
 `tests/ui-scenarios/device/` perform the device-side runtime load after the two developer jars
 have been pushed with `scripts/deploy-spine42-d1.sh`.
+
+When both `ART_STS_JAR` and `ART_SPINE42_RUNTIME_JAR` are set, the runner also checks that the
+smoke classpath resolves the host's STS1 `Gdx2DPixmap.setBlend(int)` and
+`GdxNativesLoader.load()` APIs and that the runtime jar contains no libGDX classes.

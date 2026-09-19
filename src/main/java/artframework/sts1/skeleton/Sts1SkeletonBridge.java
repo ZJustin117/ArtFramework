@@ -20,6 +20,7 @@ import artframework.skeleton.SkeletonPresentationSystem;
 import artframework.skeleton.SkeletonHostTickSystem;
 import artframework.skeleton.SkeletonPresentationView;
 import artframework.skeleton.SkeletonPresentationFrames;
+import artframework.skeleton.SkeletonRuntimeBinding;
 import artframework.core.SignalDecision;
 import artframework.core.SignalListener;
 import artframework.core.SignalSubscription;
@@ -27,6 +28,7 @@ import artframework.core.UiSignal;
 import com.megacrit.cardcrawl.core.AbstractCreature;
 import com.esotericsoftware.spine.AnimationState;
 import com.esotericsoftware.spine.Skeleton;
+import com.badlogic.gdx.Gdx;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -217,7 +219,11 @@ public final class Sts1SkeletonBridge {
         if (p == null) {
             return false;
         }
-        p.setTrackTime(h, 0, seconds);
+        try {
+            p.setTrackTime(h, 0, seconds);
+        } catch (RuntimeException error) {
+            return failDevControl(skeletonId, "trackTime control failed: " + error.getMessage());
+        }
         EVENTS.add("setTrackTime:" + skeletonId + ":" + seconds);
         lastDevCommand = "seek:" + skeletonId + ":" + seconds;
         trimEvents();
@@ -234,7 +240,11 @@ public final class Sts1SkeletonBridge {
         if (p == null) {
             return false;
         }
-        p.setTimeScale(h, 0, scale);
+        try {
+            p.setTimeScale(h, 0, scale);
+        } catch (RuntimeException error) {
+            return failDevControl(skeletonId, "timeScale control failed: " + error.getMessage());
+        }
         EVENTS.add("setTimeScale:" + skeletonId + ":" + scale);
         lastDevCommand = "timeScale:" + skeletonId + ":" + scale;
         trimEvents();
@@ -253,6 +263,14 @@ public final class Sts1SkeletonBridge {
         return false;
     }
 
+    private static boolean failDevControl(String skeletonId, String message) {
+        lastError = message;
+        EVENTS.add("error:" + skeletonId);
+        lastDevCommand = message + ":" + skeletonId + ":invalid";
+        trimEvents();
+        return false;
+    }
+
     public static String currentAnimation(String skeletonId) {
         SkeletonHandle h = LIVE.get(skeletonId);
         SkeletonCommandProvider p = commandProvider(h);
@@ -263,13 +281,41 @@ public final class Sts1SkeletonBridge {
         if (!shouldDraw() || batch == null) {
             return;
         }
+        renderAll(batch, liveDeltaSeconds());
+    }
+
+    /** Test seam and direct-render implementation; ECS bindings are ticked elsewhere. */
+    static void renderAll(Object batch, float deltaSeconds) {
+        if (!shouldDraw() || batch == null) {
+            return;
+        }
         for (SkeletonHandle handle : new ArrayList<SkeletonHandle>(LIVE.values())) {
             SkeletonProvider provider = ArtFramework.skeletons().get(handle.providerId);
             if (provider instanceof SkeletonCommandProvider) {
-                ((SkeletonCommandProvider) provider).render(handle, batch);
+                SkeletonCommandProvider command = (SkeletonCommandProvider) provider;
+                // LIVE contains developer/direct-render handles, not ECS presentation bindings.
+                // Keep the two paths independent so an ECS-owned handle is never advanced twice.
+                if (!isPresentationBinding(handle)) {
+                    command.update(handle, deltaSeconds);
+                    command.apply(handle);
+                }
+                command.render(handle, batch);
             }
         }
         PRESENTATION.renderAllExcept(batch, new HashSet<String>(NATIVE_SKELETONS.values()));
+    }
+
+    private static float liveDeltaSeconds() {
+        if (Gdx.graphics == null) {
+            return 0f;
+        }
+        float delta = Gdx.graphics.getDeltaTime();
+        return finite(delta) && delta >= 0f ? delta : 0f;
+    }
+
+    private static boolean isPresentationBinding(SkeletonHandle handle) {
+        SkeletonRuntimeBinding binding = PRESENTATION.binding(handle.skeletonId);
+        return binding != null && binding.handle == handle;
     }
 
     /** Apply a backend snapshot without exposing Spine or libGDX types to the backend. */
@@ -675,6 +721,8 @@ public final class Sts1SkeletonBridge {
         SkeletonHandle selectedDeveloperHandle = LIVE.get("d1_ironclad");
         drawEvidence.put("handle", "d1_ironclad");
         drawEvidence.put("count", Integer.valueOf(0));
+        drawEvidence.put("vertexSignature", null);
+        drawEvidence.put("firstBounds", null);
         drawEvidence.put("kind", "standalone-art");
         drawEvidence.put("path", "renderAll->provider.render");
         if (selectedDeveloperHandle != null
@@ -684,6 +732,14 @@ public final class Sts1SkeletonBridge {
                 drawEvidence.put("count", Integer.valueOf(
                         ((Sts1Spine42Provider) selectedProvider)
                                 .lastRenderDrawCount(selectedDeveloperHandle)));
+                Sts1Spine42Provider spine42 = (Sts1Spine42Provider) selectedProvider;
+                drawEvidence.put("vertexSignature", spine42.lastRenderVertexSignature(selectedDeveloperHandle));
+                float[] bounds = spine42.lastRenderFirstBounds(selectedDeveloperHandle);
+                if (bounds != null) {
+                    List<Float> values = new ArrayList<Float>(bounds.length);
+                    for (float value : bounds) values.add(Float.valueOf(value));
+                    drawEvidence.put("firstBounds", values);
+                }
             }
         }
         m.put("drawEvidence", drawEvidence);
@@ -709,9 +765,13 @@ public final class Sts1SkeletonBridge {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("providerId", entry.getValue().providerId);
             item.put("alive", Boolean.valueOf(entry.getValue().isAlive()));
+            item.put("trackTime", Float.valueOf(0f));
             SkeletonProvider liveProvider = ArtFramework.skeletons().get(entry.getValue().providerId);
             if (liveProvider instanceof SkeletonCommandProvider) {
-                item.put("currentAnimation", ((SkeletonCommandProvider) liveProvider).currentAnimation(entry.getValue(), 0));
+                SkeletonCommandProvider command = (SkeletonCommandProvider) liveProvider;
+                item.put("currentAnimation", command.currentAnimation(entry.getValue(), 0));
+                item.put("trackTime", Float.valueOf(command.trackTime(entry.getValue(), 0)));
+                item.put("animationEnd", Float.valueOf(command.animationEnd(entry.getValue(), 0)));
             }
             live.put(entry.getKey(), item);
         }
@@ -720,7 +780,9 @@ public final class Sts1SkeletonBridge {
             SkeletonHandle first = LIVE.values().iterator().next();
             SkeletonProvider firstProvider = ArtFramework.skeletons().get(first.providerId);
             if (firstProvider instanceof SkeletonCommandProvider) {
-                m.put("currentAnimation", ((SkeletonCommandProvider) firstProvider).currentAnimation(first, 0));
+                SkeletonCommandProvider command = (SkeletonCommandProvider) firstProvider;
+                m.put("currentAnimation", command.currentAnimation(first, 0));
+                m.put("trackTime", Float.valueOf(command.trackTime(first, 0)));
             }
         }
         SkeletonProvider p = ArtFramework.skeletons().get(providerId);

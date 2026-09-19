@@ -195,6 +195,8 @@ Developer Spine 4.2 commands are available when a local developer bundle is conf
 art skeleton dev status
 art skeleton dev load <id> <atlasEntry> <skeletonEntry>
 art skeleton dev play <id> <animation>
+art skeleton dev freeze <id>
+art skeleton dev unfreeze <id>
 art skeleton dev stop <id>
 ```
 

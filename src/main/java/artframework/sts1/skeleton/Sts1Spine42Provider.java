@@ -200,12 +200,25 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
 
     @Override
     public void setTimeScale(SkeletonHandle handle, int trackId, float scale) {
-        invokeTrack(handle, trackId, "setTimeScale", float.class, scale);
+        invokeTrack(handle, trackId, "setTimeScale", scale);
     }
 
     @Override
     public void setTrackTime(SkeletonHandle handle, int trackId, float seconds) {
-        invokeTrack(handle, trackId, "setTrackTime", float.class, seconds);
+        invokeTrack(handle, trackId, "setTrackTime", seconds);
+    }
+
+    @Override
+    public float trackTime(SkeletonHandle handle, int trackId) {
+        if (instance(handle) == null) {
+            return 0f;
+        }
+        Object value = invokeTrack(handle, trackId, "getTrackTime");
+        if (!(value instanceof Number)) {
+            return 0f;
+        }
+        float time = ((Number) value).floatValue();
+        return Float.isNaN(time) || Float.isInfinite(time) ? 0f : time;
     }
 
     @Override
@@ -218,8 +231,8 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
     public void update(SkeletonHandle handle, float deltaSeconds) {
         RuntimeInstance i = instance(handle);
         if (i != null) {
-            invoke(i.state, "update", new Class<?>[] {float.class}, deltaSeconds);
-            invoke(i.skeleton, "update", new Class<?>[] {float.class}, deltaSeconds);
+            invokeRequired(i.state, "update", new Class<?>[] {float.class}, deltaSeconds);
+            invokeRequired(i.skeleton, "update", new Class<?>[] {float.class}, deltaSeconds);
         }
     }
 
@@ -227,12 +240,17 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
     public void apply(SkeletonHandle handle) {
         RuntimeInstance i = instance(handle);
         if (i != null) {
-            invoke(i.state, "apply", new Class<?>[] {i.skeleton.getClass()}, i.skeleton);
+            // Spine 4.2 has AnimationState.apply(Skeleton) and
+            // Skeleton.updateWorldTransform(Physics). Keep pose operations
+            // loud: a swallowed reflective failure leaves track time moving
+            // while the rendered pose remains stale.
+            invokeRequired(i.state, "apply", new Class<?>[] {i.skeleton.getClass()}, i.skeleton);
             try {
                 Class<?> physics = type("Skeleton$Physics");
                 Object update = Enum.valueOf((Class) physics, "update");
-                invoke(i.skeleton, "updateWorldTransform", new Class<?>[] {physics}, update);
-            } catch (Exception ignored) {
+                invokeRequired(i.skeleton, "updateWorldTransform", new Class<?>[] {physics}, update);
+            } catch (Exception e) {
+                throw new IllegalStateException("spine42 pose application failed: " + describe(e), e);
             }
         }
     }
@@ -292,6 +310,8 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
             // Standalone evidence belongs to this ART render path, not to the native-slot hook.
             // Reset before every attempt so stale success cannot survive an invisible/error frame.
             instance.lastRenderDrawCount = 0;
+            instance.lastRenderVertexSignature = null;
+            instance.lastRenderFirstBounds = null;
         }
         int rendered = renderInternal(handle, batch, false);
         if (instance != null && rendered > 0 && lastRenderError.isEmpty()) {
@@ -332,6 +352,17 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
     public int lastRenderDrawCount(SkeletonHandle handle) {
         RuntimeInstance instance = instance(handle);
         return instance != null ? instance.lastRenderDrawCount : 0;
+    }
+
+    String lastRenderVertexSignature(SkeletonHandle handle) {
+        RuntimeInstance instance = instance(handle);
+        return instance != null ? instance.lastRenderVertexSignature : null;
+    }
+
+    float[] lastRenderFirstBounds(SkeletonHandle handle) {
+        RuntimeInstance instance = instance(handle);
+        return instance == null || instance.lastRenderFirstBounds == null
+                ? null : instance.lastRenderFirstBounds.clone();
     }
 
     /** Number of quads submitted; indexed meshes are expanded into degenerate quads. */
@@ -408,10 +439,15 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
             // that prefix count: the native renderer must stay suppressed or it will redraw the
             // complete skeleton over pixels that ART has already committed.
             int rendered = 0;
+            RenderEvidence evidence = vertexEvidence(prepared);
             try {
                 for (PreparedDraw command : prepared) {
                     draw.invoke(batch, command.texture, command.vertices, 0, command.vertices.length);
                     rendered++;
+                }
+                if (!nativeSlot && rendered > 0) {
+                    i.lastRenderVertexSignature = evidence.signature;
+                    i.lastRenderFirstBounds = evidence.firstBounds;
                 }
             } catch (Throwable t) {
                 lastRenderError = describe(t.getCause() != null ? t.getCause() : t);
@@ -480,6 +516,47 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         validateFinite(vertices, "legacy Batch vertices");
     }
 
+    /** Stable evidence over the exact five-float vertices prepared for Batch.draw. */
+    static String vertexSignature(float[] vertices) {
+        if (vertices == null) throw new IllegalArgumentException("vertices missing");
+        long hash = 0xcbf29ce484222325L;
+        for (float vertex : vertices) {
+            hash ^= Float.floatToIntBits(vertex) & 0xffffffffL;
+            hash *= 0x100000001b3L;
+        }
+        return Long.toHexString(hash);
+    }
+
+    private static RenderEvidence vertexEvidence(List<PreparedDraw> prepared) {
+        long hash = 0xcbf29ce484222325L;
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        boolean first = true;
+        for (PreparedDraw command : prepared) {
+            float[] vertices = command.vertices;
+            for (int index = 0; index < vertices.length; index++) {
+                float vertex = vertices[index];
+                hash ^= Float.floatToIntBits(vertex) & 0xffffffffL;
+                hash *= 0x100000001b3L;
+                if (first && (index % 5) < 2) {
+                    if ((index % 5) == 0) {
+                        minX = Math.min(minX, vertex);
+                        maxX = Math.max(maxX, vertex);
+                    } else {
+                        minY = Math.min(minY, vertex);
+                        maxY = Math.max(maxY, vertex);
+                    }
+                }
+            }
+            if (first) first = false;
+        }
+        if (first) return new RenderEvidence(Long.toHexString(hash), null);
+        return new RenderEvidence(Long.toHexString(hash),
+                new float[] {minX, minY, maxX, maxY});
+    }
+
     private static void validateFinite(float[] values, String name) {
         if (values == null) throw new IllegalArgumentException(name + " missing");
         for (float value : values) if (Float.isNaN(value) || Float.isInfinite(value)) {
@@ -494,6 +571,16 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         private PreparedDraw(Texture texture, float[] vertices) {
             this.texture = texture;
             this.vertices = vertices;
+        }
+    }
+
+    private static final class RenderEvidence {
+        private final String signature;
+        private final float[] firstBounds;
+
+        private RenderEvidence(String signature, float[] firstBounds) {
+            this.signature = signature;
+            this.firstBounds = firstBounds;
         }
     }
 
@@ -639,14 +726,24 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
 
     private Object invokeTrack(SkeletonHandle handle, int trackId, String method, Object... args) {
         RuntimeInstance i = instance(handle);
+        if (i == null) {
+            throw new IllegalStateException("spine42 track control unavailable: instance missing");
+        }
         try {
-            Object entry = i == null ? null : i.state.getClass().getMethod("getCurrent", int.class).invoke(i.state, trackId);
-            if (entry == null) return null;
-            if (args.length == 0) return entry.getClass().getMethod(method).invoke(entry);
-            Class<?>[] types = new Class<?>[] {args[0].getClass() == Float.class ? float.class : args[0].getClass()};
-            return entry.getClass().getMethod(method, types).invoke(entry, args);
+            Object entry = i.state.getClass().getMethod("getCurrent", int.class).invoke(i.state, trackId);
+            if (entry == null) {
+                throw new IllegalStateException("spine42 track control unavailable: track " + trackId + " has no TrackEntry");
+            }
+            Class<?>[] types = args.length == 0
+                    ? new Class<?>[0]
+                    : new Class<?>[] {args[0].getClass() == Float.class ? float.class : args[0].getClass()};
+            return invokeRequired(entry, method, types, args);
         } catch (Exception e) {
-            return null;
+            if (e instanceof IllegalStateException) {
+                throw (IllegalStateException) e;
+            }
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            throw new IllegalStateException("spine42 track control " + method + " failed: " + describe(cause), cause);
         }
     }
 
@@ -655,6 +752,15 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
             return target.getClass().getMethod(method, types).invoke(target, args);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    static Object invokeRequired(Object target, String method, Class<?>[] types, Object... args) {
+        try {
+            return target.getClass().getMethod(method, types).invoke(target, args);
+        } catch (Exception e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            throw new IllegalStateException("spine42 reflection call " + method + " failed: " + describe(cause), cause);
         }
     }
 
@@ -700,6 +806,8 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         private final Object state;
         private volatile int lastNativeSlotDrawCount;
         private volatile int lastRenderDrawCount;
+        private volatile String lastRenderVertexSignature;
+        private volatile float[] lastRenderFirstBounds;
         private SkeletonHandle handle;
 
         private RuntimeInstance(TextureAtlas atlas, Object skeleton, Object stateData, Object state) {

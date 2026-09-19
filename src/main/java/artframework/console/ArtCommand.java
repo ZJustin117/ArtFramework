@@ -149,7 +149,7 @@ public class ArtCommand extends ConsoleCommand {
 
     private void cmdSkeleton(String[] tokens, int depth) {
         if (tokens.length <= depth) {
-            DevConsole.log("Usage: art skeleton dev status|load|play|bone|seek|freeze|stop ... or art skeleton sts1 load <id> <atlas> <json>");
+            DevConsole.log("Usage: art skeleton dev status|load|play|bone|seek|freeze|unfreeze|stop ... or art skeleton sts1 load <id> <atlas> <json>");
             return;
         }
         String scope = tokens[depth].toLowerCase();
@@ -171,7 +171,7 @@ public class ArtCommand extends ConsoleCommand {
             return;
         }
         if (!"dev".equals(scope)) {
-            DevConsole.log("Usage: art skeleton dev status|load|play|bone|seek|freeze|stop");
+            DevConsole.log("Usage: art skeleton dev status|load|play|bone|seek|freeze|unfreeze|stop");
             return;
         }
         String action = tokens.length > depth + 1 ? tokens[depth + 1].toLowerCase() : "status";
@@ -206,8 +206,12 @@ public class ArtCommand extends ConsoleCommand {
                 boolean ok = artframework.sts1.skeleton.Sts1SkeletonBridge.setTimeScale(
                         tokens[depth + 2], 0f);
                 logSkeletonDev("ART_SKELETON_DEV freeze " + ok);
+            } else if ("unfreeze".equals(action) && tokens.length >= depth + 3) {
+                boolean ok = artframework.sts1.skeleton.Sts1SkeletonBridge.setTimeScale(
+                        tokens[depth + 2], 1f);
+                logSkeletonDev("ART_SKELETON_DEV unfreeze " + ok);
             } else {
-                logSkeletonDev("Usage: art skeleton dev status|load <id> <atlasEntry> <skeletonEntry>|play <id> <animation>|bone <id> <bone>|seek <id> <seconds>|freeze <id>|stop <id>");
+                logSkeletonDev("Usage: art skeleton dev status|load <id> <atlasEntry> <skeletonEntry>|play <id> <animation>|bone <id> <bone>|seek <id> <seconds>|freeze <id>|unfreeze <id>|stop <id>");
             }
         } catch (Throwable t) {
             logSkeletonDev("ART_SKELETON_DEV failed: " + t.getClass().getSimpleName() + ": " + t.getMessage());

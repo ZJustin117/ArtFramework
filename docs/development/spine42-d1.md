@@ -39,6 +39,7 @@ art skeleton dev play d1_ironclad idle_loop
 art skeleton dev play d1_ironclad attack
 art skeleton dev seek d1_ironclad 0.0
 art skeleton dev freeze d1_ironclad
+art skeleton dev unfreeze d1_ironclad
 art skeleton dev bone d1_ironclad root
 art skeleton dev stop d1_ironclad
 ```
@@ -46,7 +47,8 @@ art skeleton dev stop d1_ironclad
 Inspect first load, idle loop, attack, rotated atlas parts, PMA edges, and teardown. Repeat
 load/play/stop at least ten times and save screenshots plus `art probe` output for each failure.
 `seek <id> 0.0` resets the primary animation track to a fixed pose time; `freeze <id>` sets its
-time scale to zero so the pose remains stable while taking screenshots.
+time scale to zero so the pose remains stable while taking screenshots; `unfreeze <id>` restores
+the primary track time scale to 1.0. Playing an animation does not implicitly unfreeze it.
 
 The standard JUnit gate remains independent of these resources. The pure `Spine42Parity` JUnit
 contract can validate expanded CPU vertices, UVs, packed color, triangle coverage, winding,

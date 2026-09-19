@@ -102,6 +102,12 @@ public final class FakeSkeletonProvider implements SkeletonCommandProvider, artf
     }
 
     @Override
+    public float trackTime(SkeletonHandle handle, int trackId) {
+        FakeState s = state(handle);
+        return s != null ? s.trackTime : 0f;
+    }
+
+    @Override
     public void setPose(SkeletonHandle handle, float x, float y, float rotation,
             float scaleX, float scaleY, boolean flipX, boolean flipY) {
         FakeState s = state(handle);

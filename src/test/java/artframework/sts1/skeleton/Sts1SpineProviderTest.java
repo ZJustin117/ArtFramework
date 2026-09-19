@@ -29,6 +29,7 @@ public class Sts1SpineProviderTest {
         assertEquals("spine42", provider.id());
         assertFalse(provider.isAvailable());
         assertTrue(provider.unavailableReason().contains("ClassNotFoundException"));
+        assertEquals(0f, provider.trackTime(null, 0), 0f);
     }
 
     @Test
@@ -43,6 +44,41 @@ public class Sts1SpineProviderTest {
 
         assertFalse(provider.isAvailable());
         assertTrue(provider.unavailableReason().contains("runtime loader rejected java.lang.String"));
+    }
+
+    @Test
+    public void spine42RequiredPoseReflectionDoesNotHideInvocationFailure() {
+        try {
+            Sts1Spine42Provider.invokeRequired(new BrokenPoseApi(), "apply", new Class<?>[0]);
+            fail("expected required reflection failure");
+        } catch (IllegalStateException error) {
+            assertTrue(error.getMessage().contains("reflection call apply failed"));
+            assertTrue(error.getMessage().contains("pose API unavailable"));
+        }
+    }
+
+    @Test
+    public void spine42RequiredTrackReflectionDoesNotHideInvocationFailure() {
+        try {
+            Sts1Spine42Provider.invokeRequired(new BrokenTrackApi(), "setTrackTime",
+                    new Class<?>[] {float.class}, 0.6f);
+            fail("expected required track reflection failure");
+        } catch (IllegalStateException error) {
+            assertTrue(error.getMessage().contains("reflection call setTrackTime failed"));
+            assertTrue(error.getMessage().contains("track API unavailable"));
+        }
+    }
+
+    @Test
+    public void vertexSignatureIsDeterministicAndSensitiveToPreparedVertices() {
+        float[] original = {1f, 2f, 0.5f, 0f, 1f};
+        float[] same = {1f, 2f, 0.5f, 0f, 1f};
+        float[] moved = {1.01f, 2f, 0.5f, 0f, 1f};
+
+        assertEquals(Sts1Spine42Provider.vertexSignature(original),
+                Sts1Spine42Provider.vertexSignature(same));
+        assertFalse(Sts1Spine42Provider.vertexSignature(original)
+                .equals(Sts1Spine42Provider.vertexSignature(moved)));
     }
 
     @Test
@@ -69,6 +105,8 @@ public class Sts1SpineProviderTest {
 
         assertEquals("d1_ironclad", evidence.get("handle"));
         assertEquals(Integer.valueOf(0), evidence.get("count"));
+        assertEquals(null, evidence.get("vertexSignature"));
+        assertEquals(null, evidence.get("firstBounds"));
         assertEquals("standalone-art", evidence.get("kind"));
         assertEquals("renderAll->provider.render", evidence.get("path"));
     }
@@ -319,5 +357,13 @@ public class Sts1SpineProviderTest {
     public static class BrokenDarkColorSlotFixture {
         public Object getDarkColor() { throw new IllegalStateException("broken runtime"); }
         public Object getAttachment() { return null; }
+    }
+
+    public static class BrokenPoseApi {
+        public void apply() { throw new IllegalStateException("pose API unavailable"); }
+    }
+
+    public static class BrokenTrackApi {
+        public void setTrackTime(float seconds) { throw new IllegalStateException("track API unavailable"); }
     }
 }

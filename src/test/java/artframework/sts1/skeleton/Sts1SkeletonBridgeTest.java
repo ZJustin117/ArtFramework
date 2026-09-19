@@ -100,11 +100,40 @@ public class Sts1SkeletonBridgeTest {
         assertTrue(Sts1SkeletonBridge.setTimeScale("hero", 0f));
         assertEquals(0f, fake.trackTime("hero"), 0.001f);
         assertEquals(0f, fake.timeScale("hero"), 0.001f);
-        assertEquals("timeScale:hero:0.0", Sts1SkeletonBridge.probeSlice().get("lastDevCommand"));
+        assertTrue(Sts1SkeletonBridge.setTimeScale("hero", 1f));
+        assertEquals(1f, fake.timeScale("hero"), 0.001f);
+        assertEquals("timeScale:hero:1.0", Sts1SkeletonBridge.probeSlice().get("lastDevCommand"));
         assertTrue(((java.util.List<?>) Sts1SkeletonBridge.probeSlice().get("events"))
                 .contains("setTrackTime:hero:0.0"));
         assertTrue(((java.util.List<?>) Sts1SkeletonBridge.probeSlice().get("events"))
                 .contains("setTimeScale:hero:0.0"));
+        assertTrue(((java.util.List<?>) Sts1SkeletonBridge.probeSlice().get("events"))
+                .contains("setTimeScale:hero:1.0"));
+    }
+
+    @Test
+    public void directRenderAdvancesAndAppliesLiveHandle() {
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Sts1SkeletonBridge.setProviderId(FakeSkeletonProvider.ID);
+        Sts1SkeletonBridge.play("hero", "", "");
+
+        Sts1SkeletonBridge.renderAll(new Object(), 0.25f);
+
+        assertTrue(fake.applied("hero"));
+    }
+
+    @Test
+    public void probeReportsPrimaryTrackTimeForEachLiveSkeleton() {
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Sts1SkeletonBridge.setProviderId(FakeSkeletonProvider.ID);
+        Sts1SkeletonBridge.play("hero", "", "");
+        assertTrue(Sts1SkeletonBridge.setTrackTime("hero", 1.25f));
+
+        java.util.Map<?, ?> live = (java.util.Map<?, ?>) Sts1SkeletonBridge.probeSlice().get("live");
+        java.util.Map<?, ?> hero = (java.util.Map<?, ?>) live.get("hero");
+        assertEquals(Float.valueOf(1.25f), hero.get("trackTime"));
+        assertEquals(Float.valueOf(2f), hero.get("animationEnd"));
+        assertEquals(Float.valueOf(1.25f), Sts1SkeletonBridge.probeSlice().get("trackTime"));
     }
 
     @Test

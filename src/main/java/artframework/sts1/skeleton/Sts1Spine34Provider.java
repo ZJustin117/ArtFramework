@@ -127,6 +127,16 @@ public final class Sts1Spine34Provider implements SkeletonCommandProvider, Skele
     }
 
     @Override
+    public float trackTime(SkeletonHandle handle, int trackId) {
+        Instance i = instance(handle);
+        if (i == null || i.state.getCurrent(trackId) == null) {
+            return 0f;
+        }
+        float time = i.state.getCurrent(trackId).getTime();
+        return Float.isNaN(time) || Float.isInfinite(time) ? 0f : time;
+    }
+
+    @Override
     public float animationEnd(SkeletonHandle handle, int trackId) {
         Instance i = instance(handle);
         if (i == null || i.state.getCurrent(trackId) == null) {

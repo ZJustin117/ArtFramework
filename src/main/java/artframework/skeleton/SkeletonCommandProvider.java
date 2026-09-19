@@ -19,6 +19,9 @@ public interface SkeletonCommandProvider extends SkeletonProvider {
 
     void setTrackTime(SkeletonHandle handle, int trackId, float seconds);
 
+    /** Diagnostic read of a track's current time; returns zero when unavailable. */
+    float trackTime(SkeletonHandle handle, int trackId);
+
     float animationEnd(SkeletonHandle handle, int trackId);
 
     void update(SkeletonHandle handle, float deltaSeconds);

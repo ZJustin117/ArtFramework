@@ -7,6 +7,10 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 
 ## Infrastructure (P0–P2)
 
+- [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
+      system order and defining the native boundary for visual-verification backgrounds. See
+      [`docs/design/render-z-order.md`](design/render-z-order.md).
+
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

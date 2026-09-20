@@ -16,7 +16,7 @@ Identity (breaking, post-rename):
 | Env prefix | `ART_*` |
 | Verify tooling | `tools/art-verify` |
 
-Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md), [`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md). Roadmap: [`docs/task.md`](../task.md) milestones **0–46** shipped.
+Complements: [`godot-aligned-ui.md`](./godot-aligned-ui.md), [`dual-track.md`](./dual-track.md), [`component-composition.md`](./component-composition.md), [`ui-ops-probe.md`](./ui-ops-probe.md), [`backend-context.md`](./backend-context.md), [`c2-full-present.md`](./c2-full-present.md), [`host-assets.md`](./host-assets.md), [`native-render-coverage-sdd.md`](./native-render-coverage-sdd.md), [`render-z-order.md`](./render-z-order.md). Roadmap: [`docs/task.md`](../task.md) milestones **0–46** shipped.
 
 ## Purpose
 

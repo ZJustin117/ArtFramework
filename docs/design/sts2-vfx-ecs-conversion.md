@@ -59,13 +59,18 @@ and script-driven lifecycle. `NVfxParticleSystem` starts descendant CPU/GPU part
 removes the scene after a lifetime. Gameplay VFX such as `NSovereignBladeVfx` additionally
 change particle emission, transforms, ordering, and animation through `_Process` and Tween.
 
-The converter therefore translates **data**, not behavior:
+The converter therefore translates **data**, not behavior. Its output has two deliberately
+different layers: a lossless/source-preserving parsed IR and a selective typed runtime
+projection. Every reliably recognizable section, attribute, assignment, constructor, and raw
+value is retained in the parsed IR with logical source provenance. Only values whose semantics
+are supported and valid are instantiated as typed definitions/components. Opaque values are
+never interpreted by runtime systems:
 
 | Godot source | ART representation |
 |---|---|
 | SceneTree node | Definition node plus ECS entity hierarchy |
 | `ParticleProcessMaterial` | Immutable emitter definition |
-| `Curve` / `Gradient` | Explicit sampled or control-point data |
+| `Curve` / `Gradient` | Explicit control-point/source data and gradient stops; never silent sampling |
 | `SceneTreeTimer` / lifetime | `VfxLifecycleComponent` |
 | `_Process(delta)` motion | Stateless integration systems |
 | `z_index` / node order | Render sort fields |
@@ -90,7 +95,13 @@ build/dev/sts2-vfx/<bundle-id>/
 
 `manifest.json` contains the format name, schema version, source identity, scene entries,
 resource entries, and aggregate capability. `diagnostics.json` is part of the conversion
-result, not an optional log.
+result, not an optional log. A scene file contains the exact source text, parsed section IR,
+per-property conversion results, and typed nodes. Source paths are normalized logical paths;
+absolute filesystem paths are forbidden throughout the bundle.
+
+The bundle is source-preserving and suitable for later reconversion. Runtime ECS loading is
+selective: it reads only typed definitions and resource entries. Parsed IR and opaque properties
+are inspection/conversion inputs, not executable component data.
 
 ### Scene definition
 
@@ -134,9 +145,10 @@ ParticleEmitterDefinition {
 }
 ```
 
-The baseline has complete semantics for every field above: the converter either emits the
-field in valid units or reports the node as unsupported/degraded. It must not silently drop a
-recognized Godot property.
+The baseline has complete semantics for every emitted typed field. The converter emits a field
+only when its source value is semantically valid; it does not invent defaults for malformed or
+missing values. Every non-emitted property remains in parsed IR and receives an explicit
+conversion result. Runtime systems must never infer executable semantics from opaque data.
 
 ### Runtime state components
 
@@ -201,8 +213,24 @@ a separate resource materialization step.
 - Tween and script-authored runtime changes.
 - `BackBufferCopy`, 3D nodes, Godot imported resources, UID/import cache products.
 
-Unsupported input is retained in diagnostics with source path, node path, property, reason,
-and capability. It is not silently discarded.
+Unsupported input is retained in parsed IR and diagnostics with source path, node path where
+available, section, line, property, reason, and capability. It is not silently discarded.
+
+### Conversion result cases
+
+- `supported`: recognized, valid, and emitted into the typed projection.
+- `degraded`: recognized and partially representable with an explicit approximation; original
+  source data remains in IR and the approximation is diagnosed.
+- `missing-resource`: a valid allowed resource reference did not resolve; conversion continues
+  without fabricating a handle or path.
+- `unsupported-known`: the converter recognizes the feature but version 1 has no executable
+  semantics for it (for example scripts, shaders, turbulence, collision, or sub-emitters).
+- `unknown`: an otherwise parseable constructor, property, or node has no registered meaning.
+- `malformed`: syntax is unparseable or a known semantic field has an invalid value/reference.
+
+Unknown and unsupported-known values are opaque structured properties. Malformed values retain
+their raw source form. All three remain non-executable. A supported sibling node continues to
+convert when another node/property is degraded, missing, unsupported, unknown, or malformed.
 
 ## Capability and fail-open policy
 
@@ -214,6 +242,10 @@ SUPPORTED | DEGRADED | BAKED_ONLY | UNSUPPORTED
 - `DEGRADED`: ART may render as an overlay; native STS1 output continues.
 - `BAKED_ONLY`: the scene requires a separately generated flipbook/baked asset.
 - `UNSUPPORTED`: no ART renderer is created for the unsupported portion.
+
+These aggregate capabilities do not replace the per-property cases above. A bundle can be
+`DEGRADED` while containing supported typed nodes and unsupported opaque siblings. `UNSUPPORTED`
+applies to a portion that is not instantiated; it does not erase its source IR.
 
 Version 1 always uses `NATIVE_WITH_ART_OVERLAY` for host integration. No native STS1 effect is
 suppressed by the converter or the initial VFX renderer. FULL delegation requires a later

@@ -24,10 +24,13 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 
 ### STS2 Godot VFX import
 
-- [ ] Design fixed: restricted `.tscn` conversion emits versioned ART VFX data, projects into
-      `PresentationWorld`, and uses stateless CPU particle systems with native STS1 overlay only.
+- [x] Design fixed: restricted `.tscn` conversion emits a lossless parsed bundle plus selective
+      typed ART VFX data, projects into `PresentationWorld`, and uses stateless CPU particle
+      systems with native STS1 overlay only.
       See [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
-- [ ] Implement converter schema, diagnostics, and one real basic-particle `.tscn` conversion.
+- [x] Implement converter schema, diagnostics, and one real basic-particle `.tscn` conversion.
+      Offline fixtures and the developer-local `vfx_smoke_puff.tscn` production test cover typed
+      curves, gradients, flipbook data, resource hashes, diagnostics, and deterministic output.
 - [ ] Implement Java manifest loading, ECS instantiation, CPU particle systems, lifecycle cleanup,
       and libGDX render projection.
 - [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,

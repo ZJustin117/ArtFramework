@@ -786,7 +786,12 @@ def convert_document(parsed, logical_source, source_identity):
             del typed["transform"]
         typed_nodes.append(typed)
     capability = "SUPPORTED" if not diagnostics else "DEGRADED"
-    return typed_nodes, property_results, diagnostics, capability
+    duration = 0.0
+    for node in typed_nodes:
+        emitter = node.get("particleEmitter")
+        if emitter is not None and _is_number(emitter.get("lifetime")):
+            duration = max(duration, float(emitter["lifetime"]))
+    return typed_nodes, property_results, diagnostics, capability, duration
 
 
 def _resource_source(item_path, source_path, source_root):
@@ -896,7 +901,7 @@ def convert(source, output_dir, bundle_id, scene_id=None, source_root=None):
     text = source_path.read_text(encoding="utf-8")
     source_identity = hashlib.sha256(text.encode("utf-8")).hexdigest()
     parsed = parse_tscn(text, logical_source)
-    typed_nodes, property_results, diagnostics, capability = convert_document(
+    typed_nodes, property_results, diagnostics, capability, duration = convert_document(
         parsed, logical_source, source_identity
     )
     resources, resource_diagnostics = _collect_resources(
@@ -909,7 +914,7 @@ def convert(source, output_dir, bundle_id, scene_id=None, source_root=None):
     scene = {
         "format": "art.sts2-vfx-scene", "schemaVersion": SCHEMA_VERSION,
         "id": scene_id, "source": {"path": logical_source, "sha256": source_identity},
-        "capability": capability, "sourceText": text,
+        "capability": capability, "duration": duration, "sourceText": text,
         "sourceIr": parsed["sections"], "propertyResults": property_results,
         "opaqueProperties": _opaque_properties(parsed, property_results),
         "typedNodes": typed_nodes, "resources": resources,

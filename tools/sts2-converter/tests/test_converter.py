@@ -113,6 +113,7 @@ class ConverterTest(unittest.TestCase):
     def test_hierarchy_typed_conversion_curves_gradients_and_seed(self):
         self.convert()
         scene = self.load("fixture", "scenes/synthetic_vfx.json")
+        self.assertEqual(1.25, scene["duration"])
         nodes = {node["nodePath"]: node for node in scene["typedNodes"]}
         self.assertIn("Smoke/Sprite", nodes)
         self.assertEqual(nodes["Smoke"]["id"], nodes["Smoke/Sprite"]["parentId"])

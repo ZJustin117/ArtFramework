@@ -116,6 +116,10 @@ public class ArtCommand extends ConsoleCommand {
             cmdSkeleton(tokens, depth + 1);
             return;
         }
+        if ("vfx".equals(sub)) {
+            cmdVfx(tokens, depth + 1);
+            return;
+        }
         if ("profile".equals(sub) || "theme".equals(sub)) {
             cmdProfile(tokens, depth + 1);
             return;
@@ -125,6 +129,58 @@ public class ArtCommand extends ConsoleCommand {
             return;
         }
         errorMsg();
+    }
+
+    private void cmdVfx(String[] tokens, int depth) {
+        String action = tokens.length > depth ? tokens[depth].toLowerCase() : "status";
+        try {
+            if ("status".equals(action)) {
+                logVfx(artframework.sts1.render.VfxSts1Runtime.statusLine());
+            } else if ("clear".equals(action)) {
+                artframework.sts1.render.VfxSts1Runtime.clear();
+                logVfx("ART_VFX clear status=clear");
+            } else if ("load".equals(action) && tokens.length > depth + 1) {
+                int remaining = tokens.length - (depth + 2);
+                String scene = null;
+                float originX = 960f;
+                float originY = 540f;
+                if (remaining == 1) {
+                    scene = tokens[depth + 2];
+                } else if (remaining == 2 && isFloat(tokens[depth + 2]) && isFloat(tokens[depth + 3])) {
+                    originX = Float.parseFloat(tokens[depth + 2]);
+                    originY = Float.parseFloat(tokens[depth + 3]);
+                } else if (remaining == 3) {
+                    scene = tokens[depth + 2];
+                    originX = Float.parseFloat(tokens[depth + 3]);
+                    originY = Float.parseFloat(tokens[depth + 4]);
+                } else if (remaining != 0) {
+                    logVfx("ART_VFX error=usage: art vfx load <bundle-dir> [scene-id] [x y]");
+                    return;
+                }
+                artframework.sts1.render.VfxSts1Runtime.load(tokens[depth + 1], scene, originX, originY);
+                logVfx(artframework.sts1.render.VfxSts1Runtime.statusLine());
+            } else {
+                logVfx("ART_VFX error=usage: art vfx status|load <bundle-dir> [scene-id] [x y]|clear");
+            }
+        } catch (Throwable error) {
+            artframework.sts1.render.VfxSts1Runtime.recordError(error);
+            logVfx("ART_VFX error=" + error.getClass().getSimpleName() + ":" + String.valueOf(error.getMessage()));
+        }
+    }
+
+    private static void logVfx(String line) {
+        DevConsole.log(line);
+        ProbeSidecar.writeCommand(line);
+        BaseMod.logger.info(line);
+    }
+
+    private static boolean isFloat(String value) {
+        try {
+            Float.parseFloat(value);
+            return true;
+        } catch (RuntimeException ignored) {
+            return false;
+        }
     }
 
     private static String message(RuntimeException e, String fallback) {

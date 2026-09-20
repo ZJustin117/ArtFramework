@@ -22,6 +22,17 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 
 ## Product roadmap (from dual-track)
 
+### STS2 Godot VFX import
+
+- [ ] Design fixed: restricted `.tscn` conversion emits versioned ART VFX data, projects into
+      `PresentationWorld`, and uses stateless CPU particle systems with native STS1 overlay only.
+      See [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
+- [ ] Implement converter schema, diagnostics, and one real basic-particle `.tscn` conversion.
+- [ ] Implement Java manifest loading, ECS instantiation, CPU particle systems, lifecycle cleanup,
+      and libGDX render projection.
+- [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,
+      restricted shaders, then baked fallback.
+
 ### 46. Traditional ECS convergence
 
 Design: [`docs/design/traditional-ecs.md`](design/traditional-ecs.md). Entity IDs only;

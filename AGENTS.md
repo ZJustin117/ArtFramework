@@ -27,6 +27,7 @@
 | [`docs/design/present-profile.md`](docs/design/present-profile.md) | PresentProfile / Lightwave (Theme + chrome + FX) |
 | [`docs/design/node-signal-runtime.md`](docs/design/node-signal-runtime.md) | connections / UiActions / NodeStateMachine (39–42) |
 | [`docs/design/native-render-family-systems.md`](docs/design/native-render-family-systems.md) | Native render path families → collection/projection/system integration contract (NRCC sister doc) |
+| [`docs/design/sts2-vfx-ecs-conversion.md`](docs/design/sts2-vfx-ecs-conversion.md) | Restricted STS2 Godot VFX conversion into ART ECS data and systems |
 | [`docs/task.md`](docs/task.md) | Open implementation tasks |
 | [`docs/development/logic-layer-testing.md`](docs/development/logic-layer-testing.md) | Test pyramid + pure API rules |
 | [`docs/development/ui-layer-verification.md`](docs/development/ui-layer-verification.md) | UI intercept/trigger/C1 verify + tools/art-verify |

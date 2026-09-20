@@ -304,7 +304,8 @@ public final class StageHost
         boolean hasStage = stage != null && !actors.isEmpty();
         boolean hasFx = RenderHosts.get().bindingCount() > 0 || RenderHosts.get().targetCount() > 0;
         boolean hasPresentDraw = !artframework.sts1.render.Sts1RenderPipeline.plan().drawOrder().isEmpty();
-        if (!hasStage && !hasFx && !hasPresentDraw) {
+        boolean hasVfxDraw = artframework.sts1.render.VfxSts1Runtime.hasLiveDraws();
+        if (!hasStage && !hasFx && !hasPresentDraw && !hasVfxDraw) {
             return;
         }
         // End batch: capture game FB, draw C1 FX *under* scene2d (so labels stay readable),

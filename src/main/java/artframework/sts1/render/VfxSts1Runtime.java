@@ -91,6 +91,17 @@ public final class VfxSts1Runtime {
                 + (lastError == null ? "" : " error=" + lastError);
     }
 
+    /** Returns whether a live shared-ECS VFX root currently projects at least one draw. */
+    public static synchronized boolean hasLiveDraws() {
+        List<EntityId> liveRoots = ArtEcs.world().query(VfxSceneRuntimeComponent.class);
+        pruneRoots(liveRoots);
+        for (EntityId root : liveRoots) {
+            VfxDrawListComponent draw = ArtEcs.world().get(root, VfxDrawListComponent.class);
+            if (draw != null && draw.value != null && !draw.value.draws.isEmpty()) return true;
+        }
+        return false;
+    }
+
     public static synchronized void recordError(Throwable error) {
         lastError = error == null ? "unknown" : error.getClass().getSimpleName() + ":" + String.valueOf(error.getMessage());
     }

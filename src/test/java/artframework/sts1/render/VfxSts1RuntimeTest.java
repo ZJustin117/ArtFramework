@@ -6,6 +6,9 @@ import artframework.ecs.EntityId;
 import artframework.ecs.EcsTick;
 import artframework.sts1.PresentSafety;
 import artframework.vfx.VfxLifecycleSystem;
+import artframework.vfx.VfxDrawList;
+import artframework.vfx.VfxDrawListComponent;
+import artframework.vfx.VfxParticleDraw;
 import artframework.vfx.VfxSceneRuntimeComponent;
 import artframework.vfx.VfxTransformComponent;
 import org.junit.After;
@@ -77,6 +80,43 @@ public class VfxSts1RuntimeTest {
         assertTrue(completed.contains("liveRoots=0"));
         assertTrue(completed.contains("draws=0"));
         assertTrue(completed.contains("completed=true"));
+    }
+
+    @Test
+    public void liveDrawAdmissionIsFalseForEmptyAndStaleRoots() throws Exception {
+        EntityId emptyRoot = ArtEcs.world().createEntity();
+        ArtEcs.world().put(emptyRoot, VfxSceneRuntimeComponent.class,
+                new VfxSceneRuntimeComponent("empty", 1L, 1L, false));
+        ArtEcs.world().put(emptyRoot, VfxDrawListComponent.class,
+                new VfxDrawListComponent(VfxDrawList.empty()));
+        assertTrue(!VfxSts1Runtime.hasLiveDraws());
+
+        ArtEcs.world().destroyEntity(emptyRoot);
+
+        Path bundle = Files.createTempDirectory("art-vfx-stale");
+        Files.write(bundle.resolve("manifest.json"), ("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"
+                + "\"bundleId\":\"b\",\"capability\":\"DEGRADED\",\"scenes\":[{\"id\":\"default\","
+                + "\"path\":\"scene.json\",\"capability\":\"DEGRADED\"}],\"resources\":[]}").getBytes(UTF8));
+        Files.write(bundle.resolve("scene.json"), ("{\"format\":\"art.sts2-vfx-scene\",\"schemaVersion\":1,"
+                + "\"id\":\"default\",\"duration\":1,\"capability\":\"DEGRADED\",\"typedNodes\":[],\"resources\":[]}").getBytes(UTF8));
+        VfxSts1Runtime.load(bundle.toString(), null);
+        EntityId staleRoot = ArtEcs.world().query(VfxSceneRuntimeComponent.class).get(0);
+        ArtEcs.world().destroyEntity(staleRoot);
+        assertTrue(!VfxSts1Runtime.hasLiveDraws());
+    }
+
+    @Test
+    public void liveDrawAdmissionIsTrueForProjectedDrawOnLiveRoot() {
+        EntityId root = ArtEcs.world().createEntity();
+        ArtEcs.world().put(root, VfxSceneRuntimeComponent.class,
+                new VfxSceneRuntimeComponent("live", 1L, 1L, false));
+        VfxParticleDraw particle = new VfxParticleDraw("live", "p", 0, 0, "p.png",
+                0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "normal", 0f,
+                0, 1, 1, false, false);
+        ArtEcs.world().put(root, VfxDrawListComponent.class,
+                new VfxDrawListComponent(new VfxDrawList(java.util.Collections.singletonList(particle))));
+
+        assertTrue(VfxSts1Runtime.hasLiveDraws());
     }
 
     @Test

@@ -319,7 +319,7 @@ Remaining:
       Unknown-invocation fail-open, panic continuation, and host-recreation recovery already have
       offline coverage in `NativeRenderBridgeTest` / `NativeRenderLedgerTest`; per-family
       suppression is not implemented.
-- [ ] Add D1 visual verification scenarios and local screenshot workflow.
+- [x] Add D1 visual verification scenarios and local screenshot workflow.
       `tests/ui-scenarios/device/d1_render_zorder_contract.yaml` now covers the D1 probe contract
       (`renderOrder` monotonic phase order, empty `duplicateStableKeys`, `renderBoundary`, and
       `art verify mode`), and passes on D1 (1/1). Local screenshot capture
@@ -340,7 +340,8 @@ section 2; `RenderOrder` is the shared ordering key.
   `(phase.rank, z, stableKey)` and rejects two different target ids sharing one stable key.
 - `RenderTarget` carries `phase`/`stableKey`; `RenderHost.drawFrame` sorts each existing pass with
   the same comparator, so output no longer depends on target insertion order.
-- `RenderHost.probeMap()` exposes `renderOrder` (`status`, `count`, `items`, `duplicateStableKeys`)
+- `RenderHost.probeMap()` exposes `renderOrder` (`status`, `count`, `monotonic`, `items`,
+  `duplicateStableKeys`)
   and per-target `phase`/`z`/`stableKey`.
 - `Sts1RenderBoundary.probeSlice()` reports `nativeInterval=stage.draw`,
   `artInterval=post_native_overlay`, `backgroundCapability=unsupported`,

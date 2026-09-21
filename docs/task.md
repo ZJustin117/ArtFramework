@@ -14,7 +14,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `renderOrder` probe diagnostics, the reported `unsupported` pre-native background
       capability, and `art verify status|mode` diagnostics are shipped (`b4b59ac`..`85846aa`).
       Remaining: background renderer, verified pre-native/filtered boundary, native filter scopes,
-      native-boundary tests, D1 scenarios.
+      native-boundary tests, and legacy-adapter removal. D1 probe scenarios are shipped.
 
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.

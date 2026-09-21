@@ -192,6 +192,7 @@ public class RenderPlanRebuildTest {
         Map<String, Object> order = (Map<String, Object>) probe.get("renderOrder");
         assertNotNull(order);
         assertEquals("ready", order.get("status"));
+        assertEquals(Boolean.TRUE, order.get("monotonic"));
         assertEquals(Collections.emptyList(), order.get("duplicateStableKeys"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");

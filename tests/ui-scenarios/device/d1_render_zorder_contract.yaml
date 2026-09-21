@@ -59,6 +59,9 @@ steps:
       path: render.renderOrder.count
       gte: 4
   - assert:
+      path: render.renderOrder.monotonic
+      eq: true
+  - assert:
       path: render.renderOrder.duplicateStableKeys
       eq: []
   # The native boundary is retained and sorts below ART-owned content. NATIVE_RETAINED has the

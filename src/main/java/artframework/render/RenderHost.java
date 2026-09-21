@@ -817,7 +817,14 @@ public final class RenderHost {
         List<RenderTarget> ordered = orderedTargets(null);
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         Map<String, Integer> keyCounts = new LinkedHashMap<String, Integer>();
+        RenderOrder previous = null;
+        boolean monotonic = true;
         for (RenderTarget target : ordered) {
+            RenderOrder current = new RenderOrder(target.phase(), target.z(), target.stableKey());
+            if (previous != null && RenderOrder.COMPARATOR.compare(previous, current) > 0) {
+                monotonic = false;
+            }
+            previous = current;
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("id", target.id);
             item.put("phase", target.phase().name());
@@ -833,6 +840,7 @@ public final class RenderHost {
         }
         out.put("status", duplicates.isEmpty() ? "ready" : "duplicate-keys");
         out.put("count", Integer.valueOf(items.size()));
+        out.put("monotonic", Boolean.valueOf(monotonic));
         out.put("items", items);
         out.put("duplicateStableKeys", duplicates);
         return out;

@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -178,6 +179,34 @@ public class RenderPlanRebuildTest {
         assertEquals(Arrays.asList(RenderHost.c2SurfaceTargetId("a-surface"),
                 RenderHost.c2SurfaceTargetId("z-surface")),
                 host.orderedTargetIds(RenderHost.kindsC2UnderPresent()));
+    }
+
+    @Test public void probeExposesResolvedRenderOrderAndTargetMetadata() {
+        RenderStateEcs.surface("z-probe", 0f, 0f, 10f, 10f, true);
+        RenderStateEcs.surface("a-probe", 0f, 0f, 10f, 10f, true);
+        RenderHost host = new RenderHost();
+        host.rebuildFromEcsPlan();
+
+        Map<String, Object> probe = host.probeMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> order = (Map<String, Object>) probe.get("renderOrder");
+        assertNotNull(order);
+        assertEquals("ready", order.get("status"));
+        assertEquals(Collections.emptyList(), order.get("duplicateStableKeys"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
+        assertEquals(2, items.size());
+        assertEquals(RenderHost.c2SurfaceTargetId("a-probe"), items.get(0).get("id"));
+        assertEquals(RenderPhase.C2_CONTENT.name(), items.get(0).get("phase"));
+        assertEquals(RenderHost.c2SurfaceTargetId("a-probe"), items.get(0).get("stableKey"));
+        assertEquals(RenderHost.c2SurfaceTargetId("z-probe"), items.get(1).get("id"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> targetsById = (Map<String, Object>) probe.get("targetsById");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> entry = (Map<String, Object>) targetsById.get(
+                RenderHost.safeTargetKey(RenderHost.c2SurfaceTargetId("a-probe")));
+        assertEquals(RenderPhase.C2_CONTENT.name(), entry.get("phase"));
     }
 
     @Test public void ordinaryReconciliationRemovesOnlyStalePlanOwnedTargets() {

@@ -756,6 +756,7 @@ public final class RenderHost {
             shaderStatus.add(one);
         }
         out.put("shaders", shaderStatus);
+        out.put("renderOrder", probeRenderOrder());
         List<Map<String, Object>> tlist = new ArrayList<Map<String, Object>>();
         Map<String, Object> bySafeId = new LinkedHashMap<String, Object>();
         for (RenderTarget t : targets.values()) {
@@ -810,11 +811,41 @@ public final class RenderHost {
         return out;
     }
 
+    /** Configured submission order and duplicate-key diagnostics, independent of draw state. */
+    private Map<String, Object> probeRenderOrder() {
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        List<RenderTarget> ordered = orderedTargets(null);
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        Map<String, Integer> keyCounts = new LinkedHashMap<String, Integer>();
+        for (RenderTarget target : ordered) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("id", target.id);
+            item.put("phase", target.phase().name());
+            item.put("z", Float.valueOf(target.z()));
+            item.put("stableKey", target.stableKey());
+            items.add(item);
+            Integer prior = keyCounts.get(target.stableKey());
+            keyCounts.put(target.stableKey(), Integer.valueOf(prior == null ? 1 : prior.intValue() + 1));
+        }
+        List<String> duplicates = new ArrayList<String>();
+        for (String key : keyCounts.keySet()) {
+            if (keyCounts.get(key).intValue() > 1) duplicates.add(key);
+        }
+        out.put("status", duplicates.isEmpty() ? "ready" : "duplicate-keys");
+        out.put("count", Integer.valueOf(items.size()));
+        out.put("items", items);
+        out.put("duplicateStableKeys", duplicates);
+        return out;
+    }
+
     private Map<String, Object> probeTarget(RenderTarget t) {
         Map<String, Object> one = new LinkedHashMap<String, Object>();
         one.put("id", t.id);
         one.put("kind", t.kind.name());
         one.put("enabled", Boolean.valueOf(t.isEnabled()));
+        one.put("phase", t.phase().name());
+        one.put("z", Float.valueOf(t.z()));
+        one.put("stableKey", t.stableKey());
         one.put("x", Float.valueOf(t.x()));
         one.put("y", Float.valueOf(t.y()));
         one.put("w", Float.valueOf(t.width()));

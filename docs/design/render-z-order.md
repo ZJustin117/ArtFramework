@@ -308,6 +308,7 @@ Shipped slices (commits `b4b59ac`..`1a1f724`):
 - [x] Add and validate resolved render-order probe diagnostics (`renderOrder`, `duplicateStableKeys`).
 - [x] Add `art verify` console diagnostics (`art verify status|mode off|background|guides|bounds`).
 - [x] Add pure render-plan and host-order tests.
+- [x] Report `unsupported` for a visual mode without a verified pre-native hook.
 
 Remaining:
 
@@ -315,6 +316,9 @@ Remaining:
 - [ ] Define and verify a real STS1 pre-native/filtered boundary.
 - [ ] Add native filter scopes with fail-open cleanup.
 - [ ] Add native-boundary tests that suppress a selected family while failing open elsewhere.
+      Unknown-invocation fail-open, panic continuation, and host-recreation recovery already have
+      offline coverage in `NativeRenderBridgeTest` / `NativeRenderLedgerTest`; per-family
+      suppression is not implemented.
 - [ ] Add D1 visual verification scenarios and local screenshot workflow.
 - [ ] Remove the legacy adapter after migration evidence is complete.
 

@@ -300,6 +300,10 @@ Shipped slices (commits `b4b59ac`..`8c2664f`):
 
 - [x] Add `RenderPhase` and the data-only ordering component/value object.
 - [x] Extend render extraction and `RenderPlan` with immutable ordered items.
+
+Note: the first implementation adapts existing `RenderTarget` snapshots and `RenderPlan.Entry` as
+the ordered item model instead of introducing a parallel public `RenderItem` type, as permitted by
+section 2; `RenderOrder` is the shared key.
 - [x] Add deterministic comparator and duplicate/tie diagnostics.
 - [x] Preserve current fixed-pass output through the legacy adapter.
 - [x] Order VFX particle projections by the shared render key.

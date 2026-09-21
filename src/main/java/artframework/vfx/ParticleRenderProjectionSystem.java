@@ -4,6 +4,7 @@ import artframework.ecs.EcsSystem;
 import artframework.ecs.EcsTick;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
+import artframework.render.RenderOrder;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,9 +56,7 @@ public final class ParticleRenderProjectionSystem implements EcsSystem {
             }
             Collections.sort(draws, new Comparator<VfxParticleDraw>() {
                 @Override public int compare(VfxParticleDraw a, VfxParticleDraw b) {
-                    int c = Float.compare(a.zIndex, b.zIndex); if (c != 0) return c;
-                    c = Integer.compare(a.definitionOrder, b.definitionOrder); if (c != 0) return c;
-                    return Integer.compare(a.particleIndex, b.particleIndex);
+                    return RenderOrder.COMPARATOR.compare(a.renderOrder, b.renderOrder);
                 }
             });
             world.put(root, VfxDrawListComponent.class, new VfxDrawListComponent(new VfxDrawList(draws)));

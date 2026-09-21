@@ -7,6 +7,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Collections;
 import static org.junit.Assert.*;
+import artframework.render.RenderPhase;
 
 public class ParticleRenderProjectionSystemTest {
     @Test public void projectsCompositionOrderingAndFlipbookWithoutMutation() {
@@ -39,6 +40,8 @@ public class ParticleRenderProjectionSystemTest {
         assertEquals(26f, first.draws.get(1).y, .001f);
         assertEquals(first.draws.get(1).x, second.draws.get(1).x, 0f);
         assertEquals("ADD", first.draws.get(0).blendMode);
+        assertEquals(RenderPhase.ART_EFFECTS, first.draws.get(0).renderOrder.phase);
+        assertEquals("s/n/0/1", first.draws.get(0).stableKey);
     }
 
     @Test public void missingResourceOmitsOnlyProjection() {

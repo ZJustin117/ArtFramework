@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Comparator;
+import java.util.HashMap;
 
 /** Immutable render target description projected from ECS render state. */
 public final class RenderPlan {
@@ -59,6 +60,13 @@ public final class RenderPlan {
 
     private RenderPlan(List<Entry> entries) {
         List<Entry> ordered = new ArrayList<Entry>(entries);
+        Map<String, String> stableKeyOwners = new HashMap<String, String>();
+        for (Entry entry : ordered) {
+            String priorOwner = stableKeyOwners.put(entry.stableKey, entry.id);
+            if (priorOwner != null && !priorOwner.equals(entry.id)) {
+                throw new IllegalArgumentException("duplicate render stable key: " + entry.stableKey);
+            }
+        }
         Collections.sort(ordered, new Comparator<Entry>() {
             @Override public int compare(Entry a, Entry b) {
                 return RenderOrder.COMPARATOR.compare(a.order(), b.order());

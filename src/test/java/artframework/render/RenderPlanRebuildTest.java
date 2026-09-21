@@ -114,6 +114,26 @@ public class RenderPlanRebuildTest {
         assertEquals("z-item", plan.entries().get(2).id);
     }
 
+    @Test public void renderPlanRejectsDuplicateStableKeys() throws Exception {
+        ArrayList<RenderPlan.Entry> entries = new ArrayList<RenderPlan.Entry>();
+        entries.add(new RenderPlan.Entry("first", RenderTargetKind.C2_SURFACE,
+                new Rect(0f, 0f, 1f, 1f), RenderPhase.C2_CONTENT, 0f, "same", true,
+                Collections.<EffectAttachment>emptyList()));
+        entries.add(new RenderPlan.Entry("second", RenderTargetKind.C2_SURFACE,
+                new Rect(0f, 0f, 1f, 1f), RenderPhase.C2_CONTENT, 1f, "same", true,
+                Collections.<EffectAttachment>emptyList()));
+
+        Constructor<RenderPlan> constructor = RenderPlan.class.getDeclaredConstructor(java.util.List.class);
+        constructor.setAccessible(true);
+        try {
+            constructor.newInstance(entries);
+            throw new AssertionError("expected duplicate stable key rejection");
+        } catch (InvocationTargetException expected) {
+            assertTrue(expected.getCause() instanceof IllegalArgumentException);
+            assertTrue(expected.getCause().getMessage().contains("duplicate render stable key"));
+        }
+    }
+
     @Test public void unchangedPlanEntryRetainsTargetIdentity() {
         RenderStateEcs.surface("sts1.identity", 1f, 2f, 30f, 40f, true);
         RenderHost host = new RenderHost();

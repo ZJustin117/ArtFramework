@@ -296,14 +296,39 @@ screenshot comparison validates the final composition only after those contracts
 
 ## 10. Implementation checklist
 
-- [ ] Add `RenderPhase` and the data-only ordering component/value object.
-- [ ] Extend render extraction and `RenderPlan` with immutable ordered items.
-- [ ] Add deterministic comparator and duplicate/tie diagnostics.
-- [ ] Preserve current fixed-pass output through the legacy adapter.
+Shipped slices (commits `b4b59ac`..`8c2664f`):
+
+- [x] Add `RenderPhase` and the data-only ordering component/value object.
+- [x] Extend render extraction and `RenderPlan` with immutable ordered items.
+- [x] Add deterministic comparator and duplicate/tie diagnostics.
+- [x] Preserve current fixed-pass output through the legacy adapter.
+- [x] Order VFX particle projections by the shared render key.
+- [x] Submit VFX in `ART_EFFECTS` after C2/entity content, without crossing `stage.draw`.
+- [x] Report the STS1 native/ART boundary capability through probe (background still `unsupported`).
+- [x] Add and validate resolved render-order probe diagnostics (`renderOrder`, `duplicateStableKeys`).
+- [x] Add pure render-plan and host-order tests.
+
+Remaining:
+
 - [ ] Add the background renderer without using `FULL_FRAME`.
-- [ ] Define and verify the STS1 pre-native/filtered boundary.
+- [ ] Define and verify a real STS1 pre-native/filtered boundary.
 - [ ] Add native filter scopes with fail-open cleanup.
-- [ ] Add probe and `art verify` diagnostics.
-- [ ] Add pure render-plan and native-boundary tests.
+- [ ] Add `art verify` console diagnostics.
+- [ ] Add native-boundary tests that suppress a selected family while failing open elsewhere.
 - [ ] Add D1 visual verification scenarios and local screenshot workflow.
 - [ ] Remove the legacy adapter after migration evidence is complete.
+
+## 11. Delivered behavior (evidence)
+
+- `RenderPhase` ranks: `ART_BACKGROUND` 100, `NATIVE_RETAINED` 200, `C1_CONTENT` 300,
+  `C2_CONTENT` 400, `ENTITY_CONTENT` 500, `ART_EFFECTS` 600, `VERIFY_GUIDES` 1000.
+- `RenderOrder` rejects non-finite `z` and empty `stableKey`; `RenderPlan` sorts by
+  `(phase.rank, z, stableKey)` and rejects two different target ids sharing one stable key.
+- `RenderTarget` carries `phase`/`stableKey`; `RenderHost.drawFrame` sorts each existing pass with
+  the same comparator, so output no longer depends on target insertion order.
+- `RenderHost.probeMap()` exposes `renderOrder` (`status`, `count`, `items`, `duplicateStableKeys`)
+  and per-target `phase`/`z`/`stableKey`.
+- `Sts1RenderBoundary.probeSlice()` reports `nativeInterval=stage.draw`,
+  `artInterval=post_native_overlay`, `backgroundCapability=unsupported`,
+  `supportsPreNativeBackground=false`; `UiProbe.backendMap()` exposes it as `renderBoundary`.
+- Native `stage.draw()` order is unchanged and no native pixel suppression is enabled.

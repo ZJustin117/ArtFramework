@@ -296,14 +296,10 @@ screenshot comparison validates the final composition only after those contracts
 
 ## 10. Implementation checklist
 
-Shipped slices (commits `b4b59ac`..`8c2664f`):
+Shipped slices (commits `b4b59ac`..`1a1f724`):
 
 - [x] Add `RenderPhase` and the data-only ordering component/value object.
 - [x] Extend render extraction and `RenderPlan` with immutable ordered items.
-
-Note: the first implementation adapts existing `RenderTarget` snapshots and `RenderPlan.Entry` as
-the ordered item model instead of introducing a parallel public `RenderItem` type, as permitted by
-section 2; `RenderOrder` is the shared key.
 - [x] Add deterministic comparator and duplicate/tie diagnostics.
 - [x] Preserve current fixed-pass output through the legacy adapter.
 - [x] Order VFX particle projections by the shared render key.
@@ -321,6 +317,10 @@ Remaining:
 - [ ] Add native-boundary tests that suppress a selected family while failing open elsewhere.
 - [ ] Add D1 visual verification scenarios and local screenshot workflow.
 - [ ] Remove the legacy adapter after migration evidence is complete.
+
+The first implementation adapts existing `RenderTarget` snapshots and `RenderPlan.Entry` as the
+ordered item model instead of introducing a parallel public `RenderItem` type, as permitted by
+section 2; `RenderOrder` is the shared ordering key.
 
 ## 11. Delivered behavior (evidence)
 

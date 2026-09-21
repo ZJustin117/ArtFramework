@@ -311,6 +311,9 @@ def _run_step(
             "png": capture["png"],
         }
         vars_map["_last_screenshot"] = rec["screenshot"]
+        history = vars_map.setdefault("_screenshots", [])
+        history.append(rec["screenshot"])
+        del history[:-2]
         return rec
 
     if "compare_screenshot" in step:
@@ -322,14 +325,19 @@ def _run_step(
         if not isinstance(spec, dict):
             raise ValueError("compare_screenshot requires a mapping")
         allowed = {
-            "reference", "reference_kind", "crop", "threshold", "max_diff_pixels",
+            "reference", "reference_kind", "against", "crop", "threshold", "max_diff_pixels",
             "max_diff_ratio", "diff",
         }
         unknown = set(spec) - allowed
         if unknown:
             raise ValueError("compare_screenshot has unknown keys: " + ", ".join(sorted(unknown)))
+        against = spec.get("against")
+        if against is not None and against != "previous_capture":
+            raise ValueError("against must be previous_capture")
         reference = spec.get("reference")
-        if not isinstance(reference, str) or not reference.strip():
+        if against == "previous_capture" and reference is not None:
+            raise ValueError("compare_screenshot cannot combine against with reference")
+        if against is None and (not isinstance(reference, str) or not reference.strip()):
             raise ValueError("compare_screenshot requires reference: path")
         previous = vars_map.get("_last_screenshot")
         actual = previous.get("png") if isinstance(previous, dict) else None
@@ -340,15 +348,31 @@ def _run_step(
             raise ValueError(f"prior screenshot PNG not found: {actual_path}")
         base = scenario_path.parent if scenario_path is not None else _repo_root()
 
-        reference_path = _resolve_compare_path(reference, base, "reference")
-        if not reference_path.is_file():
-            raise ValueError(f"reference PNG not found: {reference_path}")
-
         reference_kind = spec.get("reference_kind")
         if reference_kind is not None and (
             not isinstance(reference_kind, str) or not reference_kind.strip()
         ):
             raise ValueError("reference_kind must be a non-empty string")
+
+        if against == "previous_capture":
+            history = vars_map.get("_screenshots")
+            if not isinstance(history, list) or len(history) < 2:
+                raise ValueError(
+                    "compare_screenshot with against: previous_capture requires two prior screenshot steps"
+                )
+            prior = history[-2]
+            prior_png = prior.get("png") if isinstance(prior, dict) else None
+            if not prior_png:
+                raise ValueError("previous capture PNG missing")
+            reference_path = Path(str(prior_png))
+            if not reference_path.is_file():
+                raise ValueError(f"previous capture PNG not found: {reference_path}")
+            reference_kind = "previous_capture"
+        else:
+            reference_path = _resolve_compare_path(reference, base, "reference")
+            if not reference_path.is_file():
+                raise ValueError(f"reference PNG not found: {reference_path}")
+
         crop, crop_env_key = _resolve_compare_crop(spec.get("crop"))
         threshold = spec.get("threshold", 0)
         if isinstance(threshold, bool) or not isinstance(threshold, int) or not 0 <= threshold <= 255:

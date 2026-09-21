@@ -429,6 +429,91 @@ steps:
         rec = _run_step({"compare_screenshot": {"reference": "reference.png"}}, 0, mode="fixture", last_probe=None, vars_map={}, client=None)
         self.assertEqual("skip", rec["status"])
 
+    def test_compare_screenshot_against_previous_capture_passes_when_identical(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first, second = root / "first.png", root / "second.png"
+            write_test_png(first, 2, 1, bytes((10, 20, 30, 255) * 2))
+            write_test_png(second, 2, 1, bytes((10, 20, 30, 255) * 2))
+            vars_map = {}
+            with patch("runner._harness_screenshot", side_effect=[
+                {"result_json": "r1", "png": str(first)},
+                {"result_json": "r2", "png": str(second)},
+            ]):
+                _run_step({"screenshot": True}, 0, mode="device", last_probe=None, vars_map=vars_map, client=None)
+                _run_step({"screenshot": True}, 1, mode="device", last_probe=None, vars_map=vars_map, client=None)
+            rec = _run_step(
+                {"compare_screenshot": {"against": "previous_capture"}},
+                2, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                scenario_path=root / "s.yaml",
+            )
+            self.assertEqual("pass", rec["status"], rec.get("error"))
+            self.assertEqual("previous_capture", rec["comparison"]["reference_kind"])
+            self.assertEqual(str(first), rec["comparison"]["reference"])
+            self.assertEqual(str(second), rec["comparison"]["actual"])
+            self.assertEqual(0, rec["comparison"]["differing_pixels"])
+
+    def test_compare_screenshot_against_previous_capture_fails_when_different(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first, second = root / "first.png", root / "second.png"
+            write_test_png(first, 2, 1, bytes((0, 0, 0, 255) * 2))
+            write_test_png(second, 2, 1, bytes((100, 0, 0, 255, 0, 0, 0, 255)))
+            vars_map = {}
+            with patch("runner._harness_screenshot", side_effect=[
+                {"result_json": "r1", "png": str(first)},
+                {"result_json": "r2", "png": str(second)},
+            ]):
+                _run_step({"screenshot": True}, 0, mode="device", last_probe=None, vars_map=vars_map, client=None)
+                _run_step({"screenshot": True}, 1, mode="device", last_probe=None, vars_map=vars_map, client=None)
+            rec = _run_step(
+                {"compare_screenshot": {"against": "previous_capture"}},
+                2, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                scenario_path=root / "s.yaml",
+            )
+            self.assertEqual("fail", rec["status"])
+            self.assertIn("exceeded", rec["error"])
+
+    def test_compare_screenshot_against_previous_capture_requires_two_captures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            only = root / "only.png"
+            write_test_png(only, 1, 1, bytes((0, 0, 0, 255)))
+            vars_map = {}
+            with patch("runner._harness_screenshot", return_value={"result_json": "r", "png": str(only)}):
+                _run_step({"screenshot": True}, 0, mode="device", last_probe=None, vars_map=vars_map, client=None)
+            with self.assertRaisesRegex(ValueError, "requires two prior screenshot steps"):
+                _run_step(
+                    {"compare_screenshot": {"against": "previous_capture"}},
+                    1, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                    scenario_path=root / "s.yaml",
+                )
+            with self.assertRaisesRegex(ValueError, "prior screenshot"):
+                _run_step(
+                    {"compare_screenshot": {"against": "previous_capture"}},
+                    0, mode="device", last_probe=None, vars_map={}, client=None,
+                    scenario_path=root / "s.yaml",
+                )
+
+    def test_compare_screenshot_against_rejects_reference_and_unknown_value(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            actual = root / "actual.png"
+            write_test_png(actual, 1, 1, bytes((0, 0, 0, 255)))
+            vars_map = {"_last_screenshot": {"png": str(actual)}}
+            with self.assertRaisesRegex(ValueError, "cannot combine against with reference"):
+                _run_step(
+                    {"compare_screenshot": {"against": "previous_capture", "reference": "reference.png"}},
+                    0, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                    scenario_path=root / "s.yaml",
+                )
+            with self.assertRaisesRegex(ValueError, "against must be previous_capture"):
+                _run_step(
+                    {"compare_screenshot": {"against": "next_capture"}},
+                    0, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                    scenario_path=root / "s.yaml",
+                )
+
     def test_compare_screenshot_metrics_are_written_to_result_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

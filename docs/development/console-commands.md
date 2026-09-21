@@ -28,9 +28,10 @@ Lab bring-up: [`android-device-lab.md`](./android-device-lab.md).
 | `art assets …` | HostAssets packs / resolve |
 | `art frame` | Sync context frame from backend |
 | `art present combat …` | Combat full-present toggle |
+| `art verify …` | Render verify mode + native filter scope |
 
 ```
-art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | profile|theme … | assets … | frame | present … | op …
+art: probe | open|bind|close <id> | gate … | ui … | lab … | fx … | profile|theme … | assets … | frame | present … | verify … | op …
 ```
 
 ---
@@ -199,6 +200,24 @@ art skeleton dev freeze <id>
 art skeleton dev unfreeze <id>
 art skeleton dev stop <id>
 ```
+
+---
+
+## Render / verify (`art verify`)
+
+Design: [`docs/design/render-z-order.md`](../design/render-z-order.md). Log prefix **`ART_VERIFY`**.
+
+| Command | Description |
+|---------|-------------|
+| `art verify status` | Print verify probe JSON (`configuredMode`, `submissionStatus`, `nativeFilters`, …) |
+| `art verify mode off\|background\|guides\|bounds` | Configure verification mode (`background` reports `unsupported` without a pre-native hook) |
+| `art verify native <family> on` | Filter one native surface family (downgrade-only; never suppresses fail-open/panic) |
+| `art verify native <family> off` | Remove one family from the native filter set |
+| `art verify native clear` | Clear all native filter families |
+
+`native` filtering only narrows an existing `DELEGATE_TO_ART` decision to pass-through; it can
+never upgrade fail-open/panic/unknown into delegation. Active families appear under probe
+`backend.verify.nativeFilters` (`active`, `filteredFamilies`).
 
 ---
 

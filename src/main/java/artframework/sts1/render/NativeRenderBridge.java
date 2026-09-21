@@ -19,6 +19,7 @@ public final class NativeRenderBridge {
     private static final TransientEffectRegistry EFFECT_REGISTRY = new TransientEffectRegistry();
     private static final TransientEffectLifecycleAdapter EFFECT_LIFECYCLE =
             new TransientEffectLifecycleAdapter(EFFECT_LEDGER, EFFECT_REGISTRY);
+    private static final NativeFilterScope FILTER_SCOPE = new NativeFilterScope();
     private static long nextInvocationId;
     private static final Object BRIDGE_LOCK = new Object();
     private static Runnable beforeTokenPublicationForTests;
@@ -46,9 +47,15 @@ public final class NativeRenderBridge {
                 LEDGER.recordUnknownOwner();
                 disposition = RenderDisposition.failOpen(invocation.invocationId, "unknown_owner");
             } else if (entry.mode == SurfaceDrawPlan.DrawMode.DRAW && entry.suppressNative) {
-                String entityId = Sts1NativePresentationAdapter.present(invocation);
-                disposition = RenderDisposition.delegate(invocation.invocationId,
-                        entry.reason, entityId);
+                if (FILTER_SCOPE.blocksDelegation(invocation.surfaceFamily)) {
+                    // Family is filtered and not selected: narrow delegation back to native.
+                    disposition = RenderDisposition.pass(invocation.invocationId,
+                            "filter_scope:" + invocation.surfaceFamily);
+                } else {
+                    String entityId = Sts1NativePresentationAdapter.present(invocation);
+                    disposition = RenderDisposition.delegate(invocation.invocationId,
+                            entry.reason, entityId);
+                }
             } else if (entry.mode == SurfaceDrawPlan.DrawMode.OBSERVE) {
                 disposition = RenderDisposition.capture(invocation.invocationId, entry.reason);
             } else {
@@ -378,6 +385,7 @@ public final class NativeRenderBridge {
         out.put("pendingSkeletonInvocationCount", Integer.valueOf(pendingSkeletonInvocationCount()));
         out.put("transientEffects", EFFECT_LEDGER.probeSlice());
         out.put("transientEffectEntities", Integer.valueOf(EFFECT_REGISTRY.activeCount()));
+        out.put("filterScopes", FILTER_SCOPE.probeSlice());
         return out;
     }
 
@@ -417,6 +425,7 @@ public final class NativeRenderBridge {
 
     public static void clearTransientEffectsForRecovery() {
         EFFECT_LIFECYCLE.cleanupForRecovery();
+        FILTER_SCOPE.clear();
         synchronized (BRIDGE_LOCK) {
             LEDGER.closeForRecovery("recovery");
             synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
@@ -429,12 +438,35 @@ public final class NativeRenderBridge {
 
     public static TransientEffectRegistry effectRegistry() { return EFFECT_REGISTRY; }
 
+    /** Package-local access for tests and native-boundary policy wiring. */
+    static NativeFilterScope filterScope() { return FILTER_SCOPE; }
+
+    static void filterFamily(String family) {
+        String key = family == null ? "" : family.trim();
+        if (key.isEmpty()) return;
+        FILTER_SCOPE.filter(key);
+        FILTER_SCOPE.activate();
+    }
+
+    static void unfilterFamily(String family) {
+        FILTER_SCOPE.unfilter(family);
+    }
+
+    static void clearFilterScopes() {
+        FILTER_SCOPE.clear();
+    }
+
+    static java.util.Map<String, Object> filterScopeProbeSlice() {
+        return FILTER_SCOPE.probeSlice();
+    }
+
     public static void resetForTests() {
         nextInvocationId = 0L;
         lastProjectionFrameId = -1L;
         LEDGER.clear();
         EFFECT_LEDGER.reset();
         EFFECT_REGISTRY.clear();
+        FILTER_SCOPE.clear();
         synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
         synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
         beforeTokenPublicationForTests = null;

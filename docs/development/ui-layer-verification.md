@@ -164,6 +164,16 @@ initialized a run. It requires a current map node, so it cannot run from the tit
 `d1_full_present_combat_ready.yaml`; it arms ART FULL before the room transition and waits for the
 actual `FULL_READY` probe state rather than relying on a fixed combat delay.
 
+Render-boundary device validation:
+
+- `d1_render_zorder_contract.yaml` asserts the resolved `renderOrder` (monotonic phase order, no
+  duplicate stable keys), `renderBoundary`, and `art verify mode` statuses.
+- `d1_verify_guides.yaml` drives `art verify mode guides|bounds|background|off` and captures the
+  ART-owned overlay states; `guides`/`bounds` report `ready`, `background` reports `unsupported`.
+- `d1_verify_native_filter.yaml` drives `art verify native <family> on|off|clear` and asserts
+  `backend.verify.nativeFilters`; the scope is downgrade-only and never suppresses fail-open cases.
+  It starts with `art verify native clear` so no state leaks between runs.
+
 ## Delegation order
 
 1. Code change  

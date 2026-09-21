@@ -483,6 +483,122 @@ public class NativeRenderBridgeTest {
         assertFullSurfaceDelegates(SurfaceIds.TREASURE, "treasure");
     }
 
+    @Test
+    public void filterScopeInactiveLeavesDelegationUnchanged() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        NativeRenderBridge.filterScope().filter(SurfaceIds.COMBAT_HAND);
+
+        RenderDisposition disposition = beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "hand");
+
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertEquals(Boolean.FALSE, filterScopes().get("active"));
+    }
+
+    @Test
+    public void filteredNonSelectedFamilyIsDowngradedToPassThrough() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_INTENTS);
+        NativeRenderBridge.filterScope().activate();
+        NativeRenderBridge.filterScope().select(SurfaceIds.COMBAT_HAND);
+        NativeRenderBridge.filterScope().filter(SurfaceIds.COMBAT_INTENTS);
+
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_INTENTS, "native.Owner", "render", "intents");
+
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, disposition.mode);
+        assertTrue(disposition.nativeContinuation);
+        assertTrue(disposition.reason.startsWith("filter_scope:"));
+        assertEquals(0, NativeRenderBridge.ledger().evidenceCount());
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get(
+                "delegatedWithoutEvidence"));
+    }
+
+    @Test
+    public void selectedFamilyStillDelegatesWhileScopeActive() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        NativeRenderBridge.filterScope().activate();
+        NativeRenderBridge.filterScope().select(SurfaceIds.COMBAT_HAND);
+        NativeRenderBridge.filterScope().filter(SurfaceIds.COMBAT_INTENTS);
+
+        RenderDisposition disposition = beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "hand");
+
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertFalse(disposition.nativeContinuation);
+    }
+
+    @Test
+    public void filterScopeNeverUpgradesFailOpenToDelegate() {
+        mountedCombat();
+        NativeRenderBridge.filterScope().activate();
+        NativeRenderBridge.filterScope().select(SurfaceIds.COMBAT_HAND);
+        NativeRenderBridge.filterScope().filter(SurfaceIds.COMBAT_INTENTS);
+
+        RenderDisposition unknown = NativeRenderBridge.beginSurface(
+                "sts1.unknown", "native.Unknown", "render", "unknown");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, unknown.mode);
+        assertTrue(unknown.nativeContinuation);
+
+        PresentSafety.panic("filter-scope");
+        RenderDisposition panic = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "native.Owner", "render", "panic");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, panic.mode);
+        assertTrue(panic.nativeContinuation);
+        assertEquals(0, NativeRenderBridge.ledger().evidenceCount());
+    }
+
+    @Test
+    public void consoleFilterScopeStillFailsOpenForUnknownAndPanic() {
+        mountedCombat();
+        Sts1VerifyDiagnostics.enableNativeFilter(SurfaceIds.COMBAT_HAND);
+
+        RenderDisposition unknown = NativeRenderBridge.beginSurface(
+                "sts1.unknown", "native.Unknown", "render", "unknown");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, unknown.mode);
+        assertTrue(unknown.nativeContinuation);
+
+        PresentSafety.panic("console-filter-scope");
+        RenderDisposition panic = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "native.Owner", "render", "panic");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, panic.mode);
+        assertTrue(panic.nativeContinuation);
+        assertEquals(0, NativeRenderBridge.ledger().evidenceCount());
+
+        Sts1VerifyDiagnostics.clearNativeFilters();
+        assertEquals(Boolean.FALSE, filterScopes().get("active"));
+    }
+
+    @Test
+    public void clearRecoveryAndResetRestoreDelegation() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_INTENTS);
+        NativeRenderBridge.filterScope().activate();
+        NativeRenderBridge.filterScope().filter(SurfaceIds.COMBAT_INTENTS);
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_INTENTS, "native.Owner", "render", "blocked").mode);
+
+        NativeRenderBridge.filterScope().clear();
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_INTENTS, "native.Owner", "render", "cleared").mode);
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_INTENTS, "native.Owner", "render", "recovered").mode);
+
+        NativeRenderBridge.filterScope().activate();
+        NativeRenderBridge.filterScope().filter(SurfaceIds.COMBAT_INTENTS);
+        NativeRenderBridge.resetForTests();
+        armFullSurface(SurfaceIds.COMBAT_INTENTS);
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_INTENTS, "native.Owner", "render", "reset").mode);
+        assertEquals(Boolean.FALSE, filterScopes().get("active"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> filterScopes() {
+        return (Map<String, Object>) NativeRenderBridge.probeSlice().get("filterScopes");
+    }
+
     private void assertFullSurfacePassThrough(String surfaceId, String scene) {
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();

@@ -54,6 +54,38 @@ public final class Sts1VerifyDiagnostics {
         return modeSupported() ? "ready" : "unsupported";
     }
 
+    /**
+     * Enables native filtering for one family. The scope can only downgrade a would-be delegation
+     * to native continuation; it never grants new permission to suppress native pixels.
+     */
+    public static void enableNativeFilter(String family) {
+        String key = normalizeFamily(family);
+        if (key == null) return;
+        NativeRenderBridge.filterFamily(key);
+    }
+
+    /** Removes one family from the active native filter set (no-op when absent). */
+    public static void disableNativeFilter(String family) {
+        NativeRenderBridge.unfilterFamily(normalizeFamily(family));
+    }
+
+    /** Clears every native filter family and the underlying scope active flag. */
+    public static void clearNativeFilters() {
+        NativeRenderBridge.clearFilterScopes();
+    }
+
+    public static boolean isNativeFilterEnabled(String family) {
+        String key = normalizeFamily(family);
+        if (key == null) return false;
+        return NativeRenderBridge.filterScope().isFiltered(key);
+    }
+
+    private static String normalizeFamily(String family) {
+        if (family == null) return null;
+        String trimmed = family.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     public static void recordError(Throwable error) {
         if (error == null) {
             lastError = "unknown";
@@ -71,6 +103,7 @@ public final class Sts1VerifyDiagnostics {
         m.put("modeSupported", Boolean.valueOf(modeSupported()));
         m.put("nativeInterval", Sts1RenderBoundary.nativeInterval());
         m.put("artInterval", Sts1RenderBoundary.artSubmissionInterval());
+        m.put("nativeFilters", NativeRenderBridge.filterScopeProbeSlice());
         if (lastError != null) {
             m.put("lastError", lastError);
         }
@@ -80,5 +113,6 @@ public final class Sts1VerifyDiagnostics {
     public static void resetForTests() {
         configured = Mode.OFF;
         lastError = null;
+        NativeRenderBridge.clearFilterScopes();
     }
 }

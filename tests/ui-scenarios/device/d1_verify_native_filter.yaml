@@ -1,0 +1,126 @@
+# D1: native filter-scope control surface. The scope can only narrow an existing delegation to
+# native continuation; it can never grant new suppression. This scenario proves the control and
+# probe contract on device, not per-family pixel replacement (which is not implemented).
+name: d1_verify_native_filter
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art verify native clear"
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  - console: "art present combat on"
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: projection.scene
+        eq: combat
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.input.handState
+        eq: FULL_READY
+  # Baseline: no filter is active.
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeFilters.active
+        eq: false
+  - assert:
+      path: backend.verify.nativeFilters.filteredFamilies
+      eq: []
+  # Filter one family on; the scope becomes active and reports the family.
+  - console: "art verify native sts1.combat.hand on"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeFilters.active
+        eq: true
+  - assert:
+      path: backend.verify.nativeFilters.filteredFamilies[0]
+      eq: sts1.combat.hand
+  # Rendering must keep working while a family is filtered (native continuation, no crash).
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.handDraw.count
+        gte: 0
+  # Turning the family off clears the scope again.
+  - console: "art verify native sts1.combat.hand off"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeFilters.filteredFamilies
+        eq: []
+  - assert:
+      path: backend.verify.nativeFilters.active
+      eq: false
+  # Multiple families + explicit clear.
+  - console: "art verify native sts1.combat.hand on"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeFilters.active
+        eq: true
+  - console: "art verify native sts1.combat.energy on"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeFilters.filteredFamilies
+        eq:
+          - sts1.combat.hand
+          - sts1.combat.energy
+  - console: "art verify native clear"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeFilters.active
+        eq: false
+  - assert:
+      path: backend.verify.nativeFilters.filteredFamilies
+      eq: []
+  # Invalid input must not change state.
+  - console: "art verify native sts1.combat.hand maybe"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeFilters.active
+        eq: false
+  # Background still cannot claim a pre-native boundary.
+  - assert:
+      path: backend.renderBoundary.backgroundCapability
+      eq: unsupported

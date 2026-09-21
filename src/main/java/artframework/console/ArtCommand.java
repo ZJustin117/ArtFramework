@@ -188,14 +188,63 @@ public class ArtCommand extends ConsoleCommand {
                 artframework.sts1.render.Sts1VerifyDiagnostics.setMode(mode);
                 logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
                         artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+            } else if ("native".equals(action)) {
+                cmdVerifyNative(tokens, depth);
             } else {
-                logVfx("ART_VERIFY error=usage: art verify status|mode off|background|guides|bounds");
+                logVfx("ART_VERIFY error=usage: art verify status|mode off|background|guides|bounds"
+                        + "|native <family> on|off");
             }
         } catch (Throwable error) {
             artframework.sts1.render.Sts1VerifyDiagnostics.recordError(error);
             logVfx("ART_VERIFY error=" + error.getClass().getSimpleName()
                     + ":" + String.valueOf(error.getMessage()));
         }
+    }
+
+    private void cmdVerifyNative(String[] tokens, int depth) {
+        if (tokens.length == depth + 2 && "clear".equals(tokens[depth + 1].toLowerCase())) {
+            artframework.sts1.render.Sts1VerifyDiagnostics.clearNativeFilters();
+            logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
+                    artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+            return;
+        }
+        if (tokens.length != depth + 3) {
+            logVfx("ART_VERIFY error=usage: art verify native <family> on|off");
+            return;
+        }
+        VerifyNativeRequest request = parseVerifyNative(
+                new String[] {tokens[depth + 1], tokens[depth + 2]});
+        if (request == null) {
+            logVfx("ART_VERIFY error=usage: art verify native <family> on|off");
+            return;
+        }
+        if (request.enabled) {
+            artframework.sts1.render.Sts1VerifyDiagnostics.enableNativeFilter(request.family);
+        } else {
+            artframework.sts1.render.Sts1VerifyDiagnostics.disableNativeFilter(request.family);
+        }
+        logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
+                artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+    }
+
+    static final class VerifyNativeRequest {
+        final String family;
+        final boolean enabled;
+
+        VerifyNativeRequest(String family, boolean enabled) {
+            this.family = family;
+            this.enabled = enabled;
+        }
+    }
+
+    static VerifyNativeRequest parseVerifyNative(String[] args) {
+        if (args == null || args.length != 2) return null;
+        String family = args[0] == null ? "" : args[0].trim();
+        String switchValue = args[1] == null ? "" : args[1].trim().toLowerCase();
+        if (family.isEmpty() || "--".equals(family)) return null;
+        if ("on".equals(switchValue)) return new VerifyNativeRequest(family, true);
+        if ("off".equals(switchValue)) return new VerifyNativeRequest(family, false);
+        return null;
     }
 
     private static artframework.sts1.render.Sts1VerifyDiagnostics.Mode parseVerifyMode(String value) {

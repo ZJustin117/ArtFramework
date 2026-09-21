@@ -109,6 +109,7 @@ public final class UiProbe {
         m.put("relicPotionBlightDraw", artframework.sts1.render.Sts1RelicPotionBlightDrawPath.probeSlice());
         m.put("orbStanceDraw", artframework.sts1.render.Sts1OrbStanceDrawPath.probeSlice());
         m.put("roomShellDraw", artframework.sts1.render.Sts1RoomShellDrawPath.probeSlice());
+        m.put("renderBoundary", artframework.sts1.render.Sts1RenderBoundary.probeSlice());
         m.put("audio", artframework.sts1.audio.ArtAudioBridge.probeSlice());
         m.put("skeleton", artframework.sts1.skeleton.Sts1SkeletonBridge.probeSlice());
         m.put("safety", artframework.sts1.PresentSafety.probeSlice());

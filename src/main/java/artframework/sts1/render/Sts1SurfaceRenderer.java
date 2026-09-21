@@ -33,6 +33,10 @@ public final class Sts1SurfaceRenderer {
         return SelectDrawPath.shouldSuppressNativeSelect();
     }
 
+    public static Sts1RenderBoundary.BackgroundCapability backgroundCapability() {
+        return Sts1RenderBoundary.backgroundCapability();
+    }
+
     /** Draw full-present surfaces after the STS world render (PostRender). */
     public static void render(SpriteBatch sb) {
         if (sb == null) {

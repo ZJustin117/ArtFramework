@@ -6,6 +6,10 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 /** Narrow host boundary for immutable VFX draw data. Native STS pixels are never suppressed. */
 public final class Sts1VfxOverlayRenderer {
@@ -18,7 +22,7 @@ public final class Sts1VfxOverlayRenderer {
         int previousSrc = batch.getBlendSrcFunc();
         int previousDst = batch.getBlendDstFunc();
         try {
-            for (VfxParticleDraw draw : list.draws) {
+            for (VfxParticleDraw draw : orderedDraws(list)) {
                 try {
                     Texture texture = resolver.resolve(draw.textureReference);
                     if (texture == null) continue;
@@ -39,6 +43,20 @@ public final class Sts1VfxOverlayRenderer {
             batch.setBlendFunction(previousSrc, previousDst);
             batch.setColor(previousColor);
         }
+    }
+
+    static List<VfxParticleDraw> orderedDraws(VfxDrawList list) {
+        if (list == null || list.draws.isEmpty()) return Collections.emptyList();
+        List<VfxParticleDraw> ordered = new ArrayList<VfxParticleDraw>(list.draws);
+        Collections.sort(ordered, new Comparator<VfxParticleDraw>() {
+            @Override public int compare(VfxParticleDraw a, VfxParticleDraw b) {
+                return a.renderOrder == null || b.renderOrder == null
+                        ? Integer.compare(a.particleIndex, b.particleIndex)
+                        : artframework.render.RenderOrder.COMPARATOR.compare(
+                                a.renderOrder, b.renderOrder);
+            }
+        });
+        return Collections.unmodifiableList(ordered);
     }
 
     private static void applyBlend(SpriteBatch batch, String blendMode) {

@@ -42,8 +42,6 @@ public final class Sts1SurfaceRenderer {
         if (artframework.sts1.PresentSafety.isPanic()) {
             return;
         }
-        // VFX overlay is intentionally installed only through this existing post-render path.
-        VfxSts1Runtime.render(sb);
         disableInactiveSurfaceEffects(plan);
         Set<String> activeSurfaces = new LinkedHashSet<String>();
         for (SurfaceDrawPlan.Entry entry : plan.drawOrder()) {
@@ -95,6 +93,9 @@ public final class Sts1SurfaceRenderer {
         renderRelicPotionBlightOverlay(sb);
         renderPileSoulOverlay(sb);
         Sts1RoomShellDrawPath.render(sb);
+        // ART_EFFECTS is the final ART-owned band. It remains outside the native stage.draw()
+        // boundary and is submitted after C2/entity content according to RenderPhase.rank.
+        VfxSts1Runtime.render(sb);
     }
 
     private static void disableInactiveSurfaceEffects(SurfaceDrawPlan plan) {

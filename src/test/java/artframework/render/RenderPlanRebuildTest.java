@@ -58,6 +58,62 @@ public class RenderPlanRebuildTest {
         assertEquals(3, host.bindingCount());
     }
 
+    @Test public void renderOrderSortsByPhaseThenZThenStableKey() {
+        RenderOrder highPhase = new RenderOrder(RenderPhase.C2_CONTENT, -100f, "b");
+        RenderOrder lowPhase = new RenderOrder(RenderPhase.C1_CONTENT, 100f, "z");
+        RenderOrder lowZ = new RenderOrder(RenderPhase.C2_CONTENT, 1f, "z");
+        RenderOrder lowKey = new RenderOrder(RenderPhase.C2_CONTENT, 1f, "a");
+
+        assertTrue(RenderOrder.COMPARATOR.compare(lowPhase, highPhase) < 0);
+        assertTrue(RenderOrder.COMPARATOR.compare(highPhase, lowZ) < 0);
+        assertTrue(RenderOrder.COMPARATOR.compare(lowKey, lowZ) < 0);
+    }
+
+    @Test public void renderOrderRejectsNonFiniteZAndMissingStableKey() {
+        try {
+            new RenderOrder(RenderPhase.C1_CONTENT, Float.NaN, "x");
+            throw new AssertionError("expected NaN rejection");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("finite"));
+        }
+        try {
+            new RenderOrder(RenderPhase.C1_CONTENT, 0f, "");
+            throw new AssertionError("expected stable key rejection");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("stable key"));
+        }
+    }
+
+    @Test public void c2PlanEntriesExposeDeterministicOrderingMetadata() {
+        RenderStateEcs.surface("sts1.z-order", 0f, 0f, 10f, 10f, true);
+        RenderPlan.Entry entry = RenderPlan.fromActiveC2Surfaces(null).entries().get(0);
+
+        assertEquals(RenderPhase.C2_CONTENT, entry.phase);
+        assertEquals(RenderHost.c2SurfaceTargetId("sts1.z-order"), entry.stableKey);
+        assertEquals(entry.stableKey, entry.order().stableKey);
+    }
+
+    @Test public void renderPlanOrdersEntriesByImmutableOrderingKey() throws Exception {
+        ArrayList<RenderPlan.Entry> entries = new ArrayList<RenderPlan.Entry>();
+        entries.add(new RenderPlan.Entry("z-item", RenderTargetKind.C2_SURFACE,
+                new Rect(0f, 0f, 1f, 1f), RenderPhase.C2_CONTENT, 2f, "z-item", true,
+                Collections.<EffectAttachment>emptyList()));
+        entries.add(new RenderPlan.Entry("a-item", RenderTargetKind.C2_SURFACE,
+                new Rect(0f, 0f, 1f, 1f), RenderPhase.C2_CONTENT, 2f, "a-item", true,
+                Collections.<EffectAttachment>emptyList()));
+        entries.add(new RenderPlan.Entry("c1-item", RenderTargetKind.SYNTHETIC_WIDGET,
+                new Rect(0f, 0f, 1f, 1f), RenderPhase.C1_CONTENT, 99f, "c1-item", true,
+                Collections.<EffectAttachment>emptyList()));
+
+        Constructor<RenderPlan> constructor = RenderPlan.class.getDeclaredConstructor(java.util.List.class);
+        constructor.setAccessible(true);
+        RenderPlan plan = constructor.newInstance(entries);
+
+        assertEquals("c1-item", plan.entries().get(0).id);
+        assertEquals("a-item", plan.entries().get(1).id);
+        assertEquals("z-item", plan.entries().get(2).id);
+    }
+
     @Test public void unchangedPlanEntryRetainsTargetIdentity() {
         RenderStateEcs.surface("sts1.identity", 1f, 2f, 30f, 40f, true);
         RenderHost host = new RenderHost();

@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Comparator;
 
 /** Immutable render target description projected from ECS render state. */
 public final class RenderPlan {
@@ -25,26 +26,50 @@ public final class RenderPlan {
         public final RenderTargetKind kind;
         public final Rect bounds;
         public final float z;
+        public final RenderPhase phase;
+        public final String stableKey;
         public final boolean enabled;
         public final List<EffectAttachment> effects;
 
         Entry(String id, RenderTargetKind kind, Rect bounds, float z, boolean enabled,
                 List<EffectAttachment> effects) {
+            this(id, kind, bounds, RenderPhase.C2_CONTENT, z, id, enabled, effects);
+        }
+
+        Entry(String id, RenderTargetKind kind, Rect bounds, RenderPhase phase, float z,
+                String stableKey, boolean enabled, List<EffectAttachment> effects) {
             this.id = id;
             this.kind = kind;
             this.bounds = bounds;
             this.z = z;
+            this.phase = phase;
+            this.stableKey = stableKey;
             this.enabled = enabled;
             this.effects = effects == null || effects.isEmpty()
                     ? Collections.<EffectAttachment>emptyList()
                     : Collections.unmodifiableList(new ArrayList<EffectAttachment>(effects));
+        }
+
+        RenderOrder order() {
+            return new RenderOrder(phase, z, stableKey);
         }
     }
 
     private final List<Entry> entries;
 
     private RenderPlan(List<Entry> entries) {
-        this.entries = Collections.unmodifiableList(new ArrayList<Entry>(entries));
+        List<Entry> ordered = new ArrayList<Entry>(entries);
+        Collections.sort(ordered, new Comparator<Entry>() {
+            @Override public int compare(Entry a, Entry b) {
+                return RenderOrder.COMPARATOR.compare(a.order(), b.order());
+            }
+        });
+        this.entries = Collections.unmodifiableList(ordered);
+    }
+
+    private static Entry item(String id, RenderTargetKind kind, Rect bounds, RenderPhase phase,
+            float z, boolean enabled, List<EffectAttachment> effects) {
+        return new Entry(id, kind, bounds, phase, z, id, enabled, effects);
     }
 
     public List<Entry> entries() {
@@ -56,8 +81,8 @@ public final class RenderPlan {
         List<Entry> entries = new ArrayList<Entry>();
         FullFrameRenderComponent full = RenderStateEcs.fullFrameState();
         if (full != null && full.enabled) {
-            entries.add(new Entry(RenderHost.FULL_FRAME_ID, RenderTargetKind.FULL_FRAME,
-                    full.bounds, 1000f, true, full.effects()));
+            entries.add(item(RenderHost.FULL_FRAME_ID, RenderTargetKind.FULL_FRAME,
+                    full.bounds, RenderPhase.C2_CONTENT, 1000f, true, full.effects()));
         }
 
         appendC2SurfaceEntries(entries, activeSurfaceIds);
@@ -83,9 +108,9 @@ public final class RenderPlan {
             if (surface == null) continue;
             if (activeSurfaceIds != null && !activeSurfaceIds.contains(surface.surfaceId)) continue;
             surfaceEffects.put(surface.surfaceId, surface.effects());
-            entries.add(new Entry(RenderHost.c2SurfaceTargetId(surface.surfaceId),
-                    RenderTargetKind.C2_SURFACE, surface.bounds, surface.z, surface.enabled,
-                    surface.effects()));
+            entries.add(item(RenderHost.c2SurfaceTargetId(surface.surfaceId),
+                    RenderTargetKind.C2_SURFACE, surface.bounds, RenderPhase.C2_CONTENT,
+                    surface.z, surface.enabled, surface.effects()));
         }
 
         PresentationContext visuals = PresentationRegistry.context("c2-surfaces");
@@ -102,8 +127,8 @@ public final class RenderPlan {
             List<EffectAttachment> inherited = surfaceEffects.get(surfaceId);
             if (inherited != null) itemEffects.addAll(inherited);
             if (effects != null) itemEffects.addAll(effects.attachments());
-            entries.add(new Entry(RenderHost.c2ItemTargetId(surfaceId, identity.key.localId),
-                    RenderTargetKind.C2_SURFACE, bounds.rect, bounds.z,
+            entries.add(item(RenderHost.c2ItemTargetId(surfaceId, identity.key.localId),
+                    RenderTargetKind.C2_SURFACE, bounds.rect, RenderPhase.C2_CONTENT, bounds.z,
                     visibility.visible && bounds.rect.width > 0f && bounds.rect.height > 0f,
                     itemEffects));
         }
@@ -120,9 +145,9 @@ public final class RenderPlan {
             if (identity == null || transform == null) continue;
             float scale = transform.scale > 0f ? transform.scale : 1f;
             float[] size = artframework.c2.EntityDrawPath.defaultSize(identity.kind, scale);
-            entries.add(new Entry("c2:entity:" + identity.slotId, RenderTargetKind.ENTITY_SLOT,
+            entries.add(item("c2:entity:" + identity.slotId, RenderTargetKind.ENTITY_SLOT,
                     new Rect(transform.x - size[0] * 0.5f, transform.y - size[1] * 0.5f,
-                            size[0], size[1]), 10f, transform.laidOut,
+                            size[0], size[1]), RenderPhase.ENTITY_CONTENT, 10f, transform.laidOut,
                     Collections.<EffectAttachment>emptyList()));
         }
         for (String scope : PresentationRegistry.scopes()) {
@@ -130,10 +155,10 @@ public final class RenderPlan {
             PresentationContext context = PresentationRegistry.existingContext(scope);
             if (context == null) continue;
             for (PresentationDrawItem item : PresentationFrame.from(context).items) {
-                entries.add(new Entry(c1TargetId(item),
+                entries.add(item(c1TargetId(item),
                         item.root ? RenderTargetKind.SYNTHETIC_WINDOW
                                 : RenderTargetKind.SYNTHETIC_WIDGET,
-                        item.bounds, item.z, true, item.effects));
+                        item.bounds, RenderPhase.C1_CONTENT, item.z, true, item.effects));
                 if (item.root) {
                     List<EffectAttachment> titleEffects = new ArrayList<EffectAttachment>();
                     List<artframework.component.EffectDecl> defaults =
@@ -142,16 +167,18 @@ public final class RenderPlan {
                     for (artframework.component.EffectDecl effect : defaults) {
                         titleEffects.add(new EffectAttachment(effect.id, "ambient", effect.params));
                     }
-                    entries.add(new Entry(c1TitleTargetId(item),
-                            RenderTargetKind.SYNTHETIC_WIDGET, item.bounds, item.z + 0.001f,
+                    entries.add(item(c1TitleTargetId(item),
+                            RenderTargetKind.SYNTHETIC_WIDGET, item.bounds, RenderPhase.C1_CONTENT,
+                            item.z + 0.001f,
                             true, titleEffects));
                 }
             }
         }
         if (nativeContext != null) {
             for (PresentationDrawItem item : PresentationFrame.from(nativeContext).items) {
-                entries.add(new Entry("native:" + item.key.localId,
-                        RenderTargetKind.SYNTHETIC_WIDGET, item.bounds, item.z, true, item.effects));
+                entries.add(item("native:" + item.key.localId,
+                        RenderTargetKind.SYNTHETIC_WIDGET, item.bounds, RenderPhase.NATIVE_RETAINED,
+                        item.z, true, item.effects));
             }
         }
         return new RenderPlan(entries);

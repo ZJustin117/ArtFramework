@@ -120,6 +120,10 @@ public class ArtCommand extends ConsoleCommand {
             cmdVfx(tokens, depth + 1);
             return;
         }
+        if ("verify".equals(sub)) {
+            cmdVerify(tokens, depth + 1);
+            return;
+        }
         if ("profile".equals(sub) || "theme".equals(sub)) {
             cmdProfile(tokens, depth + 1);
             return;
@@ -166,6 +170,49 @@ public class ArtCommand extends ConsoleCommand {
             artframework.sts1.render.VfxSts1Runtime.recordError(error);
             logVfx("ART_VFX error=" + error.getClass().getSimpleName() + ":" + String.valueOf(error.getMessage()));
         }
+    }
+
+    private void cmdVerify(String[] tokens, int depth) {
+        String action = tokens.length > depth ? tokens[depth].toLowerCase() : "status";
+        try {
+            if ("status".equals(action)) {
+                logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
+                        artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+            } else if ("mode".equals(action) && tokens.length > depth + 1) {
+                artframework.sts1.render.Sts1VerifyDiagnostics.Mode mode =
+                        parseVerifyMode(tokens[depth + 1]);
+                if (mode == null) {
+                    logVfx("ART_VERIFY error=usage: art verify mode off|background|guides|bounds");
+                    return;
+                }
+                artframework.sts1.render.Sts1VerifyDiagnostics.setMode(mode);
+                logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
+                        artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+            } else {
+                logVfx("ART_VERIFY error=usage: art verify status|mode off|background|guides|bounds");
+            }
+        } catch (Throwable error) {
+            artframework.sts1.render.Sts1VerifyDiagnostics.recordError(error);
+            logVfx("ART_VERIFY error=" + error.getClass().getSimpleName()
+                    + ":" + String.valueOf(error.getMessage()));
+        }
+    }
+
+    private static artframework.sts1.render.Sts1VerifyDiagnostics.Mode parseVerifyMode(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase();
+        if ("off".equals(normalized)) {
+            return artframework.sts1.render.Sts1VerifyDiagnostics.Mode.OFF;
+        }
+        if ("background".equals(normalized)) {
+            return artframework.sts1.render.Sts1VerifyDiagnostics.Mode.BACKGROUND;
+        }
+        if ("guides".equals(normalized)) {
+            return artframework.sts1.render.Sts1VerifyDiagnostics.Mode.GUIDES;
+        }
+        if ("bounds".equals(normalized)) {
+            return artframework.sts1.render.Sts1VerifyDiagnostics.Mode.BOUNDS;
+        }
+        return null;
     }
 
     private static void logVfx(String line) {

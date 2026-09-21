@@ -533,6 +533,14 @@ public final class RenderHost {
         return out;
     }
 
+    /** Deterministic host submission order for diagnostics and pure render-order tests. */
+    List<String> orderedTargetIds(java.util.Set<RenderTargetKind> kinds) {
+        List<RenderTarget> ordered = orderedTargets(kinds);
+        List<String> ids = new ArrayList<String>(ordered.size());
+        for (RenderTarget target : ordered) ids.add(target.id);
+        return ids;
+    }
+
     void tick(float deltaSeconds) {
         if (deltaSeconds > 0f) {
             timeSeconds += deltaSeconds;
@@ -572,15 +580,7 @@ public final class RenderHost {
                 timeSeconds,
                 needsCapture() || frameCapture.hasTexture() ? frameCapture : null);
         // Snapshot values — StageHost may mutate targets during the same frame.
-        List<RenderTarget> ordered = new ArrayList<RenderTarget>(targets.values());
-        Collections.sort(ordered, new Comparator<RenderTarget>() {
-            @Override
-            public int compare(RenderTarget a, RenderTarget b) {
-                return RenderOrder.COMPARATOR.compare(
-                        new RenderOrder(a.phase(), a.z(), a.stableKey()),
-                        new RenderOrder(b.phase(), b.z(), b.stableKey()));
-            }
-        });
+        List<RenderTarget> ordered = orderedTargets(kinds);
         for (RenderTarget target : ordered) {
             if (!target.isEnabled()) {
                 continue;
@@ -609,6 +609,19 @@ public final class RenderHost {
                 }
             }
         }
+    }
+
+    private List<RenderTarget> orderedTargets(java.util.Set<RenderTargetKind> kinds) {
+        List<RenderTarget> ordered = new ArrayList<RenderTarget>(targets.values());
+        Collections.sort(ordered, new Comparator<RenderTarget>() {
+            @Override
+            public int compare(RenderTarget a, RenderTarget b) {
+                return RenderOrder.COMPARATOR.compare(
+                        new RenderOrder(a.phase(), a.z(), a.stableKey()),
+                        new RenderOrder(b.phase(), b.z(), b.stableKey()));
+            }
+        });
+        return ordered;
     }
 
     /** C1 synthetic targets — draw under scene2d so labels/buttons stay readable. */

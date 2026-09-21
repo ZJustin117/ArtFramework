@@ -169,6 +169,17 @@ public class RenderPlanRebuildTest {
         assertEquals(RenderHost.c2SurfaceTargetId("sts1.order-metadata"), target.stableKey());
     }
 
+    @Test public void hostSubmissionSnapshotUsesStableOrderingInsteadOfInsertionOrder() {
+        RenderStateEcs.surface("z-surface", 0f, 0f, 10f, 10f, true);
+        RenderStateEcs.surface("a-surface", 0f, 0f, 10f, 10f, true);
+        RenderHost host = new RenderHost();
+        host.rebuildFromEcsPlan();
+
+        assertEquals(Arrays.asList(RenderHost.c2SurfaceTargetId("a-surface"),
+                RenderHost.c2SurfaceTargetId("z-surface")),
+                host.orderedTargetIds(RenderHost.kindsC2UnderPresent()));
+    }
+
     @Test public void ordinaryReconciliationRemovesOnlyStalePlanOwnedTargets() {
         RenderStateEcs.surface("sts1.stale-owned", 1f, 2f, 30f, 40f, true);
         RenderHost host = new RenderHost();

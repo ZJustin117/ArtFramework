@@ -11,9 +11,10 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).
       Ordering model, plan sorting, host submission order, VFX `ART_EFFECTS` submission, resolved
-      `renderOrder` probe diagnostics, and the reported `unsupported` pre-native background
-      capability are shipped (`b4b59ac`..`8c2664f`). Remaining: background renderer, verified
-      pre-native/filtered boundary, native filter scopes, `art verify` diagnostics, D1 scenarios.
+      `renderOrder` probe diagnostics, the reported `unsupported` pre-native background
+      capability, and `art verify status|mode` diagnostics are shipped (`b4b59ac`..`85846aa`).
+      Remaining: background renderer, verified pre-native/filtered boundary, native filter scopes,
+      native-boundary tests, D1 scenarios.
 
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.

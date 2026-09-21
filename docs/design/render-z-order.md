@@ -306,6 +306,7 @@ Shipped slices (commits `b4b59ac`..`8c2664f`):
 - [x] Submit VFX in `ART_EFFECTS` after C2/entity content, without crossing `stage.draw`.
 - [x] Report the STS1 native/ART boundary capability through probe (background still `unsupported`).
 - [x] Add and validate resolved render-order probe diagnostics (`renderOrder`, `duplicateStableKeys`).
+- [x] Add `art verify` console diagnostics (`art verify status|mode off|background|guides|bounds`).
 - [x] Add pure render-plan and host-order tests.
 
 Remaining:
@@ -313,7 +314,6 @@ Remaining:
 - [ ] Add the background renderer without using `FULL_FRAME`.
 - [ ] Define and verify a real STS1 pre-native/filtered boundary.
 - [ ] Add native filter scopes with fail-open cleanup.
-- [ ] Add `art verify` console diagnostics.
 - [ ] Add native-boundary tests that suppress a selected family while failing open elsewhere.
 - [ ] Add D1 visual verification scenarios and local screenshot workflow.
 - [ ] Remove the legacy adapter after migration evidence is complete.
@@ -331,4 +331,7 @@ Remaining:
 - `Sts1RenderBoundary.probeSlice()` reports `nativeInterval=stage.draw`,
   `artInterval=post_native_overlay`, `backgroundCapability=unsupported`,
   `supportsPreNativeBackground=false`; `UiProbe.backendMap()` exposes it as `renderBoundary`.
+- `Sts1VerifyDiagnostics` backs `art verify status|mode ...`: a visual mode reports
+  `submissionStatus=unsupported` while no verified pre-native draw point exists, `off` reports
+  `disabled`, and `UiProbe.backendMap()` exposes the same slice as `verify`.
 - Native `stage.draw()` order is unchanged and no native pixel suppression is enabled.

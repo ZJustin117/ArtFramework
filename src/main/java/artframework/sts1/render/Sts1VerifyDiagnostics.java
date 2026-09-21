@@ -6,7 +6,8 @@ import java.util.Map;
 /**
  * Diagnostic state for the `art verify` console surface. Visual verification is developer-only and
  * must never claim pixel behavior the host cannot deliver; the background mode stays
- * `unsupported` until a verified pre-native draw point exists.
+ * `unsupported` until a verified pre-native draw point exists, while guides/bounds are ART-owned
+ * overlays at {@code VERIFY_GUIDES} and need no host boundary.
  */
 public final class Sts1VerifyDiagnostics {
     public enum Mode {
@@ -31,11 +32,19 @@ public final class Sts1VerifyDiagnostics {
 
     /** Whether the configured mode can actually submit pixels through the current host boundary. */
     public static boolean modeSupported() {
+        if (configured == Mode.GUIDES || configured == Mode.BOUNDS) {
+            return true;
+        }
         if (configured == Mode.OFF) {
             return true;
         }
         return Sts1RenderBoundary.backgroundCapability()
                 == Sts1RenderBoundary.BackgroundCapability.PRE_NATIVE;
+    }
+
+    /** Whether the configured mode paints an ART-owned overlay this frame. */
+    public static boolean overlayDrawEnabled() {
+        return configured == Mode.GUIDES || configured == Mode.BOUNDS;
     }
 
     public static String submissionStatus() {

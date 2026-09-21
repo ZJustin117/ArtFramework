@@ -97,6 +97,7 @@ public final class Sts1SurfaceRenderer {
         renderRelicPotionBlightOverlay(sb);
         renderPileSoulOverlay(sb);
         Sts1RoomShellDrawPath.render(sb);
+        VerifyGuideDrawPath.render(sb);
         // ART_EFFECTS is the final ART-owned band. It remains outside the native stage.draw()
         // boundary and is submitted after C2/entity content according to RenderPhase.rank.
         VfxSts1Runtime.render(sb);

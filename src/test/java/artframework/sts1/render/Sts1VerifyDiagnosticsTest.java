@@ -27,16 +27,45 @@ public class Sts1VerifyDiagnosticsTest {
     }
 
     @Test
-    public void visualModesReportUnsupportedWithoutPreNativeBoundary() {
+    public void backgroundStaysUnsupportedWithoutPreNativeBoundary() {
         Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.BACKGROUND);
         assertFalse(Sts1VerifyDiagnostics.modeSupported());
         assertEquals("unsupported", Sts1VerifyDiagnostics.submissionStatus());
+        assertFalse(Sts1VerifyDiagnostics.overlayDrawEnabled());
+    }
 
+    @Test
+    public void overlayModesReportReadyWithoutPreNativeBoundary() {
         Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.GUIDES);
-        assertEquals("unsupported", Sts1VerifyDiagnostics.submissionStatus());
+        assertTrue(Sts1VerifyDiagnostics.modeSupported());
+        assertEquals("ready", Sts1VerifyDiagnostics.submissionStatus());
+        assertTrue(Sts1VerifyDiagnostics.overlayDrawEnabled());
 
         Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.BOUNDS);
-        assertEquals("unsupported", Sts1VerifyDiagnostics.submissionStatus());
+        assertTrue(Sts1VerifyDiagnostics.modeSupported());
+        assertEquals("ready", Sts1VerifyDiagnostics.submissionStatus());
+        assertTrue(Sts1VerifyDiagnostics.overlayDrawEnabled());
+    }
+
+    @Test
+    public void overlayDrawPathIsModeGated() {
+        Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.OFF);
+        assertFalse(VerifyGuideDrawPath.shouldDraw());
+        assertFalse(VerifyGuideDrawPath.drawsGuides());
+        assertFalse(VerifyGuideDrawPath.drawsBounds());
+
+        Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.GUIDES);
+        assertTrue(VerifyGuideDrawPath.shouldDraw());
+        assertTrue(VerifyGuideDrawPath.drawsGuides());
+        assertFalse(VerifyGuideDrawPath.drawsBounds());
+
+        Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.BOUNDS);
+        assertTrue(VerifyGuideDrawPath.shouldDraw());
+        assertFalse(VerifyGuideDrawPath.drawsGuides());
+        assertTrue(VerifyGuideDrawPath.drawsBounds());
+
+        Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.BACKGROUND);
+        assertFalse(VerifyGuideDrawPath.shouldDraw());
     }
 
     @Test
@@ -89,6 +118,7 @@ public class Sts1VerifyDiagnosticsTest {
         assertTrue(backend.containsKey("verify"));
         Map<String, Object> verify = (Map<String, Object>) backend.get("verify");
         assertEquals("bounds", verify.get("configuredMode"));
-        assertEquals("unsupported", verify.get("submissionStatus"));
+        assertEquals("ready", verify.get("submissionStatus"));
+        assertEquals(Boolean.TRUE, verify.get("modeSupported"));
     }
 }

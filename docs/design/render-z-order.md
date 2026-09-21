@@ -309,6 +309,8 @@ Shipped slices (commits `b4b59ac`..`1a1f724`):
 - [x] Add `art verify` console diagnostics (`art verify status|mode off|background|guides|bounds`).
 - [x] Add pure render-plan and host-order tests.
 - [x] Report `unsupported` for a visual mode without a verified pre-native hook.
+- [x] Add the guides/bounds overlay at `VERIFY_GUIDES` (disabled by default); `guides`/`bounds`
+      report `ready` without a pre-native hook, `background` still reports `unsupported`.
 
 Remaining:
 
@@ -346,7 +348,9 @@ section 2; `RenderOrder` is the shared ordering key.
 - `Sts1RenderBoundary.probeSlice()` reports `nativeInterval=stage.draw`,
   `artInterval=post_native_overlay`, `backgroundCapability=unsupported`,
   `supportsPreNativeBackground=false`; `UiProbe.backendMap()` exposes it as `renderBoundary`.
-- `Sts1VerifyDiagnostics` backs `art verify status|mode ...`: a visual mode reports
-  `submissionStatus=unsupported` while no verified pre-native draw point exists, `off` reports
-  `disabled`, and `UiProbe.backendMap()` exposes the same slice as `verify`.
+- `Sts1VerifyDiagnostics` backs `art verify status|mode ...`: `guides`/`bounds` are ART-owned
+  `VERIFY_GUIDES` overlays and report `submissionStatus=ready` (drawn by
+  `VerifyGuideDrawPath`, off by default), `background` still reports `unsupported` until a
+  verified pre-native draw point exists, `off` reports `disabled`, and `UiProbe.backendMap()`
+  exposes the same slice as `verify`.
 - Native `stage.draw()` order is unchanged and no native pixel suppression is enabled.

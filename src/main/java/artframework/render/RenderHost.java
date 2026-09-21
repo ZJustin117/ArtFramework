@@ -334,6 +334,7 @@ public final class RenderHost {
             RenderTarget target = ensureTarget(entry.id, entry.kind);
             target.setBounds(entry.bounds);
             target.setZ(entry.z);
+            target.setOrder(entry.phase, entry.stableKey);
             target.setEnabled(entry.enabled);
             commitPlannedEffects(target, stagedEntry);
             managedTargetIds.add(entry.id);
@@ -575,7 +576,9 @@ public final class RenderHost {
         Collections.sort(ordered, new Comparator<RenderTarget>() {
             @Override
             public int compare(RenderTarget a, RenderTarget b) {
-                return Float.compare(a.z(), b.z());
+                return RenderOrder.COMPARATOR.compare(
+                        new RenderOrder(a.phase(), a.z(), a.stableKey()),
+                        new RenderOrder(b.phase(), b.z(), b.stableKey()));
             }
         });
         for (RenderTarget target : ordered) {

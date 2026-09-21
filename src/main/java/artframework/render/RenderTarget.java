@@ -14,6 +14,8 @@ public final class RenderTarget {
     private float width;
     private float height;
     private float z;
+    private RenderPhase phase;
+    private String stableKey;
     private boolean enabled = true;
 
     public RenderTarget(String id, RenderTargetKind kind) {
@@ -25,6 +27,8 @@ public final class RenderTarget {
         }
         this.id = id;
         this.kind = kind;
+        this.phase = defaultPhase(kind);
+        this.stableKey = id;
     }
 
     public float x() {
@@ -45,6 +49,14 @@ public final class RenderTarget {
 
     public float z() {
         return z;
+    }
+
+    public RenderPhase phase() {
+        return phase;
+    }
+
+    public String stableKey() {
+        return stableKey;
     }
 
     public boolean isEnabled() {
@@ -71,6 +83,25 @@ public final class RenderTarget {
 
     void setZ(float z) {
         this.z = z;
+    }
+
+    void setOrder(RenderPhase phase, String stableKey) {
+        if (phase == null) throw new IllegalArgumentException("render phase required");
+        if (stableKey == null || stableKey.isEmpty()) {
+            throw new IllegalArgumentException("render stable key required");
+        }
+        this.phase = phase;
+        this.stableKey = stableKey;
+    }
+
+    private static RenderPhase defaultPhase(RenderTargetKind kind) {
+        if (kind == RenderTargetKind.SYNTHETIC_WINDOW
+                || kind == RenderTargetKind.SYNTHETIC_WIDGET) return RenderPhase.C1_CONTENT;
+        if (kind == RenderTargetKind.ENTITY_SLOT) return RenderPhase.ENTITY_CONTENT;
+        if (kind == RenderTargetKind.FULL_FRAME || kind == RenderTargetKind.C2_SURFACE) {
+            return RenderPhase.C2_CONTENT;
+        }
+        return RenderPhase.ART_EFFECTS;
     }
 
     public Rect bounds() {

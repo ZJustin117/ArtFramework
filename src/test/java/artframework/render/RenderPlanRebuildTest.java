@@ -139,6 +139,16 @@ public class RenderPlanRebuildTest {
         assertFalse(target.isEnabled());
     }
 
+    @Test public void retainedTargetCarriesPlanOrderingMetadata() {
+        RenderStateEcs.surface("sts1.order-metadata", 1f, 2f, 30f, 40f, true);
+        RenderHost host = new RenderHost();
+        host.rebuildFromEcsPlan();
+
+        RenderTarget target = host.getTarget(RenderHost.c2SurfaceTargetId("sts1.order-metadata"));
+        assertEquals(RenderPhase.C2_CONTENT, target.phase());
+        assertEquals(RenderHost.c2SurfaceTargetId("sts1.order-metadata"), target.stableKey());
+    }
+
     @Test public void ordinaryReconciliationRemovesOnlyStalePlanOwnedTargets() {
         RenderStateEcs.surface("sts1.stale-owned", 1f, 2f, 30f, 40f, true);
         RenderHost host = new RenderHost();

@@ -320,6 +320,12 @@ Remaining:
       offline coverage in `NativeRenderBridgeTest` / `NativeRenderLedgerTest`; per-family
       suppression is not implemented.
 - [ ] Add D1 visual verification scenarios and local screenshot workflow.
+      `tests/ui-scenarios/device/d1_render_zorder_contract.yaml` now covers the D1 probe contract
+      (`renderOrder` monotonic phase order, empty `duplicateStableKeys`, `renderBoundary`, and
+      `art verify mode`), and passes on D1 (1/1). Local screenshot capture
+      (`adb exec-out screencap`) plus independent visual review found no visual defect in the
+      full-present combat frame. Per-family native suppression and pixel-parity scenarios remain
+      open.
 - [ ] Remove the legacy adapter after migration evidence is complete.
 
 The first implementation adapts existing `RenderTarget` snapshots and `RenderPlan.Entry` as the

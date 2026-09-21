@@ -1,0 +1,115 @@
+# D1: render z-order contract — the resolved plan is deterministic, phase-ordered, and the
+# native/ART boundary is reported honestly. This scenario produces probe evidence only; it does
+# not assert pixel suppression, which is not implemented.
+name: d1_render_zorder_contract
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  - console: "art present combat on"
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: projection.scene
+        eq: combat
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.input.handState
+        eq: FULL_READY
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.handDraw.count
+        gte: 1
+  # Resolved render order is exposed and has no duplicate stable keys.
+  - assert:
+      path: render.renderOrder.status
+      eq: ready
+  - assert:
+      path: render.renderOrder.count
+      gte: 4
+  - assert:
+      path: render.renderOrder.duplicateStableKeys
+      eq: []
+  # The native boundary is retained and sorts below ART-owned content. NATIVE_RETAINED has the
+  # lowest rank of any item present in a combat frame, so the first entry must carry it.
+  - assert:
+      path: render.renderOrder.items[0].phase
+      eq: NATIVE_RETAINED
+  # ART-owned C2 surface content is present and carries its own phase metadata.
+  - assert:
+      path: render.targetsById.c2_surface_sts1_combat_hand.phase
+      eq: C2_CONTENT
+  - assert:
+      path: render.targetsById.c2_surface_sts1_combat_hand.stableKey
+      eq: c2:surface:sts1.combat.hand
+  # The host reports the real boundary instead of claiming a pre-native background.
+  - assert:
+      path: backend.renderBoundary.nativeInterval
+      eq: stage.draw
+  - assert:
+      path: backend.renderBoundary.artInterval
+      eq: post_native_overlay
+  - assert:
+      path: backend.renderBoundary.backgroundCapability
+      eq: unsupported
+  - assert:
+      path: backend.renderBoundary.supportsPreNativeBackground
+      eq: false
+  # Visual verification modes are reported unsupported while no pre-native hook exists.
+  - assert:
+      path: backend.verify.configuredMode
+      eq: "off"
+  - assert:
+      path: backend.verify.submissionStatus
+      eq: disabled
+  - console: "art verify mode background"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.configuredMode
+        eq: background
+  - assert:
+      path: backend.verify.submissionStatus
+      eq: unsupported
+  - assert:
+      path: backend.verify.modeSupported
+      eq: false
+  - console: "art verify mode off"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.configuredMode
+        eq: "off"

@@ -18,21 +18,21 @@ public class Sts1RenderBoundaryTest {
     }
 
     @Test
-    public void postRenderHostDoesNotClaimPreNativeBackgroundSupport() {
-        assertEquals(Sts1RenderBoundary.BackgroundCapability.UNSUPPORTED,
+    public void reportsPreNativeBackgroundSupport() {
+        assertEquals(Sts1RenderBoundary.BackgroundCapability.PRE_NATIVE,
                 Sts1RenderBoundary.backgroundCapability());
         assertEquals("stage.draw", Sts1RenderBoundary.nativeInterval());
         assertEquals("post_native_overlay", Sts1RenderBoundary.artSubmissionInterval());
     }
 
     @Test
-    public void probeSliceReportsConfiguredBoundaryWithoutPreNativeClaim() {
+    public void probeSliceReportsConfiguredBoundaryWithPreNativeClaim() {
         Map<String, Object> slice = Sts1RenderBoundary.probeSlice();
         assertEquals(4, slice.size());
         assertEquals("stage.draw", slice.get("nativeInterval"));
         assertEquals("post_native_overlay", slice.get("artInterval"));
-        assertEquals("unsupported", slice.get("backgroundCapability"));
-        assertEquals(Boolean.FALSE, slice.get("supportsPreNativeBackground"));
+        assertEquals("pre_native", slice.get("backgroundCapability"));
+        assertEquals(Boolean.TRUE, slice.get("supportsPreNativeBackground"));
     }
 
     @Test
@@ -44,8 +44,8 @@ public class Sts1RenderBoundaryTest {
         Map<String, Object> boundary = (Map<String, Object>) backend.get("renderBoundary");
         assertEquals("stage.draw", boundary.get("nativeInterval"));
         assertEquals("post_native_overlay", boundary.get("artInterval"));
-        assertEquals("unsupported", boundary.get("backgroundCapability"));
-        assertEquals(Boolean.FALSE, boundary.get("supportsPreNativeBackground"));
+        assertEquals("pre_native", boundary.get("backgroundCapability"));
+        assertEquals(Boolean.TRUE, boundary.get("supportsPreNativeBackground"));
         assertFalse(boundary.containsKey("preNativeBackground"));
     }
 }

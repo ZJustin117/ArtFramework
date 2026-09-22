@@ -59,6 +59,7 @@ class StaticScanTest(unittest.TestCase):
             "renderPowerTips", "renderHoverReticle", "renderBlights",
             "renderHoldEndTurn", "renderGlowEffect", "renderBlackScreen",
             "renderGenericTip", "renderTipForCard", "renderTargetingUi",
+            "renderCombatRoomBg",
         ):
             self.assertIn(method, scan_sts_render.RENDER_METHOD_NAMES)
             self.assertTrue(
@@ -67,6 +68,16 @@ class StaticScanTest(unittest.TestCase):
                 ),
                 method,
             )
+
+    def test_render_combat_room_bg_is_a_render_patch(self):
+        self.assertTrue(
+            scan_sts_render.is_render_patch(
+                {
+                    "targetMethod": "renderCombatRoomBg",
+                    "source": "BackgroundRenderPatches.java",
+                }
+            )
+        )
 
     def test_parse_javap_render_methods_keeps_descriptors_for_overloads(self):
         text = """

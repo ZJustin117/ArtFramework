@@ -326,7 +326,7 @@ def _run_step(
             raise ValueError("compare_screenshot requires a mapping")
         allowed = {
             "reference", "reference_kind", "against", "crop", "threshold", "max_diff_pixels",
-            "max_diff_ratio", "diff",
+            "max_diff_ratio", "min_diff_pixels", "min_diff_ratio", "diff",
         }
         unknown = set(spec) - allowed
         if unknown:
@@ -384,6 +384,13 @@ def _run_step(
         if (isinstance(max_ratio, bool) or not isinstance(max_ratio, (int, float))
                 or not math.isfinite(max_ratio) or not 0 <= max_ratio <= 1):
             raise ValueError("max_diff_ratio must be between 0 and 1")
+        min_pixels = spec.get("min_diff_pixels", 0)
+        if isinstance(min_pixels, bool) or not isinstance(min_pixels, int) or min_pixels < 0:
+            raise ValueError("min_diff_pixels must be a non-negative integer")
+        min_ratio = spec.get("min_diff_ratio", 0.0)
+        if (isinstance(min_ratio, bool) or not isinstance(min_ratio, (int, float))
+                or not math.isfinite(min_ratio) or not 0 <= min_ratio <= 1):
+            raise ValueError("min_diff_ratio must be between 0 and 1")
         diff_value = spec.get("diff")
         if diff_value is not None and (not isinstance(diff_value, str) or not diff_value.strip()):
             raise ValueError("diff must be a path")
@@ -402,6 +409,7 @@ def _run_step(
             "differing_pixels": comparison.differing_pixels,
             "differing_ratio": comparison.differing_ratio, "max_error": comparison.max_error,
             "threshold": threshold, "max_diff_pixels": max_pixels, "max_diff_ratio": max_ratio,
+            "min_diff_pixels": min_pixels, "min_diff_ratio": float(min_ratio),
         }
         if diff_value is not None and comparison.same_size:
             diff_path = _resolve_compare_path(diff_value, base, "diff")
@@ -419,6 +427,10 @@ def _run_step(
         elif comparison.differing_pixels > max_pixels or comparison.differing_ratio > float(max_ratio):
             rec["status"] = "fail"
             rec["error"] = "screenshot comparison exceeded configured limits"
+        elif (comparison.differing_pixels < min_pixels
+                or comparison.differing_ratio < float(min_ratio)):
+            rec["status"] = "fail"
+            rec["error"] = "screenshot comparison below configured minimum limits"
         return rec
 
     if "wait_ms" in step:

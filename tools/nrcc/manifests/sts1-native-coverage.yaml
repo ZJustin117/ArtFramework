@@ -1093,6 +1093,84 @@ entries:
   hook: ''
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+- ownerId: sts1.inventory.com.megacrit.cardcrawl.scenes.abstractscene.rendercombatroombg
+  nativeClass: com.megacrit.cardcrawl.scenes.AbstractScene
+  nativeMethod: renderCombatRoomBg
+  family: room-backgrounds
+  pathKind: render-owner
+  surfaceId: ''
+  effectFamily: none
+  hook: ''
+  nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  nativeMethodDescriptor: renderCombatRoomBg:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+- ownerId: sts1.inventory.com.megacrit.cardcrawl.scenes.thebeyondscene.rendercombatroombg
+  nativeClass: com.megacrit.cardcrawl.scenes.TheBeyondScene
+  nativeMethod: renderCombatRoomBg
+  family: room-backgrounds
+  pathKind: render-owner
+  surfaceId: sts1.room.background
+  effectFamily: none
+  hook: artframework/sts1/patch/BackgroundRenderPatches.java
+  nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  nativeMethodDescriptor: renderCombatRoomBg:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  policy: ART_DELEGATED
+  justification: ART owns the combat-room background pixels only while a non-off art
+    verify mode background variant is selected AND the sts1.room.background family
+    is explicitly filtered via art verify native AND no panic is active; otherwise
+    the native scene background continues unchanged. The suppression Prefixes in artframework/sts1/patch/BackgroundRenderPatches.java
+    fail open to native on any renderer failure or unknown state.
+  test: artframework.sts1.patch.BackgroundRenderPatchesTest.suppressesNativeBackgroundOnlyWhenVariantFilteredAndNoPanic
+- ownerId: sts1.inventory.com.megacrit.cardcrawl.scenes.thebottomscene.rendercombatroombg
+  nativeClass: com.megacrit.cardcrawl.scenes.TheBottomScene
+  nativeMethod: renderCombatRoomBg
+  family: room-backgrounds
+  pathKind: render-owner
+  surfaceId: sts1.room.background
+  effectFamily: none
+  hook: artframework/sts1/patch/BackgroundRenderPatches.java
+  nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  nativeMethodDescriptor: renderCombatRoomBg:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  policy: ART_DELEGATED
+  justification: ART owns the combat-room background pixels only while a non-off art
+    verify mode background variant is selected AND the sts1.room.background family
+    is explicitly filtered via art verify native AND no panic is active; otherwise
+    the native scene background continues unchanged. The suppression Prefixes in artframework/sts1/patch/BackgroundRenderPatches.java
+    fail open to native on any renderer failure or unknown state.
+  test: artframework.sts1.patch.BackgroundRenderPatchesTest.suppressesNativeBackgroundOnlyWhenVariantFilteredAndNoPanic
+- ownerId: sts1.inventory.com.megacrit.cardcrawl.scenes.thecityscene.rendercombatroombg
+  nativeClass: com.megacrit.cardcrawl.scenes.TheCityScene
+  nativeMethod: renderCombatRoomBg
+  family: room-backgrounds
+  pathKind: render-owner
+  surfaceId: sts1.room.background
+  effectFamily: none
+  hook: artframework/sts1/patch/BackgroundRenderPatches.java
+  nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  nativeMethodDescriptor: renderCombatRoomBg:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  policy: ART_DELEGATED
+  justification: ART owns the combat-room background pixels only while a non-off art
+    verify mode background variant is selected AND the sts1.room.background family
+    is explicitly filtered via art verify native AND no panic is active; otherwise
+    the native scene background continues unchanged. The suppression Prefixes in artframework/sts1/patch/BackgroundRenderPatches.java
+    fail open to native on any renderer failure or unknown state.
+  test: artframework.sts1.patch.BackgroundRenderPatchesTest.suppressesNativeBackgroundOnlyWhenVariantFilteredAndNoPanic
+- ownerId: sts1.inventory.com.megacrit.cardcrawl.scenes.theendingscene.rendercombatroombg
+  nativeClass: com.megacrit.cardcrawl.scenes.TheEndingScene
+  nativeMethod: renderCombatRoomBg
+  family: room-backgrounds
+  pathKind: render-owner
+  surfaceId: sts1.room.background
+  effectFamily: none
+  hook: artframework/sts1/patch/BackgroundRenderPatches.java
+  nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  nativeMethodDescriptor: renderCombatRoomBg:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
+  policy: ART_DELEGATED
+  justification: ART owns the combat-room background pixels only while a non-off art
+    verify mode background variant is selected AND the sts1.room.background family
+    is explicitly filtered via art verify native AND no panic is active; otherwise
+    the native scene background continues unchanged. The suppression Prefixes in artframework/sts1/patch/BackgroundRenderPatches.java
+    fail open to native on any renderer failure or unknown state.
+  test: artframework.sts1.patch.BackgroundRenderPatchesTest.suppressesNativeBackgroundOnlyWhenVariantFilteredAndNoPanic
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.scenes.titlebackground.render
   nativeClass: com.megacrit.cardcrawl.scenes.TitleBackground
   nativeMethod: render
@@ -1202,7 +1280,7 @@ entries:
     only when FULL_READY and panic or unknown owners fail open. Delegation must close
     PresentationDrawEvidence or count as a strict report gap; HostAssets supplies
     the node draw path while full native parity is pending.
-  test: artframework.sts1.render.MapDrawPathTest.mapPatchSuppressesOnlyWhenFullMountedSceneAndExecutorReady
+  test: artframework.sts1.render.MapDrawPathTest.suppressesNativeMapOnlyWhenFullReady
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.screens.dungeontransitionscreen.render

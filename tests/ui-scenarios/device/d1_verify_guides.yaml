@@ -1,5 +1,6 @@
 # D1: ART-owned verification overlays. GUIDES/BOUNDS are drawn at VERIFY_GUIDES (rank 1000) and
-# need no native boundary, so the host must report them ready while BACKGROUND stays unsupported.
+# need no native boundary; BACKGROUND is served by the verified pre-native scene hook, so the host
+# must report all three modes ready.
 name: d1_verify_guides
 schemaVersion: 1
 mode: device
@@ -77,7 +78,7 @@ steps:
       path: backend.verify.submissionStatus
       eq: ready
   - screenshot: true
-  # Background still cannot claim pre-native pixels.
+  # Background mode is served by the verified pre-native scene hook.
   - console: "art verify mode background"
   - wait_probe:
       timeout_ms: 5000
@@ -87,10 +88,10 @@ steps:
         eq: background
   - assert:
       path: backend.verify.submissionStatus
-      eq: unsupported
+      eq: ready
   - assert:
       path: backend.verify.modeSupported
-      eq: false
+      eq: true
   # Returning to off must disable the overlays again.
   - console: "art verify mode off"
   - wait_probe:

@@ -19,6 +19,7 @@ FIXTURE_PATHS = (
     ("com.megacrit.cardcrawl.monsters.AbstractMonster", "renderTargetingUi"),
     ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderTargetingUi"),
     ("com.megacrit.cardcrawl.ui.panels.PotionPopUp", "renderTargetingUi"),
+    ("com.megacrit.cardcrawl.scenes.TheBottomScene", "renderCombatRoomBg"),
     ("com.esotericsoftware.spine.SkeletonMeshRenderer", "draw"),
     ("com.megacrit.cardcrawl.vfx.combat.StrikeEffect", "render"),
     ("com.megacrit.cardcrawl.vfx.combat.ClashEffect", "draw"),
@@ -131,7 +132,7 @@ class FamiliesTest(unittest.TestCase):
         self.assertEqual(set(families.FAMILY_IDS), seen)
 
     def test_family_ids_are_unique_and_complete(self):
-        self.assertEqual(25, len(families.FAMILY_IDS))
+        self.assertEqual(26, len(families.FAMILY_IDS))
         self.assertEqual(len(set(families.FAMILY_IDS)), len(families.FAMILY_IDS))
 
     def test_first_match_wins_on_overlapping_rules(self):
@@ -195,6 +196,7 @@ class FamiliesTest(unittest.TestCase):
                 "relics-blights-potions": "NATIVE_WITH_ART_OVERLAY",
                 "stances-state": "NATIVE_WITH_ART_OVERLAY",
                 "map-graph": "NATIVE_WITH_ART_OVERLAY",
+                "room-backgrounds": "NATIVE_WITH_ART_OVERLAY",
                 "cards-piles-soul": "NATIVE_WITH_ART_OVERLAY",
                 "room-shells": "NATIVE_WITH_ART_OVERLAY",
                 "event-dialogs": "NATIVE_WITH_ART_OVERLAY",

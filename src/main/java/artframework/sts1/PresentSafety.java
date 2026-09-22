@@ -68,6 +68,7 @@ public final class PresentSafety {
         artframework.sts1.backend.Sts1PileSoulProjection.clear();
         artframework.sts1.backend.Sts1RoomShellProjection.clear();
         artframework.sts1.render.NativeRenderBridge.clearTransientEffectsForRecovery();
+        artframework.sts1.render.BackgroundRenderGate.clearForRecovery();
         artframework.sts1.skeleton.Sts1SkeletonBridge.stopAll();
         unmountAllPresentSurfaces();
         removeC2SurfaceItemsForRecovery();

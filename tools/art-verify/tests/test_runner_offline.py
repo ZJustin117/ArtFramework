@@ -514,6 +514,88 @@ steps:
                     scenario_path=root / "s.yaml",
                 )
 
+    def test_compare_screenshot_min_diff_ratio_satisfied_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference, actual = root / "reference.png", root / "actual.png"
+            write_test_png(reference, 2, 1, bytes((0, 0, 0, 255) * 2))
+            write_test_png(actual, 2, 1, bytes((100, 0, 0, 255, 0, 0, 0, 255)))
+            vars_map = {"_last_screenshot": {"png": str(actual)}}
+            rec = _run_step(
+                {"compare_screenshot": {
+                    "reference": "reference.png", "min_diff_ratio": 0.5,
+                    "max_diff_pixels": 2, "max_diff_ratio": 1.0,
+                }},
+                0, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                scenario_path=root / "s.yaml",
+            )
+            self.assertEqual("pass", rec["status"], rec.get("error"))
+            self.assertEqual(1, rec["comparison"]["differing_pixels"])
+            self.assertEqual(0.5, rec["comparison"]["min_diff_ratio"])
+
+    def test_compare_screenshot_min_diff_pixels_not_met_fails_with_minimum_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference, actual = root / "reference.png", root / "actual.png"
+            write_test_png(reference, 2, 1, bytes((0, 0, 0, 255) * 2))
+            write_test_png(actual, 2, 1, bytes((100, 0, 0, 255, 0, 0, 0, 255)))
+            vars_map = {"_last_screenshot": {"png": str(actual)}}
+            rec = _run_step(
+                {"compare_screenshot": {
+                    "reference": "reference.png", "min_diff_pixels": 2,
+                    "max_diff_pixels": 2, "max_diff_ratio": 1.0,
+                }},
+                0, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                scenario_path=root / "s.yaml",
+            )
+            self.assertEqual("fail", rec["status"])
+            self.assertIn("below configured minimum limits", rec["error"])
+            self.assertEqual(2, rec["comparison"]["min_diff_pixels"])
+
+    def test_compare_screenshot_rejects_invalid_min_diff_types(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference, actual = root / "reference.png", root / "actual.png"
+            write_test_png(reference, 1, 1, bytes((0, 0, 0, 255)))
+            write_test_png(actual, 1, 1, bytes((0, 0, 0, 255)))
+            vars_map = {"_last_screenshot": {"png": str(actual)}}
+
+            def run(spec):
+                return _run_step(
+                    {"compare_screenshot": dict({"reference": "reference.png"}, **spec)},
+                    0, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                    scenario_path=root / "s.yaml",
+                )
+
+            for bad in (True, -1, 1.5, "1"):
+                with self.assertRaisesRegex(ValueError, "min_diff_pixels"):
+                    run({"min_diff_pixels": bad})
+            for bad in (True, -0.1, 1.1, float("inf"), "0.5"):
+                with self.assertRaisesRegex(ValueError, "min_diff_ratio"):
+                    run({"min_diff_ratio": bad})
+
+    def test_compare_screenshot_min_and_max_together(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reference, actual = root / "reference.png", root / "actual.png"
+            write_test_png(reference, 2, 1, bytes((0, 0, 0, 255) * 2))
+            write_test_png(actual, 2, 1, bytes((100, 0, 0, 255, 0, 0, 0, 255)))
+            vars_map = {"_last_screenshot": {"png": str(actual)}}
+            rec = _run_step(
+                {"compare_screenshot": {
+                    "reference": "reference.png",
+                    "min_diff_pixels": 1, "max_diff_pixels": 2,
+                    "min_diff_ratio": 0.25, "max_diff_ratio": 0.75,
+                }},
+                0, mode="device", last_probe=None, vars_map=vars_map, client=None,
+                scenario_path=root / "s.yaml",
+            )
+            self.assertEqual("pass", rec["status"], rec.get("error"))
+            self.assertEqual(1, rec["comparison"]["min_diff_pixels"])
+            self.assertEqual(2, rec["comparison"]["max_diff_pixels"])
+            self.assertEqual(0.25, rec["comparison"]["min_diff_ratio"])
+            self.assertEqual(0.75, rec["comparison"]["max_diff_ratio"])
+
     def test_compare_screenshot_metrics_are_written_to_result_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

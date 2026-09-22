@@ -41,6 +41,7 @@ FAMILY_DEFAULT_POLICY = {
     "relics-blights-potions": "NATIVE_WITH_ART_OVERLAY",
     "stances-state": "NATIVE_WITH_ART_OVERLAY",
     "map-graph": "NATIVE_WITH_ART_OVERLAY",
+    "room-backgrounds": "NATIVE_WITH_ART_OVERLAY",
     "cards-piles-soul": "NATIVE_WITH_ART_OVERLAY",
     "room-shells": "NATIVE_WITH_ART_OVERLAY",
     "event-dialogs": "NATIVE_WITH_ART_OVERLAY",
@@ -111,6 +112,14 @@ FAMILY_DEFAULT_JUSTIFICATION = {
     "relics-blights-potions": _ROADMAP_OVERLAY_JUSTIFICATION,
     "stances-state": _ROADMAP_OVERLAY_JUSTIFICATION,
     "map-graph": _ROADMAP_OVERLAY_JUSTIFICATION,
+    "room-backgrounds": (
+        "Native room/scene background pixels stay authoritative for the abstract "
+        "AbstractScene.renderCombatRoomBg declaration; the four concrete overrides "
+        "(TheBottomScene/TheCityScene/TheBeyondScene/TheEndingScene) carry explicit "
+        "ART_DELEGATED rows whose suppression is gated by a non-off verify background variant plus "
+        "an explicitly filtered sts1.room.background family in "
+        "artframework/sts1/patch/BackgroundRenderPatches.java, and fails open to native."
+    ),
     "cards-piles-soul": (
         "Native card pixels remain authoritative: AbstractCard.render is unpatched and "
         "OUT_OF_SCOPE, while CardGroup/Soul observations publish pile/soul chrome through "
@@ -177,6 +186,7 @@ _META_OUT_OF_RUN_PACKAGES = (
 # FQN set, "prefix" FQN tuple); every constraint present must hold.
 _RULES = (
     ({"method": re.compile(r"^renderTargetingUi$")}, "overlay-targeting"),
+    ({"method": re.compile(r"^renderCombatRoomBg$")}, "room-backgrounds"),
     (
         {"exact": ("com.esotericsoftware.spine.SkeletonMeshRenderer",)},
         "skeleton-runtime",

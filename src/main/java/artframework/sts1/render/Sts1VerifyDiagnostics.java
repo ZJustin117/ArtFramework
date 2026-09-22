@@ -5,9 +5,9 @@ import java.util.Map;
 
 /**
  * Diagnostic state for the `art verify` console surface. Visual verification is developer-only and
- * must never claim pixel behavior the host cannot deliver; the background mode stays
- * `unsupported` until a verified pre-native draw point exists, while guides/bounds are ART-owned
- * overlays at {@code VERIFY_GUIDES} and need no host boundary.
+ * must never claim pixel behavior the host cannot deliver; the background mode is now supported by
+ * the verified pre-native draw point in {@code artframework/sts1/patch/BackgroundRenderPatches.java},
+ * while guides/bounds are ART-owned overlays at {@code VERIFY_GUIDES} and need no host boundary.
  */
 public final class Sts1VerifyDiagnostics {
     public enum Mode {
@@ -40,6 +40,18 @@ public final class Sts1VerifyDiagnostics {
         }
         return Sts1RenderBoundary.backgroundCapability()
                 == Sts1RenderBoundary.BackgroundCapability.PRE_NATIVE;
+    }
+
+    /**
+     * Background variant selection is independent of {@link Mode#BACKGROUND}: a variant can be
+     * configured with the mode enabled and the verified pre-native hook supplies the pixels.
+     */
+    public static void setBackgroundVariant(BackgroundRenderGate.Variant variant) {
+        BackgroundRenderGate.setVariant(variant);
+    }
+
+    public static BackgroundRenderGate.Variant backgroundVariant() {
+        return BackgroundRenderGate.variant();
     }
 
     /** Whether the configured mode paints an ART-owned overlay this frame. */
@@ -104,6 +116,7 @@ public final class Sts1VerifyDiagnostics {
         m.put("nativeInterval", Sts1RenderBoundary.nativeInterval());
         m.put("artInterval", Sts1RenderBoundary.artSubmissionInterval());
         m.put("nativeFilters", NativeRenderBridge.filterScopeProbeSlice());
+        m.put("background", BackgroundRenderGate.probeSlice());
         if (lastError != null) {
             m.put("lastError", lastError);
         }
@@ -114,5 +127,6 @@ public final class Sts1VerifyDiagnostics {
         configured = Mode.OFF;
         lastError = null;
         NativeRenderBridge.clearFilterScopes();
+        BackgroundRenderGate.resetForTests();
     }
 }

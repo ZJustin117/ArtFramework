@@ -12,9 +12,15 @@ public final class Sts1RenderBoundary {
 
     private Sts1RenderBoundary() {}
 
-    /** The current StageHost callback is post-native and cannot paint below retained pixels. */
+    /**
+     * The background has a verified pre-native draw point: the concrete scene
+     * {@code renderCombatRoomBg} Prefixes in
+     * {@code artframework/sts1/patch/BackgroundRenderPatches.java} draw inside
+     * {@code AbstractDungeon.render} before the native scene paints. The general ART submission
+     * boundary is still post-native ({@link #nativeInterval()} / {@link #artSubmissionInterval()}).
+     */
     public static BackgroundCapability backgroundCapability() {
-        return BackgroundCapability.UNSUPPORTED;
+        return BackgroundCapability.PRE_NATIVE;
     }
 
     public static String nativeInterval() {

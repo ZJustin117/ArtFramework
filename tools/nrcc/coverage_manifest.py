@@ -45,6 +45,21 @@ JUSTIFICATION_REQUIRED_POLICIES = ("OBSERVED", "NATIVE_PASSTHROUGH")
 # performs the hook/instrument).
 OBSERVATION_REFERENCE = re.compile(r"[A-Za-z0-9_./$-]+\.java\b")
 
+# The four concrete combat-scene overrides own the native room background pixels; their shared
+# ART_DELEGATED justification is authored once and reused for every owner row.
+_BACKGROUND_DELEGATED_JUSTIFICATION = (
+    "ART owns the combat-room background pixels only while a non-off art verify mode background "
+    "variant is selected AND the sts1.room.background family is explicitly filtered via "
+    "art verify native AND no panic is active; otherwise the native scene background continues "
+    "unchanged. The suppression Prefixes in "
+    "artframework/sts1/patch/BackgroundRenderPatches.java fail open to native on any renderer "
+    "failure or unknown state."
+)
+_BACKGROUND_DELEGATED_TEST = (
+    "artframework.sts1.patch.BackgroundRenderPatchesTest."
+    "suppressesNativeBackgroundOnlyWhenVariantFilteredAndNoPanic"
+)
+
 
 def effective_policy(entry):
     """Resolve the manifest policy for one entry.
@@ -211,7 +226,7 @@ def check_patch_ownership(report, manifest_path):
         # Only render/draw invocations can be pixel owners.
         if method not in {
             "render", "draw", "renderHand", "renderRelics", "renderPowers",
-            "renderTip", "renderIntent", "renderTargetingUi",
+            "renderTip", "renderIntent", "renderTargetingUi", "renderCombatRoomBg",
         }:
             continue
         key = (patch.get("targetClass"), method)
@@ -312,6 +327,12 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): "ART_DELEGATED",
+        # Native room backgrounds: only the four concrete scene overrides are suppression owners;
+        # the abstract AbstractScene declaration keeps native authority via the family default.
+        ("com.megacrit.cardcrawl.scenes.TheBottomScene", "renderCombatRoomBg"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.scenes.TheCityScene", "renderCombatRoomBg"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.scenes.TheBeyondScene", "renderCombatRoomBg"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.scenes.TheEndingScene", "renderCombatRoomBg"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "OBSERVED",
         # Member-level exceptions inside core-game-root (family default
         # NATIVE_PASSTHROUGH): the dungeon frame hosts an observation-only
@@ -337,6 +358,10 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): "sts1.treasure",
         ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): "sts1.combat.proceed",
         ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): "sts1.top_panel",
+        ("com.megacrit.cardcrawl.scenes.TheBottomScene", "renderCombatRoomBg"): "sts1.room.background",
+        ("com.megacrit.cardcrawl.scenes.TheCityScene", "renderCombatRoomBg"): "sts1.room.background",
+        ("com.megacrit.cardcrawl.scenes.TheBeyondScene", "renderCombatRoomBg"): "sts1.room.background",
+        ("com.megacrit.cardcrawl.scenes.TheEndingScene", "renderCombatRoomBg"): "sts1.room.background",
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "",
     }
     known_justification = {
@@ -439,6 +464,18 @@ def inventory_entries(report, existing_entries=None):
             "PresentationDrawEvidence or count as a strict report gap; current pixel supply is text "
             "chrome."
         ),
+        ("com.megacrit.cardcrawl.scenes.TheBottomScene", "renderCombatRoomBg"): (
+            _BACKGROUND_DELEGATED_JUSTIFICATION
+        ),
+        ("com.megacrit.cardcrawl.scenes.TheCityScene", "renderCombatRoomBg"): (
+            _BACKGROUND_DELEGATED_JUSTIFICATION
+        ),
+        ("com.megacrit.cardcrawl.scenes.TheBeyondScene", "renderCombatRoomBg"): (
+            _BACKGROUND_DELEGATED_JUSTIFICATION
+        ),
+        ("com.megacrit.cardcrawl.scenes.TheEndingScene", "renderCombatRoomBg"): (
+            _BACKGROUND_DELEGATED_JUSTIFICATION
+        ),
     }
     known_test = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): (
@@ -488,6 +525,18 @@ def inventory_entries(report, existing_entries=None):
         ),
         ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): (
             "artframework.sts1.render.TopPanelRenderPatchesTest.fullReadySuppressesNativeTopPanelRender"
+        ),
+        ("com.megacrit.cardcrawl.scenes.TheBottomScene", "renderCombatRoomBg"): (
+            _BACKGROUND_DELEGATED_TEST
+        ),
+        ("com.megacrit.cardcrawl.scenes.TheCityScene", "renderCombatRoomBg"): (
+            _BACKGROUND_DELEGATED_TEST
+        ),
+        ("com.megacrit.cardcrawl.scenes.TheBeyondScene", "renderCombatRoomBg"): (
+            _BACKGROUND_DELEGATED_TEST
+        ),
+        ("com.megacrit.cardcrawl.scenes.TheEndingScene", "renderCombatRoomBg"): (
+            _BACKGROUND_DELEGATED_TEST
         ),
     }
     result = []

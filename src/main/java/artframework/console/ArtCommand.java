@@ -185,14 +185,28 @@ public class ArtCommand extends ConsoleCommand {
                     logVfx("ART_VERIFY error=usage: art verify mode off|background|guides|bounds");
                     return;
                 }
+                boolean withVariant = mode == artframework.sts1.render.Sts1VerifyDiagnostics.Mode.BACKGROUND
+                        && tokens.length > depth + 2;
+                artframework.sts1.render.BackgroundRenderGate.Variant variant = null;
+                if (withVariant) {
+                    variant = parseBackgroundVariant(tokens[depth + 2]);
+                    if (variant == null) {
+                        logVfx("ART_VERIFY error=usage: art verify mode background"
+                                + " [off|solid|checker|grid]");
+                        return;
+                    }
+                }
                 artframework.sts1.render.Sts1VerifyDiagnostics.setMode(mode);
+                if (variant != null) {
+                    artframework.sts1.render.Sts1VerifyDiagnostics.setBackgroundVariant(variant);
+                }
                 logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
                         artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
             } else if ("native".equals(action)) {
                 cmdVerifyNative(tokens, depth);
             } else {
                 logVfx("ART_VERIFY error=usage: art verify status|mode off|background|guides|bounds"
-                        + "|native <family> on|off");
+                        + "|mode background [off|solid|checker|grid]|native <family> on|off");
             }
         } catch (Throwable error) {
             artframework.sts1.render.Sts1VerifyDiagnostics.recordError(error);
@@ -262,6 +276,11 @@ public class ArtCommand extends ConsoleCommand {
             return artframework.sts1.render.Sts1VerifyDiagnostics.Mode.BOUNDS;
         }
         return null;
+    }
+
+    static artframework.sts1.render.BackgroundRenderGate.Variant parseBackgroundVariant(
+            String value) {
+        return artframework.sts1.render.BackgroundRenderGate.Variant.parse(value);
     }
 
     private static void logVfx(String line) {

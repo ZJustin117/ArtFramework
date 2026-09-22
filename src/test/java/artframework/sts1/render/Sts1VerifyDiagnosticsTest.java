@@ -27,15 +27,15 @@ public class Sts1VerifyDiagnosticsTest {
     }
 
     @Test
-    public void backgroundStaysUnsupportedWithoutPreNativeBoundary() {
+    public void backgroundIsReadyWithPreNativeBoundary() {
         Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.BACKGROUND);
-        assertFalse(Sts1VerifyDiagnostics.modeSupported());
-        assertEquals("unsupported", Sts1VerifyDiagnostics.submissionStatus());
+        assertTrue(Sts1VerifyDiagnostics.modeSupported());
+        assertEquals("ready", Sts1VerifyDiagnostics.submissionStatus());
         assertFalse(Sts1VerifyDiagnostics.overlayDrawEnabled());
     }
 
     @Test
-    public void overlayModesReportReadyWithoutPreNativeBoundary() {
+    public void overlayModesReportReadyAndDraw() {
         Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.GUIDES);
         assertTrue(Sts1VerifyDiagnostics.modeSupported());
         assertEquals("ready", Sts1VerifyDiagnostics.submissionStatus());
@@ -73,8 +73,8 @@ public class Sts1VerifyDiagnosticsTest {
         Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.BACKGROUND);
         Map<String, Object> slice = Sts1VerifyDiagnostics.probeSlice();
         assertEquals("background", slice.get("configuredMode"));
-        assertEquals("unsupported", slice.get("submissionStatus"));
-        assertEquals(Boolean.FALSE, slice.get("modeSupported"));
+        assertEquals("ready", slice.get("submissionStatus"));
+        assertEquals(Boolean.TRUE, slice.get("modeSupported"));
         assertEquals("stage.draw", slice.get("nativeInterval"));
         assertEquals("post_native_overlay", slice.get("artInterval"));
         assertFalse(slice.containsKey("lastError"));
@@ -107,6 +107,45 @@ public class Sts1VerifyDiagnosticsTest {
         assertEquals(Sts1VerifyDiagnostics.Mode.BOUNDS, parse.invoke(null, "bounds"));
         assertNull(parse.invoke(null, "nonsense"));
         assertNull(parse.invoke(null, (Object) null));
+    }
+
+    @Test
+    public void consoleBackgroundVariantParserAcceptsOnlyDocumentedNames() throws Exception {
+        Method parse = artframework.console.ArtCommand.class.getDeclaredMethod(
+                "parseBackgroundVariant", String.class);
+        parse.setAccessible(true);
+        assertEquals(BackgroundRenderGate.Variant.OFF, parse.invoke(null, "off"));
+        assertEquals(BackgroundRenderGate.Variant.SOLID, parse.invoke(null, " SOLID "));
+        assertEquals(BackgroundRenderGate.Variant.CHECKER, parse.invoke(null, "checker"));
+        assertEquals(BackgroundRenderGate.Variant.GRID, parse.invoke(null, "GRID"));
+        assertNull(parse.invoke(null, "background"));
+        assertNull(parse.invoke(null, "nonsense"));
+        assertNull(parse.invoke(null, (Object) null));
+    }
+
+    @Test
+    public void backgroundVariantIsSettableWithReadyBackgroundMode() {
+        Sts1VerifyDiagnostics.setMode(Sts1VerifyDiagnostics.Mode.BACKGROUND);
+        Sts1VerifyDiagnostics.setBackgroundVariant(BackgroundRenderGate.Variant.CHECKER);
+        assertEquals(BackgroundRenderGate.Variant.CHECKER, Sts1VerifyDiagnostics.backgroundVariant());
+        assertTrue(Sts1VerifyDiagnostics.modeSupported());
+        assertEquals("ready", Sts1VerifyDiagnostics.submissionStatus());
+
+        Map<String, Object> background = backgroundSlice();
+        assertEquals("checker", background.get("variant"));
+        assertEquals(Boolean.FALSE, background.get("artOwnsBackgroundRequested"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> backgroundSlice() {
+        return (Map<String, Object>) Sts1VerifyDiagnostics.probeSlice().get("background");
+    }
+
+    @Test
+    public void backgroundVariantResetsWithTheDiagnostics() {
+        Sts1VerifyDiagnostics.setBackgroundVariant(BackgroundRenderGate.Variant.GRID);
+        Sts1VerifyDiagnostics.resetForTests();
+        assertEquals(BackgroundRenderGate.Variant.OFF, Sts1VerifyDiagnostics.backgroundVariant());
     }
 
     @Test

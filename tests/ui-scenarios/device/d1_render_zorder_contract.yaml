@@ -76,7 +76,8 @@ steps:
   - assert:
       path: render.targetsById.c2_surface_sts1_combat_hand.stableKey
       eq: c2:surface:sts1.combat.hand
-  # The host reports the real boundary instead of claiming a pre-native background.
+  # The host reports the real boundary: retained post-native ART submission plus the distinct
+  # verified pre-native background draw point.
   - assert:
       path: backend.renderBoundary.nativeInterval
       eq: stage.draw
@@ -85,11 +86,11 @@ steps:
       eq: post_native_overlay
   - assert:
       path: backend.renderBoundary.backgroundCapability
-      eq: unsupported
+      eq: pre_native
   - assert:
       path: backend.renderBoundary.supportsPreNativeBackground
-      eq: false
-  # Visual verification modes are reported unsupported while no pre-native hook exists.
+      eq: true
+  # Visual verification modes: background is ready via the pre-native hook.
   - assert:
       path: backend.verify.configuredMode
       eq: "off"
@@ -105,10 +106,10 @@ steps:
         eq: background
   - assert:
       path: backend.verify.submissionStatus
-      eq: unsupported
+      eq: ready
   - assert:
       path: backend.verify.modeSupported
-      eq: false
+      eq: true
   - console: "art verify mode off"
   - wait_probe:
       timeout_ms: 5000

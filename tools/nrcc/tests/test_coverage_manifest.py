@@ -247,6 +247,64 @@ class CoverageManifestTest(unittest.TestCase):
         errors = coverage_manifest.check_patch_ownership(report, path)
         self.assertEqual([], errors)
 
+    def test_patch_ownership_covers_scene_background_suppression(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: com.megacrit.cardcrawl.scenes.TheBottomScene\n"
+            "    nativeMethod: renderCombatRoomBg\n"
+            "    pathKind: render-owner\n"
+            "    surfaceId: sts1.room.background\n"
+            "    effectFamily: none\n"
+            "    hook: artframework/sts1/patch/BackgroundRenderPatches.java\n"
+            "    policy: ART_DELEGATED\n"
+            "    justification: gated background suppression\n"
+            "    test: test.Class#method\n"
+        )
+        self.paths = [path]
+        report = {
+            "patches": [
+                {
+                    "source": "artframework/sts1/patch/BackgroundRenderPatches.java",
+                    "targetClass": "com.megacrit.cardcrawl.scenes.TheBottomScene",
+                    "targetMethod": "renderCombatRoomBg",
+                    "hasSpireReturn": True,
+                    "continuationHint": [],
+                }
+            ]
+        }
+        errors = coverage_manifest.check_patch_ownership(report, path)
+        self.assertEqual([], errors)
+
+    def test_patch_ownership_rejects_unregistered_background_suppression(self):
+        path = self.write_manifest(
+            "schema: nrcc.coverage-manifest.v1\n"
+            "entries:\n"
+            "  - ownerId: owner\n"
+            "    nativeClass: com.megacrit.cardcrawl.scenes.TheBottomScene\n"
+            "    nativeMethod: renderCombatRoomBg\n"
+            "    pathKind: render-owner\n"
+            "    surfaceId: sts1.room.background\n"
+            "    effectFamily: none\n"
+            "    hook: artframework/sts1/patch/BackgroundRenderPatches.java\n"
+            "    policy: NATIVE_WITH_ART_OVERLAY\n"
+        )
+        self.paths = [path]
+        report = {
+            "patches": [
+                {
+                    "source": "artframework/sts1/patch/BackgroundRenderPatches.java",
+                    "targetClass": "com.megacrit.cardcrawl.scenes.TheBottomScene",
+                    "targetMethod": "renderCombatRoomBg",
+                    "hasSpireReturn": True,
+                    "continuationHint": [],
+                }
+            ]
+        }
+        errors = coverage_manifest.check_patch_ownership(report, path)
+        self.assertTrue(any("suppresses native draw" in e for e in errors))
+
     def test_inventory_entries_preserve_existing_and_add_unknown(self):
         entries = coverage_manifest.inventory_entries(
             {"paths": [

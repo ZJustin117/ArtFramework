@@ -55,7 +55,8 @@ public class RenderPatchOwnershipTest {
                     "SelectRenderPatches.java",
                     "RoomRenderPatches.java",
                     "MapRenderPatches.java",
-                    "SkeletonRenderPatches.java"));
+                    "SkeletonRenderPatches.java",
+                    "BackgroundRenderPatches.java"));
 
     private static final Map<String, Set<String>> EXPECTED_DELEGATED_SURFACES_BY_PATCH = delegatedSurfacesByPatch();
 
@@ -297,6 +298,7 @@ public class RenderPatchOwnershipTest {
                 SurfaceIds.SHOP, SurfaceIds.TREASURE));
         m.put("MapRenderPatches.java", set(SurfaceIds.MAP));
         m.put("SkeletonRenderPatches.java", set(SurfaceIds.SKELETON));
+        m.put("BackgroundRenderPatches.java", set(BackgroundRenderGate.BACKGROUND_FAMILY));
         return m;
     }
 

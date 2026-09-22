@@ -283,7 +283,7 @@ boundary. The pre-native background and per-family native pixel replacement rema
 - Unknown native invocation fails open.
 - A selected native family can continue while unrelated configured families are skipped.
 - Panic/recovery/host recreation clears filters and restores native continuation.
-- A background mode without a verified pre-native hook reports unsupported.
+- A background mode reports ready through the verified pre-native hook.
 
 ### D1 visual scenarios
 
@@ -307,25 +307,28 @@ Shipped slices (commits `b4b59ac`..`1a1f724`):
 - [x] Preserve current fixed-pass output through the legacy adapter.
 - [x] Order VFX particle projections by the shared render key.
 - [x] Submit VFX in `ART_EFFECTS` after C2/entity content, without crossing `stage.draw`.
-- [x] Report the STS1 native/ART boundary capability through probe (background still `unsupported`).
+- [x] Report the STS1 native/ART boundary capability through probe (background now `pre_native`).
 - [x] Add and validate resolved render-order probe diagnostics (`renderOrder`, `duplicateStableKeys`).
 - [x] Add `art verify` console diagnostics (`art verify status|mode off|background|guides|bounds`).
 - [x] Add pure render-plan and host-order tests.
 - [x] Implement `art verify native <family> on|off|clear` on top of the narrowing filter scope
       (`Sts1VerifyDiagnostics.enableNativeFilter` / `disableNativeFilter` / `clearNativeFilters`,
-      probe `backend.verify.nativeFilters`). The pre-native background and per-family native pixel
-      replacement remain unimplemented.
-- [x] Report `unsupported` for a visual mode without a verified pre-native hook.
+      probe `backend.verify.nativeFilters`). The pre-native background is implemented in
+      section 12; per-family native pixel replacement beyond `sts1.room.background` remains
+      unimplemented.
+- [x] Report `ready` for a visual mode on the verified pre-native hook (`background`); other
+      unverified modes still report `unsupported` rather than claiming pixels.
 - [x] Add the guides/bounds overlay at `VERIFY_GUIDES` (disabled by default); `guides`/`bounds`
-      report `ready` without a pre-native hook, `background` still reports `unsupported`.
+      report `ready` without a pre-native hook, and `background` now reports `ready` through the
+      verified pre-native scene hook.
 
 Remaining:
 
-- [ ] Add the background renderer without using `FULL_FRAME`. Blocked on the native suppression
-      design in section 12: a pre-native draw is overdrawn by the retained native room/background
-      pixels unless that native family is filtered first.
-- [ ] Define and verify a real STS1 pre-native/filtered boundary. Design recorded in section 12;
-      implementation and D1 evidence are still pending.
+- [x] Add the background renderer without using `FULL_FRAME`. The renderer draws in the pre-native
+      scene Prefix (section 12); a non-filtered native family still paints over it, and filtering the
+      `sts1.room.background` family lets the ART fill reach the frame. Implemented and D1-verified.
+- [x] Define and verify a real STS1 pre-native/filtered boundary. Design recorded in section 12;
+      implemented with device evidence in `tests/ui-scenarios/device/d1_verify_background.yaml`.
 - [x] Add native filter scopes with fail-open cleanup. `NativeFilterScope` is consulted by
       `NativeRenderBridge.beginSurface` only after the panic/unknown-owner fail-open checks and only
       inside the delegation branch, so it can only downgrade a would-be delegation to
@@ -365,30 +368,32 @@ section 2; `RenderOrder` is the shared ordering key.
   `duplicateStableKeys`)
   and per-target `phase`/`z`/`stableKey`.
 - `Sts1RenderBoundary.probeSlice()` reports `nativeInterval=stage.draw`,
-  `artInterval=post_native_overlay`, `backgroundCapability=unsupported`,
-  `supportsPreNativeBackground=false`; `UiProbe.backendMap()` exposes it as `renderBoundary`.
+  `artInterval=post_native_overlay`, `backgroundCapability=pre_native`,
+  `supportsPreNativeBackground=true`; `UiProbe.backendMap()` exposes it as `renderBoundary`.
 - `Sts1VerifyDiagnostics` backs `art verify status|mode ...`: `guides`/`bounds` are ART-owned
   `VERIFY_GUIDES` overlays and report `submissionStatus=ready` (drawn by
-  `VerifyGuideDrawPath`, off by default), `background` still reports `unsupported` until a
-  verified pre-native draw point exists, `off` reports `disabled`, and `UiProbe.backendMap()`
+  `VerifyGuideDrawPath`, off by default), `background` reports `ready` through the verified
+  pre-native scene hook, `off` reports `disabled`, and `UiProbe.backendMap()`
   exposes the same slice as `verify`. `Sts1VerifyDiagnostics.enableNativeFilter(family)` /
   `disableNativeFilter(family)` / `clearNativeFilters()` implement `art verify native`; they
   delegate to the narrowing `NativeFilterScope` and surface as `verify.nativeFilters`
   (`active`, `selectedFamilies`, `filteredFamilies`).
-- Native `stage.draw()` order is unchanged and no native pixel suppression is enabled.
+- Native `stage.draw()` order is unchanged; native pixel suppression is enabled only for the
+  `sts1.room.background` family via the pre-native gate (section 12).
 - `NativeRenderBridge.probeSlice()` exposes `filterScopes` (`active`, `selectedFamilies`,
   `filteredFamilies`). `NativeFilterScope` can only narrow an existing delegation decision: a
   filtered, non-selected family that would delegate becomes `PASS_THROUGH` (`filter_scope:<family>`),
   while panic/unknown-owner fail-open and OBSERVE behavior are untouched. `clear()`, recovery
   (`clearTransientEffectsForRecovery`), and `resetForTests` clear the scope. The pre-native
-  background and per-family native pixel replacement remain unimplemented.
+  background is implemented via the scene Prefixes; remaining: per-family native pixel replacement
+  beyond `sts1.room.background`.
 
-## 12. Pre-native background and native suppression (design, not implemented)
+## 12. Pre-native background and native suppression (implemented)
 
 This section records the explicit `@SpirePatch` design required by `AGENTS.md` before any native
-render patch is added for the visual-verification background. Nothing here is implemented;
-`Sts1RenderBoundary.backgroundCapability()` must stay `UNSUPPORTED` until every step below has
-device evidence.
+render patch is added for the visual-verification background. It is now implemented:
+`Sts1RenderBoundary.backgroundCapability()` is `PRE_NATIVE`, verified by
+`tests/ui-scenarios/device/d1_verify_background.yaml` (all three variants) on D1.
 
 ### 12.1 Why a background alone is not enough
 
@@ -417,7 +422,9 @@ it would cover retained native pixels.
 
 Two capabilities must land together; neither is useful alone:
 
-1. `BackgroundRenderer` — emits an `ART_BACKGROUND` (rank 100) item.
+1. `BackgroundRenderer` — draws the selected variant directly in the pre-native scene Prefix (no
+   `RenderHost` item and no post-native path; the Prefix runs inside `AbstractDungeon.render` before
+   the native scene paints, which is the only interval that can sit under retained pixels).
 2. `NativeRenderFilter` (family-level) — the `NativeFilterScope` shipped in this repo plus a
    family->native-invocation map, wired to `SpireReturn.Return(null)` on the specific native
    background family only.
@@ -425,44 +432,143 @@ Two capabilities must land together; neither is useful alone:
 The filter must reuse `NativeRenderBridge` disposition/ledger rules and fail open for unknown,
 unclaimed, panic, or host-failure cases. Z-order grants no permission to suppress native pixels.
 
-### 12.3 Proposed patch (one family, one invocation)
+### 12.3 Patch mechanism (final)
+
+`AbstractScene.renderCombatRoomBg` is **abstract**, and ModTheSpire cannot attach a Prefix to a
+bodyless method (the same constraint documented in `TransientEffectContainerPatches`). The concrete
+overrides are the real pixel owners:
+
+| Native path | Kind | Patchable |
+|---|---|---|
+| `AbstractScene.renderCombatRoomBg` | abstract | no |
+| `TheBottomScene` / `TheCityScene` / `TheBeyondScene` / `TheEndingScene` `renderCombatRoomBg` | concrete override | yes, `@SpirePatch` Prefix on each class |
+| `AbstractDungeon.render` `renderCombatRoomBg` call site | concrete | instrumentable, but rejected (below) |
+
+`AbstractDungeon.render(SpriteBatch)` dispatches `AbstractScene.renderCombatRoomBg` with
+`invokevirtual`, so a Prefix on each concrete override intercepts every in-run scene background. An
+`@SpireInstrumentPatch` on the `AbstractDungeon.render` call site is rejected on purpose:
+
+- `ExprEditor.call.replace(...)` contains no `SpireReturn.Return` literal, so it would silently
+  bypass both the JUnit `RenderPatchOwnershipTest` allowlist (`onlyApprovedPatchesSuppressNativeDraw`)
+  and the NRCC `check_patch_ownership` gate. A Prefix returning `SpireReturn.Return(null)` is caught
+  by both, so the suppression cannot land unregistered.
+- `AbstractDungeon#render` is already a shared `OBSERVED` observation entry (the effect-queue hook in
+  `TransientEffectContainerPatches`). Relabeling it as a pixel-suppression owner would make that
+  observation-only justification false.
+
+The four Prefixes are near-duplicates by design: one honest `ART_DELEGATED` manifest owner per
+concrete scene class, each provable by the same static gate.
 
 ```java
-@SpirePatch(
-        clz = com.megacrit.cardcrawl.scenes.AbstractScene.class,
-        method = "renderCombatRoomBg",
-        paramtypez = {com.badlogic.gdx.graphics.g2d.SpriteBatch.class})
-public static class FilterCombatRoomBackground {
-    public static SpireReturn<Void> Prefix(
-            com.megacrit.cardcrawl.scenes.AbstractScene __instance,
-            com.badlogic.gdx.graphics.g2d.SpriteBatch sb) {
-        // Fail open by default; suppress only when the background family is explicitly filtered,
-        // the background renderer is mounted, and ART recorded draw evidence for this frame.
-        return shouldSuppress() ? SpireReturn.Return(null) : SpireReturn.Continue();
+@SpirePatch(clz = TheBottomScene.class, method = "renderCombatRoomBg",
+        paramtypez = {SpriteBatch.class})
+public static class ObserveNativeBottomBackground {
+    public static SpireReturn<Void> Prefix(TheBottomScene __instance, SpriteBatch sb) {
+        return BackgroundRenderGate.artOwnsBackground()
+                && BackgroundRenderGate.renderIfOwned(sb)
+                ? SpireReturn.Return(null)   // ART background painted; native pixels skipped
+                : SpireReturn.Continue();    // native continuation, unchanged
     }
 }
 ```
 
 Rules the implementation must satisfy:
 
-- The Prefix is observe-first: default `SpireReturn.Continue()`. Suppression returns
-  `SpireReturn.Return(null)` only for the exact family/invocation, never queue-wide.
-- Suppression requires: `FULL` level for the background surface + mounted + no panic +
-  `NativeFilterScope` filtering that family + ART draw evidence recorded for the same frame.
-- Unknown family, unknown owner, panic, unmounted, recovery, or renderer failure => continue native.
+- Observe-first: default native continuation. Suppression happens only for the exact
+  family/invocation, never queue-wide.
+- Suppression requires the developer opt-in pair: a non-`off` background variant AND the
+  background family explicitly filtered via `art verify native sts1.room.background on`, with no
+  panic. `art verify` is a developer diagnostic surface, not a player-facing present surface, so
+  the opt-in pair replaces the `FULL` + mounted surface gate and is strictly narrower than
+  `FULL`; no `FullPresentMode` surface is registered for the background.
+- Unknown family, unknown owner, panic, unmounted, recovery, or renderer failure => continue native
+  (in particular, if the ART background draw throws or paints nothing, the native background must
+  still run; only `painted && filtered` suppresses).
 - The `render-owner` manifest entry must be `ART_DELEGATED` with a non-empty `justification` and a
   focused suppression-gate test (`tools/nrcc/coverage_manifest.py --check-manifest`).
-- Panic/recovery must clear the filter scope and restore native continuation.
+- Panic/recovery must clear the filter scope and background variant and restore native continuation.
 
-### 12.4 Order of work
+Concrete suppression targets (one native owner each, because the `AbstractScene` methods are
+abstract):
 
-1. Add the family->invocation map and the `AbstractScene.renderCombatRoomBg`-equivalent descriptor
-   row to the coverage manifest (`ART_DELEGATED`, justification + test).
-2. Implement the `BackgroundRenderer` as a normal `ART_BACKGROUND` item; verify it draws with the
-   native family still continuing (no visible change, so also verify with guides on).
-3. Add the suppression Prefix behind the filter scope; prove the suppression gate with a focused
-   test that native continuation becomes false only in the full/mounted/filtered/no-panic state.
-4. D1 evidence: paired captures (native retained vs filtered + background) plus the ledger
-   counters, then flip `backgroundCapability()` to `PRE_NATIVE`.
+```text
+com.megacrit.cardcrawl.scenes.TheBottomScene#renderCombatRoomBg(SpriteBatch)
+com.megacrit.cardcrawl.scenes.TheCityScene#renderCombatRoomBg(SpriteBatch)
+com.megacrit.cardcrawl.scenes.TheBeyondScene#renderCombatRoomBg(SpriteBatch)
+com.megacrit.cardcrawl.scenes.TheEndingScene#renderCombatRoomBg(SpriteBatch)
+```
 
-Until step 4 passes, `art verify mode background` must keep reporting `unsupported`.
+Each Prefix draws the ART background at `ART_BACKGROUND` and returns `SpireReturn.Return(null)` only
+when the gate owns the background; otherwise it returns `SpireReturn.Continue()` unchanged.
+
+NRCC registration (required so the suppression is gate-checked, not silently allowed): the scanner
+only emits a path for methods in `scan_sts_render.RENDER_METHOD_NAMES`, and
+`check_patch_ownership` only inspects methods in its render/draw set. Without both additions a
+Prefix on a scene override would suppress native pixels entirely outside the static gate. The
+slice therefore also:
+
+- adds `renderCombatRoomBg` to `RENDER_METHOD_NAMES` and to `check_patch_ownership`'s method set;
+- adds a `room-backgrounds` family (method rule `^renderCombatRoomBg$`, evaluated before the
+  `scenes.` -> `meta-outofrun-screens` prefix rule) whose default keeps native authority, with
+  explicit `ART_DELEGATED` + `justification` + `test` for the four concrete overrides.
+
+This is the point earlier sessions hit: extending the vocabulary is what makes the gate *stronger*
+(it now constrains this suppression), not a way to weaken it.
+
+### 12.4 Background variants
+
+`ART_BACKGROUND` is one render phase with multiple selectable variants; the variant is chosen by
+`art verify mode background [variant]` and reported in the probe. Each variant must be independently
+implementable and visually verifiable:
+
+| Variant | Pixels | Purpose |
+|---|---|---|
+| `off` | none | default; native background fully retained |
+| `solid` | one opaque `Settings.WIDTH x Settings.HEIGHT` quad | simplest proof that a pre-native fill reaches the frame |
+| `checker` | procedural checkerboard, deterministic cell size | proves the background is drawn below retained native pixels, not over them |
+| `grid` | low-contrast grid lines over a solid base | verification alignment/scale reference |
+
+Rules:
+
+- Variants are pure `SpriteBatch` draws using `ImageMaster.WHITE_SQUARE_IMG`, with the same
+  fail-open/panic guards and color restoration as `VerifyGuideDrawPath`.
+- Draw and suppression are **decoupled but ordered**: the ART background is drawn whenever a
+  non-`off` variant is selected and no panic is active (draw is the variant's job); native
+  suppression additionally requires the `sts1.room.background` family to be explicitly filtered
+  **and the draw to have succeeded this frame**. The draw entry reports whether it painted; the
+  Prefix suppresses only on `painted && filtered`. This is what makes the z-order claim testable:
+  with the variant selected but the family retained, the ART background is drawn and then painted
+  over by the native scene background (invisible), whereas with the family filtered the native
+  pixels are skipped and the ART background is what reaches the frame.
+- Renderer failure still continues native: if `renderSelectedVariant` throws or the batch/texture is
+  unavailable, it reports "not painted", so the Prefix continues even when the family is filtered.
+  The retained-and-painted case is the only case that draws without suppressing.
+- Consequence for evidence: `off` => `artDrawCount` stays 0 and pixels are native; selected +
+  retained => `artDrawCount` grows while pixels stay close to `off` (hidden underneath); selected +
+  filtered => pixels change to the ART fill and native is skipped.
+- The draw path must never cross `stage.draw()` and must not use `kindsOverUi()` / `FULL_FRAME`.
+  There is no post-native `BackgroundRenderGate.render()` path; the only draw point is the
+  pre-native scene Prefix.
+
+### 12.5 Order of work
+
+1. Extend the NRCC vocabulary: `renderCombatRoomBg` in `RENDER_METHOD_NAMES` +
+   `check_patch_ownership`, a `room-backgrounds` family, and `ART_DELEGATED` manifest rows for the
+   four concrete overrides (`justification` + `test`). Fix the `test_families` fixture/count so the
+   new family is covered.
+2. Implemented the `BackgroundRenderer` variants as direct pre-native `SpriteBatch` draws inside
+   the scene Prefix (no `RenderHost` item and no post-native path); each variant draws with the
+   native family still continuing (invisible, so also verify with guides on) and `off` draws
+   nothing. **Implemented**: the suppression decision (`suppressNativeBackground`), the
+   `off|solid|checker|grid` draws, the probe slice, and the `art verify mode background [variant]`
+   parsing all exist, wired to the scene Prefix hook.
+3. Added the four suppression Prefixes behind the gate; the focused test proves native
+   continuation becomes false only in the variant+filtered+no-panic state, and the patch files are
+   registered in `RenderPatchOwnershipTest.ALLOWED_SUPPRESS_PATCHES` +
+   `EXPECTED_DELEGATED_SURFACES_BY_PATCH`.
+4. D1 evidence: paired captures per variant (`solid`, `checker`, `grid`) with the native family
+   retained and suppressed, plus the ledger counters, completed; `backgroundCapability()` was
+   flipped to `PRE_NATIVE` on that paired-capture evidence.
+
+`art verify mode background` now reports `ready` (background capability is `PRE_NATIVE`): the
+variant is settable, `modeSupported()` is true, and `submissionStatus()` is `ready`.

@@ -120,7 +120,7 @@ steps:
       assert:
         path: backend.verify.nativeFilters.active
         eq: false
-  # Background still cannot claim a pre-native boundary.
+  # Background capability is the verified pre-native scene hook.
   - assert:
       path: backend.renderBoundary.backgroundCapability
-      eq: unsupported
+      eq: pre_native

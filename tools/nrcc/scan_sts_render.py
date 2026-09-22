@@ -40,6 +40,7 @@ RENDER_METHOD_NAMES = (
     "renderAmount",
     "renderBlackScreen",
     "renderBlights",
+    "renderCombatRoomBg",
     "renderGenericTip",
     "renderGlowEffect",
     "renderHand",

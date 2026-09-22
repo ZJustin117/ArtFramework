@@ -132,7 +132,7 @@ Device steps (when console exists):
 | `assert` | Same path operators as fixture mode |
 | `capture` | Resolve `path` from the latest probe and store its typed value as `var` |
 | `screenshot` | Device-only: invokes the existing Amethyst Harness `screenshot` command and records its result JSON and PNG |
-| `compare_screenshot` | Device-only: compares the most recent screenshot with a local reference; supports optional `reference_kind`, `crop`, `threshold`, `max_diff_pixels`, `max_diff_ratio`, and `diff` |
+| `compare_screenshot` | Device-only: compares the most recent screenshot with a local reference; supports optional `reference_kind`, `crop`, `threshold`, `max_diff_pixels`, `max_diff_ratio`, `min_diff_pixels`, `min_diff_ratio`, and `diff` |
 
 Assertions support `eq_var` and numeric `gt_var` references to variables created by literal `set` or typed
 probe `capture`. `gt_var` requires both values to be YAML/JSON numbers; strings and booleans are rejected.
@@ -151,7 +151,10 @@ native capture workflow; the scenario does not generate native pixels.
 `compare_screenshot` uses the same comparator inline. It requires a prior screenshot, resolves relative
 reference and diff paths from the scenario file, and also accepts a whole-path `${ENV_KEY}` reference.
 `crop` accepts either a four-integer list or a whole-value `${ENV_KEY}` with an `X,Y,W,H` value; an unset or
-invalid crop key reports that key and its configuration error. The Spine42 scenario requires
+invalid crop key reports that key and its configuration error. `max_diff_pixels` / `max_diff_ratio` bound the
+comparison from above (similarity), while `min_diff_pixels` / `min_diff_ratio` bound it from below (minimum
+required change); the step fails with a distinct message when the measured difference is below the configured
+minimums. The Spine42 scenario requires
 `ART_SPINE42_REFERENCE_PNG` and orientation-specific `ART_SPINE42_CROP`; `ART_SPINE42_DIFF_PNG` is optional
 for scenarios that want to configure diff output. Its `reference_kind: native_capture` is recorded in the
 comparison result: the developer-local reference must be a paired native capture from the same fixed frozen
@@ -169,7 +172,8 @@ Render-boundary device validation:
 - `d1_render_zorder_contract.yaml` asserts the resolved `renderOrder` (monotonic phase order, no
   duplicate stable keys), `renderBoundary`, and `art verify mode` statuses.
 - `d1_verify_guides.yaml` drives `art verify mode guides|bounds|background|off` and captures the
-  ART-owned overlay states; `guides`/`bounds` report `ready`, `background` reports `unsupported`.
+  ART-owned overlay states; `guides`/`bounds` and `background` report `ready` (the background via
+  the verified pre-native scene hook).
 - `d1_verify_native_filter.yaml` drives `art verify native <family> on|off|clear` and asserts
   `backend.verify.nativeFilters`; the scope is downgrade-only and never suppresses fail-open cases.
   It starts with `art verify native clear` so no state leaks between runs.

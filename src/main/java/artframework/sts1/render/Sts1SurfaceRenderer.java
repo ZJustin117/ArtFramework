@@ -1,9 +1,13 @@
 package artframework.sts1.render;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.cards.AbstractCard;
+import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
+import com.megacrit.cardcrawl.helpers.FontHelper;
+import com.megacrit.cardcrawl.ui.panels.EnergyPanel;
 import artframework.api.ArtFramework;
 import artframework.context.SurfaceIds;
 import artframework.render.RenderHosts;
@@ -883,26 +887,52 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Energy surface: ART_DELEGATED when FULL_READY. The C2 item was synced in
-     * prepareEnergyVisuals and drawn by the global RenderHosts.drawFrame pass; current supply is
-     * projected orb texture; native animation/layer parity remains pending.
+     * Energy surface: ART_DELEGATED when FULL_READY. Rebuilds the native orb layer stack
+     * (bright/dim layers, native spin, centered number) instead of a single stretched glow
+     * texture. The C2 item synced in prepareEnergyVisuals still supplies layout/input state.
      */
     private static void renderEnergy(SpriteBatch sb) {
-        for (EnergyDrawPath.DrawItem item : EnergyDrawPath.buildFromProjection()) {
-            drawEnergyTexture(sb, item.resourceId, item.bounds);
+        try {
+            EnergyDrawPath.advanceAnimation(com.badlogic.gdx.Gdx.graphics.getDeltaTime());
+        } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_ENERGY,
-                EnergyDrawPath.buildFromProjection().size());
+        java.util.List<EnergyDrawPath.DrawItem> items = EnergyDrawPath.buildFromProjection();
+        for (EnergyDrawPath.DrawItem item : items) {
+            artframework.component.Rect b = item.bounds;
+            if (sb == null || b == null) continue;
+            for (EnergyDrawPath.OrbLayer layer : item.layers) {
+                try {
+                    artframework.assets.AssetResolveResult r =
+                            ArtFramework.assets().resolve(layer.resourceId);
+                    com.badlogic.gdx.graphics.Texture tex =
+                            artframework.sts1.assets.Sts1AssetMaterializer.resolveEnergyTexture(
+                                    layer.resourceId, r);
+                    if (tex != null) {
+                        sb.setColor(Color.WHITE);
+                        sb.draw(tex, b.x, b.y, b.width / 2f, b.height / 2f,
+                                b.width, b.height, 1f, 1f, layer.rotationDegrees,
+                                0, 0, tex.getWidth(), tex.getHeight(), false, false);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+            renderEnergyNumber(sb, b);
+        }
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_ENERGY, items.size());
     }
 
-    private static void drawEnergyTexture(
-            SpriteBatch sb, String resourceId, artframework.component.Rect bounds) {
-        if (sb == null || bounds == null || resourceId == null || resourceId.isEmpty()) return;
+    /** Native energy count drawn centered on the orb; safe without a live player. */
+    private static void renderEnergyNumber(SpriteBatch sb, artframework.component.Rect bounds) {
         try {
-            artframework.assets.AssetResolveResult result = ArtFramework.assets().resolve(resourceId);
-            com.badlogic.gdx.graphics.Texture texture =
-                    artframework.sts1.assets.Sts1AssetMaterializer.resolveEnergyTexture(resourceId, result);
-            if (texture != null) sb.draw(texture, bounds.x, bounds.y, bounds.width, bounds.height);
+            AbstractPlayer p = AbstractDungeon.player;
+            if (p == null || p.energy == null) return;
+            BitmapFont font = p.getEnergyNumFont();
+            if (font == null) return;
+            font.getData().setScale(EnergyPanel.fontScale);
+            FontHelper.renderFontCentered(sb, font,
+                    EnergyPanel.totalCount + "/" + p.energy.energy,
+                    bounds.x + bounds.width / 2f, bounds.y + bounds.height / 2f,
+                    new Color(1f, 1f, 0.86f, 1f));
         } catch (Throwable ignored) {
         }
     }

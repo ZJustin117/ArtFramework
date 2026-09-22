@@ -7,6 +7,7 @@ import artframework.context.FakeSignalBackend;
 import artframework.context.MapView;
 import artframework.context.SurfaceIds;
 import artframework.assets.ResourceIds;
+import artframework.sts1.assets.Sts1VanillaCatalog;
 import artframework.component.Rect;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
@@ -30,13 +31,18 @@ public class EnergyDrawPathTest {
         Sts1RenderPipeline.resetForTests();
         FullPresentMode.resetForTests();
         CombatInputRouter.resetForTests();
+        EnergyDrawPath.resetAnimationForTests();
     }
 
     private void mountedCombat() {
+        mountedCombat(3);
+    }
+
+    private void mountedCombat(int energy) {
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
         backend.publish(ContextFrame.of(1L, 1L, "combat", Arrays.asList(),
-                ControlsView.combat(3, 1, 0, 0, 0, true, true), MapView.empty(), null));
+                ControlsView.combat(energy, 1, 0, 0, 0, true, true), MapView.empty(), null));
         ArtFramework.publishFrame(backend.currentFrame());
         ArtFramework.ops().invoke(SurfaceIds.COMBAT_SURFACE, "mount_combat");
     }
@@ -81,7 +87,39 @@ public class EnergyDrawPathTest {
         mountedCombat();
         EnergyDrawPath.DrawItem item = EnergyDrawPath.buildFromProjection().get(0);
         assertEquals(ResourceIds.energyOrbLayer("red", 1), item.resourceId);
-        assertEquals(new Rect(115.2f, 118.8f, 249.6f, 70f).x, item.bounds.x, 0.01f);
+        Rect expected = EnergyDrawPath.orbBounds(1f, 1f, 1f);
+        assertEquals(expected.x, item.bounds.x, 0.01f);
+        assertEquals(expected.y, item.bounds.y, 0.01f);
+        assertEquals(expected.width, item.bounds.width, 0.01f);
+        assertEquals(expected.height, item.bounds.height, 0.01f);
+        assertEquals(item.bounds.width, item.bounds.height, 0.01f);
+        assertEquals(6, item.layers.size());
         assertEquals(1, EnergyDrawPath.buildFromProjection().size());
+    }
+
+    @Test
+    public void orbLayersMirrorNativeLayerStack() {
+        mountedCombat(3);
+        EnergyDrawPath.DrawItem lit = EnergyDrawPath.buildFromProjection().get(0);
+        assertEquals(6, lit.layers.size());
+        for (int i = 1; i <= 6; i++) {
+            assertEquals(ResourceIds.energyOrbLayer("red", i), lit.layers.get(i - 1).resourceId);
+        }
+
+        mountedCombat(0);
+        EnergyDrawPath.DrawItem dim = EnergyDrawPath.buildFromProjection().get(0);
+        assertEquals(6, dim.layers.size());
+        for (int i = 1; i <= 5; i++) {
+            assertEquals(ResourceIds.energyOrbDimLayer("red", i), dim.layers.get(i - 1).resourceId);
+        }
+        assertEquals(ResourceIds.energyOrbLayer("red", 6), dim.layers.get(5).resourceId);
+
+        assertEquals("red", EnergyDrawPath.orbColor());
+        for (EnergyDrawPath.OrbLayer layer : lit.layers) {
+            assertTrue(layer.resourceId, Sts1VanillaCatalog.isKnown(layer.resourceId));
+        }
+        for (EnergyDrawPath.OrbLayer layer : dim.layers) {
+            assertTrue(layer.resourceId, Sts1VanillaCatalog.isKnown(layer.resourceId));
+        }
     }
 }

@@ -781,7 +781,9 @@ FULL acceptance requires zero static unknowns and zero runtime strict-report gap
       as pending.
 - [x] 47.20 Controls / energy / intents partial pixel supply (db9423c): supplied
       enhanced end-turn, energy-orb, and monster-intent visual projections plus
-      tests; remaining native animation/layer parity stays an exposed gap.
+      tests; remaining native animation/layer parity stays an exposed gap. Energy
+      orb now supplies the native bright/dim layer stack with spin, 128px orb
+      geometry, and the centered energy number.
 - [x] 47.21 Reward / shop / treasure partial pixel supply (661e644): supplied
       visible reward rows, shop chrome/entries, treasure chest/relic rows, and
       tests with explicit fallback resources; full room-native parity remains

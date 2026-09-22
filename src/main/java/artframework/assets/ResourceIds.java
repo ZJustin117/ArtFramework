@@ -151,6 +151,10 @@ public final class ResourceIds {
         return energyOrb(color) + ".layer" + layer;
     }
 
+    public static String energyOrbDimLayer(String color, int layer) {
+        return energyOrb(color) + ".layer" + layer + "d";
+    }
+
     public static String intent(String id) {
         return UI_INTENT_PREFIX + (id != null ? id : "unknown");
     }

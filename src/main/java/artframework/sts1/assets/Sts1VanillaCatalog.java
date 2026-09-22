@@ -56,15 +56,35 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_BUTTON_CANCEL_ENABLED, "images/ui/topPanel/buttonL.png");
         put(m, ResourceIds.UI_BUTTON_CANCEL_DISABLED, "images/ui/topPanel/buttonLRed.png");
         put(m, ResourceIds.energyOrb("red"), "images/ui/topPanel/red/layer1.png");
-        put(m, ResourceIds.energyOrbLayer("red", 1), "images/ui/topPanel/red/layer1.png");
-        put(m, ResourceIds.energyOrbLayer("red", 2), "images/ui/topPanel/red/layer2.png");
-        put(m, ResourceIds.energyOrbLayer("red", 3), "images/ui/topPanel/red/layer3.png");
+        for (int i = 1; i <= 6; i++) {
+            put(m, ResourceIds.energyOrbLayer("red", i),
+                    "images/ui/topPanel/red/layer" + i + ".png");
+        }
+        for (int i = 1; i <= 5; i++) {
+            put(m, ResourceIds.energyOrbDimLayer("red", i),
+                    "images/ui/topPanel/red/layer" + i + "d.png");
+        }
         put(m, ResourceIds.energyOrb("green"), "images/ui/topPanel/green/layer1.png");
-        put(m, ResourceIds.energyOrbLayer("green", 1), "images/ui/topPanel/green/layer1.png");
-        put(m, ResourceIds.energyOrbLayer("green", 2), "images/ui/topPanel/green/layer2.png");
-        put(m, ResourceIds.energyOrbLayer("green", 3), "images/ui/topPanel/green/layer3.png");
-        put(m, ResourceIds.energyOrb("blue"), "images/ui/topPanel/blue/layer1.png");
+        for (int i = 1; i <= 6; i++) {
+            put(m, ResourceIds.energyOrbLayer("green", i),
+                    "images/ui/topPanel/green/layer" + i + ".png");
+        }
+        for (int i = 1; i <= 5; i++) {
+            put(m, ResourceIds.energyOrbDimLayer("green", i),
+                    "images/ui/topPanel/green/layer" + i + "d.png");
+        }
+        // The blue orb set has no layerN naming; the real files are 1.png..5.png / 1d..5d.
+        put(m, ResourceIds.energyOrb("blue"), "images/ui/topPanel/blue/1.png");
+        for (int i = 1; i <= 5; i++) {
+            put(m, ResourceIds.energyOrbLayer("blue", i), "images/ui/topPanel/blue/" + i + ".png");
+            put(m, ResourceIds.energyOrbDimLayer("blue", i),
+                    "images/ui/topPanel/blue/" + i + "d.png");
+        }
         put(m, ResourceIds.energyOrb("purple"), "images/ui/topPanel/purple/l1.png");
+        for (int i = 1; i <= 4; i++) {
+            put(m, ResourceIds.energyOrbLayer("purple", i),
+                    "images/ui/topPanel/purple/l" + i + ".png");
+        }
         put(m, ResourceIds.UI_EVENT_BUTTON_ENABLED, "images/ui/event/enabledButton.png");
         put(m, ResourceIds.UI_EVENT_BUTTON_DISABLED, "images/ui/event/disabledButton.png");
         put(m, ResourceIds.UI_EVENT_PANEL, "images/ui/event/panel.png");

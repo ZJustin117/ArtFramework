@@ -39,6 +39,7 @@ public final class NativeRenderLedger {
     private int openUndecidedCount;
     private int openDelegatedGapCount;
     private int terminalMissingEvidenceCount;
+    private int noPixelIsolationCount;
     private int evictedCompletedCount;
     private int unknownOwnerCount;
     private int orphanArtOutputCount;
@@ -286,6 +287,21 @@ public final class NativeRenderLedger {
         return openDelegatedGapCount + terminalMissingEvidenceCount;
     }
 
+    /** Completes a delegated lifecycle that intentionally has no pixel-draw evidence hook. */
+    public synchronized boolean completeDelegatedWithoutEvidence(long id) {
+        Long key = Long.valueOf(id);
+        Record record = open.get(key);
+        if (record == null || record.disposition == null
+                || record.disposition.mode != RenderDisposition.Mode.DELEGATE_TO_ART) {
+            return false;
+        }
+        terminalize(key, false);
+        return true;
+    }
+
+    /** Records an isolate-only absence result; this is not ART pixel evidence. */
+    public synchronized void recordNoPixelIsolation() { noPixelIsolationCount++; }
+
     /** Close an invocation explicitly during scene/recovery cleanup. */
     public synchronized void closeInvocation(long id) {
         Long key = Long.valueOf(id);
@@ -379,6 +395,7 @@ public final class NativeRenderLedger {
         out.put("invocationCount", Integer.valueOf(totalInvocationCount));
         out.put("dispositionCount", Integer.valueOf(totalDispositionCount));
         out.put("evidenceCount", Integer.valueOf(totalEvidenceCount));
+        out.put("noPixelIsolationCount", Integer.valueOf(noPixelIsolationCount));
         out.put("totalInvocationCount", Integer.valueOf(totalInvocationCount));
         out.put("totalDispositionCount", Integer.valueOf(totalDispositionCount));
         out.put("totalEvidenceCount", Integer.valueOf(totalEvidenceCount));
@@ -453,6 +470,7 @@ public final class NativeRenderLedger {
         openUndecidedCount = 0;
         openDelegatedGapCount = 0;
         terminalMissingEvidenceCount = 0;
+        noPixelIsolationCount = 0;
         evictedCompletedCount = 0;
         unknownOwnerCount = 0;
         orphanArtOutputCount = 0;

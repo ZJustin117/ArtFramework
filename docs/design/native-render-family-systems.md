@@ -9,6 +9,27 @@ contract: which semantic family a native render path belongs to, and how a famil
 the three-layer ART runtime (collection → projection → ECS system). It does not change any
 disposition rule defined there.
 
+## Isolate policy and exemptions
+
+`art verify mode isolate on|off` is independent from the background variant. When active, a
+known surface/family already admitted by `NativeRenderBridge.beginSurface` is isolated by default;
+`art verify allow <target> on|off` is the primary syntax (the old `allow on <target>` order is
+compatibility-only) and restores/removes native continuation for matching invocations. `allow clear`
+clears them. Method targets must contain exactly one non-empty `class#method` pair.
+An exemption is not ART delegation: surface and skeleton calls return `PASS_THROUGH`, while effect
+observation returns `CAPTURE_AND_PASS`; ledger disposition and observation evidence remain recorded.
+Unknown owners/targets, panic, host failures, and recovery/epoch mismatches remain fail-open.
+The policy is host-neutral immutable snapshot data; `NativeRenderExemptionComponent` is projected
+onto the stable `nrcc-native` entity and contains no native object or callback. Call
+`NativeRenderBridge.refreshPolicyProjection()` after a revision to update existing entities.
+Skeleton and effect typed bridges are covered; unknown owners, panic, host failures, and undeclared
+owners fail open. The effect container is suppressed only through its typed call-site helper, never
+by skipping `AbstractDungeon.render` globally. Background mode is independent.
+
+Exemption restores the native continuation decision only; it does not disable a separately mounted
+ART full-present draw for the same surface. Verify one target at a time and do not mount the ART
+surface for an allowed target, otherwise native and ART pixels can both appear.
+
 ## 1. Purpose and scope
 
 The classification object is the set of **544 descriptor-aware native render paths** produced
@@ -334,6 +355,11 @@ containers — they belong to their host-surface families, not to the vfx famili
   (refacter ledger `NRO-04`); projection converges in the schedule-owned
   `TransientEffectProjectionSystem`. Per-subclass hooks are prohibited; a future delegated effect
   type must arrive as a per-instance claim, never as a queue-wide suppression.
+
+`vfx-misc-root` remains `OBSERVED` by default. Lab `isolate` is an explicit
+isolate-only native-absence probe, not a delegated family policy: the typed effect
+projection has no ART pixel callback, so the ledger records `NO_PIXEL_ISOLATION` and
+never ART draw evidence. Panic, identity, and host failures remain fail-open.
 
 ### General choke-point selection rules
 

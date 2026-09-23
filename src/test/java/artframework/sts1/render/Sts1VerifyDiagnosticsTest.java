@@ -97,6 +97,21 @@ public class Sts1VerifyDiagnosticsTest {
     }
 
     @Test
+    public void backgroundOnlyIsDistinctFailClosedModeAndResets() {
+        Sts1VerifyDiagnostics.setBackgroundOnly(true);
+        assertEquals(Sts1VerifyDiagnostics.Mode.BACKGROUND_ONLY,
+                Sts1VerifyDiagnostics.configuredMode());
+        assertFalse(Sts1VerifyDiagnostics.modeSupported());
+        assertEquals(Boolean.TRUE, Sts1VerifyDiagnostics.probeSlice().get("backgroundOnly") != null
+                ? Boolean.TRUE : Boolean.FALSE);
+        Sts1VerifyDiagnostics.setBackgroundOnly(false);
+        assertEquals(Sts1VerifyDiagnostics.Mode.OFF, Sts1VerifyDiagnostics.configuredMode());
+        Map<?, ?> cleared = (Map<?, ?>) Sts1VerifyDiagnostics.probeSlice().get("backgroundOnly");
+        assertEquals(Boolean.FALSE, cleared.get("active"));
+        assertEquals(Long.valueOf(0L), cleared.get("blockedForeground"));
+    }
+
+    @Test
     public void consoleModeParserAcceptsOnlyDocumentedModes() throws Exception {
         Method parse = artframework.console.ArtCommand.class.getDeclaredMethod(
                 "parseVerifyMode", String.class);
@@ -105,6 +120,8 @@ public class Sts1VerifyDiagnosticsTest {
         assertEquals(Sts1VerifyDiagnostics.Mode.BACKGROUND, parse.invoke(null, "BACKGROUND"));
         assertEquals(Sts1VerifyDiagnostics.Mode.GUIDES, parse.invoke(null, " guides "));
         assertEquals(Sts1VerifyDiagnostics.Mode.BOUNDS, parse.invoke(null, "bounds"));
+        assertEquals(Sts1VerifyDiagnostics.Mode.BACKGROUND_ONLY,
+                parse.invoke(null, "background-only"));
         assertNull(parse.invoke(null, "nonsense"));
         assertNull(parse.invoke(null, (Object) null));
     }
@@ -179,6 +196,51 @@ public class Sts1VerifyDiagnosticsTest {
         java.lang.reflect.Field field = request.getClass().getDeclaredField("enabled");
         field.setAccessible(true);
         return Boolean.valueOf(field.getBoolean(request));
+    }
+
+    @Test
+    public void consoleAllowParserRejectsBareClearAsTarget() throws Exception {
+        Method parse = artframework.console.ArtCommand.class.getDeclaredMethod(
+                "parseVerifyAllow", String[].class);
+        parse.setAccessible(true);
+
+        Object clear = parse.invoke(null, (Object) new String[] {"clear"});
+        assertTrue(clear != null);
+        assertTrue(clearRequest(clear));
+
+        Object primary = parse.invoke(null, (Object) new String[] {"family:sts1.combat.hand", "on"});
+        assertTrue(primary != null);
+        assertEquals(Boolean.TRUE, allowOn(primary));
+        assertEquals(java.util.Arrays.asList("family:sts1.combat.hand"), allowTargets(primary));
+
+        Object legacy = parse.invoke(null, (Object) new String[] {"on", "family:sts1.combat.hand"});
+        assertTrue(legacy != null);
+        assertEquals(java.util.Arrays.asList("family:sts1.combat.hand"), allowTargets(legacy));
+
+        assertNull(parse.invoke(null, (Object) new String[] {"clear", "on"}));
+        assertNull(parse.invoke(null, (Object) new String[] {"family:sts1.combat.hand"}));
+        assertNull(parse.invoke(null, (Object) new String[] {"family:sts1.combat.hand", "maybe"}));
+        assertNull(parse.invoke(null, (Object) new String[] {"", "on"}));
+        assertNull(parse.invoke(null, (Object) null));
+    }
+
+    private static boolean clearRequest(Object request) throws Exception {
+        java.lang.reflect.Field field = request.getClass().getDeclaredField("clear");
+        field.setAccessible(true);
+        return field.getBoolean(request);
+    }
+
+    private static boolean allowOn(Object request) throws Exception {
+        java.lang.reflect.Field field = request.getClass().getDeclaredField("on");
+        field.setAccessible(true);
+        return field.getBoolean(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.List<String> allowTargets(Object request) throws Exception {
+        java.lang.reflect.Field field = request.getClass().getDeclaredField("targets");
+        field.setAccessible(true);
+        return (java.util.List<String>) field.get(request);
     }
 
     @Test

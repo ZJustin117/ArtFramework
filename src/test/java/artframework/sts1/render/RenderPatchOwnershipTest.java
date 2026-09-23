@@ -56,9 +56,14 @@ public class RenderPatchOwnershipTest {
                     "RoomRenderPatches.java",
                     "MapRenderPatches.java",
                     "SkeletonRenderPatches.java",
+                    "TransientEffectRenderPatches.java",
                     "BackgroundRenderPatches.java"));
 
     private static final Map<String, Set<String>> EXPECTED_DELEGATED_SURFACES_BY_PATCH = delegatedSurfacesByPatch();
+
+    /** Mirrors the coverage_manifest.py OBSERVED contract: the justification must cite a patch file. */
+    private static final java.util.regex.Pattern JUSTIFICATION_PATCH_REFERENCE =
+            java.util.regex.Pattern.compile("[A-Za-z0-9_./$-]+\\.java\\b");
 
     /**
      * Surfaces listed here must keep native-pixel authority according to the SDD's
@@ -90,7 +95,7 @@ public class RenderPatchOwnershipTest {
     }
 
     @Test
-    public void suppressingPatchesHaveDelegatedManifestMetadata() throws IOException {
+    public void suppressingPatchesHaveOwnershipManifestMetadata() throws IOException {
         Map<String, List<ManifestEntry>> byHook = manifestEntriesByHook();
 
         for (String patchName : ALLOWED_SUPPRESS_PATCHES) {
@@ -108,10 +113,8 @@ public class RenderPatchOwnershipTest {
 
             for (String surfaceId : EXPECTED_DELEGATED_SURFACES_BY_PATCH.get(patchName)) {
                 assertTrue(
-                        patchName + " suppresses " + surfaceId
-                                + " but lacks an ART_DELEGATED manifest entry with justification/test metadata. "
-                                + SUPPRESSION_OWNERSHIP_MESSAGE,
-                        hasDelegatedMetadata(entries, surfaceId));
+                        patchName + " suppresses " + surfaceId + " but lacks ownership metadata.",
+                        hasOwnershipMetadata(entries, surfaceId));
             }
         }
     }
@@ -298,6 +301,7 @@ public class RenderPatchOwnershipTest {
                 SurfaceIds.SHOP, SurfaceIds.TREASURE));
         m.put("MapRenderPatches.java", set(SurfaceIds.MAP));
         m.put("SkeletonRenderPatches.java", set(SurfaceIds.SKELETON));
+        m.put("TransientEffectRenderPatches.java", set("vfx-misc-root"));
         m.put("BackgroundRenderPatches.java", set(BackgroundRenderGate.BACKGROUND_FAMILY));
         return m;
     }
@@ -306,14 +310,18 @@ public class RenderPatchOwnershipTest {
         return new HashSet<String>(Arrays.asList(values));
     }
 
-    private static boolean hasDelegatedMetadata(List<ManifestEntry> entries, String surfaceId) {
+    private static boolean hasOwnershipMetadata(List<ManifestEntry> entries, String surfaceId) {
         for (ManifestEntry entry : entries) {
-            if (surfaceId.equals(entry.surfaceId)
-                    && "ART_DELEGATED".equals(entry.policy)
-                    && !entry.justification.isEmpty()
-                    && !entry.test.isEmpty()) {
-                return true;
-            }
+            if (!surfaceId.equals(entry.surfaceId)) continue;
+            if ("ART_DELEGATED".equals(entry.policy) && !entry.justification.isEmpty()
+                    && !entry.test.isEmpty()) return true;
+            if ("ISOLATE_ONLY".equals(entry.conditionalSuppression)
+                    && "OBSERVED".equals(entry.policy)
+                    && JUSTIFICATION_PATCH_REFERENCE.matcher(entry.justification).find()
+                    && !entry.suppressionOwner.isEmpty()
+                    && !entry.suppressionJustification.isEmpty()
+                    && !entry.suppressionTest.isEmpty()
+                    && "NO_PIXEL_ISOLATION".equals(entry.evidence)) return true;
         }
         return false;
     }
@@ -355,6 +363,11 @@ public class RenderPatchOwnershipTest {
                 if ("policy".equals(key)) current.policy = stripQuotes(value);
                 if ("justification".equals(key)) current.justification = stripQuotes(value);
                 if ("test".equals(key)) current.test = stripQuotes(value);
+                if ("conditionalSuppression".equals(key)) current.conditionalSuppression = stripQuotes(value);
+                if ("suppressionOwner".equals(key)) current.suppressionOwner = stripQuotes(value);
+                if ("suppressionJustification".equals(key)) current.suppressionJustification = stripQuotes(value);
+                if ("suppressionTest".equals(key)) current.suppressionTest = stripQuotes(value);
+                if ("evidence".equals(key)) current.evidence = stripQuotes(value);
                 lastKey = key;
             } else if (current != null && "justification".equals(lastKey) && line.startsWith("    ")) {
                 current.justification = (current.justification + " " + line.trim()).trim();
@@ -390,5 +403,10 @@ public class RenderPatchOwnershipTest {
         String policy = "";
         String justification = "";
         String test = "";
+        String conditionalSuppression = "";
+        String suppressionOwner = "";
+        String suppressionJustification = "";
+        String suppressionTest = "";
+        String evidence = "";
     }
 }

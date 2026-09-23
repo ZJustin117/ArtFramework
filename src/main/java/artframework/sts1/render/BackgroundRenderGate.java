@@ -89,6 +89,7 @@ public final class BackgroundRenderGate {
         }
         if (painted) {
             recordArtDraw(quads);
+            BackgroundOnlyGate.recordBackgroundDraw();
         }
         return painted;
     }
@@ -103,7 +104,8 @@ public final class BackgroundRenderGate {
         if (configured == Variant.OFF) return false;
         if (artframework.sts1.PresentSafety.isPanic()) return false;
         if (com.megacrit.cardcrawl.helpers.ImageMaster.WHITE_SQUARE_IMG == null) return false;
-        return NativeRenderBridge.filterScope().isFiltered(BACKGROUND_FAMILY);
+        return BackgroundOnlyGate.isActive()
+                || NativeRenderBridge.filterScope().isFiltered(BACKGROUND_FAMILY);
     }
 
     /**
@@ -112,6 +114,10 @@ public final class BackgroundRenderGate {
      */
     public static boolean artOwnsBackground() {
         return suppressNativeBackground();
+    }
+
+    public static void recordNativeSuppression() {
+        BackgroundOnlyGate.recordBackgroundSuppression();
     }
 
     /**
@@ -230,9 +236,11 @@ public final class BackgroundRenderGate {
         configured = Variant.OFF;
         artDrawCount = 0L;
         nativeFallbackCount = 0L;
+        BackgroundOnlyGate.clearForRecovery();
     }
 
     public static void resetForTests() {
         clearForRecovery();
+        BackgroundOnlyGate.resetForTests();
     }
 }

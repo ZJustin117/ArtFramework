@@ -37,6 +37,10 @@ ART_DELEGATED_REQUIRED = (
     "justification",
     "test",
 )
+CONDITIONAL_SUPPRESSION_REQUIRED = (
+    "conditionalSuppression", "suppressionOwner", "suppressionJustification",
+    "suppressionTest", "evidence",
+)
 # Policies that keep native pixels authoritative must document why.  Entries
 # without their own justification inherit the family default rationale
 # (families.FAMILY_DEFAULT_JUSTIFICATION).
@@ -156,6 +160,14 @@ def check_manifest(report, manifest_path, strict_unknown=False):
                     "entries[{}] OBSERVED justification must reference the "
                     "observation patch file".format(index)
                 )
+        if entry.get("conditionalSuppression") == "ISOLATE_ONLY":
+            for field in CONDITIONAL_SUPPRESSION_REQUIRED:
+                if not entry.get(field):
+                    errors.append("entries[{}] isolate-only suppression missing {}".format(index, field))
+            if entry.get("policy") != "OBSERVED":
+                errors.append("entries[{}] isolate-only suppression must retain OBSERVED policy".format(index))
+            if entry.get("evidence") != "NO_PIXEL_ISOLATION":
+                errors.append("entries[{}] isolate-only suppression must declare NO_PIXEL_ISOLATION".format(index))
         key = path_key(entry)
         if key in seen:
             errors.append(
@@ -238,13 +250,16 @@ def check_patch_ownership(report, manifest_path):
                 )
             )
             continue
-        if effective_policy(entry) != "ART_DELEGATED":
+        conditional = entry.get("conditionalSuppression") == "ISOLATE_ONLY"
+        if effective_policy(entry) != "ART_DELEGATED" and not (
+                conditional and effective_policy(entry) == "OBSERVED"):
             errors.append(
                 "patch {} -> {}#{} suppresses native draw but manifest policy is {}".format(
                     patch.get("source"), key[0], key[1], effective_policy(entry)
                 )
             )
-        for field in ART_DELEGATED_REQUIRED:
+        required = ART_DELEGATED_REQUIRED if not conditional else CONDITIONAL_SUPPRESSION_REQUIRED
+        for field in required:
             if not entry.get(field):
                 errors.append(
                     "ART_DELEGATED entry {}#{} missing {}".format(
@@ -362,7 +377,7 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.scenes.TheCityScene", "renderCombatRoomBg"): "sts1.room.background",
         ("com.megacrit.cardcrawl.scenes.TheBeyondScene", "renderCombatRoomBg"): "sts1.room.background",
         ("com.megacrit.cardcrawl.scenes.TheEndingScene", "renderCombatRoomBg"): "sts1.room.background",
-        ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "",
+        ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "vfx-misc-root",
     }
     known_justification = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): (
@@ -374,14 +389,16 @@ def inventory_entries(report, existing_entries=None):
             "suppressed; unclaimed skeletons continue through the native renderer."
         ),
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): (
-            "Observation-only entry: NativeRenderBridge.beginEffectRender returns CAPTURE_AND_PASS; "
-            "the native effect queue remains authoritative and no effect instance is suppressed. "
-            "Observation is provided by artframework/sts1/patch/TransientEffectRenderPatches.java."
+            "Default native authority: the native effect queue remains authoritative and nothing "
+            "is suppressed by default; observation is provided by "
+            "artframework/sts1/patch/TransientEffectRenderPatches.java and the AbstractDungeon "
+            "container instrument in artframework/sts1/patch/TransientEffectContainerPatches.java."
         ),
         ("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render"): (
-            "Observation-only instrument: artframework/sts1/patch/TransientEffectContainerPatches.java "
+            "Observation-only instrument by default: artframework/sts1/patch/TransientEffectContainerPatches.java "
             "replaces the three AbstractGameEffect.render call sites with an observe-then-render helper; "
-            "the native dungeon frame and effect queue remain authoritative and nothing is suppressed."
+            "the native dungeon frame and effect queue remain authoritative and nothing is suppressed unless "
+            "art verify isolate mode is active."
         ),
         ("com.megacrit.cardcrawl.core.TestGame", "render"): (
             "Test harness bootstrap screen outside ART scope; never intercepted."
@@ -485,7 +502,7 @@ def inventory_entries(report, existing_entries=None):
             "artframework.sts1.skeleton.Sts1SkeletonBridgeTest.claimedSkeletonDelegatesWithoutNativeContinuation"
         ),
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): (
-            "artframework.sts1.render.NativeRenderBridgeTest.transientEffectRenderAlwaysCapturesAndPasses"
+            "artframework.sts1.render.NativeRenderBridgeTest.isolateSuppressesKnownEffectAndAllowRestoresNativeContinuation"
         ),
         ("com.megacrit.cardcrawl.ui.buttons.EndTurnButton", "render"): (
             "artframework.sts1.render.CombatControlsRenderPatchesTest.fullReadySuppressesNativeEndTurnRender"

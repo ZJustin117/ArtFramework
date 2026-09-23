@@ -20,6 +20,9 @@ public final class NativeRenderBridge {
     private static final TransientEffectLifecycleAdapter EFFECT_LIFECYCLE =
             new TransientEffectLifecycleAdapter(EFFECT_LEDGER, EFFECT_REGISTRY);
     private static final NativeFilterScope FILTER_SCOPE = new NativeFilterScope();
+    private static final NativeRenderPolicy POLICY = new NativeRenderPolicy(new Runnable() {
+        @Override public void run() { refreshPolicyProjection(); }
+    });
     private static long nextInvocationId;
     private static final Object BRIDGE_LOCK = new Object();
     private static Runnable beforeTokenPublicationForTests;
@@ -28,6 +31,8 @@ public final class NativeRenderBridge {
             new HashMap<String, ArrayDeque<Long>>();
     private static final Map<String, ArrayDeque<Long>> SKELETON_INVOCATIONS =
             new HashMap<String, ArrayDeque<Long>>();
+    private static final Map<String, Long> NATIVE_CONTINUATION_FRAMES =
+            new HashMap<String, Long>();
 
     private NativeRenderBridge() {}
 
@@ -45,28 +50,55 @@ public final class NativeRenderBridge {
                 disposition = RenderDisposition.failOpen(invocation.invocationId, "panic");
             } else if (entry == null) {
                 LEDGER.recordUnknownOwner();
+                if (BackgroundOnlyGate.isActive()) {
+                    BackgroundOnlyGate.recordUnsupported("surface:unknown_owner");
+                }
                 disposition = RenderDisposition.failOpen(invocation.invocationId, "unknown_owner");
+            } else if (BackgroundOnlyGate.isActive()
+                    && !BackgroundRenderGate.BACKGROUND_FAMILY.equals(invocation.surfaceFamily)) {
+                BackgroundOnlyGate.recordBlocked("surface:" + invocation.surfaceFamily);
+                disposition = RenderDisposition.blocked(invocation.invocationId,
+                        "background_only:" + invocation.surfaceFamily);
             } else if (entry.mode == SurfaceDrawPlan.DrawMode.DRAW && entry.suppressNative) {
                 if (FILTER_SCOPE.blocksDelegation(invocation.surfaceFamily)) {
-                    // Family is filtered and not selected: narrow delegation back to native.
+                    // Family is filtered and not selected: narrow delegation back to native. The
+                    // filter scope stays strictly downgrade-only and wins over isolate, so a
+                    // filtered family never becomes a suppression target.
                     disposition = RenderDisposition.pass(invocation.invocationId,
                             "filter_scope:" + invocation.surfaceFamily);
-                } else {
+                } else if (POLICY.isIsolateActive() && !POLICY.exempt(invocation)) {
+                    POLICY.recordIsolated();
                     String entityId = Sts1NativePresentationAdapter.present(invocation);
                     disposition = RenderDisposition.delegate(invocation.invocationId,
-                            entry.reason, entityId);
-                }
+                            "isolate:" + entry.reason, entityId);
+                } else if (POLICY.isIsolateActive() && POLICY.exempt(invocation)) {
+                    // Exemption keeps native continuation, but still projects the invocation so the
+                    // ECS exemption view (NativeRenderExemptionComponent) reflects the matched
+                    // target even before/without a delegated frame. No ledger token is published.
+                    String entityId = Sts1NativePresentationAdapter.present(invocation);
+                    disposition = RenderDisposition.pass(invocation.invocationId,
+                            "exempt:native_continuation");
+                    POLICY.recordExempted(disposition.nativeContinuation);
+                } else disposition = normalSurfaceDecision(entry, invocation);
             } else if (entry.mode == SurfaceDrawPlan.DrawMode.OBSERVE) {
                 disposition = RenderDisposition.capture(invocation.invocationId, entry.reason);
             } else {
                 disposition = RenderDisposition.pass(invocation.invocationId, entry.reason);
             }
         } catch (Throwable error) {
+            if (BackgroundOnlyGate.isActive()) {
+                BackgroundOnlyGate.recordUnsupported("surface:bridge_error");
+            }
             disposition = RenderDisposition.failOpen(invocation.invocationId,
                     "bridge_error:" + error.getClass().getSimpleName());
         }
         synchronized (BRIDGE_LOCK) {
             disposition = LEDGER.recordDispositionOrRecovery(disposition);
+            if (disposition.nativeContinuation) {
+                NATIVE_CONTINUATION_FRAMES.put(ownerId, Long.valueOf(frameId));
+            } else {
+                NATIVE_CONTINUATION_FRAMES.remove(ownerId);
+            }
             if (beforeTokenPublicationForTests != null) beforeTokenPublicationForTests.run();
             if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
                     && LEDGER.isPendingDelegated(invocation.invocationId)) {
@@ -222,19 +254,41 @@ public final class NativeRenderBridge {
             com.esotericsoftware.spine.Skeleton skeleton) {
         String owner = artframework.sts1.skeleton.Sts1SkeletonBridge.nativeEntityKey(skeleton);
         if (owner == null) {
+            if (BackgroundOnlyGate.isActive()) {
+                BackgroundOnlyGate.recordUnsupported("skeleton:unclaimed");
+                return RenderDisposition.failOpen(nextInvocationId + 1L, "native_skeleton_unclaimed");
+            }
             return RenderDisposition.pass(nextInvocationId + 1L, "native_skeleton_unclaimed");
         }
         long frameId = ArtFramework.projection().lastFrameId();
         NativeRenderInvocation invocation = new NativeRenderInvocation(++nextInvocationId, frameId,
                 ArtFramework.projection().scene(), owner,
-                "com.esotericsoftware.spine.SkeletonMeshRenderer", "draw", "skeleton", owner, Rect.ZERO);
+                "com.esotericsoftware.spine.SkeletonMeshRenderer", "draw", "skeleton-runtime", owner, Rect.ZERO);
         LEDGER.recordInvocation(invocation);
         RenderDisposition disposition;
         if (PresentSafety.isPanic()) {
             disposition = RenderDisposition.failOpen(invocation.invocationId, "panic");
+        } else if (BackgroundOnlyGate.isActive()) {
+            if (artframework.sts1.skeleton.Sts1SkeletonBridge.canRenderClaimedNative(skeleton)) {
+                BackgroundOnlyGate.recordBlocked("skeleton:" + owner);
+                disposition = RenderDisposition.blocked(invocation.invocationId,
+                        "background_only:skeleton");
+            } else {
+                BackgroundOnlyGate.recordUnsupported("skeleton:renderer_unavailable");
+                disposition = RenderDisposition.failOpen(invocation.invocationId,
+                        "skeleton_renderer_unavailable");
+            }
         } else if (artframework.sts1.skeleton.Sts1SkeletonBridge.canRenderClaimedNative(skeleton)) {
-            disposition = RenderDisposition.delegate(invocation.invocationId,
-                    "claimed_skeleton", "skeleton:" + owner);
+            if (POLICY.isIsolateActive() && !POLICY.exempt(invocation)) {
+                POLICY.recordIsolated();
+            } else if (POLICY.isIsolateActive()) {
+                POLICY.recordExempted(true);
+            }
+            disposition = POLICY.isIsolateActive() && POLICY.exempt(invocation)
+                    ? RenderDisposition.pass(invocation.invocationId, "exempt:native_continuation")
+                    : RenderDisposition.delegate(invocation.invocationId,
+                            POLICY.isIsolateActive() ? "isolate:claimed_skeleton" : "claimed_skeleton",
+                            "skeleton:" + owner);
         } else {
             disposition = RenderDisposition.failOpen(invocation.invocationId,
                     "skeleton_renderer_unavailable");
@@ -318,17 +372,40 @@ public final class NativeRenderBridge {
         TransientEffectIdentity identity = effectIdentity(effect);
         if (identity == null) {
             LEDGER.recordUnknownOwner();
+            if (BackgroundOnlyGate.isActive()) {
+                BackgroundOnlyGate.recordUnsupported("effect:identity_unavailable");
+            }
             return RenderDisposition.failOpen(-1L, "effect_identity_unavailable");
         }
         long frameId = ArtFramework.projection().lastFrameId();
         EFFECT_LIFECYCLE.render(identity, frameId, method);
         NativeRenderInvocation invocation = new NativeRenderInvocation(++nextInvocationId, frameId,
                 ArtFramework.projection().scene(), identity.instanceId,
-                identity.nativeClass, method, "transient_effect", identity.instanceId, Rect.ZERO);
+                identity.nativeClass, method, "vfx-misc-root", identity.instanceId, Rect.ZERO);
         LEDGER.recordInvocation(invocation);
-        RenderDisposition disposition = RenderDisposition.capture(invocation.invocationId,
-                "transient_effect_observe");
+        if (BackgroundOnlyGate.isActive()) {
+            BackgroundOnlyGate.recordBlocked("effect:" + identity.nativeClass);
+            return LEDGER.recordDispositionOrRecovery(RenderDisposition.blocked(
+                    invocation.invocationId, "background_only:effect"));
+        }
+        boolean isolated = POLICY.isIsolateActive();
+        boolean exempt = POLICY.exempt(invocation);
+        if (isolated && !exempt) {
+            POLICY.recordIsolated();
+        } else if (isolated) {
+            POLICY.recordExempted(true);
+        }
+        RenderDisposition disposition = isolated && !exempt
+                ? RenderDisposition.delegate(invocation.invocationId, "isolate:transient_effect",
+                        "effect:" + identity.instanceId)
+                : RenderDisposition.capture(invocation.invocationId, "transient_effect_observe");
         disposition = LEDGER.recordDispositionOrRecovery(disposition);
+        if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
+                && LEDGER.completeDelegatedWithoutEvidence(invocation.invocationId)) {
+            // Effect projection has no host draw callback. Complete the delegated lifecycle
+            // without manufacturing pixel evidence; native continuation remains suppressed.
+            LEDGER.recordNoPixelIsolation();
+        }
         projectPendingEffectsOncePerFrame();
         return disposition;
     }
@@ -375,6 +452,16 @@ public final class NativeRenderBridge {
 
     public static NativeRenderLedger ledger() { return LEDGER; }
 
+    /** Whether the current projected frame retained native pixel authority for a surface. */
+    public static boolean nativeContinuationForSurface(String ownerId) {
+        if (ownerId == null) return false;
+        long frameId = ArtFramework.projection().lastFrameId();
+        synchronized (BRIDGE_LOCK) {
+            Long continuationFrame = NATIVE_CONTINUATION_FRAMES.get(ownerId);
+            return continuationFrame != null && continuationFrame.longValue() == frameId;
+        }
+    }
+
     public static java.util.Map<String, Object> probeSlice() {
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<String, Object>(LEDGER.probeSlice());
         Map<String, Integer> pendingByOwner = pendingSurfaceInvocationsByOwner();
@@ -386,6 +473,8 @@ public final class NativeRenderBridge {
         out.put("transientEffects", EFFECT_LEDGER.probeSlice());
         out.put("transientEffectEntities", Integer.valueOf(EFFECT_REGISTRY.activeCount()));
         out.put("filterScopes", FILTER_SCOPE.probeSlice());
+        out.put("isolate", POLICY.probeSlice());
+        out.put("backgroundOnly", BackgroundOnlyGate.probeSlice());
         return out;
     }
 
@@ -426,6 +515,8 @@ public final class NativeRenderBridge {
     public static void clearTransientEffectsForRecovery() {
         EFFECT_LIFECYCLE.cleanupForRecovery();
         FILTER_SCOPE.clear();
+        POLICY.setIsolate(false);
+        POLICY.clear();
         synchronized (BRIDGE_LOCK) {
             LEDGER.closeForRecovery("recovery");
             synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
@@ -440,6 +531,14 @@ public final class NativeRenderBridge {
 
     /** Package-local access for tests and native-boundary policy wiring. */
     static NativeFilterScope filterScope() { return FILTER_SCOPE; }
+
+    public static NativeRenderPolicy policy() { return POLICY; }
+
+    private static RenderDisposition normalSurfaceDecision(SurfaceDrawPlan.Entry entry,
+            NativeRenderInvocation invocation) {
+        String entityId = Sts1NativePresentationAdapter.present(invocation);
+        return RenderDisposition.delegate(invocation.invocationId, entry.reason, entityId);
+    }
 
     static void filterFamily(String family) {
         String key = family == null ? "" : family.trim();
@@ -467,10 +566,17 @@ public final class NativeRenderBridge {
         EFFECT_LEDGER.reset();
         EFFECT_REGISTRY.clear();
         FILTER_SCOPE.clear();
+        POLICY.reset();
         synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
         synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
+        synchronized (BRIDGE_LOCK) { NATIVE_CONTINUATION_FRAMES.clear(); }
         beforeTokenPublicationForTests = null;
         Sts1NativePresentationAdapter.clear();
+    }
+
+    /** Refreshes projected exemption evidence after a policy revision. */
+    public static int refreshPolicyProjection() {
+        return Sts1NativePresentationAdapter.refreshPolicyProjection();
     }
 
     public static void setBeforeTokenPublicationForTests(Runnable hook) {

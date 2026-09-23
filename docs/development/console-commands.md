@@ -210,15 +210,28 @@ Design: [`docs/design/render-z-order.md`](../design/render-z-order.md). Log pref
 | Command | Description |
 |---------|-------------|
 | `art verify status` | Print verify probe JSON (`configuredMode`, `submissionStatus`, `nativeFilters`, …) |
-| `art verify mode off\|background\|guides\|bounds` | Configure verification mode (`background` reports `ready` under the verified pre-native scene hook) |
+| `art verify mode off\|background\|background-only\|guides\|bounds` | Configure verification mode; `background-only` is strict deny-by-default |
 | `art verify mode background off\|solid\|checker\|grid` | Select the background variant; `background` alone keeps the current variant |
 | `art verify native <family> on` | Filter one native surface family (downgrade-only; never suppresses fail-open/panic) |
 | `art verify native <family> off` | Remove one family from the native filter set |
 | `art verify native clear` | Clear all native filter families |
+| `art verify mode isolate on\|off` | Native isolate: known bridge-admitted surfaces are suppressed by default until exempted (independent of background) |
+| `art verify mode background-only on\|off` | Strict frame gate: allows only ART combat-room background; blocks covered surface/skeleton/effect bridges and post-present ART draws |
+| `art verify allow <target...> on\|off` | Exempt (on) or remove (off) one or more targets: `family:<id>`, `surface:<id>`, `class:<fqcn>`, `method:<fqcn>#<method>` (bare value = family) |
+| `art verify allow clear` | Clear every isolate exemption |
+
+Device workflow entry point: `scripts/art-lab background verify-isolate [--out-dir DIR]` brings D1
+to READY and runs `d1_verify_native_isolate.yaml`. It covers background-only setup and the known
+mounted/FULL combat hand and energy families; it is not full UI-family coverage. The existing
+`scripts/art-lab console` and `combat verify-full` commands remain available.
 
 `native` filtering only narrows an existing `DELEGATE_TO_ART` decision to pass-through; it can
-never upgrade fail-open/panic/unknown into delegation. Active families appear under probe
-`backend.verify.nativeFilters` (`active`, `filteredFamilies`).
+never upgrade fail-open/panic/unknown into delegation, and it wins over `isolate` for a filtered
+family. Active families appear under probe `backend.verify.nativeFilters` (`active`,
+`filteredFamilies`). Isolate state appears under `backend.verify.nativeIsolation` (`active`,
+`targets`, `suppressionCounters`, `resolvedExemptions`, `lastExemptionNativeContinuation`), with the
+projected ECS exemption view under `backend.verify.nativeExemptionProjection`. An exemption restores
+native continuation; it does not disable a separately mounted ART full-present draw.
 
 ---
 
@@ -330,3 +343,12 @@ Registration: `ConsoleCommand.addCommand("art", ArtCommand.class)` in `ArtFramew
 - Multiplayer co-op / party / life commands — out of repo
 - Arbitrary Java reflection REPL
 - Dual-device connector protocol
+
+Strict workflow: `scripts/art-lab background verify-only [--out-dir DIR]` runs the separate
+`d1_verify_background_only.yaml` combat fixture and captures a strict-mode frame. Probe
+`backend.verify.backgroundOnly` exposes `active`, `backgroundDraw`, `backgroundSuppression`,
+`blockedForeground`, `unsupported`, `uncovered`, `revision`, and `lastReason`. `submissionStatus`
+is `unsupported` while known native world/foreground entry points remain outside the bridge; zero
+unsupported/uncovered is required before claiming a pure-background frame. Panic, bridge exceptions,
+unknown owners, and unmounted owners fail open and are counted rather than crashing or being claimed
+as blocked.

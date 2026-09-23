@@ -83,7 +83,7 @@ public class TransientEffectContainerPatchesTest {
 
         TransientEffectContainerPatches.observeThenRender(effect, null);
 
-        assertEquals("transient_effect", NativeRenderBridge.ledger()
+        assertEquals("vfx-misc-root", NativeRenderBridge.ledger()
                 .invocations().get(0).surfaceFamily);
         assertEquals(1, NativeRenderBridge.effectLedger().activeCount());
     }

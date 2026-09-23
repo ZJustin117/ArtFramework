@@ -69,6 +69,12 @@ public final class TopPanelDrawPath {
         return Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.TOP_PANEL);
     }
 
+    /** ART must yield the pixels to native TopPanel.render when that invocation continued. */
+    public static boolean shouldDrawArtOverlay() {
+        return Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.TOP_PANEL)
+                && !NativeRenderBridge.nativeContinuationForSurface(SurfaceIds.TOP_PANEL);
+    }
+
     public static List<DrawItem> buildFromProjection() {
         List<DrawItem> out = new ArrayList<DrawItem>();
         TopPanelView tv = ArtFramework.projection().topPanel();
@@ -111,6 +117,9 @@ public final class TopPanelDrawPath {
         m.put("statusText", tv.statusText);
         m.put("available", Boolean.valueOf(tv.available));
         m.put("suppressNativeTopPanel", Boolean.valueOf(shouldSuppressNativeTopPanel()));
+        m.put("nativeContinuation", Boolean.valueOf(
+                NativeRenderBridge.nativeContinuationForSurface(SurfaceIds.TOP_PANEL)));
+        m.put("artOverlay", Boolean.valueOf(shouldDrawArtOverlay()));
         m.put("presentLevel", FullPresentMode.topPanelLevel().name());
         artframework.sts1.FullPresentCapability cap =
                 artframework.sts1.input.CombatInputRouter.capability(SurfaceIds.TOP_PANEL);

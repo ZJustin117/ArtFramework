@@ -73,4 +73,22 @@ public class TopPanelRenderPatchesTest {
         assertFalse("FULL without a ready executor must fall back to native render",
                 result.isPresent());
     }
+
+    @Test
+    public void allowedNativeContinuationOwnsTopPanelPixelsWithoutArtOverlay() {
+        mountedCombat();
+        FullPresentMode.setTopPanelLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        NativeRenderBridge.policy().setIsolate(true);
+        NativeRenderBridge.policy().allow(
+                NativeRenderPolicy.Target.parse("family:sts1.top_panel"));
+
+        SpireReturn<Void> result =
+                TopPanelRenderPatches.ObserveNativeTopPanelRender.Prefix(null, null);
+
+        assertFalse(result.isPresent());
+        assertTrue(NativeRenderBridge.nativeContinuationForSurface(SurfaceIds.TOP_PANEL));
+        assertFalse("native TopPanel.render must own pixels when allowlisted",
+                TopPanelDrawPath.shouldDrawArtOverlay());
+    }
 }

@@ -493,10 +493,12 @@ entries:
   effectFamily: none
   hook: artframework/sts1/patch/TransientEffectContainerPatches.java
   policy: OBSERVED
-  justification: 'Observation-only instrument: artframework/sts1/patch/TransientEffectContainerPatches.java
-    replaces the three AbstractGameEffect.render call sites with an observe-then-render
-    helper; the native dungeon frame and effect queue remain authoritative and nothing
-    is suppressed.'
+  justification: 'Observation-only instrument by default: artframework/sts1/patch/TransientEffectContainerPatches.java replaces the three AbstractGameEffect.render call sites with an observe-then-render helper, so the native dungeon frame and effect queue remain authoritative and nothing is suppressed unless isolate mode is active.'
+  conditionalSuppression: ISOLATE_ONLY
+  suppressionOwner: artframework/sts1/patch/TransientEffectContainerPatches.java
+  suppressionJustification: 'Under art verify mode isolate only, the container helper skips effect.render(sb) for a delegated effect invocation; the projection has no ART pixel callback, so it records no-pixel isolation rather than draw success and fails open on panic, unknown identity, or host error.'
+  suppressionTest: artframework.sts1.render.NativeRenderBridgeTest.containerEffectRenderConsumesDelegationAndDoesNotCreateArtEvidence
+  evidence: NO_PIXEL_ISOLATION
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.events.abstractevent.render
@@ -2471,14 +2473,16 @@ entries:
   nativeMethod: render
   family: vfx-misc-root
   pathKind: transient-effect
-  surfaceId: ''
+  surfaceId: vfx-misc-root
   effectFamily: abstract_game_effect
   hook: artframework/sts1/patch/TransientEffectRenderPatches.java
   policy: OBSERVED
-  justification: 'Observation-only entry: NativeRenderBridge.beginEffectRender returns
-    CAPTURE_AND_PASS; the native effect queue remains authoritative and no effect
-    instance is suppressed. Observation is provided by artframework/sts1/patch/TransientEffectRenderPatches.java.'
-  test: artframework.sts1.render.NativeRenderBridgeTest.transientEffectRenderAlwaysCapturesAndPasses
+  justification: 'Default native authority: the native effect queue remains authoritative and nothing is suppressed by default; observation is provided by artframework/sts1/patch/TransientEffectRenderPatches.java and the AbstractDungeon container instrument in artframework/sts1/patch/TransientEffectContainerPatches.java.'
+  conditionalSuppression: ISOLATE_ONLY
+  suppressionOwner: artframework/sts1/patch/TransientEffectContainerPatches.java
+  suppressionJustification: 'Isolate-only native absence probe for the abstract single-argument overload, which cannot carry a Spire Prefix; suppression is performed at the AbstractDungeon call site in artframework/sts1/patch/TransientEffectContainerPatches.java. Effect projection has no ART pixel callback, so it records no-pixel isolation rather than draw success.'
+  suppressionTest: artframework.sts1.render.NativeRenderBridgeTest.containerEffectRenderConsumesDelegationAndDoesNotCreateArtEvidence
+  evidence: NO_PIXEL_ISOLATION
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.abstractgameeffect.render
@@ -2486,14 +2490,16 @@ entries:
   nativeMethod: render
   family: vfx-misc-root
   pathKind: transient-effect
-  surfaceId: ''
+  surfaceId: vfx-misc-root
   effectFamily: abstract_game_effect
   hook: artframework/sts1/patch/TransientEffectRenderPatches.java
   policy: OBSERVED
-  justification: 'Observation-only entry: NativeRenderBridge.beginEffectRender returns
-    CAPTURE_AND_PASS; the native effect queue remains authoritative and no effect
-    instance is suppressed. Observation is provided by artframework/sts1/patch/TransientEffectRenderPatches.java.'
-  test: artframework.sts1.render.NativeRenderBridgeTest.transientEffectRenderAlwaysCapturesAndPasses
+  justification: 'Default native authority: the native effect queue remains authoritative and nothing is suppressed by default; observation is provided by artframework/sts1/patch/TransientEffectRenderPatches.java and the AbstractDungeon container instrument in artframework/sts1/patch/TransientEffectContainerPatches.java.'
+  conditionalSuppression: ISOLATE_ONLY
+  suppressionOwner: artframework/sts1/patch/TransientEffectRenderPatches.java
+  suppressionJustification: 'Isolate-only native absence probe; effect projection has no ART pixel callback, so it records no-pixel isolation rather than draw success.'
+  suppressionTest: artframework.sts1.render.NativeRenderBridgeTest.isolateSuppressesKnownEffectAndAllowRestoresNativeContinuation
+  evidence: NO_PIXEL_ISOLATION
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;FF)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;FF)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.vfx.ascensionleveluptexteffect.render

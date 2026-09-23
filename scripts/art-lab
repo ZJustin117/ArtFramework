@@ -38,6 +38,8 @@ usage() {
     '  scripts/art-lab status' \
     '  scripts/art-lab stop' \
     '  scripts/art-lab console "<BaseMod command>"' \
+    '  scripts/art-lab background verify-isolate [--out-dir DIR]' \
+    '  scripts/art-lab background verify-only [--out-dir DIR]' \
     '  scripts/art-lab combat verify-full [--out-dir DIR]' \
     '' \
     'Connector state may be changed with the connector subcommand.' >&2
@@ -270,6 +272,34 @@ combat_verify_full() {
   python3 "${args[@]}"
 }
 
+background_verify_isolate() {
+  local out_dir=""
+  while (($#)); do
+    case "$1" in
+      --out-dir) [[ $# -ge 2 ]] || die "$1 requires a value"; out_dir="$2"; shift 2;;
+      *) die "unknown background option: $1";;
+    esac
+  done
+  ready
+  local args=(tools/art-verify/run.py tests/ui-scenarios/device/d1_verify_native_isolate.yaml --device)
+  [[ -n "$out_dir" ]] && args+=(--out-dir "$out_dir")
+  python3 "${args[@]}"
+}
+
+background_verify_only() {
+  local out_dir=""
+  while (($#)); do
+    case "$1" in
+      --out-dir) [[ $# -ge 2 ]] || die "$1 requires a value"; out_dir="$2"; shift 2;;
+      *) die "unknown background option: $1";;
+    esac
+  done
+  ready
+  local args=(tools/art-verify/run.py tests/ui-scenarios/device/d1_verify_background_only.yaml --device)
+  [[ -n "$out_dir" ]] && args+=(--out-dir "$out_dir")
+  python3 "${args[@]}"
+}
+
 main() {
   [[ $# -gt 0 ]] || { usage; exit 2; }
   if [[ "$1" == connector ]]; then
@@ -284,6 +314,17 @@ main() {
     status) [[ $# -eq 1 ]] || die 'status takes no options'; status;;
     stop) [[ $# -eq 1 ]] || die 'stop takes no options'; stop;;
     console) shift; console "$@";;
+    background)
+      shift
+      [[ "${1:-}" == verify-isolate || "${1:-}" == verify-only ]] || die 'supported background command: verify-isolate, verify-only'
+      background_command="$1"
+      shift
+      if [[ "$background_command" == verify-isolate ]]; then
+        background_verify_isolate "$@"
+      else
+        background_verify_only "$@"
+      fi
+      ;;
     combat)
       shift
       [[ "${1:-}" == verify-full ]] || die 'supported combat command: verify-full'

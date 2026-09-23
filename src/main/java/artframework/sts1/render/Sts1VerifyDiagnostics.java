@@ -13,6 +13,7 @@ public final class Sts1VerifyDiagnostics {
     public enum Mode {
         OFF,
         BACKGROUND,
+        BACKGROUND_ONLY,
         GUIDES,
         BOUNDS
     }
@@ -28,7 +29,28 @@ public final class Sts1VerifyDiagnostics {
 
     public static void setMode(Mode mode) {
         configured = mode == null ? Mode.OFF : mode;
+        if (configured != Mode.BACKGROUND_ONLY && BackgroundOnlyGate.isActive()) {
+            BackgroundOnlyGate.setActive(false);
+            clearNativeFilters();
+        }
     }
+
+    public static void setBackgroundOnly(boolean enabled) {
+        if (enabled) {
+            configured = Mode.BACKGROUND_ONLY;
+            if (backgroundVariant() == BackgroundRenderGate.Variant.OFF) {
+                setBackgroundVariant(BackgroundRenderGate.Variant.SOLID);
+            }
+            enableNativeFilter(BackgroundRenderGate.BACKGROUND_FAMILY);
+            BackgroundOnlyGate.setActive(true);
+        } else {
+            configured = Mode.OFF;
+            BackgroundOnlyGate.setActive(false);
+            clearNativeFilters();
+        }
+    }
+
+    public static boolean backgroundOnlyActive() { return BackgroundOnlyGate.isActive(); }
 
     /** Whether the configured mode can actually submit pixels through the current host boundary. */
     public static boolean modeSupported() {
@@ -37,6 +59,9 @@ public final class Sts1VerifyDiagnostics {
         }
         if (configured == Mode.OFF) {
             return true;
+        }
+        if (configured == Mode.BACKGROUND_ONLY) {
+            return false;
         }
         return Sts1RenderBoundary.backgroundCapability()
                 == Sts1RenderBoundary.BackgroundCapability.PRE_NATIVE;
@@ -116,7 +141,11 @@ public final class Sts1VerifyDiagnostics {
         m.put("nativeInterval", Sts1RenderBoundary.nativeInterval());
         m.put("artInterval", Sts1RenderBoundary.artSubmissionInterval());
         m.put("nativeFilters", NativeRenderBridge.filterScopeProbeSlice());
+        m.put("nativeIsolation", NativeRenderBridge.policy().probeSlice());
+        m.put("nativeExemptionProjection",
+                Sts1NativePresentationAdapter.exemptionProjectionProbeSlice());
         m.put("background", BackgroundRenderGate.probeSlice());
+        m.put("backgroundOnly", BackgroundOnlyGate.probeSlice());
         if (lastError != null) {
             m.put("lastError", lastError);
         }
@@ -127,6 +156,8 @@ public final class Sts1VerifyDiagnostics {
         configured = Mode.OFF;
         lastError = null;
         NativeRenderBridge.clearFilterScopes();
+        NativeRenderBridge.policy().reset();
         BackgroundRenderGate.resetForTests();
+        BackgroundOnlyGate.resetForTests();
     }
 }

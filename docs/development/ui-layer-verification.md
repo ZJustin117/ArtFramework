@@ -177,6 +177,21 @@ Render-boundary device validation:
 - `d1_verify_native_filter.yaml` drives `art verify native <family> on|off|clear` and asserts
   `backend.verify.nativeFilters`; the scope is downgrade-only and never suppresses fail-open cases.
   It starts with `art verify native clear` so no state leaks between runs.
+- `d1_verify_native_isolate.yaml` mounts a FULL combat hand plus the live top-panel surface, arms
+  `art verify mode isolate on`, and verifies default suppression plus explicit allowlist continuation
+  for hand, energy, controls, and top panel. It also retains the independent background-only
+  checker/filter phase, clear/reset, and off restoration. Targeting remains observe-only; no claim is
+  made for unpatched or unmounted native owners. Run on D1 with
+  `scripts/art-lab background verify-isolate` (optional `--out-dir DIR`); it brings the device to
+  READY before executing the fixture. The fixture records paired stages with screenshots, but does
+  not require a pixel-diff threshold because stable visual deltas are not guaranteed across native
+   animation/frame timing; probe/ledger evidence is authoritative for this isolate check.
+- `d1_verify_background_only.yaml` is a separate real-combat strict check. It runs
+  `art verify mode background-only on`, asserts background draw/native suppression and covered
+  bridge blocking, captures a strict frame, and requires `submissionStatus=unsupported` plus a
+  non-zero `uncovered` counter while creature/world/native paths are not globally intercepted.
+  It must not be described as a pure-background success until those counters reach zero. Run with
+  `scripts/art-lab background verify-only`.
 
 ## Delegation order
 

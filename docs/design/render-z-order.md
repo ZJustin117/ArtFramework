@@ -263,8 +263,18 @@ art verify status
 
 `mode` and `native` are implemented. `native <family> on` only narrows an existing delegation
 decision (never upgrade fail-open/panic), and `status` reports configured ordering separately from
-actually submitted ordering, including when the host cannot provide the required pre-native
-boundary. The pre-native background and per-family native pixel replacement remain unimplemented.
+actually submitted ordering. The `sts1.room.background` pre-native renderer/filter boundary and its
+D1 variants are shipped and verified.
+
+Native isolate is a separate, explicit verification policy: a live mounted surface already routed
+through `NativeRenderBridge.beginSurface` is denied by default while isolate is active; a matching
+`family:`, `surface:`, `class:`, or `method:` target restores native continuation. Unknown owners,
+unmounted surfaces, panic, bridge errors, claimed-skeleton failures, and unpatched owners remain
+fail-open. Current D1 combat evidence covers hand, controls, energy, and top panel. Targeting is
+observe-only/native-authoritative; skeleton suppression is per claimed instance; transient effects
+are observed through the typed effect bridge and are not a claim over arbitrary native VFX owners.
+Per-family pixel replacement beyond the background family, and complete UI-family coverage, remain
+unimplemented.
 
 ## 9. Test and acceptance plan
 

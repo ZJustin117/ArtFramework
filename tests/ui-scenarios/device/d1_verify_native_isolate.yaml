@@ -1,0 +1,184 @@
+# D1: covered native-isolation path. Uses the deterministic mounted/FULL combat recipe and
+# asserts isolate suppression across hand, controls, energy, and top-panel owners; explicit
+# allowlist entries restore native continuation, then clear and off reset the policy.
+# It never asserts isolation from a menu or an unmounted surface.
+name: d1_verify_native_isolate
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art verify allow clear"
+  - console: "art verify mode isolate off"
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Arm FULL before transition so the first combat hand frame is ART-owned and suppressNative.
+  - console: "art present combat on"
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: projection.scene
+        eq: combat
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.input.handState
+        eq: FULL_READY
+  - assert:
+      path: backend.fullPresent.maySuppressNativeHand
+      eq: true
+  # Combat mounts controls and energy; mount top panel explicitly for this coverage slice.
+  - console: "art present top on"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.fullPresent.topPanel
+        eq: FULL
+  - assert:
+      path: backend.fullPresent.combatControls
+      eq: FULL
+  - assert:
+      path: backend.fullPresent.energy
+      eq: FULL
+  # Background-only phase runs on a live scene, independently of native isolate.
+  - console: "art verify mode background off"
+  - console: "art verify mode background checker"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: checker
+  - console: "art verify native sts1.room.background on"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.artOwnsBackgroundRequested
+        eq: true
+  - screenshot: true
+  - console: "art verify native clear"
+  - console: "art verify mode background off"
+  # isolate: the known FULL surface is suppressed, so the suppression counter must grow.
+  - console: "art verify mode isolate on"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.active
+        eq: true
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.suppressionCounters
+        gte: 1
+  - screenshot: true
+  # allow the hand family: the exemption must restore its native continuation and be recorded.
+  - console: "art verify allow family:sts1.combat.hand on"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.targets[0]
+        eq: family:sts1.combat.hand
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.resolvedExemptions
+        gte: 1
+  # The projected ECS exemption view must show the hand invocation exempted, proving the target
+  # matched an actual invocation rather than only being stored in policy.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeExemptionProjection.exemptEntities
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.lastExemptionNativeContinuation
+        eq: true
+  - screenshot: true
+  # A second mounted combat family is explicitly allowed; the probe must expose both targets and
+  # observe another actual exemption (not just policy configuration).
+  - console: "art verify allow family:sts1.combat.energy on"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.targets[1]
+        eq: family:sts1.combat.energy
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.resolvedExemptions
+        gte: 2
+  - screenshot: true
+  # Controls and top panel are also mounted in this combat frame; allowlist both explicitly.
+  - console: "art verify allow family:sts1.combat.controls on"
+  - console: "art verify allow family:sts1.top_panel on"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.resolvedExemptions
+        gte: 4
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.topPanelDraw.nativeContinuation
+        eq: true
+  - assert:
+      path: backend.topPanelDraw.artOverlay
+      eq: false
+  - screenshot: true
+  # clear restores deny-by-default isolation.
+  - console: "art verify allow clear"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.targets
+        eq: []
+  # off restores normal delegation behavior.
+  - console: "art verify mode isolate off"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.nativeIsolation.active
+        eq: false
+  - console: "art verify mode background off"
+  - console: "art verify native clear"

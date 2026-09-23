@@ -305,6 +305,11 @@ field contracts on top of the list above:
 | `OUT_OF_SCOPE` | retained; documented boundary | none beyond the base schema |
 | `UNKNOWN` | undecided | must be eliminated before strict acceptance |
 
+An `OBSERVED` entry may additionally declare `conditionalSuppression: ISOLATE_ONLY`
+with an explicit owner, justification, test, and `evidence: NO_PIXEL_ISOLATION`.
+This records a verification-only native-absence probe without reclassifying the
+family as delegated or claiming ART pixels where no pixel path exists.
+
 An entry satisfies the justification contract with its own `justification`
 field or, when it inherits a family default policy, with the family's default
 rationale (`FAMILY_DEFAULT_JUSTIFICATION` in `tools/nrcc/families.py`). Family

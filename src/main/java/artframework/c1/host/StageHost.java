@@ -301,6 +301,10 @@ public final class StageHost
         if (!ready) {
             return;
         }
+        if (artframework.sts1.render.BackgroundOnlyGate.isActive()) {
+            artframework.sts1.render.BackgroundOnlyGate.recordUncovered("art.post_render");
+            return;
+        }
         boolean hasStage = stage != null && !actors.isEmpty();
         boolean hasFx = RenderHosts.get().bindingCount() > 0 || RenderHosts.get().targetCount() > 0;
         boolean hasPresentDraw = !artframework.sts1.render.Sts1RenderPipeline.plan().drawOrder().isEmpty();

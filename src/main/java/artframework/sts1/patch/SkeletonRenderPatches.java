@@ -46,6 +46,9 @@ public final class SkeletonRenderPatches {
                     return SpireReturn.Continue();
                 }
             }
+            if (!disposition.nativeContinuation) {
+                return SpireReturn.Return(null);
+            }
             return SpireReturn.Continue();
         }
     }

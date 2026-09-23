@@ -1,6 +1,7 @@
 package artframework.sts1.patch;
 
 import artframework.sts1.render.NativeRenderBridge;
+import artframework.sts1.render.RenderDisposition;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpireInstrumentPatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
@@ -15,7 +16,8 @@ import javassist.expr.MethodCall;
  * (effectList behind/regular, topLevelEffects). The single-arg
  * {@code AbstractGameEffect#render(SpriteBatch)} is abstract — ModTheSpire cannot attach a
  * Prefix to a bodyless method — so each call site is replaced with an observe-then-render
- * helper. The native render always executes; observation failures never interrupt drawing.
+ * helper. Native rendering follows the bridge disposition; observation failures fail open and
+ * never interrupt drawing.
  */
 public final class TransientEffectContainerPatches {
 
@@ -23,11 +25,14 @@ public final class TransientEffectContainerPatches {
 
     /** Package-visible entry generated at each instrumented call site. */
     public static void observeThenRender(AbstractGameEffect effect, SpriteBatch sb) {
+        RenderDisposition disposition;
         try {
-            NativeRenderBridge.beginEffectRender(effect, "render");
+            disposition = NativeRenderBridge.beginEffectRender(effect, "render");
         } catch (Throwable error) {
             NativeRenderBridge.recordEffectObservationFailure();
+            disposition = RenderDisposition.failOpen(-1L, "observation_error");
         }
+        if (!disposition.nativeContinuation) return;
         try {
             effect.render(sb);
         } catch (Throwable error) {

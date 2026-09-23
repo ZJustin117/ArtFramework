@@ -35,7 +35,9 @@ public final class BackgroundRenderPatches {
         public static SpireReturn<Void> Prefix(TheBottomScene __instance, SpriteBatch sb) {
             boolean painted =
                     artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb);
-            return painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground()
+            boolean suppress = painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground();
+            if (suppress) artframework.sts1.render.BackgroundRenderGate.recordNativeSuppression();
+            return suppress
                     ? SpireReturn.Return(null)
                     : SpireReturn.Continue();
         }
@@ -47,7 +49,9 @@ public final class BackgroundRenderPatches {
         public static SpireReturn<Void> Prefix(TheCityScene __instance, SpriteBatch sb) {
             boolean painted =
                     artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb);
-            return painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground()
+            boolean suppress = painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground();
+            if (suppress) artframework.sts1.render.BackgroundRenderGate.recordNativeSuppression();
+            return suppress
                     ? SpireReturn.Return(null)
                     : SpireReturn.Continue();
         }
@@ -59,7 +63,9 @@ public final class BackgroundRenderPatches {
         public static SpireReturn<Void> Prefix(TheBeyondScene __instance, SpriteBatch sb) {
             boolean painted =
                     artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb);
-            return painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground()
+            boolean suppress = painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground();
+            if (suppress) artframework.sts1.render.BackgroundRenderGate.recordNativeSuppression();
+            return suppress
                     ? SpireReturn.Return(null)
                     : SpireReturn.Continue();
         }
@@ -71,7 +77,9 @@ public final class BackgroundRenderPatches {
         public static SpireReturn<Void> Prefix(TheEndingScene __instance, SpriteBatch sb) {
             boolean painted =
                     artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb);
-            return painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground()
+            boolean suppress = painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground();
+            if (suppress) artframework.sts1.render.BackgroundRenderGate.recordNativeSuppression();
+            return suppress
                     ? SpireReturn.Return(null)
                     : SpireReturn.Continue();
         }

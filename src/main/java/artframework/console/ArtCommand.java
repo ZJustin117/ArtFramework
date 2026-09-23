@@ -178,11 +178,37 @@ public class ArtCommand extends ConsoleCommand {
             if ("status".equals(action)) {
                 logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
                         artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+            } else if ("mode".equals(action) && tokens.length > depth + 1
+                    && "isolate".equalsIgnoreCase(tokens[depth + 1])) {
+                if (tokens.length != depth + 3
+                        || (!"on".equalsIgnoreCase(tokens[depth + 2])
+                        && !"off".equalsIgnoreCase(tokens[depth + 2]))) {
+                    logVfx("ART_VERIFY error=usage: art verify mode isolate on|off");
+                    return;
+                }
+                artframework.sts1.render.NativeRenderBridge.policy().setIsolate(
+                        "on".equalsIgnoreCase(tokens[depth + 2]));
+                logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
+                        artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+            } else if ("mode".equals(action) && tokens.length > depth + 1
+                    && "background-only".equalsIgnoreCase(tokens[depth + 1])) {
+                if (tokens.length != depth + 3
+                        || (!"on".equalsIgnoreCase(tokens[depth + 2])
+                        && !"off".equalsIgnoreCase(tokens[depth + 2]))) {
+                    logVfx("ART_VERIFY error=usage: art verify mode background-only on|off");
+                    return;
+                }
+                artframework.sts1.render.Sts1VerifyDiagnostics.setBackgroundOnly(
+                        "on".equalsIgnoreCase(tokens[depth + 2]));
+                logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
+                        artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+            } else if ("allow".equals(action)) {
+                cmdVerifyAllow(tokens, depth);
             } else if ("mode".equals(action) && tokens.length > depth + 1) {
                 artframework.sts1.render.Sts1VerifyDiagnostics.Mode mode =
                         parseVerifyMode(tokens[depth + 1]);
                 if (mode == null) {
-                    logVfx("ART_VERIFY error=usage: art verify mode off|background|guides|bounds");
+                    logVfx("ART_VERIFY error=usage: art verify mode off|background|background-only|guides|bounds");
                     return;
                 }
                 boolean withVariant = mode == artframework.sts1.render.Sts1VerifyDiagnostics.Mode.BACKGROUND
@@ -205,14 +231,85 @@ public class ArtCommand extends ConsoleCommand {
             } else if ("native".equals(action)) {
                 cmdVerifyNative(tokens, depth);
             } else {
-                logVfx("ART_VERIFY error=usage: art verify status|mode off|background|guides|bounds"
-                        + "|mode background [off|solid|checker|grid]|native <family> on|off");
+                logVfx("ART_VERIFY error=usage: art verify status|mode off|background|background-only|guides|bounds"
+                        + "|mode isolate on|off|allow <target...> on|off|allow clear"
+                        + "|native <family> on|off|native clear");
             }
         } catch (Throwable error) {
             artframework.sts1.render.Sts1VerifyDiagnostics.recordError(error);
             logVfx("ART_VERIFY error=" + error.getClass().getSimpleName()
                     + ":" + String.valueOf(error.getMessage()));
         }
+    }
+
+    private void cmdVerifyAllow(String[] tokens, int depth) {
+        String[] args = new String[tokens.length - (depth + 1)];
+        System.arraycopy(tokens, depth + 1, args, 0, args.length);
+        VerifyAllowRequest request = parseVerifyAllow(args);
+        if (request == null) {
+            logVfx("ART_VERIFY error=usage: art verify allow <target...> on|off|clear");
+            return;
+        }
+        if (request.clear) {
+            artframework.sts1.render.NativeRenderBridge.policy().clear();
+            logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
+                    artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+            return;
+        }
+        try {
+            for (String raw : request.targets) {
+                artframework.sts1.render.NativeRenderPolicy.Target target =
+                        artframework.sts1.render.NativeRenderPolicy.Target.parse(raw);
+                if (request.on) artframework.sts1.render.NativeRenderBridge.policy().allow(target);
+                else artframework.sts1.render.NativeRenderBridge.policy().deny(target);
+            }
+            logVfx("ART_VERIFY " + artframework.inspect.UiInspect.toJson(
+                    artframework.sts1.render.Sts1VerifyDiagnostics.probeSlice()));
+        } catch (IllegalArgumentException error) {
+            logVfx("ART_VERIFY error=" + error.getMessage());
+        }
+    }
+
+    static final class VerifyAllowRequest {
+        final boolean clear;
+        final boolean on;
+        final java.util.List<String> targets;
+
+        VerifyAllowRequest(boolean clear, boolean on, java.util.List<String> targets) {
+            this.clear = clear;
+            this.on = on;
+            this.targets = targets;
+        }
+    }
+
+    /**
+     * Parse `art verify allow` arguments (everything after `allow`). Primary syntax is
+     * {@code <target...> on|off}; the old {@code on|off <target...>} order is compatibility-only.
+     * {@code clear} must be the sole argument and can never be parsed as a target.
+     */
+    static VerifyAllowRequest parseVerifyAllow(String[] args) {
+        if (args == null || args.length == 0) return null;
+        if (args.length == 1 && "clear".equalsIgnoreCase(args[0])) {
+            return new VerifyAllowRequest(true, false, java.util.Collections.<String>emptyList());
+        }
+        boolean legacy = "on".equalsIgnoreCase(args[0]) || "off".equalsIgnoreCase(args[0]);
+        int firstTarget = legacy ? 1 : 0;
+        int stateIndex = legacy ? 0 : args.length - 1;
+        if ((!legacy && stateIndex <= firstTarget)
+                || (!"on".equalsIgnoreCase(args[stateIndex])
+                && !"off".equalsIgnoreCase(args[stateIndex]))) {
+            return null;
+        }
+        int end = legacy ? args.length : stateIndex;
+        java.util.List<String> targets = new java.util.ArrayList<String>();
+        for (int i = firstTarget; i < end; i++) {
+            if (args[i] == null || args[i].trim().isEmpty() || "clear".equalsIgnoreCase(args[i])) {
+                return null;
+            }
+            targets.add(args[i]);
+        }
+        if (targets.isEmpty()) return null;
+        return new VerifyAllowRequest(false, "on".equalsIgnoreCase(args[stateIndex]), targets);
     }
 
     private void cmdVerifyNative(String[] tokens, int depth) {
@@ -274,6 +371,9 @@ public class ArtCommand extends ConsoleCommand {
         }
         if ("bounds".equals(normalized)) {
             return artframework.sts1.render.Sts1VerifyDiagnostics.Mode.BOUNDS;
+        }
+        if ("background-only".equals(normalized)) {
+            return artframework.sts1.render.Sts1VerifyDiagnostics.Mode.BACKGROUND_ONLY;
         }
         return null;
     }

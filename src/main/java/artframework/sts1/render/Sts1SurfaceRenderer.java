@@ -46,6 +46,10 @@ public final class Sts1SurfaceRenderer {
         if (sb == null) {
             return;
         }
+        if (BackgroundOnlyGate.isActive()) {
+            BackgroundOnlyGate.recordUncovered("art.surface_renderer");
+            return;
+        }
         SurfaceDrawPlan plan = Sts1RenderPipeline.plan();
         if (artframework.sts1.PresentSafety.isPanic()) {
             return;
@@ -488,6 +492,10 @@ public final class Sts1SurfaceRenderer {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
             return;
         }
+        if (!TopPanelDrawPath.shouldDrawArtOverlay()) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
+            return;
+        }
         SurfaceDrawPlan.Entry entry = plan.find(SurfaceIds.TOP_PANEL);
         if (entry == null || entry.mode != SurfaceDrawPlan.DrawMode.DRAW) {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
@@ -828,7 +836,7 @@ public final class Sts1SurfaceRenderer {
     }
 
     private static void renderTopPanel(SpriteBatch sb) {
-        if (!Sts1RenderPipeline.plan().shouldDraw(SurfaceIds.TOP_PANEL)) {
+        if (!TopPanelDrawPath.shouldDrawArtOverlay()) {
             return;
         }
         try {

@@ -14,6 +14,7 @@ import artframework.sts1.PresentLevel;
 import artframework.sts1.PresentSafety;
 import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
+import artframework.sts1.patch.TransientEffectContainerPatches;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import org.junit.After;
@@ -22,6 +23,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -63,6 +65,28 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void backgroundOnlyBlocksKnownSurfaceAndKeepsUnknownFailOpen() {
+        mountedCombat();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        NativeRenderBridge.policy().setIsolate(false);
+        Sts1VerifyDiagnostics.setBackgroundOnly(true);
+
+        RenderDisposition blocked = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "strict");
+        assertEquals(RenderDisposition.Mode.BLOCKED, blocked.mode);
+        assertFalse(blocked.nativeContinuation);
+
+        RenderDisposition unknown = NativeRenderBridge.beginSurface(
+                "sts1.unknown.surface", "Unknown", "render", "strict-unknown");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, unknown.mode);
+        assertTrue(unknown.nativeContinuation);
+        Map<String, Object> strict = Sts1VerifyDiagnostics.probeSlice();
+        Map<?, ?> only = (Map<?, ?>) strict.get("backgroundOnly");
+        assertTrue(((Number) only.get("blockedForeground")).longValue() >= 1L);
+        assertTrue(((Number) only.get("unsupported")).longValue() >= 1L);
+    }
+
+    @Test
     public void fullReadyDelegatesWithoutNativeContinuation() {
         mountedCombat();
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
@@ -80,6 +104,113 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void isolateSurfaceSuppressesKnownFullInvocationAndAllowPanicRecoveryStayFailOpen() {
+        mountedCombat();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        NativeRenderBridge.policy().setIsolate(true);
+        RenderDisposition isolated = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "isolate");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, isolated.mode);
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse(
+                "surface:" + SurfaceIds.COMBAT_HAND));
+        RenderDisposition allowed = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "allow");
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, allowed.mode);
+        assertTrue(allowed.nativeContinuation);
+        PresentSafety.panic("surface-isolate");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "panic").mode);
+        PresentSafety.clearPanic();
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+        FullPresentMode.setCombatHandLevel(PresentLevel.OFF);
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "recovery").mode);
+    }
+
+    @Test
+    public void isolateKeepsUnknownAndUnmountedOwnersFailOpen() {
+        mountedCombat();
+        NativeRenderBridge.policy().setIsolate(true);
+
+        RenderDisposition unknown = NativeRenderBridge.beginSurface(
+                "sts1.unknown.surface", "UnknownOwner", "render", "unknown");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, unknown.mode);
+        assertTrue(unknown.nativeContinuation);
+
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        RenderDisposition unmounted = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "unmounted");
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, unmounted.mode);
+        assertTrue(unmounted.nativeContinuation);
+    }
+
+    @Test
+    public void isolateAllowsMultipleMountedFamiliesAndClearRestoresDenyByDefault() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        armFullSurface(SurfaceIds.COMBAT_ENERGY);
+        armFullSurface(SurfaceIds.TOP_PANEL);
+        NativeRenderBridge.policy().setIsolate(true);
+
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse(
+                "family:" + SurfaceIds.COMBAT_HAND));
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse(
+                "family:" + SurfaceIds.COMBAT_ENERGY));
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse(
+                "family:" + SurfaceIds.TOP_PANEL));
+
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH,
+                NativeRenderBridge.beginSurface(SurfaceIds.COMBAT_HAND, "Player", "renderHand", "hand").mode);
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH,
+                NativeRenderBridge.beginSurface(SurfaceIds.COMBAT_ENERGY, "EnergyPanel", "render", "energy").mode);
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH,
+                NativeRenderBridge.beginSurface(SurfaceIds.TOP_PANEL, "TopPanel", "render", "top").mode);
+        assertEquals(3, NativeRenderBridge.policy().exemptionTargets().size());
+
+        NativeRenderBridge.policy().clear();
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART,
+                NativeRenderBridge.beginSurface(SurfaceIds.COMBAT_HAND, "Player", "renderHand", "deny").mode);
+    }
+
+    @Test
+    public void filterScopeDowngradeWinsOverIsolateForFilteredFamily() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_INTENTS);
+        NativeRenderBridge.filterScope().activate();
+        NativeRenderBridge.filterScope().filter(SurfaceIds.COMBAT_INTENTS);
+        NativeRenderBridge.policy().setIsolate(true);
+
+        RenderDisposition disposition = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_INTENTS, "native.Owner", "render", "isolate-filter");
+
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, disposition.mode);
+        assertTrue(disposition.nativeContinuation);
+        assertTrue(disposition.reason.startsWith("filter_scope:"));
+    }
+
+    @Test
+    public void exemptBeforeFirstDelegatedFrameStillProjectsExemptionEntity() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        NativeRenderBridge.policy().setIsolate(true);
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse(
+                "family:" + SurfaceIds.COMBAT_HAND));
+
+        RenderDisposition exempt = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "exempt-first");
+
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, exempt.mode);
+        assertTrue(exempt.nativeContinuation);
+        assertTrue(Sts1NativePresentationAdapter.hasEntity(SurfaceIds.COMBAT_HAND));
+        NativeRenderExemptionComponent projection = artframework.presentation.PresentationRegistry
+                .context("nrcc-native").world().get(
+                        Sts1NativePresentationAdapter.entity(SurfaceIds.COMBAT_HAND),
+                        NativeRenderExemptionComponent.class);
+        assertTrue(projection != null && projection.exempt);
+    }
+
+    @Test
     public void delegatedEvidenceClosesTheEvidenceGap() {
         mountedCombat();
         FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
@@ -94,6 +225,44 @@ public class NativeRenderBridgeTest {
         assertEquals(Integer.valueOf(0), after.get("delegatedWithoutEvidence"));
         assertEquals(Integer.valueOf(1), after.get("evidenceCount"));
         assertEquals(Integer.valueOf(0), after.get("orphanArtOutput"));
+    }
+
+    @Test
+    public void policyRevisionRefreshesProjectedExemptionComponent() {
+        NativeRenderInvocation invocation = new NativeRenderInvocation(99L, 1L, "combat",
+                "refresh-owner", "com.example.Native", "render", "combat.hand", "source",
+                artframework.component.Rect.ZERO);
+        Sts1NativePresentationAdapter.present(invocation);
+        artframework.ecs.EntityId entity = Sts1NativePresentationAdapter.entity("refresh-owner");
+        NativeRenderExemptionComponent before = artframework.presentation.PresentationRegistry
+                .context("nrcc-native").world().get(entity, NativeRenderExemptionComponent.class);
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse("family:combat.hand"));
+        NativeRenderExemptionComponent after = artframework.presentation.PresentationRegistry
+                .context("nrcc-native").world().get(entity, NativeRenderExemptionComponent.class);
+        assertFalse(before.exempt);
+        assertTrue(after.exempt);
+        assertTrue(after.policyRevision > before.policyRevision);
+    }
+
+    @Test
+    public void verifyResetReprojectsExistingNativeEntitiesWithoutStaleExemption() {
+        NativeRenderInvocation invocation = new NativeRenderInvocation(100L, 1L, "combat",
+                "reset-owner", "com.example.Native", "render", "combat.hand", "source",
+                artframework.component.Rect.ZERO);
+        Sts1NativePresentationAdapter.present(invocation);
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse("family:combat.hand"));
+        NativeRenderExemptionComponent allowed = artframework.presentation.PresentationRegistry
+                .context("nrcc-native").world().get(Sts1NativePresentationAdapter.entity("reset-owner"),
+                        NativeRenderExemptionComponent.class);
+        assertTrue(allowed.exempt);
+
+        Sts1VerifyDiagnostics.resetForTests();
+
+        NativeRenderExemptionComponent reset = artframework.presentation.PresentationRegistry
+                .context("nrcc-native").world().get(Sts1NativePresentationAdapter.entity("reset-owner"),
+                        NativeRenderExemptionComponent.class);
+        assertFalse(reset.exempt);
+        assertEquals(Long.valueOf(0L), Long.valueOf(reset.policyRevision));
     }
 
     @Test
@@ -674,6 +843,60 @@ public class NativeRenderBridgeTest {
         assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
         assertTrue("native effect queue must continue after observation",
                 disposition.nativeContinuation);
+    }
+
+    @Test
+    public void backgroundOnlyBlocksKnownEffect() {
+        Sts1VerifyDiagnostics.setBackgroundOnly(true);
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect(), "render");
+        assertEquals(RenderDisposition.Mode.BLOCKED, disposition.mode);
+        assertFalse(disposition.nativeContinuation);
+    }
+
+    @Test
+    public void isolateSuppressesKnownEffectAndAllowRestoresNativeContinuation() {
+        AbstractGameEffect effect = effect();
+        NativeRenderBridge.policy().setIsolate(true);
+        RenderDisposition isolated = NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, isolated.mode);
+        assertFalse(isolated.nativeContinuation);
+
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse(
+                "class:" + effect.getClass().getName()));
+        RenderDisposition allowed = NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, allowed.mode);
+        assertTrue(allowed.nativeContinuation);
+    }
+
+    @Test
+    public void isolateEffectPanicAndRecoveryFailOpen() {
+        AbstractGameEffect effect = effect();
+        NativeRenderBridge.policy().setIsolate(true);
+        PresentSafety.panic("effect-isolate");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN,
+                NativeRenderBridge.beginEffectRender(effect, "render").mode);
+        PresentSafety.clearPanic();
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS,
+                NativeRenderBridge.beginEffectRender(effect, "render").mode);
+    }
+
+    @Test
+    public void containerEffectRenderConsumesDelegationAndDoesNotCreateArtEvidence() {
+        final AtomicInteger nativeRenders = new AtomicInteger();
+        AbstractGameEffect effect = new AbstractGameEffect() {
+            @Override public void render(SpriteBatch sb) { nativeRenders.incrementAndGet(); }
+            @Override public void dispose() { }
+        };
+        NativeRenderBridge.policy().setIsolate(true);
+
+        TransientEffectContainerPatches.observeThenRender(effect, null);
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(nativeRenders.get()));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.probeSlice().get("evidenceCount"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get(
+                "delegatedWithoutEvidence"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("openInvocation"));
     }
 
     @Test

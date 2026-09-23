@@ -6,6 +6,7 @@ public final class RenderDisposition {
         PASS_THROUGH,
         CAPTURE_AND_PASS,
         DELEGATE_TO_ART,
+        BLOCKED,
         FAIL_OPEN
     }
 
@@ -44,5 +45,12 @@ public final class RenderDisposition {
             throw new IllegalArgumentException("fail-open reason required");
         }
         return new RenderDisposition(id, Mode.FAIL_OPEN, reason, true, null);
+    }
+
+    public static RenderDisposition blocked(long id, String reason) {
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new IllegalArgumentException("blocked reason required");
+        }
+        return new RenderDisposition(id, Mode.BLOCKED, reason, false, null);
     }
 }

@@ -15,7 +15,9 @@ import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.PresentSafety;
 import artframework.sts1.render.NativeRenderBridge;
+import artframework.sts1.render.NativeRenderPolicy;
 import artframework.sts1.render.RenderDisposition;
+import artframework.sts1.render.Sts1VerifyDiagnostics;
 import com.esotericsoftware.spine.Skeleton;
 import com.esotericsoftware.spine.SkeletonData;
 import org.junit.After;
@@ -226,6 +228,39 @@ public class Sts1SkeletonBridgeTest {
         NativeRenderBridge.recordSkeletonDraw(skeleton, 1);
         assertEquals(1, NativeRenderBridge.ledger().evidenceCount());
         assertTrue(fake.renderedAtNativeSlot(entityKey));
+    }
+
+    @Test
+    public void backgroundOnlyBlocksClaimedSkeleton() {
+        String entityKey = "strict-creature";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey, "atlas", "skeleton");
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(
+                viewFor(entityKey, fake.id())));
+        Sts1VerifyDiagnostics.setBackgroundOnly(true);
+        RenderDisposition disposition = NativeRenderBridge.beginSkeletonRender(skeleton);
+        assertEquals(RenderDisposition.Mode.BLOCKED, disposition.mode);
+        assertFalse(disposition.nativeContinuation);
+    }
+
+    @Test
+    public void isolateKeepsKnownClaimedSkeletonDelegatedAndAllowRecordsExemption() {
+        String entityKey = "isolated-creature";
+        FakeSkeletonProvider fake = registerAndMountSkeletonProvider();
+        Skeleton skeleton = new Skeleton(new SkeletonData());
+        Sts1SkeletonBridge.observeNativeSkeletonForTests(skeleton, entityKey, "atlas", "skeleton");
+        Sts1SkeletonBridge.syncPresentation(1L, java.util.Arrays.asList(viewFor(entityKey, fake.id())));
+        NativeRenderBridge.policy().setIsolate(true);
+        RenderDisposition isolated = NativeRenderBridge.beginSkeletonRender(skeleton);
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, isolated.mode);
+        assertFalse(isolated.nativeContinuation);
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse(
+                "class:com.esotericsoftware.spine.SkeletonMeshRenderer"));
+        RenderDisposition allowed = NativeRenderBridge.beginSkeletonRender(skeleton);
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, allowed.mode);
+        assertTrue(allowed.nativeContinuation);
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.policy().probeSlice().get("resolvedExemptions"));
     }
 
     @Test

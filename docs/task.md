@@ -7,6 +7,16 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 
 ## Infrastructure (P0–P2)
 
+- [x] Native isolate vertical slice: primary `allow <target> on|off` command syntax, strict method
+      targets, policy reset, immutable snapshot projection refresh, surface/skeleton/effect typed
+      bridges, covered effect suppression ownership, and mounted/FULL D1 assertions are shipped.
+      Uncovered native owners continue to fail open and are not claimed by the isolate command.
+      Allow exemptions restore native continuation rather than ART delegation; D1 records this via
+      `lastExemptionNativeContinuation`, and background policy remains independent. D1 now covers
+      hand, controls, energy, and top-panel owners in one live combat scene; targeting remains
+      observe-only, skeleton claims remain per instance, and unpatched map/event/reward/rest/shop/
+      treasure/relic/power/card owners remain outside isolate coverage.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).
@@ -14,10 +24,18 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `renderOrder` probe diagnostics, the reported `unsupported` pre-native background
       capability, `art verify status|mode` diagnostics, and narrowing native filter scopes
       (`filterScopes` probe, fail-open cleanup, offline tests) are shipped (`b4b59ac`..`85846aa`).
-      Remaining: background renderer, verified pre-native/filtered boundary, per-family native
-      pixel replacement, and pixel-parity evidence (design recorded in
+      Background renderer, verified pre-native/filtered boundary, and D1 background scene are
+      shipped/verified; `scripts/art-lab background verify-isolate` runs the staged background and
+      mounted/FULL isolate scenario. Remaining: per-family native pixel replacement beyond
+      `sts1.room.background`, complete UI-family coverage, and pixel-parity evidence (design in
       `docs/design/render-z-order.md` section 12). D1 probe scenarios are shipped; the
-      "legacy adapter" item is resolved as doc-only (no adapter code ever existed).
+       "legacy adapter" item is resolved as doc-only (no adapter code ever existed).
+
+- [ ] Close strict `background-only` coverage: the command and probe gate now block all covered
+      surface/skeleton/effect bridge entries and all ART post-present/C1 output, while preserving
+      the pre-native combat-room background. D1 `background verify-only` intentionally reports
+      `unsupported/uncovered` for native world/foreground entry points not yet behind a global
+      pre-native gate; do not claim pure-background success until those counters are zero.
 
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.

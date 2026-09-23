@@ -49,7 +49,7 @@ public final class TransientEffectRegistry {
         requireIdentity(identity);
         enqueue(new PendingProjection(identity.instanceId, ownerId(identity), false,
                 new NativeRenderInvocation(-1L, frameId, "", ownerId(identity),
-                        identity.nativeClass, method, "transient_effect",
+                        identity.nativeClass, method, "vfx-misc-root",
                         identity.instanceId, artframework.component.Rect.ZERO)));
     }
 

@@ -26,6 +26,7 @@ __pycache__/
 hs_err_pid*.log
 logs/
 debug-artifacts/
+sendToDevs/
 
 # Secrets
 *.jks

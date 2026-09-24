@@ -5,6 +5,7 @@ import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
 import org.junit.Test;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import static org.junit.Assert.*;
 import artframework.render.RenderPhase;
@@ -75,5 +76,47 @@ public class ParticleRenderProjectionSystemTest {
         VfxDrawList draws = world.get(world.entities().get(0), VfxDrawListComponent.class).value;
         assertEquals(19f, draws.draws.get(0).x, .001f);
         assertEquals(35f, draws.draws.get(0).y, .001f);
+    }
+
+    @Test public void aggregateFrameConcatenatesRootsInWorldOrderAndIsImmutable() {
+        PresentationWorld world = new PresentationWorld("aggregate-frame");
+        VfxResourceRef resource = new VfxResourceRef("tex", "TEXTURE", "a.png", "a.png", "supported");
+        ParticleEmitterDefinition emitter = new ParticleEmitterDefinition(1, 1f, 0f,
+                null, 0f, null, null, null, null, null, null, null, null, null, 1L, "tex");
+        for (String scene : Arrays.asList("first", "second")) {
+            VfxNodeDefinition node = new VfxNodeDefinition("node", "node", null, "GPUParticles2D",
+                    null, null, null, null, null, null, null, emitter);
+            new VfxInstantiateSystem().instantiate(world, new VfxSceneDefinition(scene, 1, 1f,
+                    Collections.singletonList(node), Collections.singletonList(resource),
+                    VfxCapability.SUPPORTED), 0L);
+            EntityId particleEntity = world.query(VfxParticleBufferComponent.class).get(
+                    world.query(VfxParticleBufferComponent.class).size() - 1);
+            world.put(particleEntity, VfxParticleBufferComponent.class,
+                    new VfxParticleBufferComponent(Collections.singletonList(new VfxParticle(0, 0f, 1f,
+                            new VfxVec2(0f, 0f), new VfxVec2(0f, 0f), 0f, 0f, 1f, 1f, 1f, null))));
+        }
+
+        new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, 0L));
+        VfxRenderFrame frame = world.get(world.query(VfxRenderFrameComponent.class).get(0),
+                VfxRenderFrameComponent.class).value;
+        assertEquals(Arrays.asList("first", "second"), Arrays.asList(
+                frame.draws.get(0).sceneId, frame.draws.get(1).sceneId));
+        assertEquals(Arrays.asList(1, 2), frame.rootEnds);
+        java.util.List<VfxParticleDraw> mutable = new ArrayList<VfxParticleDraw>(frame.draws);
+        VfxRenderFrame copied = new VfxRenderFrame(mutable);
+        mutable.clear();
+        assertEquals(2, copied.draws.size());
+        try {
+            frame.draws.add(frame.draws.get(0));
+            fail("frame draws must be immutable");
+        } catch (UnsupportedOperationException expected) { }
+        try {
+            frame.rootEnds.add(2);
+            fail("root boundaries must be immutable");
+        } catch (UnsupportedOperationException expected) { }
+        for (EntityId root : world.query(VfxSceneRuntimeComponent.class)) world.destroyEntity(root);
+        new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, 1L));
+        assertTrue(world.get(world.query(VfxRenderFrameComponent.class).get(0),
+                VfxRenderFrameComponent.class).value.draws.isEmpty());
     }
 }

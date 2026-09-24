@@ -2,6 +2,7 @@ package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
 import artframework.component.Rect;
+import artframework.render.NativeRenderOwnership;
 import artframework.sts1.PresentSafety;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -45,6 +46,10 @@ public final class NativeRenderBridge {
                 scene, ownerId, nativeClass, nativeMethod, ownerId, sourceIdentity, Rect.ZERO);
         LEDGER.recordInvocation(invocation);
         RenderDisposition disposition;
+        // Ownership actually written to the projected ECS native render input, so a final ledger
+        // disposition that differs from the proposal (recovery fail-open won the race) can be
+        // reconciled without letting the ECS input overstate pixel ownership.
+        NativeRenderOwnership projectedOwnership = null;
         try {
             if (PresentSafety.isPanic()) {
                 disposition = RenderDisposition.failOpen(invocation.invocationId, "panic");
@@ -63,26 +68,45 @@ public final class NativeRenderBridge {
                 if (FILTER_SCOPE.blocksDelegation(invocation.surfaceFamily)) {
                     // Family is filtered and not selected: narrow delegation back to native. The
                     // filter scope stays strictly downgrade-only and wins over isolate, so a
-                    // filtered family never becomes a suppression target.
+                    // filtered family never becomes a suppression target. Native pixels stay
+                    // authoritative, so the ECS input is an overlay-only claim.
+                    projectedOwnership = Sts1NativePresentationAdapter.ownershipFor(
+                            RenderDisposition.Mode.PASS_THROUGH);
+                    Sts1NativePresentationAdapter.present(invocation, projectedOwnership);
                     disposition = RenderDisposition.pass(invocation.invocationId,
                             "filter_scope:" + invocation.surfaceFamily);
                 } else if (POLICY.isIsolateActive() && !POLICY.exempt(invocation)) {
                     POLICY.recordIsolated();
-                    String entityId = Sts1NativePresentationAdapter.present(invocation);
+                    projectedOwnership = NativeRenderOwnership.DELEGATED_TO_ART;
+                    String entityId = Sts1NativePresentationAdapter.present(
+                            invocation, projectedOwnership);
                     disposition = RenderDisposition.delegate(invocation.invocationId,
                             "isolate:" + entry.reason, entityId);
                 } else if (POLICY.isIsolateActive() && POLICY.exempt(invocation)) {
                     // Exemption keeps native continuation, but still projects the invocation so the
                     // ECS exemption view (NativeRenderExemptionComponent) reflects the matched
                     // target even before/without a delegated frame. No ledger token is published.
-                    String entityId = Sts1NativePresentationAdapter.present(invocation);
+                    projectedOwnership = NativeRenderOwnership.NATIVE_WITH_ART_OVERLAY;
+                    String entityId = Sts1NativePresentationAdapter.present(
+                            invocation, projectedOwnership);
                     disposition = RenderDisposition.pass(invocation.invocationId,
                             "exempt:native_continuation");
                     POLICY.recordExempted(disposition.nativeContinuation);
-                } else disposition = normalSurfaceDecision(entry, invocation);
+                } else {
+                    projectedOwnership = NativeRenderOwnership.DELEGATED_TO_ART;
+                    disposition = normalSurfaceDecision(entry, invocation, projectedOwnership);
+                }
             } else if (entry.mode == SurfaceDrawPlan.DrawMode.OBSERVE) {
+                // OBSERVE only captures: native pixels stay authoritative and no ECS input is
+                // written. This native render callback runs outside PresentationSchedule.advance,
+                // so projecting here would force a synchronous full RenderPlan rebuild for every
+                // observed surface callback in the default OFF/OBSERVE configurations.
                 disposition = RenderDisposition.capture(invocation.invocationId, entry.reason);
             } else {
+                // Known surface that keeps native pixels this frame (OFF/SKIP/DRAW-without-suppress):
+                // pass through without writing ECS input, for the same out-of-schedule rebuild
+                // reason. A surface delegated on an earlier frame keeps its (delegated) input until
+                // the recovery/scene cleanup withdraws it; OFF/OBSERVE never fabricate a claim.
                 disposition = RenderDisposition.pass(invocation.invocationId, entry.reason);
             }
         } catch (Throwable error) {
@@ -111,6 +135,15 @@ public final class NativeRenderBridge {
             } else {
                 cancelPendingSurfaceInvocationsLocked(ownerId);
             }
+        }
+        NativeRenderOwnership finalOwnership =
+                Sts1NativePresentationAdapter.ownershipFor(disposition.mode);
+        if (projectedOwnership != null && finalOwnership != projectedOwnership) {
+            // Reconcile only an input this frame actually projected. A recovery fail-open that won
+            // the race downgrades the already-projected delegated claim. Non-projecting paths
+            // (panic / unknown / blocked / OBSERVE / OFF pass) never write ECS input here, so a
+            // surface that keeps native pixels cannot fabricate or revive a retained target.
+            Sts1NativePresentationAdapter.projectInput(invocation, finalOwnership);
         }
         return disposition;
     }
@@ -523,6 +556,11 @@ public final class NativeRenderBridge {
             synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
         }
         Sts1NativePresentationAdapter.clearTransientEffects();
+        // Recovery/panic ends every delegation (isolate cleared, ledger closed, tokens dropped),
+        // so no surface is actively delegating here. Withdraw surface-owned native inputs too so a
+        // stale retained target/ownership claim cannot survive into the next scene/frame. Effect
+        // inputs are handled by the line above and are never touched here.
+        Sts1NativePresentationAdapter.clearSurfaceInputs();
     }
 
     public static TransientEffectLedger effectLedger() { return EFFECT_LEDGER; }
@@ -535,8 +573,8 @@ public final class NativeRenderBridge {
     public static NativeRenderPolicy policy() { return POLICY; }
 
     private static RenderDisposition normalSurfaceDecision(SurfaceDrawPlan.Entry entry,
-            NativeRenderInvocation invocation) {
-        String entityId = Sts1NativePresentationAdapter.present(invocation);
+            NativeRenderInvocation invocation, NativeRenderOwnership ownership) {
+        String entityId = Sts1NativePresentationAdapter.present(invocation, ownership);
         return RenderDisposition.delegate(invocation.invocationId, entry.reason, entityId);
     }
 

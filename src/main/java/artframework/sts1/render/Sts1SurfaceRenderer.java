@@ -104,6 +104,12 @@ public final class Sts1SurfaceRenderer {
         renderEntityChrome(sb);
         renderRelicPotionBlightOverlay(sb);
         renderPileSoulOverlay(sb);
+        // Room-shell chrome now draws from payload entries in the shared aggregate frame. Make sure
+        // the stateless room-shell producer and the shared aggregation pass are registered in the
+        // existing RENDER_PROJECTION phase (both idempotent). The producer is installed first so it
+        // publishes its contribution before the aggregation pass merges contributions.
+        RoomShellRenderProjectionSystem.install();
+        artframework.render.ArtRenderFrameAggregationSystem.install();
         Sts1RoomShellDrawPath.render(sb);
         VerifyGuideDrawPath.render(sb);
         // ART_EFFECTS is the final ART-owned band. It remains outside the native stage.draw()

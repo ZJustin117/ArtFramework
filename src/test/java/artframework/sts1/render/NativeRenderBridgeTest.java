@@ -15,6 +15,8 @@ import artframework.sts1.PresentSafety;
 import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
 import artframework.sts1.patch.TransientEffectContainerPatches;
+import artframework.render.NativeRenderInputComponent;
+import artframework.render.NativeRenderOwnership;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import org.junit.After;
@@ -27,6 +29,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class NativeRenderBridgeTest {
@@ -633,6 +637,163 @@ public class NativeRenderBridgeTest {
                 SurfaceIds.COMBAT_PROCEED, "com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render", "p");
         assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, proceed.mode);
         assertFalse(proceed.nativeContinuation);
+    }
+
+    @Test
+    public void projectingDispositionsRecordOwnershipOnSurfaceInput() {
+        mountedCombat();
+
+        // DELEGATE_TO_ART (FULL + mounted + executor): ART owns the pixels.
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "full").mode);
+        assertEquals(NativeRenderOwnership.DELEGATED_TO_ART,
+                surfaceInput(SurfaceIds.COMBAT_HAND).ownership());
+    }
+
+    @Test
+    public void observeAndOffSurfaceCallsCreateNoNativeInputOrRetainedTarget() {
+        mountedCombat();
+
+        // OFF (pass) and OBSERVE (capture) keep native pixels without writing ECS input. The
+        // callback runs outside PresentationSchedule.advance, so projecting here would force a
+        // synchronous full RenderPlan rebuild on every observed surface callback.
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "off").mode);
+        assertEquals(null, Sts1NativePresentationAdapter.entity(SurfaceIds.COMBAT_HAND));
+        assertNull("OFF must not create a native input", inputFor(SurfaceIds.COMBAT_HAND));
+
+        FullPresentMode.setCombatHandLevel(PresentLevel.OBSERVE);
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "observe").mode);
+        assertEquals(null, Sts1NativePresentationAdapter.entity(SurfaceIds.COMBAT_HAND));
+        assertNull("OBSERVE must not create a native input", inputFor(SurfaceIds.COMBAT_HAND));
+
+        // No entity means no input and therefore no native retained target for the surface owner;
+        // an entity with no input would otherwise fall back to a presentation-frame retained entry.
+        artframework.render.RenderPlan plan =
+                artframework.render.RenderPlan.fromEcs(java.util.Collections.<String>emptySet());
+        for (artframework.render.RenderPlan.Entry entry : plan.entries()) {
+            assertFalse("OFF/OBSERVE must not trigger a retained target for the surface owner",
+                    entry.id.startsWith("native:"));
+        }
+    }
+
+    @Test
+    public void exemptSurfaceKeepsOverlayOwnershipInput() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        NativeRenderBridge.policy().setIsolate(true);
+        NativeRenderBridge.policy().allow(NativeRenderPolicy.Target.parse(
+                "surface:" + SurfaceIds.COMBAT_HAND));
+
+        RenderDisposition exempt = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_HAND, "Player", "renderHand", "exempt");
+
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, exempt.mode);
+        assertEquals(NativeRenderOwnership.NATIVE_WITH_ART_OVERLAY,
+                surfaceInput(SurfaceIds.COMBAT_HAND).ownership());
+    }
+
+    @Test
+    public void filteredSurfaceKeepsOverlayOwnershipInput() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_INTENTS);
+        NativeRenderBridge.filterScope().activate();
+        NativeRenderBridge.filterScope().filter(SurfaceIds.COMBAT_INTENTS);
+
+        RenderDisposition filtered = NativeRenderBridge.beginSurface(
+                SurfaceIds.COMBAT_INTENTS, "native.Owner", "render", "filtered");
+
+        assertEquals(RenderDisposition.Mode.PASS_THROUGH, filtered.mode);
+        assertEquals(NativeRenderOwnership.NATIVE_WITH_ART_OVERLAY,
+                surfaceInput(SurfaceIds.COMBAT_INTENTS).ownership());
+    }
+
+    @Test
+    public void nonProjectingDispositionsNeverFabricateSurfaceInput() {
+        mountedCombat();
+
+        // FAIL_OPEN: unknown owner never claims pixels and never fabricates an input.
+        RenderDisposition unknown = NativeRenderBridge.beginSurface(
+                "sts1.unknown.surface", "Unknown", "render", "unknown");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, unknown.mode);
+        assertEquals(null, Sts1NativePresentationAdapter.entity("sts1.unknown.surface"));
+
+        // Panic fail-open removes any surface input the recovery cleanup found.
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "owned");
+        assertEquals(NativeRenderOwnership.DELEGATED_TO_ART, surfaceInput(SurfaceIds.COMBAT_HAND).ownership());
+        PresentSafety.panic("ownership-reconcile");
+        assertNull("panic recovery must withdraw the surface input",
+                inputFor(SurfaceIds.COMBAT_HAND));
+        PresentSafety.clearPanic();
+    }
+
+    @Test
+    public void recoveryClearsSurfaceInputWithoutDestroyingOwnerOrEffectInput() {
+        mountedCombat();
+        armFullSurface(SurfaceIds.COMBAT_HAND);
+        beginDelegatedSurface(SurfaceIds.COMBAT_HAND, "surface-owned");
+        assertEquals(NativeRenderOwnership.DELEGATED_TO_ART,
+                surfaceInput(SurfaceIds.COMBAT_HAND).ownership());
+
+        TransientEffectIdentity identity = new TransientEffectIdentity("recovery-effect",
+                "com.megacrit.cardcrawl.vfx.AbstractGameEffect", 1, 0L);
+        NativeRenderBridge.effectRegistry().present(identity, 1L, "render");
+        new TransientEffectProjectionSystem(NativeRenderBridge.effectRegistry()).drain();
+        assertNotNull(inputFor("effect:recovery-effect"));
+
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+
+        assertNull("recovery withdraws surface-owned native input",
+                inputFor(SurfaceIds.COMBAT_HAND));
+        assertTrue("recovery keeps the surface entity (presentation state)",
+                Sts1NativePresentationAdapter.hasEntity(SurfaceIds.COMBAT_HAND));
+
+        // Effect behavior is unchanged by the surface-input cleanup.
+        TransientEffectIdentity effectAgain = new TransientEffectIdentity("recovery-effect-2",
+                "com.megacrit.cardcrawl.vfx.AbstractGameEffect", 2, 0L);
+        NativeRenderBridge.effectRegistry().present(effectAgain, 1L, "render");
+        new TransientEffectProjectionSystem(NativeRenderBridge.effectRegistry()).drain();
+        NativeRenderInputComponent effectInput = inputFor("effect:recovery-effect-2");
+        assertNotNull(effectInput);
+        assertEquals(NativeRenderOwnership.OBSERVED, effectInput.ownership());
+        Sts1NativePresentationAdapter.clearTransientEffects();
+        assertFalse(Sts1NativePresentationAdapter.hasEntity("effect:recovery-effect-2"));
+    }
+
+    @Test
+    public void transientEffectInputStaysObserved() {
+        AbstractGameEffect effect = effect();
+        RenderDisposition captured = NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, captured.mode);
+
+        // Project one observed effect instance through the same registry the bridge drives.
+        TransientEffectIdentity identity = new TransientEffectIdentity("bridge-observed",
+                effect.getClass().getName(), System.identityHashCode(effect), 0L);
+        NativeRenderBridge.effectRegistry().present(identity, 1L, "render");
+        new TransientEffectProjectionSystem(NativeRenderBridge.effectRegistry()).drain();
+
+        NativeRenderInputComponent input = inputFor("effect:bridge-observed");
+        assertNotNull("observed effect owner must carry an input", input);
+        assertEquals(NativeRenderOwnership.OBSERVED, input.ownership());
+        assertFalse("effect inputs are never delegated to ART",
+                input.ownership() == NativeRenderOwnership.DELEGATED_TO_ART);
+    }
+
+    private NativeRenderInputComponent surfaceInput(String ownerId) {
+        NativeRenderInputComponent input = inputFor(ownerId);
+        assertNotNull("surface owner " + ownerId + " must carry a native render input", input);
+        return input;
+    }
+
+    private NativeRenderInputComponent inputFor(String ownerId) {
+        artframework.ecs.EntityId entity = Sts1NativePresentationAdapter.entity(ownerId);
+        if (entity == null) return null;
+        return artframework.presentation.PresentationRegistry.context("nrcc-native")
+                .world().get(entity, NativeRenderInputComponent.class);
     }
 
     @Test

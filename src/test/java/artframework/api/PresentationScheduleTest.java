@@ -55,6 +55,35 @@ public class PresentationScheduleTest {
                 new PresentationSchedule().phases());
     }
 
+    @Test public void soleScheduleRunsNativeRenderValidationAfterProjectionSystems() {
+        artframework.ecs.PresentationWorld world = artframework.ecs.ArtEcs.world();
+        EntityId first = world.createEntity();
+        EntityId second = world.createEntity();
+        world.put(first, artframework.render.NativeRenderInputComponent.class,
+                nativeInput("schedule-duplicate"));
+        world.put(second, artframework.render.NativeRenderInputComponent.class,
+                nativeInput("schedule-duplicate"));
+
+        try {
+            ArtFramework.tick(0f);
+            fail("expected duplicate native render stable key failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("duplicate native render stable key"));
+            assertTrue(expected.getMessage().contains("schedule-duplicate"));
+        } finally {
+            world.destroyEntity(first);
+            world.destroyEntity(second);
+            ArtFramework.resetForTests();
+        }
+    }
+
+    private static artframework.render.NativeRenderInputComponent nativeInput(String key) {
+        return new artframework.render.NativeRenderInputComponent("test", "schedule-test",
+                artframework.render.RenderPhase.ENTITY_CONTENT, 0f, key,
+                new artframework.component.Rect(0f, 0f, 1f, 1f), true,
+                artframework.render.NativeRenderOwnership.OBSERVED);
+    }
+
     @Test public void schedulesSerializeSharedAuthorityExecution() throws Exception {
         final PresentationSchedule first = new PresentationSchedule();
         final PresentationSchedule second = new PresentationSchedule();

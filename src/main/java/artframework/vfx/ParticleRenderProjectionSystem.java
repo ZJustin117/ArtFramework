@@ -16,6 +16,8 @@ import java.util.Map;
 /** Stateless ECS-to-draw-data projection. */
 public final class ParticleRenderProjectionSystem implements EcsSystem {
     @Override public void run(PresentationWorld world, EcsTick tick) {
+        List<VfxParticleDraw> frameDraws = new ArrayList<VfxParticleDraw>();
+        List<Integer> rootEnds = new ArrayList<Integer>();
         for (EntityId root : world.query(VfxSceneRuntimeComponent.class, VfxSceneResourcesComponent.class)) {
             List<VfxParticleDraw> draws = new ArrayList<VfxParticleDraw>();
             List<EntityId> nodes = world.query(VfxNodeComponent.class, VfxTransformComponent.class,
@@ -60,7 +62,14 @@ public final class ParticleRenderProjectionSystem implements EcsSystem {
                 }
             });
             world.put(root, VfxDrawListComponent.class, new VfxDrawListComponent(new VfxDrawList(draws)));
+            frameDraws.addAll(draws);
+            rootEnds.add(frameDraws.size());
         }
+        List<EntityId> existing = world.query(VfxRenderFrameComponent.class);
+        if (rootEnds.isEmpty() && existing.isEmpty()) return;
+        EntityId frameEntity = existing.isEmpty() ? world.createEntity() : existing.get(0);
+        world.put(frameEntity, VfxRenderFrameComponent.class,
+                new VfxRenderFrameComponent(new VfxRenderFrame(frameDraws, rootEnds)));
     }
 
     private static String outputPath(List<VfxResourceRef> resources, String id) {

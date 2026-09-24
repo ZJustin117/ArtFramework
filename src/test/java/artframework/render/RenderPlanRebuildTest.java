@@ -2,14 +2,18 @@ package artframework.render;
 
 import artframework.api.ArtFramework;
 import artframework.component.Rect;
+import artframework.component.UiNode;
+import artframework.component.UiTypes;
 import artframework.ecs.EntityId;
 import artframework.presentation.BoundsComponent;
+import artframework.presentation.C1Materializer;
 import artframework.presentation.EffectAttachment;
 import artframework.presentation.HostBindingComponent;
 import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationFrame;
 import artframework.presentation.PresentationKey;
 import artframework.presentation.PresentationRegistry;
+import artframework.presentation.PresentationRuntime;
 import artframework.sts1.render.NativeRenderInvocation;
 import artframework.sts1.render.Sts1NativePresentationAdapter;
 import java.lang.reflect.Constructor;
@@ -636,6 +640,30 @@ public class RenderPlanRebuildTest {
         }
     }
 
+    @Test public void bridgedSurfaceOwnershipDrivesNativeRetainedInclusion() {
+        // A surface owner bridged as DELEGATED_TO_ART has handed its pixels to ART, so it must not
+        // appear as native-retained; an overlay-only owner keeps its retained entry.
+        Sts1NativePresentationAdapter.present(new NativeRenderInvocation(1L, 1L, "combat",
+                "surface.delegated", "Player", "renderHand", "sts1.combat.hand", "src",
+                new Rect(0f, 0f, 10f, 10f)), NativeRenderOwnership.DELEGATED_TO_ART);
+        Sts1NativePresentationAdapter.present(new NativeRenderInvocation(2L, 1L, "combat",
+                "surface.observed", "Player", "renderHand", "sts1.combat.controls", "src",
+                new Rect(0f, 0f, 10f, 10f)), NativeRenderOwnership.NATIVE_WITH_ART_OVERLAY);
+
+        RenderPlan plan = RenderPlan.fromEcs(Collections.<String>emptySet());
+
+        boolean observedRetained = false;
+        for (RenderPlan.Entry entry : plan.entries()) {
+            assertFalse("delegated surface pixels must not be native-retained",
+                    "native:surface.delegated".equals(entry.id));
+            if ("native:surface.observed".equals(entry.id)) {
+                observedRetained = true;
+                assertEquals(RenderPhase.NATIVE_RETAINED, entry.phase);
+            }
+        }
+        assertTrue("overlay-only surface keeps a native-retained entry", observedRetained);
+    }
+
     @Test public void nativeProjectionIsVisibleInPresentationFrameAndRenderPlan() {
         Sts1NativePresentationAdapter.present(new NativeRenderInvocation(7L, 3L, "combat",
                 "sts1.native.test", "Native", "render", "family", "source",
@@ -645,6 +673,95 @@ public class RenderPlanRebuildTest {
         RenderPlan plan = RenderPlan.fromEcs(Collections.<String>emptySet());
         assertEquals(1, plan.entries().size());
         assertEquals("native:sts1.native.test", plan.entries().get(0).id);
+    }
+
+    @Test public void nativeInputEntityProducesSingleRetainedEntryFromSnapshot() {
+        Rect bounds = new Rect(3f, 4f, 20f, 30f);
+        Sts1NativePresentationAdapter.present(new NativeRenderInvocation(7L, 9L, "combat",
+                "effect:retained-42", "Native", "render", "family", "source", bounds));
+
+        RenderPlan plan = RenderPlan.fromEcs(Collections.<String>emptySet());
+
+        int retained = 0;
+        RenderPlan.Entry found = null;
+        for (RenderPlan.Entry entry : plan.entries()) {
+            if (entry.id.startsWith("native:")) {
+                retained++;
+                found = entry;
+            }
+        }
+        assertEquals("one retained entry per native input entity", 1, retained);
+        assertNotNull(found);
+        assertEquals("native:effect:retained-42", found.id);
+        assertEquals(RenderPhase.NATIVE_RETAINED, found.phase);
+        assertEquals(bounds, found.bounds);
+        assertEquals("effect:retained-42", found.stableKey);
+    }
+
+    @Test public void inputRetentionNeverDuplicatesFrameFallbackOrPromotesOwnership() {
+        PresentationContext nativeContext = PresentationRegistry.context("nrcc-native");
+        nativeContext.create(new PresentationKey("test.native-input", "observed"), "observed",
+                "native_render", "test");
+        EntityId observed = nativeContext.entity(
+                new PresentationKey("test.native-input", "observed"));
+        putNativeFrameComponents(nativeContext, observed);
+        nativeContext.world().put(observed, NativeRenderInputComponent.class,
+                new NativeRenderInputComponent("family", "observed", RenderPhase.ART_EFFECTS, 0f,
+                        "observed", new Rect(0f, 0f, 5f, 5f), true, NativeRenderOwnership.OBSERVED));
+        nativeContext.create(new PresentationKey("test.native-input", "delegated"), "delegated",
+                "native_render", "test");
+        EntityId delegated = nativeContext.entity(
+                new PresentationKey("test.native-input", "delegated"));
+        putNativeFrameComponents(nativeContext, delegated);
+        nativeContext.world().put(delegated, NativeRenderInputComponent.class,
+                new NativeRenderInputComponent("family", "delegated", RenderPhase.ART_BACKGROUND,
+                        0f, "delegated", new Rect(0f, 0f, 5f, 5f), true,
+                        NativeRenderOwnership.DELEGATED_TO_ART));
+
+        RenderPlan plan = RenderPlan.fromEcs(Collections.<String>emptySet());
+
+        int observedEntries = 0;
+        for (RenderPlan.Entry entry : plan.entries()) {
+            assertFalse("delegated pixels must not appear as native-retained",
+                    "native:delegated".equals(entry.id));
+            if ("native:observed".equals(entry.id)) observedEntries++;
+        }
+        assertEquals("input entity must not also emit a frame fallback entry", 1, observedEntries);
+    }
+
+    @Test public void nativeRetainedCoexistsWithC1AndC2Entries() {
+        RenderStateEcs.surface("sts1.coexist", 1f, 2f, 30f, 40f, true);
+        C1Materializer.mount(PresentationRegistry.context(PresentationRuntime.c1Scope("coexist-c1")),
+                UiNode.of(UiTypes.WINDOW).id("root").prop("title", "coexist").build());
+        Sts1NativePresentationAdapter.present(new NativeRenderInvocation(1L, 1L, "combat",
+                "sts1.native.coexist", "Native", "render", "family", "source",
+                new Rect(10f, 20f, 30f, 40f)));
+
+        RenderPlan plan = RenderPlan.fromEcs(Collections.singleton("sts1.coexist"));
+
+        boolean c1 = false;
+        boolean c2 = false;
+        boolean nativeRetained = false;
+        for (RenderPlan.Entry entry : plan.entries()) {
+            if (entry.id.startsWith("c1:coexist-c1")) c1 = true;
+            if (RenderHost.c2SurfaceTargetId("sts1.coexist").equals(entry.id)) c2 = true;
+            if ("native:sts1.native.coexist".equals(entry.id)) {
+                nativeRetained = true;
+                assertEquals(RenderPhase.NATIVE_RETAINED, entry.phase);
+            }
+        }
+        assertTrue("C1 entry survives native retention", c1);
+        assertTrue("C2 entry survives native retention", c2);
+        assertTrue("surface owner fallback produces native-retained entry", nativeRetained);
+    }
+
+    private static void putNativeFrameComponents(PresentationContext context, EntityId entity) {
+        context.world().put(entity, BoundsComponent.class, new BoundsComponent(
+                new Rect(0f, 0f, 5f, 5f), 0f));
+        context.world().put(entity, artframework.presentation.VisibilityComponent.class,
+                new artframework.presentation.VisibilityComponent(true, 1f));
+        context.world().put(entity, artframework.presentation.DrawComponent.class,
+                new artframework.presentation.DrawComponent("render", "", "test"));
     }
 
     @Test public void queueProjectsRequestedActiveSurface() {

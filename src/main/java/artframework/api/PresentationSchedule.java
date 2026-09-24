@@ -23,6 +23,7 @@ import artframework.presentation.ControlValueSystem;
 import artframework.render.RenderClockSystem;
 import artframework.render.RenderProjectionQueue;
 import artframework.render.RenderProjectionSystem;
+import artframework.render.NativeRenderInputSystem;
 import artframework.skeleton.SkeletonHostTickSystem;
 import artframework.sts1.render.NativeRenderBridge;
 import artframework.sts1.render.TransientEffectProjectionSystem;
@@ -78,6 +79,7 @@ public final class PresentationSchedule implements AutoCloseable {
     private final EffectPulseSystem effects = new EffectPulseSystem();
     private final RenderClockSystem renderClock = new RenderClockSystem();
     private final RenderProjectionSystem renderProjection = new RenderProjectionSystem();
+    private final NativeRenderInputSystem nativeRenderInput = new NativeRenderInputSystem();
     private final HostBackendTickSystem hostBackend = new HostBackendTickSystem();
     private SkeletonHostTickSystem skeleton;
     private TransientEffectProjectionSystem transientEffectProjection;
@@ -150,6 +152,7 @@ public final class PresentationSchedule implements AutoCloseable {
                         case RENDER_PROJECTION:
                             run(tick, renderProjection);
                             runAll(tick, PackSystemPhase.RENDER_PROJECTION);
+                            run(tick, nativeRenderInput);
                             break;
                         case RENDER_CLOCK:
                             run(tick, renderClock);

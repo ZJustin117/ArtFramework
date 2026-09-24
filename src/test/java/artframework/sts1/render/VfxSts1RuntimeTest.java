@@ -9,6 +9,8 @@ import artframework.vfx.VfxLifecycleSystem;
 import artframework.vfx.VfxDrawList;
 import artframework.vfx.VfxDrawListComponent;
 import artframework.vfx.VfxParticleDraw;
+import artframework.vfx.VfxRenderFrame;
+import artframework.vfx.VfxRenderFrameComponent;
 import artframework.vfx.VfxSceneRuntimeComponent;
 import artframework.vfx.VfxTransformComponent;
 import org.junit.After;
@@ -17,6 +19,8 @@ import org.junit.Test;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -117,6 +121,78 @@ public class VfxSts1RuntimeTest {
                 new VfxDrawListComponent(new VfxDrawList(java.util.Collections.singletonList(particle))));
 
         assertTrue(VfxSts1Runtime.hasLiveDraws());
+    }
+
+    @Test
+    public void backendFrameSourceUsesSharedSnapshotNotRootDrawComponents() {
+        EntityId root = ArtEcs.world().createEntity();
+        ArtEcs.world().put(root, VfxSceneRuntimeComponent.class,
+                new VfxSceneRuntimeComponent("diagnostic-only", 1L, 1L, false));
+        VfxParticleDraw rootOnly = new VfxParticleDraw("root", "other", 9, 0, "wrong.png",
+                0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", 0f,
+                0, 1, 1, false, false);
+        ArtEcs.world().put(root, VfxDrawListComponent.class,
+                new VfxDrawListComponent(new VfxDrawList(java.util.Collections.singletonList(rootOnly))));
+        VfxParticleDraw suppliedDraw = new VfxParticleDraw("snapshot", "node", 3, 0, "p.png",
+                1f, 2f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", 0f,
+                0, 1, 1, false, false);
+        VfxRenderFrame supplied = new VfxRenderFrame(java.util.Collections.singletonList(suppliedDraw));
+        EntityId output = ArtEcs.world().createEntity();
+        ArtEcs.world().put(output, VfxRenderFrameComponent.class, new VfxRenderFrameComponent(supplied));
+
+        assertEquals(supplied, VfxSts1Runtime.frameForRender());
+        assertEquals("p.png", VfxSts1Runtime.frameForRender().draws.get(0).textureReference);
+    }
+
+    @Test
+    public void payloadEntriesAreBucketedBackIntoLegacyRootSegments() {
+        // Root "first" draws at z=5; root "second" draws at z=-1. The global payload ordering
+        // (phase, z, stableKey) would put "second" first, but the legacy per-root submission order
+        // must be preserved: first root's segment renders before second root's segment.
+        VfxParticleDraw firstDraw = new VfxParticleDraw("first", "nodeA", 0, 0, "a.png",
+                0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", 5f, 0, 1, 1, false, false);
+        VfxParticleDraw secondDraw = new VfxParticleDraw("second", "nodeB", 0, 0, "b.png",
+                0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", -1f, 0, 1, 1, false, false);
+        VfxRenderFrame frame = new VfxRenderFrame(
+                java.util.Arrays.asList(firstDraw, secondDraw), java.util.Arrays.asList(1, 2));
+
+        // Sanity: the unified payload order is global (z then key), not root-segmented.
+        assertEquals(Arrays.asList("second/nodeB/0/0", "first/nodeA/0/0"),
+                Arrays.asList(frame.planEntries.get(0).stableKey,
+                        frame.planEntries.get(1).stableKey));
+
+        List<List<artframework.render.RenderPlan.Entry>> segments =
+                VfxSts1Runtime.planEntriesByRoot(frame);
+
+        assertEquals(2, segments.size());
+        assertEquals(Arrays.asList("first/nodeA/0/0"), stableKeys(segments.get(0)));
+        assertEquals(Arrays.asList("second/nodeB/0/0"), stableKeys(segments.get(1)));
+    }
+
+    @Test
+    public void payloadEntrySegmentationKeepsWithinRootOrderAndDropsPayloadlessEntries() {
+        VfxParticleDraw high = new VfxParticleDraw("scene", "z", 0, 0, "z.png",
+                0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", 9f, 0, 1, 1, false, false);
+        VfxParticleDraw low = new VfxParticleDraw("scene", "a", 1, 0, "a.png",
+                0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", -2f, 0, 1, 1, false, false);
+        VfxRenderFrame frame = new VfxRenderFrame(
+                java.util.Arrays.asList(high, low), java.util.Arrays.asList(2));
+
+        List<List<artframework.render.RenderPlan.Entry>> segments =
+                VfxSts1Runtime.planEntriesByRoot(frame);
+
+        assertEquals(1, segments.size());
+        // Within the root segment, order stays (z, stableKey) sorted: low z first.
+        assertEquals(Arrays.asList("scene/a/0/1", "scene/z/0/0"), stableKeys(segments.get(0)));
+        for (artframework.render.RenderPlan.Entry entry : segments.get(0)) {
+            assertTrue(entry.payload != null);
+        }
+    }
+
+    private static List<String> stableKeys(List<artframework.render.RenderPlan.Entry> entries) {
+        List<String> keys = new java.util.ArrayList<String>();
+        for (artframework.render.RenderPlan.Entry entry : entries) keys.add(entry.stableKey);
+        return keys;
     }
 
     @Test

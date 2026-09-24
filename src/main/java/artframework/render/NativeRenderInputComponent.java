@@ -12,10 +12,32 @@ public final class NativeRenderInputComponent {
     private final Rect bounds;
     private final boolean visible;
     private final NativeRenderOwnership ownership;
+    private final String sceneId;
+    private final long frameId;
+    private final RenderPixelPayload payload;
 
     public NativeRenderInputComponent(String nativeRenderFamily, String ownerId,
             RenderPhase phase, float z, String stableKey, Rect bounds, boolean visible,
             NativeRenderOwnership ownership) {
+        this(nativeRenderFamily, ownerId, phase, z, stableKey, bounds, visible, ownership, "", -1L);
+    }
+
+    public NativeRenderInputComponent(String nativeRenderFamily, String ownerId,
+            RenderPhase phase, float z, String stableKey, Rect bounds, boolean visible,
+            NativeRenderOwnership ownership, String sceneId, long frameId) {
+        this(nativeRenderFamily, ownerId, phase, z, stableKey, bounds, visible, ownership,
+                sceneId, frameId, null);
+    }
+
+    /**
+     * Full constructor. The optional {@code payload} is host-neutral pixel data only. Its
+     * presence or absence never changes {@code ownership} and must never be read as delegated
+     * pixel ownership.
+     */
+    public NativeRenderInputComponent(String nativeRenderFamily, String ownerId,
+            RenderPhase phase, float z, String stableKey, Rect bounds, boolean visible,
+            NativeRenderOwnership ownership, String sceneId, long frameId,
+            RenderPixelPayload payload) {
         this.nativeRenderFamily = required(nativeRenderFamily, "native render family");
         this.ownerId = required(ownerId, "owner id");
         if (phase == null) throw new IllegalArgumentException("render phase required");
@@ -37,6 +59,11 @@ public final class NativeRenderInputComponent {
         this.visible = visible;
         if (ownership == null) throw new IllegalArgumentException("ownership required");
         this.ownership = ownership;
+        if (sceneId == null) throw new IllegalArgumentException("scene id required");
+        if (frameId < -1L) throw new IllegalArgumentException("frame id must be -1 or non-negative");
+        this.sceneId = sceneId;
+        this.frameId = frameId;
+        this.payload = payload;
     }
 
     public String nativeRenderFamily() { return nativeRenderFamily; }
@@ -47,6 +74,11 @@ public final class NativeRenderInputComponent {
     public Rect bounds() { return new Rect(bounds.x, bounds.y, bounds.width, bounds.height); }
     public boolean visible() { return visible; }
     public NativeRenderOwnership ownership() { return ownership; }
+    public String sceneId() { return sceneId; }
+    public long frameId() { return frameId; }
+
+    /** Optional host-neutral pixel payload; {@code null} means this input carries no pixels. */
+    public RenderPixelPayload payload() { return payload; }
 
     private static String required(String value, String name) {
         if (value == null || value.trim().isEmpty()) {

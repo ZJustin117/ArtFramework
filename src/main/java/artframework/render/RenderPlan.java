@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 
 /** Immutable render target description projected from ECS render state. */
 public final class RenderPlan {
@@ -31,14 +32,26 @@ public final class RenderPlan {
         public final String stableKey;
         public final boolean enabled;
         public final List<EffectAttachment> effects;
+        /**
+         * Optional host-neutral pixel data. {@code null} for identity/geometry-only entries
+         * (for example native-retained entries that keep native pixels). The payload is not part
+         * of ordering or de-duplication and is never an ownership or delegation claim.
+         */
+        public final RenderPixelPayload payload;
 
         Entry(String id, RenderTargetKind kind, Rect bounds, float z, boolean enabled,
                 List<EffectAttachment> effects) {
-            this(id, kind, bounds, RenderPhase.C2_CONTENT, z, id, enabled, effects);
+            this(id, kind, bounds, RenderPhase.C2_CONTENT, z, id, enabled, effects, null);
         }
 
         Entry(String id, RenderTargetKind kind, Rect bounds, RenderPhase phase, float z,
                 String stableKey, boolean enabled, List<EffectAttachment> effects) {
+            this(id, kind, bounds, phase, z, stableKey, enabled, effects, null);
+        }
+
+        Entry(String id, RenderTargetKind kind, Rect bounds, RenderPhase phase, float z,
+                String stableKey, boolean enabled, List<EffectAttachment> effects,
+                RenderPixelPayload payload) {
             this.id = id;
             this.kind = kind;
             this.bounds = bounds;
@@ -49,6 +62,18 @@ public final class RenderPlan {
             this.effects = effects == null || effects.isEmpty()
                     ? Collections.<EffectAttachment>emptyList()
                     : Collections.unmodifiableList(new ArrayList<EffectAttachment>(effects));
+            this.payload = payload;
+        }
+
+        /**
+         * Public pure factory for a payload-bearing frame entry (used by ART-owned producers such
+         * as the VFX projection). No host object is referenced.
+         */
+        public static Entry payloadEntry(String id, RenderTargetKind kind, Rect bounds,
+                RenderPhase phase, float z, String stableKey, boolean enabled,
+                RenderPixelPayload payload) {
+            return new Entry(id, kind, bounds, phase, z, stableKey, enabled,
+                    Collections.<EffectAttachment>emptyList(), payload);
         }
 
         RenderOrder order() {
@@ -73,6 +98,23 @@ public final class RenderPlan {
             }
         });
         this.entries = Collections.unmodifiableList(ordered);
+    }
+
+    /**
+     * Builds one unified immutable frame from identity/geometry entries (typically no payload) and
+     * payload-bearing entries produced by ART-owned content such as VFX. The merged frame is sorted
+     * by {@code (phase.rank, z, stableKey)} and rejects ambiguous duplicate stable keys. The
+     * payload is never consulted for ordering, de-duplication, or identity, so a frame can mix
+     * payload-less native-retained entries with payload-bearing ART entries deterministically.
+     *
+     * <p>This is the single frame contract for producers. It does not change host draw behavior:
+     * the ART VFX backend keeps consuming {@code VfxRenderFrame} directly.</p>
+     */
+    public static RenderPlan unifiedFrame(List<Entry> identityEntries, List<Entry> payloadEntries) {
+        List<Entry> merged = new ArrayList<Entry>();
+        if (identityEntries != null) merged.addAll(identityEntries);
+        if (payloadEntries != null) merged.addAll(payloadEntries);
+        return new RenderPlan(merged);
     }
 
     private static Entry item(String id, RenderTargetKind kind, Rect bounds, RenderPhase phase,
@@ -182,14 +224,44 @@ public final class RenderPlan {
                 }
             }
         }
-        if (nativeContext != null) {
-            for (PresentationDrawItem item : PresentationFrame.from(nativeContext).items) {
-                entries.add(item("native:" + item.key.localId,
-                        RenderTargetKind.SYNTHETIC_WIDGET, item.bounds, RenderPhase.NATIVE_RETAINED,
-                        item.z, true, item.effects));
-            }
-        }
+        appendNativeRetainedEntries(entries, nativeContext);
         return new RenderPlan(entries);
+    }
+
+    private static void appendNativeRetainedEntries(List<Entry> entries,
+            PresentationContext nativeContext) {
+        if (nativeContext == null) return;
+        // Entities carrying a native input are projected from the immutable extractor snapshot
+        // (deterministic phase/z/stable key/bounds/visible). Entities that remain pure
+        // presentation nodes (for example a surface owner) have no input and fall back to the
+        // presentation frame so they stay reachable. Input-carrying entities are excluded from the
+        // fallback so one entity can never produce two retained entries, and DELEGATED_TO_ART
+        // inputs never appear as native-retained (ART owns those pixels).
+        //
+        // NATIVE_RETAINED is the retained-boundary phase for this plan section, not the input's own
+        // phase: a non-delegated (overlay/retained) native input renders at the native-retained
+        // boundary regardless of the phase recorded on its component. ART_EFFECTS inputs are
+        // intentionally emitted here at the same retained boundary rather than at ART_EFFECTS, and
+        // the stableKey/id rule ("native:" + stableKey plus the frame fallback's localId) is
+        // deliberately unchanged so entry identity and ordering do not drift.
+        Set<EntityId> inputEntities = new HashSet<EntityId>(
+                nativeContext.world().query(NativeRenderInputComponent.class));
+        NativeRenderFrameSnapshot snapshot = new NativeRenderFrameExtractor()
+                .extract(nativeContext.world());
+        for (NativeRenderInputSnapshot input : snapshot.inputs()) {
+            if (input.ownership() == NativeRenderOwnership.DELEGATED_TO_ART) continue;
+            // The optional payload is transparently carried through; it does not affect the
+            // NATIVE_RETAINED boundary, ordering, identity, or ownership. Today native inputs have
+            // no payload, so retained entries stay pixel-less and native-drawn.
+            entries.add(new Entry("native:" + input.stableKey(), RenderTargetKind.SYNTHETIC_WIDGET,
+                    input.bounds(), RenderPhase.NATIVE_RETAINED, input.z(), input.stableKey(),
+                    input.visible(), Collections.<EffectAttachment>emptyList(), input.payload()));
+        }
+        for (PresentationDrawItem item : PresentationFrame.from(nativeContext).items) {
+            if (inputEntities.contains(item.entity)) continue;
+            entries.add(item("native:" + item.key.localId, RenderTargetKind.SYNTHETIC_WIDGET,
+                    item.bounds, RenderPhase.NATIVE_RETAINED, item.z, true, item.effects));
+        }
     }
 
     private static String c1TargetId(PresentationDrawItem item) {

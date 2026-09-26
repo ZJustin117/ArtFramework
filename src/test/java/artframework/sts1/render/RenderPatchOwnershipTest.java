@@ -57,7 +57,8 @@ public class RenderPatchOwnershipTest {
                     "MapRenderPatches.java",
                     "SkeletonRenderPatches.java",
                     "TransientEffectRenderPatches.java",
-                    "BackgroundRenderPatches.java"));
+                    "BackgroundRenderPatches.java",
+                    "StanceRenderPatches.java"));
 
     private static final Map<String, Set<String>> EXPECTED_DELEGATED_SURFACES_BY_PATCH = delegatedSurfacesByPatch();
 
@@ -301,6 +302,7 @@ public class RenderPatchOwnershipTest {
                 SurfaceIds.SHOP, SurfaceIds.TREASURE));
         m.put("MapRenderPatches.java", set(SurfaceIds.MAP));
         m.put("SkeletonRenderPatches.java", set(SurfaceIds.SKELETON));
+        m.put("StanceRenderPatches.java", set(SurfaceIds.STANCE));
         m.put("TransientEffectRenderPatches.java", set("vfx-misc-root"));
         m.put("BackgroundRenderPatches.java", set(BackgroundRenderGate.BACKGROUND_FAMILY));
         return m;

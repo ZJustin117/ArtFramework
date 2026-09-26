@@ -17,6 +17,8 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       observe-only, skeleton claims remain per instance, and unpatched map/event/reward/rest/shop/
       treasure/relic/power/card owners remain outside isolate coverage.
 
+- [ ] Migrate a single `stances-state` instance end to end (S2): draw-input observation and shared-frame payload plus a default-off delegation/suppression seam are shipped; remaining is ART draw + DELEGATE token consumption and D1 per-stance pixel/order evidence before enabling the gate.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

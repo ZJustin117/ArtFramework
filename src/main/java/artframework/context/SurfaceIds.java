@@ -28,6 +28,7 @@ public final class SurfaceIds {
     public static final String TREASURE = "sts1.treasure";
     public static final String SHOP = "sts1.shop";
     public static final String TOP_PANEL = "sts1.top_panel";
+    public static final String STANCE = "sts1.stance";
 
     private SurfaceIds() {}
 
@@ -47,6 +48,7 @@ public final class SurfaceIds {
                 || COMBAT_SURFACE.equals(id)
                 || COMBAT_PROCEED.equals(id)
                 || COMBAT_ENERGY.equals(id)
+                || STANCE.equals(id)
                 || COMBAT_INTENTS.equals(id)
                 || COMBAT_TARGETING.equals(id)
                 || SKELETON.equals(id)

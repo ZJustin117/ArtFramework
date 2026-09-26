@@ -32,6 +32,8 @@ public final class NativeRenderBridge {
             new HashMap<String, ArrayDeque<Long>>();
     private static final Map<String, ArrayDeque<Long>> SKELETON_INVOCATIONS =
             new HashMap<String, ArrayDeque<Long>>();
+    private static final Map<String, ArrayDeque<Long>> STANCE_INVOCATIONS =
+            new HashMap<String, ArrayDeque<Long>>();
     private static final Map<String, Long> NATIVE_CONTINUATION_FRAMES =
             new HashMap<String, Long>();
 
@@ -396,6 +398,123 @@ public final class NativeRenderBridge {
         }
     }
 
+    /**
+     * Stance-family native render seam. While the delegation gate is off the native
+     * {@code AbstractStance.render} pixels continue unchanged; once enabled and ART stance
+     * drawing is ready the invocation is delegated to ART.
+     */
+    public static RenderDisposition beginStanceRender(
+            com.megacrit.cardcrawl.stances.AbstractStance stance) {
+        String owner = stanceOwner(stance);
+        long frameId = ArtFramework.projection().lastFrameId();
+        NativeRenderInvocation invocation = new NativeRenderInvocation(++nextInvocationId, frameId,
+                ArtFramework.projection().scene(), owner,
+                "com.megacrit.cardcrawl.stances.AbstractStance", "render",
+                artframework.context.SurfaceIds.STANCE, owner, Rect.ZERO);
+        LEDGER.recordInvocation(invocation);
+        RenderDisposition disposition;
+        try {
+            if (PresentSafety.isPanic()) {
+                disposition = RenderDisposition.failOpen(invocation.invocationId, "panic");
+            } else if (BackgroundOnlyGate.isActive()) {
+                disposition = RenderDisposition.failOpen(invocation.invocationId,
+                        "background_only:stance");
+            } else if (!StanceDelegationGate.isActive()) {
+                disposition = RenderDisposition.pass(invocation.invocationId,
+                        "native_continuation");
+            } else if (!StanceArtRenderer.isReady()) {
+                disposition = RenderDisposition.failOpen(invocation.invocationId,
+                        "stance_art_not_ready");
+            } else {
+                disposition = RenderDisposition.delegate(invocation.invocationId,
+                        "stance_delegate", owner);
+            }
+        } catch (Throwable error) {
+            disposition = RenderDisposition.failOpen(invocation.invocationId,
+                    "bridge_error:" + error.getClass().getSimpleName());
+        }
+        synchronized (BRIDGE_LOCK) {
+            disposition = LEDGER.recordDispositionOrRecovery(disposition);
+            if (beforeTokenPublicationForTests != null) beforeTokenPublicationForTests.run();
+            if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
+                    && LEDGER.isPendingDelegated(invocation.invocationId)) {
+                ArrayDeque<Long> ids = STANCE_INVOCATIONS.get(owner);
+                if (ids == null) {
+                    ids = new ArrayDeque<Long>();
+                    STANCE_INVOCATIONS.put(owner, ids);
+                }
+                ids.addLast(Long.valueOf(invocation.invocationId));
+            }
+        }
+        return disposition;
+    }
+
+    static String stanceOwner(com.megacrit.cardcrawl.stances.AbstractStance stance) {
+        if (stance == null) return "stance:unknown";
+        String id = stance.ID;
+        String suffix = (id != null && !id.isEmpty()) ? id : stance.getClass().getSimpleName();
+        return "stance:" + suffix;
+    }
+
+    static Long takeStanceInvocation(String owner) {
+        if (owner == null) return null;
+        synchronized (STANCE_INVOCATIONS) {
+            ArrayDeque<Long> ids = STANCE_INVOCATIONS.get(owner);
+            if (ids == null || ids.isEmpty()) return null;
+            Long id = ids.removeFirst();
+            if (ids.isEmpty()) STANCE_INVOCATIONS.remove(owner);
+            return id;
+        }
+    }
+
+    public static void recordStanceDraw(long invocationId, int drawCount) {
+        synchronized (BRIDGE_LOCK) {
+            if (LEDGER.recordDelegatedEvidence(invocationId, drawCount, "active")) {
+                removeStanceInvocation(invocationId);
+            } else {
+                LEDGER.recordOrphanArtOutput();
+            }
+        }
+    }
+
+    public static void recordStanceFailure(long invocationId) {
+        synchronized (BRIDGE_LOCK) {
+            if (!LEDGER.recordDelegatedFallbackIfPending(invocationId)) {
+                removeStanceInvocation(invocationId);
+                LEDGER.recordOrphanArtOutput();
+                return;
+            }
+            NativeRenderInvocation invocation = LEDGER.invocation(invocationId);
+            if (invocation != null) {
+                Sts1NativePresentationAdapter.remove(invocation.ownerId);
+                removeStanceInvocation(invocation.ownerId, invocationId);
+            } else {
+                removeStanceInvocation(invocationId);
+            }
+        }
+    }
+
+    private static void removeStanceInvocation(String ownerId, long invocationId) {
+        if (ownerId == null) return;
+        synchronized (STANCE_INVOCATIONS) {
+            ArrayDeque<Long> ids = STANCE_INVOCATIONS.get(ownerId);
+            if (ids == null) return;
+            ids.remove(Long.valueOf(invocationId));
+            if (ids.isEmpty()) STANCE_INVOCATIONS.remove(ownerId);
+        }
+    }
+
+    private static void removeStanceInvocation(long invocationId) {
+        synchronized (STANCE_INVOCATIONS) {
+            List<String> emptyOwners = new ArrayList<String>();
+            for (Map.Entry<String, ArrayDeque<Long>> entry : STANCE_INVOCATIONS.entrySet()) {
+                entry.getValue().remove(Long.valueOf(invocationId));
+                if (entry.getValue().isEmpty()) emptyOwners.add(entry.getKey());
+            }
+            for (String owner : emptyOwners) STANCE_INVOCATIONS.remove(owner);
+        }
+    }
+
     /** Observe one effect instance without suppressing the native effect queue. */
     public static RenderDisposition beginEffectRender(
             com.megacrit.cardcrawl.vfx.AbstractGameEffect effect, String method) {
@@ -554,6 +673,7 @@ public final class NativeRenderBridge {
             LEDGER.closeForRecovery("recovery");
             synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
             synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
+            synchronized (STANCE_INVOCATIONS) { STANCE_INVOCATIONS.clear(); }
         }
         Sts1NativePresentationAdapter.clearTransientEffects();
         // Recovery/panic ends every delegation (isolate cleared, ledger closed, tokens dropped),
@@ -607,6 +727,7 @@ public final class NativeRenderBridge {
         POLICY.reset();
         synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
         synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
+        synchronized (STANCE_INVOCATIONS) { STANCE_INVOCATIONS.clear(); }
         synchronized (BRIDGE_LOCK) { NATIVE_CONTINUATION_FRAMES.clear(); }
         beforeTokenPublicationForTests = null;
         Sts1NativePresentationAdapter.clear();

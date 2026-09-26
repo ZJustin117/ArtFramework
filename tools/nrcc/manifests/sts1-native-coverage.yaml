@@ -1979,9 +1979,15 @@ entries:
   nativeMethod: render
   family: stances-state
   pathKind: render-owner
-  surfaceId: ''
+  surfaceId: sts1.stance
   effectFamily: none
-  hook: ''
+  hook: artframework/sts1/patch/StanceRenderPatches.java
+  policy: ART_DELEGATED
+  justification: Stance pixels are delegated to ART only while the default-off StanceDelegationGate
+    is active AND StanceArtRenderer.isReady(), with panic/background-only/not-ready paths
+    failing open to native; the suppression Prefix in artframework/sts1/patch/StanceRenderPatches.java
+    returns Return(null) only on a DELEGATE_TO_ART disposition.
+  test: artframework.sts1.render.StanceRenderPatchMappingTest.delegateSuppressesNativeAndDropsContinuation
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.stances.neutralstance.render

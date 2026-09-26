@@ -330,6 +330,27 @@ public class Sts1AtlasMaterializerTest {
         assertEquals(1, providerB.atlasTextCalls);
     }
 
+    @Test
+    public void publicSetProviderBindsHostThenNullFailsOpen() {
+        StubProvider provider = new StubProvider();
+        provider.texts.put("cardui/frame", SAMPLE_ATLAS);
+        Texture frame = newTexture();
+        provider.pages.put("cardui/frame|frame.png", frame);
+
+        Sts1AtlasMaterializer.setProvider(provider);
+
+        Sts1AtlasMaterializer.RegionTexture resolved =
+                Sts1AtlasMaterializer.region("cardui/frame", "attack.common");
+        assertNotNull(resolved);
+        assertTrue(resolved.texture == frame);
+
+        Sts1AtlasMaterializer.setProvider(null);
+
+        assertEquals("null provider must clear prior borrows",
+                Integer.valueOf(0), Sts1AtlasMaterializer.probeSlice().get("atlasCount"));
+        assertNull("null provider must fail open", Sts1AtlasMaterializer.region("cardui/frame", "attack.common"));
+    }
+
     private static Texture newTexture() {
         try {
             java.lang.reflect.Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");

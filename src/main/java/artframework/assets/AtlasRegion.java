@@ -142,6 +142,30 @@ public final class AtlasRegion {
         return new float[] { Math.min(u, u2), Math.min(v, v2), Math.max(u, u2), Math.max(v, v2) };
     }
 
+    /**
+     * Normalized source rect as {@code {x, y, width, height}} in UV space, derived from
+     * {@link #uvRect()} as {@code x = u}, {@code y = v}, {@code width = u2 - u},
+     * {@code height = v2 - v}. This is the host-neutral form a UV payload or a
+     * {@code SpriteBatch} source rect wants: an origin plus a positive extent rather than the
+     * two-corner {@code {u, v, u2, v2}} rect.
+     *
+     * <p>Every value is finite and clamped into {@code [0, 1]}. When the page size is not positive
+     * this returns the fail-safe full-texture rect {@code {0, 0, 1, 1}}, consistent with
+     * {@link #uvRect()}.
+     *
+     * <p>Rotated regions keep their packed UV rect here; rotation handling (swapping the displayed
+     * extents and rotating the drawn quad) stays with the caller or a {@code TextureRegion}, so this
+     * accessor never rotates or swaps {@code width}/{@code height}.
+     */
+    public float[] uvSourceRect() {
+        float[] uv = uvRect();
+        float u = clamp01(uv[0]);
+        float v = clamp01(uv[1]);
+        float u2 = clamp01(uv[2]);
+        float v2 = clamp01(uv[3]);
+        return new float[] { u, v, clamp01(u2 - u), clamp01(v2 - v) };
+    }
+
     /** Untrimmed placement rect as {@code {offsetX, offsetY, originalWidth, originalHeight}}. */
     public float[] trimmedRect() {
         return new float[] { offsetX, offsetY, originalWidth, originalHeight };

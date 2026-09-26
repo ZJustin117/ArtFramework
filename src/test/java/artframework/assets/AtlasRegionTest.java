@@ -144,4 +144,59 @@ public class AtlasRegionTest {
 
         assertTrue(region.valid());
     }
+
+    @Test
+    public void uvSourceRectForNormalRegionIsOriginPlusPositiveExtent() {
+        AtlasRegion region = new AtlasRegion(
+                "page.png", "card", 16, 8, 64, 32, 256, 128, 64, 32, 0, 0, 0);
+
+        float[] rect = region.uvSourceRect();
+
+        assertArrayEquals(
+                new float[] { 16f / 256f, 8f / 128f, 64f / 256f, 32f / 128f }, rect, EPS);
+        assertTrue(rect[2] > 0f && rect[3] > 0f);
+        assertFiniteInUnitRange(rect);
+    }
+
+    @Test
+    public void uvSourceRectAtPageEdgeClampsAndKeepsExtent() {
+        AtlasRegion region = new AtlasRegion(
+                "page.png", "edge", 224, 96, 32, 32, 256, 128, 32, 32, 0, 0, 0);
+
+        assertTrue(region.valid());
+        assertArrayEquals(
+                new float[] { 224f / 256f, 96f / 128f, 32f / 256f, 32f / 128f },
+                region.uvSourceRect(),
+                EPS);
+    }
+
+    @Test
+    public void uvSourceRectForInvalidPageSizeIsFailSafeFullTexture() {
+        AtlasRegion region = new AtlasRegion(
+                "page.png", "broken", 0, 0, 16, 16, 0, 0, 0, 0, 0, 0, 0);
+
+        assertFalse(region.valid());
+        assertArrayEquals(new float[] { 0f, 0f, 1f, 1f }, region.uvSourceRect(), EPS);
+    }
+
+    @Test
+    public void uvSourceRectWidthAndHeightAreDifferencesNotAbsoluteValues() {
+        AtlasRegion region = new AtlasRegion(
+                "page.png", "card", 16, 8, 64, 32, 256, 128, 64, 32, 0, 0, 0);
+
+        float[] rect = region.uvSourceRect();
+
+        // Must be u2 - u / v2 - v, not the absolute normalized right/bottom edges.
+        assertEquals(80f / 256f - 16f / 256f, rect[2], EPS);
+        assertEquals(40f / 128f - 8f / 128f, rect[3], EPS);
+        assertTrue("width must not be the absolute u2", rect[2] < 1f - EPS);
+        assertTrue("height must not be the absolute v2", rect[3] < 1f - EPS);
+    }
+
+    private static void assertFiniteInUnitRange(float[] rect) {
+        for (float value : rect) {
+            assertFalse("must be finite", Float.isNaN(value) || Float.isInfinite(value));
+            assertTrue("must be clamped into [0,1]", value >= 0f && value <= 1f);
+        }
+    }
 }

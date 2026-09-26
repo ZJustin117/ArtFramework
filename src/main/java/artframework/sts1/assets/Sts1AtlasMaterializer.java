@@ -46,6 +46,13 @@ import java.util.Set;
  * <p><strong>Threading.</strong> All state is guarded by a single monitor; no background threads
  * are created. Test seams {@link #setProviderForTests(AtlasProvider)} and {@link #clearCache()}
  * must be used from the same thread as normal calls.
+ *
+ * <p><strong>Host integration point.</strong> {@link #setProvider(AtlasProvider)} is the public SPI
+ * a host binds to supply atlas text and page textures; passing {@code null} restores the inert
+ * default (fail-open). Swapping the provider clears cached parsed regions and borrowed textures in
+ * the same critical section, so a new provider never serves state borrowed from the previous one.
+ * This class remains renderer-agnostic: it neither creates nor binds textures itself and carries no
+ * {@code SpriteBatch} wiring; consumers map the returned descriptor to their own draw call.
  */
 public final class Sts1AtlasMaterializer {
 
@@ -157,14 +164,26 @@ public final class Sts1AtlasMaterializer {
         }
     }
 
-    /** Test seam: installs a provider; null restores the default (which returns null => fail-open). */
-    static void setProviderForTests(AtlasProvider replacement) {
+    /**
+     * Installs the host atlas provider. Passing {@code null} restores the inert default
+     * (fail-open: every lookup returns {@code null}).
+     *
+     * <p>This is the public host integration point for this class. Swapping the provider clears all
+     * cached parsed regions, failed-atlas marks, borrowed textures, and missing-page marks in the
+     * same critical section, so a new provider never serves state borrowed from the previous one.
+     */
+    public static void setProvider(AtlasProvider provider) {
         synchronized (LOCK) {
-            provider = replacement != null ? replacement : DEFAULT_PROVIDER;
+            Sts1AtlasMaterializer.provider = provider != null ? provider : DEFAULT_PROVIDER;
             // Clear in the same critical section: a new provider must never serve regions or
             // textures borrowed from the previous one.
             clearCachesLocked();
         }
+    }
+
+    /** Test seam: installs a provider; null restores the default (which returns null => fail-open). */
+    static void setProviderForTests(AtlasProvider replacement) {
+        setProvider(replacement);
     }
 
     private static AtlasRegion regionFor(String atlasKey, String regionName) {

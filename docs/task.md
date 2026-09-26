@@ -16,6 +16,12 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
   `LibGdxAtlasParser`, behind an injectable `AtlasProvider` seam (fail-open, cached, no GL in tests,
   textures borrowed not disposed, rotated regions returned un-swapped). No renderer wiring yet.
 
+- [x] Slice C atlas host bridge seam: `AtlasRegion.uvSourceRect()` exposes the packed region as a
+  normalized `{x, y, width, height}` UV source rect (clamped, fail-safe full texture, rotation
+  handling left to the caller), and `Sts1AtlasMaterializer.setProvider(AtlasProvider)` is now a
+  public host SPI (null restores the inert fail-open default, swap clears cached borrows under the
+  lock). Focused JUnit only; no renderer or host binding implementation.
+
 - [x] ART 24 room-shells observe-first metadata/overlay: event, Neow, and generic fallback paths
   retain native pixels; delegated rest/shop/reward/treasure policy is unchanged.
 

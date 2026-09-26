@@ -28,6 +28,14 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
   label residual, null/zero-size fail-open, no GL) for the `ImageMaster.vfxAtlas` path. Focused
   JUnit only; no runtime/resolver/provider/renderer wiring.
 
+- [x] Slice E live libGDX atlas source: `Sts1AtlasMaterializer.LiveAtlasSource` +
+  `setLiveAtlasSource` / `regionFromAtlas` resolve a region straight from a live
+  `TextureAtlas` (the `ImageMaster.vfxAtlas` shape) via `findRegion` -> `Sts1GdxAtlasRegions.fromGdx`,
+  fully fail-open (blank args, no/null atlas, missing/invalid region, throwing source all return
+  null), memoizing failed atlas keys and caching resolved borrows by `(atlasKey, regionName)`;
+  `clearCache()` does not dispose textures and `probeSlice()` gains an additive `liveRegionCount`.
+  Existing text path (`region(...)`) unchanged. Focused no-GL JUnit only; no renderer wiring.
+
 - [x] ART 24 room-shells observe-first metadata/overlay: event, Neow, and generic fallback paths
   retain native pixels; delegated rest/shop/reward/treasure policy is unchanged.
 

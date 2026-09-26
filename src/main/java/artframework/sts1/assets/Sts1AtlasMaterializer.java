@@ -3,6 +3,7 @@ package artframework.sts1.assets;
 import artframework.assets.AtlasRegion;
 import artframework.assets.LibGdxAtlasParser;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -65,6 +66,11 @@ public final class Sts1AtlasMaterializer {
         Texture pageTexture(String atlasKey, String pageName);
     }
 
+    /** Host-supplied live libGDX atlas lookup (for example ImageMaster.vfxAtlas). */
+    public interface LiveAtlasSource {
+        com.badlogic.gdx.graphics.g2d.TextureAtlas atlas(String atlasKey);
+    }
+
     /** Page texture plus neutral region descriptor; both fields are non-null on a resolved value. */
     public static final class RegionTexture {
         public final Texture texture;
@@ -91,6 +97,7 @@ public final class Sts1AtlasMaterializer {
     private static final Object LOCK = new Object();
 
     private static AtlasProvider provider = DEFAULT_PROVIDER;
+    private static LiveAtlasSource liveSource = null;
 
     /** atlasKey -> parsed regions (successful parses only). */
     private static final Map<String, List<AtlasRegion>> PARSED = new LinkedHashMap<String, List<AtlasRegion>>();
@@ -102,6 +109,12 @@ public final class Sts1AtlasMaterializer {
     private static final Map<String, Texture> PAGE_TEXTURES = new LinkedHashMap<String, Texture>();
     /** (atlasKey, pageName) pairs already asked and answered with null, so the provider is not spammed. */
     private static final Set<String> MISSING_PAGES = new HashSet<String>();
+    /** Live atlas keys already asked and answered with null (or that threw); not re-asked until clearCache. */
+    private static final Set<String> FAILED_LIVE = new LinkedHashSet<String>();
+    /** (atlasKey, regionName) -> resolved live region borrow. */
+    private static final Map<String, RegionTexture> LIVE_REGIONS = new LinkedHashMap<String, RegionTexture>();
+    /** (atlasKey, regionName) pairs already asked and answered with a miss, so the source is not spammed. */
+    private static final Set<String> MISSING_LIVE_REGIONS = new HashSet<String>();
 
     private Sts1AtlasMaterializer() {}
 
@@ -150,6 +163,81 @@ public final class Sts1AtlasMaterializer {
         REGIONS.clear();
         PAGE_TEXTURES.clear();
         MISSING_PAGES.clear();
+        FAILED_LIVE.clear();
+        LIVE_REGIONS.clear();
+        MISSING_LIVE_REGIONS.clear();
+    }
+
+    /**
+     * Resolves a region from the live atlas source: {@code findRegion(name)} then
+     * {@link Sts1GdxAtlasRegions#fromGdx}. Fail-open: a null/blank argument, an absent source, a
+     * missing atlas, a missing region, an invalid region, or any provider/conversion failure
+     * returns {@code null}; this method never throws on ordinary failure paths. Textures are
+     * borrowed from the host and never disposed.
+     *
+     * <p>An atlas key whose {@code atlas(atlasKey)} returned {@code null} or whose source threw is
+     * memoized as failed and not re-asked until {@link #clearCache()}. Resolved {@code
+     * RegionTexture}s are cached by {@code (atlasKey, regionName)}, so repeated calls do not re-run
+     * {@code findRegion}/conversion.
+     */
+    public static RegionTexture regionFromAtlas(String atlasKey, String regionName) {
+        if (isBlank(atlasKey) || isBlank(regionName)) {
+            return null;
+        }
+        synchronized (LOCK) {
+            String cacheKey = regionKey(atlasKey, regionName);
+            if (LIVE_REGIONS.containsKey(cacheKey)) {
+                return LIVE_REGIONS.get(cacheKey);
+            }
+            if (MISSING_LIVE_REGIONS.contains(cacheKey)) {
+                return null;
+            }
+            if (FAILED_LIVE.contains(atlasKey)) {
+                return null;
+            }
+            if (liveSource == null) {
+                return null;
+            }
+            TextureAtlas atlas;
+            try {
+                atlas = liveSource.atlas(atlasKey);
+            } catch (Throwable ignored) {
+                FAILED_LIVE.add(atlasKey);
+                return null;
+            }
+            if (atlas == null) {
+                // Remember the miss so the source is not re-asked for this atlas until clearCache.
+                FAILED_LIVE.add(atlasKey);
+                return null;
+            }
+            RegionTexture resolved;
+            try {
+                TextureAtlas.AtlasRegion gdx = atlas.findRegion(regionName);
+                if (gdx == null) {
+                    MISSING_LIVE_REGIONS.add(cacheKey);
+                    return null;
+                }
+                AtlasRegion region = Sts1GdxAtlasRegions.fromGdx(gdx);
+                if (region == null || !region.valid()) {
+                    MISSING_LIVE_REGIONS.add(cacheKey);
+                    return null;
+                }
+                resolved = new RegionTexture(gdx.getTexture(), region);
+            } catch (Throwable ignored) {
+                MISSING_LIVE_REGIONS.add(cacheKey);
+                return null;
+            }
+            LIVE_REGIONS.put(cacheKey, resolved);
+            return resolved;
+        }
+    }
+
+    /**
+     * Host-recreation lifecycle hook: drops borrowed-texture/region records (never disposes them).
+     * Alias for {@link #clearCache()} under the same lock.
+     */
+    public static void onHostRecreated() {
+        clearCache();
     }
 
     /** Counts only; never leaks Texture/AtlasRegion handles and never mutates state. */
@@ -160,6 +248,7 @@ public final class Sts1AtlasMaterializer {
             probe.put("failedAtlasCount", Integer.valueOf(FAILED.size()));
             probe.put("regionCount", Integer.valueOf(REGIONS.size()));
             probe.put("textureCount", Integer.valueOf(PAGE_TEXTURES.size()));
+            probe.put("liveRegionCount", Integer.valueOf(LIVE_REGIONS.size()));
             return probe;
         }
     }
@@ -184,6 +273,17 @@ public final class Sts1AtlasMaterializer {
     /** Test seam: installs a provider; null restores the default (which returns null => fail-open). */
     static void setProviderForTests(AtlasProvider replacement) {
         setProvider(replacement);
+    }
+
+    /**
+     * Installs the live atlas source; {@code null} restores the inert default (fail-open). Clears
+     * the caches in the same critical section, so a new source never serves stale borrows.
+     */
+    public static void setLiveAtlasSource(LiveAtlasSource source) {
+        synchronized (LOCK) {
+            liveSource = source;
+            clearCachesLocked();
+        }
     }
 
     private static AtlasRegion regionFor(String atlasKey, String regionName) {

@@ -142,6 +142,7 @@ public final class PresentSafety {
         runHostRecreationStep("materializer", new Runnable() {
             public void run() {
                 artframework.sts1.assets.Sts1AssetMaterializer.onHostRecreated();
+                artframework.sts1.assets.Sts1AtlasMaterializer.onHostRecreated();
                 materializerRecreation = "cleared";
             }
         });

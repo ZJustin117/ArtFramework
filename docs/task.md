@@ -11,6 +11,11 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
   host-neutral `AtlasRegion` values with required `xy`/`size` validation, rotate/orig/offset
   mapping, and fail-safe `size: 0,0` pages. Focused JUnit only; no runtime/resolver/renderer wiring.
 
+- [x] Slice B2 STS1 host atlas materializer: `artframework.sts1.assets.Sts1AtlasMaterializer` maps a
+  logical atlas key + region name to a page `Texture` + `AtlasRegion` via the pure
+  `LibGdxAtlasParser`, behind an injectable `AtlasProvider` seam (fail-open, cached, no GL in tests,
+  textures borrowed not disposed, rotated regions returned un-swapped). No renderer wiring yet.
+
 - [x] ART 24 room-shells observe-first metadata/overlay: event, Neow, and generic fallback paths
   retain native pixels; delegated rest/shop/reward/treasure policy is unchanged.
 

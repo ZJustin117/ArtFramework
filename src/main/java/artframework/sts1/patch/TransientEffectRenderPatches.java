@@ -47,6 +47,11 @@ public final class TransientEffectRenderPatches {
                 } catch (Throwable error) {
                     NativeRenderBridge.recordEffectObservationFailure();
                 }
+                try {
+                    AuraArtRenderer.recordDraw();
+                } catch (Throwable error) {
+                    NativeRenderBridge.recordEffectObservationFailure();
+                }
                 return SpireReturn.Return(null);
             }
             // Always consume the pending claim before failing open (never leave a delegated gap);

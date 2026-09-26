@@ -269,21 +269,52 @@ public class ArtCommand extends ConsoleCommand {
     /** Parsed {@code art aura ...} request; pure so the console switch is testable without a game. */
     static final class AuraRequest {
         static final AuraRequest STATUS = new AuraRequest(null);
+
+        /** Default spawn count when the optional {@code [count]} argument is omitted. */
+        static final int DEFAULT_SPAWN_COUNT = 3;
+        /** Inclusive spawn-count bounds; out-of-range values are clamped. */
+        static final int MIN_SPAWN_COUNT = 1;
+        /** Reuses the lab helper bound so the clamp cannot drift from {@code AuraLabSpawn}. */
+        static final int MAX_SPAWN_COUNT = artframework.sts1.lab.AuraLabSpawn.MAX_COUNT;
+
         /** null = status, TRUE = claim on, FALSE = claim off; {@link #invalid} marks bad input. */
         final Boolean delegate;
+        /** Non-null for {@code spawn <kind> [count]}: the requested kind alias. */
+        final String spawnKind;
+        /** Clamped spawn count; meaningful only when {@link #spawnKind} is non-null. */
+        final int spawnCount;
+        /** True for {@code clear}: remove queued/active aura effects. */
+        final boolean clear;
         final boolean invalid;
 
         private AuraRequest(Boolean delegate) {
-            this(delegate, false);
+            this(delegate, null, 0, false, false);
         }
 
         private AuraRequest(Boolean delegate, boolean invalid) {
+            this(delegate, null, 0, false, invalid);
+        }
+
+        private AuraRequest(Boolean delegate, String spawnKind, int spawnCount, boolean clear,
+                boolean invalid) {
             this.delegate = delegate;
+            this.spawnKind = spawnKind;
+            this.spawnCount = spawnCount;
+            this.clear = clear;
             this.invalid = invalid;
         }
 
         static AuraRequest claim(boolean on) {
             return new AuraRequest(Boolean.valueOf(on));
+        }
+
+        static AuraRequest spawn(String kind, int count) {
+            int clamped = Math.max(MIN_SPAWN_COUNT, Math.min(MAX_SPAWN_COUNT, count));
+            return new AuraRequest(null, kind, clamped, false, false);
+        }
+
+        static AuraRequest clear() {
+            return new AuraRequest(null, null, 0, true, false);
         }
 
         static AuraRequest invalid() {
@@ -293,17 +324,39 @@ public class ArtCommand extends ConsoleCommand {
 
     /**
      * Parses the argument tail after {@code art aura}: {@code status} (no args), {@code on},
-     * {@code off}. Anything else is invalid.
+     * {@code off}, {@code spawn <kind> [count]}, or {@code clear}. Anything else is invalid.
      */
     static AuraRequest parseAura(String[] args) {
         if (args == null || args.length == 0) return AuraRequest.STATUS;
+        String action = trim(args[0]).toLowerCase(java.util.Locale.ROOT);
         if (args.length == 1) {
-            String switchValue = trim(args[0]).toLowerCase();
-            if ("status".equals(switchValue)) return AuraRequest.STATUS;
-            if ("on".equals(switchValue)) return AuraRequest.claim(true);
-            if ("off".equals(switchValue)) return AuraRequest.claim(false);
+            if ("status".equals(action)) return AuraRequest.STATUS;
+            if ("on".equals(action)) return AuraRequest.claim(true);
+            if ("off".equals(action)) return AuraRequest.claim(false);
+            if ("clear".equals(action)) return AuraRequest.clear();
+        }
+        if ("spawn".equals(action) && (args.length == 2 || args.length == 3)) {
+            String kind = trim(args[1]);
+            if (artframework.sts1.lab.AuraLabSpawn.classNameFor(kind) == null) {
+                return AuraRequest.invalid();
+            }
+            int count = AuraRequest.DEFAULT_SPAWN_COUNT;
+            if (args.length == 3) {
+                count = parseAuraCount(trim(args[2]));
+                if (count == Integer.MIN_VALUE) return AuraRequest.invalid();
+            }
+            return AuraRequest.spawn(kind, count);
         }
         return AuraRequest.invalid();
+    }
+
+    /** Parses an explicit spawn count, or {@link Integer#MIN_VALUE} to mark invalid input. */
+    private static int parseAuraCount(String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (RuntimeException error) {
+            return Integer.MIN_VALUE;
+        }
     }
 
     private void cmdAura(String[] tokens, int depth) {
@@ -312,7 +365,18 @@ public class ArtCommand extends ConsoleCommand {
         try {
             AuraRequest request = parseAura(args);
             if (request.invalid) {
-                logVfx("ART_AURA error=usage: art aura on|off | art aura status");
+                logVfx("ART_AURA error=usage: art aura on|off|status|spawn <kind> [count]|clear");
+                return;
+            }
+            if (request.clear) {
+                logVfx("ART_AURA clear removed=" + artframework.sts1.lab.AuraLabSpawn.clear());
+                return;
+            }
+            if (request.spawnKind != null) {
+                int queued = artframework.sts1.lab.AuraLabSpawn.spawn(
+                        request.spawnKind, request.spawnCount);
+                logVfx("ART_AURA spawn=" + request.spawnKind.toLowerCase(java.util.Locale.ROOT)
+                        + " count=" + request.spawnCount + " queued=" + queued);
                 return;
             }
             if (request.delegate != null) {
@@ -323,7 +387,8 @@ public class ArtCommand extends ConsoleCommand {
             }
             logVfx("ART_AURA aura="
                     + (artframework.sts1.render.AuraDelegationGate.isActive() ? "on" : "off")
-                    + " ready=" + auraReady());
+                    + " ready=" + auraReady()
+                    + " draws=" + artframework.sts1.render.AuraArtRenderer.drawCount());
         } catch (Throwable error) {
             logVfx("ART_AURA error=" + error.getClass().getSimpleName()
                     + ":" + String.valueOf(error.getMessage()));

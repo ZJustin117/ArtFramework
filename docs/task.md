@@ -97,6 +97,14 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `PresentSafety` host-recreation hook is added. Reversible via
       `Sts1HostAssets.resetAuraRendererForTests()`.
 
+- [ ] NRO-04 aura F3b (lab spawn + draw counter): `art aura spawn <stance|wrath|divinity> [count]`
+      queues native aura effects through `AuraLabSpawn.spawn(kind, count)` (count defaults to 3 and is
+      clamped 1..20) and `art aura clear` removes queued/active aura effects via `AuraLabSpawn.clear()`.
+      A static `AuraArtRenderer.recordDraw()` counter — incremented by both claim patches only on the
+      successful-draw branch, never on the fail-open path — is surfaced by `art aura status` as
+      `draws=<n>`, so a device run can confirm ART-drawn auras without double-draw. Reversible default:
+      the counter and spawn helper change no claim/suppression/gate logic.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

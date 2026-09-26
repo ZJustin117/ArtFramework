@@ -141,6 +141,14 @@ guarded so mod init never breaks), so the seam reports ready for the three suppo
 the renderer holds no host state and needs no recreation hook. The default-off gate still
 decides whether it is consulted, so native remains authoritative while `art aura off`.
 
+**D1 verification recipe (aura claim):** enter combat, run `art aura on` (arms the default-off
+per-instance claim), then `art aura spawn wrath 5` to queue native aura effects without a stance
+change. Observe that the three supported effects are drawn by ART with no double-draw (each
+claimed instance is ART-drawn *or* native-drawn, never both), then confirm `art aura status`
+reports `draws>0` — the `AuraArtRenderer.drawCount()` counter increments only on the
+successful-claim draw branch. Finish with `art aura off`, which returns native pixels to
+authoritative; `art aura clear` removes any leftover queued effects.
+
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
 | `vfx-combat` | 148 | `StrikeEffect`, `DamageNumberEffect`, `FlashAtkImgEffect` | `OBSERVED` (family default): observe-only via the `AbstractDungeon` container call sites |

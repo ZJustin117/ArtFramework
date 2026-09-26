@@ -2,7 +2,9 @@ package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
 import artframework.sts1.patch.TransientEffectContainerPatches;
+import artframework.sts1.patch.TransientEffectRenderPatches;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import org.junit.After;
 import org.junit.Before;
@@ -10,6 +12,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Pure-logic coverage for how the effect-container seam consumes an F1 aura claim.
@@ -25,6 +28,7 @@ public class AuraClaimConsumptionTest {
     @Before
     public void setUp() {
         NativeRenderBridge.resetForTests();
+        AuraArtRenderer.resetDrawCountForTests();
     }
 
     @After
@@ -32,6 +36,7 @@ public class AuraClaimConsumptionTest {
         ArtFramework.resetForTests();
         AuraDelegationGate.resetForTests();
         AuraArtRenderer.resetForTests();
+        AuraArtRenderer.resetDrawCountForTests();
         NativeRenderBridge.resetForTests();
     }
 
@@ -66,6 +71,8 @@ public class AuraClaimConsumptionTest {
                 Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
         assertEquals("native render was suppressed (no native fail-open recorded)",
                 Integer.valueOf(0), NativeRenderBridge.effectLedger().probeSlice().get("failOpen"));
+        assertEquals("a successful claim draw increments the ART aura draw counter",
+                1, AuraArtRenderer.drawCount());
         assertFalse(NativeRenderBridge.isAuraClaimInvocation(Lookup.lastInvocationId()));
     }
 
@@ -85,6 +92,8 @@ public class AuraClaimConsumptionTest {
                 Integer.valueOf(1), NativeRenderBridge.strictReport().get("dispositionMismatch"));
         assertEquals("native render was reached",
                 Integer.valueOf(1), NativeRenderBridge.effectLedger().probeSlice().get("failOpen"));
+        assertEquals("a declined claim draw leaves the ART aura draw counter at zero",
+                0, AuraArtRenderer.drawCount());
         assertFalse(NativeRenderBridge.isAuraClaimInvocation(Lookup.lastInvocationId()));
     }
 
@@ -108,6 +117,49 @@ public class AuraClaimConsumptionTest {
                 Integer.valueOf(0), NativeRenderBridge.strictReport().get("openInvocation"));
         assertFalse("throwing draw must not leave a pending claim token",
                 NativeRenderBridge.isAuraClaimInvocation(Lookup.lastInvocationId()));
+    }
+
+    @Test
+    public void renderAtPrefixCountsOnlyASuccessfulClaimDraw() {
+        // Exercises the 3-arg Prefix directly (TransientEffectRenderPatches.ObserveEffectRenderAtPosition
+        // .Prefix): a successful claim draw returns SpireReturn.Return(null) and records one ART draw;
+        // a declined claim fails open to SpireReturn.Continue() and records none.
+        AuraDelegationGate.setActive(true);
+
+        AuraArtRenderer.setForTests(adapter(true, false));
+        SpireReturn<Void> suppressed =
+                TransientEffectRenderPatches.ObserveEffectRenderAtPosition.Prefix(
+                        supportedAuraEffect(), null, 0f, 0f);
+        assertEquals("a successful claim draw must increment the ART aura draw counter",
+                1, AuraArtRenderer.drawCount());
+        assertTrue("a successful claim must suppress the native render", suppressed.isPresent());
+        assertEquals("a successful claim draw must record evidence",
+                Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+
+        NativeRenderBridge.resetForTests();
+
+        AuraArtRenderer.setForTests(adapter(false, false));
+        SpireReturn<Void> continued =
+                TransientEffectRenderPatches.ObserveEffectRenderAtPosition.Prefix(
+                        supportedAuraEffect(), null, 0f, 0f);
+        assertEquals("a declined claim draw must not increment the ART aura draw counter",
+                1, AuraArtRenderer.drawCount());
+        assertFalse("a declined claim must fall open to the native render", continued.isPresent());
+    }
+
+    @Test
+    public void renderAtPrefixGateOffNeverDrawsArt() {
+        // Gate off: beginEffectRender returns a native continuation, so the Prefix continues native
+        // before ever consulting the renderer and the draw counter stays untouched.
+        AuraDelegationGate.setActive(false);
+        AuraArtRenderer.setForTests(adapter(true, false));
+
+        SpireReturn<Void> continued =
+                TransientEffectRenderPatches.ObserveEffectRenderAtPosition.Prefix(
+                        supportedAuraEffect(), null, 0f, 0f);
+
+        assertFalse("gate off keeps native rendering", continued.isPresent());
+        assertEquals("gate off must not record an ART aura draw", 0, AuraArtRenderer.drawCount());
     }
 
     private static AuraArtRenderer.Adapter adapter(final boolean draws, final boolean throwsOnDraw) {

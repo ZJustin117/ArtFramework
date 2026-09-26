@@ -3,6 +3,8 @@ package artframework.sts1.render;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Injected draw callback seam for a claimed {@code vfx-stance-aura} instance.
  *
@@ -33,7 +35,25 @@ public final class AuraArtRenderer {
 
     private static volatile Adapter adapter;
 
+    /** Successful claimed-draw counter; independent of the adapter test seam. */
+    private static final AtomicInteger DRAW_COUNT = new AtomicInteger();
+
     private AuraArtRenderer() {}
+
+    /** Increments the ART aura draw counter (called by the claim patch on a successful draw). */
+    public static void recordDraw() {
+        DRAW_COUNT.incrementAndGet();
+    }
+
+    /** Number of successful ART aura draws recorded since the last reset. */
+    public static int drawCount() {
+        return DRAW_COUNT.get();
+    }
+
+    /** Test seam: zero the draw counter so a case can assert its own increment. */
+    public static void resetDrawCountForTests() {
+        DRAW_COUNT.set(0);
+    }
 
     /** True only when ART can draw this effect's pixels. Default: never (F2 supplies the real one). */
     public static boolean isReady(String nativeClassName) {

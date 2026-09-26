@@ -1005,9 +1005,44 @@ public final class Sts1PresentationBackend implements SignalBackend {
             int evoke = firstInt(stance, 0, "evokeAmount", "evoke");
             Object hb = softField(stance.getClass(), stance, "hb");
             artframework.component.Rect bounds = boundsOf(hb, 0, "stance");
+            float angle = number(stance, "angle", 0f);
+            float colorR = 1f, colorG = 1f, colorB = 1f, colorA = 1f;
+            Object color = softField(stance.getClass(), stance, "c");
+            if (color instanceof com.badlogic.gdx.graphics.Color) {
+                com.badlogic.gdx.graphics.Color c = (com.badlogic.gdx.graphics.Color) color;
+                colorR = c.r; colorG = c.g; colorB = c.b; colorA = c.a;
+            }
+            Object img = softField(stance.getClass(), stance, "img");
+            boolean hasImage = img != null;
+            float width = 512f, height = 512f;
+            if (hasImage) {
+                try {
+                    width = ((com.badlogic.gdx.graphics.Texture) img).getWidth();
+                    height = ((com.badlogic.gdx.graphics.Texture) img).getHeight();
+                } catch (Throwable ignored) {
+                    width = 512f; height = 512f;
+                }
+            }
+            float centerX = 0f, centerY = 0f;
+            try {
+                Object player = AbstractDungeon.player;
+                if (player != null) {
+                    centerX = number(player, "drawX", 0f) - 256f + number(player, "animX", 0f);
+                    centerY = number(player, "drawY", 0f) - 256f + number(player, "animY", 0f)
+                            + number(player, "hb_h", 0f) / 2f;
+                }
+            } catch (Throwable ignored) {
+                centerX = 0f; centerY = 0f;
+            }
+            float scale = 1f;
+            try { scale = com.megacrit.cardcrawl.core.Settings.scale; } catch (Throwable ignored) {
+                scale = 1f;
+            }
             out.add(new artframework.context.OrbStanceView.Entry(
                     "stance:" + id, "stance", label, count, passive, evoke, true,
-                    ResourceIds.stance(id), bounds, visibleOf(hb)));
+                    ResourceIds.stance(id), bounds, visibleOf(hb),
+                    angle, colorR, colorG, colorB, colorA,
+                    centerX, centerY, width, height, scale, hasImage, 256f, 256f));
         } catch (Throwable ignored) {
             // Current stance is optional observation state; native stance rendering continues.
         }

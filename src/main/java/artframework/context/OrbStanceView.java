@@ -46,9 +46,36 @@ public final class OrbStanceView {
         public final String resourceId;
         public final Rect bounds;
         public final boolean visible;
+        /** Native stance sprite rotation in degrees; host-neutral. */
+        public final float angle;
+        /** Native sprite batch tint (multiplied through additive blend); host-neutral. */
+        public final float colorR;
+        public final float colorG;
+        public final float colorB;
+        public final float colorA;
+        /** Native draw x/y in world pixels, already including the -256 and hb_h/2 offsets. */
+        public final float centerX;
+        public final float centerY;
+        /** Source region size actually drawn: 512x512 when no image is present. */
+        public final float width;
+        public final float height;
+        public final float scale;
+        public final boolean hasImage;
+        /** Native sprite origin used for rotation (256,256). */
+        public final float originX;
+        public final float originY;
 
         public Entry(String id, String kind, String label, int count, int passive, int evoke,
                 boolean active, String resourceId, Rect bounds, boolean visible) {
+            this(id, kind, label, count, passive, evoke, active, resourceId, bounds, visible,
+                    0f, 1f, 1f, 1f, 1f, 0f, 0f, 0f, 0f, 1f, false, 0f, 0f);
+        }
+
+        public Entry(String id, String kind, String label, int count, int passive, int evoke,
+                boolean active, String resourceId, Rect bounds, boolean visible,
+                float angle, float colorR, float colorG, float colorB, float colorA,
+                float centerX, float centerY, float width, float height, float scale,
+                boolean hasImage, float originX, float originY) {
             this.id = id != null ? id : "";
             this.kind = kind != null ? kind : "";
             this.label = label != null ? label : "";
@@ -59,6 +86,19 @@ public final class OrbStanceView {
             this.resourceId = resourceId != null ? resourceId : "";
             this.bounds = bounds != null ? bounds : Rect.ZERO;
             this.visible = visible;
+            this.angle = angle;
+            this.colorR = colorR;
+            this.colorG = colorG;
+            this.colorB = colorB;
+            this.colorA = colorA;
+            this.centerX = centerX;
+            this.centerY = centerY;
+            this.width = width;
+            this.height = height;
+            this.scale = scale;
+            this.hasImage = hasImage;
+            this.originX = originX;
+            this.originY = originY;
         }
 
         public Map<String, Object> toMap() {
@@ -69,6 +109,13 @@ public final class OrbStanceView {
             out.put("resourceId", resourceId); out.put("visible", Boolean.valueOf(visible));
             out.put("x", Float.valueOf(bounds.x)); out.put("y", Float.valueOf(bounds.y));
             out.put("w", Float.valueOf(bounds.width)); out.put("h", Float.valueOf(bounds.height));
+            out.put("angle", Float.valueOf(angle));
+            out.put("colorR", Float.valueOf(colorR)); out.put("colorG", Float.valueOf(colorG));
+            out.put("colorB", Float.valueOf(colorB)); out.put("colorA", Float.valueOf(colorA));
+            out.put("centerX", Float.valueOf(centerX)); out.put("centerY", Float.valueOf(centerY));
+            out.put("width", Float.valueOf(width)); out.put("height", Float.valueOf(height));
+            out.put("scale", Float.valueOf(scale)); out.put("hasImage", Boolean.valueOf(hasImage));
+            out.put("originX", Float.valueOf(originX)); out.put("originY", Float.valueOf(originY));
             return out;
         }
     }

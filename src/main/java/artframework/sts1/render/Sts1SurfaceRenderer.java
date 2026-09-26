@@ -109,6 +109,7 @@ public final class Sts1SurfaceRenderer {
         // existing RENDER_PROJECTION phase (both idempotent). The producer is installed first so it
         // publishes its contribution before the aggregation pass merges contributions.
         RoomShellRenderProjectionSystem.install();
+        StanceRenderProjectionSystem.install();
         artframework.render.ArtRenderFrameAggregationSystem.install();
         Sts1RoomShellDrawPath.render(sb);
         VerifyGuideDrawPath.render(sb);

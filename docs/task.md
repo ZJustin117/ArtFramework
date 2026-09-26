@@ -2,6 +2,10 @@
 
 Checkbox list for open work. Tick when done; milestone notes stay short.
 
+- [x] Slice A atlas resource bridge: pure host-neutral `artframework.assets.AtlasRegion` value type
+  (packed page rect, rotation/display swap, trim metadata, clamped UV, fail-safe invalid handling)
+  with focused JUnit. No runtime/renderer/resolver wiring; an STS1 adapter can populate it later.
+
 - [x] ART 24 room-shells observe-first metadata/overlay: event, Neow, and generic fallback paths
   retain native pixels; delegated rest/shop/reward/treasure policy is unchanged.
 

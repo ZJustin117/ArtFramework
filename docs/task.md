@@ -6,6 +6,11 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
   (packed page rect, rotation/display swap, trim metadata, clamped UV, fail-safe invalid handling)
   with focused JUnit. No runtime/renderer/resolver wiring; an STS1 adapter can populate it later.
 
+- [x] Slice B1 legacy libGDX atlas parser: pure `artframework.assets.LibGdxAtlasParser` maps the
+  indentation/bare-token atlas syntax (including the `Spine42AtlasMaterializer` legacy shape) into
+  host-neutral `AtlasRegion` values with required `xy`/`size` validation, rotate/orig/offset
+  mapping, and fail-safe `size: 0,0` pages. Focused JUnit only; no runtime/resolver/renderer wiring.
+
 - [x] ART 24 room-shells observe-first metadata/overlay: event, Neow, and generic fallback paths
   retain native pixels; delegated rest/shop/reward/treasure policy is unchanged.
 

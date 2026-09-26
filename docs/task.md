@@ -22,6 +22,12 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
   public host SPI (null restores the inert fail-open default, swap clears cached borrows under the
   lock). Focused JUnit only; no renderer or host binding implementation.
 
+- [x] Slice D libGDX atlas-region adapter: `artframework.sts1.assets.Sts1GdxAtlasRegions`
+  converts a libGDX `TextureAtlas.AtlasRegion` into the host-neutral `artframework.assets.AtlasRegion`
+  (packed bounds copied un-swapped, `degrees` from `rotate`, trim/offset pass-through, empty page
+  label residual, null/zero-size fail-open, no GL) for the `ImageMaster.vfxAtlas` path. Focused
+  JUnit only; no runtime/resolver/provider/renderer wiring.
+
 - [x] ART 24 room-shells observe-first metadata/overlay: event, Neow, and generic fallback paths
   retain native pixels; delegated rest/shop/reward/treasure policy is unchanged.
 

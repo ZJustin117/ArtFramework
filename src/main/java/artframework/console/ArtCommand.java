@@ -124,6 +124,10 @@ public class ArtCommand extends ConsoleCommand {
             cmdStance(tokens, depth + 1);
             return;
         }
+        if ("aura".equals(sub)) {
+            cmdAura(tokens, depth + 1);
+            return;
+        }
         if ("verify".equals(sub)) {
             cmdVerify(tokens, depth + 1);
             return;
@@ -260,6 +264,82 @@ public class ArtCommand extends ConsoleCommand {
         } catch (Throwable ignored) {
         }
         return owner != null && artframework.sts1.render.StanceArtRenderer.isReady("stance:" + owner);
+    }
+
+    /** Parsed {@code art aura ...} request; pure so the console switch is testable without a game. */
+    static final class AuraRequest {
+        static final AuraRequest STATUS = new AuraRequest(null);
+        /** null = status, TRUE = claim on, FALSE = claim off; {@link #invalid} marks bad input. */
+        final Boolean delegate;
+        final boolean invalid;
+
+        private AuraRequest(Boolean delegate) {
+            this(delegate, false);
+        }
+
+        private AuraRequest(Boolean delegate, boolean invalid) {
+            this.delegate = delegate;
+            this.invalid = invalid;
+        }
+
+        static AuraRequest claim(boolean on) {
+            return new AuraRequest(Boolean.valueOf(on));
+        }
+
+        static AuraRequest invalid() {
+            return new AuraRequest(null, true);
+        }
+    }
+
+    /**
+     * Parses the argument tail after {@code art aura}: {@code status} (no args), {@code on},
+     * {@code off}. Anything else is invalid.
+     */
+    static AuraRequest parseAura(String[] args) {
+        if (args == null || args.length == 0) return AuraRequest.STATUS;
+        if (args.length == 1) {
+            String switchValue = trim(args[0]).toLowerCase();
+            if ("status".equals(switchValue)) return AuraRequest.STATUS;
+            if ("on".equals(switchValue)) return AuraRequest.claim(true);
+            if ("off".equals(switchValue)) return AuraRequest.claim(false);
+        }
+        return AuraRequest.invalid();
+    }
+
+    private void cmdAura(String[] tokens, int depth) {
+        String[] args = new String[Math.max(0, tokens.length - depth)];
+        for (int i = 0; i < args.length; i++) args[i] = tokens[depth + i];
+        try {
+            AuraRequest request = parseAura(args);
+            if (request.invalid) {
+                logVfx("ART_AURA error=usage: art aura on|off | art aura status");
+                return;
+            }
+            if (request.delegate != null) {
+                artframework.sts1.render.AuraDelegationGate.setActive(
+                        request.delegate.booleanValue());
+                logVfx("ART_AURA aura=" + (request.delegate.booleanValue() ? "on" : "off"));
+                return;
+            }
+            logVfx("ART_AURA aura="
+                    + (artframework.sts1.render.AuraDelegationGate.isActive() ? "on" : "off")
+                    + " ready=" + auraReady());
+        } catch (Throwable error) {
+            logVfx("ART_AURA error=" + error.getClass().getSimpleName()
+                    + ":" + String.valueOf(error.getMessage()));
+        }
+    }
+
+    /** Any supported aura class the injected renderer currently reports as ready. */
+    private static boolean auraReady() {
+        try {
+            for (String nativeClass
+                    : artframework.sts1.render.AuraClaimPolicy.supportedClasses()) {
+                if (artframework.sts1.render.AuraArtRenderer.isReady(nativeClass)) return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 
     private void cmdVerify(String[] tokens, int depth) {

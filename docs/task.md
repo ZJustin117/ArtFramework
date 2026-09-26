@@ -53,6 +53,15 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 
 - [ ] Migrate a single `stances-state` instance end to end (S2): draw-input observation, shared-frame payload, ART draw + DELEGATE token consumption, and a default-off delegation/suppression seam are shipped, but the shipped `AbstractStance.render` seam is inert on vanilla (vanilla never sets `img`; no stance textures exist), so the real pixel authority for the stance family is `vfx-stance-aura` (`StanceAuraEffect` / `CalmParticleEffect` / `WrathParticleEffect` / `DivinityParticleEffect`). Next: repoint the visual-pixel takeover at `vfx-stance-aura` (or only enable the existing seam when a mod supplies a stance texture), keeping D1 per-stance pixel/order evidence before enabling the gate.
 
+- [ ] NRO-04 aura F2 (atlas draw): F1 shipped the default-off `vfx-stance-aura` per-instance claim
+      plumbing — `AuraDelegationGate` + `AuraClaimPolicy` (exact FQNs `StanceAuraEffect` /
+      `WrathParticleEffect` / `DivinityParticleEffect`) + the injected `AuraArtRenderer` draw seam,
+      with `EFFECT_INVOCATIONS` token/evidence correlation in `NativeRenderBridge.beginEffectRender`
+      consumed by the container/direct-draw patches (fail-open). The default renderer is never ready,
+      so there is no pixel/visual change yet. F2 will supply the real ART atlas draw
+      (`ImageMaster.EXHAUST_L` / `GLOW_SPARK` / `EYE_ANIM_0`) behind the same seam, then take D1
+      per-stance pixel/order evidence before enabling `art aura on`.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

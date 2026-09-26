@@ -1,5 +1,6 @@
 package artframework.sts1.patch;
 
+import artframework.sts1.render.AuraArtRenderer;
 import artframework.sts1.render.NativeRenderBridge;
 import artframework.sts1.render.RenderDisposition;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -32,7 +33,48 @@ public final class TransientEffectContainerPatches {
             NativeRenderBridge.recordEffectObservationFailure();
             disposition = RenderDisposition.failOpen(-1L, "observation_error");
         }
-        if (!disposition.nativeContinuation) return;
+        if (disposition.nativeContinuation) {
+            try {
+                effect.render(sb);
+            } catch (Throwable error) {
+                NativeRenderBridge.recordEffectObservationFailure();
+            }
+            return;
+        }
+        // Non-continuing disposition: an aura claim draws here; an isolate claim stays suppressed.
+        boolean auraClaim = false;
+        try {
+            auraClaim = NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId);
+        } catch (Throwable error) {
+            NativeRenderBridge.recordEffectObservationFailure();
+        }
+        if (auraClaim) {
+            boolean drew = false;
+            try {
+                drew = AuraArtRenderer.render(sb, effect);
+            } catch (Throwable error) {
+                NativeRenderBridge.recordEffectObservationFailure();
+            }
+            if (drew) {
+                try {
+                    NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
+                } catch (Throwable error) {
+                    NativeRenderBridge.recordEffectObservationFailure();
+                }
+                return;
+            }
+            // Always consume the pending claim before failing open (never leave a delegated gap);
+            // the consume itself must not throw out of the observation path.
+            try {
+                NativeRenderBridge.recordEffectFailure(disposition.invocationId);
+            } catch (Throwable error) {
+                NativeRenderBridge.recordEffectObservationFailure();
+            }
+            // fall through to the native render
+        } else {
+            // Isolate claim (or any other suppression): native pixels stay suppressed.
+            return;
+        }
         try {
             effect.render(sb);
         } catch (Throwable error) {

@@ -41,6 +41,10 @@ public class NativeRenderBridgeTest {
         FullPresentMode.resetForTests();
         PresentSafety.resetForTests();
         CombatInputRouter.resetForTests();
+        AuraDelegationGate.resetForTests();
+        AuraArtRenderer.resetForTests();
+        Sts1VerifyDiagnostics.resetForTests();
+        NativeRenderBridge.resetForTests();
     }
 
     private void mountedCombat() {
@@ -999,11 +1003,127 @@ public class NativeRenderBridgeTest {
 
     @Test
     public void transientEffectRenderAlwaysCapturesAndPasses() {
+        // Default state: the aura claim gate is OFF, so every effect stays observe-only
+        // (CAPTURE_AND_PASS) and the native effect queue continues. The gate-ON per-instance
+        // claim is covered by the aura* tests below.
+        assertFalse(AuraDelegationGate.isActive());
         AbstractGameEffect effect = effect();
         RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render_at");
         assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
         assertTrue("native effect queue must continue after observation",
                 disposition.nativeContinuation);
+    }
+
+    @Test
+    public void auraClaimGateOnWithUnsupportedClassStillCapturesAndPasses() {
+        AuraDelegationGate.setActive(true);
+        AbstractGameEffect effect = effect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
+        assertTrue(disposition.nativeContinuation);
+        assertFalse(NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+    }
+
+    @Test
+    public void auraClaimGateOnWithSupportedClassButNotReadyStillCapturesAndPasses() {
+        AuraDelegationGate.setActive(true);
+        AbstractGameEffect effect = supportedAuraEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
+        assertTrue(disposition.nativeContinuation);
+        assertFalse(NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+    }
+
+    @Test
+    public void auraClaimGateOnReadySuppressesNativeAndRegistersToken() {
+        AuraDelegationGate.setActive(true);
+        AuraArtRenderer.setForTests(alwaysReadyAdapter());
+        AbstractGameEffect effect = supportedAuraEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertFalse("a claim suppresses only this instance", disposition.nativeContinuation);
+        assertEquals("aura_claim", disposition.reason);
+        assertTrue(NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+    }
+
+    @Test
+    public void auraClaimDrawRecordsPixelEvidenceAndConsumesToken() {
+        AuraDelegationGate.setActive(true);
+        AuraArtRenderer.setForTests(alwaysReadyAdapter());
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(
+                supportedAuraEffect(), "render");
+
+        NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
+
+        assertFalse("draw consumes the pending claim token",
+                NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+        assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+    }
+
+    @Test
+    public void auraClaimFailureFailsOpenAndConsumesToken() {
+        AuraDelegationGate.setActive(true);
+        AuraArtRenderer.setForTests(alwaysReadyAdapter());
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(
+                supportedAuraEffect(), "render");
+
+        NativeRenderBridge.recordEffectFailure(disposition.invocationId);
+
+        assertFalse("failure consumes the pending claim token",
+                NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+        assertEquals("fallback leaves no open delegated gap",
+                Integer.valueOf(1), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals("fallback records a delegated mismatch",
+                Integer.valueOf(1), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+    }
+
+    @Test
+    public void auraClaimPanicAndBackgroundOnlyStillWin() {
+        AuraDelegationGate.setActive(true);
+        AuraArtRenderer.setForTests(alwaysReadyAdapter());
+
+        PresentSafety.panic("aura-panic");
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN,
+                NativeRenderBridge.beginEffectRender(supportedAuraEffect(), "render").mode);
+        PresentSafety.clearPanic();
+
+        Sts1VerifyDiagnostics.setBackgroundOnly(true);
+        RenderDisposition blocked = NativeRenderBridge.beginEffectRender(
+                supportedAuraEffect(), "render");
+        assertEquals(RenderDisposition.Mode.BLOCKED, blocked.mode);
+        assertFalse(NativeRenderBridge.isAuraClaimInvocation(blocked.invocationId));
+        Sts1VerifyDiagnostics.setBackgroundOnly(false);
+    }
+
+    private static AuraArtRenderer.Adapter alwaysReadyAdapter() {
+        return new AuraArtRenderer.Adapter() {
+            @Override public boolean isReady(String nativeClassName) { return true; }
+            @Override public boolean render(SpriteBatch sb, AbstractGameEffect effect) {
+                return true;
+            }
+        };
+    }
+
+    /** Real supported FQN with zeroed fields; constructors would need live game/GL state. */
+    private static AbstractGameEffect supportedAuraEffect() {
+        try {
+            java.lang.reflect.Field theUnsafe =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            theUnsafe.setAccessible(true);
+            Object unsafe = theUnsafe.get(null);
+            return (AbstractGameEffect) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect.class);
+        } catch (Exception failure) {
+            throw new AssertionError("could not allocate a supported aura effect", failure);
+        }
     }
 
     @Test

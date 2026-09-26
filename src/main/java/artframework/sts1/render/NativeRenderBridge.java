@@ -34,6 +34,9 @@ public final class NativeRenderBridge {
             new HashMap<String, ArrayDeque<Long>>();
     private static final Map<String, ArrayDeque<Long>> STANCE_INVOCATIONS =
             new HashMap<String, ArrayDeque<Long>>();
+    /** Pending per-instance {@code vfx-stance-aura} claims keyed by effect instanceId. */
+    private static final Map<String, ArrayDeque<Long>> EFFECT_INVOCATIONS =
+            new HashMap<String, ArrayDeque<Long>>();
     private static final Map<String, Long> NATIVE_CONTINUATION_FRAMES =
             new HashMap<String, Long>();
 
@@ -548,19 +551,104 @@ public final class NativeRenderBridge {
         } else if (isolated) {
             POLICY.recordExempted(true);
         }
-        RenderDisposition disposition = isolated && !exempt
-                ? RenderDisposition.delegate(invocation.invocationId, "isolate:transient_effect",
+        // Default-off per-instance aura claim (NRO-04). Panic and background-only already
+        // returned above, so this branch never overrides them. When the gate is off, the class
+        // is unsupported, or the injected renderer is not ready, the disposition stays the
+        // existing isolate-delegate or capture.
+        final boolean auraClaimProposed = AuraDelegationGate.isActive()
+                && AuraClaimPolicy.supports(identity.nativeClass)
+                && AuraArtRenderer.isReady(identity.nativeClass);
+        RenderDisposition disposition = auraClaimProposed
+                ? RenderDisposition.delegate(invocation.invocationId, "aura_claim",
                         "effect:" + identity.instanceId)
-                : RenderDisposition.capture(invocation.invocationId, "transient_effect_observe");
-        disposition = LEDGER.recordDispositionOrRecovery(disposition);
-        if (disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
-                && LEDGER.completeDelegatedWithoutEvidence(invocation.invocationId)) {
-            // Effect projection has no host draw callback. Complete the delegated lifecycle
-            // without manufacturing pixel evidence; native continuation remains suppressed.
-            LEDGER.recordNoPixelIsolation();
+                : (isolated && !exempt
+                        ? RenderDisposition.delegate(invocation.invocationId,
+                                "isolate:transient_effect", "effect:" + identity.instanceId)
+                        : RenderDisposition.capture(invocation.invocationId,
+                                "transient_effect_observe"));
+        synchronized (BRIDGE_LOCK) {
+            disposition = LEDGER.recordDispositionOrRecovery(disposition);
+            if (beforeTokenPublicationForTests != null) beforeTokenPublicationForTests.run();
+            // Correlate the token from the proposal (not the reason string): a recovery fail-open
+            // changes the disposition, and its mode test below then skips token registration.
+            if (auraClaimProposed
+                    && disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
+                    && LEDGER.isPendingDelegated(invocation.invocationId)) {
+                // Aura claim keeps a host draw callback token so a successful ART draw or a
+                // fail-open fallback can be correlated to this exact instance.
+                registerEffectInvocation(identity.instanceId, invocation.invocationId);
+            } else if (!auraClaimProposed
+                    && disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
+                    && LEDGER.isPendingDelegated(invocation.invocationId)
+                    && LEDGER.completeDelegatedWithoutEvidence(invocation.invocationId)) {
+                // Effect projection has no host draw callback. Complete the delegated lifecycle
+                // without manufacturing pixel evidence; native continuation remains suppressed.
+                LEDGER.recordNoPixelIsolation();
+            }
         }
         projectPendingEffectsOncePerFrame();
         return disposition;
+    }
+
+    private static void registerEffectInvocation(String instanceId, long invocationId) {
+        if (instanceId == null || instanceId.isEmpty()) return;
+        synchronized (EFFECT_INVOCATIONS) {
+            ArrayDeque<Long> ids = EFFECT_INVOCATIONS.get(instanceId);
+            if (ids == null) {
+                ids = new ArrayDeque<Long>();
+                EFFECT_INVOCATIONS.put(instanceId, ids);
+            }
+            ids.addLast(Long.valueOf(invocationId));
+        }
+    }
+
+    /** True iff the invocation id is a pending per-instance aura claim. */
+    public static boolean isAuraClaimInvocation(long invocationId) {
+        synchronized (EFFECT_INVOCATIONS) {
+            for (ArrayDeque<Long> ids : EFFECT_INVOCATIONS.values()) {
+                if (ids.contains(Long.valueOf(invocationId))) return true;
+            }
+            return false;
+        }
+    }
+
+    /** Records delegated aura pixel evidence then consumes the pending claim token. */
+    public static void recordEffectDraw(long invocationId, int drawCount) {
+        synchronized (BRIDGE_LOCK) {
+            if (!isAuraClaimInvocation(invocationId)) return;
+            if (LEDGER.recordDelegatedEvidence(invocationId, drawCount, "active")) {
+                removeEffectInvocation(invocationId);
+            } else {
+                LEDGER.recordOrphanArtOutput();
+            }
+        }
+    }
+
+    /**
+     * Fails a pending aura claim open to native and always consumes its token. It must not throw:
+     * a stale id with no token is a no-op.
+     */
+    public static void recordEffectFailure(long invocationId) {
+        synchronized (BRIDGE_LOCK) {
+            try {
+                if (!isAuraClaimInvocation(invocationId)) return;
+                if (LEDGER.recordDelegatedFallbackIfPending(invocationId)) return;
+                if (LEDGER.isPendingDelegated(invocationId)) LEDGER.recordOrphanArtOutput();
+            } finally {
+                removeEffectInvocation(invocationId);
+            }
+        }
+    }
+
+    private static void removeEffectInvocation(long invocationId) {
+        synchronized (EFFECT_INVOCATIONS) {
+            List<String> emptyOwners = new ArrayList<String>();
+            for (Map.Entry<String, ArrayDeque<Long>> entry : EFFECT_INVOCATIONS.entrySet()) {
+                entry.getValue().remove(Long.valueOf(invocationId));
+                if (entry.getValue().isEmpty()) emptyOwners.add(entry.getKey());
+            }
+            for (String owner : emptyOwners) EFFECT_INVOCATIONS.remove(owner);
+        }
     }
 
     public static void observeEffectUpdate(
@@ -675,6 +763,7 @@ public final class NativeRenderBridge {
             synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
             synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
             synchronized (STANCE_INVOCATIONS) { STANCE_INVOCATIONS.clear(); }
+            synchronized (EFFECT_INVOCATIONS) { EFFECT_INVOCATIONS.clear(); }
         }
         Sts1NativePresentationAdapter.clearTransientEffects();
         // Recovery/panic ends every delegation (isolate cleared, ledger closed, tokens dropped),
@@ -729,6 +818,7 @@ public final class NativeRenderBridge {
         synchronized (SURFACE_INVOCATIONS) { SURFACE_INVOCATIONS.clear(); }
         synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
         synchronized (STANCE_INVOCATIONS) { STANCE_INVOCATIONS.clear(); }
+        synchronized (EFFECT_INVOCATIONS) { EFFECT_INVOCATIONS.clear(); }
         synchronized (BRIDGE_LOCK) { NATIVE_CONTINUATION_FRAMES.clear(); }
         beforeTokenPublicationForTests = null;
         Sts1NativePresentationAdapter.clear();

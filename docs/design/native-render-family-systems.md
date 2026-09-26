@@ -122,10 +122,20 @@ pipeline. The container entry is a `@SpireInstrumentPatch` on
 `topLevelEffects`) with an observe-then-render helper — the single-arg method is
 abstract, so ModTheSpire cannot attach a Prefix to it. The retained
 `AbstractGameEffect#render(SpriteBatch, float, float)` Prefix covers the ~20
-host-drawn particle groups that never enter the containers. Both entries keep
+host-drawn particle groups that never enter the containers. Both entries default to
 `CAPTURE_AND_PASS`, the native effect queue remains authoritative, and no
 per-subclass hook is planned (refacter ledger `NRO-04`). Subclass families are
 covered by virtual dispatch at the container sites, not by their own patches.
+
+The `vfx-stance-aura` family additionally has a **default-off per-instance claim**
+(`AuraDelegationGate` + `AuraClaimPolicy` + the injected `AuraArtRenderer` draw seam).
+While the gate is off — the default — native effect pixels continue unchanged. When
+the gate is on, only the three exact classes `StanceAuraEffect`, `WrathParticleEffect`,
+and `DivinityParticleEffect` are claimable, and only when the injected renderer reports
+ready; an unsupported class, a not-ready renderer, panic, or background-only mode keeps
+`CAPTURE_AND_PASS`. A successful ART draw suppresses **only that instance** (its own
+token/evidence); the rest of the effect queue is untouched. F1 ships the plumbing only —
+the default renderer is never ready, so no pixel changes yet.
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|
@@ -133,7 +143,7 @@ covered by virtual dispatch at the container sites, not by their own patches.
 | `vfx-scene-world` | 34 | `TorchParticleLEffect`, `DustEffect`, `BonfireParticleEffect` | `OBSERVED` (family default): observe-only via the container call sites |
 | `vfx-campfire-rest` | 11 | `CampfireSmithEffect`, `CampfireSleepEffect` | `OBSERVED` (family default): observe-only via the container call sites |
 | `vfx-card-manipulation` | 10 | `ShowCardAndAddToHandEffect`, `ExhaustCardEffect` | `OBSERVED` (family default): observe-only via the container call sites |
-| `vfx-stance-aura` | 8 | `DivinityParticleEffect`, `WrathParticleEffect`, `StanceAuraEffect` | `OBSERVED` (family default): observe-only via the container call sites |
+| `vfx-stance-aura` | 8 | `DivinityParticleEffect`, `WrathParticleEffect`, `StanceAuraEffect` | `OBSERVED` by default, plus a **default-off per-instance claim** (`AuraDelegationGate`/`AuraClaimPolicy`/`AuraArtRenderer`) for the three exact aura classes; native remains authoritative while off, and a successful ART draw suppresses only that instance |
 
 ### Future delegation candidate / reserved
 

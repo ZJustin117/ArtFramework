@@ -1,10 +1,14 @@
 package artframework.sts1.render;
 
+import artframework.context.OrbStanceView;
 import artframework.sts1.PresentSafety;
+import artframework.sts1.backend.Sts1OrbStanceProjection;
 import com.megacrit.cardcrawl.stances.AbstractStance;
 import com.megacrit.cardcrawl.stances.NeutralStance;
 import org.junit.After;
 import org.junit.Test;
+
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -36,10 +40,19 @@ public class NativeStanceBridgeTest {
         return new TestStance(NeutralStance.STANCE_ID);
     }
 
+    private static void publishDrawableStance(String ownerId) {
+        OrbStanceView.Entry entry = new OrbStanceView.Entry(ownerId, "stance", ownerId, 0, 0, 0,
+                true, "res/" + ownerId, artframework.component.Rect.ZERO, true,
+                0f, 1f, 1f, 1f, 1f, 100f, 200f, 512f, 512f, 1f, true, 256f, 256f);
+        Sts1OrbStanceProjection.publish(
+                new OrbStanceView(Collections.singletonList(entry), true));
+    }
+
     @After
     public void tearDown() {
         StanceDelegationGate.resetForTests();
         StanceArtRenderer.resetForTests();
+        Sts1OrbStanceProjection.resetForTests();
         BackgroundOnlyGate.resetForTests();
         PresentSafety.resetForTests();
         NativeRenderBridge.resetForTests();
@@ -68,7 +81,7 @@ public class NativeStanceBridgeTest {
     @Test
     public void gateOnWithReadyRendererDelegatesAndRegistersToken() {
         StanceDelegationGate.setActive(true);
-        StanceArtRenderer.setReadyForTests(true);
+        publishDrawableStance("stance:" + NeutralStance.STANCE_ID);
 
         RenderDisposition disposition = NativeRenderBridge.beginStanceRender(neutral());
 
@@ -100,5 +113,47 @@ public class NativeStanceBridgeTest {
         RenderDisposition disposition = NativeRenderBridge.beginStanceRender(null);
 
         assertEquals(RenderDisposition.Mode.PASS_THROUGH, disposition.mode);
+    }
+
+    @Test
+    public void delegatedDrawConsumesTokenWithoutOrphan() {
+        StanceDelegationGate.setActive(true);
+        String owner = "stance:" + NeutralStance.STANCE_ID;
+        publishDrawableStance(owner);
+        RenderDisposition disposition = NativeRenderBridge.beginStanceRender(neutral());
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+
+        NativeRenderBridge.recordStanceDraw(disposition.invocationId, 1);
+
+        assertNull("draw consumes the pending token", NativeRenderBridge.takeStanceInvocation(owner));
+        assertEquals(Integer.valueOf(0),
+                NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
+    public void delegatedFailureConsumesTokenWithoutOrphan() {
+        StanceDelegationGate.setActive(true);
+        String owner = "stance:" + NeutralStance.STANCE_ID;
+        publishDrawableStance(owner);
+        RenderDisposition disposition = NativeRenderBridge.beginStanceRender(neutral());
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+
+        NativeRenderBridge.recordStanceFailure(disposition.invocationId);
+
+        assertNull("failure consumes the pending token", NativeRenderBridge.takeStanceInvocation(owner));
+        assertEquals(Integer.valueOf(0),
+                NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
+    public void unmatchedOwnerIsNotReadySoBridgeFailsOpen() {
+        StanceDelegationGate.setActive(true);
+        publishDrawableStance("stance:Calm");
+
+        RenderDisposition disposition = NativeRenderBridge.beginStanceRender(neutral());
+
+        assertEquals(RenderDisposition.Mode.FAIL_OPEN, disposition.mode);
+        assertEquals("stance_art_not_ready", disposition.reason);
+        assertTrue(disposition.nativeContinuation);
     }
 }

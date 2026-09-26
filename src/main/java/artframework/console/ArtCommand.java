@@ -120,6 +120,10 @@ public class ArtCommand extends ConsoleCommand {
             cmdVfx(tokens, depth + 1);
             return;
         }
+        if ("stance".equals(sub)) {
+            cmdStance(tokens, depth + 1);
+            return;
+        }
         if ("verify".equals(sub)) {
             cmdVerify(tokens, depth + 1);
             return;
@@ -170,6 +174,92 @@ public class ArtCommand extends ConsoleCommand {
             artframework.sts1.render.VfxSts1Runtime.recordError(error);
             logVfx("ART_VFX error=" + error.getClass().getSimpleName() + ":" + String.valueOf(error.getMessage()));
         }
+    }
+
+    /** Parsed {@code art stance ...} request; pure so the console switch is testable without a game. */
+    static final class StanceRequest {
+        static final StanceRequest STATUS = new StanceRequest(null);
+        /** null = status, TRUE = draw on, FALSE = draw off; {@link #invalid} marks bad input. */
+        final Boolean delegate;
+        final boolean invalid;
+
+        private StanceRequest(Boolean delegate) {
+            this(delegate, false);
+        }
+
+        private StanceRequest(Boolean delegate, boolean invalid) {
+            this.delegate = delegate;
+            this.invalid = invalid;
+        }
+
+        static StanceRequest draw(boolean on) {
+            return new StanceRequest(Boolean.valueOf(on));
+        }
+
+        static StanceRequest invalid() {
+            return new StanceRequest(null, true);
+        }
+    }
+
+    /**
+     * Parses the argument tail after {@code art stance} (e.g. {@code ["draw","on"]}):
+     * {@code status} (no args), {@code draw on}, {@code draw off}. Anything else is invalid.
+     */
+    static StanceRequest parseStance(String[] args) {
+        if (args == null || args.length == 0) return StanceRequest.STATUS;
+        if (args.length == 1 && "status".equalsIgnoreCase(trim(args[0]))) {
+            return StanceRequest.STATUS;
+        }
+        if (args.length == 2 && "draw".equalsIgnoreCase(trim(args[0]))) {
+            String switchValue = trim(args[1]).toLowerCase();
+            if ("on".equals(switchValue)) return StanceRequest.draw(true);
+            if ("off".equals(switchValue)) return StanceRequest.draw(false);
+        }
+        return StanceRequest.invalid();
+    }
+
+    private static String trim(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private void cmdStance(String[] tokens, int depth) {
+        String[] args = new String[Math.max(0, tokens.length - depth)];
+        for (int i = 0; i < args.length; i++) args[i] = tokens[depth + i];
+        try {
+            StanceRequest request = parseStance(args);
+            if (request.invalid) {
+                logVfx("ART_STANCE error=usage: art stance draw on|off | art stance status");
+                return;
+            }
+            if (request.delegate != null) {
+                artframework.sts1.render.StanceDelegationGate.setActive(request.delegate.booleanValue());
+                logVfx("ART_STANCE delegate=" + (request.delegate.booleanValue() ? "on" : "off"));
+                return;
+            }
+            logVfx("ART_STANCE delegate="
+                    + (artframework.sts1.render.StanceDelegationGate.isActive() ? "on" : "off")
+                    + " ready=" + stanceReady());
+        } catch (Throwable error) {
+            logVfx("ART_STANCE error=" + error.getClass().getSimpleName()
+                    + ":" + String.valueOf(error.getMessage()));
+        }
+    }
+
+    /** First drawable stance entry in the current projection, or {@code false} when none. */
+    private static boolean stanceReady() {
+        String owner = null;
+        try {
+            for (artframework.context.OrbStanceView.Entry entry
+                    : artframework.sts1.backend.Sts1OrbStanceProjection.current().entries) {
+                if (entry == null) continue;
+                if ("stance".equals(entry.kind) && entry.visible && entry.hasImage) {
+                    owner = entry.id;
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return owner != null && artframework.sts1.render.StanceArtRenderer.isReady("stance:" + owner);
     }
 
     private void cmdVerify(String[] tokens, int depth) {

@@ -1,10 +1,14 @@
 package artframework.sts1.render;
 
+import artframework.context.OrbStanceView;
 import artframework.sts1.PresentSafety;
+import artframework.sts1.backend.Sts1OrbStanceProjection;
 import com.megacrit.cardcrawl.stances.AbstractStance;
 import com.megacrit.cardcrawl.stances.NeutralStance;
 import org.junit.After;
 import org.junit.Test;
+
+import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -42,10 +46,19 @@ public class StanceRenderPatchMappingTest {
         return new TestStance(NeutralStance.STANCE_ID);
     }
 
+    private static void publishDrawableStance(String ownerId) {
+        OrbStanceView.Entry entry = new OrbStanceView.Entry(ownerId, "stance", ownerId, 0, 0, 0,
+                true, "res/" + ownerId, artframework.component.Rect.ZERO, true,
+                0f, 1f, 1f, 1f, 1f, 100f, 200f, 512f, 512f, 1f, true, 256f, 256f);
+        Sts1OrbStanceProjection.publish(
+                new OrbStanceView(Collections.singletonList(entry), true));
+    }
+
     @After
     public void tearDown() {
         StanceDelegationGate.resetForTests();
         StanceArtRenderer.resetForTests();
+        Sts1OrbStanceProjection.resetForTests();
         BackgroundOnlyGate.resetForTests();
         PresentSafety.resetForTests();
         NativeRenderBridge.resetForTests();
@@ -74,7 +87,7 @@ public class StanceRenderPatchMappingTest {
     @Test
     public void delegateSuppressesNativeAndDropsContinuation() {
         StanceDelegationGate.setActive(true);
-        StanceArtRenderer.setReadyForTests(true);
+        publishDrawableStance("stance:" + NeutralStance.STANCE_ID);
 
         RenderDisposition d = NativeRenderBridge.beginStanceRender(neutral());
 
@@ -86,10 +99,10 @@ public class StanceRenderPatchMappingTest {
     @Test
     public void suppressionMappingTracksNativeContinuationExactly() {
         StanceDelegationGate.setActive(true);
-        StanceArtRenderer.setReadyForTests(true);
+        publishDrawableStance("stance:" + NeutralStance.STANCE_ID);
         RenderDisposition delegated = NativeRenderBridge.beginStanceRender(neutral());
 
-        StanceArtRenderer.setReadyForTests(false);
+        Sts1OrbStanceProjection.resetForTests();
         RenderDisposition failedOpen = NativeRenderBridge.beginStanceRender(neutral());
 
         StanceDelegationGate.setActive(false);

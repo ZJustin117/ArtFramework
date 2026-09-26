@@ -2,6 +2,7 @@ package artframework.sts1.patch;
 
 import artframework.sts1.render.NativeRenderBridge;
 import artframework.sts1.render.RenderDisposition;
+import artframework.sts1.render.StanceArtRenderer;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import com.megacrit.cardcrawl.stances.AbstractStance;
@@ -26,8 +27,15 @@ public final class StanceRenderPatches {
                 com.badlogic.gdx.graphics.g2d.SpriteBatch sb) {
             RenderDisposition d = NativeRenderBridge.beginStanceRender(__instance);
             if (d.mode == RenderDisposition.Mode.DELEGATE_TO_ART) {
-                // ART owns the stance pixels this frame; the native render must not also draw.
-                return SpireReturn.Return(null);
+                // ART owns the stance pixels this frame. Draw them here and consume the token so it
+                // cannot accumulate; a failed draw fails open to the native render below.
+                String owner = NativeRenderBridge.stanceOwner(__instance);
+                if (StanceArtRenderer.render(sb, owner)) {
+                    NativeRenderBridge.recordStanceDraw(d.invocationId, 1);
+                    return SpireReturn.Return(null);
+                }
+                NativeRenderBridge.recordStanceFailure(d.invocationId);
+                return SpireReturn.Continue();
             }
             // PASS_THROUGH / FAIL_OPEN (and any other mode): native stance rendering continues.
             return SpireReturn.Continue();

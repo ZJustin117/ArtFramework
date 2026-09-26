@@ -422,7 +422,7 @@ public final class NativeRenderBridge {
             } else if (!StanceDelegationGate.isActive()) {
                 disposition = RenderDisposition.pass(invocation.invocationId,
                         "native_continuation");
-            } else if (!StanceArtRenderer.isReady()) {
+            } else if (!StanceArtRenderer.isReady(owner)) {
                 disposition = RenderDisposition.failOpen(invocation.invocationId,
                         "stance_art_not_ready");
             } else {
@@ -449,7 +449,8 @@ public final class NativeRenderBridge {
         return disposition;
     }
 
-    static String stanceOwner(com.megacrit.cardcrawl.stances.AbstractStance stance) {
+    /** Canonical ART stance owner key ({@code "stance:" + ID}) shared by bridge and patch. */
+    public static String stanceOwner(com.megacrit.cardcrawl.stances.AbstractStance stance) {
         if (stance == null) return "stance:unknown";
         String id = stance.ID;
         String suffix = (id != null && !id.isEmpty()) ? id : stance.getClass().getSimpleName();

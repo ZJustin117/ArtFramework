@@ -17,7 +17,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       observe-only, skeleton claims remain per instance, and unpatched map/event/reward/rest/shop/
       treasure/relic/power/card owners remain outside isolate coverage.
 
-- [ ] Migrate a single `stances-state` instance end to end (S2): draw-input observation and shared-frame payload plus a default-off delegation/suppression seam are shipped; remaining is ART draw + DELEGATE token consumption and D1 per-stance pixel/order evidence before enabling the gate.
+- [ ] Migrate a single `stances-state` instance end to end (S2): draw-input observation, shared-frame payload, ART draw + DELEGATE token consumption, and a default-off delegation/suppression seam are shipped, but the shipped `AbstractStance.render` seam is inert on vanilla (vanilla never sets `img`; no stance textures exist), so the real pixel authority for the stance family is `vfx-stance-aura` (`StanceAuraEffect` / `CalmParticleEffect` / `WrathParticleEffect` / `DivinityParticleEffect`). Next: repoint the visual-pixel takeover at `vfx-stance-aura` (or only enable the existing seam when a mod supplies a stance texture), keeping D1 per-stance pixel/order evidence before enabling the gate.
 
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See

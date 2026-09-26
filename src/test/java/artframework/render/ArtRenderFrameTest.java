@@ -400,6 +400,43 @@ public class ArtRenderFrameTest {
         return -1;
     }
 
+    /**
+     * install() must always leave the aggregator at the very end of RENDER_PROJECTION, even when a
+     * producer registered after it: multiple producers (room-shell, VFX) append into the same phase,
+     * and the aggregator would otherwise merge their contributions one frame late.
+     */
+    @Test public void installReassertsAggregatorAsLastInRenderProjectionPhase() {
+        PackSystems.resetForTests();
+        try {
+            PackSystems.enable(PackSystemPhase.RENDER_PROJECTION, "fake-producer",
+                    new EcsSystem() {
+                        @Override public void run(PresentationWorld world, EcsTick tick) {}
+                    });
+            // Register the aggregator, then a second producer that would append after it.
+            ArtRenderFrameAggregationSystem.install();
+            PackSystems.enable(PackSystemPhase.RENDER_PROJECTION, "late-producer",
+                    new EcsSystem() {
+                        @Override public void run(PresentationWorld world, EcsTick tick) {}
+                    });
+
+            // Re-asserting install must move the aggregator back to the last slot, still single.
+            ArtRenderFrameAggregationSystem.install();
+            List<EcsSystem> systems = PackSystems.systemsFor(PackSystemPhase.RENDER_PROJECTION);
+            assertEquals(3, systems.size());
+            assertEquals(1, countOf(systems, ArtRenderFrameAggregationSystem.class));
+            assertTrue("aggregator must be last",
+                    systems.get(systems.size() - 1) instanceof ArtRenderFrameAggregationSystem);
+        } finally {
+            PackSystems.resetForTests();
+        }
+    }
+
+    private static int countOf(List<EcsSystem> systems, Class<?> type) {
+        int matches = 0;
+        for (EcsSystem system : systems) if (type.isInstance(system)) matches++;
+        return matches;
+    }
+
     private static List<String> keyList(List<RenderPlan.Entry> entries) {
         List<String> out = new ArrayList<String>();
         for (RenderPlan.Entry entry : entries) out.add(entry.stableKey);

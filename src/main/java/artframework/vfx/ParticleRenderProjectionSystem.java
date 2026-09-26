@@ -4,21 +4,44 @@ import artframework.ecs.EcsSystem;
 import artframework.ecs.EcsTick;
 import artframework.ecs.EntityId;
 import artframework.ecs.PresentationWorld;
+import artframework.render.ArtRenderContributionComponent;
 import artframework.render.RenderOrder;
+import artframework.render.RenderPlan;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Stateless ECS-to-draw-data projection. */
 public final class ParticleRenderProjectionSystem implements EcsSystem {
+    /** Prefix of every VFX producer id published into the shared render contribution registry. */
+    static final String PRODUCER_PREFIX = "vfx:";
+
     @Override public void run(PresentationWorld world, EcsTick tick) {
-        List<VfxParticleDraw> frameDraws = new ArrayList<VfxParticleDraw>();
-        List<Integer> rootEnds = new ArrayList<Integer>();
-        for (EntityId root : world.query(VfxSceneRuntimeComponent.class, VfxSceneResourcesComponent.class)) {
+        List<EntityId> roots = world.query(VfxSceneRuntimeComponent.class, VfxSceneResourcesComponent.class);
+        Set<String> liveProducerIds = new HashSet<String>();
+        for (EntityId root : roots) {
+            VfxSceneRuntimeComponent runtime = world.get(root, VfxSceneRuntimeComponent.class);
+            if (runtime != null) liveProducerIds.add(producerId(runtime));
+        }
+        // Stale cleanup: a VFX producer whose root is gone (destroyed/completed) must not keep
+        // contributing entries into the shared frame. Only VFX-owned producers are touched; other
+        // families (for example room-shell) own their own lifetime.
+        for (EntityId entity : world.query(ArtRenderContributionComponent.class)) {
+            ArtRenderContributionComponent contribution =
+                    world.get(entity, ArtRenderContributionComponent.class);
+            if (contribution == null || contribution.producerId == null) continue;
+            if (contribution.producerId.startsWith(PRODUCER_PREFIX)
+                    && !liveProducerIds.contains(contribution.producerId)) {
+                ArtRenderContributionComponent.clear(world, contribution.producerId);
+            }
+        }
+        for (EntityId root : roots) {
             List<VfxParticleDraw> draws = new ArrayList<VfxParticleDraw>();
             List<EntityId> nodes = world.query(VfxNodeComponent.class, VfxTransformComponent.class,
                     VfxEmitterComponent.class, VfxParticleBufferComponent.class);
@@ -62,14 +85,33 @@ public final class ParticleRenderProjectionSystem implements EcsSystem {
                 }
             });
             world.put(root, VfxDrawListComponent.class, new VfxDrawListComponent(new VfxDrawList(draws)));
-            frameDraws.addAll(draws);
-            rootEnds.add(frameDraws.size());
+            publishContribution(world, root, draws);
         }
-        List<EntityId> existing = world.query(VfxRenderFrameComponent.class);
-        if (rootEnds.isEmpty() && existing.isEmpty()) return;
-        EntityId frameEntity = existing.isEmpty() ? world.createEntity() : existing.get(0);
-        world.put(frameEntity, VfxRenderFrameComponent.class,
-                new VfxRenderFrameComponent(new VfxRenderFrame(frameDraws, rootEnds)));
+    }
+
+    /**
+     * Stable producer id for one instantiated VFX root: {@code "vfx:" + sceneId + "#" + epoch}.
+     * {@code instantiatedEpoch} is fixed at instantiation, so the id stays stable across frames and
+     * changes only when the same scene id is re-instantiated (which makes the old contribution
+     * stale and collectable).
+     */
+    public static String producerId(VfxSceneRuntimeComponent runtime) {
+        return PRODUCER_PREFIX + runtime.sceneId + "#" + runtime.instantiatedEpoch;
+    }
+
+    /**
+     * Publishes (or clears) one root's payload entries into the shared contribution registry. The
+     * entries reuse {@link VfxRenderFrame#payloadEntry}, so phase/z/stableKey/payload are exactly
+     * the ones the existing frame contract already exposes. An empty draw list clears the producer
+     * so a root that stops drawing leaves no stale contribution.
+     */
+    private static void publishContribution(PresentationWorld world, EntityId root,
+            List<VfxParticleDraw> draws) {
+        VfxSceneRuntimeComponent runtime = world.get(root, VfxSceneRuntimeComponent.class);
+        if (runtime == null) return;
+        List<RenderPlan.Entry> entries = new ArrayList<RenderPlan.Entry>(draws.size());
+        for (VfxParticleDraw draw : draws) entries.add(VfxRenderFrame.payloadEntry(draw));
+        ArtRenderContributionComponent.publish(world, producerId(runtime), entries);
     }
 
     private static String outputPath(List<VfxResourceRef> resources, String id) {

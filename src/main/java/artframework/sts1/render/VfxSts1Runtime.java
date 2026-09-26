@@ -2,15 +2,18 @@ package artframework.sts1.render;
 
 import artframework.ecs.ArtEcs;
 import artframework.ecs.EntityId;
+import artframework.render.ArtRenderContributionComponent;
+import artframework.render.ArtRenderFrame;
+import artframework.render.ArtRenderFrameAggregationSystem;
+import artframework.vfx.ParticleRenderProjectionSystem;
 import artframework.vfx.VfxBundleDefinition;
 import artframework.vfx.VfxDrawListComponent;
 import artframework.vfx.VfxInstance;
 import artframework.vfx.VfxInstantiateSystem;
 import artframework.vfx.VfxManifestLoader;
 import artframework.vfx.VfxSceneDefinition;
+import artframework.vfx.VfxSceneResourcesComponent;
 import artframework.vfx.VfxSceneRuntimeComponent;
-import artframework.vfx.VfxRenderFrame;
-import artframework.vfx.VfxRenderFrameComponent;
 import artframework.vfx.VfxSystems;
 import artframework.vfx.VfxTransformComponent;
 import com.badlogic.gdx.Gdx;
@@ -67,11 +70,16 @@ public final class VfxSts1Runtime {
     }
 
     public static synchronized void clear() {
-        for (EntityId root : new ArrayList<EntityId>(roots)) destroyGraph(root);
-        roots.clear();
-        for (EntityId entity : ArtEcs.world().query(VfxRenderFrameComponent.class)) {
-            ArtEcs.world().destroyEntity(entity);
+        for (EntityId root : new ArrayList<EntityId>(roots)) {
+            if (!ArtEcs.world().contains(root)) continue;
+            VfxSceneRuntimeComponent runtime = ArtEcs.world().get(root, VfxSceneRuntimeComponent.class);
+            if (runtime != null) {
+                ArtRenderContributionComponent.clear(ArtEcs.world(),
+                        ParticleRenderProjectionSystem.producerId(runtime));
+            }
+            destroyGraph(root);
         }
+        roots.clear();
         textures.clear();
         bundleRoot = null;
         sceneId = null;
@@ -114,53 +122,25 @@ public final class VfxSts1Runtime {
     public static synchronized void render(SpriteBatch batch) {
         if (batch == null || bundleRoot == null) return;
         try {
-            VfxRenderFrame frame = frameForRender();
-            if (frame == null) return;
-            // The payload entries are globally ordered by (phase, z, stableKey). To keep the legacy
-            // per-root submission boundaries (and therefore identical pixel output), bucket each
-            // entry back into its root segment and preserve each root's sorted relative order.
-            for (List<artframework.render.RenderPlan.Entry> segment : planEntriesByRoot(frame)) {
-                Sts1VfxOverlayRenderer.render(batch, segment,
+            ArtRenderFrame frame = ArtRenderFrameAggregationSystem.frameFor(ArtEcs.world());
+            if (frame == null || frame.isEmpty()) return;
+            // Consume the shared aggregate family-by-family: each VFX root owns exactly one
+            // producer contribution, so per-root segments are recovered via entriesFor(producerId).
+            // This preserves the legacy per-root submission boundaries while the shared frame stays
+            // the single ordering authority.
+            for (EntityId root : ArtEcs.world().query(VfxSceneRuntimeComponent.class,
+                    VfxSceneResourcesComponent.class)) {
+                VfxSceneRuntimeComponent runtime =
+                        ArtEcs.world().get(root, VfxSceneRuntimeComponent.class);
+                if (runtime == null) continue;
+                List<artframework.render.RenderPlan.Entry> entries =
+                        frame.entriesFor(ParticleRenderProjectionSystem.producerId(runtime));
+                Sts1VfxOverlayRenderer.render(batch, entries,
                         new Sts1VfxOverlayRenderer.TextureResolver() {
                             @Override public Texture resolve(String path) { return textures.resolve(bundleRoot, path); }
                         });
             }
         } catch (Throwable error) { recordError(error); }
-    }
-
-    /**
-     * Buckets {@link VfxRenderFrame#planEntries} back into the legacy per-root draw segments
-     * described by {@link VfxRenderFrame#rootEnds}. The global ordering (phase, z, stableKey) is
-     * preserved inside each segment; one payload entry appears in exactly one segment (its root),
-     * and payload-less entries are dropped because the ART VFX backend only submits payloads.
-     */
-    static List<List<artframework.render.RenderPlan.Entry>> planEntriesByRoot(VfxRenderFrame frame) {
-        List<List<artframework.render.RenderPlan.Entry>> segments =
-                new ArrayList<List<artframework.render.RenderPlan.Entry>>();
-        if (frame == null) return segments;
-        int start = 0;
-        for (Integer end : frame.rootEnds) {
-            int endIndex = end == null ? start : end.intValue();
-            if (endIndex < start || endIndex > frame.draws.size()) { start = endIndex; continue; }
-            java.util.Set<String> segmentKeys = new java.util.HashSet<String>();
-            for (int index = start; index < endIndex; index++) {
-                segmentKeys.add(frame.draws.get(index).stableKey);
-            }
-            List<artframework.render.RenderPlan.Entry> segment =
-                    new ArrayList<artframework.render.RenderPlan.Entry>(segmentKeys.size());
-            for (artframework.render.RenderPlan.Entry entry : frame.planEntries) {
-                if (entry == null || entry.payload == null) continue;
-                if (segmentKeys.contains(entry.stableKey)) segment.add(entry);
-            }
-            segments.add(segment);
-            start = endIndex;
-        }
-        return segments;
-    }
-
-    static VfxRenderFrame frameForRender() {
-        List<EntityId> entities = ArtEcs.world().query(VfxRenderFrameComponent.class);
-        return entities.isEmpty() ? null : ArtEcs.world().get(entities.get(0), VfxRenderFrameComponent.class).value;
     }
 
     private static void pruneRoots(List<EntityId> liveRoots) {

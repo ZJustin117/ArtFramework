@@ -19,6 +19,11 @@ public final class VfxSystems {
             PackSystems.enable(PackSystemPhase.RENDER_PROJECTION, PROJECTION_ID,
                     new ParticleRenderProjectionSystem());
         }
+        // Re-assert the aggregator at the end of RENDER_PROJECTION: this producer was just enabled
+        // (possibly appending after a previously-installed aggregator), and any other producer may
+        // have registered since. The aggregator must always run last or contributions land a frame
+        // late.
+        artframework.render.ArtRenderFrameAggregationSystem.install();
     }
 
     public static synchronized void disable() {

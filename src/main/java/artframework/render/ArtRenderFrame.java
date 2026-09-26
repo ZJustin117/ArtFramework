@@ -13,9 +13,11 @@ import java.util.Set;
  * Immutable, host-neutral aggregate of the payload frame entries contributed by every ART render
  * family producer for one frame.
  *
- * <p>This is the shared aggregation point that lets several producers (today only the room-shell
- * producer; VFX keeps its own frame for now) publish their payload-bearing
- * {@link RenderPlan.Entry} values into one ordered frame. The value is data only: it never owns or
+ * <p>This is the shared aggregation point that lets several producers (today the room-shell
+ * producer and the ART-authored VFX bundle runtime) publish their payload-bearing
+ * {@link RenderPlan.Entry} values into one ordered frame. ART-authored VFX no longer keeps its own
+ * backend frame; only its pure payload mapping remains, and the two producers are aggregated here.
+ * The value is data only: it never owns or
  * references a host object, {@code EntityId}, {@code PresentationWorld}, {@code Texture}, or
  * {@code SpriteBatch}. Resolution and submission stay in the ART backend.</p>
  *

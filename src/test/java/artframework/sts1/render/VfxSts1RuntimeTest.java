@@ -4,13 +4,17 @@ import artframework.core.PackSystems;
 import artframework.ecs.ArtEcs;
 import artframework.ecs.EntityId;
 import artframework.ecs.EcsTick;
+import artframework.render.ArtRenderContributionComponent;
+import artframework.render.ArtRenderFrame;
+import artframework.render.ArtRenderFrameAggregationSystem;
+import artframework.render.RenderPlan;
 import artframework.sts1.PresentSafety;
+import artframework.vfx.ParticleRenderProjectionSystem;
 import artframework.vfx.VfxLifecycleSystem;
 import artframework.vfx.VfxDrawList;
 import artframework.vfx.VfxDrawListComponent;
 import artframework.vfx.VfxParticleDraw;
 import artframework.vfx.VfxRenderFrame;
-import artframework.vfx.VfxRenderFrameComponent;
 import artframework.vfx.VfxSceneRuntimeComponent;
 import artframework.vfx.VfxTransformComponent;
 import org.junit.After;
@@ -87,6 +91,40 @@ public class VfxSts1RuntimeTest {
     }
 
     @Test
+    public void clearAfterSceneCompletionDoesNotThrowOnDestroyedRoot() throws Exception {
+        Path root = Files.createTempDirectory("art-vfx-clear-completed");
+        Files.write(root.resolve("manifest.json"), ("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"
+                + "\"bundleId\":\"b\",\"capability\":\"DEGRADED\",\"scenes\":[{\"id\":\"default\","
+                + "\"path\":\"scene.json\",\"capability\":\"DEGRADED\"}],\"resources\":[]}").getBytes(UTF8));
+        Files.write(root.resolve("scene.json"), ("{\"format\":\"art.sts2-vfx-scene\",\"schemaVersion\":1,"
+                + "\"id\":\"default\",\"duration\":0,\"capability\":\"DEGRADED\",\"typedNodes\":[],\"resources\":[]}").getBytes(UTF8));
+
+        VfxSts1Runtime.load(root.toString(), null);
+        new VfxLifecycleSystem().run(ArtEcs.world(), new EcsTick(0f, 1L));
+        assertTrue(ArtEcs.world().query(VfxSceneRuntimeComponent.class).isEmpty());
+
+        VfxSts1Runtime.clear();
+        assertTrue(VfxSts1Runtime.statusLine().contains("status=clear"));
+    }
+
+    @Test
+    public void clearAfterEpochInvalidationDoesNotThrow() throws Exception {
+        Path root = Files.createTempDirectory("art-vfx-clear-stale-epoch");
+        Files.write(root.resolve("manifest.json"), ("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"
+                + "\"bundleId\":\"b\",\"capability\":\"DEGRADED\",\"scenes\":[{\"id\":\"default\","
+                + "\"path\":\"scene.json\",\"capability\":\"DEGRADED\"}],\"resources\":[]}").getBytes(UTF8));
+        Files.write(root.resolve("scene.json"), ("{\"format\":\"art.sts2-vfx-scene\",\"schemaVersion\":1,"
+                + "\"id\":\"default\",\"duration\":1,\"capability\":\"DEGRADED\",\"typedNodes\":[],\"resources\":[]}").getBytes(UTF8));
+
+        VfxSts1Runtime.load(root.toString(), null);
+        EntityId rootEntity = ArtEcs.world().query(VfxSceneRuntimeComponent.class).get(0);
+        ArtEcs.world().destroyEntity(rootEntity);
+
+        VfxSts1Runtime.clear();
+        assertTrue(VfxSts1Runtime.statusLine().contains("status=clear"));
+    }
+
+    @Test
     public void liveDrawAdmissionIsFalseForEmptyAndStaleRoots() throws Exception {
         EntityId emptyRoot = ArtEcs.world().createEntity();
         ArtEcs.world().put(emptyRoot, VfxSceneRuntimeComponent.class,
@@ -124,67 +162,89 @@ public class VfxSts1RuntimeTest {
     }
 
     @Test
-    public void backendFrameSourceUsesSharedSnapshotNotRootDrawComponents() {
+    public void backendFrameSourceUsesSharedContributionNotRootDrawComponents() {
         EntityId root = ArtEcs.world().createEntity();
-        ArtEcs.world().put(root, VfxSceneRuntimeComponent.class,
-                new VfxSceneRuntimeComponent("diagnostic-only", 1L, 1L, false));
-        VfxParticleDraw rootOnly = new VfxParticleDraw("root", "other", 9, 0, "wrong.png",
+        VfxSceneRuntimeComponent runtime = new VfxSceneRuntimeComponent("diagnostic-only", 1L, 1L, false);
+        ArtEcs.world().put(root, VfxSceneRuntimeComponent.class, runtime);
+        // A root-local draw list must not be consumed by the backend: it is diagnostic-only.
+        VfxParticleDraw rootOnly = new VfxParticleDraw("diagnostic-only", "other", 9, 0, "wrong.png",
                 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", 0f,
                 0, 1, 1, false, false);
         ArtEcs.world().put(root, VfxDrawListComponent.class,
                 new VfxDrawListComponent(new VfxDrawList(java.util.Collections.singletonList(rootOnly))));
-        VfxParticleDraw suppliedDraw = new VfxParticleDraw("snapshot", "node", 3, 0, "p.png",
+
+        String producerId = ParticleRenderProjectionSystem.producerId(runtime);
+        VfxParticleDraw suppliedDraw = new VfxParticleDraw("diagnostic-only", "node", 3, 0, "p.png",
                 1f, 2f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", 0f,
                 0, 1, 1, false, false);
-        VfxRenderFrame supplied = new VfxRenderFrame(java.util.Collections.singletonList(suppliedDraw));
-        EntityId output = ArtEcs.world().createEntity();
-        ArtEcs.world().put(output, VfxRenderFrameComponent.class, new VfxRenderFrameComponent(supplied));
+        ArtRenderContributionComponent.publish(ArtEcs.world(), producerId,
+                java.util.Collections.singletonList(VfxRenderFrame.payloadEntry(suppliedDraw)));
 
-        assertEquals(supplied, VfxSts1Runtime.frameForRender());
-        assertEquals("p.png", VfxSts1Runtime.frameForRender().draws.get(0).textureReference);
+        new ArtRenderFrameAggregationSystem().run(ArtEcs.world(), new EcsTick(0f, 1L));
+
+        ArtRenderFrame frame = ArtRenderFrameAggregationSystem.frameFor(ArtEcs.world());
+        List<RenderPlan.Entry> entries = frame.entriesFor(producerId);
+        assertEquals(1, entries.size());
+        assertEquals("p.png", entries.get(0).payload.resourceId());
+        for (RenderPlan.Entry entry : frame.entries()) {
+            assertTrue(!"wrong.png".equals(entry.payload == null ? null : entry.payload.resourceId()));
+        }
     }
 
     @Test
-    public void payloadEntriesAreBucketedBackIntoLegacyRootSegments() {
-        // Root "first" draws at z=5; root "second" draws at z=-1. The global payload ordering
-        // (phase, z, stableKey) would put "second" first, but the legacy per-root submission order
-        // must be preserved: first root's segment renders before second root's segment.
+    public void contributionsAreSegmentedByProducerNotMixedAcrossRoots() {
+        EntityId first = ArtEcs.world().createEntity();
+        VfxSceneRuntimeComponent firstRuntime = new VfxSceneRuntimeComponent("first", 1L, 1L, false);
+        ArtEcs.world().put(first, VfxSceneRuntimeComponent.class, firstRuntime);
+        EntityId second = ArtEcs.world().createEntity();
+        VfxSceneRuntimeComponent secondRuntime = new VfxSceneRuntimeComponent("second", 1L, 1L, false);
+        ArtEcs.world().put(second, VfxSceneRuntimeComponent.class, secondRuntime);
+
         VfxParticleDraw firstDraw = new VfxParticleDraw("first", "nodeA", 0, 0, "a.png",
                 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", 5f, 0, 1, 1, false, false);
         VfxParticleDraw secondDraw = new VfxParticleDraw("second", "nodeB", 0, 0, "b.png",
                 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", -1f, 0, 1, 1, false, false);
-        VfxRenderFrame frame = new VfxRenderFrame(
-                java.util.Arrays.asList(firstDraw, secondDraw), java.util.Arrays.asList(1, 2));
+        ArtRenderContributionComponent.publish(ArtEcs.world(),
+                ParticleRenderProjectionSystem.producerId(firstRuntime),
+                java.util.Collections.singletonList(VfxRenderFrame.payloadEntry(firstDraw)));
+        ArtRenderContributionComponent.publish(ArtEcs.world(),
+                ParticleRenderProjectionSystem.producerId(secondRuntime),
+                java.util.Collections.singletonList(VfxRenderFrame.payloadEntry(secondDraw)));
 
-        // Sanity: the unified payload order is global (z then key), not root-segmented.
+        new ArtRenderFrameAggregationSystem().run(ArtEcs.world(), new EcsTick(0f, 1L));
+        ArtRenderFrame frame = ArtRenderFrameAggregationSystem.frameFor(ArtEcs.world());
+
+        // Global order would put "second" (z=-1) first, but producer selection must not mix roots.
+        List<RenderPlan.Entry> firstEntries = frame.entriesFor("vfx:first#1");
+        List<RenderPlan.Entry> secondEntries = frame.entriesFor("vfx:second#1");
+        assertTrue(!firstEntries.isEmpty());
+        assertTrue(!secondEntries.isEmpty());
+        assertEquals(Arrays.asList("first/nodeA/0/0"), stableKeys(firstEntries));
+        assertEquals(Arrays.asList("second/nodeB/0/0"), stableKeys(secondEntries));
         assertEquals(Arrays.asList("second/nodeB/0/0", "first/nodeA/0/0"),
-                Arrays.asList(frame.planEntries.get(0).stableKey,
-                        frame.planEntries.get(1).stableKey));
-
-        List<List<artframework.render.RenderPlan.Entry>> segments =
-                VfxSts1Runtime.planEntriesByRoot(frame);
-
-        assertEquals(2, segments.size());
-        assertEquals(Arrays.asList("first/nodeA/0/0"), stableKeys(segments.get(0)));
-        assertEquals(Arrays.asList("second/nodeB/0/0"), stableKeys(segments.get(1)));
+                stableKeys(frame.entries()));
     }
 
     @Test
-    public void payloadEntrySegmentationKeepsWithinRootOrderAndDropsPayloadlessEntries() {
+    public void withinProducerEntriesKeepZOrderAndCarryPayload() {
+        EntityId root = ArtEcs.world().createEntity();
+        VfxSceneRuntimeComponent runtime = new VfxSceneRuntimeComponent("scene", 1L, 1L, false);
+        ArtEcs.world().put(root, VfxSceneRuntimeComponent.class, runtime);
+
         VfxParticleDraw high = new VfxParticleDraw("scene", "z", 0, 0, "z.png",
                 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", 9f, 0, 1, 1, false, false);
         VfxParticleDraw low = new VfxParticleDraw("scene", "a", 1, 0, "a.png",
                 0f, 0f, 0f, 1f, 1f, 1f, 1f, 1f, 1f, "MIX", -2f, 0, 1, 1, false, false);
-        VfxRenderFrame frame = new VfxRenderFrame(
-                java.util.Arrays.asList(high, low), java.util.Arrays.asList(2));
+        ArtRenderContributionComponent.publish(ArtEcs.world(),
+                ParticleRenderProjectionSystem.producerId(runtime),
+                Arrays.asList(VfxRenderFrame.payloadEntry(high), VfxRenderFrame.payloadEntry(low)));
 
-        List<List<artframework.render.RenderPlan.Entry>> segments =
-                VfxSts1Runtime.planEntriesByRoot(frame);
+        new ArtRenderFrameAggregationSystem().run(ArtEcs.world(), new EcsTick(0f, 1L));
+        ArtRenderFrame frame = ArtRenderFrameAggregationSystem.frameFor(ArtEcs.world());
 
-        assertEquals(1, segments.size());
-        // Within the root segment, order stays (z, stableKey) sorted: low z first.
-        assertEquals(Arrays.asList("scene/a/0/1", "scene/z/0/0"), stableKeys(segments.get(0)));
-        for (artframework.render.RenderPlan.Entry entry : segments.get(0)) {
+        List<RenderPlan.Entry> entries = frame.entriesFor(ParticleRenderProjectionSystem.producerId(runtime));
+        assertEquals(Arrays.asList("scene/a/0/1", "scene/z/0/0"), stableKeys(entries));
+        for (RenderPlan.Entry entry : entries) {
             assertTrue(entry.payload != null);
         }
     }

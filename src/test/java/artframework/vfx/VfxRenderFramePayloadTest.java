@@ -13,7 +13,6 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -128,12 +127,15 @@ public class VfxRenderFramePayloadTest {
 
         new ParticleRenderProjectionSystem().run(world, new artframework.ecs.EcsTick(0f, 0L));
 
-        VfxRenderFrame frame = world.get(world.query(VfxRenderFrameComponent.class).get(0),
-                VfxRenderFrameComponent.class).value;
-        assertEquals(1, frame.draws.size());
-        assertEquals(1, frame.planEntries.size());
-        assertNotSame(frame.draws.get(0), frame.planEntries.get(0));
-        assertEquals("a.png", frame.planEntries.get(0).payload.resourceId());
-        assertEquals(frame.draws.get(0).stableKey, frame.planEntries.get(0).stableKey);
+        artframework.ecs.EntityId root = world.query(VfxSceneRuntimeComponent.class).get(0);
+        String producerId = ParticleRenderProjectionSystem.producerId(
+                world.get(root, VfxSceneRuntimeComponent.class));
+        List<RenderPlan.Entry> entries =
+                artframework.render.ArtRenderContributionComponent.contributionFor(world, producerId);
+        assertEquals(1, entries.size());
+        assertEquals("a.png", entries.get(0).payload.resourceId());
+        VfxDrawList draws = world.get(root, VfxDrawListComponent.class).value;
+        assertEquals(1, draws.draws.size());
+        assertEquals(draws.draws.get(0).stableKey, entries.get(0).stableKey);
     }
 }

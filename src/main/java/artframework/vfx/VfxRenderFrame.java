@@ -11,16 +11,21 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Immutable, host-neutral aggregate of the ART VFX draws projected for one frame.
+ * Pure payload mapping plus the legacy immutable container type for ART VFX draws.
  *
- * <p>The frame is the single ART-owned VFX authority: the projection system publishes it, and the
- * ART VFX backend ({@code VfxSts1Runtime}) is its only pixel consumer. Alongside the ordered draw
- * list (which drives the existing pixel output unchanged), the frame exposes the same content as
- * {@link RenderPlan.Entry} values carrying a {@link RenderPixelPayload}. These entries are the VFX
- * contribution to the one unified frame contract: they mix, in a single {@code (phase, z,
- * stableKey)} ordering, with identity/geometry-only entries (for example native-retained entries
- * that carry no payload). The payload is never used for ordering or identity, so adding it does not
- * change draw order or pixels.</p>
+ * <p><b>Not the pixel authority.</b> The backend pixel authority is the shared
+ * {@code ArtRenderFrame}: {@code ParticleRenderProjectionSystem} publishes one contribution per VFX
+ * root, and the ART VFX backend consumes that shared frame split by producer. This type is no
+ * longer consumed by the backend; it is retained for its pure static
+ * {@link #payloadEntry(VfxParticleDraw)} mapping (still used when publishing contributions) and for
+ * the immutable {@link #draws}/{@link #rootEnds}/{@link #planEntries} value semantics exercised by
+ * tests. {@link #empty()} and the constructors likewise remain for that legacy value contract.</p>
+ *
+ * <p>Alongside the ordered draw list, the frame exposes the same content as
+ * {@link RenderPlan.Entry} values carrying a {@link RenderPixelPayload}. These entries mix, in a
+ * single {@code (phase, z, stableKey)} ordering, with identity/geometry-only entries (for example
+ * native-retained entries that carry no payload). The payload is never used for ordering or
+ * identity, so adding it does not change draw order or pixels.</p>
  */
 public final class VfxRenderFrame {
     public final List<VfxParticleDraw> draws;

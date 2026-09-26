@@ -8,7 +8,11 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
 import static org.junit.Assert.*;
+import artframework.render.ArtRenderFrame;
+import artframework.render.ArtRenderFrameAggregationSystem;
+import artframework.render.ArtRenderContributionComponent;
 import artframework.render.RenderPhase;
+import artframework.render.RenderPlan;
 
 public class ParticleRenderProjectionSystemTest {
     @Test public void projectsCompositionOrderingAndFlipbookWithoutMutation() {
@@ -97,26 +101,113 @@ public class ParticleRenderProjectionSystemTest {
         }
 
         new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, 0L));
-        VfxRenderFrame frame = world.get(world.query(VfxRenderFrameComponent.class).get(0),
-                VfxRenderFrameComponent.class).value;
+        java.util.List<EntityId> roots = world.query(VfxSceneRuntimeComponent.class);
         assertEquals(Arrays.asList("first", "second"), Arrays.asList(
-                frame.draws.get(0).sceneId, frame.draws.get(1).sceneId));
-        assertEquals(Arrays.asList(1, 2), frame.rootEnds);
-        java.util.List<VfxParticleDraw> mutable = new ArrayList<VfxParticleDraw>(frame.draws);
-        VfxRenderFrame copied = new VfxRenderFrame(mutable);
+                drawList(world, roots.get(0)).draws.get(0).sceneId,
+                drawList(world, roots.get(1)).draws.get(0).sceneId));
+        // Each root owns its own immutable draw list.
+        VfxDrawList firstDraws = drawList(world, roots.get(0));
+        try {
+            firstDraws.draws.add(firstDraws.draws.get(0));
+            fail("draw list must be immutable");
+        } catch (UnsupportedOperationException expected) { }
+        java.util.List<VfxParticleDraw> mutable = new ArrayList<VfxParticleDraw>(firstDraws.draws);
+        VfxDrawList copied = new VfxDrawList(mutable);
         mutable.clear();
-        assertEquals(2, copied.draws.size());
-        try {
-            frame.draws.add(frame.draws.get(0));
-            fail("frame draws must be immutable");
-        } catch (UnsupportedOperationException expected) { }
-        try {
-            frame.rootEnds.add(2);
-            fail("root boundaries must be immutable");
-        } catch (UnsupportedOperationException expected) { }
+        assertEquals(1, copied.draws.size());
+
+        // The shared frame concatenates both roots' contributions; destroying the roots clears them.
+        new ArtRenderFrameAggregationSystem().run(world, new EcsTick(0f, 1L));
+        assertEquals(2, artframework.render.ArtRenderFrameComponent.read(world).size());
         for (EntityId root : world.query(VfxSceneRuntimeComponent.class)) world.destroyEntity(root);
-        new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, 1L));
-        assertTrue(world.get(world.query(VfxRenderFrameComponent.class).get(0),
-                VfxRenderFrameComponent.class).value.draws.isEmpty());
+        new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, 2L));
+        new ArtRenderFrameAggregationSystem().run(world, new EcsTick(0f, 3L));
+        assertEquals(0, world.query(ArtRenderContributionComponent.class).size());
+        assertTrue(artframework.render.ArtRenderFrameComponent.read(world).entries().isEmpty());
+    }
+
+    private static VfxDrawList drawList(PresentationWorld world, EntityId root) {
+        return world.get(root, VfxDrawListComponent.class).value;
+    }
+
+    /** Builds a one-node scene with a single particle and returns the world plus its root. */
+    private static PresentationWorld worldWithRoot(String sceneId, long epoch) {
+        ParticleEmitterDefinition emitter = new ParticleEmitterDefinition(1, 1f, 0f,
+                null, 0f, null, null, null, null, null, null, null, null, null, 1L, "tex");
+        VfxNodeDefinition node = new VfxNodeDefinition("n", "n", null, "GPUParticles2D",
+                null, null, null, null, null, null, null, emitter);
+        PresentationWorld world = new PresentationWorld("vfx-contribution");
+        new VfxInstantiateSystem().instantiate(world, new VfxSceneDefinition(sceneId, 1, 1f,
+                Collections.singletonList(node), Collections.singletonList(
+                        new VfxResourceRef("tex", "TEXTURE", "a.png", "a.png", "supported")),
+                VfxCapability.SUPPORTED), epoch);
+        EntityId entity = world.query(VfxParticleBufferComponent.class).get(0);
+        world.put(entity, VfxParticleBufferComponent.class, new VfxParticleBufferComponent(
+                Collections.singletonList(new VfxParticle(0, 0f, 1f, new VfxVec2(0f, 0f),
+                        new VfxVec2(0f, 0f), 0f, 0f, 1f, 1f, 1f, null))));
+        return world;
+    }
+
+    private static ArtRenderFrame projectAndAggregate(PresentationWorld world, long sequence) {
+        new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, sequence));
+        new ArtRenderFrameAggregationSystem().run(world, new EcsTick(0f, sequence + 1000L));
+        return artframework.render.ArtRenderFrameComponent.read(world);
+    }
+
+    @Test public void publishesStableProducerContributionAndStaysStableAcrossRuns() {
+        PresentationWorld world = worldWithRoot("s", 0L);
+
+        ArtRenderFrame first = projectAndAggregate(world, 1L);
+        String producerId = ParticleRenderProjectionSystem.producerId(
+                world.get(world.query(VfxSceneRuntimeComponent.class).get(0),
+                        VfxSceneRuntimeComponent.class));
+        assertEquals("vfx:s#0", producerId);
+        assertNotNull(first);
+        assertEquals(1, first.entriesFor(producerId).size());
+        assertEquals(producerId, first.ownerOf("s/n/0/0"));
+        // The published entry carries the draw's phase/z/key and a pixel payload.
+        RenderPlan.Entry entry = first.entriesFor(producerId).get(0);
+        assertEquals(RenderPhase.ART_EFFECTS, entry.phase);
+        assertNotNull(entry.payload);
+        assertEquals("s/n/0/0", entry.stableKey);
+
+        // Re-running must keep the same producer id and entries in the shared frame.
+        ArtRenderFrame second = projectAndAggregate(world, 2L);
+        assertEquals(1, second.entriesFor(producerId).size());
+        assertEquals(entry.stableKey, second.entriesFor(producerId).get(0).stableKey);
+    }
+
+    @Test public void rerunKeepsEntryCountAndKeysUnchanged() {
+        PresentationWorld world = worldWithRoot("s", 0L);
+        ArtRenderFrame first = projectAndAggregate(world, 1L);
+        java.util.List<String> before = stableKeys(first.entries());
+        int countBefore = first.size();
+
+        ArtRenderFrame second = projectAndAggregate(world, 2L);
+        assertEquals(countBefore, second.size());
+        assertEquals(before, stableKeys(second.entries()));
+    }
+
+    @Test public void staleContributionClearedWhenRootDestroyed() {
+        PresentationWorld world = worldWithRoot("s", 0L);
+        ArtRenderFrame live = projectAndAggregate(world, 1L);
+        String producerId = "vfx:s#0";
+        assertEquals(1, live.entriesFor(producerId).size());
+
+        // Root destroyed (scene completed): the next projection must drop the stale contribution
+        // so the shared frame no longer carries the dead root's entries.
+        for (EntityId root : world.query(VfxSceneRuntimeComponent.class)) world.destroyEntity(root);
+
+        new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, 2L));
+        new ArtRenderFrameAggregationSystem().run(world, new EcsTick(0f, 3L));
+        ArtRenderFrame after = artframework.render.ArtRenderFrameComponent.read(world);
+        assertEquals(0, world.query(ArtRenderContributionComponent.class).size());
+        assertTrue(after.entriesFor(producerId).isEmpty());
+    }
+
+    private static java.util.List<String> stableKeys(java.util.List<RenderPlan.Entry> entries) {
+        java.util.List<String> keys = new ArrayList<String>();
+        for (RenderPlan.Entry entry : entries) keys.add(entry.stableKey);
+        return keys;
     }
 }

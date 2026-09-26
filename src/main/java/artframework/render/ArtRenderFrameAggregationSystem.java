@@ -58,14 +58,23 @@ public final class ArtRenderFrameAggregationSystem implements EcsSystem {
     }
 
     /**
-     * Installs this system into the existing schedule-owned render projection phase. Idempotent
-     * (checked against the live registry each call) so a pack reset cannot leave a stale
-     * "installed" flag that silently skips re-registration.
+     * Installs this system at the <em>end</em> of the existing schedule-owned render projection
+     * phase. Multiple independent producers (room-shell, VFX) install into the same phase, and the
+     * aggregator must always run after every producer or a contribution would be aggregated one
+     * frame late. When an aggregator is already registered it is removed and re-enabled so it is
+     * re-appended after any producer that registered later; otherwise it is simply enabled (which
+     * appends). Idempotent against the live registry each call, so a pack reset cannot leave a
+     * stale "installed" flag that silently skips re-registration.
      */
     public static synchronized void install() {
+        boolean present = false;
         for (EcsSystem system : PackSystems.systemsFor(PackSystemPhase.RENDER_PROJECTION)) {
-            if (system instanceof ArtRenderFrameAggregationSystem) return;
+            if (system instanceof ArtRenderFrameAggregationSystem) {
+                present = true;
+                break;
+            }
         }
+        if (present) uninstall();
         PackSystems.enable(PackSystemPhase.RENDER_PROJECTION, SYSTEM_ID,
                 new ArtRenderFrameAggregationSystem());
     }
@@ -201,7 +210,8 @@ public final class ArtRenderFrameAggregationSystem implements EcsSystem {
         }
     }
 
-    static ArtRenderFrame frameFor(PresentationWorld world) {
+    /** Reads the currently published aggregate frame, or {@code null} when none is published. */
+    public static ArtRenderFrame frameFor(PresentationWorld world) {
         if (world == null) return null;
         EntityId target = frameEntity(world);
         if (target == null) return null;

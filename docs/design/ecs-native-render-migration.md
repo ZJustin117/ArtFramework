@@ -32,13 +32,13 @@ pixel suppression, recovery behavior, and draw evidence have all been verified t
 - `RenderPlan.appendNativeRetainedEntries` consumes the ECS input snapshot for detached
   NATIVE_RETAINED entries and skips `DELEGATED_TO_ART`; entities without an input still fall back
   to the presentation-frame entry, so surface owners are not dropped.
-- The ART-authored VFX bundle runtime (not a native family) publishes an immutable
-  `VfxRenderFrame` from the ECS projection system. Each draw maps to a host-neutral
-  `RenderPixelPayload` (`resourceId`/label, geometry, UV source rect, flip, rotation, scale,
-  rgba, blend, flipbook). The STS1 backend consumes `VfxRenderFrame.planEntries` and submits
-  through `Sts1VfxOverlayRenderer`; it no longer reads ECS draw state on the pixel path. The
-  payload→draw-parameter mapping is a pure function shared with the legacy draw path, and a parity
-  test proves field-for-field equality.
+- The ART-authored VFX bundle runtime (not a native family) publishes each root's payload entries
+  into the shared `ArtRenderFrame` from the ECS projection system, keyed by a per-root
+  `producerId`. Each draw maps to a host-neutral `RenderPixelPayload` (`resourceId`/label, geometry,
+  UV source rect, flip, rotation, scale, rgba, blend, flipbook). The STS1 backend consumes the
+  shared frame segmented by producer and submits through `Sts1VfxOverlayRenderer`; it no longer
+  reads ECS draw state on the pixel path. The payload→draw-parameter mapping is a pure function
+  shared with the legacy draw path, and a field-for-field payload parity test still proves equality.
 
 `RenderPlan` is the single frame authority. `RenderPlan.unifiedFrame(identityEntries,
 payloadEntries)` merges payload-less identity/geometry entries (for example `NATIVE_RETAINED`
@@ -143,6 +143,6 @@ diagnostics; `room-shells` overlay chrome migrated to the same ECS→frame→pay
 Remaining before Background: the migrated families are overlay-only and suppress no native
 pixels; no native family has a full pixel payload and backend consumer yet; surface/HUD/controls/
 skeleton/entity families are still native- or partially-delegated; `NATIVE_RETAINED` entries still
-carry no payload; ART-authored VFX still uses its own frame rather than the shared aggregate.
+carry no payload.
 Continue per-family migration down the ledger above, then implement Background as the lowest item
 of the same frame/backend path.

@@ -108,7 +108,7 @@ public final class RenderPlan {
      * payload-less native-retained entries with payload-bearing ART entries deterministically.
      *
      * <p>This is the single frame contract for producers. It does not change host draw behavior:
-     * the ART VFX backend keeps consuming {@code VfxRenderFrame} directly.</p>
+     * the ART VFX backend consumes the shared {@code ArtRenderFrame} directly, split by producer.</p>
      */
     public static RenderPlan unifiedFrame(List<Entry> identityEntries, List<Entry> payloadEntries) {
         List<Entry> merged = new ArrayList<Entry>();

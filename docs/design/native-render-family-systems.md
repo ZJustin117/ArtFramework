@@ -135,7 +135,11 @@ and `DivinityParticleEffect` are claimable, and only when the injected renderer 
 ready; an unsupported class, a not-ready renderer, panic, or background-only mode keeps
 `CAPTURE_AND_PASS`. A successful ART draw suppresses **only that instance** (its own
 token/evidence); the rest of the effect queue is untouched. F1 ships the plumbing only —
-the default renderer is never ready, so no pixel changes yet.
+the default renderer is never ready, so no pixel changes yet. F2c binds the real
+`Sts1AuraArtRenderer` at mod init (`Sts1HostAssets.installAuraRenderer()`, idempotent, failure
+guarded so mod init never breaks), so the seam reports ready for the three supported classes;
+the renderer holds no host state and needs no recreation hook. The default-off gate still
+decides whether it is consulted, so native remains authoritative while `art aura off`.
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|

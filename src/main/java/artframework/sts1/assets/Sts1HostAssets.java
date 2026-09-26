@@ -4,6 +4,8 @@ import artframework.assets.AssetResolveResult;
 import artframework.assets.HostAssets;
 import artframework.assets.HostAssetsHolder;
 import artframework.assets.ResourceIds;
+import artframework.sts1.render.AuraArtRenderer;
+import artframework.sts1.render.Sts1AuraArtRenderer;
 
 /**
  * STS1 HostAssets bootstrap: install real vanilla catalog paths (no GL). Texture/audio handle
@@ -12,6 +14,7 @@ import artframework.assets.ResourceIds;
 public final class Sts1HostAssets {
 
     private static boolean installed;
+    private static boolean auraRendererInstalled;
 
     private Sts1HostAssets() {}
 
@@ -28,6 +31,30 @@ public final class Sts1HostAssets {
 
     public static void resetForTests() {
         installed = false;
+    }
+
+    /**
+     * Idempotent production binding for the real ART aura renderer: installs
+     * {@link Sts1AuraArtRenderer} behind the default-off F1 claim seam
+     * ({@link AuraArtRenderer}). After this call, {@link AuraArtRenderer#isReady} reports ready for
+     * the three exact {@code vfx-stance-aura} FQNs (and only those); the {@code AuraDelegationGate}
+     * still controls whether the renderer is consulted, so native remains authoritative while the
+     * gate is off. Holds no host/GL state, so it needs no host-recreation hook.
+     */
+    public static void installAuraRenderer() {
+        if (auraRendererInstalled) return;
+        AuraArtRenderer.install(new Sts1AuraArtRenderer());
+        auraRendererInstalled = true;
+    }
+
+    public static boolean isAuraRendererInstalled() {
+        return auraRendererInstalled;
+    }
+
+    /** Test isolation: drop the binding and restore the inert default renderer. */
+    public static void resetAuraRendererForTests() {
+        auraRendererInstalled = false;
+        AuraArtRenderer.uninstall();
     }
 
     /**

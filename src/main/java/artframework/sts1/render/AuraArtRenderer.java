@@ -65,4 +65,20 @@ public final class AuraArtRenderer {
     static void resetForTests() {
         adapter = null;
     }
+
+    /** Installs the real aura renderer. Null restores the inert default. */
+    public static void install(Adapter next) {
+        try {
+            setForTests(next);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Restores the inert default renderer. */
+    public static void uninstall() {
+        try {
+            setForTests(null);
+        } catch (Throwable ignored) {
+        }
+    }
 }

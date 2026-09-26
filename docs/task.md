@@ -62,6 +62,41 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       (`ImageMaster.EXHAUST_L` / `GLOW_SPARK` / `EYE_ANIM_0`) behind the same seam, then take D1
       per-stance pixel/order evidence before enabling `art aura on`.
 
+- [ ] NRO-04 aura F2a (pure geometry): `AuraDrawGeometry` maps the three claimable
+      `vfx-stance-aura` FQNs (`AuraClaimPolicy` constants) to a `Kind` and computes the exact
+      native draw arguments per kind — center origin `(pw/2, ph/2)`, width/height `(pw, ph)`,
+      `y + vY` for the particle players, and the Wrath scalar
+      `(0.1f + ((durDiv2*2f - duration)*2f*scale)) * Settings.scale` with `scaleX = scale*0.8f`.
+      Pure host-neutral data (no GL / libGDX / STS imports); color/blend (additive 770/1, restored
+      770/771) and UV stay with the host draw. Focused JUnit only; no renderer/bridge/glue wiring
+      yet — F2 still supplies the real ART atlas draw behind the F1 seam.
+
+- [ ] NRO-04 aura F2b1 (renderer field reader + readiness): `Sts1AuraArtRenderer` implements
+      `AuraArtRenderer.Adapter`; `isReady` is the exact-FQN `AuraDrawGeometry.kindFor` check and a
+      package-visible `readFields(Object)` snapshots the native effect's own draw fields, walking the
+      superclass chain (`getDeclaredField`+`setAccessible`) so inherited `scale`/`rotation`/`color`
+      resolve. Required `x`/`y`/`vY`/`img`/`scale`/`rotation`/`color`; optional `dur_div2`/`duration`
+      default to 0; any missing/unreadable/mistyped required field yields `null` and never throws.
+      `render` stays inert (`false`) — the real ART atlas draw is F2b2. Focused no-GL JUnit.
+
+- [ ] NRO-04 aura F2b2 (real atlas draw + public install): `Sts1AuraArtRenderer.render` now replays
+      the native additive draw — `readFields` → live `img` `AtlasRegion` → `Sts1GdxAtlasRegions.fromGdx`
+      (`valid()` gate) → `AuraDrawGeometry.params(kind, ..., Settings.scale, regionWidth, regionHeight)`
+      → `SpriteBatch.draw(TextureRegion, ...)` (the region overload, so baked atlas rotation/flip UVs
+      match native) with color/blend save-restore (additive 770/1 → restore 770/771) and full
+      `Throwable` fail-open. `AuraArtRenderer.install(Adapter)` / `uninstall()` are the public entry;
+      default stays inert until installed. Update `docs/task.md` only; no bridge/patch/console wiring.
+
+- [ ] NRO-04 aura F2c (production binding): the real `Sts1AuraArtRenderer` is now installed at
+      mod init via the idempotent `Sts1HostAssets.installAuraRenderer()` entry point the bootstrap
+      calls (`ArtFrameworkMod.receivePostInitialize`, in the existing guarded `try/catch Throwable`
+      style). Readiness for the three supported FQNs flows through `AuraArtRenderer.isReady`, which
+      the `art aura status` console probe already consults via `AuraClaimPolicy.supportedClasses()`.
+      The default-off `AuraDelegationGate` still controls whether the renderer is consulted, so
+      native remains authoritative while `art aura off`. The renderer holds no host/GL state, so no
+      `PresentSafety` host-recreation hook is added. Reversible via
+      `Sts1HostAssets.resetAuraRendererForTests()`.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

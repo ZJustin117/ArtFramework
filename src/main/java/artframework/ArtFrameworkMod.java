@@ -56,6 +56,13 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
             BaseMod.logger.warn("ArtFramework: STS1 HostAssets install skipped: " + t.getMessage());
         }
         try {
+            // F2c: bind the real ART aura renderer behind the default-off F1 claim seam. Failure
+            // must not break mod init; the inert default keeps native aura pixels authoritative.
+            artframework.sts1.assets.Sts1HostAssets.installAuraRenderer();
+        } catch (Throwable t) {
+            BaseMod.logger.warn("ArtFramework: aura renderer install skipped: " + t.getMessage());
+        }
+        try {
             artframework.sts1.skeleton.Sts1Spine42Dev.install();
         } catch (Throwable t) {
             BaseMod.logger.warn("ArtFramework: optional Spine42 developer bundle skipped: " + t.getMessage());

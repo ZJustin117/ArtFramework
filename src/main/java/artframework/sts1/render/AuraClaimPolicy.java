@@ -9,8 +9,9 @@ import java.util.List;
  *
  * <p>This is a data predicate, not a per-subclass {@code @SpirePatch}: NRO-04 forbids per-subclass
  * hooks, so the claimable classes are recognized by FQN at the shared effect-container seam. The
- * three classes draw a private {@code AtlasRegion} with additive blend and are the only members
- * of the family ART may claim per instance.
+ * three {@code AtlasRegion}-drawn classes plus {@code CalmParticleEffect} (which draws a bare
+ * {@code Texture}) use additive blend and are the only members of the family ART may claim per
+ * instance.
  */
 public final class AuraClaimPolicy {
 
@@ -20,20 +21,24 @@ public final class AuraClaimPolicy {
             "com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect";
     public static final String DIVINITY_PARTICLE_EFFECT =
             "com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect";
+    public static final String CALM_PARTICLE_EFFECT =
+            "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
-            Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT));
+            Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
+                    CALM_PARTICLE_EFFECT));
 
     private AuraClaimPolicy() {}
 
-    /** True only for the exact three claimable FQNs; null, blank, and every other class fail open. */
+    /** True only for the exact claimable FQNs; null, blank, and every other class fail open. */
     public static boolean supports(String nativeClassName) {
         if (nativeClassName == null) return false;
         String value = nativeClassName.trim();
         if (value.isEmpty()) return false;
         return STANCE_AURA_EFFECT.equals(value)
                 || WRATH_PARTICLE_EFFECT.equals(value)
-                || DIVINITY_PARTICLE_EFFECT.equals(value);
+                || DIVINITY_PARTICLE_EFFECT.equals(value)
+                || CALM_PARTICLE_EFFECT.equals(value);
     }
 
     /** The exact claimable FQNs, in declaration order. */

@@ -4,9 +4,11 @@ import artframework.assets.AtlasRegion;
 import artframework.sts1.assets.Sts1GdxAtlasRegions;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.megacrit.cardcrawl.core.Settings;
+import com.megacrit.cardcrawl.helpers.ImageMaster;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 
 import java.lang.reflect.Field;
@@ -20,8 +22,10 @@ import java.lang.reflect.Field;
  * completes the renderer: {@link #render} converts the effect's own live {@code img} region to the
  * host-neutral {@link AtlasRegion} (via {@link Sts1GdxAtlasRegions#fromGdx}), resolves the native
  * draw arguments through {@link AuraDrawGeometry#params}, and replays the native additive
- * {@code SpriteBatch.draw} with color/blend save-restore. A false result still means "no pixels
- * produced" so the caller fails open to the native draw.
+ * {@code SpriteBatch.draw} with color/blend save-restore. {@code CalmParticleEffect} has no
+ * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
+ * own branch resolves that texture and uses the raw texture + source-rect draw overload. A false
+ * result still means "no pixels produced" so the caller fails open to the native draw.
  *
  * <p>Reflection is confined to reading the native effect's own fields (no patch, no host mutation),
  * mirrors the existing soft reflective conventions in {@code artframework.sts1}, and always fails
@@ -62,13 +66,38 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
         }
     }
 
-    /** True only when the exact native class is one of the three claimable aura FQNs. */
+    /** True only when the exact native class is one of the claimable aura FQNs. */
     @Override
     public boolean isReady(String nativeClassName) {
         try {
             return AuraDrawGeometry.kindFor(nativeClassName) != null;
         } catch (Throwable ignored) {
             return false;
+        }
+    }
+
+    /**
+     * Immutable snapshot of the fields a {@code CalmParticleEffect} draw needs. Calm owns no
+     * {@code img}; only {@code dur_div2}/{@code duration} are optional (default {@code 0}).
+     */
+    static final class CalmFields {
+        final float x;
+        final float y;
+        final float scale;
+        final float rotation;
+        final float durDiv2;
+        final float duration;
+        final Color color;
+
+        CalmFields(float x, float y, float scale, float rotation, float durDiv2, float duration,
+                Color color) {
+            this.x = x;
+            this.y = y;
+            this.scale = scale;
+            this.rotation = rotation;
+            this.durDiv2 = durDiv2;
+            this.duration = duration;
+            this.color = color;
         }
     }
 
@@ -107,20 +136,51 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
     }
 
     /**
-     * Draws the real ART atlas sprite for a claimed {@code vfx-stance-aura} effect, reproducing the
-     * native additive draw: region from the effect's own live {@code img} through
-     * {@link Sts1GdxAtlasRegions#fromGdx}, geometry from {@link AuraDrawGeometry#params}, color set
-     * from the effect's own {@link Color} (or white), additive blend {@code (SRC_ALPHA, ONE)}, and
-     * blend/color restored to the previous state afterwards.
+     * Snapshots the {@code CalmParticleEffect} draw fields, which do <em>not</em> include an
+     * {@code img}. Required: {@code x}, {@code y}, {@code scale}, {@code rotation}, {@code color}
+     * ({@link Color}); {@code dur_div2}/{@code duration} are optional and default to {@code 0}.
+     * Returns {@code null} when the effect is null or any required field is absent, unreadable, or of
+     * the wrong type; never throws.
+     */
+    static CalmFields readCalmFields(Object effect) {
+        if (effect == null) return null;
+        try {
+            Float x = readFloat(effect, "x");
+            Float y = readFloat(effect, "y");
+            Float scale = readFloat(effect, "scale");
+            Float rotation = readFloat(effect, "rotation");
+            if (x == null || y == null || scale == null || rotation == null) {
+                return null;
+            }
+            Object color = readRaw(effect, "color");
+            if (!(color instanceof Color)) return null;
+            return new CalmFields(x, y, scale, rotation,
+                    optionalFloat(effect, "dur_div2"), optionalFloat(effect, "duration"),
+                    (Color) color);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Draws the real ART sprite for a claimed {@code vfx-stance-aura} effect, reproducing the native
+     * additive draw.
      *
-     * <p>The draw uses the {@code SpriteBatch#draw(TextureRegion, ...)} overload with the same
-     * arguments the native call passes, so libGDX resolves the region's UV rect (including any
-     * atlas {@code rotate} baking) exactly as the native effect does; the raw texture+src overload
-     * would bypass that and is intentionally not used.
+     * <p>For the three {@code img}-based kinds: the region comes from the effect's own live
+     * {@code img} through {@link Sts1GdxAtlasRegions#fromGdx}, geometry from
+     * {@link AuraDrawGeometry#params}, color from the effect's own {@link Color} (or white),
+     * additive blend {@code (SRC_ALPHA, ONE)}, and blend/color restored to the previous state
+     * afterwards. That draw uses the {@code SpriteBatch#draw(TextureRegion, ...)} overload with the
+     * same arguments the native call passes, so libGDX resolves the region's UV rect (including any
+     * atlas {@code rotate} baking) exactly as the native effect does.
+     *
+     * <p>{@code CalmParticleEffect} has no {@code img}: it draws the bare
+     * {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@code Texture} the native render reads, so this
+     * branch resolves that texture and replays the native raw texture + source-rect overload.
      *
      * <p>Never throws. Returns {@code true} only after a real draw; any null input, unmapped class,
-     * unreadable field, missing/invalid region, or host failure returns {@code false} without side
-     * effects so the caller fails open to the native draw.
+     * unreadable field, missing/invalid region or texture, or host failure returns {@code false}
+     * without side effects so the caller fails open to the native draw.
      */
     @Override
     public boolean render(SpriteBatch sb, AbstractGameEffect effect) {
@@ -129,6 +189,9 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
             AuraDrawGeometry.Kind kind =
                     AuraDrawGeometry.kindFor(effect.getClass().getName());
             if (kind == null) return false;
+            if (kind == AuraDrawGeometry.Kind.CALM_PARTICLE) {
+                return renderCalm(sb, effect);
+            }
             Fields f = readFields(effect);
             if (f == null) return false;
             TextureAtlas.AtlasRegion gdx = f.img;
@@ -155,6 +218,37 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
             }
         } catch (Throwable ignored) {
             return false;
+        }
+    }
+
+    /**
+     * Calm branch: resolves the native {@link ImageMaster#FROST_ACTIVATE_VFX_1} texture, replays the
+     * additive raw texture + source-rect draw with the {@link AuraDrawGeometry#params} geometry, and
+     * restores blend/color. Fails open ({@code false}, no side effects) on any missing input.
+     */
+    private boolean renderCalm(SpriteBatch sb, AbstractGameEffect effect) {
+        CalmFields f = readCalmFields(effect);
+        if (f == null) return false;
+        Texture texture = ImageMaster.FROST_ACTIVATE_VFX_1;
+        if (texture == null) return false;
+        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
+                AuraDrawGeometry.Kind.CALM_PARTICLE, f.x, f.y, 0f, f.scale, f.rotation,
+                f.durDiv2, f.duration, Settings.scale, 0f, 0f);
+        Color previous = new Color(sb.getColor());
+        try {
+            sb.setColor(f.color != null ? f.color : Color.WHITE);
+            sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+            sb.draw(texture, p.x, p.y, p.originX, p.originY, p.width, p.height,
+                    p.scaleX, p.scaleY, p.rotation,
+                    AuraDrawGeometry.CALM_SRC_X, AuraDrawGeometry.CALM_SRC_Y,
+                    AuraDrawGeometry.CALM_SRC_W, AuraDrawGeometry.CALM_SRC_H, false, false);
+            return true;
+        } finally {
+            try {
+                sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                sb.setColor(previous);
+            } catch (Throwable ignored) {
+            }
         }
     }
 

@@ -118,6 +118,17 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `draws` delta 0 vs gate-ON `draws` 0→760, `nativeRenderStrict.accepted=true`, zero
       `delegatedWithoutEvidence`/`orphanArtOutput` deltas.
 
+- [x] NRO-04 aura F5 (4th claimable FQN: Calm): `CalmParticleEffect` is now a supported claimable
+      `vfx-stance-aura` FQN — `AuraClaimPolicy.CALM_PARTICLE_EFFECT` is appended to `supportedClasses()`
+      (last, preserving declaration order), `AuraDrawGeometry.Kind.CALM_PARTICLE` mirrors its native
+      draw (`origin 32,32`, `size 25×128`, `scaleY = scale + (dur_div2*0.4f - duration)*Settings.scale`,
+      source rect `0,0,64,64`; packed size and `vY` ignored), and `Sts1AuraArtRenderer` resolves the
+      bare `ImageMaster.FROST_ACTIVATE_VFX_1` `Texture` (Calm has no `img`) through the raw texture +
+      source-rect draw overload behind the same fail-open color/blend save-restore. `art aura spawn
+      calm [count]` and `AuraLabSpawn.clear()` cover it via `AuraClaimPolicy.supports`, and the
+      `d1_aura_claim.yaml` gate-ON phase spawns `calm 4`. Default-off gate and per-instance token
+      semantics unchanged; no new patch, bridge, or console wiring. Focused no-GL JUnit only.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

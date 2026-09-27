@@ -41,10 +41,11 @@ public class AuraDelegationSeamTest {
     }
 
     @Test
-    public void claimPolicySupportsExactlyTheThreeAuraFqns() {
+    public void claimPolicySupportsTheSupportedAuraFqns() {
         assertTrue(AuraClaimPolicy.supports(AuraClaimPolicy.STANCE_AURA_EFFECT));
         assertTrue(AuraClaimPolicy.supports(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertTrue(AuraClaimPolicy.supports(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
+        assertTrue(AuraClaimPolicy.supports(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
     }
 
     @Test
@@ -53,7 +54,7 @@ public class AuraDelegationSeamTest {
         assertFalse(AuraClaimPolicy.supports(""));
         assertFalse(AuraClaimPolicy.supports("   "));
         assertFalse(AuraClaimPolicy.supports(
-                "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
+                "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect2"));
         assertFalse(AuraClaimPolicy.supports(
                 "com.megacrit.cardcrawl.vfx.combat.StrikeEffect"));
         assertFalse(AuraClaimPolicy.supports("artframework.sts1.render.AuraClaimPolicy"));
@@ -62,11 +63,13 @@ public class AuraDelegationSeamTest {
     }
 
     @Test
-    public void supportedClassesListsTheThreeFqns() {
+    public void supportedClassesListsTheSupportedFqns() {
         assertTrue(AuraClaimPolicy.supportedClasses().contains(AuraClaimPolicy.STANCE_AURA_EFFECT));
         assertTrue(AuraClaimPolicy.supportedClasses().contains(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertTrue(AuraClaimPolicy.supportedClasses()
                 .contains(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
+        assertTrue(AuraClaimPolicy.supportedClasses()
+                .contains(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
     }
 
     @Test

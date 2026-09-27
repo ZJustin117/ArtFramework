@@ -3,6 +3,7 @@ package artframework.sts1.lab;
 import artframework.sts1.render.AuraClaimPolicy;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect;
@@ -55,6 +56,9 @@ public final class AuraLabSpawn {
         }
         if ("divinity".equalsIgnoreCase(value)) {
             return AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT;
+        }
+        if ("calm".equalsIgnoreCase(value)) {
+            return AuraClaimPolicy.CALM_PARTICLE_EFFECT;
         }
         return null;
     }
@@ -115,7 +119,7 @@ public final class AuraLabSpawn {
     }
 
     /**
-     * Removes queued/active aura effects (the three {@link AuraClaimPolicy} FQNs) and returns how many
+     * Removes queued/active aura effects (every {@link AuraClaimPolicy} FQN) and returns how many
      * were removed; never throws.
      */
     public static int clear() {
@@ -143,6 +147,9 @@ public final class AuraLabSpawn {
         }
         if (AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT.equals(fqn)) {
             return new DivinityParticleEffect();
+        }
+        if (AuraClaimPolicy.CALM_PARTICLE_EFFECT.equals(fqn)) {
+            return new CalmParticleEffect();
         }
         return null;
     }

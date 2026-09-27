@@ -27,6 +27,7 @@ public class AuraLabSpawnTest {
         assertEquals(AuraClaimPolicy.WRATH_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("wrath"));
         assertEquals(
                 AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("divinity"));
+        assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("calm"));
     }
 
     @Test
@@ -34,6 +35,7 @@ public class AuraLabSpawnTest {
         assertEquals(
                 AuraClaimPolicy.STANCE_AURA_EFFECT, AuraLabSpawn.classNameFor("  StAnCe "));
         assertEquals(AuraClaimPolicy.WRATH_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("WRATH"));
+        assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("  CaLm "));
     }
 
     @Test
@@ -120,6 +122,24 @@ public class AuraLabSpawnTest {
     }
 
     @Test
+    public void spawnHappyPathQueuesCalmThroughTheFactorySeam() {
+        // Calm is the 4th claimable FQN. The factory seam captures the requested FQN, so the
+        // calm -> CALM_PARTICLE_EFFECT mapping is genuinely asserted without the GL-backed
+        // CalmParticleEffect constructor.
+        RecordingQueue queue = new RecordingQueue();
+        CapturingFactory factory = new CapturingFactory();
+        AuraLabSpawn.setQueueForTests(queue);
+        AuraLabSpawn.setFactoryForTests(factory);
+
+        assertEquals(4, AuraLabSpawn.spawn("calm", 4));
+        assertEquals(4, queue.added.size());
+        assertEquals(4, factory.requested.size());
+        for (String fqn : factory.requested) {
+            assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, fqn);
+        }
+    }
+
+    @Test
     public void clearReturnsQueueRemovalCount() {
         AuraLabSpawn.setQueueForTests(new FixedCountQueue(7));
         assertEquals(7, AuraLabSpawn.clear());
@@ -164,6 +184,17 @@ public class AuraLabSpawnTest {
     private static final class StubFactory implements AuraLabSpawn.EffectFactory {
         @Override
         public AbstractGameEffect create(String fqn) {
+            return new StubEffect();
+        }
+    }
+
+    /** Supplies stub effects and records each requested FQN so the mapping can be asserted. */
+    private static final class CapturingFactory implements AuraLabSpawn.EffectFactory {
+        final List<String> requested = new ArrayList<String>();
+
+        @Override
+        public AbstractGameEffect create(String fqn) {
+            requested.add(fqn);
             return new StubEffect();
         }
     }

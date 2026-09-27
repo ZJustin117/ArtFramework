@@ -61,6 +61,35 @@ public class Sts1AuraArtRendererTest {
         private float vY;
     }
 
+    /**
+     * {@code CalmParticleEffect} layout: no {@code img}, plus optional dur_div2/duration. {@code vX}
+     * /{@code dvy}/{@code dvx} are irrelevant to the draw and intentionally absent here.
+     */
+    static class CalmEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float dur_div2;
+        private float duration;
+    }
+
+    /** Calm layout with the optional duration terms absent (they default to 0). */
+    static class CalmNoDurationEffect extends BaseEffect {
+        private float x;
+        private float y;
+    }
+
+    /** Base without the inherited {@code color} field. */
+    static class NoColorBase {
+        protected float scale;
+        protected float rotation;
+    }
+
+    /** Calm layout missing the required {@code color} entirely. */
+    static class CalmNoColorEffect extends NoColorBase {
+        private float x;
+        private float y;
+    }
+
     /** {@code color} exists but is the wrong type. */
     static class WrongColorTypeEffect extends BaseEffect {
         private float x;
@@ -166,19 +195,94 @@ public class Sts1AuraArtRendererTest {
     }
 
     @Test
-    public void isReadyIsTrueForTheThreeExactFqnsAndFalseOtherwise() {
+    public void readCalmFieldsReadsRequiredFieldsWithoutAnImg() {
+        CalmEffect effect = new CalmEffect();
+        effect.x = 4.5f;
+        effect.y = -2.75f;
+        effect.dur_div2 = 0.25f;
+        effect.duration = 1.5f;
+        effect.scale = 0.8f;
+        effect.rotation = 15f;
+        effect.color = new Color(0.2f, 0.3f, 0.4f, 0.5f);
+
+        Sts1AuraArtRenderer.CalmFields f = Sts1AuraArtRenderer.readCalmFields(effect);
+
+        assertNotNull(f);
+        assertEquals(4.5f, f.x, EPS);
+        assertEquals(-2.75f, f.y, EPS);
+        assertEquals(0.8f, f.scale, EPS);
+        assertEquals(15f, f.rotation, EPS);
+        assertEquals(0.25f, f.durDiv2, EPS);
+        assertEquals(1.5f, f.duration, EPS);
+        assertSame(effect.color, f.color);
+    }
+
+    @Test
+    public void readCalmFieldsDefaultsAbsentDurationTermsToZero() {
+        CalmNoDurationEffect effect = new CalmNoDurationEffect();
+        effect.x = 1f;
+        effect.y = 2f;
+        effect.scale = 0.5f;
+        effect.rotation = 6f;
+        effect.color = Color.WHITE;
+
+        Sts1AuraArtRenderer.CalmFields f = Sts1AuraArtRenderer.readCalmFields(effect);
+
+        assertNotNull(f);
+        assertEquals(1f, f.x, EPS);
+        assertEquals(2f, f.y, EPS);
+        assertEquals(0.5f, f.scale, EPS);
+        assertEquals(6f, f.rotation, EPS);
+        assertEquals(0f, f.durDiv2, EPS);
+        assertEquals(0f, f.duration, EPS);
+        assertSame(Color.WHITE, f.color);
+    }
+
+    @Test
+    public void readCalmFieldsFailsOpenForNullMissingColorOrMissingXY() {
+        assertNull(Sts1AuraArtRenderer.readCalmFields(null));
+
+        CalmNoColorEffect noColor = new CalmNoColorEffect();
+        noColor.x = 1f;
+        noColor.y = 2f;
+        noColor.scale = 1f;
+        noColor.rotation = 0f;
+        assertNull(Sts1AuraArtRenderer.readCalmFields(noColor));
+
+        // CalmNoDurationEffect has no dur_div2/duration, but does have x/y/scale/rotation/color.
+        CalmNoDurationEffect ok = new CalmNoDurationEffect();
+        ok.color = Color.WHITE;
+        assertNotNull(Sts1AuraArtRenderer.readCalmFields(ok));
+    }
+
+    @Test
+    public void readFieldsIsNotUsedForCalmBecauseCalmHasNoImg() {
+        // The img-based reader still requires img; Calm uses readCalmFields instead.
+        CalmEffect effect = new CalmEffect();
+        effect.x = 1f;
+        effect.y = 2f;
+        effect.scale = 1f;
+        effect.rotation = 0f;
+        effect.color = Color.WHITE;
+
+        assertNull(Sts1AuraArtRenderer.readFields(effect));
+    }
+
+    @Test
+    public void isReadyIsTrueForTheSupportedFqnsAndFalseOtherwise() {
         Sts1AuraArtRenderer renderer = new Sts1AuraArtRenderer();
 
         assertTrue(renderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT));
         assertTrue(renderer.isReady(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertTrue(renderer.isReady(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
+        assertTrue(renderer.isReady(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
+        assertTrue(renderer.isReady("com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
         assertFalse(renderer.isReady("   "));
-        assertFalse(renderer.isReady(
-                "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
         assertFalse(renderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
+        assertFalse(renderer.isReady(AuraClaimPolicy.CALM_PARTICLE_EFFECT + "$Sub"));
     }
 
     @Test

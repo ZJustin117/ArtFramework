@@ -11,8 +11,9 @@ import static org.junit.Assert.assertTrue;
 /**
  * F2c production-binding coverage: the same idempotent entry point the mod bootstrap calls
  * ({@link Sts1HostAssets#installAuraRenderer()}) must install the real {@code Sts1AuraArtRenderer}
- * so the default-off aura claim seam reports ready for the three supported FQNs, and must be
- * reversible back to the inert default. No GL/game classes are needed, so this runs headless.
+ * so the default-off aura claim seam reports ready for the supported {@code vfx-stance-aura} FQNs,
+ * and must be reversible back to the inert default. No GL/game classes are needed, so this runs
+ * headless.
  */
 public class Sts1AuraRendererBindingTest {
 
@@ -32,9 +33,9 @@ public class Sts1AuraRendererBindingTest {
         assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT));
         assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
+        assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
 
-        // A different vfx class (and a near-miss) stays not-ready.
-        assertFalse(AuraArtRenderer.isReady("com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
+        // A near-miss stays not-ready.
         assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
     }
 

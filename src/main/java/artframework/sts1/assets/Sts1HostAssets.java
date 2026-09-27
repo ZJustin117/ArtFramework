@@ -37,9 +37,10 @@ public final class Sts1HostAssets {
      * Idempotent production binding for the real ART aura renderer: installs
      * {@link Sts1AuraArtRenderer} behind the default-off F1 claim seam
      * ({@link AuraArtRenderer}). After this call, {@link AuraArtRenderer#isReady} reports ready for
-     * the three exact {@code vfx-stance-aura} FQNs (and only those); the {@code AuraDelegationGate}
-     * still controls whether the renderer is consulted, so native remains authoritative while the
-     * gate is off. Holds no host/GL state, so it needs no host-recreation hook.
+     * the claimable {@code vfx-stance-aura} FQNs the renderer supports (and only those); the
+     * {@code AuraDelegationGate} still controls whether the renderer is consulted, so native remains
+     * authoritative while the gate is off. Holds no host/GL state, so it needs no host-recreation
+     * hook.
      */
     public static void installAuraRenderer() {
         if (auraRendererInstalled) return;

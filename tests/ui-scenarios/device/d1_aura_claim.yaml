@@ -1,6 +1,6 @@
 # D1 acceptance: default-off vfx-stance-aura claim is self-asserting through the read-only
 # backend.renderPlan.aura.{gate,ready,draws} probe slice. Gate-OFF is native-authoritative;
-# gate-ON delegates the three supported aura FQNs to ART with draw evidence and no double-draw.
+# gate-ON delegates the four supported aura FQNs to ART with draw evidence and no double-draw.
 #
 # NOTE: backend.renderPlan.aura.draws is a process-static LIFETIME counter (never reset outside
 # tests), and nativeRender.delegatedWithoutEvidence / orphanArtOutput are lifetime-global too.
@@ -50,6 +50,7 @@ steps:
       path: backend.renderPlan.aura.draws
       var: aura_draws_off_baseline
   - console: "art aura spawn wrath 6"
+  - console: "art aura spawn calm 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -87,6 +88,7 @@ steps:
   - console: "art aura spawn stance 4"
   - console: "art aura spawn wrath 6"
   - console: "art aura spawn divinity 4"
+  - console: "art aura spawn calm 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

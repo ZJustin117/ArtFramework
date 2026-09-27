@@ -13,13 +13,15 @@ public class AuraDrawGeometryTest {
     private static final float EPS = 1e-6f;
 
     @Test
-    public void kindForMapsTheThreeExactFqns() {
+    public void kindForMapsTheExactFqns() {
         assertSame(AuraDrawGeometry.Kind.STANCE_AURA,
                 AuraDrawGeometry.kindFor(AuraClaimPolicy.STANCE_AURA_EFFECT));
         assertSame(AuraDrawGeometry.Kind.WRATH_PARTICLE,
                 AuraDrawGeometry.kindFor(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertSame(AuraDrawGeometry.Kind.DIVINITY_PARTICLE,
                 AuraDrawGeometry.kindFor(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
+        assertSame(AuraDrawGeometry.Kind.CALM_PARTICLE,
+                AuraDrawGeometry.kindFor(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
         // the exact literal FQNs, not just the policy constants
         assertSame(AuraDrawGeometry.Kind.STANCE_AURA,
                 AuraDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect"));
@@ -28,6 +30,9 @@ public class AuraDrawGeometryTest {
         assertSame(AuraDrawGeometry.Kind.DIVINITY_PARTICLE,
                 AuraDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect"));
+        assertSame(AuraDrawGeometry.Kind.CALM_PARTICLE,
+                AuraDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
     }
 
     @Test
@@ -35,7 +40,6 @@ public class AuraDrawGeometryTest {
         assertNull(AuraDrawGeometry.kindFor(null));
         assertNull(AuraDrawGeometry.kindFor(""));
         assertNull(AuraDrawGeometry.kindFor("   "));
-        assertNull(AuraDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
         assertNull(AuraDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect2"));
         assertNull(AuraDrawGeometry.kindFor(
@@ -44,6 +48,10 @@ public class AuraDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect$1"));
         assertNull(AuraDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffectFoo"));
+        assertNull(AuraDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect2"));
+        assertNull(AuraDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect$Sub"));
     }
 
     @Test
@@ -142,6 +150,67 @@ public class AuraDrawGeometryTest {
 
         assertEquals(0.1f * settingsScale, p.scaleY, EPS);
         assertEquals(scale * 0.8f, p.scaleX, EPS);
+    }
+
+    @Test
+    public void calmParticleUsesFixedNativeOriginSizeAndScaleYFormula() {
+        // Native: draw(tex, x, y, 32f, 32f, 25f, 128f, scale,
+        //            scale + (dur_div2*0.4f - duration) * Settings.scale, rotation, 0,0,64,64,...)
+        float x = 11.5f;
+        float y = -7.25f;
+        float scale = 0.75f;
+        float rotation = 30f;
+        float durDiv2 = 0.8f;
+        float duration = 1.1f;
+        float settingsScale = 2f;
+
+        float expectedScaleY = scale + (durDiv2 * 0.4f - duration) * settingsScale;
+
+        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
+                AuraDrawGeometry.Kind.CALM_PARTICLE,
+                x, y, 999f /* vY ignored */, scale, rotation, durDiv2, duration, settingsScale,
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(32f, p.originX, EPS);
+        assertEquals(32f, p.originY, EPS);
+        assertEquals(25f, p.width, EPS);
+        assertEquals(128f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(expectedScaleY, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+        assertEquals(0, AuraDrawGeometry.CALM_SRC_X);
+        assertEquals(0, AuraDrawGeometry.CALM_SRC_Y);
+        assertEquals(64, AuraDrawGeometry.CALM_SRC_W);
+        assertEquals(64, AuraDrawGeometry.CALM_SRC_H);
+        assertEquals(32f, AuraDrawGeometry.CALM_ORIGIN_X, EPS);
+        assertEquals(32f, AuraDrawGeometry.CALM_ORIGIN_Y, EPS);
+        assertEquals(25f, AuraDrawGeometry.CALM_WIDTH, EPS);
+        assertEquals(128f, AuraDrawGeometry.CALM_HEIGHT, EPS);
+    }
+
+    @Test
+    public void calmParticleIgnoresPackedSizeAndVYAndCollapsesScaleYWhenTermsCancel() {
+        // dur_div2*0.4f == duration -> scaleY == scale.
+        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
+                AuraDrawGeometry.Kind.CALM_PARTICLE,
+                1f, 2f, 12345f, 0.5f, 9f,
+                1f, 0.4f, 3f,
+                -100f, 777f);
+
+        assertEquals(1f, p.x, EPS);
+        assertEquals(2f, p.y, EPS); // vY not added
+        assertEquals(25f, p.width, EPS);
+        assertEquals(128f, p.height, EPS);
+        assertEquals(0.5f, p.scaleX, EPS);
+        assertEquals(0.5f, p.scaleY, EPS);
+
+        // A different packed size produces byte-identical geometry for Calm.
+        AuraDrawGeometry.Params q = AuraDrawGeometry.params(
+                AuraDrawGeometry.Kind.CALM_PARTICLE,
+                1f, 2f, 0f, 0.5f, 9f, 1f, 0.4f, 3f, 0f, 0f);
+        assertEquals(p, q);
     }
 
     @Test

@@ -441,6 +441,9 @@ public class Sts1RenderPipelineTest {
         assertEquals(Boolean.FALSE, m.get("overlayObserve"));
         assertFalse("batchArmed probe field removed in Slice E1", m.containsKey("batchArmed"));
         assertFalse("clipEmpty probe field removed in Slice E1", m.containsKey("clipEmpty"));
+        Map<?, ?> aura = (Map<?, ?>) m.get("aura");
+        assertEquals(Boolean.FALSE, aura.get("gate"));
+        assertEquals(Integer.valueOf(0), aura.get("draws"));
     }
 
     @Test

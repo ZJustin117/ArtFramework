@@ -141,13 +141,28 @@ guarded so mod init never breaks), so the seam reports ready for the three suppo
 the renderer holds no host state and needs no recreation hook. The default-off gate still
 decides whether it is consulted, so native remains authoritative while `art aura off`.
 
-**D1 verification recipe (aura claim):** enter combat, run `art aura on` (arms the default-off
-per-instance claim), then `art aura spawn wrath 5` to queue native aura effects without a stance
-change. Observe that the three supported effects are drawn by ART with no double-draw (each
-claimed instance is ART-drawn *or* native-drawn, never both), then confirm `art aura status`
-reports `draws>0` — the `AuraArtRenderer.drawCount()` counter increments only on the
-successful-claim draw branch. Finish with `art aura off`, which returns native pixels to
-authoritative; `art aura clear` removes any leftover queued effects.
+**D1 verification recipe (aura claim):** the default-off `vfx-stance-aura` claim is self-asserting
+on D1 through the read-only `backend.renderPlan.aura.{gate,ready,draws}` probe slice
+(`AuraArtRenderer.probeSlice()`, exported by `Sts1RenderPipeline.probeSlice()`; `gate` =
+`AuraDelegationGate.isActive()`, `ready` = count of the three supported FQNs the renderer reports
+ready, `draws` = `AuraArtRenderer.drawCount()`). The scenario is
+[`tests/ui-scenarios/device/d1_aura_claim.yaml`](../../tests/ui-scenarios/device/d1_aura_claim.yaml).
+Its assertions are **delta-based** because `draws` is a process-lifetime counter (it starts at 0
+and only ever increases, so the scenario captures a baseline and asserts a strict delta rather
+than an absolute value). Device screenshots also require `ART_HARNESS_OUT_DIR` (or the run's out
+dir) to be **world-writable**: the connector daemon on port 39999 runs as a different user
+(`apricityx`) than the invoking shell (`justinz`), and its `adb pull` otherwise fails with
+"Permission denied"; `scripts/art-lab combat verify-full` has no screenshot steps so it does not
+hit this. The scenario runs the A/B: enter combat, `art aura off`, `art aura spawn wrath 6`, then
+assert
+`backend.renderPlan.aura.gate eq false` and `backend.renderPlan.aura.draws eq 0` (native pixels stay
+authoritative); screenshot; `art aura clear`; then `art aura on`, assert `backend.renderPlan.aura.ready
+gte 1` and `gate eq true` (the real renderer is installed), spawn `stance`/`wrath`/`divinity`, assert
+`backend.renderPlan.aura.draws gte 1` (the counter increments only on the successful-claim draw
+branch, so this is proof ART drew with no double-draw); screenshot; assert
+`nativeRenderStrict.accepted` with zero `nativeRender.delegatedWithoutEvidence` and
+`nativeRender.orphanArtOutput`. Finish with `art aura clear` then `art aura off`, which returns
+native pixels to authoritative.
 
 | Family | Count | Representative classes | Direction |
 |---|---|---|---|

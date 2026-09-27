@@ -101,4 +101,27 @@ public final class AuraArtRenderer {
         } catch (Throwable ignored) {
         }
     }
+
+    /**
+     * Read-only probe: current gate state, how many supported aura FQNs the renderer is ready
+     * for, and the ART draw count. Never throws; a failure reports gate=false/ready=0/draws=0.
+     */
+    public static java.util.Map<String, Object> probeSlice() {
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<String, Object>();
+        try {
+            boolean gate = AuraDelegationGate.isActive();
+            int ready = 0;
+            for (String nativeClass : AuraClaimPolicy.supportedClasses()) {
+                if (isReady(nativeClass)) ready++;
+            }
+            m.put("gate", Boolean.valueOf(gate));
+            m.put("ready", Integer.valueOf(ready));
+            m.put("draws", Integer.valueOf(drawCount()));
+        } catch (Throwable ignored) {
+            m.put("gate", Boolean.FALSE);
+            m.put("ready", Integer.valueOf(0));
+            m.put("draws", Integer.valueOf(0));
+        }
+        return m;
+    }
 }

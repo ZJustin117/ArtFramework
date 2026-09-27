@@ -53,7 +53,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 
 - [ ] Migrate a single `stances-state` instance end to end (S2): draw-input observation, shared-frame payload, ART draw + DELEGATE token consumption, and a default-off delegation/suppression seam are shipped, but the shipped `AbstractStance.render` seam is inert on vanilla (vanilla never sets `img`; no stance textures exist), so the real pixel authority for the stance family is `vfx-stance-aura` (`StanceAuraEffect` / `CalmParticleEffect` / `WrathParticleEffect` / `DivinityParticleEffect`). Next: repoint the visual-pixel takeover at `vfx-stance-aura` (or only enable the existing seam when a mod supplies a stance texture), keeping D1 per-stance pixel/order evidence before enabling the gate.
 
-- [ ] NRO-04 aura F2 (atlas draw): F1 shipped the default-off `vfx-stance-aura` per-instance claim
+- [x] NRO-04 aura F2 (atlas draw): F1 shipped the default-off `vfx-stance-aura` per-instance claim
       plumbing — `AuraDelegationGate` + `AuraClaimPolicy` (exact FQNs `StanceAuraEffect` /
       `WrathParticleEffect` / `DivinityParticleEffect`) + the injected `AuraArtRenderer` draw seam,
       with `EFFECT_INVOCATIONS` token/evidence correlation in `NativeRenderBridge.beginEffectRender`
@@ -62,7 +62,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       (`ImageMaster.EXHAUST_L` / `GLOW_SPARK` / `EYE_ANIM_0`) behind the same seam, then take D1
       per-stance pixel/order evidence before enabling `art aura on`.
 
-- [ ] NRO-04 aura F2a (pure geometry): `AuraDrawGeometry` maps the three claimable
+- [x] NRO-04 aura F2a (pure geometry): `AuraDrawGeometry` maps the three claimable
       `vfx-stance-aura` FQNs (`AuraClaimPolicy` constants) to a `Kind` and computes the exact
       native draw arguments per kind — center origin `(pw/2, ph/2)`, width/height `(pw, ph)`,
       `y + vY` for the particle players, and the Wrath scalar
@@ -71,7 +71,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       770/771) and UV stay with the host draw. Focused JUnit only; no renderer/bridge/glue wiring
       yet — F2 still supplies the real ART atlas draw behind the F1 seam.
 
-- [ ] NRO-04 aura F2b1 (renderer field reader + readiness): `Sts1AuraArtRenderer` implements
+- [x] NRO-04 aura F2b1 (renderer field reader + readiness): `Sts1AuraArtRenderer` implements
       `AuraArtRenderer.Adapter`; `isReady` is the exact-FQN `AuraDrawGeometry.kindFor` check and a
       package-visible `readFields(Object)` snapshots the native effect's own draw fields, walking the
       superclass chain (`getDeclaredField`+`setAccessible`) so inherited `scale`/`rotation`/`color`
@@ -79,7 +79,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       default to 0; any missing/unreadable/mistyped required field yields `null` and never throws.
       `render` stays inert (`false`) — the real ART atlas draw is F2b2. Focused no-GL JUnit.
 
-- [ ] NRO-04 aura F2b2 (real atlas draw + public install): `Sts1AuraArtRenderer.render` now replays
+- [x] NRO-04 aura F2b2 (real atlas draw + public install): `Sts1AuraArtRenderer.render` now replays
       the native additive draw — `readFields` → live `img` `AtlasRegion` → `Sts1GdxAtlasRegions.fromGdx`
       (`valid()` gate) → `AuraDrawGeometry.params(kind, ..., Settings.scale, regionWidth, regionHeight)`
       → `SpriteBatch.draw(TextureRegion, ...)` (the region overload, so baked atlas rotation/flip UVs
@@ -87,7 +87,7 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `Throwable` fail-open. `AuraArtRenderer.install(Adapter)` / `uninstall()` are the public entry;
       default stays inert until installed. Update `docs/task.md` only; no bridge/patch/console wiring.
 
-- [ ] NRO-04 aura F2c (production binding): the real `Sts1AuraArtRenderer` is now installed at
+- [x] NRO-04 aura F2c (production binding): the real `Sts1AuraArtRenderer` is now installed at
       mod init via the idempotent `Sts1HostAssets.installAuraRenderer()` entry point the bootstrap
       calls (`ArtFrameworkMod.receivePostInitialize`, in the existing guarded `try/catch Throwable`
       style). Readiness for the three supported FQNs flows through `AuraArtRenderer.isReady`, which
@@ -97,13 +97,26 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `PresentSafety` host-recreation hook is added. Reversible via
       `Sts1HostAssets.resetAuraRendererForTests()`.
 
-- [ ] NRO-04 aura F3b (lab spawn + draw counter): `art aura spawn <stance|wrath|divinity> [count]`
+- [x] NRO-04 aura F3b (lab spawn + draw counter): `art aura spawn <stance|wrath|divinity> [count]`
       queues native aura effects through `AuraLabSpawn.spawn(kind, count)` (count defaults to 3 and is
       clamped 1..20) and `art aura clear` removes queued/active aura effects via `AuraLabSpawn.clear()`.
       A static `AuraArtRenderer.recordDraw()` counter — incremented by both claim patches only on the
       successful-draw branch, never on the fail-open path — is surfaced by `art aura status` as
       `draws=<n>`, so a device run can confirm ART-drawn auras without double-draw. Reversible default:
       the counter and spawn helper change no claim/suppression/gate logic.
+
+- [x] NRO-04 aura F4 (self-asserting D1 probe + scenario): `AuraArtRenderer.probeSlice()` is a
+      read-only slice (`gate` = `AuraDelegationGate.isActive()`, `ready` = count of
+      `AuraClaimPolicy.supportedClasses()` the renderer reports ready, `draws` = `drawCount()`),
+      exported by `Sts1RenderPipeline.probeSlice()` as `backend.renderPlan.aura` and consumed by the
+      device scenario [`tests/ui-scenarios/device/d1_aura_claim.yaml`](../tests/ui-scenarios/device/d1_aura_claim.yaml).
+      The scenario A/B-verifies the family: with `art aura off` it asserts `gate eq false` and
+      `draws eq 0` (native-authoritative), and with `art aura on` it asserts `ready gte 1`,
+      `gate eq true`, and `draws gte 1` (proof ART drew) alongside `nativeRenderStrict.accepted` and
+      zero `delegatedWithoutEvidence`/`orphanArtOutput`. The slice only reads state; it changes no
+      claim, suppression, or gate logic. D1-verified (Redmi Note 8): scenario PASS — gate-OFF
+      `draws` delta 0 vs gate-ON `draws` 0→760, `nativeRenderStrict.accepted=true`, zero
+      `delegatedWithoutEvidence`/`orphanArtOutput` deltas.
 
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See

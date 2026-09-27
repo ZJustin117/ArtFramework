@@ -1,8 +1,12 @@
 package artframework.sts1.render;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -13,10 +17,18 @@ import static org.junit.Assert.assertTrue;
  */
 public class AuraDelegationSeamTest {
 
+    @Before
+    public void setUp() {
+        AuraDelegationGate.resetForTests();
+        AuraArtRenderer.resetForTests();
+        AuraArtRenderer.resetDrawCountForTests();
+    }
+
     @After
     public void tearDown() {
         AuraDelegationGate.resetForTests();
         AuraArtRenderer.resetForTests();
+        AuraArtRenderer.resetDrawCountForTests();
     }
 
     @Test
@@ -107,5 +119,71 @@ public class AuraDelegationSeamTest {
 
         assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT));
         assertFalse(AuraArtRenderer.render(null, null));
+    }
+
+    @Test
+    public void probeSliceHasExactlyGateReadyDrawsKeys() {
+        Map<String, Object> probe = AuraArtRenderer.probeSlice();
+
+        assertEquals(3, probe.size());
+        assertTrue(probe.containsKey("gate"));
+        assertTrue(probe.containsKey("ready"));
+        assertTrue(probe.containsKey("draws"));
+    }
+
+    @Test
+    public void probeSliceDefaultsAreInert() {
+        Map<String, Object> probe = AuraArtRenderer.probeSlice();
+
+        assertEquals(Boolean.FALSE, probe.get("gate"));
+        assertEquals(Integer.valueOf(0), probe.get("ready"));
+        assertEquals(Integer.valueOf(0), probe.get("draws"));
+    }
+
+    @Test
+    public void probeSliceReportsReadyCountForInstalledAdapter() {
+        AuraArtRenderer.install(new AuraArtRenderer.Adapter() {
+            @Override public boolean isReady(String nativeClassName) {
+                return AuraClaimPolicy.supports(nativeClassName);
+            }
+            @Override public boolean render(com.badlogic.gdx.graphics.g2d.SpriteBatch sb,
+                    com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) { return true; }
+        });
+
+        Map<String, Object> probe = AuraArtRenderer.probeSlice();
+
+        assertEquals(Integer.valueOf(AuraClaimPolicy.supportedClasses().size()), probe.get("ready"));
+        AuraDelegationGate.setActive(true);
+        assertEquals(Boolean.TRUE, AuraArtRenderer.probeSlice().get("gate"));
+    }
+
+    @Test
+    public void probeSliceReportsGateAndDrawCount() {
+        AuraDelegationGate.setActive(true);
+        AuraArtRenderer.recordDraw();
+        AuraArtRenderer.recordDraw();
+
+        Map<String, Object> probe = AuraArtRenderer.probeSlice();
+
+        assertEquals(Boolean.TRUE, probe.get("gate"));
+        assertEquals(Integer.valueOf(2), probe.get("draws"));
+    }
+
+    @Test
+    public void probeSliceFailsClosedWhenAdapterThrows() {
+        AuraArtRenderer.setForTests(new AuraArtRenderer.Adapter() {
+            @Override public boolean isReady(String nativeClassName) {
+                throw new IllegalStateException("ready boom");
+            }
+            @Override public boolean render(com.badlogic.gdx.graphics.g2d.SpriteBatch sb,
+                    com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) { return false; }
+        });
+        AuraDelegationGate.setActive(true);
+
+        Map<String, Object> probe = AuraArtRenderer.probeSlice();
+
+        assertEquals(Boolean.TRUE, probe.get("gate"));
+        assertEquals(Integer.valueOf(0), probe.get("ready"));
+        assertEquals(Integer.valueOf(0), probe.get("draws"));
     }
 }

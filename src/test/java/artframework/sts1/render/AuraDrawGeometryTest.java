@@ -22,6 +22,8 @@ public class AuraDrawGeometryTest {
                 AuraDrawGeometry.kindFor(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
         assertSame(AuraDrawGeometry.Kind.CALM_PARTICLE,
                 AuraDrawGeometry.kindFor(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
+        assertSame(AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                AuraDrawGeometry.kindFor(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
         // the exact literal FQNs, not just the policy constants
         assertSame(AuraDrawGeometry.Kind.STANCE_AURA,
                 AuraDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect"));
@@ -33,6 +35,9 @@ public class AuraDrawGeometryTest {
         assertSame(AuraDrawGeometry.Kind.CALM_PARTICLE,
                 AuraDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
+        assertSame(AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                AuraDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle"));
     }
 
     @Test
@@ -52,6 +57,11 @@ public class AuraDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect2"));
         assertNull(AuraDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect$Sub"));
+        assertNull(AuraDrawGeometry.kindFor("DivinityStanceChangeParticle")); // simple name only
+        assertNull(AuraDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle2"));
+        assertNull(AuraDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle$Sub"));
     }
 
     @Test
@@ -210,6 +220,39 @@ public class AuraDrawGeometryTest {
         AuraDrawGeometry.Params q = AuraDrawGeometry.params(
                 AuraDrawGeometry.Kind.CALM_PARTICLE,
                 1f, 2f, 0f, 0.5f, 9f, 1f, 0.4f, 3f, 0f, 0f);
+        assertEquals(p, q);
+    }
+
+    @Test
+    public void divinityStanceChangeMatchesStanceAuraGeometryExactly() {
+        // Native DivinityStanceChangeParticle draws the same formula as StanceAuraEffect: x/y
+        // passthrough (the class has no vY field), center origin, packed size, uniform scale.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
+                AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                x, y, 999f /* no vY field; ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                pw, ph);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(pw / 2f, p.originX, EPS);
+        assertEquals(ph / 2f, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        // Byte-identical to the STANCE_AURA result for the same inputs.
+        AuraDrawGeometry.Params q = AuraDrawGeometry.params(
+                AuraDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
         assertEquals(p, q);
     }
 

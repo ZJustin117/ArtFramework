@@ -34,6 +34,7 @@ public class Sts1AuraRendererBindingTest {
         assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
         assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
+        assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
 
         // A near-miss stays not-ready.
         assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));

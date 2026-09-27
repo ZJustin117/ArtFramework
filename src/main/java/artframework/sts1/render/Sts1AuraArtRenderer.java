@@ -106,28 +106,41 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
      * superclass chain (guarded by {@code getDeclaredField}+{@code setAccessible(true)}) and stopping
      * at {@link Object}.
      *
-     * <p>Required: {@code x}, {@code y}, {@code vY}, {@code scale}, {@code rotation}, {@code color}
+     * <p>Required: {@code x}, {@code y}, {@code scale}, {@code rotation}, {@code color}
      * ({@link Color}), and {@code img} ({@link TextureAtlas.AtlasRegion}); {@code scale}/{@code
      * rotation} are read as any {@link Number} (primitive {@code float} boxes). {@code dur_div2} and
-     * {@code duration} are optional and default to {@code 0}. Returns {@code null} when the effect is
-     * null or any required field is absent, unreadable, or of the wrong type; never throws.
+     * {@code duration} are always optional and default to {@code 0}. {@code vY} is required only for
+     * the kinds whose {@link AuraDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
+     * {@code DIVINITY_PARTICLE}); for the kinds that ignore it ({@code STANCE_AURA},
+     * {@code DIVINITY_STANCE_CHANGE}) it is optional and defaults to {@code 0}, which is required
+     * because {@code DivinityStanceChangeParticle} has no {@code vY} field. Returns {@code null}
+     * when the effect is null or any required field is absent, unreadable, or of the wrong type;
+     * never throws.
      */
-    static Fields readFields(Object effect) {
+    static Fields readFields(AuraDrawGeometry.Kind kind, Object effect) {
         if (effect == null) return null;
+        // vY is only meaningful for the formulas that add it to y; requiring it elsewhere would
+        // wrongly reject DivinityStanceChangeParticle, and omitting it where it is consumed would
+        // silently draw at an un-shifted y instead of failing open to the native draw.
+        boolean requireVY = kind == AuraDrawGeometry.Kind.WRATH_PARTICLE
+                || kind == AuraDrawGeometry.Kind.DIVINITY_PARTICLE;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
-            Float vY = readFloat(effect, "vY");
             Float scale = readFloat(effect, "scale");
             Float rotation = readFloat(effect, "rotation");
-            if (x == null || y == null || vY == null || scale == null || rotation == null) {
+            if (x == null || y == null || scale == null || rotation == null) {
+                return null;
+            }
+            Float vY = readFloat(effect, "vY");
+            if (requireVY && vY == null) {
                 return null;
             }
             Object color = readRaw(effect, "color");
             Object img = readRaw(effect, "img");
             if (!(color instanceof Color)) return null;
             if (!(img instanceof TextureAtlas.AtlasRegion)) return null;
-            return new Fields(x, y, vY, scale, rotation,
+            return new Fields(x, y, vY != null ? vY : 0f, scale, rotation,
                     optionalFloat(effect, "dur_div2"), optionalFloat(effect, "duration"),
                     (Color) color, (TextureAtlas.AtlasRegion) img);
         } catch (Throwable ignored) {
@@ -166,7 +179,7 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
      * Draws the real ART sprite for a claimed {@code vfx-stance-aura} effect, reproducing the native
      * additive draw.
      *
-     * <p>For the three {@code img}-based kinds: the region comes from the effect's own live
+     * <p>For the img-based kinds: the region comes from the effect's own live
      * {@code img} through {@link Sts1GdxAtlasRegions#fromGdx}, geometry from
      * {@link AuraDrawGeometry#params}, color from the effect's own {@link Color} (or white),
      * additive blend {@code (SRC_ALPHA, ONE)}, and blend/color restored to the previous state
@@ -192,7 +205,7 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
             if (kind == AuraDrawGeometry.Kind.CALM_PARTICLE) {
                 return renderCalm(sb, effect);
             }
-            Fields f = readFields(effect);
+            Fields f = readFields(kind, effect);
             if (f == null) return false;
             TextureAtlas.AtlasRegion gdx = f.img;
             if (gdx == null || gdx.getTexture() == null) return false;

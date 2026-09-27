@@ -18,6 +18,8 @@ package artframework.sts1.render;
  * <pre>
  *   StanceAuraEffect.render:
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   DivinityStanceChangeParticle.render:
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   WrathParticleEffect.render:
  *     sb.draw(img, x, y + vY, pw/2f, ph/2f, pw, ph,
  *             scale*0.8f, (0.1f + ((dur_div2*2f - duration)*2f*scale)) * Settings.scale, rotation)
@@ -31,7 +33,9 @@ package artframework.sts1.render;
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. Calm is the
  * one kind that draws a bare {@code Texture}, so its native origin/size/source rect are fixed
- * constants and the packed region size is ignored.
+ * constants and the packed region size is ignored. {@code DivinityStanceChangeParticle} shares the
+ * {@code StanceAuraEffect} geometry (x/y passthrough, no {@code vY}), so both map to the same
+ * {@link Kind#STANCE_AURA} formula branch.
  */
 public final class AuraDrawGeometry {
 
@@ -40,7 +44,8 @@ public final class AuraDrawGeometry {
         STANCE_AURA,
         WRATH_PARTICLE,
         DIVINITY_PARTICLE,
-        CALM_PARTICLE
+        CALM_PARTICLE,
+        DIVINITY_STANCE_CHANGE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -141,6 +146,9 @@ public final class AuraDrawGeometry {
         if (AuraClaimPolicy.WRATH_PARTICLE_EFFECT.equals(value)) return Kind.WRATH_PARTICLE;
         if (AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT.equals(value)) return Kind.DIVINITY_PARTICLE;
         if (AuraClaimPolicy.CALM_PARTICLE_EFFECT.equals(value)) return Kind.CALM_PARTICLE;
+        if (AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE.equals(value)) {
+            return Kind.DIVINITY_STANCE_CHANGE;
+        }
         return null;
     }
 
@@ -161,6 +169,9 @@ public final class AuraDrawGeometry {
         float originY = packedHeight / 2f;
         switch (kind) {
             case STANCE_AURA:
+            case DIVINITY_STANCE_CHANGE:
+                // DivinityStanceChangeParticle mirrors StanceAuraEffect exactly: x/y passthrough
+                // (no vY field), center origin, packed size, uniform scale.
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
             case DIVINITY_PARTICLE:

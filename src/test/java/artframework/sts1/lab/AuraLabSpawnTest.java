@@ -28,6 +28,10 @@ public class AuraLabSpawnTest {
         assertEquals(
                 AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("divinity"));
         assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("calm"));
+        assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                AuraLabSpawn.classNameFor("divinitychange"));
+        assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                AuraLabSpawn.classNameFor("dsc"));
     }
 
     @Test
@@ -36,6 +40,10 @@ public class AuraLabSpawnTest {
                 AuraClaimPolicy.STANCE_AURA_EFFECT, AuraLabSpawn.classNameFor("  StAnCe "));
         assertEquals(AuraClaimPolicy.WRATH_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("WRATH"));
         assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("  CaLm "));
+        assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                AuraLabSpawn.classNameFor("  DiViNiTyChAnGe "));
+        assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                AuraLabSpawn.classNameFor(" DSC "));
     }
 
     @Test
@@ -136,6 +144,23 @@ public class AuraLabSpawnTest {
         assertEquals(4, factory.requested.size());
         for (String fqn : factory.requested) {
             assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, fqn);
+        }
+    }
+
+    @Test
+    public void spawnHappyPathQueuesDivinityStanceChangeThroughTheFactorySeam() {
+        // DivinityStanceChangeParticle is the 5th claimable FQN; the capturing factory proves the
+        // divinitychange alias requests exactly that FQN without touching its GL-backed constructor.
+        RecordingQueue queue = new RecordingQueue();
+        CapturingFactory factory = new CapturingFactory();
+        AuraLabSpawn.setQueueForTests(queue);
+        AuraLabSpawn.setFactoryForTests(factory);
+
+        assertEquals(4, AuraLabSpawn.spawn("divinitychange", 4));
+        assertEquals(4, queue.added.size());
+        assertEquals(4, factory.requested.size());
+        for (String fqn : factory.requested) {
+            assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE, fqn);
         }
     }
 

@@ -129,6 +129,19 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `d1_aura_claim.yaml` gate-ON phase spawns `calm 4`. Default-off gate and per-instance token
       semantics unchanged; no new patch, bridge, or console wiring. Focused no-GL JUnit only.
 
+- [x] NRO-04 aura F6 (5th claimable FQN: DivinityStanceChangeParticle):
+      `DivinityStanceChangeParticle` is now the 5th claimable `vfx-stance-aura` FQN —
+      `AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE` is appended last to `supportedClasses()`,
+      `AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE` mirrors its deterministic img/`TextureRegion`
+      draw (x/y passthrough, center origin, packed size, uniform `scaleX=scaleY=scale`; the class has
+      no `vY` field), grouped with `STANCE_AURA` for the identical formula. `AuraLabSpawn`
+      `classNameFor("divinitychange")` (alias `"dsc"`) maps to it and `art aura spawn
+      divinitychange 4` runs in both `d1_aura_claim.yaml` phases. `Sts1AuraArtRenderer.readFields`
+      now treats `vY` as an OPTIONAL field defaulting to `0` (the three original img-based kinds
+      still set it; the new kind resolves without it), while `x`/`y`/`scale`/`rotation`/`color`/
+      `img` stay required. Default-off gate, fail-open, and per-instance token semantics unchanged;
+      no new patch, bridge, or console wiring. Focused no-GL JUnit only.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

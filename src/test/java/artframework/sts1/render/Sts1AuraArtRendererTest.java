@@ -62,6 +62,16 @@ public class Sts1AuraArtRendererTest {
     }
 
     /**
+     * {@code DivinityStanceChangeParticle} layout: has {@code x}/{@code y}/{@code img} but no
+     * {@code vY} field at all, so {@code vY} must default to {@code 0}.
+     */
+    static class NoVYEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /**
      * {@code CalmParticleEffect} layout: no {@code img}, plus optional dur_div2/duration. {@code vX}
      * /{@code dvy}/{@code dvx} are irrelevant to the draw and intentionally absent here.
      */
@@ -123,7 +133,8 @@ public class Sts1AuraArtRendererTest {
         effect.color = new Color(0.1f, 0.2f, 0.3f, 0.4f);
         effect.img = fakeRegion();
 
-        Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(effect);
+        Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(
+                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, effect);
 
         assertNotNull(f);
         assertEquals(3.5f, f.x, EPS);
@@ -148,7 +159,8 @@ public class Sts1AuraArtRendererTest {
         effect.color = Color.WHITE;
         effect.img = fakeRegion();
 
-        Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(effect);
+        Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(
+                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, effect);
 
         assertNotNull(f);
         assertEquals(1f, f.x, EPS);
@@ -163,6 +175,71 @@ public class Sts1AuraArtRendererTest {
     }
 
     @Test
+    public void readFieldsDefaultsAbsentVYToZeroForKindsThatIgnoreIt() {
+        // DivinityStanceChangeParticle has no vY field; STANCE_AURA also ignores vY. For both kinds
+        // the img-based reader must still resolve and report vY == 0 rather than failing open.
+        NoVYEffect effect = new NoVYEffect();
+        effect.x = 7.5f;
+        effect.y = -3.25f;
+        effect.scale = 1.1f;
+        effect.rotation = 18f;
+        effect.color = new Color(0.5f, 0.6f, 0.7f, 0.8f);
+        effect.img = fakeRegion();
+
+        for (AuraDrawGeometry.Kind kind : new AuraDrawGeometry.Kind[] {
+                AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                AuraDrawGeometry.Kind.STANCE_AURA }) {
+            Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(kind, effect);
+
+            assertNotNull("vY must be optional for " + kind, f);
+            assertEquals(7.5f, f.x, EPS);
+            assertEquals(-3.25f, f.y, EPS);
+            assertEquals(0f, f.vY, EPS);
+            assertEquals(1.1f, f.scale, EPS);
+            assertEquals(18f, f.rotation, EPS);
+            assertEquals(0f, f.durDiv2, EPS);
+            assertEquals(0f, f.duration, EPS);
+            assertSame(effect.color, f.color);
+            assertSame(effect.img, f.img);
+        }
+    }
+
+    @Test
+    public void readFieldsRequiresVYForKindsThatConsumeIt() {
+        // WRATH_PARTICLE and DIVINITY_PARTICLE add vY to y, so an absent/unreadable vY must fail
+        // open to the native draw rather than silently rendering at an un-shifted y.
+        NoVYEffect effect = new NoVYEffect();
+        effect.x = 7.5f;
+        effect.y = -3.25f;
+        effect.scale = 1.1f;
+        effect.rotation = 18f;
+        effect.color = Color.WHITE;
+        effect.img = fakeRegion();
+
+        for (AuraDrawGeometry.Kind kind : new AuraDrawGeometry.Kind[] {
+                AuraDrawGeometry.Kind.WRATH_PARTICLE,
+                AuraDrawGeometry.Kind.DIVINITY_PARTICLE }) {
+            assertNull("absent vY must fail open for " + kind,
+                    Sts1AuraArtRenderer.readFields(kind, effect));
+        }
+
+        // With vY present the same holder resolves for those kinds.
+        FullEffect withVY = new FullEffect();
+        withVY.x = 7.5f;
+        withVY.y = -3.25f;
+        withVY.vY = 42f;
+        withVY.scale = 1.1f;
+        withVY.rotation = 18f;
+        withVY.color = Color.WHITE;
+        withVY.img = fakeRegion();
+
+        Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(
+                AuraDrawGeometry.Kind.WRATH_PARTICLE, withVY);
+        assertNotNull(f);
+        assertEquals(42f, f.vY, EPS);
+    }
+
+    @Test
     public void readFieldsReturnsNullWhenARequiredFieldIsMissing() {
         NoImgEffect effect = new NoImgEffect();
         effect.x = 1f;
@@ -172,7 +249,8 @@ public class Sts1AuraArtRendererTest {
         effect.rotation = 0f;
         effect.color = Color.WHITE;
 
-        assertNull(Sts1AuraArtRenderer.readFields(effect));
+        assertNull(Sts1AuraArtRenderer.readFields(
+                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, effect));
     }
 
     @Test
@@ -186,12 +264,14 @@ public class Sts1AuraArtRendererTest {
         effect.color = "not a color";
         effect.img = fakeRegion();
 
-        assertNull(Sts1AuraArtRenderer.readFields(effect));
+        assertNull(Sts1AuraArtRenderer.readFields(
+                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, effect));
     }
 
     @Test
     public void readFieldsReturnsNullForNullInput() {
-        assertNull(Sts1AuraArtRenderer.readFields(null));
+        assertNull(Sts1AuraArtRenderer.readFields(
+                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, null));
     }
 
     @Test
@@ -265,7 +345,8 @@ public class Sts1AuraArtRendererTest {
         effect.rotation = 0f;
         effect.color = Color.WHITE;
 
-        assertNull(Sts1AuraArtRenderer.readFields(effect));
+        assertNull(Sts1AuraArtRenderer.readFields(
+                AuraDrawGeometry.Kind.STANCE_AURA, effect));
     }
 
     @Test
@@ -276,6 +357,10 @@ public class Sts1AuraArtRendererTest {
         assertTrue(renderer.isReady(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertTrue(renderer.isReady(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
         assertTrue(renderer.isReady(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
+        assertTrue(renderer.isReady(
+                AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle"));
         assertTrue(renderer.isReady("com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
 
         assertFalse(renderer.isReady(null));
@@ -283,6 +368,8 @@ public class Sts1AuraArtRendererTest {
         assertFalse(renderer.isReady("   "));
         assertFalse(renderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
         assertFalse(renderer.isReady(AuraClaimPolicy.CALM_PARTICLE_EFFECT + "$Sub"));
+        assertFalse(renderer.isReady(
+                AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE + "$Sub"));
     }
 
     @Test

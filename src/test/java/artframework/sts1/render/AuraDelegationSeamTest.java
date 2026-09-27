@@ -46,6 +46,7 @@ public class AuraDelegationSeamTest {
         assertTrue(AuraClaimPolicy.supports(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertTrue(AuraClaimPolicy.supports(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
         assertTrue(AuraClaimPolicy.supports(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
+        assertTrue(AuraClaimPolicy.supports(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
     }
 
     @Test
@@ -55,6 +56,10 @@ public class AuraDelegationSeamTest {
         assertFalse(AuraClaimPolicy.supports("   "));
         assertFalse(AuraClaimPolicy.supports(
                 "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect2"));
+        assertFalse(AuraClaimPolicy.supports(
+                "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle2"));
+        assertFalse(AuraClaimPolicy.supports(
+                "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle$Sub"));
         assertFalse(AuraClaimPolicy.supports(
                 "com.megacrit.cardcrawl.vfx.combat.StrikeEffect"));
         assertFalse(AuraClaimPolicy.supports("artframework.sts1.render.AuraClaimPolicy"));
@@ -70,6 +75,12 @@ public class AuraDelegationSeamTest {
                 .contains(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
         assertTrue(AuraClaimPolicy.supportedClasses()
                 .contains(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
+        assertTrue(AuraClaimPolicy.supportedClasses()
+                .contains(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
+        assertEquals("the new FQN is appended last",
+                AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                AuraClaimPolicy.supportedClasses()
+                        .get(AuraClaimPolicy.supportedClasses().size() - 1));
     }
 
     @Test

@@ -1,10 +1,12 @@
 package artframework.sts1.lab;
 
 import artframework.sts1.render.AuraClaimPolicy;
+import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect;
+import com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect;
 
@@ -59,6 +61,9 @@ public final class AuraLabSpawn {
         }
         if ("calm".equalsIgnoreCase(value)) {
             return AuraClaimPolicy.CALM_PARTICLE_EFFECT;
+        }
+        if ("divinitychange".equalsIgnoreCase(value) || "dsc".equalsIgnoreCase(value)) {
+            return AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE;
         }
         return null;
     }
@@ -150,6 +155,11 @@ public final class AuraLabSpawn {
         }
         if (AuraClaimPolicy.CALM_PARTICLE_EFFECT.equals(fqn)) {
             return new CalmParticleEffect();
+        }
+        if (AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE.equals(fqn)) {
+            // Safe lab defaults: white tint at a screen-center-ish point. Native settings/GL state
+            // are not required to construct; any failure is caught by spawn's fail-open guard.
+            return new DivinityStanceChangeParticle(Color.WHITE, 960f, 540f);
         }
         return null;
     }

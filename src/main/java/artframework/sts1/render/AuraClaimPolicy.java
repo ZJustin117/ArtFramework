@@ -9,9 +9,10 @@ import java.util.List;
  *
  * <p>This is a data predicate, not a per-subclass {@code @SpirePatch}: NRO-04 forbids per-subclass
  * hooks, so the claimable classes are recognized by FQN at the shared effect-container seam. The
- * three {@code AtlasRegion}-drawn classes plus {@code CalmParticleEffect} (which draws a bare
- * {@code Texture}) use additive blend and are the only members of the family ART may claim per
- * instance.
+ * four {@code AtlasRegion}-drawn classes ({@code StanceAuraEffect}, {@code WrathParticleEffect},
+ * {@code DivinityParticleEffect}, {@code DivinityStanceChangeParticle}) plus
+ * {@code CalmParticleEffect} (which draws a bare {@code Texture}) use additive blend and are the
+ * only members of the family ART may claim per instance.
  */
 public final class AuraClaimPolicy {
 
@@ -23,10 +24,12 @@ public final class AuraClaimPolicy {
             "com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect";
     public static final String CALM_PARTICLE_EFFECT =
             "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect";
+    public static final String DIVINITY_STANCE_CHANGE_PARTICLE =
+            "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
-                    CALM_PARTICLE_EFFECT));
+                    CALM_PARTICLE_EFFECT, DIVINITY_STANCE_CHANGE_PARTICLE));
 
     private AuraClaimPolicy() {}
 
@@ -38,7 +41,8 @@ public final class AuraClaimPolicy {
         return STANCE_AURA_EFFECT.equals(value)
                 || WRATH_PARTICLE_EFFECT.equals(value)
                 || DIVINITY_PARTICLE_EFFECT.equals(value)
-                || CALM_PARTICLE_EFFECT.equals(value);
+                || CALM_PARTICLE_EFFECT.equals(value)
+                || DIVINITY_STANCE_CHANGE_PARTICLE.equals(value);
     }
 
     /** The exact claimable FQNs, in declaration order. */

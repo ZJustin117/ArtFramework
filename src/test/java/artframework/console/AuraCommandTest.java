@@ -138,7 +138,7 @@ public class AuraCommandTest {
         String line = lastLine();
         assertNotNull(line);
         assertTrue("expected a clear result line, was: " + line,
-                line.startsWith("ART_CLAIM clear removed="));
+                line.startsWith("ART_CLAIM clear retired="));
     }
 
     @Test

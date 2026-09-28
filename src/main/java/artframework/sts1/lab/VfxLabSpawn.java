@@ -11,7 +11,6 @@ import com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -82,7 +81,11 @@ public final class VfxLabSpawn {
         /** Appends the effect; returns true only when it was actually stored. */
         boolean add(AbstractGameEffect effect);
 
-        int removeMatching(Predicate<AbstractGameEffect> match);
+        /**
+         * Marks every effect matching {@code match} as done (sets {@code isDone = true}) without
+         * structurally mutating any container; returns the number of effects actually retired.
+         */
+        int retireMatching(Predicate<AbstractGameEffect> match);
     }
 
     /** Test seam: effect construction, so counting/clamping can be isolated from GL context. */
@@ -133,12 +136,14 @@ public final class VfxLabSpawn {
     }
 
     /**
-     * Removes queued/active claimed effects (every {@link VfxClaimPolicy} FQN) and returns how many
-     * were removed; never throws.
+     * Retires queued/active claimed effects (every {@link VfxClaimPolicy} FQN) by marking each
+     * matching effect done ({@code isDone = true}) for the game-native reap in
+     * {@code AbstractDungeon.update()}, instead of structurally removing it from the live lists;
+     * returns how many were retired and never throws.
      */
     public static int clear() {
         try {
-            return currentQueue().removeMatching(new Predicate<AbstractGameEffect>() {
+            return currentQueue().retireMatching(new Predicate<AbstractGameEffect>() {
                 @Override
                 public boolean test(AbstractGameEffect effect) {
                     if (effect == null) {
@@ -216,19 +221,19 @@ public final class VfxLabSpawn {
         }
 
         @Override
-        public int removeMatching(Predicate<AbstractGameEffect> match) {
+        public int retireMatching(Predicate<AbstractGameEffect> match) {
             if (match == null) {
                 return 0;
             }
             // Each container gets its own guard: a throw in one (including the field read itself)
             // must not skip the others.
-            return removeSafe(0, match)
-                    + removeSafe(1, match)
-                    + removeSafe(2, match)
-                    + removeSafe(3, match);
+            return retireSafe(0, match)
+                    + retireSafe(1, match)
+                    + retireSafe(2, match)
+                    + retireSafe(3, match);
         }
 
-        private static int removeSafe(int container, Predicate<AbstractGameEffect> match) {
+        private static int retireSafe(int container, Predicate<AbstractGameEffect> match) {
             try {
                 List<AbstractGameEffect> list;
                 if (container == 0) {
@@ -240,21 +245,27 @@ public final class VfxLabSpawn {
                 } else {
                     list = AbstractDungeon.topLevelEffects;
                 }
-                return removeFrom(list, match);
+                return retireIn(list, match);
             } catch (Throwable error) {
                 return 0;
             }
         }
     }
 
-    private static int removeFrom(List<AbstractGameEffect> list, Predicate<AbstractGameEffect> match) {
+    /**
+     * Marks matching effects done without structurally mutating the live list. Only a plain
+     * {@code isDone} field write happens, so a concurrent render-thread iteration can never trip a
+     * {@code modCount} check; {@code AbstractDungeon.update()} reaps the retired effects natively.
+     */
+    private static int retireIn(List<AbstractGameEffect> list, Predicate<AbstractGameEffect> match) {
         if (list == null) {
             return 0;
         }
-        int removed = 0;
-        Iterator<AbstractGameEffect> iterator = list.iterator();
-        while (iterator.hasNext()) {
-            AbstractGameEffect effect = iterator.next();
+        int retired = 0;
+        for (AbstractGameEffect effect : list) {
+            if (effect == null) {
+                continue;
+            }
             boolean matched;
             try {
                 matched = match.test(effect);
@@ -262,10 +273,10 @@ public final class VfxLabSpawn {
                 matched = false;
             }
             if (matched) {
-                iterator.remove();
-                removed++;
+                effect.isDone = true;
+                retired++;
             }
         }
-        return removed;
+        return retired;
     }
 }

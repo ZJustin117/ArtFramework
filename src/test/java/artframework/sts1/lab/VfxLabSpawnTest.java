@@ -2,6 +2,8 @@ package artframework.sts1.lab;
 
 import artframework.sts1.render.VfxClaimPolicy;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
+import com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect;
 import org.junit.After;
 import org.junit.Test;
 
@@ -10,7 +12,9 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class VfxLabSpawnTest {
 
@@ -230,9 +234,36 @@ public class VfxLabSpawnTest {
     }
 
     @Test
-    public void clearReturnsQueueRemovalCount() {
-        VfxLabSpawn.setQueueForTests(new FixedCountQueue(7));
-        assertEquals(7, VfxLabSpawn.clear());
+    public void clearRetiresMatchingEffectsByFlagAndReturnsCount() {
+        RetiringQueue queue = new RetiringQueue();
+        AbstractGameEffect aura = claimable(StanceAuraEffect.class);
+        AbstractGameEffect wrath = claimable(WrathParticleEffect.class);
+        AbstractGameEffect other = new StubEffect();
+        queue.add(aura);
+        queue.add(wrath);
+        queue.add(other);
+        VfxLabSpawn.setQueueForTests(queue);
+
+        assertEquals(2, VfxLabSpawn.clear());
+
+        // Matching effects are retired through the game-native isDone flag, not structurally removed.
+        assertTrue("matching aura should be marked done", aura.isDone);
+        assertTrue("matching wrath should be marked done", wrath.isDone);
+        assertFalse("non-claimable effect must not be retired", other.isDone);
+        // No structural mutation: every effect is still present in the backing container.
+        assertEquals(3, queue.backing.size());
+    }
+
+    @Test
+    public void clearDoesNotRetireNonMatchingEffects() {
+        RetiringQueue queue = new RetiringQueue();
+        AbstractGameEffect other = new StubEffect();
+        queue.add(other);
+        VfxLabSpawn.setQueueForTests(queue);
+
+        assertEquals(0, VfxLabSpawn.clear());
+        assertFalse(other.isDone);
+        assertEquals(1, queue.backing.size());
     }
 
     @Test
@@ -241,7 +272,54 @@ public class VfxLabSpawnTest {
         assertEquals(0, VfxLabSpawn.clear());
     }
 
-    /** Records adds; removal count is derived from the recorded added count. */
+    /** Allocates a real claimable effect without running a GL-backed constructor. */
+    private static AbstractGameEffect claimable(Class<? extends AbstractGameEffect> type) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            return (AbstractGameEffect) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, type);
+        } catch (Exception failure) {
+            throw new AssertionError("could not allocate claimable effect " + type, failure);
+        }
+    }
+
+    /**
+     * Minimal live-container stub: keeps its backing list (so a test can assert no structural
+     * mutation) and retires by setting the {@code isDone} flag exactly like {@code DungeonQueue}.
+     */
+    private static final class RetiringQueue implements VfxLabSpawn.Queue {
+        final List<AbstractGameEffect> backing = new ArrayList<AbstractGameEffect>();
+
+        @Override
+        public boolean add(AbstractGameEffect effect) {
+            backing.add(effect);
+            return true;
+        }
+
+        @Override
+        public int retireMatching(Predicate<AbstractGameEffect> match) {
+            int retired = 0;
+            for (AbstractGameEffect effect : backing) {
+                boolean matched;
+                try {
+                    matched = match.test(effect);
+                } catch (Throwable error) {
+                    matched = false;
+                }
+                if (matched && effect != null) {
+                    effect.isDone = true;
+                    retired++;
+                }
+            }
+            return retired;
+        }
+    }
+
+    /** Records adds; retirement is a no-op. */
     private static final class RecordingQueue implements VfxLabSpawn.Queue {
         final List<AbstractGameEffect> added = new ArrayList<AbstractGameEffect>();
 
@@ -252,7 +330,7 @@ public class VfxLabSpawnTest {
         }
 
         @Override
-        public int removeMatching(Predicate<AbstractGameEffect> match) {
+        public int retireMatching(Predicate<AbstractGameEffect> match) {
             return 0;
         }
     }
@@ -265,7 +343,7 @@ public class VfxLabSpawnTest {
         }
 
         @Override
-        public int removeMatching(Predicate<AbstractGameEffect> match) {
+        public int retireMatching(Predicate<AbstractGameEffect> match) {
             return 0;
         }
     }
@@ -289,31 +367,16 @@ public class VfxLabSpawnTest {
         }
     }
 
-    /** Minimal concrete effect; the stubs never render or update it. */
+    /**
+     * Minimal concrete effect; its own class name is not a claimable FQN, so it stands in for a
+     * non-matching effect. The stubs never render or update it.
+     */
     private static final class StubEffect extends AbstractGameEffect {
         @Override
         public void render(com.badlogic.gdx.graphics.g2d.SpriteBatch sb) {}
 
         @Override
         public void dispose() {}
-    }
-
-    private static final class FixedCountQueue implements VfxLabSpawn.Queue {
-        private final int removalCount;
-
-        private FixedCountQueue(int removalCount) {
-            this.removalCount = removalCount;
-        }
-
-        @Override
-        public boolean add(AbstractGameEffect effect) {
-            return true;
-        }
-
-        @Override
-        public int removeMatching(Predicate<AbstractGameEffect> match) {
-            return removalCount;
-        }
     }
 
     private static final class ThrowingQueue implements VfxLabSpawn.Queue {
@@ -323,7 +386,7 @@ public class VfxLabSpawnTest {
         }
 
         @Override
-        public int removeMatching(Predicate<AbstractGameEffect> match) {
+        public int retireMatching(Predicate<AbstractGameEffect> match) {
             throw new IllegalStateException("no context");
         }
     }

@@ -382,7 +382,7 @@ public class ArtCommand extends ConsoleCommand {
                 return;
             }
             if (request.clear) {
-                logVfx("ART_CLAIM clear removed=" + artframework.sts1.lab.VfxLabSpawn.clear());
+                logVfx("ART_CLAIM clear retired=" + artframework.sts1.lab.VfxLabSpawn.clear());
                 return;
             }
             if (request.spawnKind != null) {

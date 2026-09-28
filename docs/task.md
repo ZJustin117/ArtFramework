@@ -187,6 +187,19 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       scene-world + combat. Default-off gate, fail-open, and per-instance token semantics unchanged;
       no new patch, bridge, or console wiring. Focused no-GL JUnit only.
 
+- [x] NRO-04 crash fix (retire-by-flag instead of structural removal): `art claim clear`
+      (legacy alias `art aura clear`) could crash the game with a render-thread
+      `ConcurrentModificationException` because the lab helper structurally removed matched effects
+      from the live `AbstractDungeon` effect lists (`effectsQueue`, `effectList`,
+      `topLevelEffectsQueue`, `topLevelEffects`) via `iterator.remove()` on the console thread while
+      the render thread iterated those same `ArrayList`s. `VfxLabSpawn.Queue` now exposes
+      `retireMatching(Predicate)` (renamed from `removeMatching`) and `DungeonQueue` sets
+      `effect.isDone = true` for matching effects — the game-native reap path in
+      `AbstractDungeon.update()` (which drops effects whose public `isDone` field is set) — so no
+      `modCount` check can be tripped from another thread. The per-container fail-open guard, the
+      `VfxClaimPolicy.supports(...)` predicate, the retired count, the `spawn` behavior/aliases, and
+      the clearable FQN set are all unchanged; `clear()` still never throws.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

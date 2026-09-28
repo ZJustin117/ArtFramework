@@ -1,11 +1,11 @@
 package artframework.sts1.render;
 
 /**
- * Pure draw geometry for one claimed {@code vfx-stance-aura} effect, mirroring the native render
- * formula exactly.
+ * Pure draw geometry for one claimed per-instance transient effect (family-neutral seam; current
+ * members are the {@code vfx-stance-aura} FQNs), mirroring the native render formula exactly.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
- * color/blend/UV state. For every claimable aura the native render method performs
+ * color/blend/UV state. For every claimable effect the native render method performs
  * {@code setColor(color)} then {@code setBlendFunction(770, 1)} (additive) before
  * {@code SpriteBatch.draw(...)} and restores {@code setBlendFunction(770, 771)} afterwards. The
  * host draw owns that color/blend/UV (and the region's UV rect); this mapping only resolves the
@@ -37,9 +37,9 @@ package artframework.sts1.render;
  * {@code StanceAuraEffect} geometry (x/y passthrough, no {@code vY}), so both map to the same
  * {@link Kind#STANCE_AURA} formula branch.
  */
-public final class AuraDrawGeometry {
+public final class VfxDrawGeometry {
 
-    /** The claimable aura draw formulas. */
+    /** The claimable draw formulas (current members are the {@code vfx-stance-aura} FQNs). */
     public enum Kind {
         STANCE_AURA,
         WRATH_PARTICLE,
@@ -131,29 +131,30 @@ public final class AuraDrawGeometry {
         }
     }
 
-    private AuraDrawGeometry() {}
+    private VfxDrawGeometry() {}
 
     /**
-     * FQN -&gt; {@link Kind}, or {@code null} when the class is not a claimable aura (fail-open).
-     * Matches only the exact FQNs owned by {@link AuraClaimPolicy}; null, blank, near-misses
-     * ({@code ...StanceAuraEffect2}), and nested ({@code ...StanceAuraEffect$Sub}) fail open.
+     * FQN -&gt; {@link Kind}, or {@code null} when the class is not a claimable member of the
+     * seam (fail-open). Matches only the exact FQNs owned by {@link VfxClaimPolicy}; null, blank,
+     * near-misses ({@code ...StanceAuraEffect2}), and nested ({@code ...StanceAuraEffect$Sub}) fail
+     * open.
      */
     public static Kind kindFor(String nativeClassName) {
         if (nativeClassName == null) return null;
         String value = nativeClassName.trim();
         if (value.isEmpty()) return null;
-        if (AuraClaimPolicy.STANCE_AURA_EFFECT.equals(value)) return Kind.STANCE_AURA;
-        if (AuraClaimPolicy.WRATH_PARTICLE_EFFECT.equals(value)) return Kind.WRATH_PARTICLE;
-        if (AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT.equals(value)) return Kind.DIVINITY_PARTICLE;
-        if (AuraClaimPolicy.CALM_PARTICLE_EFFECT.equals(value)) return Kind.CALM_PARTICLE;
-        if (AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE.equals(value)) {
+        if (VfxClaimPolicy.STANCE_AURA_EFFECT.equals(value)) return Kind.STANCE_AURA;
+        if (VfxClaimPolicy.WRATH_PARTICLE_EFFECT.equals(value)) return Kind.WRATH_PARTICLE;
+        if (VfxClaimPolicy.DIVINITY_PARTICLE_EFFECT.equals(value)) return Kind.DIVINITY_PARTICLE;
+        if (VfxClaimPolicy.CALM_PARTICLE_EFFECT.equals(value)) return Kind.CALM_PARTICLE;
+        if (VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE.equals(value)) {
             return Kind.DIVINITY_STANCE_CHANGE;
         }
         return null;
     }
 
     /**
-     * Pure geometry for one aura draw. The caller supplies the effect field floats and the packed
+     * Pure geometry for one claim. The caller supplies the effect field floats and the packed
      * region size; color/blend/UV are applied by the host draw (additive 770/1, restored to
      * 770/771).
      *

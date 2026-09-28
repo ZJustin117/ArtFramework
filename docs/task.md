@@ -142,6 +142,20 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `img` stay required. Default-off gate, fail-open, and per-instance token semantics unchanged;
       no new patch, bridge, or console wiring. Focused no-GL JUnit only.
 
+- [x] NRO-04 generalization (family-neutral seam naming): the default-off per-instance
+      transient-effect claim seam is renamed to family-neutral `Vfx*` types so future non-aura vfx
+      families can join without an aura-scoped name: `VfxClaimPolicy`, `VfxDrawGeometry`,
+      `VfxArtRenderer`, `VfxDelegationGate`, `Sts1VfxArtRenderer`, `VfxLabSpawn` (plus
+      `NativeRenderBridge.isVfxClaimInvocation`, `Sts1HostAssets.installVfxRenderer` /
+      `resetVfxRendererForTests`). Behavior, constants, `Kind` values, the `vY` requirement, and the
+      default-off gate are unchanged. External aliases: the diagnostic probe keeps
+      `backend.renderPlan.aura` and adds the identical `backend.renderPlan.vfxClaim`; the console
+      gains `art claim` as the family-neutral primary route for
+      `on|off|status|spawn <kind> [count]|clear`, with `art aura` retained as an identical legacy
+      alias. `art vfx` stays the pre-existing STS2 bundle-runtime command (`status|clear|load`,
+      prefix `ART_VFX`) and is never routed to the claim seam.
+      The `vfx-stance-aura` family name is retained.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

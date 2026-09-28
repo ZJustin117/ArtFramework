@@ -1,8 +1,8 @@
 package artframework.console;
 
-import artframework.sts1.render.AuraArtRenderer;
-import artframework.sts1.render.AuraClaimPolicy;
-import artframework.sts1.render.AuraDelegationGate;
+import artframework.sts1.render.VfxArtRenderer;
+import artframework.sts1.render.VfxClaimPolicy;
+import artframework.sts1.render.VfxDelegationGate;
 import basemod.DevConsole;
 import org.junit.After;
 import org.junit.Before;
@@ -15,8 +15,9 @@ import java.util.ArrayList;
 import static org.junit.Assert.*;
 
 /**
- * Pure-logic coverage for the {@code art aura} console switch: the parse request plus the
- * default-off {@link AuraDelegationGate} semantics and the injected-renderer readiness probe.
+ * Pure-logic coverage for the {@code art claim} console route (legacy alias {@code art aura}): the
+ * parse request plus the default-off {@link VfxDelegationGate} semantics and the injected-renderer
+ * readiness probe. Also pins that {@code art vfx} stays the unrelated STS2 bundle-runtime command.
  * No game classes are needed, so these run headless.
  */
 public class AuraCommandTest {
@@ -27,141 +28,225 @@ public class AuraCommandTest {
         // headless; seed them so logVfx's DevConsole.log line lands somewhere readable.
         DevConsole.log = new ArrayList<String>();
         DevConsole.prompted = new ArrayList<Boolean>();
-        AuraArtRenderer.resetDrawCountForTests();
+        VfxArtRenderer.resetDrawCountForTests();
     }
 
     @After
     public void tearDown() {
-        AuraDelegationGate.resetForTests();
-        AuraArtRenderer.resetDrawCountForTests();
+        VfxDelegationGate.resetForTests();
+        VfxArtRenderer.resetDrawCountForTests();
     }
 
     @Test
-    public void parseAuraMapsOnOffAndStatus() {
-        assertNull(ArtCommand.parseAura(new String[0]).delegate);
-        assertFalse(ArtCommand.parseAura(new String[0]).invalid);
+    public void parseClaimMapsOnOffAndStatus() {
+        assertNull(ArtCommand.parseClaim(new String[0]).delegate);
+        assertFalse(ArtCommand.parseClaim(new String[0]).invalid);
 
-        assertNull(ArtCommand.parseAura(new String[] {"STATUS"}).delegate);
-        assertFalse(ArtCommand.parseAura(new String[] {"status"}).invalid);
+        assertNull(ArtCommand.parseClaim(new String[] {"STATUS"}).delegate);
+        assertFalse(ArtCommand.parseClaim(new String[] {"status"}).invalid);
 
-        assertEquals(Boolean.TRUE, ArtCommand.parseAura(new String[] {"ON"}).delegate);
-        assertEquals(Boolean.FALSE, ArtCommand.parseAura(new String[] {" off "}).delegate);
+        assertEquals(Boolean.TRUE, ArtCommand.parseClaim(new String[] {"ON"}).delegate);
+        assertEquals(Boolean.FALSE, ArtCommand.parseClaim(new String[] {" off "}).delegate);
     }
 
     @Test
-    public void parseAuraRejectsUnknownInputWithoutThrowing() {
-        assertTrue(ArtCommand.parseAura(new String[] {"maybe"}).invalid);
-        assertTrue(ArtCommand.parseAura(new String[] {"on", "extra"}).invalid);
-        assertTrue(ArtCommand.parseAura(new String[] {"draw", "on"}).invalid);
+    public void parseClaimRejectsUnknownInputWithoutThrowing() {
+        assertTrue(ArtCommand.parseClaim(new String[] {"maybe"}).invalid);
+        assertTrue(ArtCommand.parseClaim(new String[] {"on", "extra"}).invalid);
+        assertTrue(ArtCommand.parseClaim(new String[] {"draw", "on"}).invalid);
         // Null/empty tail defaults to status.
-        assertFalse(ArtCommand.parseAura(null).invalid);
-        assertNull(ArtCommand.parseAura(null).delegate);
+        assertFalse(ArtCommand.parseClaim(null).invalid);
+        assertNull(ArtCommand.parseClaim(null).delegate);
     }
 
     @Test
-    public void parseAuraMapsSpawnKindAndClampsCount() {
-        ArtCommand.AuraRequest defaulted = ArtCommand.parseAura(new String[] {"spawn", "wrath"});
+    public void parseClaimMapsSpawnKindAndClampsCount() {
+        ArtCommand.ClaimRequest defaulted = ArtCommand.parseClaim(new String[] {"spawn", "wrath"});
         assertFalse(defaulted.invalid);
         assertEquals("wrath", defaulted.spawnKind);
         assertEquals(3, defaulted.spawnCount);
 
-        ArtCommand.AuraRequest explicit = ArtCommand.parseAura(new String[] {"spawn", "Stance", "5"});
+        ArtCommand.ClaimRequest explicit = ArtCommand.parseClaim(new String[] {"spawn", "Stance", "5"});
         assertEquals("Stance", explicit.spawnKind);
         assertEquals(5, explicit.spawnCount);
 
-        assertEquals(20, ArtCommand.parseAura(new String[] {"spawn", "divinity", "99"}).spawnCount);
-        assertEquals(1, ArtCommand.parseAura(new String[] {"spawn", "divinity", "0"}).spawnCount);
+        assertEquals(20, ArtCommand.parseClaim(new String[] {"spawn", "divinity", "99"}).spawnCount);
+        assertEquals(1, ArtCommand.parseClaim(new String[] {"spawn", "divinity", "0"}).spawnCount);
 
         assertTrue("unknown kind is invalid",
-                ArtCommand.parseAura(new String[] {"spawn", "bogus"}).invalid);
+                ArtCommand.parseClaim(new String[] {"spawn", "bogus"}).invalid);
         assertTrue("bad count is invalid",
-                ArtCommand.parseAura(new String[] {"spawn", "wrath", "many"}).invalid);
+                ArtCommand.parseClaim(new String[] {"spawn", "wrath", "many"}).invalid);
     }
 
     @Test
-    public void parseAuraMapsClear() {
-        assertFalse(ArtCommand.parseAura(new String[] {"clear"}).invalid);
-        assertTrue(ArtCommand.parseAura(new String[] {"clear"}).clear);
-        assertTrue(ArtCommand.parseAura(new String[] {"clear", "now"}).invalid);
+    public void parseClaimMapsClear() {
+        assertFalse(ArtCommand.parseClaim(new String[] {"clear"}).invalid);
+        assertTrue(ArtCommand.parseClaim(new String[] {"clear"}).clear);
+        assertTrue(ArtCommand.parseClaim(new String[] {"clear", "now"}).invalid);
     }
 
     @Test
     public void gateIsDefaultOffAndTogglesThroughRequestSemantics() {
-        assertFalse(AuraDelegationGate.isActive());
+        assertFalse(VfxDelegationGate.isActive());
 
-        ArtCommand.AuraRequest on = ArtCommand.parseAura(new String[] {"on"});
-        AuraDelegationGate.setActive(on.delegate.booleanValue());
-        assertTrue(AuraDelegationGate.isActive());
+        ArtCommand.ClaimRequest on = ArtCommand.parseClaim(new String[] {"on"});
+        VfxDelegationGate.setActive(on.delegate.booleanValue());
+        assertTrue(VfxDelegationGate.isActive());
 
-        ArtCommand.AuraRequest off = ArtCommand.parseAura(new String[] {"off"});
-        AuraDelegationGate.setActive(off.delegate.booleanValue());
-        assertFalse(AuraDelegationGate.isActive());
+        ArtCommand.ClaimRequest off = ArtCommand.parseClaim(new String[] {"off"});
+        VfxDelegationGate.setActive(off.delegate.booleanValue());
+        assertFalse(VfxDelegationGate.isActive());
 
-        ArtCommand.parseAura(new String[] {"status"});
-        assertFalse(AuraDelegationGate.isActive());
+        ArtCommand.parseClaim(new String[] {"status"});
+        assertFalse(VfxDelegationGate.isActive());
     }
 
     @Test
     public void readinessIsFalseForTheInertDefaultRenderer() {
-        assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT));
-        assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
-        assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WRATH_PARTICLE_EFFECT));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.DIVINITY_PARTICLE_EFFECT));
     }
 
     @Test
     public void spawnWithUnknownKindLogsErrorAndDoesNotThrow() {
-        invokeAura("spawn", "bogus");
+        invokeClaim("spawn", "bogus");
 
         String line = lastLine();
         assertNotNull(line);
-        assertTrue("expected the usage error, was: " + line, line.startsWith("ART_AURA error="));
+        assertTrue("expected the usage error, was: " + line, line.startsWith("ART_CLAIM error="));
         assertTrue(line.contains("spawn"));
     }
 
     @Test
     public void statusLineReportsDrawCounter() {
-        invokeAura("status");
+        invokeClaim("status");
         assertTrue("expected draws=0, was: " + lastLine(), lastLine().contains("draws=0"));
 
-        AuraArtRenderer.recordDraw();
-        AuraArtRenderer.recordDraw();
+        VfxArtRenderer.recordDraw();
+        VfxArtRenderer.recordDraw();
 
-        invokeAura("status");
+        invokeClaim("status");
         assertTrue("expected draws=2, was: " + lastLine(), lastLine().contains("draws=2"));
     }
 
     @Test
     public void clearLogsRemovalCountAndDoesNotThrow() {
-        invokeAura("clear");
+        invokeClaim("clear");
 
         String line = lastLine();
         assertNotNull(line);
         assertTrue("expected a clear result line, was: " + line,
-                line.startsWith("ART_AURA clear removed="));
+                line.startsWith("ART_CLAIM clear removed="));
     }
 
     @Test
     public void spawnWithSupportedKindLogsQueuedCount() {
-        invokeAura("spawn", "wrath", "5");
+        invokeClaim("spawn", "wrath", "5");
 
         String line = lastLine();
         assertNotNull(line);
         assertTrue("expected spawn result, was: " + line,
-                line.startsWith("ART_AURA spawn=wrath count=5 queued="));
+                line.startsWith("ART_CLAIM spawn=wrath count=5 queued="));
     }
 
-    /** Invokes the private console entry with the argument tail after {@code art aura}. */
-    private static void invokeAura(String... args) {
+    /** Invokes the private console entry with the argument tail after {@code art claim}. */
+    private static void invokeClaim(String... args) {
         try {
             Method method =
-                    ArtCommand.class.getDeclaredMethod("cmdAura", String[].class, int.class);
+                    ArtCommand.class.getDeclaredMethod("cmdClaim", String[].class, int.class);
             method.setAccessible(true);
             method.invoke(new ArtCommand(), (Object) args, 0);
         } catch (InvocationTargetException e) {
-            throw new AssertionError("art aura threw", e.getCause());
+            throw new AssertionError("art claim threw", e.getCause());
         } catch (Exception e) {
-            throw new AssertionError("could not invoke art aura", e);
+            throw new AssertionError("could not invoke art claim", e);
         }
+    }
+
+    /** Drives the top-level console dispatch for a full {@code art <sub> ...} token line. */
+    private static void dispatch(String... tokens) {
+        try {
+            Method method =
+                    ArtCommand.class.getDeclaredMethod("execute", String[].class, int.class);
+            method.setAccessible(true);
+            method.invoke(new ArtCommand(), (Object) tokens, 0);
+        } catch (InvocationTargetException e) {
+            throw new AssertionError("art dispatch threw", e.getCause());
+        } catch (Exception e) {
+            throw new AssertionError("could not dispatch art command", e);
+        }
+    }
+
+    @Test
+    public void claimPrimaryAndAuraAliasRunTheSameClaimHandler() {
+        dispatch("claim", "status");
+        String viaClaim = lastLine();
+        assertNotNull(viaClaim);
+        assertTrue("expected the claim status line, was: " + viaClaim,
+                viaClaim.startsWith("ART_CLAIM claim="));
+
+        DevConsole.log.clear();
+        dispatch("aura", "status");
+        assertEquals("art aura must be an identical alias of art claim",
+                viaClaim, lastLine());
+    }
+
+    @Test
+    public void claimPrimaryAndAuraAliasToggleTheSameGate() {
+        dispatch("claim", "on");
+        assertTrue(VfxDelegationGate.isActive());
+        assertTrue("expected the claim on line, was: " + lastLine(),
+                lastLine().startsWith("ART_CLAIM claim=on"));
+
+        dispatch("aura", "off");
+        assertFalse(VfxDelegationGate.isActive());
+        assertTrue("expected the alias to toggle the same gate, was: " + lastLine(),
+                lastLine().startsWith("ART_CLAIM claim=off"));
+    }
+
+    @Test
+    public void claimUsageAdvertisesTheFamilyNeutralRouteWithLegacyAlias() {
+        dispatch("claim", "bogus");
+        String line = lastLine();
+        assertNotNull(line);
+        assertTrue("expected usage to advertise art claim, was: " + line,
+                line.contains("art claim on|off|status|spawn <kind> [count]|clear"));
+        assertTrue("expected the legacy alias noted, was: " + line, line.contains("art aura"));
+    }
+
+    @Test
+    public void vfxLoadStillRoutesToTheSts2BundleRuntime() {
+        // `load` is the pre-existing STS2 bundle-runtime action, not the claim seam.
+        dispatch("vfx", "load");
+        String line = lastLine();
+        assertNotNull(line);
+        assertTrue("expected the bundle-runtime usage error, was: " + line,
+                line.startsWith("ART_VFX error="));
+    }
+
+    @Test
+    public void vfxStatusRoutesToTheBundleRuntimeAndNotTheClaimSeam() {
+        // Regression: `art vfx status` must report bundle-runtime state, never claim-seam state.
+        dispatch("vfx", "status");
+        String line = lastLine();
+        assertNotNull(line);
+        assertFalse("art vfx status must not report claim state, was: " + line,
+                line.startsWith("ART_CLAIM"));
+        assertTrue("art vfx status must remain the bundle-runtime status, was: " + line,
+                line.startsWith("ART_VFX"));
+    }
+
+    @Test
+    public void vfxClearRoutesToTheBundleRuntimeAndNotTheClaimSeam() {
+        dispatch("vfx", "clear");
+        String line = lastLine();
+        assertNotNull(line);
+        assertFalse("art vfx clear must not report claim state, was: " + line,
+                line.startsWith("ART_CLAIM"));
+        assertTrue("art vfx clear must remain the bundle-runtime clear, was: " + line,
+                line.startsWith("ART_VFX"));
     }
 
     private static String lastLine() {

@@ -1,6 +1,6 @@
 package artframework.sts1.lab;
 
-import artframework.sts1.render.AuraClaimPolicy;
+import artframework.sts1.render.VfxClaimPolicy;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
@@ -15,13 +15,14 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Lab/dev helper that queues native stance-aura effects into the live STS effect containers so a
- * device-side lab run can exercise the {@code vfx-stance-aura} family without combat.
+ * Lab/dev helper that queues native transient effects from the family-neutral per-instance claim
+ * seam (current members are the {@code vfx-stance-aura} FQNs) into the live STS effect containers so
+ * a device-side lab run can exercise the family without combat.
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
  */
-public final class AuraLabSpawn {
+public final class VfxLabSpawn {
 
     /** Upper bound on a single spawn request; larger counts are clamped. */
     public static final int MAX_COUNT = 20;
@@ -39,11 +40,11 @@ public final class AuraLabSpawn {
 
     private static volatile EffectFactory factoryOverride;
 
-    private AuraLabSpawn() {}
+    private VfxLabSpawn() {}
 
     /**
      * Maps a case-insensitive alias to the native FQN, or {@code null} when unknown. The FQNs reuse
-     * the {@link AuraClaimPolicy} constants so the spawned family stays in sync with the claim set.
+     * the {@link VfxClaimPolicy} constants so the spawned family stays in sync with the claim set.
      */
     public static String classNameFor(String kind) {
         if (kind == null) {
@@ -51,19 +52,19 @@ public final class AuraLabSpawn {
         }
         String value = kind.trim();
         if ("stance".equalsIgnoreCase(value) || "aura".equalsIgnoreCase(value)) {
-            return AuraClaimPolicy.STANCE_AURA_EFFECT;
+            return VfxClaimPolicy.STANCE_AURA_EFFECT;
         }
         if ("wrath".equalsIgnoreCase(value)) {
-            return AuraClaimPolicy.WRATH_PARTICLE_EFFECT;
+            return VfxClaimPolicy.WRATH_PARTICLE_EFFECT;
         }
         if ("divinity".equalsIgnoreCase(value)) {
-            return AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT;
+            return VfxClaimPolicy.DIVINITY_PARTICLE_EFFECT;
         }
         if ("calm".equalsIgnoreCase(value)) {
-            return AuraClaimPolicy.CALM_PARTICLE_EFFECT;
+            return VfxClaimPolicy.CALM_PARTICLE_EFFECT;
         }
         if ("divinitychange".equalsIgnoreCase(value) || "dsc".equalsIgnoreCase(value)) {
-            return AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE;
+            return VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE;
         }
         return null;
     }
@@ -124,7 +125,7 @@ public final class AuraLabSpawn {
     }
 
     /**
-     * Removes queued/active aura effects (every {@link AuraClaimPolicy} FQN) and returns how many
+     * Removes queued/active claimed effects (every {@link VfxClaimPolicy} FQN) and returns how many
      * were removed; never throws.
      */
     public static int clear() {
@@ -135,7 +136,7 @@ public final class AuraLabSpawn {
                     if (effect == null) {
                         return false;
                     }
-                    return AuraClaimPolicy.supports(effect.getClass().getName());
+                    return VfxClaimPolicy.supports(effect.getClass().getName());
                 }
             });
         } catch (Throwable error) {
@@ -144,19 +145,19 @@ public final class AuraLabSpawn {
     }
 
     private static AbstractGameEffect construct(String fqn) throws Exception {
-        if (AuraClaimPolicy.STANCE_AURA_EFFECT.equals(fqn)) {
+        if (VfxClaimPolicy.STANCE_AURA_EFFECT.equals(fqn)) {
             return new StanceAuraEffect("Wrath");
         }
-        if (AuraClaimPolicy.WRATH_PARTICLE_EFFECT.equals(fqn)) {
+        if (VfxClaimPolicy.WRATH_PARTICLE_EFFECT.equals(fqn)) {
             return new WrathParticleEffect();
         }
-        if (AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT.equals(fqn)) {
+        if (VfxClaimPolicy.DIVINITY_PARTICLE_EFFECT.equals(fqn)) {
             return new DivinityParticleEffect();
         }
-        if (AuraClaimPolicy.CALM_PARTICLE_EFFECT.equals(fqn)) {
+        if (VfxClaimPolicy.CALM_PARTICLE_EFFECT.equals(fqn)) {
             return new CalmParticleEffect();
         }
-        if (AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE.equals(fqn)) {
+        if (VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE.equals(fqn)) {
             // Safe lab defaults: white tint at a screen-center-ish point. Native settings/GL state
             // are not required to construct; any failure is caught by spawn's fail-open guard.
             return new DivinityStanceChangeParticle(Color.WHITE, 960f, 540f);

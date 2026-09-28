@@ -5,16 +5,18 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Pure per-instance claim predicate for the {@code vfx-stance-aura} family.
+ * Pure per-instance claim predicate for the default-off, family-neutral transient-effect claim seam.
  *
  * <p>This is a data predicate, not a per-subclass {@code @SpirePatch}: NRO-04 forbids per-subclass
  * hooks, so the claimable classes are recognized by FQN at the shared effect-container seam. The
- * four {@code AtlasRegion}-drawn classes ({@code StanceAuraEffect}, {@code WrathParticleEffect},
- * {@code DivinityParticleEffect}, {@code DivinityStanceChangeParticle}) plus
- * {@code CalmParticleEffect} (which draws a bare {@code Texture}) use additive blend and are the
- * only members of the family ART may claim per instance.
+ * seam is generic over per-instance transient-effect families; the current members are the
+ * {@code vfx-stance-aura} FQNs. Those are the four {@code AtlasRegion}-drawn classes
+ * ({@code StanceAuraEffect}, {@code WrathParticleEffect}, {@code DivinityParticleEffect},
+ * {@code DivinityStanceChangeParticle}) plus {@code CalmParticleEffect} (which draws a bare
+ * {@code Texture}); they use additive blend and are the only members of the family ART may claim
+ * per instance.
  */
-public final class AuraClaimPolicy {
+public final class VfxClaimPolicy {
 
     public static final String STANCE_AURA_EFFECT =
             "com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect";
@@ -31,7 +33,7 @@ public final class AuraClaimPolicy {
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
                     CALM_PARTICLE_EFFECT, DIVINITY_STANCE_CHANGE_PARTICLE));
 
-    private AuraClaimPolicy() {}
+    private VfxClaimPolicy() {}
 
     /** True only for the exact claimable FQNs; null, blank, and every other class fail open. */
     public static boolean supports(String nativeClassName) {

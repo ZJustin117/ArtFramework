@@ -14,7 +14,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 /**
- * No-GL, no-real-effect coverage for the F2b1 halves of {@link Sts1AuraArtRenderer}: the exact-FQN
+ * No-GL, no-real-effect coverage for the F2b1 halves of {@link Sts1VfxArtRenderer}: the exact-FQN
  * readiness predicate and the superclass-walking reflective field snapshot. The native effect is
  * stood in for by local holder classes that mirror the field layout ({@code scale}/{@code
  * rotation}/{@code color} inherited from a base type; the rest owned by the subclass) so reflection
@@ -24,7 +24,7 @@ import static org.junit.Assert.assertTrue;
  * no-GL convention as {@code Sts1GdxAtlasRegionsTest}) because it is only ever captured by
  * reference, never queried.
  */
-public class Sts1AuraArtRendererTest {
+public class Sts1VfxArtRendererTest {
 
     private static final float EPS = 1e-6f;
 
@@ -133,8 +133,8 @@ public class Sts1AuraArtRendererTest {
         effect.color = new Color(0.1f, 0.2f, 0.3f, 0.4f);
         effect.img = fakeRegion();
 
-        Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(
-                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, effect);
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.DIVINITY_PARTICLE, effect);
 
         assertNotNull(f);
         assertEquals(3.5f, f.x, EPS);
@@ -159,8 +159,8 @@ public class Sts1AuraArtRendererTest {
         effect.color = Color.WHITE;
         effect.img = fakeRegion();
 
-        Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(
-                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, effect);
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.DIVINITY_PARTICLE, effect);
 
         assertNotNull(f);
         assertEquals(1f, f.x, EPS);
@@ -186,10 +186,10 @@ public class Sts1AuraArtRendererTest {
         effect.color = new Color(0.5f, 0.6f, 0.7f, 0.8f);
         effect.img = fakeRegion();
 
-        for (AuraDrawGeometry.Kind kind : new AuraDrawGeometry.Kind[] {
-                AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
-                AuraDrawGeometry.Kind.STANCE_AURA }) {
-            Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(kind, effect);
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                VfxDrawGeometry.Kind.STANCE_AURA }) {
+            Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
 
             assertNotNull("vY must be optional for " + kind, f);
             assertEquals(7.5f, f.x, EPS);
@@ -216,11 +216,11 @@ public class Sts1AuraArtRendererTest {
         effect.color = Color.WHITE;
         effect.img = fakeRegion();
 
-        for (AuraDrawGeometry.Kind kind : new AuraDrawGeometry.Kind[] {
-                AuraDrawGeometry.Kind.WRATH_PARTICLE,
-                AuraDrawGeometry.Kind.DIVINITY_PARTICLE }) {
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.WRATH_PARTICLE,
+                VfxDrawGeometry.Kind.DIVINITY_PARTICLE }) {
             assertNull("absent vY must fail open for " + kind,
-                    Sts1AuraArtRenderer.readFields(kind, effect));
+                    Sts1VfxArtRenderer.readFields(kind, effect));
         }
 
         // With vY present the same holder resolves for those kinds.
@@ -233,8 +233,8 @@ public class Sts1AuraArtRendererTest {
         withVY.color = Color.WHITE;
         withVY.img = fakeRegion();
 
-        Sts1AuraArtRenderer.Fields f = Sts1AuraArtRenderer.readFields(
-                AuraDrawGeometry.Kind.WRATH_PARTICLE, withVY);
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.WRATH_PARTICLE, withVY);
         assertNotNull(f);
         assertEquals(42f, f.vY, EPS);
     }
@@ -249,8 +249,8 @@ public class Sts1AuraArtRendererTest {
         effect.rotation = 0f;
         effect.color = Color.WHITE;
 
-        assertNull(Sts1AuraArtRenderer.readFields(
-                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, effect));
+        assertNull(Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.DIVINITY_PARTICLE, effect));
     }
 
     @Test
@@ -264,14 +264,14 @@ public class Sts1AuraArtRendererTest {
         effect.color = "not a color";
         effect.img = fakeRegion();
 
-        assertNull(Sts1AuraArtRenderer.readFields(
-                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, effect));
+        assertNull(Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.DIVINITY_PARTICLE, effect));
     }
 
     @Test
     public void readFieldsReturnsNullForNullInput() {
-        assertNull(Sts1AuraArtRenderer.readFields(
-                AuraDrawGeometry.Kind.DIVINITY_PARTICLE, null));
+        assertNull(Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.DIVINITY_PARTICLE, null));
     }
 
     @Test
@@ -285,7 +285,7 @@ public class Sts1AuraArtRendererTest {
         effect.rotation = 15f;
         effect.color = new Color(0.2f, 0.3f, 0.4f, 0.5f);
 
-        Sts1AuraArtRenderer.CalmFields f = Sts1AuraArtRenderer.readCalmFields(effect);
+        Sts1VfxArtRenderer.CalmFields f = Sts1VfxArtRenderer.readCalmFields(effect);
 
         assertNotNull(f);
         assertEquals(4.5f, f.x, EPS);
@@ -306,7 +306,7 @@ public class Sts1AuraArtRendererTest {
         effect.rotation = 6f;
         effect.color = Color.WHITE;
 
-        Sts1AuraArtRenderer.CalmFields f = Sts1AuraArtRenderer.readCalmFields(effect);
+        Sts1VfxArtRenderer.CalmFields f = Sts1VfxArtRenderer.readCalmFields(effect);
 
         assertNotNull(f);
         assertEquals(1f, f.x, EPS);
@@ -320,19 +320,19 @@ public class Sts1AuraArtRendererTest {
 
     @Test
     public void readCalmFieldsFailsOpenForNullMissingColorOrMissingXY() {
-        assertNull(Sts1AuraArtRenderer.readCalmFields(null));
+        assertNull(Sts1VfxArtRenderer.readCalmFields(null));
 
         CalmNoColorEffect noColor = new CalmNoColorEffect();
         noColor.x = 1f;
         noColor.y = 2f;
         noColor.scale = 1f;
         noColor.rotation = 0f;
-        assertNull(Sts1AuraArtRenderer.readCalmFields(noColor));
+        assertNull(Sts1VfxArtRenderer.readCalmFields(noColor));
 
         // CalmNoDurationEffect has no dur_div2/duration, but does have x/y/scale/rotation/color.
         CalmNoDurationEffect ok = new CalmNoDurationEffect();
         ok.color = Color.WHITE;
-        assertNotNull(Sts1AuraArtRenderer.readCalmFields(ok));
+        assertNotNull(Sts1VfxArtRenderer.readCalmFields(ok));
     }
 
     @Test
@@ -345,20 +345,20 @@ public class Sts1AuraArtRendererTest {
         effect.rotation = 0f;
         effect.color = Color.WHITE;
 
-        assertNull(Sts1AuraArtRenderer.readFields(
-                AuraDrawGeometry.Kind.STANCE_AURA, effect));
+        assertNull(Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.STANCE_AURA, effect));
     }
 
     @Test
     public void isReadyIsTrueForTheSupportedFqnsAndFalseOtherwise() {
-        Sts1AuraArtRenderer renderer = new Sts1AuraArtRenderer();
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
 
-        assertTrue(renderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT));
-        assertTrue(renderer.isReady(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
-        assertTrue(renderer.isReady(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
-        assertTrue(renderer.isReady(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
+        assertTrue(renderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT));
+        assertTrue(renderer.isReady(VfxClaimPolicy.WRATH_PARTICLE_EFFECT));
+        assertTrue(renderer.isReady(VfxClaimPolicy.DIVINITY_PARTICLE_EFFECT));
+        assertTrue(renderer.isReady(VfxClaimPolicy.CALM_PARTICLE_EFFECT));
         assertTrue(renderer.isReady(
-                AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
+                VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle"));
         assertTrue(renderer.isReady("com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
@@ -366,10 +366,10 @@ public class Sts1AuraArtRendererTest {
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
         assertFalse(renderer.isReady("   "));
-        assertFalse(renderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
-        assertFalse(renderer.isReady(AuraClaimPolicy.CALM_PARTICLE_EFFECT + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.CALM_PARTICLE_EFFECT + "$Sub"));
         assertFalse(renderer.isReady(
-                AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE + "$Sub"));
+                VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE + "$Sub"));
     }
 
     @Test
@@ -377,7 +377,7 @@ public class Sts1AuraArtRendererTest {
         // A real SpriteBatch draw needs a live GL context, so it is not constructible in a headless
         // unit test; the null-arg path proves the F2b2 render entry point fails open. The actual
         // pixels are covered by on-device visual verification.
-        Sts1AuraArtRenderer renderer = new Sts1AuraArtRenderer();
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
 
         assertFalse(renderer.render(null, null));
     }
@@ -385,14 +385,14 @@ public class Sts1AuraArtRendererTest {
     @Test
     public void installDelegatesReadinessAndDrawToTheInstalledAdapter() {
         try {
-            AuraArtRenderer.uninstall();
-            assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT));
-            assertFalse(AuraArtRenderer.render(null, null));
+            VfxArtRenderer.uninstall();
+            assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT));
+            assertFalse(VfxArtRenderer.render(null, null));
 
-            AuraArtRenderer.install(new AuraArtRenderer.Adapter() {
+            VfxArtRenderer.install(new VfxArtRenderer.Adapter() {
                 @Override
                 public boolean isReady(String nativeClassName) {
-                    return AuraClaimPolicy.STANCE_AURA_EFFECT.equals(nativeClassName);
+                    return VfxClaimPolicy.STANCE_AURA_EFFECT.equals(nativeClassName);
                 }
 
                 @Override
@@ -401,20 +401,20 @@ public class Sts1AuraArtRendererTest {
                 }
             });
 
-            assertTrue(AuraArtRenderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT));
-            assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
-            assertTrue(AuraArtRenderer.render(null, null));
+            assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT));
+            assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WRATH_PARTICLE_EFFECT));
+            assertTrue(VfxArtRenderer.render(null, null));
         } finally {
-            AuraArtRenderer.uninstall();
+            VfxArtRenderer.uninstall();
         }
 
-        assertFalse(AuraArtRenderer.isReady(AuraClaimPolicy.STANCE_AURA_EFFECT));
-        assertFalse(AuraArtRenderer.render(null, null));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT));
+        assertFalse(VfxArtRenderer.render(null, null));
     }
 
     @Test
     public void installNullRestoresTheInertDefault() {
-        AuraArtRenderer.install(new AuraArtRenderer.Adapter() {
+        VfxArtRenderer.install(new VfxArtRenderer.Adapter() {
             @Override
             public boolean isReady(String nativeClassName) {
                 return true;
@@ -425,11 +425,11 @@ public class Sts1AuraArtRendererTest {
                 return true;
             }
         });
-        assertTrue(AuraArtRenderer.isReady("anything"));
+        assertTrue(VfxArtRenderer.isReady("anything"));
 
-        AuraArtRenderer.install(null);
+        VfxArtRenderer.install(null);
 
-        assertFalse(AuraArtRenderer.isReady("anything"));
-        assertFalse(AuraArtRenderer.render(null, null));
+        assertFalse(VfxArtRenderer.isReady("anything"));
+        assertFalse(VfxArtRenderer.render(null, null));
     }
 }

@@ -6,17 +6,18 @@ import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Injected draw callback seam for a claimed {@code vfx-stance-aura} instance.
+ * Injected draw callback seam for one claimed per-instance transient effect (family-neutral; current
+ * members are the {@code vfx-stance-aura} FQNs).
  *
  * <p>The default is intentionally inert: {@link #isReady} returns {@code false} and {@link #render}
  * returns {@code false}, so F1 never claims (and never changes) a pixel. F2 installs the real ART
  * atlas draw through the test seam. A false result always means "no pixels produced" so the caller
  * fails open to the native effect.
  */
-public final class AuraArtRenderer {
+public final class VfxArtRenderer {
 
     /**
-     * Host draw callback for one claimed aura instance. Returns true only on a real ART draw.
+     * Host draw callback for one claimed transient-effect instance. Returns true only on a real ART draw.
      *
      * <p>Retained as the public F2 draw seam: F2's real atlas renderer implements this single-purpose
      * interface (the mutable readiness predicate lives separately on {@link Adapter}) so a host or
@@ -38,14 +39,14 @@ public final class AuraArtRenderer {
     /** Successful claimed-draw counter; independent of the adapter test seam. */
     private static final AtomicInteger DRAW_COUNT = new AtomicInteger();
 
-    private AuraArtRenderer() {}
+    private VfxArtRenderer() {}
 
-    /** Increments the ART aura draw counter (called by the claim patch on a successful draw). */
+    /** Increments the ART claim draw counter (called by the claim patch on a successful draw). */
     public static void recordDraw() {
         DRAW_COUNT.incrementAndGet();
     }
 
-    /** Number of successful ART aura draws recorded since the last reset. */
+    /** Number of successful ART claim draws recorded since the last reset. */
     public static int drawCount() {
         return DRAW_COUNT.get();
     }
@@ -66,7 +67,7 @@ public final class AuraArtRenderer {
         }
     }
 
-    /** Draws the aura; false means "no pixels produced" (caller fails open to native). */
+    /** Draws the claimed effect; false means "no pixels produced" (caller fails open to native). */
     public static boolean render(SpriteBatch sb, AbstractGameEffect effect) {
         Adapter current = adapter;
         if (current == null) return false;
@@ -86,7 +87,7 @@ public final class AuraArtRenderer {
         adapter = null;
     }
 
-    /** Installs the real aura renderer. Null restores the inert default. */
+    /** Installs the real claim renderer. Null restores the inert default. */
     public static void install(Adapter next) {
         try {
             setForTests(next);
@@ -103,15 +104,15 @@ public final class AuraArtRenderer {
     }
 
     /**
-     * Read-only probe: current gate state, how many supported aura FQNs the renderer is ready
+     * Read-only probe: current gate state, how many supported claim-seam FQNs the renderer is ready
      * for, and the ART draw count. Never throws; a failure reports gate=false/ready=0/draws=0.
      */
     public static java.util.Map<String, Object> probeSlice() {
         java.util.Map<String, Object> m = new java.util.LinkedHashMap<String, Object>();
         try {
-            boolean gate = AuraDelegationGate.isActive();
+            boolean gate = VfxDelegationGate.isActive();
             int ready = 0;
-            for (String nativeClass : AuraClaimPolicy.supportedClasses()) {
+            for (String nativeClass : VfxClaimPolicy.supportedClasses()) {
                 if (isReady(nativeClass)) ready++;
             }
             m.put("gate", Boolean.valueOf(gate));

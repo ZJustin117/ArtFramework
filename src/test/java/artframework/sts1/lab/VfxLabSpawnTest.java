@@ -1,6 +1,6 @@
 package artframework.sts1.lab;
 
-import artframework.sts1.render.AuraClaimPolicy;
+import artframework.sts1.render.VfxClaimPolicy;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import org.junit.After;
 import org.junit.Test;
@@ -12,89 +12,89 @@ import java.util.function.Predicate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-public class AuraLabSpawnTest {
+public class VfxLabSpawnTest {
 
     @After
     public void tearDown() {
-        AuraLabSpawn.resetForTests();
+        VfxLabSpawn.resetForTests();
     }
 
     @Test
     public void classNameForMapsAliasesToClaimConstants() {
         assertEquals(
-                AuraClaimPolicy.STANCE_AURA_EFFECT, AuraLabSpawn.classNameFor("stance"));
-        assertEquals(AuraClaimPolicy.STANCE_AURA_EFFECT, AuraLabSpawn.classNameFor("aura"));
-        assertEquals(AuraClaimPolicy.WRATH_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("wrath"));
+                VfxClaimPolicy.STANCE_AURA_EFFECT, VfxLabSpawn.classNameFor("stance"));
+        assertEquals(VfxClaimPolicy.STANCE_AURA_EFFECT, VfxLabSpawn.classNameFor("aura"));
+        assertEquals(VfxClaimPolicy.WRATH_PARTICLE_EFFECT, VfxLabSpawn.classNameFor("wrath"));
         assertEquals(
-                AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("divinity"));
-        assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("calm"));
-        assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
-                AuraLabSpawn.classNameFor("divinitychange"));
-        assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
-                AuraLabSpawn.classNameFor("dsc"));
+                VfxClaimPolicy.DIVINITY_PARTICLE_EFFECT, VfxLabSpawn.classNameFor("divinity"));
+        assertEquals(VfxClaimPolicy.CALM_PARTICLE_EFFECT, VfxLabSpawn.classNameFor("calm"));
+        assertEquals(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                VfxLabSpawn.classNameFor("divinitychange"));
+        assertEquals(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                VfxLabSpawn.classNameFor("dsc"));
     }
 
     @Test
     public void classNameForIsCaseInsensitiveAndTrims() {
         assertEquals(
-                AuraClaimPolicy.STANCE_AURA_EFFECT, AuraLabSpawn.classNameFor("  StAnCe "));
-        assertEquals(AuraClaimPolicy.WRATH_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("WRATH"));
-        assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, AuraLabSpawn.classNameFor("  CaLm "));
-        assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
-                AuraLabSpawn.classNameFor("  DiViNiTyChAnGe "));
-        assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
-                AuraLabSpawn.classNameFor(" DSC "));
+                VfxClaimPolicy.STANCE_AURA_EFFECT, VfxLabSpawn.classNameFor("  StAnCe "));
+        assertEquals(VfxClaimPolicy.WRATH_PARTICLE_EFFECT, VfxLabSpawn.classNameFor("WRATH"));
+        assertEquals(VfxClaimPolicy.CALM_PARTICLE_EFFECT, VfxLabSpawn.classNameFor("  CaLm "));
+        assertEquals(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                VfxLabSpawn.classNameFor("  DiViNiTyChAnGe "));
+        assertEquals(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                VfxLabSpawn.classNameFor(" DSC "));
     }
 
     @Test
     public void classNameForRejectsUnknownAndNull() {
-        assertNull(AuraLabSpawn.classNameFor(null));
-        assertNull(AuraLabSpawn.classNameFor(""));
-        assertNull(AuraLabSpawn.classNameFor("   "));
-        assertNull(AuraLabSpawn.classNameFor("bogus"));
-        assertNull(AuraLabSpawn.classNameFor("StanceAura"));
+        assertNull(VfxLabSpawn.classNameFor(null));
+        assertNull(VfxLabSpawn.classNameFor(""));
+        assertNull(VfxLabSpawn.classNameFor("   "));
+        assertNull(VfxLabSpawn.classNameFor("bogus"));
+        assertNull(VfxLabSpawn.classNameFor("StanceAura"));
     }
 
     @Test
     public void spawnRejectsNullKind() {
         RecordingQueue queue = new RecordingQueue();
-        AuraLabSpawn.setQueueForTests(queue);
-        assertEquals(0, AuraLabSpawn.spawn(null, 3));
+        VfxLabSpawn.setQueueForTests(queue);
+        assertEquals(0, VfxLabSpawn.spawn(null, 3));
         assertEquals(0, queue.added.size());
     }
 
     @Test
     public void spawnRejectsUnknownKind() {
         RecordingQueue queue = new RecordingQueue();
-        AuraLabSpawn.setQueueForTests(queue);
-        assertEquals(0, AuraLabSpawn.spawn("bogus", 3));
+        VfxLabSpawn.setQueueForTests(queue);
+        assertEquals(0, VfxLabSpawn.spawn("bogus", 3));
         assertEquals(0, queue.added.size());
     }
 
     @Test
     public void spawnRejectsNonPositiveCount() {
         RecordingQueue queue = new RecordingQueue();
-        AuraLabSpawn.setQueueForTests(queue);
-        assertEquals(0, AuraLabSpawn.spawn("stance", 0));
-        assertEquals(0, AuraLabSpawn.spawn("stance", -5));
+        VfxLabSpawn.setQueueForTests(queue);
+        assertEquals(0, VfxLabSpawn.spawn("stance", 0));
+        assertEquals(0, VfxLabSpawn.spawn("stance", -5));
         assertEquals(0, queue.added.size());
     }
 
     @Test
     public void spawnNeverThrowsWithoutLiveGameContext() {
-        AuraLabSpawn.resetForTests();
+        VfxLabSpawn.resetForTests();
         // Headless there is no libGDX asset context, so construction fails open to 0 rather than
         // throwing. The contract under test is "returns a non-negative count and never throws".
-        int queued = AuraLabSpawn.spawn("wrath", 3);
+        int queued = VfxLabSpawn.spawn("wrath", 3);
         org.junit.Assert.assertTrue("expected fail-open count >= 0 but was " + queued, queued >= 0);
-        assertEquals(0, AuraLabSpawn.spawn("divinity", 2));
+        assertEquals(0, VfxLabSpawn.spawn("divinity", 2));
     }
 
     @Test
     public void spawnDoesNotPropagateThrowingQueue() {
-        AuraLabSpawn.setQueueForTests(new ThrowingQueue());
+        VfxLabSpawn.setQueueForTests(new ThrowingQueue());
         try {
-            int queued = AuraLabSpawn.spawn("stance", 4);
+            int queued = VfxLabSpawn.spawn("stance", 4);
             org.junit.Assert.assertTrue("expected count >= 0 but was " + queued, queued >= 0);
             assertEquals(0, queued);
         } catch (RuntimeException unexpected) {
@@ -106,9 +106,9 @@ public class AuraLabSpawnTest {
     public void spawnDoesNotCountEffectsTheQueueDeclines() {
         // A queue whose add reports false (the live DungeonQueue no-context behavior) must not
         // over-report: queued stays 0 even though construction succeeded.
-        AuraLabSpawn.setQueueForTests(new DecliningQueue());
-        AuraLabSpawn.setFactoryForTests(new StubFactory());
-        assertEquals(0, AuraLabSpawn.spawn("wrath", 5));
+        VfxLabSpawn.setQueueForTests(new DecliningQueue());
+        VfxLabSpawn.setFactoryForTests(new StubFactory());
+        assertEquals(0, VfxLabSpawn.spawn("wrath", 5));
     }
 
     @Test
@@ -116,17 +116,17 @@ public class AuraLabSpawnTest {
         // The factory seam supplies a stub effect so the GL-backed constructors are bypassed; a
         // RecordingQueue whose add returns true then exercises the clamp/count arithmetic.
         RecordingQueue queue = new RecordingQueue();
-        AuraLabSpawn.setQueueForTests(queue);
-        AuraLabSpawn.setFactoryForTests(new StubFactory());
+        VfxLabSpawn.setQueueForTests(queue);
+        VfxLabSpawn.setFactoryForTests(new StubFactory());
 
-        assertEquals(5, AuraLabSpawn.spawn("wrath", 5));
+        assertEquals(5, VfxLabSpawn.spawn("wrath", 5));
         assertEquals(5, queue.added.size());
 
-        assertEquals(AuraLabSpawn.MAX_COUNT, AuraLabSpawn.spawn("divinity", 99));
-        assertEquals(5 + AuraLabSpawn.MAX_COUNT, queue.added.size());
+        assertEquals(VfxLabSpawn.MAX_COUNT, VfxLabSpawn.spawn("divinity", 99));
+        assertEquals(5 + VfxLabSpawn.MAX_COUNT, queue.added.size());
 
-        assertEquals(2, AuraLabSpawn.spawn("stance", 2));
-        assertEquals(5 + AuraLabSpawn.MAX_COUNT + 2, queue.added.size());
+        assertEquals(2, VfxLabSpawn.spawn("stance", 2));
+        assertEquals(5 + VfxLabSpawn.MAX_COUNT + 2, queue.added.size());
     }
 
     @Test
@@ -136,14 +136,14 @@ public class AuraLabSpawnTest {
         // CalmParticleEffect constructor.
         RecordingQueue queue = new RecordingQueue();
         CapturingFactory factory = new CapturingFactory();
-        AuraLabSpawn.setQueueForTests(queue);
-        AuraLabSpawn.setFactoryForTests(factory);
+        VfxLabSpawn.setQueueForTests(queue);
+        VfxLabSpawn.setFactoryForTests(factory);
 
-        assertEquals(4, AuraLabSpawn.spawn("calm", 4));
+        assertEquals(4, VfxLabSpawn.spawn("calm", 4));
         assertEquals(4, queue.added.size());
         assertEquals(4, factory.requested.size());
         for (String fqn : factory.requested) {
-            assertEquals(AuraClaimPolicy.CALM_PARTICLE_EFFECT, fqn);
+            assertEquals(VfxClaimPolicy.CALM_PARTICLE_EFFECT, fqn);
         }
     }
 
@@ -153,31 +153,31 @@ public class AuraLabSpawnTest {
         // divinitychange alias requests exactly that FQN without touching its GL-backed constructor.
         RecordingQueue queue = new RecordingQueue();
         CapturingFactory factory = new CapturingFactory();
-        AuraLabSpawn.setQueueForTests(queue);
-        AuraLabSpawn.setFactoryForTests(factory);
+        VfxLabSpawn.setQueueForTests(queue);
+        VfxLabSpawn.setFactoryForTests(factory);
 
-        assertEquals(4, AuraLabSpawn.spawn("divinitychange", 4));
+        assertEquals(4, VfxLabSpawn.spawn("divinitychange", 4));
         assertEquals(4, queue.added.size());
         assertEquals(4, factory.requested.size());
         for (String fqn : factory.requested) {
-            assertEquals(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE, fqn);
+            assertEquals(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE, fqn);
         }
     }
 
     @Test
     public void clearReturnsQueueRemovalCount() {
-        AuraLabSpawn.setQueueForTests(new FixedCountQueue(7));
-        assertEquals(7, AuraLabSpawn.clear());
+        VfxLabSpawn.setQueueForTests(new FixedCountQueue(7));
+        assertEquals(7, VfxLabSpawn.clear());
     }
 
     @Test
     public void clearReturnsZeroWhenQueueThrows() {
-        AuraLabSpawn.setQueueForTests(new ThrowingQueue());
-        assertEquals(0, AuraLabSpawn.clear());
+        VfxLabSpawn.setQueueForTests(new ThrowingQueue());
+        assertEquals(0, VfxLabSpawn.clear());
     }
 
     /** Records adds; removal count is derived from the recorded added count. */
-    private static final class RecordingQueue implements AuraLabSpawn.Queue {
+    private static final class RecordingQueue implements VfxLabSpawn.Queue {
         final List<AbstractGameEffect> added = new ArrayList<AbstractGameEffect>();
 
         @Override
@@ -193,7 +193,7 @@ public class AuraLabSpawnTest {
     }
 
     /** Accepts nothing: mirrors the live DungeonQueue when no game context exists. */
-    private static final class DecliningQueue implements AuraLabSpawn.Queue {
+    private static final class DecliningQueue implements VfxLabSpawn.Queue {
         @Override
         public boolean add(AbstractGameEffect effect) {
             return false;
@@ -206,7 +206,7 @@ public class AuraLabSpawnTest {
     }
 
     /** Supplies stub effects so construction never needs a live GL/asset context. */
-    private static final class StubFactory implements AuraLabSpawn.EffectFactory {
+    private static final class StubFactory implements VfxLabSpawn.EffectFactory {
         @Override
         public AbstractGameEffect create(String fqn) {
             return new StubEffect();
@@ -214,7 +214,7 @@ public class AuraLabSpawnTest {
     }
 
     /** Supplies stub effects and records each requested FQN so the mapping can be asserted. */
-    private static final class CapturingFactory implements AuraLabSpawn.EffectFactory {
+    private static final class CapturingFactory implements VfxLabSpawn.EffectFactory {
         final List<String> requested = new ArrayList<String>();
 
         @Override
@@ -233,7 +233,7 @@ public class AuraLabSpawnTest {
         public void dispose() {}
     }
 
-    private static final class FixedCountQueue implements AuraLabSpawn.Queue {
+    private static final class FixedCountQueue implements VfxLabSpawn.Queue {
         private final int removalCount;
 
         private FixedCountQueue(int removalCount) {
@@ -251,7 +251,7 @@ public class AuraLabSpawnTest {
         }
     }
 
-    private static final class ThrowingQueue implements AuraLabSpawn.Queue {
+    private static final class ThrowingQueue implements VfxLabSpawn.Queue {
         @Override
         public boolean add(AbstractGameEffect effect) {
             throw new IllegalStateException("no context");

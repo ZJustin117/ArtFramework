@@ -444,6 +444,9 @@ public class Sts1RenderPipelineTest {
         Map<?, ?> aura = (Map<?, ?>) m.get("aura");
         assertEquals(Boolean.FALSE, aura.get("gate"));
         assertEquals(Integer.valueOf(0), aura.get("draws"));
+        // The family-neutral alias must be the identical nested map (same gate/ready/draws values).
+        Map<?, ?> vfxClaim = (Map<?, ?>) m.get("vfxClaim");
+        assertEquals(aura, vfxClaim);
     }
 
     @Test

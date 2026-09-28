@@ -4,8 +4,8 @@ import artframework.assets.AssetResolveResult;
 import artframework.assets.HostAssets;
 import artframework.assets.HostAssetsHolder;
 import artframework.assets.ResourceIds;
-import artframework.sts1.render.AuraArtRenderer;
-import artframework.sts1.render.Sts1AuraArtRenderer;
+import artframework.sts1.render.VfxArtRenderer;
+import artframework.sts1.render.Sts1VfxArtRenderer;
 
 /**
  * STS1 HostAssets bootstrap: install real vanilla catalog paths (no GL). Texture/audio handle
@@ -14,7 +14,7 @@ import artframework.sts1.render.Sts1AuraArtRenderer;
 public final class Sts1HostAssets {
 
     private static boolean installed;
-    private static boolean auraRendererInstalled;
+    private static boolean vfxRendererInstalled;
 
     private Sts1HostAssets() {}
 
@@ -34,28 +34,28 @@ public final class Sts1HostAssets {
     }
 
     /**
-     * Idempotent production binding for the real ART aura renderer: installs
-     * {@link Sts1AuraArtRenderer} behind the default-off F1 claim seam
-     * ({@link AuraArtRenderer}). After this call, {@link AuraArtRenderer#isReady} reports ready for
-     * the claimable {@code vfx-stance-aura} FQNs the renderer supports (and only those); the
-     * {@code AuraDelegationGate} still controls whether the renderer is consulted, so native remains
-     * authoritative while the gate is off. Holds no host/GL state, so it needs no host-recreation
-     * hook.
+     * Idempotent production binding for the real ART claim renderer: installs
+     * {@link Sts1VfxArtRenderer} behind the default-off F1 claim seam
+     * ({@link VfxArtRenderer}). After this call, {@link VfxArtRenderer#isReady} reports ready for
+     * the claimable seam FQNs the renderer supports (currently the {@code vfx-stance-aura} set, and
+     * only those); the {@code VfxDelegationGate} still controls whether the renderer is consulted, so
+     * native remains authoritative while the gate is off. Holds no host/GL state, so it needs no
+     * host-recreation hook.
      */
-    public static void installAuraRenderer() {
-        if (auraRendererInstalled) return;
-        AuraArtRenderer.install(new Sts1AuraArtRenderer());
-        auraRendererInstalled = true;
+    public static void installVfxRenderer() {
+        if (vfxRendererInstalled) return;
+        VfxArtRenderer.install(new Sts1VfxArtRenderer());
+        vfxRendererInstalled = true;
     }
 
-    public static boolean isAuraRendererInstalled() {
-        return auraRendererInstalled;
+    public static boolean isVfxRendererInstalled() {
+        return vfxRendererInstalled;
     }
 
     /** Test isolation: drop the binding and restore the inert default renderer. */
-    public static void resetAuraRendererForTests() {
-        auraRendererInstalled = false;
-        AuraArtRenderer.uninstall();
+    public static void resetVfxRendererForTests() {
+        vfxRendererInstalled = false;
+        VfxArtRenderer.uninstall();
     }
 
     /**

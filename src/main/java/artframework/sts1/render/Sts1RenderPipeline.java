@@ -104,7 +104,10 @@ public final class Sts1RenderPipeline {
         m.put("nativeRender", NativeRenderBridge.probeSlice());
         m.put("nativeRenderStrict", NativeRenderBridge.strictReport());
         m.put("cardsPilesSoul", Sts1PileSoulDrawPath.probeSlice());
-        m.put("aura", AuraArtRenderer.probeSlice());
+        // The per-instance transient-effect claim seam is family-neutral: `vfxClaim` is the
+        // honest name and `aura` the retained alias for the same nested gate/ready/draws map.
+        m.put("aura", VfxArtRenderer.probeSlice());
+        m.put("vfxClaim", VfxArtRenderer.probeSlice());
         return m;
     }
 

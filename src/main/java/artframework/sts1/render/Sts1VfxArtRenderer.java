@@ -14,14 +14,15 @@ import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import java.lang.reflect.Field;
 
 /**
- * STS1 host-side {@link AuraArtRenderer.Adapter} for the {@code vfx-stance-aura} family.
+ * STS1 host-side {@link VfxArtRenderer.Adapter} for the family-neutral per-instance transient-effect
+ * claim seam (current members are the {@code vfx-stance-aura} FQNs).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
- * ({@link #isReady}, backed by the exact-FQN {@link AuraDrawGeometry#kindFor}) and the reflective
+ * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
  * completes the renderer: {@link #render} converts the effect's own live {@code img} region to the
  * host-neutral {@link AtlasRegion} (via {@link Sts1GdxAtlasRegions#fromGdx}), resolves the native
- * draw arguments through {@link AuraDrawGeometry#params}, and replays the native additive
+ * draw arguments through {@link VfxDrawGeometry#params}, and replays the native additive
  * {@code SpriteBatch.draw} with color/blend save-restore. {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload. A false
@@ -32,13 +33,13 @@ import java.lang.reflect.Field;
  * open: missing, unreadable, or wrongly typed fields yield {@code null} (or {@code false}) rather
  * than an exception, so the caller continues with the native draw.
  */
-public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
+public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
 
     /** Sentinel distinguishing "field absent/unreadable" from a legitimately null field value. */
     private static final Object MISSING = new Object();
 
     /**
-     * Immutable snapshot of the fields one aura draw needs, or {@code null} when any required field
+     * Immutable snapshot of the fields one claim draw needs, or {@code null} when any required field
      * is missing.
      */
     static final class Fields {
@@ -66,11 +67,11 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
         }
     }
 
-    /** True only when the exact native class is one of the claimable aura FQNs. */
+    /** True only when the exact native class is one of the claimable seam FQNs. */
     @Override
     public boolean isReady(String nativeClassName) {
         try {
-            return AuraDrawGeometry.kindFor(nativeClassName) != null;
+            return VfxDrawGeometry.kindFor(nativeClassName) != null;
         } catch (Throwable ignored) {
             return false;
         }
@@ -110,20 +111,20 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
      * ({@link Color}), and {@code img} ({@link TextureAtlas.AtlasRegion}); {@code scale}/{@code
      * rotation} are read as any {@link Number} (primitive {@code float} boxes). {@code dur_div2} and
      * {@code duration} are always optional and default to {@code 0}. {@code vY} is required only for
-     * the kinds whose {@link AuraDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
+     * the kinds whose {@link VfxDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
      * {@code DIVINITY_PARTICLE}); for the kinds that ignore it ({@code STANCE_AURA},
      * {@code DIVINITY_STANCE_CHANGE}) it is optional and defaults to {@code 0}, which is required
      * because {@code DivinityStanceChangeParticle} has no {@code vY} field. Returns {@code null}
      * when the effect is null or any required field is absent, unreadable, or of the wrong type;
      * never throws.
      */
-    static Fields readFields(AuraDrawGeometry.Kind kind, Object effect) {
+    static Fields readFields(VfxDrawGeometry.Kind kind, Object effect) {
         if (effect == null) return null;
         // vY is only meaningful for the formulas that add it to y; requiring it elsewhere would
         // wrongly reject DivinityStanceChangeParticle, and omitting it where it is consumed would
         // silently draw at an un-shifted y instead of failing open to the native draw.
-        boolean requireVY = kind == AuraDrawGeometry.Kind.WRATH_PARTICLE
-                || kind == AuraDrawGeometry.Kind.DIVINITY_PARTICLE;
+        boolean requireVY = kind == VfxDrawGeometry.Kind.WRATH_PARTICLE
+                || kind == VfxDrawGeometry.Kind.DIVINITY_PARTICLE;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
@@ -176,12 +177,12 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
     }
 
     /**
-     * Draws the real ART sprite for a claimed {@code vfx-stance-aura} effect, reproducing the native
-     * additive draw.
+     * Draws the real ART sprite for a claimed transient effect, reproducing the native additive
+     * draw.
      *
      * <p>For the img-based kinds: the region comes from the effect's own live
      * {@code img} through {@link Sts1GdxAtlasRegions#fromGdx}, geometry from
-     * {@link AuraDrawGeometry#params}, color from the effect's own {@link Color} (or white),
+     * {@link VfxDrawGeometry#params}, color from the effect's own {@link Color} (or white),
      * additive blend {@code (SRC_ALPHA, ONE)}, and blend/color restored to the previous state
      * afterwards. That draw uses the {@code SpriteBatch#draw(TextureRegion, ...)} overload with the
      * same arguments the native call passes, so libGDX resolves the region's UV rect (including any
@@ -199,10 +200,10 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
     public boolean render(SpriteBatch sb, AbstractGameEffect effect) {
         if (sb == null || effect == null) return false;
         try {
-            AuraDrawGeometry.Kind kind =
-                    AuraDrawGeometry.kindFor(effect.getClass().getName());
+            VfxDrawGeometry.Kind kind =
+                    VfxDrawGeometry.kindFor(effect.getClass().getName());
             if (kind == null) return false;
-            if (kind == AuraDrawGeometry.Kind.CALM_PARTICLE) {
+            if (kind == VfxDrawGeometry.Kind.CALM_PARTICLE) {
                 return renderCalm(sb, effect);
             }
             Fields f = readFields(kind, effect);
@@ -212,7 +213,7 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
             AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
             if (neutral == null || !neutral.valid()) return false;
             float settingsScale = Settings.scale;
-            AuraDrawGeometry.Params p = AuraDrawGeometry.params(
+            VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                     kind, f.x, f.y, f.vY, f.scale, f.rotation, f.durDiv2, f.duration,
                     settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight());
             Color previous = new Color(sb.getColor());
@@ -236,7 +237,7 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
 
     /**
      * Calm branch: resolves the native {@link ImageMaster#FROST_ACTIVATE_VFX_1} texture, replays the
-     * additive raw texture + source-rect draw with the {@link AuraDrawGeometry#params} geometry, and
+     * additive raw texture + source-rect draw with the {@link VfxDrawGeometry#params} geometry, and
      * restores blend/color. Fails open ({@code false}, no side effects) on any missing input.
      */
     private boolean renderCalm(SpriteBatch sb, AbstractGameEffect effect) {
@@ -244,8 +245,8 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
         if (f == null) return false;
         Texture texture = ImageMaster.FROST_ACTIVATE_VFX_1;
         if (texture == null) return false;
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.CALM_PARTICLE, f.x, f.y, 0f, f.scale, f.rotation,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.CALM_PARTICLE, f.x, f.y, 0f, f.scale, f.rotation,
                 f.durDiv2, f.duration, Settings.scale, 0f, 0f);
         Color previous = new Color(sb.getColor());
         try {
@@ -253,8 +254,8 @@ public final class Sts1AuraArtRenderer implements AuraArtRenderer.Adapter {
             sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
             sb.draw(texture, p.x, p.y, p.originX, p.originY, p.width, p.height,
                     p.scaleX, p.scaleY, p.rotation,
-                    AuraDrawGeometry.CALM_SRC_X, AuraDrawGeometry.CALM_SRC_Y,
-                    AuraDrawGeometry.CALM_SRC_W, AuraDrawGeometry.CALM_SRC_H, false, false);
+                    VfxDrawGeometry.CALM_SRC_X, VfxDrawGeometry.CALM_SRC_Y,
+                    VfxDrawGeometry.CALM_SRC_W, VfxDrawGeometry.CALM_SRC_H, false, false);
             return true;
         } finally {
             try {

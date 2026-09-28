@@ -15,28 +15,29 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Pure-logic coverage for how the effect-container seam consumes an F1 aura claim.
+ * Pure-logic coverage for how the effect-container seam consumes a claim on the now family-neutral
+ * per-instance transient-effect seam (current members are the {@code vfx-stance-aura} FQNs).
  *
  * <p>A claim requires the exact supported FQN, so a local recording stub cannot be claimed. The
  * "native render was reached" signal is therefore the native effect ledger's {@code failOpen}
- * counter: a real supported aura class drawn off-GL throws inside {@code effect.render} and the
+ * counter: a real supported class drawn off-GL throws inside {@code effect.render} and the
  * observation helper records the fail-open exactly once per reached native call. A suppressed
  * native call leaves {@code failOpen} at zero and leaves ART pixel evidence behind instead.
  */
-public class AuraClaimConsumptionTest {
+public class VfxClaimConsumptionTest {
 
     @Before
     public void setUp() {
         NativeRenderBridge.resetForTests();
-        AuraArtRenderer.resetDrawCountForTests();
+        VfxArtRenderer.resetDrawCountForTests();
     }
 
     @After
     public void tearDown() {
         ArtFramework.resetForTests();
-        AuraDelegationGate.resetForTests();
-        AuraArtRenderer.resetForTests();
-        AuraArtRenderer.resetDrawCountForTests();
+        VfxDelegationGate.resetForTests();
+        VfxArtRenderer.resetForTests();
+        VfxArtRenderer.resetDrawCountForTests();
         NativeRenderBridge.resetForTests();
     }
 
@@ -59,8 +60,8 @@ public class AuraClaimConsumptionTest {
 
     @Test
     public void readyAdapterThatDrawsSuppressesNativeAndRecordsEvidence() {
-        AuraDelegationGate.setActive(true);
-        AuraArtRenderer.setForTests(adapter(true, false));
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(adapter(true, false));
         AbstractGameEffect effect = supportedAuraEffect();
 
         TransientEffectContainerPatches.observeThenRender(effect, null);
@@ -72,14 +73,14 @@ public class AuraClaimConsumptionTest {
         assertEquals("native render was suppressed (no native fail-open recorded)",
                 Integer.valueOf(0), NativeRenderBridge.effectLedger().probeSlice().get("failOpen"));
         assertEquals("a successful claim draw increments the ART aura draw counter",
-                1, AuraArtRenderer.drawCount());
-        assertFalse(NativeRenderBridge.isAuraClaimInvocation(Lookup.lastInvocationId()));
+                1, VfxArtRenderer.drawCount());
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(Lookup.lastInvocationId()));
     }
 
     @Test
     public void readyAdapterThatDeclinesFailsOpenToNativeRender() {
-        AuraDelegationGate.setActive(true);
-        AuraArtRenderer.setForTests(adapter(false, false));
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(adapter(false, false));
         AbstractGameEffect effect = supportedAuraEffect();
 
         TransientEffectContainerPatches.observeThenRender(effect, null);
@@ -93,21 +94,21 @@ public class AuraClaimConsumptionTest {
         assertEquals("native render was reached",
                 Integer.valueOf(1), NativeRenderBridge.effectLedger().probeSlice().get("failOpen"));
         assertEquals("a declined claim draw leaves the ART aura draw counter at zero",
-                0, AuraArtRenderer.drawCount());
-        assertFalse(NativeRenderBridge.isAuraClaimInvocation(Lookup.lastInvocationId()));
+                0, VfxArtRenderer.drawCount());
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(Lookup.lastInvocationId()));
     }
 
     @Test
     public void throwingAdapterFailsOpenToNativeRenderWithoutLeakingToken() {
-        AuraDelegationGate.setActive(true);
-        AuraArtRenderer.setForTests(adapter(true, true));
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(adapter(true, true));
         AbstractGameEffect effect = supportedAuraEffect();
 
         TransientEffectContainerPatches.observeThenRender(effect, null);
 
         assertEquals("no ART pixels on a throwing draw",
                 Integer.valueOf(0), NativeRenderBridge.probeSlice().get("evidenceCount"));
-        // AuraArtRenderer fails open internally, so the throw is not observed here; the native
+        // VfxArtRenderer fails open internally, so the throw is not observed here; the native
         // render is then reached and records exactly one fail-open off-GL.
         assertEquals("native render was reached after the throw",
                 Integer.valueOf(1), NativeRenderBridge.effectLedger().probeSlice().get("failOpen"));
@@ -116,7 +117,7 @@ public class AuraClaimConsumptionTest {
         assertEquals("no invocation is left open after the fail-open",
                 Integer.valueOf(0), NativeRenderBridge.strictReport().get("openInvocation"));
         assertFalse("throwing draw must not leave a pending claim token",
-                NativeRenderBridge.isAuraClaimInvocation(Lookup.lastInvocationId()));
+                NativeRenderBridge.isVfxClaimInvocation(Lookup.lastInvocationId()));
     }
 
     @Test
@@ -124,26 +125,26 @@ public class AuraClaimConsumptionTest {
         // Exercises the 3-arg Prefix directly (TransientEffectRenderPatches.ObserveEffectRenderAtPosition
         // .Prefix): a successful claim draw returns SpireReturn.Return(null) and records one ART draw;
         // a declined claim fails open to SpireReturn.Continue() and records none.
-        AuraDelegationGate.setActive(true);
+        VfxDelegationGate.setActive(true);
 
-        AuraArtRenderer.setForTests(adapter(true, false));
+        VfxArtRenderer.setForTests(adapter(true, false));
         SpireReturn<Void> suppressed =
                 TransientEffectRenderPatches.ObserveEffectRenderAtPosition.Prefix(
                         supportedAuraEffect(), null, 0f, 0f);
         assertEquals("a successful claim draw must increment the ART aura draw counter",
-                1, AuraArtRenderer.drawCount());
+                1, VfxArtRenderer.drawCount());
         assertTrue("a successful claim must suppress the native render", suppressed.isPresent());
         assertEquals("a successful claim draw must record evidence",
                 Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
 
         NativeRenderBridge.resetForTests();
 
-        AuraArtRenderer.setForTests(adapter(false, false));
+        VfxArtRenderer.setForTests(adapter(false, false));
         SpireReturn<Void> continued =
                 TransientEffectRenderPatches.ObserveEffectRenderAtPosition.Prefix(
                         supportedAuraEffect(), null, 0f, 0f);
         assertEquals("a declined claim draw must not increment the ART aura draw counter",
-                1, AuraArtRenderer.drawCount());
+                1, VfxArtRenderer.drawCount());
         assertFalse("a declined claim must fall open to the native render", continued.isPresent());
     }
 
@@ -151,19 +152,19 @@ public class AuraClaimConsumptionTest {
     public void renderAtPrefixGateOffNeverDrawsArt() {
         // Gate off: beginEffectRender returns a native continuation, so the Prefix continues native
         // before ever consulting the renderer and the draw counter stays untouched.
-        AuraDelegationGate.setActive(false);
-        AuraArtRenderer.setForTests(adapter(true, false));
+        VfxDelegationGate.setActive(false);
+        VfxArtRenderer.setForTests(adapter(true, false));
 
         SpireReturn<Void> continued =
                 TransientEffectRenderPatches.ObserveEffectRenderAtPosition.Prefix(
                         supportedAuraEffect(), null, 0f, 0f);
 
         assertFalse("gate off keeps native rendering", continued.isPresent());
-        assertEquals("gate off must not record an ART aura draw", 0, AuraArtRenderer.drawCount());
+        assertEquals("gate off must not record an ART aura draw", 0, VfxArtRenderer.drawCount());
     }
 
-    private static AuraArtRenderer.Adapter adapter(final boolean draws, final boolean throwsOnDraw) {
-        return new AuraArtRenderer.Adapter() {
+    private static VfxArtRenderer.Adapter adapter(final boolean draws, final boolean throwsOnDraw) {
+        return new VfxArtRenderer.Adapter() {
             @Override public boolean isReady(String nativeClassName) { return true; }
             @Override public boolean render(SpriteBatch sb, AbstractGameEffect effect) {
                 if (throwsOnDraw) throw new IllegalStateException("aura draw boom");

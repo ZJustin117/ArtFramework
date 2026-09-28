@@ -1,6 +1,6 @@
 package artframework.sts1.patch;
 
-import artframework.sts1.render.AuraArtRenderer;
+import artframework.sts1.render.VfxArtRenderer;
 import artframework.sts1.render.NativeRenderBridge;
 import artframework.sts1.render.RenderDisposition;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -41,17 +41,17 @@ public final class TransientEffectContainerPatches {
             }
             return;
         }
-        // Non-continuing disposition: an aura claim draws here; an isolate claim stays suppressed.
-        boolean auraClaim = false;
+        // Non-continuing disposition: a transient-effect claim draws here; an isolate claim stays suppressed.
+        boolean vfxClaim = false;
         try {
-            auraClaim = NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId);
+            vfxClaim = NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId);
         } catch (Throwable error) {
             NativeRenderBridge.recordEffectObservationFailure();
         }
-        if (auraClaim) {
+        if (vfxClaim) {
             boolean drew = false;
             try {
-                drew = AuraArtRenderer.render(sb, effect);
+                drew = VfxArtRenderer.render(sb, effect);
             } catch (Throwable error) {
                 NativeRenderBridge.recordEffectObservationFailure();
             }
@@ -62,7 +62,7 @@ public final class TransientEffectContainerPatches {
                     NativeRenderBridge.recordEffectObservationFailure();
                 }
                 try {
-                    AuraArtRenderer.recordDraw();
+                    VfxArtRenderer.recordDraw();
                 } catch (Throwable error) {
                     NativeRenderBridge.recordEffectObservationFailure();
                 }

@@ -7,60 +7,60 @@ import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
-/** Pure JUnit coverage for the host-neutral {@link AuraDrawGeometry} mapping. */
-public class AuraDrawGeometryTest {
+/** Pure JUnit coverage for the host-neutral {@link VfxDrawGeometry} mapping. */
+public class VfxDrawGeometryTest {
 
     private static final float EPS = 1e-6f;
 
     @Test
     public void kindForMapsTheExactFqns() {
-        assertSame(AuraDrawGeometry.Kind.STANCE_AURA,
-                AuraDrawGeometry.kindFor(AuraClaimPolicy.STANCE_AURA_EFFECT));
-        assertSame(AuraDrawGeometry.Kind.WRATH_PARTICLE,
-                AuraDrawGeometry.kindFor(AuraClaimPolicy.WRATH_PARTICLE_EFFECT));
-        assertSame(AuraDrawGeometry.Kind.DIVINITY_PARTICLE,
-                AuraDrawGeometry.kindFor(AuraClaimPolicy.DIVINITY_PARTICLE_EFFECT));
-        assertSame(AuraDrawGeometry.Kind.CALM_PARTICLE,
-                AuraDrawGeometry.kindFor(AuraClaimPolicy.CALM_PARTICLE_EFFECT));
-        assertSame(AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
-                AuraDrawGeometry.kindFor(AuraClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
+        assertSame(VfxDrawGeometry.Kind.STANCE_AURA,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.STANCE_AURA_EFFECT));
+        assertSame(VfxDrawGeometry.Kind.WRATH_PARTICLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.WRATH_PARTICLE_EFFECT));
+        assertSame(VfxDrawGeometry.Kind.DIVINITY_PARTICLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.DIVINITY_PARTICLE_EFFECT));
+        assertSame(VfxDrawGeometry.Kind.CALM_PARTICLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.CALM_PARTICLE_EFFECT));
+        assertSame(VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
         // the exact literal FQNs, not just the policy constants
-        assertSame(AuraDrawGeometry.Kind.STANCE_AURA,
-                AuraDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect"));
-        assertSame(AuraDrawGeometry.Kind.WRATH_PARTICLE,
-                AuraDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect"));
-        assertSame(AuraDrawGeometry.Kind.DIVINITY_PARTICLE,
-                AuraDrawGeometry.kindFor(
+        assertSame(VfxDrawGeometry.Kind.STANCE_AURA,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect"));
+        assertSame(VfxDrawGeometry.Kind.WRATH_PARTICLE,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect"));
+        assertSame(VfxDrawGeometry.Kind.DIVINITY_PARTICLE,
+                VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect"));
-        assertSame(AuraDrawGeometry.Kind.CALM_PARTICLE,
-                AuraDrawGeometry.kindFor(
+        assertSame(VfxDrawGeometry.Kind.CALM_PARTICLE,
+                VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
-        assertSame(AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
-                AuraDrawGeometry.kindFor(
+        assertSame(VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle"));
     }
 
     @Test
     public void kindForFailsOpenForNullBlankAndNearMisses() {
-        assertNull(AuraDrawGeometry.kindFor(null));
-        assertNull(AuraDrawGeometry.kindFor(""));
-        assertNull(AuraDrawGeometry.kindFor("   "));
-        assertNull(AuraDrawGeometry.kindFor(
+        assertNull(VfxDrawGeometry.kindFor(null));
+        assertNull(VfxDrawGeometry.kindFor(""));
+        assertNull(VfxDrawGeometry.kindFor("   "));
+        assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect2"));
-        assertNull(AuraDrawGeometry.kindFor(
+        assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect$Sub"));
-        assertNull(AuraDrawGeometry.kindFor(
+        assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect$1"));
-        assertNull(AuraDrawGeometry.kindFor(
+        assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffectFoo"));
-        assertNull(AuraDrawGeometry.kindFor(
+        assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect2"));
-        assertNull(AuraDrawGeometry.kindFor(
+        assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect$Sub"));
-        assertNull(AuraDrawGeometry.kindFor("DivinityStanceChangeParticle")); // simple name only
-        assertNull(AuraDrawGeometry.kindFor(
+        assertNull(VfxDrawGeometry.kindFor("DivinityStanceChangeParticle")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle2"));
-        assertNull(AuraDrawGeometry.kindFor(
+        assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle$Sub"));
     }
 
@@ -73,8 +73,8 @@ public class AuraDrawGeometryTest {
         float scale = 0.6f;
         float rotation = 45f;
 
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.STANCE_AURA,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
                 x, y, 999f /* vY ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
                 pw, ph);
@@ -100,8 +100,8 @@ public class AuraDrawGeometryTest {
         float scale = 1.25f;
         float rotation = 90f;
 
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.DIVINITY_PARTICLE,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.DIVINITY_PARTICLE,
                 x, y, vY, scale, rotation,
                 1f, 2f, 3f, pw, ph);
 
@@ -132,8 +132,8 @@ public class AuraDrawGeometryTest {
 
         float expectedScaleY = (0.1f + ((durDiv2 * 2f - duration) * 2f * scale)) * settingsScale;
 
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.WRATH_PARTICLE,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WRATH_PARTICLE,
                 x, y, vY, scale, rotation, durDiv2, duration, settingsScale, pw, ph);
 
         assertEquals(x, p.x, EPS);
@@ -154,8 +154,8 @@ public class AuraDrawGeometryTest {
         float duration = 2.2f; // durDiv2 * 2f == duration
         float settingsScale = 1.5f;
 
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.WRATH_PARTICLE,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WRATH_PARTICLE,
                 0f, 0f, 0f, scale, 0f, durDiv2, duration, settingsScale, 10f, 10f);
 
         assertEquals(0.1f * settingsScale, p.scaleY, EPS);
@@ -176,8 +176,8 @@ public class AuraDrawGeometryTest {
 
         float expectedScaleY = scale + (durDiv2 * 0.4f - duration) * settingsScale;
 
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.CALM_PARTICLE,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.CALM_PARTICLE,
                 x, y, 999f /* vY ignored */, scale, rotation, durDiv2, duration, settingsScale,
                 48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
 
@@ -190,21 +190,21 @@ public class AuraDrawGeometryTest {
         assertEquals(scale, p.scaleX, EPS);
         assertEquals(expectedScaleY, p.scaleY, EPS);
         assertEquals(rotation, p.rotation, EPS);
-        assertEquals(0, AuraDrawGeometry.CALM_SRC_X);
-        assertEquals(0, AuraDrawGeometry.CALM_SRC_Y);
-        assertEquals(64, AuraDrawGeometry.CALM_SRC_W);
-        assertEquals(64, AuraDrawGeometry.CALM_SRC_H);
-        assertEquals(32f, AuraDrawGeometry.CALM_ORIGIN_X, EPS);
-        assertEquals(32f, AuraDrawGeometry.CALM_ORIGIN_Y, EPS);
-        assertEquals(25f, AuraDrawGeometry.CALM_WIDTH, EPS);
-        assertEquals(128f, AuraDrawGeometry.CALM_HEIGHT, EPS);
+        assertEquals(0, VfxDrawGeometry.CALM_SRC_X);
+        assertEquals(0, VfxDrawGeometry.CALM_SRC_Y);
+        assertEquals(64, VfxDrawGeometry.CALM_SRC_W);
+        assertEquals(64, VfxDrawGeometry.CALM_SRC_H);
+        assertEquals(32f, VfxDrawGeometry.CALM_ORIGIN_X, EPS);
+        assertEquals(32f, VfxDrawGeometry.CALM_ORIGIN_Y, EPS);
+        assertEquals(25f, VfxDrawGeometry.CALM_WIDTH, EPS);
+        assertEquals(128f, VfxDrawGeometry.CALM_HEIGHT, EPS);
     }
 
     @Test
     public void calmParticleIgnoresPackedSizeAndVYAndCollapsesScaleYWhenTermsCancel() {
         // dur_div2*0.4f == duration -> scaleY == scale.
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.CALM_PARTICLE,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.CALM_PARTICLE,
                 1f, 2f, 12345f, 0.5f, 9f,
                 1f, 0.4f, 3f,
                 -100f, 777f);
@@ -217,8 +217,8 @@ public class AuraDrawGeometryTest {
         assertEquals(0.5f, p.scaleY, EPS);
 
         // A different packed size produces byte-identical geometry for Calm.
-        AuraDrawGeometry.Params q = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.CALM_PARTICLE,
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.CALM_PARTICLE,
                 1f, 2f, 0f, 0.5f, 9f, 1f, 0.4f, 3f, 0f, 0f);
         assertEquals(p, q);
     }
@@ -234,8 +234,8 @@ public class AuraDrawGeometryTest {
         float scale = 0.6f;
         float rotation = 45f;
 
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
                 x, y, 999f /* no vY field; ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
                 pw, ph);
@@ -251,15 +251,15 @@ public class AuraDrawGeometryTest {
         assertEquals(rotation, p.rotation, EPS);
 
         // Byte-identical to the STANCE_AURA result for the same inputs.
-        AuraDrawGeometry.Params q = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
         assertEquals(p, q);
     }
 
     @Test
     public void nullKindThrowsIllegalArgument() {
         try {
-            AuraDrawGeometry.params(null, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 1f);
+            VfxDrawGeometry.params(null, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 1f);
             fail("expected IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
             // expected
@@ -268,8 +268,8 @@ public class AuraDrawGeometryTest {
 
     @Test
     public void negativeAndFractionalPackedSizesMapArithmeticallyWithoutThrowing() {
-        AuraDrawGeometry.Params p = AuraDrawGeometry.params(
-                AuraDrawGeometry.Kind.STANCE_AURA,
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
                 -1.5f, -2.25f, 0f, -0.5f, -30f, 0f, 0f, 1f,
                 -16.5f, 7.25f);
 

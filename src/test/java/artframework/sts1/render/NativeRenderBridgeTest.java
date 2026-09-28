@@ -41,8 +41,8 @@ public class NativeRenderBridgeTest {
         FullPresentMode.resetForTests();
         PresentSafety.resetForTests();
         CombatInputRouter.resetForTests();
-        AuraDelegationGate.resetForTests();
-        AuraArtRenderer.resetForTests();
+        VfxDelegationGate.resetForTests();
+        VfxArtRenderer.resetForTests();
         Sts1VerifyDiagnostics.resetForTests();
         NativeRenderBridge.resetForTests();
     }
@@ -1006,7 +1006,7 @@ public class NativeRenderBridgeTest {
         // Default state: the aura claim gate is OFF, so every effect stays observe-only
         // (CAPTURE_AND_PASS) and the native effect queue continues. The gate-ON per-instance
         // claim is covered by the aura* tests below.
-        assertFalse(AuraDelegationGate.isActive());
+        assertFalse(VfxDelegationGate.isActive());
         AbstractGameEffect effect = effect();
         RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render_at");
         assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
@@ -1016,32 +1016,32 @@ public class NativeRenderBridgeTest {
 
     @Test
     public void auraClaimGateOnWithUnsupportedClassStillCapturesAndPasses() {
-        AuraDelegationGate.setActive(true);
+        VfxDelegationGate.setActive(true);
         AbstractGameEffect effect = effect();
 
         RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
 
         assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
         assertTrue(disposition.nativeContinuation);
-        assertFalse(NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
     }
 
     @Test
     public void auraClaimGateOnWithSupportedClassButNotReadyStillCapturesAndPasses() {
-        AuraDelegationGate.setActive(true);
+        VfxDelegationGate.setActive(true);
         AbstractGameEffect effect = supportedAuraEffect();
 
         RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
 
         assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
         assertTrue(disposition.nativeContinuation);
-        assertFalse(NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
     }
 
     @Test
     public void auraClaimGateOnReadySuppressesNativeAndRegistersToken() {
-        AuraDelegationGate.setActive(true);
-        AuraArtRenderer.setForTests(alwaysReadyAdapter());
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
         AbstractGameEffect effect = supportedAuraEffect();
 
         RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
@@ -1049,35 +1049,35 @@ public class NativeRenderBridgeTest {
         assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
         assertFalse("a claim suppresses only this instance", disposition.nativeContinuation);
         assertEquals("aura_claim", disposition.reason);
-        assertTrue(NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+        assertTrue(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
     }
 
     @Test
     public void auraClaimDrawRecordsPixelEvidenceAndConsumesToken() {
-        AuraDelegationGate.setActive(true);
-        AuraArtRenderer.setForTests(alwaysReadyAdapter());
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
         RenderDisposition disposition = NativeRenderBridge.beginEffectRender(
                 supportedAuraEffect(), "render");
 
         NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
 
         assertFalse("draw consumes the pending claim token",
-                NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+                NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
         assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
     }
 
     @Test
     public void auraClaimFailureFailsOpenAndConsumesToken() {
-        AuraDelegationGate.setActive(true);
-        AuraArtRenderer.setForTests(alwaysReadyAdapter());
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
         RenderDisposition disposition = NativeRenderBridge.beginEffectRender(
                 supportedAuraEffect(), "render");
 
         NativeRenderBridge.recordEffectFailure(disposition.invocationId);
 
         assertFalse("failure consumes the pending claim token",
-                NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId));
+                NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
         assertEquals("fallback leaves no open delegated gap",
                 Integer.valueOf(1), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
         assertEquals("fallback records a delegated mismatch",
@@ -1086,8 +1086,8 @@ public class NativeRenderBridgeTest {
 
     @Test
     public void auraClaimPanicAndBackgroundOnlyStillWin() {
-        AuraDelegationGate.setActive(true);
-        AuraArtRenderer.setForTests(alwaysReadyAdapter());
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
 
         PresentSafety.panic("aura-panic");
         assertEquals(RenderDisposition.Mode.FAIL_OPEN,
@@ -1098,12 +1098,12 @@ public class NativeRenderBridgeTest {
         RenderDisposition blocked = NativeRenderBridge.beginEffectRender(
                 supportedAuraEffect(), "render");
         assertEquals(RenderDisposition.Mode.BLOCKED, blocked.mode);
-        assertFalse(NativeRenderBridge.isAuraClaimInvocation(blocked.invocationId));
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(blocked.invocationId));
         Sts1VerifyDiagnostics.setBackgroundOnly(false);
     }
 
-    private static AuraArtRenderer.Adapter alwaysReadyAdapter() {
-        return new AuraArtRenderer.Adapter() {
+    private static VfxArtRenderer.Adapter alwaysReadyAdapter() {
+        return new VfxArtRenderer.Adapter() {
             @Override public boolean isReady(String nativeClassName) { return true; }
             @Override public boolean render(SpriteBatch sb, AbstractGameEffect effect) {
                 return true;

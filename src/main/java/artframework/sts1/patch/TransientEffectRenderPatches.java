@@ -1,6 +1,6 @@
 package artframework.sts1.patch;
 
-import artframework.sts1.render.AuraArtRenderer;
+import artframework.sts1.render.VfxArtRenderer;
 import artframework.sts1.render.NativeRenderBridge;
 import artframework.sts1.render.RenderDisposition;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
@@ -18,7 +18,7 @@ public final class TransientEffectRenderPatches {
         public static SpireReturn<Void> Prefix(AbstractGameEffect __instance, SpriteBatch sb,
                 float x, float y) {
             // NRO-04: effects are observed only; the native effect queue remains authoritative
-            // except for a default-off per-instance aura claim, which suppresses only that instance
+            // except for a default-off per-instance transient-effect claim, which suppresses only that instance
             // after a real ART draw and otherwise fails open to the native render below.
             RenderDisposition disposition;
             try {
@@ -28,16 +28,16 @@ public final class TransientEffectRenderPatches {
                 return SpireReturn.Continue();
             }
             if (disposition.nativeContinuation) return SpireReturn.Continue();
-            boolean auraClaim = false;
+            boolean vfxClaim = false;
             try {
-                auraClaim = NativeRenderBridge.isAuraClaimInvocation(disposition.invocationId);
+                vfxClaim = NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId);
             } catch (Throwable error) {
                 NativeRenderBridge.recordEffectObservationFailure();
             }
-            if (!auraClaim) return SpireReturn.Return(null);
+            if (!vfxClaim) return SpireReturn.Return(null);
             boolean drew = false;
             try {
-                drew = AuraArtRenderer.render(sb, __instance);
+                drew = VfxArtRenderer.render(sb, __instance);
             } catch (Throwable error) {
                 NativeRenderBridge.recordEffectObservationFailure();
             }
@@ -48,7 +48,7 @@ public final class TransientEffectRenderPatches {
                     NativeRenderBridge.recordEffectObservationFailure();
                 }
                 try {
-                    AuraArtRenderer.recordDraw();
+                    VfxArtRenderer.recordDraw();
                 } catch (Throwable error) {
                     NativeRenderBridge.recordEffectObservationFailure();
                 }

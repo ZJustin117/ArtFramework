@@ -551,14 +551,15 @@ public final class NativeRenderBridge {
         } else if (isolated) {
             POLICY.recordExempted(true);
         }
-        // Default-off per-instance aura claim (NRO-04). Panic and background-only already
-        // returned above, so this branch never overrides them. When the gate is off, the class
-        // is unsupported, or the injected renderer is not ready, the disposition stays the
-        // existing isolate-delegate or capture.
-        final boolean auraClaimProposed = AuraDelegationGate.isActive()
-                && AuraClaimPolicy.supports(identity.nativeClass)
-                && AuraArtRenderer.isReady(identity.nativeClass);
-        RenderDisposition disposition = auraClaimProposed
+        // Default-off per-instance transient-effect claim (NRO-04), family-neutral; current members
+        // are the vfx-stance-aura FQNs. Panic and background-only already returned above, so this
+        // branch never overrides them. When the gate is off, the class is unsupported, or the
+        // injected renderer is not ready, the disposition stays the existing isolate-delegate or
+        // capture.
+        final boolean vfxClaimProposed = VfxDelegationGate.isActive()
+                && VfxClaimPolicy.supports(identity.nativeClass)
+                && VfxArtRenderer.isReady(identity.nativeClass);
+        RenderDisposition disposition = vfxClaimProposed
                 ? RenderDisposition.delegate(invocation.invocationId, "aura_claim",
                         "effect:" + identity.instanceId)
                 : (isolated && !exempt
@@ -571,13 +572,13 @@ public final class NativeRenderBridge {
             if (beforeTokenPublicationForTests != null) beforeTokenPublicationForTests.run();
             // Correlate the token from the proposal (not the reason string): a recovery fail-open
             // changes the disposition, and its mode test below then skips token registration.
-            if (auraClaimProposed
+            if (vfxClaimProposed
                     && disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
                     && LEDGER.isPendingDelegated(invocation.invocationId)) {
-                // Aura claim keeps a host draw callback token so a successful ART draw or a
+                // A claim keeps a host draw callback token so a successful ART draw or a
                 // fail-open fallback can be correlated to this exact instance.
                 registerEffectInvocation(identity.instanceId, invocation.invocationId);
-            } else if (!auraClaimProposed
+            } else if (!vfxClaimProposed
                     && disposition.mode == RenderDisposition.Mode.DELEGATE_TO_ART
                     && LEDGER.isPendingDelegated(invocation.invocationId)
                     && LEDGER.completeDelegatedWithoutEvidence(invocation.invocationId)) {
@@ -602,8 +603,8 @@ public final class NativeRenderBridge {
         }
     }
 
-    /** True iff the invocation id is a pending per-instance aura claim. */
-    public static boolean isAuraClaimInvocation(long invocationId) {
+    /** True iff the invocation id is a pending per-instance transient-effect claim. */
+    public static boolean isVfxClaimInvocation(long invocationId) {
         synchronized (EFFECT_INVOCATIONS) {
             for (ArrayDeque<Long> ids : EFFECT_INVOCATIONS.values()) {
                 if (ids.contains(Long.valueOf(invocationId))) return true;
@@ -612,10 +613,10 @@ public final class NativeRenderBridge {
         }
     }
 
-    /** Records delegated aura pixel evidence then consumes the pending claim token. */
+    /** Records delegated claim pixel evidence then consumes the pending claim token. */
     public static void recordEffectDraw(long invocationId, int drawCount) {
         synchronized (BRIDGE_LOCK) {
-            if (!isAuraClaimInvocation(invocationId)) return;
+            if (!isVfxClaimInvocation(invocationId)) return;
             if (LEDGER.recordDelegatedEvidence(invocationId, drawCount, "active")) {
                 removeEffectInvocation(invocationId);
             } else {
@@ -625,13 +626,13 @@ public final class NativeRenderBridge {
     }
 
     /**
-     * Fails a pending aura claim open to native and always consumes its token. It must not throw:
-     * a stale id with no token is a no-op.
+     * Fails a pending transient-effect claim open to native and always consumes its token. It must
+     * not throw: a stale id with no token is a no-op.
      */
     public static void recordEffectFailure(long invocationId) {
         synchronized (BRIDGE_LOCK) {
             try {
-                if (!isAuraClaimInvocation(invocationId)) return;
+                if (!isVfxClaimInvocation(invocationId)) return;
                 if (LEDGER.recordDelegatedFallbackIfPending(invocationId)) return;
                 if (LEDGER.isPendingDelegated(invocationId)) LEDGER.recordOrphanArtOutput();
             } finally {

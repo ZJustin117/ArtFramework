@@ -58,7 +58,7 @@ public class ArtFrameworkMod implements PostInitializeSubscriber {
         try {
             // F2c: bind the real ART aura renderer behind the default-off F1 claim seam. Failure
             // must not break mod init; the inert default keeps native aura pixels authoritative.
-            artframework.sts1.assets.Sts1HostAssets.installAuraRenderer();
+            artframework.sts1.assets.Sts1HostAssets.installVfxRenderer();
         } catch (Throwable t) {
             BaseMod.logger.warn("ArtFramework: aura renderer install skipped: " + t.getMessage());
         }

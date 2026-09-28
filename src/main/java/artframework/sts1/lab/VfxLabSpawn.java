@@ -17,8 +17,9 @@ import java.util.function.Predicate;
 
 /**
  * Lab/dev helper that queues native transient effects from the family-neutral per-instance claim
- * seam (current members are the {@code vfx-stance-aura} FQNs) into the live STS effect containers so
- * a device-side lab run can exercise the family without combat.
+ * seam (current members are the {@code vfx-stance-aura} FQNs plus the cross-family
+ * {@code LightFlareSEffect} and {@code FlashAtkImgEffect}) into the live STS effect containers so a
+ * device-side lab run can exercise the family without combat.
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -69,6 +70,9 @@ public final class VfxLabSpawn {
         }
         if ("flare".equalsIgnoreCase(value) || "lightflare".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.SCENE_LIGHT_FLARE;
+        }
+        if ("flash".equalsIgnoreCase(value) || "flashatk".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FLASH_ATK_IMG;
         }
         return null;
     }
@@ -171,6 +175,14 @@ public final class VfxLabSpawn {
             // game; the constructor may throw and spawn's fail-open guard drops it rather than
             // propagating.
             return new LightFlareSEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.FLASH_ATK_IMG.equals(fqn)) {
+            // Safe lab defaults: screen-center-ish point and a concrete attack effect. The static
+            // ImageMaster regions may be null outside a live game; any failure is caught by spawn's
+            // fail-open guard rather than propagating.
+            return new com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect(
+                    960f, 540f,
+                    com.megacrit.cardcrawl.actions.AbstractGameAction.AttackEffect.BLUNT_HEAVY);
         }
         return null;
     }

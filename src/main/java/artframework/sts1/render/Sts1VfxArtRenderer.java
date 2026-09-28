@@ -16,15 +16,17 @@ import java.lang.reflect.Field;
 /**
  * STS1 host-side {@link VfxArtRenderer.Adapter} for the family-neutral per-instance transient-effect
  * claim seam (current members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
- * {@code LightFlareSEffect}).
+ * {@code LightFlareSEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
  * completes the renderer: {@link #render} converts the effect's own live {@code img} region to the
  * host-neutral {@link AtlasRegion} (via {@link Sts1GdxAtlasRegions#fromGdx}), resolves the native
- * draw arguments through {@link VfxDrawGeometry#params}, and replays the native additive
- * {@code SpriteBatch.draw} with color/blend save-restore. {@code CalmParticleEffect} has no
+ * draw arguments through {@link VfxDrawGeometry#params}, and replays the native
+ * {@code SpriteBatch.draw} with color save-restore and a per-kind blend policy
+ * ({@link VfxDrawGeometry#additiveBlend}): additive for most kinds, but ambient — no
+ * {@code setBlendFunction} call at all — for {@code FlashAtkImgEffect}. {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload. A false
  * result still means "no pixels produced" so the caller fails open to the native draw.
@@ -114,9 +116,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code duration} are always optional and default to {@code 0}. {@code vY} is required only for
      * the kinds whose {@link VfxDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
      * {@code DIVINITY_PARTICLE}); for the kinds that ignore it ({@code STANCE_AURA},
-     * {@code DIVINITY_STANCE_CHANGE}, {@code LIGHT_FLARE}) it is optional and defaults to {@code 0},
-     * which is required because {@code DivinityStanceChangeParticle} and {@code LightFlareSEffect}
-     * have no {@code vY} field. Returns {@code null}
+     * {@code DIVINITY_STANCE_CHANGE}, {@code LIGHT_FLARE}, {@code FLASH_ATK_IMG}) it is optional and
+     * defaults to {@code 0}, which is required because {@code DivinityStanceChangeParticle},
+     * {@code LightFlareSEffect}, and {@code FlashAtkImgEffect} have no {@code vY} field. Returns
+     * {@code null}
      * when the effect is null or any required field is absent, unreadable, or of the wrong type;
      * never throws.
      */
@@ -180,16 +183,20 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
-     * Draws the real ART sprite for a claimed transient effect, reproducing the native additive
-     * draw.
+     * Draws the real ART sprite for a claimed transient effect, reproducing the native draw
+     * including its per-kind blend behavior ({@link VfxDrawGeometry#additiveBlend}: additive for
+     * most kinds, ambient — no {@code setBlendFunction} call — for {@code FlashAtkImgEffect}).
      *
      * <p>For the img-based kinds: the region comes from the effect's own live
      * {@code img} through {@link Sts1GdxAtlasRegions#fromGdx}, geometry from
-     * {@link VfxDrawGeometry#params}, color from the effect's own {@link Color} (or white),
-     * additive blend {@code (SRC_ALPHA, ONE)}, and blend/color restored to the previous state
-     * afterwards. That draw uses the {@code SpriteBatch#draw(TextureRegion, ...)} overload with the
-     * same arguments the native call passes, so libGDX resolves the region's UV rect (including any
-     * atlas {@code rotate} baking) exactly as the native effect does.
+     * {@link VfxDrawGeometry#params}, color from the effect's own {@link Color} (or white). The
+     * per-kind blend policy is {@link VfxDrawGeometry#additiveBlend}: additive kinds install
+     * {@code (SRC_ALPHA, ONE)} and restore {@code (SRC_ALPHA, ONE_MINUS_SRC_ALPHA)};
+     * {@code FlashAtkImgEffect} never calls {@code setBlendFunction} natively, so its branch draws
+     * under the ambient blend and restores only the previous color. Every branch restores the
+     * previous color. That draw uses the {@code SpriteBatch#draw(TextureRegion, ...)} overload with
+     * the same arguments the native call passes, so libGDX resolves the region's UV rect (including
+     * any atlas {@code rotate} baking) exactly as the native effect does.
      *
      * <p>{@code CalmParticleEffect} has no {@code img}: it draws the bare
      * {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@code Texture} the native render reads, so this
@@ -219,16 +226,26 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                     kind, f.x, f.y, f.vY, f.scale, f.rotation, f.durDiv2, f.duration,
                     settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight());
+            // Per-kind blend policy: most kinds install additive blend and restore it, but
+            // FlashAtkImgEffect never calls setBlendFunction natively, so it must draw under the
+            // ambient blend and restore only color.
+            boolean additive = VfxDrawGeometry.additiveBlend(kind);
             Color previous = new Color(sb.getColor());
+            boolean blendChanged = false;
             try {
                 sb.setColor(f.color != null ? f.color : Color.WHITE);
-                sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+                if (additive) {
+                    sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+                    blendChanged = true;
+                }
                 sb.draw(gdx, p.x, p.y, p.originX, p.originY, p.width, p.height,
                         p.scaleX, p.scaleY, p.rotation);
                 return true;
             } finally {
                 try {
-                    sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                    if (blendChanged) {
+                        sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                    }
                     sb.setColor(previous);
                 } catch (Throwable ignored) {
                 }

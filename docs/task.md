@@ -170,6 +170,23 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       Default-off gate, fail-open, and per-instance token semantics unchanged; no new patch, bridge,
       or console wiring. Focused no-GL JUnit only.
 
+- [x] NRO-04 F8 (per-kind blend policy + first `vfx-combat` claimable, `FlashAtkImgEffect`): blend
+      handling is now a pure per-kind policy, `VfxDrawGeometry.additiveBlend(Kind)` — additive
+      (install `770/1`, restore `770/771`) for every existing kind and ambient for the new
+      `Kind.FLASH_ATK_IMG`. `com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect` (family
+      `vfx-combat`) is the first member whose native `render` never calls `setBlendFunction`; it
+      draws under the ambient blend, so the claim draw must not switch blend state and restores only
+      the previous color (the renderer tracks whether blend was changed and restores `770/771` only
+      when it was). It reuses the `STANCE_AURA` geometry branch (x/y passthrough, center origin,
+      packed size, uniform scale) and has no `vY`, so it stays on the optional-`vY` reader path.
+      `VfxClaimPolicy.FLASH_ATK_IMG` is appended last to `supportedClasses()`;
+      `VfxLabSpawn.classNameFor("flash")` (alias `"flashatk"`) constructs
+      `new FlashAtkImgEffect(960f, 540f, AttackEffect.BLUNT_HEAVY)` behind the existing fail-open
+      guard (its static `ImageMaster` regions may be null off-game), and `art claim spawn flash 4`
+      runs in both `d1_aura_claim.yaml` phases. The cross-family claimable list is now stance-aura +
+      scene-world + combat. Default-off gate, fail-open, and per-instance token semantics unchanged;
+      no new patch, bridge, or console wiring. Focused no-GL JUnit only.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

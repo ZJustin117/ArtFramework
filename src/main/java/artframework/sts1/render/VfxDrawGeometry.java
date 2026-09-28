@@ -3,17 +3,20 @@ package artframework.sts1.render;
 /**
  * Pure draw geometry for one claimed per-instance transient effect (family-neutral seam; current
  * members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
- * {@code LightFlareSEffect}), mirroring the native render formula exactly.
+ * {@code LightFlareSEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}), mirroring the
+ * native render formula exactly.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
- * color/blend/UV state. For every claimable effect the native render method draws additively —
- * {@code setColor(color)} and {@code setBlendFunction(770, 1)} around
- * {@code SpriteBatch.draw(...)} — and restores {@code setBlendFunction(770, 771)} afterwards. The
- * native {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is
- * shared with the aura classes. The
- * host draw owns that color/blend/UV (and the region's UV rect); this mapping only resolves the
- * positional/scale/rotation arguments the batch receives, with the native center origin
- * {@code (packedWidth / 2, packedHeight / 2)} and the identity width/height
+ * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
+ * claimable effects draw additively — the host draw calls {@code setColor(color)} and
+ * {@code setBlendFunction(770, 1)} around {@code SpriteBatch.draw(...)} and restores
+ * {@code setBlendFunction(770, 771)} afterwards — but {@code FlashAtkImgEffect} never calls
+ * {@code setBlendFunction} at all, so it must draw under the ambient blend and restore only the
+ * previous color ({@link #additiveBlend} returns {@code false} for it). The native
+ * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
+ * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
+ * mapping only resolves the positional/scale/rotation arguments the batch receives, with the native
+ * center origin {@code (packedWidth / 2, packedHeight / 2)} and the identity width/height
  * {@code (packedWidth, packedHeight)}.
  *
  * <p>The per-kind formulas mirrored here are:
@@ -24,6 +27,8 @@ package artframework.sts1.render;
  *   DivinityStanceChangeParticle.render:
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   LightFlareSEffect.render:
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   FlashAtkImgEffect.render (note: no setBlendFunction; ambient blend):
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   WrathParticleEffect.render:
  *     sb.draw(img, x, y + vY, pw/2f, ph/2f, pw, ph,
@@ -38,20 +43,23 @@ package artframework.sts1.render;
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. Calm is the
  * one kind that draws a bare {@code Texture}, so its native origin/size/source rect are fixed
- * constants and the packed region size is ignored. {@code DivinityStanceChangeParticle} and the
- * cross-family {@code LightFlareSEffect} share the {@code StanceAuraEffect} geometry (x/y
- * passthrough, no {@code vY}), so they map to the same {@link Kind#STANCE_AURA} formula branch.
+ * constants and the packed region size is ignored. {@code DivinityStanceChangeParticle}, the
+ * cross-family {@code LightFlareSEffect}, and the {@code vfx-combat} {@code FlashAtkImgEffect}
+ * share the {@code StanceAuraEffect} geometry (x/y passthrough, no {@code vY}), so they map to the
+ * same {@link Kind#STANCE_AURA} formula branch. {@code FlashAtkImgEffect} differs only in blend:
+ * it never switches blend function, so {@link #additiveBlend} reports {@code false} for it.
  */
 public final class VfxDrawGeometry {
 
-    /** The claimable draw formulas (the {@code vfx-stance-aura} FQNs plus {@code LightFlareSEffect}). */
+    /** The claimable draw formulas (the {@code vfx-stance-aura} FQNs plus the cross-family members). */
     public enum Kind {
         STANCE_AURA,
         WRATH_PARTICLE,
         DIVINITY_PARTICLE,
         CALM_PARTICLE,
         DIVINITY_STANCE_CHANGE,
-        LIGHT_FLARE
+        LIGHT_FLARE,
+        FLASH_ATK_IMG
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -157,13 +165,34 @@ public final class VfxDrawGeometry {
             return Kind.DIVINITY_STANCE_CHANGE;
         }
         if (VfxClaimPolicy.SCENE_LIGHT_FLARE.equals(value)) return Kind.LIGHT_FLARE;
+        if (VfxClaimPolicy.FLASH_ATK_IMG.equals(value)) return Kind.FLASH_ATK_IMG;
         return null;
     }
 
     /**
+     * Pure per-kind blend policy: {@code true} when the native render installs the additive blend
+     * {@code (SRC_ALPHA, ONE)} around its draw and restores {@code (SRC_ALPHA, ONE_MINUS_SRC_ALPHA)},
+     * {@code false} when it never touches the blend function and draws under whatever ambient blend
+     * is active.
+     *
+     * <p>Every existing kind is additive; {@link Kind#FLASH_ATK_IMG} is the first ambient kind
+     * ({@code FlashAtkImgEffect} does not call {@code setBlendFunction} at all), so the host draw must
+     * not install or restore a blend function for it.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean additiveBlend(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind != Kind.FLASH_ATK_IMG;
+    }
+
+    /**
      * Pure geometry for one claim. The caller supplies the effect field floats and the packed
-     * region size; color/blend/UV are applied by the host draw (additive 770/1, restored to
-     * 770/771).
+     * region size; the per-kind color/blend state is applied by the host draw (see
+     * {@link #additiveBlend}: additive kinds install/restore {@code 770/1}-&rarr;{@code 770/771},
+     * while {@code FLASH_ATK_IMG} leaves the ambient blend untouched and restores only color).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -179,9 +208,11 @@ public final class VfxDrawGeometry {
             case STANCE_AURA:
             case DIVINITY_STANCE_CHANGE:
             case LIGHT_FLARE:
-                // DivinityStanceChangeParticle and the cross-family LightFlareSEffect mirror
-                // StanceAuraEffect exactly: x/y passthrough (no vY field), center origin, packed
-                // size, uniform scale.
+            case FLASH_ATK_IMG:
+                // DivinityStanceChangeParticle, the cross-family LightFlareSEffect, and the
+                // vfx-combat FlashAtkImgEffect mirror StanceAuraEffect exactly: x/y passthrough (no
+                // vY field), center origin, packed size, uniform scale. Flash differs only in blend
+                // (ambient, via additiveBlend == false).
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
             case DIVINITY_PARTICLE:

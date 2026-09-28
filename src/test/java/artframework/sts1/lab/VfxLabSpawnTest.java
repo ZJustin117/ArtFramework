@@ -34,6 +34,8 @@ public class VfxLabSpawnTest {
                 VfxLabSpawn.classNameFor("dsc"));
         assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("flare"));
         assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("lightflare"));
+        assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, VfxLabSpawn.classNameFor("flash"));
+        assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, VfxLabSpawn.classNameFor("flashatk"));
     }
 
     @Test
@@ -48,6 +50,8 @@ public class VfxLabSpawnTest {
                 VfxLabSpawn.classNameFor(" DSC "));
         assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("  FlArE "));
         assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("LIGHTFLARE"));
+        assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, VfxLabSpawn.classNameFor("  FlAsH "));
+        assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, VfxLabSpawn.classNameFor("FLASHATK"));
     }
 
     @Test
@@ -194,6 +198,34 @@ public class VfxLabSpawnTest {
         assertEquals(3, factory2.requested.size());
         for (String fqn : factory2.requested) {
             assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, fqn);
+        }
+    }
+
+    @Test
+    public void spawnHappyPathQueuesFlashAtkImgThroughTheFactorySeam() {
+        // The first vfx-combat claimable FQN; the capturing factory proves the flash/flashatk aliases
+        // request exactly that FQN without touching its GL/image-backed constructor.
+        RecordingQueue queue = new RecordingQueue();
+        CapturingFactory factory = new CapturingFactory();
+        VfxLabSpawn.setQueueForTests(queue);
+        VfxLabSpawn.setFactoryForTests(factory);
+
+        assertEquals(4, VfxLabSpawn.spawn("flash", 4));
+        assertEquals(4, queue.added.size());
+        assertEquals(4, factory.requested.size());
+        for (String fqn : factory.requested) {
+            assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, fqn);
+        }
+
+        RecordingQueue queue2 = new RecordingQueue();
+        CapturingFactory factory2 = new CapturingFactory();
+        VfxLabSpawn.setQueueForTests(queue2);
+        VfxLabSpawn.setFactoryForTests(factory2);
+
+        assertEquals(3, VfxLabSpawn.spawn("flashatk", 3));
+        assertEquals(3, factory2.requested.size());
+        for (String fqn : factory2.requested) {
+            assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, fqn);
         }
     }
 

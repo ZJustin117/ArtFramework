@@ -1,10 +1,17 @@
 package artframework.sts1.render;
 
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect;
+import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import org.junit.Test;
+
+import java.lang.reflect.Field;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -191,6 +198,7 @@ public class Sts1VfxArtRendererTest {
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
                 VfxDrawGeometry.Kind.LIGHT_FLARE,
+                VfxDrawGeometry.Kind.FLASH_ATK_IMG,
                 VfxDrawGeometry.Kind.STANCE_AURA }) {
             Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
 
@@ -368,6 +376,9 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.SCENE_LIGHT_FLARE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.FLASH_ATK_IMG));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -377,8 +388,11 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(
                 VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_LIGHT_FLARE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FLASH_ATK_IMG + "$Sub"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
+        assertFalse(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect2"));
     }
 
     @Test
@@ -389,6 +403,147 @@ public class Sts1VfxArtRendererTest {
         Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
 
         assertFalse(renderer.render(null, null));
+    }
+
+    @Test
+    public void ambientKindDoesNotSwitchBlendFunctionWhileAdditiveKindDoes() {
+        // Per-kind blend policy end-to-end at the render entry point: FlashAtkImgEffect never calls
+        // setBlendFunction natively, so the claim draw must draw under the ambient blend and restore
+        // only color. A counting SpriteBatch double (no GL: the override never reaches the real
+        // blend/flush path) proves the call count.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        CountingBatch ambient = newCountingBatch();
+        AbstractGameEffect flash = flashEffect();
+        assertTrue(renderer.render(ambient, flash));
+        assertEquals("the ambient kind must not touch the blend function",
+                0, ambient.setBlendCalls);
+        // The per-instance color is restored to the previous (white) value; the packed float
+        // round-trip may lose at most one 8-bit step, so compare with that tolerance.
+        assertEquals("the ambient draw must still restore the previous color",
+                1f, ambient.getColor().a, 1f / 255f);
+        assertEquals(1f, ambient.getColor().r, 1f / 255f);
+
+        CountingBatch additive = newCountingBatch();
+        AbstractGameEffect aura = auraEffect();
+        assertTrue(renderer.render(additive, aura));
+        assertEquals("an additive kind installs and restores the blend function",
+                2, additive.setBlendCalls);
+    }
+
+    // --- no-GL draws (mirrors BackgroundRenderPatchesTest/Sts1GdxAtlasRegionsTest conventions) ---
+
+    /** SpriteBatch double that counts blend-function calls without reaching the GL flush path. */
+    static class CountingBatch extends SpriteBatch {
+        int setBlendCalls;
+
+        CountingBatch() {
+            // Never invoked: instances are created with Unsafe.allocateInstance so no GL/asset state
+            // is needed; the constructor exists only so the subclass compiles against SpriteBatch.
+            super(1);
+        }
+
+        @Override
+        public void setBlendFunction(int srcFunc, int dstFunc) {
+            // Deliberately skip super: this test only asserts whether the call happened, and the
+            // real method would flush (binding a GL texture) on the no-GL double.
+            setBlendCalls++;
+        }
+    }
+
+    private static CountingBatch newCountingBatch() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            CountingBatch sb = (CountingBatch) unsafe.allocateInstance(CountingBatch.class);
+            setField(sb, SpriteBatch.class, "vertices", new float[20 * 4096]);
+            setField(sb, SpriteBatch.class, "idx", Integer.valueOf(0));
+            setField(sb, SpriteBatch.class, "drawing", Boolean.TRUE);
+            setField(sb, SpriteBatch.class, "lastTexture", noGlTexture(256, 256));
+            setField(sb, SpriteBatch.class, "color", Float.valueOf(Color.WHITE.toFloatBits()));
+            setField(sb, SpriteBatch.class, "tempColor", new Color(1f, 1f, 1f, 1f));
+            return sb;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL CountingBatch", failure);
+        }
+    }
+
+    private static void setField(Object target, Class<?> owner, String name, Object value)
+            throws Exception {
+        Field field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    private static Texture noGlTexture(final int width, final int height) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            Texture texture = (Texture) unsafe.allocateInstance(Texture.class);
+            setField(texture, Texture.class, "data", new TextureData() {
+                public TextureDataType getType() { return TextureDataType.Pixmap; }
+                public boolean isPrepared() { return true; }
+                public void prepare() {}
+                public Pixmap consumePixmap() { return null; }
+                public boolean disposePixmap() { return false; }
+                public void consumeCustomData(int target) {}
+                public int getWidth() { return width; }
+                public int getHeight() { return height; }
+                public Pixmap.Format getFormat() { return Pixmap.Format.RGBA8888; }
+                public boolean useMipMaps() { return false; }
+                public boolean isManaged() { return false; }
+            });
+            return texture;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL texture double", failure);
+        }
+    }
+
+    /** Real {@code FlashAtkImgEffect} with reflectively seeded draw fields (no game/GL context). */
+    private static AbstractGameEffect flashEffect() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            FlashAtkImgEffect effect =
+                    (FlashAtkImgEffect) unsafe.allocateInstance(FlashAtkImgEffect.class);
+            effect.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+            setField(effect, FlashAtkImgEffect.class, "x", Float.valueOf(5f));
+            setField(effect, FlashAtkImgEffect.class, "y", Float.valueOf(6f));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL FlashAtkImgEffect", failure);
+        }
+    }
+
+    /** Real {@code StanceAuraEffect} with reflectively seeded draw fields (no game/GL context). */
+    private static AbstractGameEffect auraEffect() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            StanceAuraEffect effect =
+                    (StanceAuraEffect) unsafe.allocateInstance(StanceAuraEffect.class);
+            setField(effect, StanceAuraEffect.class, "x", Float.valueOf(5f));
+            setField(effect, StanceAuraEffect.class, "y", Float.valueOf(6f));
+            setField(effect, StanceAuraEffect.class, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL StanceAuraEffect", failure);
+        }
     }
 
     @Test

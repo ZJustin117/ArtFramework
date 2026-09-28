@@ -1,8 +1,10 @@
 package artframework.sts1.render;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import org.junit.Test;
@@ -26,6 +28,8 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
         assertSame(VfxDrawGeometry.Kind.LIGHT_FLARE,
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.SCENE_LIGHT_FLARE));
+        assertSame(VfxDrawGeometry.Kind.FLASH_ATK_IMG,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FLASH_ATK_IMG));
         // the exact literal FQNs, not just the policy constants
         assertSame(VfxDrawGeometry.Kind.STANCE_AURA,
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect"));
@@ -43,6 +47,9 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.LIGHT_FLARE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect"));
+        assertSame(VfxDrawGeometry.Kind.FLASH_ATK_IMG,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect"));
     }
 
     @Test
@@ -74,6 +81,13 @@ public class VfxDrawGeometryTest {
         assertNull(VfxDrawGeometry.kindFor("LightFlareSEffect")); // simple name only
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareEffect")); // near-miss (no S)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlashAtkEffect")); // near-miss (no Img)
+        assertNull(VfxDrawGeometry.kindFor("FlashAtkImgEffect")); // simple name only
     }
 
     @Test
@@ -305,6 +319,64 @@ public class VfxDrawGeometryTest {
     public void nullKindThrowsIllegalArgument() {
         try {
             VfxDrawGeometry.params(null, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 1f);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void flashAtkImgMatchesStanceAuraGeometryExactly() {
+        // The vfx-combat member draws the same formula as StanceAuraEffect: x/y passthrough (the
+        // class has no vY field), center origin, packed size, uniform scale.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.FLASH_ATK_IMG,
+                x, y, 999f /* no vY field; ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                pw, ph);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(pw / 2f, p.originX, EPS);
+        assertEquals(ph / 2f, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        // Byte-identical to the STANCE_AURA result for the same inputs.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+        assertEquals(p, q);
+    }
+
+    @Test
+    public void additiveBlendIsTrueForEveryKindExceptFlashAtkImg() {
+        // FlashAtkImgEffect never calls setBlendFunction natively, so its host draw must not
+        // install additive blend.
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLASH_ATK_IMG));
+
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG) {
+                continue;
+            }
+            assertTrue("expected additive blend for " + kind,
+                    VfxDrawGeometry.additiveBlend(kind));
+        }
+    }
+
+    @Test
+    public void additiveBlendNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.additiveBlend(null);
             fail("expected IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
             // expected

@@ -4,6 +4,7 @@ import artframework.sts1.render.VfxClaimPolicy;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect;
 import com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle;
@@ -65,6 +66,9 @@ public final class VfxLabSpawn {
         }
         if ("divinitychange".equalsIgnoreCase(value) || "dsc".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE;
+        }
+        if ("flare".equalsIgnoreCase(value) || "lightflare".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SCENE_LIGHT_FLARE;
         }
         return null;
     }
@@ -161,6 +165,12 @@ public final class VfxLabSpawn {
             // Safe lab defaults: white tint at a screen-center-ish point. Native settings/GL state
             // are not required to construct; any failure is caught by spawn's fail-open guard.
             return new DivinityStanceChangeParticle(Color.WHITE, 960f, 540f);
+        }
+        if (VfxClaimPolicy.SCENE_LIGHT_FLARE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The static imgs[] is null outside a live
+            // game; the constructor may throw and spawn's fail-open guard drops it rather than
+            // propagating.
+            return new LightFlareSEffect(960f, 540f);
         }
         return null;
     }

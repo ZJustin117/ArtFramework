@@ -24,6 +24,8 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.CALM_PARTICLE_EFFECT));
         assertSame(VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
+        assertSame(VfxDrawGeometry.Kind.LIGHT_FLARE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SCENE_LIGHT_FLARE));
         // the exact literal FQNs, not just the policy constants
         assertSame(VfxDrawGeometry.Kind.STANCE_AURA,
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect"));
@@ -38,6 +40,9 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle"));
+        assertSame(VfxDrawGeometry.Kind.LIGHT_FLARE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect"));
     }
 
     @Test
@@ -62,6 +67,13 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle2"));
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle$Sub"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("LightFlareSEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareEffect")); // near-miss (no S)
     }
 
     @Test
@@ -236,6 +248,39 @@ public class VfxDrawGeometryTest {
 
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                x, y, 999f /* no vY field; ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                pw, ph);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(pw / 2f, p.originX, EPS);
+        assertEquals(ph / 2f, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        // Byte-identical to the STANCE_AURA result for the same inputs.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+        assertEquals(p, q);
+    }
+
+    @Test
+    public void lightFlareMatchesStanceAuraGeometryExactly() {
+        // The cross-family vfx-scene-world member draws the same formula as StanceAuraEffect: x/y
+        // passthrough (the class has no vY field), center origin, packed size, uniform scale.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.LIGHT_FLARE,
                 x, y, 999f /* no vY field; ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
                 pw, ph);

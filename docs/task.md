@@ -156,6 +156,20 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       prefix `ART_VFX`) and is never routed to the claim seam.
       The `vfx-stance-aura` family name is retained.
 
+- [x] NRO-04 aura F7 (cross-family: first non-aura claimable, `LightFlareSEffect`):
+      `com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect` (family `vfx-scene-world`) is the first
+      non-aura member of the generalized per-instance claim seam —
+      `VfxClaimPolicy.SCENE_LIGHT_FLARE` is appended last to `supportedClasses()` and
+      `VfxDrawGeometry.Kind.LIGHT_FLARE` reuses the `STANCE_AURA` geometry branch (x/y passthrough,
+      center origin, packed size, uniform scale). The native draw is additive (`770/1` restored to
+      `770/771`) with the same end state as the aura classes (blend-before-color native order is
+      order-insensitive), and `LightFlareSEffect` has no `vY` field, so the optional-`vY` reader path
+      already covers it. `VfxLabSpawn.classNameFor("flare")` (alias `"lightflare"`) constructs
+      `new LightFlareSEffect(960f, 540f)` behind the existing fail-open guard (its static `imgs` may
+      be null off-game), and `art claim spawn flare 4` runs in both `d1_aura_claim.yaml` phases.
+      Default-off gate, fail-open, and per-instance token semantics unchanged; no new patch, bridge,
+      or console wiring. Focused no-GL JUnit only.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

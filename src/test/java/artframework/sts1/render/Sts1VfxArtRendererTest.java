@@ -62,8 +62,9 @@ public class Sts1VfxArtRendererTest {
     }
 
     /**
-     * {@code DivinityStanceChangeParticle} layout: has {@code x}/{@code y}/{@code img} but no
-     * {@code vY} field at all, so {@code vY} must default to {@code 0}.
+     * {@code DivinityStanceChangeParticle}/{@code LightFlareSEffect} layout: has
+     * {@code x}/{@code y}/{@code img} but no {@code vY} field at all, so {@code vY} must default to
+     * {@code 0}.
      */
     static class NoVYEffect extends BaseEffect {
         private float x;
@@ -176,8 +177,9 @@ public class Sts1VfxArtRendererTest {
 
     @Test
     public void readFieldsDefaultsAbsentVYToZeroForKindsThatIgnoreIt() {
-        // DivinityStanceChangeParticle has no vY field; STANCE_AURA also ignores vY. For both kinds
-        // the img-based reader must still resolve and report vY == 0 rather than failing open.
+        // DivinityStanceChangeParticle and the cross-family LightFlareSEffect have no vY field;
+        // STANCE_AURA also ignores vY. For every one of these kinds the img-based reader must still
+        // resolve and report vY == 0 rather than failing open.
         NoVYEffect effect = new NoVYEffect();
         effect.x = 7.5f;
         effect.y = -3.25f;
@@ -188,6 +190,7 @@ public class Sts1VfxArtRendererTest {
 
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                VfxDrawGeometry.Kind.LIGHT_FLARE,
                 VfxDrawGeometry.Kind.STANCE_AURA }) {
             Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
 
@@ -362,6 +365,9 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle"));
         assertTrue(renderer.isReady("com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SCENE_LIGHT_FLARE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -370,6 +376,9 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.CALM_PARTICLE_EFFECT + "$Sub"));
         assertFalse(renderer.isReady(
                 VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_LIGHT_FLARE + "$Sub"));
+        assertFalse(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
     }
 
     @Test

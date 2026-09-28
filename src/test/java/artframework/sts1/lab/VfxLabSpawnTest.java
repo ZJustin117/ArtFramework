@@ -32,6 +32,8 @@ public class VfxLabSpawnTest {
                 VfxLabSpawn.classNameFor("divinitychange"));
         assertEquals(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
                 VfxLabSpawn.classNameFor("dsc"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("flare"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("lightflare"));
     }
 
     @Test
@@ -44,6 +46,8 @@ public class VfxLabSpawnTest {
                 VfxLabSpawn.classNameFor("  DiViNiTyChAnGe "));
         assertEquals(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
                 VfxLabSpawn.classNameFor(" DSC "));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("  FlArE "));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("LIGHTFLARE"));
     }
 
     @Test
@@ -161,6 +165,35 @@ public class VfxLabSpawnTest {
         assertEquals(4, factory.requested.size());
         for (String fqn : factory.requested) {
             assertEquals(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE, fqn);
+        }
+    }
+
+    @Test
+    public void spawnHappyPathQueuesLightFlareThroughTheFactorySeam() {
+        // The first non-aura (vfx-scene-world) claimable FQN; the capturing factory proves the
+        // flare/lightflare aliases request exactly that FQN without touching its GL-backed
+        // constructor.
+        RecordingQueue queue = new RecordingQueue();
+        CapturingFactory factory = new CapturingFactory();
+        VfxLabSpawn.setQueueForTests(queue);
+        VfxLabSpawn.setFactoryForTests(factory);
+
+        assertEquals(4, VfxLabSpawn.spawn("flare", 4));
+        assertEquals(4, queue.added.size());
+        assertEquals(4, factory.requested.size());
+        for (String fqn : factory.requested) {
+            assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, fqn);
+        }
+
+        RecordingQueue queue2 = new RecordingQueue();
+        CapturingFactory factory2 = new CapturingFactory();
+        VfxLabSpawn.setQueueForTests(queue2);
+        VfxLabSpawn.setFactoryForTests(factory2);
+
+        assertEquals(3, VfxLabSpawn.spawn("lightflare", 3));
+        assertEquals(3, factory2.requested.size());
+        for (String fqn : factory2.requested) {
+            assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, fqn);
         }
     }
 

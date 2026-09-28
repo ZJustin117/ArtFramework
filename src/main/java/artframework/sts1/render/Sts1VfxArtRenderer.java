@@ -15,7 +15,8 @@ import java.lang.reflect.Field;
 
 /**
  * STS1 host-side {@link VfxArtRenderer.Adapter} for the family-neutral per-instance transient-effect
- * claim seam (current members are the {@code vfx-stance-aura} FQNs).
+ * claim seam (current members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
+ * {@code LightFlareSEffect}).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -113,15 +114,17 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code duration} are always optional and default to {@code 0}. {@code vY} is required only for
      * the kinds whose {@link VfxDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
      * {@code DIVINITY_PARTICLE}); for the kinds that ignore it ({@code STANCE_AURA},
-     * {@code DIVINITY_STANCE_CHANGE}) it is optional and defaults to {@code 0}, which is required
-     * because {@code DivinityStanceChangeParticle} has no {@code vY} field. Returns {@code null}
+     * {@code DIVINITY_STANCE_CHANGE}, {@code LIGHT_FLARE}) it is optional and defaults to {@code 0},
+     * which is required because {@code DivinityStanceChangeParticle} and {@code LightFlareSEffect}
+     * have no {@code vY} field. Returns {@code null}
      * when the effect is null or any required field is absent, unreadable, or of the wrong type;
      * never throws.
      */
     static Fields readFields(VfxDrawGeometry.Kind kind, Object effect) {
         if (effect == null) return null;
         // vY is only meaningful for the formulas that add it to y; requiring it elsewhere would
-        // wrongly reject DivinityStanceChangeParticle, and omitting it where it is consumed would
+        // wrongly reject DivinityStanceChangeParticle/LightFlareSEffect, and omitting it where it
+        // is consumed would
         // silently draw at an un-shifted y instead of failing open to the native draw.
         boolean requireVY = kind == VfxDrawGeometry.Kind.WRATH_PARTICLE
                 || kind == VfxDrawGeometry.Kind.DIVINITY_PARTICLE;

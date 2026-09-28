@@ -9,12 +9,14 @@ import java.util.List;
  *
  * <p>This is a data predicate, not a per-subclass {@code @SpirePatch}: NRO-04 forbids per-subclass
  * hooks, so the claimable classes are recognized by FQN at the shared effect-container seam. The
- * seam is generic over per-instance transient-effect families; the current members are the
- * {@code vfx-stance-aura} FQNs. Those are the four {@code AtlasRegion}-drawn classes
+ * seam is generic over per-instance transient-effect families, so the current members are
+ * cross-family: the five {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
+ * {@code LightFlareSEffect}. The aura members are the four {@code AtlasRegion}-drawn classes
  * ({@code StanceAuraEffect}, {@code WrathParticleEffect}, {@code DivinityParticleEffect},
  * {@code DivinityStanceChangeParticle}) plus {@code CalmParticleEffect} (which draws a bare
- * {@code Texture}); they use additive blend and are the only members of the family ART may claim
- * per instance.
+ * {@code Texture}); {@code LightFlareSEffect} is the first non-aura member and draws an
+ * {@code AtlasRegion} with the same additive geometry as {@code StanceAuraEffect}. They use
+ * additive blend and are the only members ART may claim per instance.
  */
 public final class VfxClaimPolicy {
 
@@ -28,10 +30,12 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect";
     public static final String DIVINITY_STANCE_CHANGE_PARTICLE =
             "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle";
+    public static final String SCENE_LIGHT_FLARE =
+            "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
-                    CALM_PARTICLE_EFFECT, DIVINITY_STANCE_CHANGE_PARTICLE));
+                    CALM_PARTICLE_EFFECT, DIVINITY_STANCE_CHANGE_PARTICLE, SCENE_LIGHT_FLARE));
 
     private VfxClaimPolicy() {}
 
@@ -44,7 +48,8 @@ public final class VfxClaimPolicy {
                 || WRATH_PARTICLE_EFFECT.equals(value)
                 || DIVINITY_PARTICLE_EFFECT.equals(value)
                 || CALM_PARTICLE_EFFECT.equals(value)
-                || DIVINITY_STANCE_CHANGE_PARTICLE.equals(value);
+                || DIVINITY_STANCE_CHANGE_PARTICLE.equals(value)
+                || SCENE_LIGHT_FLARE.equals(value);
     }
 
     /** The exact claimable FQNs, in declaration order. */

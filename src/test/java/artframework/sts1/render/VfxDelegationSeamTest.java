@@ -41,12 +41,13 @@ public class VfxDelegationSeamTest {
     }
 
     @Test
-    public void claimPolicySupportsTheSupportedAuraFqns() {
+    public void claimPolicySupportsTheSupportedFqns() {
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.STANCE_AURA_EFFECT));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.WRATH_PARTICLE_EFFECT));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.DIVINITY_PARTICLE_EFFECT));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.CALM_PARTICLE_EFFECT));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_LIGHT_FLARE));
     }
 
     @Test
@@ -77,8 +78,9 @@ public class VfxDelegationSeamTest {
                 .contains(VfxClaimPolicy.CALM_PARTICLE_EFFECT));
         assertTrue(VfxClaimPolicy.supportedClasses()
                 .contains(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.SCENE_LIGHT_FLARE));
         assertEquals("the new FQN is appended last",
-                VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE,
+                VfxClaimPolicy.SCENE_LIGHT_FLARE,
                 VfxClaimPolicy.supportedClasses()
                         .get(VfxClaimPolicy.supportedClasses().size() - 1));
     }

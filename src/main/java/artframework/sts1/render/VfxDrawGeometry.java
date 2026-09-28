@@ -2,12 +2,15 @@ package artframework.sts1.render;
 
 /**
  * Pure draw geometry for one claimed per-instance transient effect (family-neutral seam; current
- * members are the {@code vfx-stance-aura} FQNs), mirroring the native render formula exactly.
+ * members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
+ * {@code LightFlareSEffect}), mirroring the native render formula exactly.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
- * color/blend/UV state. For every claimable effect the native render method performs
- * {@code setColor(color)} then {@code setBlendFunction(770, 1)} (additive) before
- * {@code SpriteBatch.draw(...)} and restores {@code setBlendFunction(770, 771)} afterwards. The
+ * color/blend/UV state. For every claimable effect the native render method draws additively —
+ * {@code setColor(color)} and {@code setBlendFunction(770, 1)} around
+ * {@code SpriteBatch.draw(...)} — and restores {@code setBlendFunction(770, 771)} afterwards. The
+ * native {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is
+ * shared with the aura classes. The
  * host draw owns that color/blend/UV (and the region's UV rect); this mapping only resolves the
  * positional/scale/rotation arguments the batch receives, with the native center origin
  * {@code (packedWidth / 2, packedHeight / 2)} and the identity width/height
@@ -19,6 +22,8 @@ package artframework.sts1.render;
  *   StanceAuraEffect.render:
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   DivinityStanceChangeParticle.render:
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   LightFlareSEffect.render:
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   WrathParticleEffect.render:
  *     sb.draw(img, x, y + vY, pw/2f, ph/2f, pw, ph,
@@ -33,19 +38,20 @@ package artframework.sts1.render;
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. Calm is the
  * one kind that draws a bare {@code Texture}, so its native origin/size/source rect are fixed
- * constants and the packed region size is ignored. {@code DivinityStanceChangeParticle} shares the
- * {@code StanceAuraEffect} geometry (x/y passthrough, no {@code vY}), so both map to the same
- * {@link Kind#STANCE_AURA} formula branch.
+ * constants and the packed region size is ignored. {@code DivinityStanceChangeParticle} and the
+ * cross-family {@code LightFlareSEffect} share the {@code StanceAuraEffect} geometry (x/y
+ * passthrough, no {@code vY}), so they map to the same {@link Kind#STANCE_AURA} formula branch.
  */
 public final class VfxDrawGeometry {
 
-    /** The claimable draw formulas (current members are the {@code vfx-stance-aura} FQNs). */
+    /** The claimable draw formulas (the {@code vfx-stance-aura} FQNs plus {@code LightFlareSEffect}). */
     public enum Kind {
         STANCE_AURA,
         WRATH_PARTICLE,
         DIVINITY_PARTICLE,
         CALM_PARTICLE,
-        DIVINITY_STANCE_CHANGE
+        DIVINITY_STANCE_CHANGE,
+        LIGHT_FLARE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -150,6 +156,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE.equals(value)) {
             return Kind.DIVINITY_STANCE_CHANGE;
         }
+        if (VfxClaimPolicy.SCENE_LIGHT_FLARE.equals(value)) return Kind.LIGHT_FLARE;
         return null;
     }
 
@@ -171,8 +178,10 @@ public final class VfxDrawGeometry {
         switch (kind) {
             case STANCE_AURA:
             case DIVINITY_STANCE_CHANGE:
-                // DivinityStanceChangeParticle mirrors StanceAuraEffect exactly: x/y passthrough
-                // (no vY field), center origin, packed size, uniform scale.
+            case LIGHT_FLARE:
+                // DivinityStanceChangeParticle and the cross-family LightFlareSEffect mirror
+                // StanceAuraEffect exactly: x/y passthrough (no vY field), center origin, packed
+                // size, uniform scale.
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
             case DIVINITY_PARTICLE:

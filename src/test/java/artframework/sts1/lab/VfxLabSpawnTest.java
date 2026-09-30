@@ -108,6 +108,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.FLAME_BALL, VfxLabSpawn.classNameFor("flameball"));
         assertEquals(VfxClaimPolicy.SHINE_LINES, VfxLabSpawn.classNameFor("shinelines"));
         assertEquals(VfxClaimPolicy.SHINE_LINES, VfxLabSpawn.classNameFor("shine"));
+        assertEquals(VfxClaimPolicy.TORCH_PARTICLE_M, VfxLabSpawn.classNameFor("torchm"));
+        assertEquals(VfxClaimPolicy.TORCH_PARTICLE_S, VfxLabSpawn.classNameFor("torchs"));
+        assertEquals(VfxClaimPolicy.SCENE_DUST, VfxLabSpawn.classNameFor("scenedust"));
+        assertEquals(VfxClaimPolicy.SCENE_DUST, VfxLabSpawn.classNameFor("dusteffect"));
     }
 
     @Test
@@ -192,6 +196,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.FLAME_BALL, VfxLabSpawn.classNameFor("FLAMEBALL"));
         assertEquals(VfxClaimPolicy.SHINE_LINES, VfxLabSpawn.classNameFor("  ShInElInEs "));
         assertEquals(VfxClaimPolicy.SHINE_LINES, VfxLabSpawn.classNameFor("SHINE"));
+        assertEquals(VfxClaimPolicy.TORCH_PARTICLE_M, VfxLabSpawn.classNameFor("  ToRcHm "));
+        assertEquals(VfxClaimPolicy.TORCH_PARTICLE_S, VfxLabSpawn.classNameFor("TORCHS"));
+        assertEquals(VfxClaimPolicy.SCENE_DUST, VfxLabSpawn.classNameFor("  ScEnEdUsT "));
+        assertEquals(VfxClaimPolicy.SCENE_DUST, VfxLabSpawn.classNameFor("DUSTEFFECT"));
     }
 
     @Test
@@ -480,6 +488,17 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("flameball", VfxClaimPolicy.FLAME_BALL);
         assertSpawnRequests("shinelines", VfxClaimPolicy.SHINE_LINES);
         assertSpawnRequests("shine", VfxClaimPolicy.SHINE_LINES);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF18MembersThroughTheFactorySeam() {
+        // The three newest claimable FQNs; the capturing factory proves each alias requests exactly
+        // its FQN without touching the ImageMaster-backed constructors (DustEffect is constructed via
+        // its NO-ARG constructor).
+        assertSpawnRequests("torchm", VfxClaimPolicy.TORCH_PARTICLE_M);
+        assertSpawnRequests("torchs", VfxClaimPolicy.TORCH_PARTICLE_S);
+        assertSpawnRequests("scenedust", VfxClaimPolicy.SCENE_DUST);
+        assertSpawnRequests("dusteffect", VfxClaimPolicy.SCENE_DUST);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

@@ -100,6 +100,13 @@ import java.util.List;
  * {@code vfx-misc-root} {@code ShineLinesEffect} reuses the ambient center-packed geometry
  * unchanged (origin {@code packedWidth/2f}, {@code packedHeight/2f}, no {@code setBlendFunction},
  * with a native {@code if (!isDone)} draw guard). The
+ * three newest members are all {@code vfx-scene-world}: the {@code TorchParticleMEffect} and
+ * {@code TorchParticleSEffect} are additive center-packed members (native {@code setBlendFunction}
+ * {@code (770, 1)} before and {@code (770, 771)} after) with no new rule and a {@code vY} used only
+ * by {@code update()}, and {@code DustEffect} (the NO-ARG constructor) reuses the {@code
+ * FALLING_DUST} region-offset-origin rule — its ambient draw origin is the region's own {@code
+ * offsetX}/{@code offsetY} rather than {@code packedWidth/2f}/{@code packedHeight/2f} — so it adds
+ * an ambient member to the same geometry branch. The
  * additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
@@ -182,6 +189,12 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.FlameBallParticleEffect";
     public static final String SHINE_LINES =
             "com.megacrit.cardcrawl.vfx.ShineLinesEffect";
+    public static final String TORCH_PARTICLE_M =
+            "com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect";
+    public static final String TORCH_PARTICLE_S =
+            "com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect";
+    public static final String SCENE_DUST =
+            "com.megacrit.cardcrawl.vfx.scene.DustEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -194,7 +207,8 @@ public final class VfxClaimPolicy {
                     EXHAUST_PILE_PARTICLE, UNKNOWN_PARTICLE, FLAME_PARTICLE,
                     LIGHTNING_ORB_ACTIVATE, DAMAGE_IMPACT_BLUR, DAMAGE_IMPACT_LINE,
                     DARK_ORB_PASSIVE, WARNING_SIGN, STUN_STAR, FALLING_DUST,
-                    LIGHTNING_EFFECT, FLAME_BALL, SHINE_LINES));
+                    LIGHTNING_EFFECT, FLAME_BALL, SHINE_LINES,
+                    TORCH_PARTICLE_M, TORCH_PARTICLE_S, SCENE_DUST));
 
     private VfxClaimPolicy() {}
 
@@ -240,7 +254,10 @@ public final class VfxClaimPolicy {
                 || FALLING_DUST.equals(value)
                 || LIGHTNING_EFFECT.equals(value)
                 || FLAME_BALL.equals(value)
-                || SHINE_LINES.equals(value);
+                || SHINE_LINES.equals(value)
+                || TORCH_PARTICLE_M.equals(value)
+                || TORCH_PARTICLE_S.equals(value)
+                || SCENE_DUST.equals(value);
     }
 
     /**
@@ -290,7 +307,13 @@ public final class VfxClaimPolicy {
      * member whose origin Y is {@code packedHeight/2f + 20f * settingsScale}, and
      * {@code ShineLinesEffect} is an
      * ambient center-packed {@code AtlasRegion} member (its native {@code render} also guards the
-     * draw with {@code if (!isDone)}).
+     * draw with {@code if (!isDone)}). The three newest members ({@code TorchParticleMEffect},
+     * {@code TorchParticleSEffect}, {@code DustEffect}) are appended after the shine lines in that
+     * order; {@code TorchParticleMEffect} and {@code TorchParticleSEffect} are additive
+     * center-packed {@code AtlasRegion} members that reuse the {@code StanceAuraEffect} geometry with
+     * no new rule (their {@code vY} is update-only), and {@code DustEffect} is an ambient
+     * center-packed {@code AtlasRegion} member (NO-ARG constructor) whose origin is the region's own
+     * {@code offsetX}/{@code offsetY} (the same rule as {@code FallingDustEffect}).
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

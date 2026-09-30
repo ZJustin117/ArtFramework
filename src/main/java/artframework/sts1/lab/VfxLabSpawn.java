@@ -29,10 +29,13 @@ import com.megacrit.cardcrawl.vfx.combat.StunStarEffect;
 import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
+import com.megacrit.cardcrawl.vfx.scene.DustEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect;
+import com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect;
+import com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect;
 import com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect;
@@ -61,7 +64,9 @@ import java.util.function.Predicate;
  * three newest members {@code WarningSignEffect}/{@code FallingDustEffect} (root) and
  * {@code StunStarEffect} ({@code vfx-combat})}, plus the three newest members
  * {@code LightningEffect} ({@code vfx-combat}), {@code FlameBallParticleEffect}, and
- * {@code ShineLinesEffect} (root) — into
+ * {@code ShineLinesEffect} (root), plus the three newest members
+ * {@code TorchParticleMEffect}/{@code TorchParticleSEffect}/{@code DustEffect}
+ * ({@code vfx-scene-world}; {@code DustEffect} uses its NO-ARG constructor) — into
  * the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
@@ -212,6 +217,15 @@ public final class VfxLabSpawn {
         }
         if ("shinelines".equalsIgnoreCase(value) || "shine".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.SHINE_LINES;
+        }
+        if ("torchm".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.TORCH_PARTICLE_M;
+        }
+        if ("torchs".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.TORCH_PARTICLE_S;
+        }
+        if ("scenedust".equalsIgnoreCase(value) || "dusteffect".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SCENE_DUST;
         }
         return null;
     }
@@ -520,6 +534,24 @@ public final class VfxLabSpawn {
             // may be null outside a live game; any failure is caught by spawn's fail-open guard
             // rather than propagating.
             return new ShineLinesEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.TORCH_PARTICLE_M.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img comes from a private getImg() at
+            // construction time and may be null outside a live game; any failure is caught by spawn's
+            // fail-open guard rather than propagating.
+            return new TorchParticleMEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.TORCH_PARTICLE_S.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img comes from a private getImg() at
+            // construction time and may be null outside a live game; any failure is caught by spawn's
+            // fail-open guard rather than propagating.
+            return new TorchParticleSEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.SCENE_DUST.equals(fqn)) {
+            // Safe lab defaults: DustEffect has a NO-ARG constructor that randomizes its own x/y
+            // (and img from a private getImg()); img may be null outside a live game, so any failure
+            // is caught by spawn's fail-open guard rather than propagating.
+            return new DustEffect();
         }
         return null;
     }

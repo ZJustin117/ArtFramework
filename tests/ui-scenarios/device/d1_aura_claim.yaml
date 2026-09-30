@@ -11,8 +11,9 @@
 # EntangleEffect/BlockImpactLineEffect/UnknownParticleEffect (vfx-combat) and ExhaustPileParticle,
 # plus the five newest vfx-combat FlameParticleEffect/LightningOrbActivateEffect/
 # DamageImpactBlurEffect/DamageImpactLineEffect/DarkOrbPassiveEffect, the three newest
-# WarningSignEffect/StunStarEffect/FallingDustEffect, and the three newest LightningEffect/
-# FlameBallParticleEffect/ShineLinesEffect). Gate-OFF is
+# WarningSignEffect/StunStarEffect/FallingDustEffect, the three newest LightningEffect/
+# FlameBallParticleEffect/ShineLinesEffect, and the three newest TorchParticleMEffect/
+# TorchParticleSEffect/DustEffect). Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.
 #
@@ -107,6 +108,9 @@ steps:
   - console: "art claim spawn lightning 4"
   - console: "art claim spawn flameball 4"
   - console: "art claim spawn shinelines 4"
+  - console: "art claim spawn torchm 4"
+  - console: "art claim spawn torchs 4"
+  - console: "art claim spawn scenedust 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -176,6 +180,9 @@ steps:
   - console: "art claim spawn lightning 4"
   - console: "art claim spawn flameball 4"
   - console: "art claim spawn shinelines 4"
+  - console: "art claim spawn torchm 4"
+  - console: "art claim spawn torchs 4"
+  - console: "art claim spawn scenedust 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

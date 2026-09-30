@@ -514,6 +514,34 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       Focused no-GL JUnit only; the FLAME_BALL origin scaling is pinned at a non-1.0 `settingsScale`
       in both the pure `params` test and the end-to-end renderer test.
 
+- [x] NRO-04 F18 (three more `vfx-scene-world` members, two reuse the additive center-packed
+      branch + one ambient reuse of the region-offset-origin rule):
+      `com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect` and
+      `com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect` reuse the additive center-packed
+      `AtlasRegion` geometry (`setBlendFunction(770, 1)` before and `(770, 771)` after) with NO new
+      rule — their geometry is byte-identical to `StanceAuraEffect` and their `vY` is update-only and
+      NOT consumed (they are NOT added to `requireVY`); and
+      `com.megacrit.cardcrawl.vfx.scene.DustEffect` (constructed through its NO-ARG constructor)
+      reuses the `FALLING_DUST` region-offset-origin rule as an ambient member — its draw origin is
+      the region's own `offsetX`/`offsetY` with NO `setBlendFunction` — so it is another `case`
+      label on the existing branch, not a new computation. `VfxDrawGeometry` gained
+      `Kind.TORCH_PARTICLE_M`/`Kind.TORCH_PARTICLE_S` (added to the shared additive center-packed
+      case list that STANCE_AURA/TORCH_PARTICLE_L/TORCH_PARTICLE_XL use) and `Kind.SCENE_DUST`
+      (added to the FALLING_DUST branch); `kindFor` maps the three exact FQNs (near-miss/nested fail
+      open) and `additiveBlend` is `true` for the two torch kinds and `false` for `SCENE_DUST`;
+      `whiteAlphaOnly` is unchanged. All three are img-path kinds, so `Sts1VfxArtRenderer` reads
+      their `rotation` field unconditionally on the existing single img draw branch (no new draw
+      path) and captures the region offsets for `SCENE_DUST` with the same F15d flip-invariant
+      normalization as `FALLING_DUST`. `VfxClaimPolicy` `TORCH_PARTICLE_M`/`TORCH_PARTICLE_S`/
+      `SCENE_DUST` append LAST to `supportedClasses()`/`supports(...)` in that order (order appended:
+      M, S, SCENE_DUST, since all three are one appended slice); `VfxLabSpawn.classNameFor` gains
+      `"torchm"` (`new TorchParticleMEffect(960f, 540f)`), `"torchs"` (`new
+      TorchParticleSEffect(960f, 540f)`), and `"scenedust"`/`"dusteffect"` (`new DustEffect()`, the
+      NO-ARG constructor; `"dust"` was already taken by `ceilingdust`) behind the existing fail-open
+      guard, and `art claim spawn torchm|torchs|scenedust 4` runs in both `d1_aura_claim.yaml`
+      phases. No new patch/bridge/console wiring; default-off gate + per-instance token semantics
+      unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

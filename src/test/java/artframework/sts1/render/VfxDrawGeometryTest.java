@@ -205,6 +205,18 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.FlameBallParticleEffect"));
         assertSame(VfxDrawGeometry.Kind.SHINE_LINES,
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.ShineLinesEffect"));
+        assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_M,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.TORCH_PARTICLE_M));
+        assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_M,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect"));
+        assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_S,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.TORCH_PARTICLE_S));
+        assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_S,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect"));
+        assertSame(VfxDrawGeometry.Kind.SCENE_DUST,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SCENE_DUST));
+        assertSame(VfxDrawGeometry.Kind.SCENE_DUST,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.scene.DustEffect"));
         assertSame(VfxDrawGeometry.Kind.FALLING_DUST,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.FallingDustEffect"));
@@ -493,6 +505,30 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.combat.ShineLinesEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.ShineLines")); // near-miss (no Effect)
+        // The three newest scene-world members: exact FQN only, near-misses fail open.
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("TorchParticleMEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.TorchParticleMEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("TorchParticleSEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.TorchParticleSEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.DustEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.DustEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("DustEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DustEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.Dust")); // near-miss (no Effect)
     }
 
     @Test
@@ -1518,6 +1554,78 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
+    public void torchParticleMAndSReuseTheStanceAuraCenterPackedGeometryAndStayAdditive() {
+        // Native (TorchParticleMEffect/TorchParticleSEffect): setBlendFunction(770,1);
+        // sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation);
+        // setBlendFunction(770,771). Both have a vY that render ignores (update-only), so it is not
+        // consumed and their geometry is byte-identical to STANCE_AURA.
+        float pw = 52f;
+        float ph = 36f;
+        float x = 7.5f;
+        float y = -4.25f;
+        float scale = 0.85f;
+        float rotation = 26f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 1234f, 0f, 0f, 0f, 0f);
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_M,
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_S }) {
+            VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                    kind, x, y, 999f /* vY ignored (update-only) */, scale, rotation, 7f, 5f, 2f,
+                    pw, ph, 1234f /* vX ignored */, 0f, 0f, 0f, 0f);
+            assertEquals("TORCH geometry must equal the STANCE_AURA center-packed geometry for "
+                    + kind, aura, p);
+            assertTrue("expected additive blend for " + kind,
+                    VfxDrawGeometry.additiveBlend(kind));
+            assertFalse(VfxDrawGeometry.whiteAlphaOnly(kind));
+        }
+    }
+
+    @Test
+    public void sceneDustReusesTheFallingDustRegionOffsetOriginAndStaysAmbient() {
+        // Native DustEffect: setColor(color); sb.draw(img, x, y, img.offsetX, img.offsetY, pw, ph,
+        // scale, scale, rotation) — NO setBlendFunction. It reuses the FALLING_DUST rule verbatim:
+        // the ORIGIN is the region's own trim offset (not packed/2).
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+        float regionOffsetX = 6f;
+        float regionOffsetY = 10f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.SCENE_DUST,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f, pw, ph,
+                1234f /* vX ignored */, regionOffsetX, regionOffsetY, 0f, 0f);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals("the origin is the region offsetX", regionOffsetX, p.originX, EPS);
+        assertEquals("the origin is the region offsetY", regionOffsetY, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        // The shared rule: SCENE_DUST and FALLING_DUST produce identical geometry for the same input.
+        VfxDrawGeometry.Params falling = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.FALLING_DUST,
+                x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 1234f, regionOffsetX, regionOffsetY,
+                0f, 0f);
+        assertEquals("SCENE_DUST must reuse the FALLING_DUST region-offset origin", falling, p);
+
+        assertFalse("SCENE_DUST never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SCENE_DUST));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.SCENE_DUST));
+    }
+
+    @Test
     public void additiveBlendIsTrueForEveryKindExceptTheAmbientOnes() {
         // FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect, NemesisFireParticle, and
         // DebuffParticleEffect never call setBlendFunction natively, so their host draw must not
@@ -1572,6 +1680,12 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLAME_BALL));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SHINE_LINES));
 
+        // The three newest members: TorchParticleMEffect and TorchParticleSEffect are additive, while
+        // DustEffect never calls setBlendFunction (ambient).
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.TORCH_PARTICLE_M));
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.TORCH_PARTICLE_S));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SCENE_DUST));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -1587,7 +1701,8 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE
                     || kind == VfxDrawGeometry.Kind.STUN_STAR
                     || kind == VfxDrawGeometry.Kind.FALLING_DUST
-                    || kind == VfxDrawGeometry.Kind.SHINE_LINES) {
+                    || kind == VfxDrawGeometry.Kind.SHINE_LINES
+                    || kind == VfxDrawGeometry.Kind.SCENE_DUST) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -1650,7 +1765,10 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.FALLING_DUST,
                 VfxDrawGeometry.Kind.LIGHTNING_EFFECT,
                 VfxDrawGeometry.Kind.FLAME_BALL,
-                VfxDrawGeometry.Kind.SHINE_LINES }) {
+                VfxDrawGeometry.Kind.SHINE_LINES,
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_M,
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_S,
+                VfxDrawGeometry.Kind.SCENE_DUST }) {
             assertFalse("must not be a no-pixel-without-image kind: " + kind,
                     VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind));
         }
@@ -1696,6 +1814,9 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.LIGHTNING_EFFECT));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FLAME_BALL));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.SHINE_LINES));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.TORCH_PARTICLE_M));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.TORCH_PARTICLE_S));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.SCENE_DUST));
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE

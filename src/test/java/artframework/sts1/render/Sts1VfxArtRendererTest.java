@@ -409,6 +409,47 @@ public class Sts1VfxArtRendererTest {
     }
 
     /**
+     * {@code TorchParticleMEffect}/{@code TorchParticleSEffect} layout: instance {@code AtlasRegion
+     * img} and a {@code vY} that {@code render} ignores (update-only, so it must stay optional).
+     */
+    static class TorchParticleEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private float vY;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code TorchParticleMEffect}/{@code TorchParticleSEffect} layout missing {@code img}. */
+    static class TorchParticleNoImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float vY;
+    }
+
+    /**
+     * {@code DustEffect} layout: instance {@code AtlasRegion img} plus {@code vX}/{@code vY}/{@code
+     * aV}/{@code baseAlpha} (all unused by the draw formula, which uses the region offsets as
+     * origin).
+     */
+    static class SceneDustEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+        private float aV;
+        private float baseAlpha;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code DustEffect} layout missing {@code img}. */
+    static class SceneDustNoImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+    }
+
+    /**
      * {@code LightningEffect}/{@code ShineLinesEffect} layout: instance {@code AtlasRegion img} and
      * NO {@code vY} field at all (the constructors are {@code (float, float)}), proving {@code vY}
      * stays optional for these kinds.
@@ -1546,6 +1587,117 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
+    public void readFieldsResolvesTheNewestSceneWorldImgKindsWithOptionalVY() {
+        // TorchParticleMEffect/TorchParticleSEffect and DustEffect all resolve from an instance
+        // AtlasRegion. The two torch kinds own a vY that their native render ignores (update-only),
+        // so vY stays optional for them; DustEffect reuses the FALLING_DUST region-offset origin, so
+        // the reader must capture the region's own offsetX/offsetY.
+        TorchParticleEffectHolder torchM = new TorchParticleEffectHolder();
+        torchM.x = 4.5f;
+        torchM.y = -1.5f;
+        torchM.scale = 0.9f;
+        torchM.rotation = 30f;
+        torchM.color = Color.WHITE;
+        torchM.img = fakeRegion();
+
+        Sts1VfxArtRenderer.Fields tm = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_M, torchM);
+        assertNotNull("TORCH_PARTICLE_M resolves from its instance AtlasRegion", tm);
+        assertEquals(4.5f, tm.x, EPS);
+        assertEquals(-1.5f, tm.y, EPS);
+        assertEquals(0.9f, tm.scale, EPS);
+        assertEquals(30f, tm.rotation, EPS);
+        assertSame(torchM.img, tm.img);
+
+        TorchParticleEffectHolder torchS = new TorchParticleEffectHolder();
+        torchS.x = 1f;
+        torchS.y = 2f;
+        torchS.scale = 1f;
+        torchS.rotation = 15f;
+        torchS.color = Color.WHITE;
+        torchS.img = fakeRegion();
+        assertNotNull("TORCH_PARTICLE_S resolves from its instance AtlasRegion",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.TORCH_PARTICLE_S, torchS));
+
+        // vY is optional: a holder without a vY field still resolves for both torch kinds.
+        LightningEffectHolder noVY = new LightningEffectHolder();
+        noVY.x = 1f;
+        noVY.y = 2f;
+        noVY.scale = 1f;
+        noVY.rotation = 0f;
+        noVY.color = Color.WHITE;
+        noVY.img = fakeRegion();
+        assertNotNull("TORCH_PARTICLE_M resolves without a vY field",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.TORCH_PARTICLE_M, noVY));
+        assertNotNull("TORCH_PARTICLE_S resolves without a vY field",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.TORCH_PARTICLE_S, noVY));
+
+        SceneDustEffectHolder dust = new SceneDustEffectHolder();
+        dust.x = 5.5f;
+        dust.y = -2.25f;
+        dust.vX = 1.25f;
+        dust.vY = 3.5f;
+        dust.scale = 1.1f;
+        dust.rotation = 18f;
+        dust.color = Color.WHITE;
+        TextureAtlas.AtlasRegion region = fakeRegion();
+        region.offsetX = 6f;
+        region.offsetY = 10f;
+        dust.img = region;
+
+        Sts1VfxArtRenderer.Fields df = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.SCENE_DUST, dust);
+        assertNotNull("SCENE_DUST resolves from its instance AtlasRegion", df);
+        assertEquals(5.5f, df.x, EPS);
+        assertEquals(-2.25f, df.y, EPS);
+        assertEquals("the region offsetX is captured for the SCENE_DUST origin",
+                6f, df.regionOffsetX, EPS);
+        assertEquals("the region offsetY is captured for the SCENE_DUST origin",
+                10f, df.regionOffsetY, EPS);
+        assertEquals(18f, df.rotation, EPS);
+    }
+
+    @Test
+    public void readFieldsFailsOpenForTheNewestSceneWorldImgKindsOnMissingFields() {
+        // Missing img fails open for all three.
+        TorchParticleNoImgEffect torchNoImg = new TorchParticleNoImgEffect();
+        torchNoImg.x = 1f;
+        torchNoImg.y = 2f;
+        torchNoImg.vY = 3f;
+        torchNoImg.scale = 1f;
+        torchNoImg.rotation = 0f;
+        torchNoImg.color = Color.WHITE;
+        assertNull("a TorchParticleM holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.TORCH_PARTICLE_M, torchNoImg));
+        assertNull("a TorchParticleS holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.TORCH_PARTICLE_S, torchNoImg));
+
+        SceneDustNoImgEffect dustNoImg = new SceneDustNoImgEffect();
+        dustNoImg.x = 1f;
+        dustNoImg.y = 2f;
+        dustNoImg.scale = 1f;
+        dustNoImg.rotation = 0f;
+        dustNoImg.color = Color.WHITE;
+        assertNull("a DustEffect holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.SCENE_DUST, dustNoImg));
+
+        // All three consume the rotation field, so a holder with a valid img but no rotation must
+        // fail open rather than silently drawing at rotation 0.
+        NoRotationImgEffect noRotation = new NoRotationImgEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = fakeRegion();
+        assertNull("TORCH_PARTICLE_M requires rotation",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.TORCH_PARTICLE_M, noRotation));
+        assertNull("TORCH_PARTICLE_S requires rotation",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.TORCH_PARTICLE_S, noRotation));
+        assertNull("SCENE_DUST requires rotation",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.SCENE_DUST, noRotation));
+    }
+
+    @Test
     public void isReadyIsTrueForTheSupportedFqnsAndFalseOtherwise() {
         Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
 
@@ -1710,6 +1862,21 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.FLAME_BALL + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.SHINE_LINES + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.SHINE_LINES + "2"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.TORCH_PARTICLE_M));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.TORCH_PARTICLE_S));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SCENE_DUST));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.DustEffect"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.TORCH_PARTICLE_M + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.TORCH_PARTICLE_M + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.TORCH_PARTICLE_S + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.TORCH_PARTICLE_S + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_DUST + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_DUST + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -1895,6 +2062,87 @@ public class Sts1VfxArtRendererTest {
                 x, y, scale, rotation, pw, ph);
     }
 
+    /** Real {@code TorchParticleMEffect} with reflectively seeded draw fields (no GL). */
+    private static AbstractGameEffect seededTorchParticleM(float x, float y, float scale,
+            float rotation, int pw, int ph) {
+        return seedImgEffect(com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect.class,
+                x, y, scale, rotation, pw, ph);
+    }
+
+    /** Real {@code TorchParticleSEffect} with reflectively seeded draw fields (no GL). */
+    private static AbstractGameEffect seededTorchParticleS(float x, float y, float scale,
+            float rotation, int pw, int ph) {
+        return seedImgEffect(com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect.class,
+                x, y, scale, rotation, pw, ph);
+    }
+
+    /** Real {@code DustEffect} with reflectively seeded draw fields + region offsets (no GL). */
+    private static AbstractGameEffect seededSceneDust(float x, float y, float offsetX,
+            float offsetY) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.scene.DustEffect effect =
+                    (com.megacrit.cardcrawl.vfx.scene.DustEffect)
+                            unsafe.allocateInstance(com.megacrit.cardcrawl.vfx.scene.DustEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.DustEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.DustEffect.class, "y",
+                    Float.valueOf(y));
+            TextureAtlas.AtlasRegion region =
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+            region.offsetX = offsetX;
+            region.offsetY = offsetY;
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.DustEffect.class, "img", region);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL DustEffect", failure);
+        }
+    }
+
+    @Test
+    public void torchParticleMAndSDrawAdditivelyAndSceneDustAmbientlyWithRegionOffsetOrigin() {
+        // TorchParticleMEffect/TorchParticleSEffect are additive center-packed img kinds (no new
+        // rule); DustEffect is ambient center-packed and reuses the FALLING_DUST region-offset origin
+        // (setColor(color) with NO setBlendFunction). Each draws its own instance AtlasRegion.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        CountingBatch torchMBatch = newCountingBatch();
+        AbstractGameEffect torchM = seededTorchParticleM(100f, 200f, 0.5f, 30f, 52, 36);
+        assertTrue(renderer.render(torchMBatch, torchM));
+        assertEquals("TorchParticleMEffect is additive (installs and restores blend)",
+                2, torchMBatch.setBlendCalls);
+        assertNotNull(torchMBatch.drawnRegionArgs);
+        assertEquals("originX is packedWidth/2f", 26f, torchMBatch.drawnRegionArgs[2], EPS);
+        assertEquals("originY is packedHeight/2f", 18f, torchMBatch.drawnRegionArgs[3], EPS);
+        assertTrue("TorchParticleMEffect can draw", renderer.canDraw(torchM));
+
+        CountingBatch torchSBatch = newCountingBatch();
+        AbstractGameEffect torchS = seededTorchParticleS(11f, 22f, 0.75f, 12f, 52, 36);
+        assertTrue(renderer.render(torchSBatch, torchS));
+        assertEquals("TorchParticleSEffect is additive", 2, torchSBatch.setBlendCalls);
+        assertNotNull(torchSBatch.drawnRegionArgs);
+        assertEquals(26f, torchSBatch.drawnRegionArgs[2], EPS);
+        assertEquals(18f, torchSBatch.drawnRegionArgs[3], EPS);
+        assertTrue("TorchParticleSEffect can draw", renderer.canDraw(torchS));
+
+        CountingBatch dustBatch = newCountingBatch();
+        AbstractGameEffect dust = seededSceneDust(11f, 22f, 6f, 10f);
+        assertTrue(renderer.render(dustBatch, dust));
+        assertEquals("DustEffect never calls setBlendFunction", 0, dustBatch.setBlendCalls);
+        assertNotNull(dustBatch.drawnRegionArgs);
+        assertEquals("DustEffect draws at x", 11f, dustBatch.drawnRegionArgs[0], EPS);
+        assertEquals("DustEffect draws at y", 22f, dustBatch.drawnRegionArgs[1], EPS);
+        assertEquals("the origin is the region offsetX", 6f, dustBatch.drawnRegionArgs[2], EPS);
+        assertEquals("the origin is the region offsetY", 10f, dustBatch.drawnRegionArgs[3], EPS);
+        assertTrue("DustEffect can draw", renderer.canDraw(dust));
+    }
+
     /** Real img-based effect of {@code type} with x/y/img/scale/rotation/color seeded (no GL). */
     private static AbstractGameEffect seedImgEffect(Class<? extends AbstractGameEffect> type,
             float x, float y, float scale, float rotation, int pw, int ph) {
@@ -1952,6 +2200,25 @@ public class Sts1VfxArtRendererTest {
                 com.megacrit.cardcrawl.vfx.ShineLinesEffect.class, "img", null);
         assertFalse("a ShineLines instance without its region cannot draw",
                 renderer.canDraw(shineNoImg));
+
+        // The three newest scene-world img kinds: a null region fails open.
+        AbstractGameEffect torchMNoImg = seededTorchParticleM(1f, 2f, 1f, 0f, 52, 36);
+        setFieldUnchecked(torchMNoImg,
+                com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect.class, "img", null);
+        assertFalse("a TorchParticleMEffect instance without its region cannot draw",
+                renderer.canDraw(torchMNoImg));
+
+        AbstractGameEffect torchSNoImg = seededTorchParticleS(1f, 2f, 1f, 0f, 52, 36);
+        setFieldUnchecked(torchSNoImg,
+                com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect.class, "img", null);
+        assertFalse("a TorchParticleSEffect instance without its region cannot draw",
+                renderer.canDraw(torchSNoImg));
+
+        AbstractGameEffect sceneDustNoImg = seededSceneDust(1f, 2f, 6f, 10f);
+        setFieldUnchecked(sceneDustNoImg,
+                com.megacrit.cardcrawl.vfx.scene.DustEffect.class, "img", null);
+        assertFalse("a DustEffect instance without its region cannot draw",
+                renderer.canDraw(sceneDustNoImg));
     }
 
     private static void setFieldUnchecked(Object target, Class<?> owner, String name,

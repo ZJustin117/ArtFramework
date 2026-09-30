@@ -49,6 +49,15 @@ import java.util.List;
  * {@code setBlendFunction} (ambient blend). All four own a {@code vY} used only by
  * {@code update()} (never in {@code render}), so they stay on the optional-{@code vY} reader
  * path.
+ * The two newest members extend the same bare {@code Texture} + fixed source-rect shape and both
+ * draw additively: the {@code vfx-combat} {@code IceShatterEffect} paints its own instance
+ * {@code Texture} {@code img} (chosen in its constructor from
+ * {@code ImageMaster.FROST_ACTIVATE_VFX_1}/{@code _2}) with a fixed {@code (32, 32)} origin,
+ * {@code (64, 64)} size and {@code (0, 0, 64, 64)} source rect and consumes its inherited
+ * {@code rotation} field, while the {@code vfx-combat} {@code WebParticleEffect} paints the static
+ * {@code ImageMaster.WEB_VFX} {@code Texture}, hardcodes rotation {@code 0f}, and forces the set
+ * color to {@code (1, 1, 1, color.a)} (RGB white, alpha from the effect's color) — see
+ * {@link VfxDrawGeometry#whiteAlphaOnly}. Neither adds a new formula branch beyond that shape.
  * The additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
@@ -97,6 +106,10 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.GenericSmokeEffect";
     public static final String EXHAUST_BLUR =
             "com.megacrit.cardcrawl.vfx.ExhaustBlurEffect";
+    public static final String ICE_SHATTER =
+            "com.megacrit.cardcrawl.vfx.combat.IceShatterEffect";
+    public static final String WEB_PARTICLE =
+            "com.megacrit.cardcrawl.vfx.combat.WebParticleEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -104,7 +117,8 @@ public final class VfxClaimPolicy {
                     FLASH_ATK_IMG, SCENE_LIGHT_FLARE_M, SCENE_LIGHT_FLARE_L,
                     SCENE_TORCH_PARTICLE_L, FIRE_BURST, RED_FIRE_BURST, SMOKE_BLUR,
                     CEILING_DUST, NEMESIS_FIRE, SHIELD_PARTICLE, DEBUFF_PARTICLE,
-                    SCENE_TORCH_PARTICLE_XL, GHOSTLY_WEAK_FIRE, GENERIC_SMOKE, EXHAUST_BLUR));
+                    SCENE_TORCH_PARTICLE_XL, GHOSTLY_WEAK_FIRE, GENERIC_SMOKE, EXHAUST_BLUR,
+                    ICE_SHATTER, WEB_PARTICLE));
 
     private VfxClaimPolicy() {}
 
@@ -133,7 +147,9 @@ public final class VfxClaimPolicy {
                 || SCENE_TORCH_PARTICLE_XL.equals(value)
                 || GHOSTLY_WEAK_FIRE.equals(value)
                 || GENERIC_SMOKE.equals(value)
-                || EXHAUST_BLUR.equals(value);
+                || EXHAUST_BLUR.equals(value)
+                || ICE_SHATTER.equals(value)
+                || WEB_PARTICLE.equals(value);
     }
 
     /**
@@ -150,7 +166,11 @@ public final class VfxClaimPolicy {
      * that order; {@code TorchParticleXLEffect} and {@code GhostlyWeakFireEffect} are additive, while
      * {@code GenericSmokeEffect} and {@code ExhaustBlurEffect} are ambient (no
      * {@code setBlendFunction}), and all four own a {@code vY} that their native {@code render}
-     * ignores (used only by {@code update()}).
+     * ignores (used only by {@code update()}). The two newest members ({@code IceShatterEffect},
+     * {@code WebParticleEffect}) — the bare {@code Texture} + fixed source-rect shape again, both
+     * additive — are appended after the exhaust blur in that order; {@code IceShatterEffect} owns a
+     * {@code vY} that its native {@code render} ignores (used only by {@code update()}), while
+     * {@code WebParticleEffect} has no {@code vY} field at all.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

@@ -274,6 +274,31 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `d1_aura_claim.yaml` phases. No new formula, patch, bridge, or console wiring; default-off
       gate and per-instance token semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F13 (two more members: the bare-`Texture` shape-C path, one with a new pure
+      color rule): `com.megacrit.cardcrawl.vfx.combat.IceShatterEffect` and
+      `com.megacrit.cardcrawl.vfx.combat.WebParticleEffect` (both `vfx-combat`) join the existing
+      bare-`Texture` + fixed-source-rect ("shape C") path with no fourth draw path and no new formula
+      branch. `IceShatterEffect` resolves its own instance `Texture img` (chosen in its constructor
+      from `ImageMaster.FROST_ACTIVATE_VFX_1`/`_2`), so `readTextureFields` requires `img` to be a
+      `com.badlogic.gdx.graphics.Texture` (AtlasRegion/null fails open) and requires the inherited
+      `rotation` field (origin `32,32`, size `64×64`, src `0,0,64,64`, offset 0, additive) — the
+      `rotation` field IS consumed; `WebParticleEffect` has no `img` field, resolving the static
+      `ImageMaster.WEB_VFX` `Texture` instead, hardcodes rotation `0f` (so `rotation` is NOT
+      required), and its native `render` calls `setColor(new Color(1f, 1f, 1f, color.a))` — RGB
+      forced white, alpha from the effect color — which is captured by the new pure predicate
+      `VfxDrawGeometry.whiteAlphaOnly(Kind)` (true only for `WEB_PARTICLE`, false for every other
+      kind, `IllegalArgumentException` on null, matching `additiveBlend`); the existing size-C
+      color-save/restore is unchanged. Both are additive (`additiveBlend` true). `VfxClaimPolicy
+      .ICE_SHATTER`/`WEB_PARTICLE` append last to `supportedClasses()` in that order, and
+      `VfxDrawGeometry.Kind.ICE_SHATTER`/`WEB_PARTICLE` map via the existing fixed-rect params branch
+      (`WEB` has no `vY` field at all, while `ICE` owns a `vY` that its `render` ignores; `WEB` forces
+      rotation `0f`). `VfxLabSpawn.classNameFor` gains
+      `"iceshatter"`/`"ice"` (`new IceShatterEffect(960f, 540f)`) and `"web"`/`"webparticle"`
+      (`new WebParticleEffect(960f, 540f)`) — aliases checked against the existing set for collisions
+      — behind the existing fail-open guard, and `art claim spawn iceshatter 4` / `art claim spawn
+      web 4` run in both `d1_aura_claim.yaml` phases. Default-off gate + per-instance token semantics
+      unchanged; focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

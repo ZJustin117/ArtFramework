@@ -122,6 +122,17 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.EXHAUST_BLUR,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.ExhaustBlurEffect"));
+        // the two newest members, via constants and literal FQNs
+        assertSame(VfxDrawGeometry.Kind.ICE_SHATTER,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.ICE_SHATTER));
+        assertSame(VfxDrawGeometry.Kind.ICE_SHATTER,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.IceShatterEffect"));
+        assertSame(VfxDrawGeometry.Kind.WEB_PARTICLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.WEB_PARTICLE));
+        assertSame(VfxDrawGeometry.Kind.WEB_PARTICLE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.WebParticleEffect"));
     }
 
     @Test
@@ -254,6 +265,24 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.combat.ExhaustBlurEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.ExhaustBlur")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.IceShatterEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.IceShatterEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("IceShatterEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.IceShatterEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.IceShatter")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.WebParticleEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.WebParticleEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("WebParticleEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.WebParticleEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.WebParticle")); // near-miss (no Effect)
     }
 
     @Test
@@ -740,6 +769,89 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
+    public void iceShatterUsesTheFixedNativeRectAndTheFieldRotation() {
+        // Native: draw(img, x, y, 32f, 32f, 64f, 64f,
+        //            scale, scale, rotation, 0, 0, 64, 64, false, false)
+        float x = -7.5f;
+        float y = 21.25f;
+        float scale = 1.25f;
+        float rotation = 137f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.ICE_SHATTER,
+                x, y, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(32f, p.originX, EPS);
+        assertEquals(32f, p.originY, EPS);
+        assertEquals(64f, p.width, EPS);
+        assertEquals(64f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("the rotation field is consumed", rotation, p.rotation, EPS);
+
+        // A different vY and packed size produce byte-identical geometry.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.ICE_SHATTER,
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f);
+        assertEquals(p, q);
+
+        // The host-neutral constants match the native hardcoded rect.
+        assertEquals(32f, VfxDrawGeometry.ICE_SHATTER_ORIGIN_X, EPS);
+        assertEquals(32f, VfxDrawGeometry.ICE_SHATTER_ORIGIN_Y, EPS);
+        assertEquals(64f, VfxDrawGeometry.ICE_SHATTER_WIDTH, EPS);
+        assertEquals(64f, VfxDrawGeometry.ICE_SHATTER_HEIGHT, EPS);
+        assertEquals(0, VfxDrawGeometry.ICE_SHATTER_SRC_X);
+        assertEquals(0, VfxDrawGeometry.ICE_SHATTER_SRC_Y);
+        assertEquals(64, VfxDrawGeometry.ICE_SHATTER_SRC_W);
+        assertEquals(64, VfxDrawGeometry.ICE_SHATTER_SRC_H);
+    }
+
+    @Test
+    public void webParticleUsesTheFixedNativeRectAndForcesZeroRotation() {
+        // Native: draw(ImageMaster.WEB_VFX, x, y, 32f, 32f, 64f, 64f,
+        //            scale, scale, 0f, 0, 0, 64, 64, false, false)
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WEB_PARTICLE,
+                x, y, 999f /* vY ignored */, scale, 45f /* rotation forced to 0 */,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(32f, p.originX, EPS);
+        assertEquals(32f, p.originY, EPS);
+        assertEquals(64f, p.width, EPS);
+        assertEquals(64f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("rotation is hardcoded to 0f", 0f, p.rotation, EPS);
+
+        // A totally different rotation input produces byte-identical geometry (rotation ignored).
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WEB_PARTICLE,
+                x, y, -12345f, scale, -123f, 0f, 0f, 1f, 0f, 0f);
+        assertEquals(p, q);
+
+        // The host-neutral constants match the native hardcoded rect.
+        assertEquals(32f, VfxDrawGeometry.WEB_ORIGIN_X, EPS);
+        assertEquals(32f, VfxDrawGeometry.WEB_ORIGIN_Y, EPS);
+        assertEquals(64f, VfxDrawGeometry.WEB_WIDTH, EPS);
+        assertEquals(64f, VfxDrawGeometry.WEB_HEIGHT, EPS);
+        assertEquals(0, VfxDrawGeometry.WEB_SRC_X);
+        assertEquals(0, VfxDrawGeometry.WEB_SRC_Y);
+        assertEquals(64, VfxDrawGeometry.WEB_SRC_W);
+        assertEquals(64, VfxDrawGeometry.WEB_SRC_H);
+    }
+
+    @Test
     public void additiveBlendIsTrueForEveryKindExceptTheAmbientOnes() {
         // FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect, NemesisFireParticle, and
         // DebuffParticleEffect never call setBlendFunction natively, so their host draw must not
@@ -763,6 +875,10 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.TORCH_PARTICLE_XL));
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE));
 
+        // The two newest bare-Texture members are additive too.
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.ICE_SHATTER));
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.WEB_PARTICLE));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -782,6 +898,38 @@ public class VfxDrawGeometryTest {
     public void additiveBlendNullKindThrowsIllegalArgument() {
         try {
             VfxDrawGeometry.additiveBlend(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void whiteAlphaOnlyIsTrueOnlyForWebParticle() {
+        // WebParticleEffect is the only kind whose native render rewrites the set color, forcing
+        // RGB to white and taking alpha from the effect's color.
+        assertTrue(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.WEB_PARTICLE));
+
+        // Every other kind — including the other bare-Texture members — passes the effect's own
+        // color through unchanged.
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.ICE_SHATTER));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.CALM_PARTICLE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.SHIELD_PARTICLE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.DEBUFF_PARTICLE));
+
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE) {
+                continue;
+            }
+            assertFalse("expected the pass-through color rule for " + kind,
+                    VfxDrawGeometry.whiteAlphaOnly(kind));
+        }
+    }
+
+    @Test
+    public void whiteAlphaOnlyNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.whiteAlphaOnly(null);
             fail("expected IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
             // expected

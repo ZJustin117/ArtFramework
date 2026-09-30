@@ -7,9 +7,10 @@ package artframework.sts1.render;
  * {@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
  * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
  * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}; the four
- * newest members are the {@code vfx-scene-world} {@code TorchParticleXLEffect} and the
+ * later members are the {@code vfx-scene-world} {@code TorchParticleXLEffect} and the
  * {@code vfx-misc-root} {@code GhostlyWeakFireEffect}/{@code GenericSmokeEffect}/
- * {@code ExhaustBlurEffect}),
+ * {@code ExhaustBlurEffect}, and the two newest are the {@code vfx-combat} bare-{@code Texture}
+ * {@code IceShatterEffect}/{@code WebParticleEffect}),
  * mirroring the native render formula exactly.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
@@ -79,13 +80,21 @@ package artframework.sts1.render;
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   ExhaustBlurEffect.render (note: no setBlendFunction; ambient blend; vY is update-only):
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   IceShatterEffect.render (note: additive blend; uses the rotation field; vY is update-only):
+ *     sb.draw(img, x, y, 32f, 32f, 64f, 64f, scale, scale, rotation,
+ *             0, 0, 64, 64, false, false)
+ *   WebParticleEffect.render (note: additive blend; rotation hardcoded to 0f):
+ *     sb.draw(ImageMaster.WEB_VFX, x, y, 32f, 32f, 64f, 64f, scale, scale, 0f,
+ *             0, 0, 64, 64, false, false)
  * </pre>
  *
- * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The three
- * bare-{@code Texture} kinds — Calm, Shield, and Debuff — draw a fixed source rect rather than a
- * packed region, so their native origin/size/source rect are host-neutral constants and the packed
- * region size is ignored; Shield hardcodes rotation {@code 0f}, Debuff consumes its
- * {@code rotation} field, and Calm keeps its {@code scaleY} formula. {@code DivinityStanceChangeParticle}, the
+ * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
+ * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, and Web — draw a fixed source rect
+ * rather than a packed region, so their native origin/size/source rect are host-neutral constants
+ * and the packed region size is ignored; Shield and Web hardcode rotation {@code 0f}, Debuff and
+ * IceShatter consume their {@code rotation} field, and Calm keeps its {@code scaleY} formula. Web
+ * is also the only kind whose native {@code render} rewrites the set color, forcing RGB to white
+ * and taking alpha from the effect's color (see {@link #whiteAlphaOnly}). {@code DivinityStanceChangeParticle}, the
  * cross-family {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
  * {@code TorchParticleLEffect}, the {@code vfx-misc-root} {@code FireBurstParticleEffect}/
  * {@code NemesisFireParticle}, and the {@code vfx-combat} {@code FlashAtkImgEffect}/
@@ -105,7 +114,12 @@ package artframework.sts1.render;
  * {@code GhostlyWeakFireEffect}, and {@code ShieldParticleEffect} are additive
  * like the rest. {@code ShieldParticleEffect}/{@code DebuffParticleEffect} are the first two
  * members beyond {@code CalmParticleEffect} to draw a bare {@code Texture}, so they join the
- * fixed-source-rect shape via their own geometry branches rather than the packed-region branches.
+ * fixed-source-rect shape via their own geometry branches rather than the packed-region branches;
+ * the two newest members {@code IceShatterEffect}/{@code WebParticleEffect} join that same
+ * bare-{@code Texture} shape, with {@code IceShatterEffect} consuming its {@code rotation} field
+ * ({@link Kind#ICE_SHATTER}) and {@code WebParticleEffect} hardcoding rotation {@code 0f} and
+ * forcing its set color to {@code (1, 1, 1, color.a)} ({@link Kind#WEB_PARTICLE}, the sole
+ * {@link #whiteAlphaOnly} kind).
  */
 public final class VfxDrawGeometry {
 
@@ -131,7 +145,9 @@ public final class VfxDrawGeometry {
         TORCH_PARTICLE_XL,
         GHOSTLY_WEAK_FIRE,
         GENERIC_SMOKE,
-        EXHAUST_BLUR
+        EXHAUST_BLUR,
+        ICE_SHATTER,
+        WEB_PARTICLE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -190,6 +206,44 @@ public final class VfxDrawGeometry {
     public static final int DEBUFF_SRC_W = 32;
     /** Native Debuff draw source rect height ({@code 32}). */
     public static final int DEBUFF_SRC_H = 32;
+
+    // Native IceShatterEffect draw constants (see the class Javadoc): fixed origin/size and the
+    // fixed source rect of its own instance img Texture. The rotation comes from the field.
+    /** Native IceShatter draw origin x ({@code 32f}). */
+    public static final float ICE_SHATTER_ORIGIN_X = 32f;
+    /** Native IceShatter draw origin y ({@code 32f}). */
+    public static final float ICE_SHATTER_ORIGIN_Y = 32f;
+    /** Native IceShatter draw width ({@code 64f}). */
+    public static final float ICE_SHATTER_WIDTH = 64f;
+    /** Native IceShatter draw height ({@code 64f}). */
+    public static final float ICE_SHATTER_HEIGHT = 64f;
+    /** Native IceShatter draw source rect x ({@code 0}). */
+    public static final int ICE_SHATTER_SRC_X = 0;
+    /** Native IceShatter draw source rect y ({@code 0}). */
+    public static final int ICE_SHATTER_SRC_Y = 0;
+    /** Native IceShatter draw source rect width ({@code 64}). */
+    public static final int ICE_SHATTER_SRC_W = 64;
+    /** Native IceShatter draw source rect height ({@code 64}). */
+    public static final int ICE_SHATTER_SRC_H = 64;
+
+    // Native WebParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
+    // fixed source rect of the static ImageMaster.WEB_VFX Texture. The rotation is hardcoded to 0.
+    /** Native Web draw origin x ({@code 32f}). */
+    public static final float WEB_ORIGIN_X = 32f;
+    /** Native Web draw origin y ({@code 32f}). */
+    public static final float WEB_ORIGIN_Y = 32f;
+    /** Native Web draw width ({@code 64f}). */
+    public static final float WEB_WIDTH = 64f;
+    /** Native Web draw height ({@code 64f}). */
+    public static final float WEB_HEIGHT = 64f;
+    /** Native Web draw source rect x ({@code 0}). */
+    public static final int WEB_SRC_X = 0;
+    /** Native Web draw source rect y ({@code 0}). */
+    public static final int WEB_SRC_Y = 0;
+    /** Native Web draw source rect width ({@code 64}). */
+    public static final int WEB_SRC_W = 64;
+    /** Native Web draw source rect height ({@code 64}). */
+    public static final int WEB_SRC_H = 64;
 
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
@@ -290,6 +344,8 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.GHOSTLY_WEAK_FIRE.equals(value)) return Kind.GHOSTLY_WEAK_FIRE;
         if (VfxClaimPolicy.GENERIC_SMOKE.equals(value)) return Kind.GENERIC_SMOKE;
         if (VfxClaimPolicy.EXHAUST_BLUR.equals(value)) return Kind.EXHAUST_BLUR;
+        if (VfxClaimPolicy.ICE_SHATTER.equals(value)) return Kind.ICE_SHATTER;
+        if (VfxClaimPolicy.WEB_PARTICLE.equals(value)) return Kind.WEB_PARTICLE;
         return null;
     }
 
@@ -309,8 +365,9 @@ public final class VfxDrawGeometry {
      * Kind#EXHAUST_BLUR} are the newest ambient packed-region members. Every other kind — including
      * the two fire
      * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}), the additive bare-texture
-     * {@link Kind#SHIELD_PARTICLE}, and the additive {@link Kind#TORCH_PARTICLE_XL}/{@link
-     * Kind#GHOSTLY_WEAK_FIRE} — is additive.
+     * {@link Kind#SHIELD_PARTICLE}, the additive {@link Kind#TORCH_PARTICLE_XL}/{@link
+     * Kind#GHOSTLY_WEAK_FIRE}, and the two newest additive bare-texture members
+     * {@link Kind#ICE_SHATTER}/{@link Kind#WEB_PARTICLE} — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -328,13 +385,32 @@ public final class VfxDrawGeometry {
     }
 
     /**
+     * Pure per-kind color rule for the bare-{@code Texture} shape: {@code true} only for
+     * {@link Kind#WEB_PARTICLE}, whose native {@code render} does not pass the effect's own
+     * {@code color} to {@code setColor} but instead builds {@code new Color(1f, 1f, 1f, color.a)} —
+     * i.e. it forces the RGB channels to white and takes only the alpha from the effect's color.
+     * Every other kind (including the other bare-{@code Texture} members {@link Kind#CALM_PARTICLE},
+     * {@link Kind#SHIELD_PARTICLE}, {@link Kind#DEBUFF_PARTICLE}, and {@link Kind#ICE_SHATTER}) sets
+     * the effect's {@code color} unchanged, so the host draw must not rewrite its RGB.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean whiteAlphaOnly(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.WEB_PARTICLE;
+    }
+
+    /**
      * Pure geometry for one claim. The caller supplies the effect field floats and the packed
      * region size; the per-kind color/blend state is applied by the host draw (see
      * {@link #additiveBlend}: additive kinds install/restore {@code 770/1}-&rarr;{@code 770/771},
      * while the ambient kinds ({@code FLASH_ATK_IMG}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
      * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR})
      * leave the ambient blend untouched and restore
-     * only color).
+     * only color; see {@link #whiteAlphaOnly} for the one kind that also rewrites its set color's
+     * RGB to white).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -404,6 +480,18 @@ public final class VfxDrawGeometry {
                 return new Params(x - DEBUFF_ORIGIN_X, y - DEBUFF_ORIGIN_Y,
                         DEBUFF_ORIGIN_X, DEBUFF_ORIGIN_Y, DEBUFF_WIDTH, DEBUFF_HEIGHT,
                         scale, scale, rotation);
+            case ICE_SHATTER:
+                // Native IceShatterEffect ignores the (absent) region: fixed origin/size and the
+                // field rotation; packedWidth/packedHeight, vY, dur_div2, duration, and
+                // Settings.scale are unused.
+                return new Params(x, y, ICE_SHATTER_ORIGIN_X, ICE_SHATTER_ORIGIN_Y,
+                        ICE_SHATTER_WIDTH, ICE_SHATTER_HEIGHT, scale, scale, rotation);
+            case WEB_PARTICLE:
+                // Native WebParticleEffect ignores the (absent) region: fixed origin/size and a
+                // hardcoded zero rotation; packedWidth/packedHeight, vY, dur_div2, duration, and
+                // Settings.scale are unused.
+                return new Params(x, y, WEB_ORIGIN_X, WEB_ORIGIN_Y,
+                        WEB_WIDTH, WEB_HEIGHT, scale, scale, 0f);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

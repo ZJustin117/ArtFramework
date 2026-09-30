@@ -13,8 +13,10 @@ import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
+import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
+import com.megacrit.cardcrawl.helpers.ImageMaster;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -138,6 +140,188 @@ public class Sts1VfxArtRendererTest {
         private float x;
         private float y;
         private Texture img;
+    }
+
+    /** IceShatter layout: own instance {@code Texture img} plus the consumed {@code rotation}. */
+    static class IceShatterEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /** IceShatter layout whose {@code img} is an AtlasRegion instead of a Texture. */
+    static class IceShatterAtlasImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** IceShatter layout with a null {@code img}. */
+    static class IceShatterNullImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /**
+     * ICE-shaped base without an inherited {@code rotation} field, so a pair of ICE holders that DO
+     * carry a valid instance {@code Texture img} can prove the {@code rotation} field is genuinely
+     * required (rather than passing merely because {@code img} was missing).
+     */
+    static class IceNoRotationBase {
+        protected float scale;
+        protected Color color;
+    }
+
+    /** ICE holder with a valid instance {@code img} but NO {@code rotation} field at all. */
+    static class IceShatterNoRotationEffect extends IceNoRotationBase {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /** The same ICE layout with a {@code rotation} field present. */
+    static class IceShatterRotationEffect extends IceNoRotationBase {
+        private float x;
+        private float y;
+        private Texture img;
+        private float rotation;
+    }
+
+    /**
+     * WebParticleEffect layout: no {@code img} field at all (the texture is the static
+     * {@code ImageMaster.WEB_VFX}) and no required rotation (hardcoded {@code 0f}).
+     */
+    static class WebEffect extends BaseEffect {
+        private float x;
+        private float y;
+    }
+
+    /** Base without the inherited {@code scale} field. */
+    static class NoScaleBase {
+        protected float rotation;
+        protected Color color;
+    }
+
+    /** Web layout missing the required {@code scale}. */
+    static class WebNoScaleEffect extends NoScaleBase {
+        private float x;
+        private float y;
+    }
+
+    @Test
+    public void readTextureFieldsResolvesIceShatterFromItsInstanceTexture() {
+        IceShatterEffect effect = new IceShatterEffect();
+        effect.x = -4.5f;
+        effect.y = 2.25f;
+        effect.scale = 1.25f;
+        effect.rotation = 37f;
+        effect.color = Color.WHITE;
+        effect.img = noGlTexture(64, 64);
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.ICE_SHATTER, effect);
+
+        assertNotNull(f);
+        assertEquals(-4.5f, f.x, EPS);
+        assertEquals(2.25f, f.y, EPS);
+        assertEquals(1.25f, f.scale, EPS);
+        assertEquals("IceShatter consumes its rotation field", 37f, f.rotation, EPS);
+        assertSame(effect.color, f.color);
+        assertSame(effect.img, f.img);
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForIceShatterWithAtlasRegionOrNullImg() {
+        // A wrongly typed img (AtlasRegion rather than a bare Texture) must fail open ...
+        IceShatterAtlasImgEffect atlas = new IceShatterAtlasImgEffect();
+        atlas.x = 1f;
+        atlas.y = 2f;
+        atlas.scale = 1f;
+        atlas.rotation = 0f;
+        atlas.color = Color.WHITE;
+        atlas.img = fakeRegion();
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.ICE_SHATTER, atlas));
+
+        // ... and so must a null img.
+        IceShatterNullImgEffect none = new IceShatterNullImgEffect();
+        none.x = 1f;
+        none.y = 2f;
+        none.scale = 1f;
+        none.rotation = 0f;
+        none.color = Color.WHITE;
+        none.img = null;
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.ICE_SHATTER, none));
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForIceShatterWithoutARotationField() {
+        // IceShatter consumes its rotation field (unlike Shield/Web, which hardcode 0f), so a
+        // holder that HAS a valid instance Texture img but no rotation field must fail open rather
+        // than silently draw at rotation 0. The same layout WITH a rotation field must resolve, so
+        // this test fails if the requireRotation ICE clause is removed.
+        Texture img = noGlTexture(64, 64);
+
+        IceShatterNoRotationEffect noRotation = new IceShatterNoRotationEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = img;
+
+        assertNull("an ICE holder with img but no rotation field must fail open",
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.ICE_SHATTER, noRotation));
+
+        IceShatterRotationEffect withRotation = new IceShatterRotationEffect();
+        withRotation.x = 1f;
+        withRotation.y = 2f;
+        withRotation.scale = 1f;
+        withRotation.color = Color.WHITE;
+        withRotation.img = img;
+        withRotation.rotation = 12f;
+
+        Sts1VfxArtRenderer.TextureFields resolved =
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.ICE_SHATTER, withRotation);
+        assertNotNull("the same ICE layout with a rotation field must resolve", resolved);
+        assertEquals(12f, resolved.rotation, EPS);
+        assertSame(img, resolved.img);
+    }
+
+    @Test
+    public void readTextureFieldsResolvesWebWithoutAnImgFieldAndWithoutARequiredRotation() {
+        // WebParticleEffect resolves the static ImageMaster.WEB_VFX texture and hardcodes rotation
+        // 0f, so its holder needs neither an img field nor a rotation field.
+        WebEffect effect = new WebEffect();
+        effect.x = 3.5f;
+        effect.y = -1.25f;
+        effect.scale = 0.75f;
+        effect.color = new Color(0.1f, 0.2f, 0.3f, 0.4f);
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.WEB_PARTICLE, effect);
+
+        assertNotNull(f);
+        assertEquals(3.5f, f.x, EPS);
+        assertEquals(-1.25f, f.y, EPS);
+        assertEquals(0.75f, f.scale, EPS);
+        assertEquals(0f, f.rotation, EPS);
+        assertSame(effect.color, f.color);
+        assertNull("Web resolves the static ImageMaster.WEB_VFX, not an instance img", f.img);
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForWebMissingScale() {
+        WebNoScaleEffect effect = new WebNoScaleEffect();
+        effect.x = 1f;
+        effect.y = 2f;
+        effect.color = Color.WHITE;
+
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.WEB_PARTICLE, effect));
     }
 
     /** Base without the inherited {@code color} field. */
@@ -598,6 +782,12 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.EXHAUST_BLUR));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.ExhaustBlurEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.ICE_SHATTER));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.IceShatterEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.WEB_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.WebParticleEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -617,6 +807,10 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.GENERIC_SMOKE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.EXHAUST_BLUR + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.ICE_SHATTER + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.ICE_SHATTER + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.WEB_PARTICLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.WEB_PARTICLE + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -700,11 +894,168 @@ public class Sts1VfxArtRendererTest {
                 2, ghostly.setBlendCalls);
     }
 
+    @Test
+    public void webParticleDrawForcesWhiteRgbAndKeepsTheEffectAlpha() {
+        // WebParticleEffect is additive and is the only kind that rewrites its set color:
+        // sb.setColor(new Color(1f, 1f, 1f, color.a)). A color-recording SpriteBatch double (no GL)
+        // asserts the applied tint end-to-end through render -> renderTexture; the static
+        // ImageMaster.WEB_VFX texture is injected via reflection (no GL) and restored afterwards.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Texture previousWebVfx = ImageMaster.WEB_VFX;
+        Texture webVfx = noGlTexture(64, 64);
+        try {
+            setStaticField(ImageMaster.class, "WEB_VFX", webVfx);
+            assertSame("the injected static texture doubles for ImageMaster.WEB_VFX",
+                    webVfx, ImageMaster.WEB_VFX);
+
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect web = seededWebEffect(new Color(0.2f, 0.4f, 0.6f, 0.35f));
+
+            assertTrue(renderer.render(batch, web));
+            assertEquals("the additive Web draw installs and restores blend",
+                    2, batch.setBlendCalls);
+
+            assertNotNull("the applied tint must have been captured", batch.firstSetColor);
+            assertEquals("RGB is forced to white", 1f, batch.firstSetColor.r, EPS);
+            assertEquals(1f, batch.firstSetColor.g, EPS);
+            assertEquals(1f, batch.firstSetColor.b, EPS);
+            assertEquals("alpha comes from the effect color", 0.35f, batch.firstSetColor.a, EPS);
+
+            // The per-draw color is restored to the previous (white) color; the packed-float
+            // round-trip may lose at most one 8-bit step, so compare with that tolerance.
+            assertEquals("the Web draw restores the previous color (r)",
+                    1f, batch.getColor().r, 1f / 255f);
+            assertEquals("the Web draw restores the previous color (g)",
+                    1f, batch.getColor().g, 1f / 255f);
+            assertEquals("the Web draw restores the previous color (b)",
+                    1f, batch.getColor().b, 1f / 255f);
+            assertEquals("the Web draw restores the previous color (a)",
+                    1f, batch.getColor().a, 1f / 255f);
+
+            // The pure seam reports the same rule for the kind.
+            assertTrue(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.WEB_PARTICLE));
+        } finally {
+            setStaticField(ImageMaster.class, "WEB_VFX", previousWebVfx);
+        }
+    }
+
+    @Test
+    public void iceShatterDrawUsesTheInstanceTextureAndTheRotationFieldAdditively() {
+        // IceShatterEffect is additive and (unlike Shield/Web) draws its OWN instance Texture img
+        // with the rotation field consumed. A draw-recording SpriteBatch double (no GL) asserts the
+        // exact raw-texture + source-rect call end-to-end through render -> renderTexture.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        Color iceColor = new Color(0.7f, 0.8f, 0.9f, 0.6f);
+        AbstractGameEffect ice = seededIceEffect(iceColor, 12.5f, -3.25f, 1.25f, 137f);
+
+        assertTrue(renderer.render(batch, ice));
+
+        assertEquals("the additive ICE draw installs and restores blend",
+                2, batch.setBlendCalls);
+        assertEquals("the kind must emit exactly one draw", 1, batch.drawCalls);
+        assertNotNull("the draw arguments must have been captured", batch.drawnArgs);
+
+        // The ICE branch resolves the effect's own instance Texture, not a static one.
+        assertSame("ICE must draw its own instance Texture img",
+                readField(ice, "img"), batch.drawnTexture);
+
+        // draw(texture, x, y, 32f, 32f, 64f, 64f, scale, scale, rotation, 0, 0, 64, 64, false, false)
+        assertEquals(12.5f, floatAt(batch, 0), EPS);
+        assertEquals(-3.25f, floatAt(batch, 1), EPS);
+        assertEquals(32f, floatAt(batch, 2), EPS);
+        assertEquals(32f, floatAt(batch, 3), EPS);
+        assertEquals(64f, floatAt(batch, 4), EPS);
+        assertEquals(64f, floatAt(batch, 5), EPS);
+        assertEquals(1.25f, floatAt(batch, 6), EPS);
+        assertEquals(1.25f, floatAt(batch, 7), EPS);
+        assertEquals("ICE must consume the rotation field", 137f, floatAt(batch, 8), EPS);
+        assertEquals(0f, floatAt(batch, 9), EPS);
+        assertEquals(0f, floatAt(batch, 10), EPS);
+        assertEquals(64f, floatAt(batch, 11), EPS);
+        assertEquals(64f, floatAt(batch, 12), EPS);
+
+        // The ICE color is the effect's own color, passed through unchanged (no white-alpha rule).
+        assertNotNull(batch.firstSetColor);
+        assertEquals(0.7f, batch.firstSetColor.r, EPS);
+        assertEquals(0.8f, batch.firstSetColor.g, EPS);
+        assertEquals(0.9f, batch.firstSetColor.b, EPS);
+        assertEquals(0.6f, batch.firstSetColor.a, EPS);
+    }
+
+    private static float floatAt(CountingBatch batch, int index) {
+        return batch.drawnArgs[index];
+    }
+
+    private static Object readField(Object target, String name) {
+        try {
+            return findAndGetField(target, name);
+        } catch (Exception failure) {
+            throw new AssertionError("could not read field " + name, failure);
+        }
+    }
+
+    private static Object findAndGetField(Object target, String name) throws Exception {
+        Class<?> c = target.getClass();
+        while (c != null && c != Object.class) {
+            try {
+                Field field = c.getDeclaredField(name);
+                field.setAccessible(true);
+                return field.get(target);
+            } catch (NoSuchFieldException e) {
+                c = c.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(name);
+    }
+
+    @Test
+    public void resolveColorForcesWhiteRgbOnlyForWebAndPassesOthersThrough() {
+        Color effect = new Color(0.2f, 0.4f, 0.6f, 0.35f);
+
+        Color web = Sts1VfxArtRenderer.resolveColor(
+                VfxDrawGeometry.Kind.WEB_PARTICLE, effect);
+        assertEquals(1f, web.r, EPS);
+        assertEquals(1f, web.g, EPS);
+        assertEquals(1f, web.b, EPS);
+        assertEquals(0.35f, web.a, EPS);
+
+        // Ice shows the pass-through: the same color object the effect owns.
+        assertSame(effect, Sts1VfxArtRenderer.resolveColor(
+                VfxDrawGeometry.Kind.ICE_SHATTER, effect));
+        assertSame(effect, Sts1VfxArtRenderer.resolveColor(
+                VfxDrawGeometry.Kind.CALM_PARTICLE, effect));
+        assertSame(effect, Sts1VfxArtRenderer.resolveColor(
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE, effect));
+
+        // Null collapses to the white default for every kind.
+        assertSame(Color.WHITE, Sts1VfxArtRenderer.resolveColor(
+                VfxDrawGeometry.Kind.WEB_PARTICLE, null));
+        assertSame(Color.WHITE, Sts1VfxArtRenderer.resolveColor(
+                VfxDrawGeometry.Kind.ICE_SHATTER, null));
+    }
+
+    private static void setStaticField(Class<?> owner, String name, Object value) {
+        try {
+            Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set static field " + owner + "." + name, failure);
+        }
+    }
+
     // --- no-GL draws (mirrors BackgroundRenderPatchesTest/Sts1GdxAtlasRegionsTest conventions) ---
 
     /** SpriteBatch double that counts blend-function calls without reaching the GL flush path. */
     static class CountingBatch extends SpriteBatch {
         int setBlendCalls;
+        int drawCalls;
+        /** First {@link Color} passed to {@link #setColor(Color)} (the applied draw tint). */
+        Color firstSetColor;
+        /** The first raw-texture + source-rect draw's arguments (the ICE/WEB/Calm/Shield shape). */
+        Texture drawnTexture;
+        float[] drawnArgs;
 
         CountingBatch() {
             // Never invoked: instances are created with Unsafe.allocateInstance so no GL/asset state
@@ -717,6 +1068,30 @@ public class Sts1VfxArtRendererTest {
             // Deliberately skip super: this test only asserts whether the call happened, and the
             // real method would flush (binding a GL texture) on the no-GL double.
             setBlendCalls++;
+        }
+
+        @Override
+        public void setColor(Color color) {
+            // Record the applied tint (the render restores the previous color afterwards, so the
+            // post-render getColor() no longer shows it). The packed-float write itself is safe on
+            // the no-GL double.
+            if (firstSetColor == null && color != null) {
+                firstSetColor = new Color(color);
+            }
+            super.setColor(color);
+        }
+
+        @Override
+        public void draw(Texture texture, float x, float y, float originX, float originY,
+                float width, float height, float scaleX, float scaleY, float rotation,
+                int srcX, int srcY, int srcWidth, int srcHeight, boolean flipX, boolean flipY) {
+            // Record the draw arguments (the render restores state afterwards). Skipping super is
+            // deliberate: the real 16-arg overload would touch the (absent) GL texture bind path.
+            if (drawCalls++ == 0) {
+                drawnTexture = texture;
+                drawnArgs = new float[] {x, y, originX, originY, width, height,
+                        scaleX, scaleY, rotation, srcX, srcY, srcWidth, srcHeight};
+            }
         }
     }
 
@@ -815,6 +1190,61 @@ public class Sts1VfxArtRendererTest {
             return effect;
         } catch (Exception failure) {
             throw new AssertionError("could not build no-GL " + type.getSimpleName(), failure);
+        }
+    }
+
+    /**
+     * Real {@code WebParticleEffect} with reflectively seeded {@code x}/{@code y} fields (no
+     * {@code img} field, per the native layout) and the given color; the inherited
+     * {@code scale}/{@code rotation} come from {@code AbstractGameEffect}.
+     */
+    private static AbstractGameEffect seededWebEffect(Color color) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            WebParticleEffect effect =
+                    (WebParticleEffect) unsafe.allocateInstance(WebParticleEffect.class);
+            setField(effect, WebParticleEffect.class, "x", Float.valueOf(5f));
+            setField(effect, WebParticleEffect.class, "y", Float.valueOf(6f));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL WebParticleEffect", failure);
+        }
+    }
+
+    /**
+     * Real {@code IceShatterEffect} with reflectively seeded {@code x}/{@code y}/{@code img}
+     * fields, its inherited {@code scale}/{@code rotation}, and the given color (no game/GL
+     * context).
+     */
+    private static AbstractGameEffect seededIceEffect(Color color, float x, float y, float scale,
+            float rotation) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.IceShatterEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.IceShatterEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.IceShatterEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.IceShatterEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.IceShatterEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.IceShatterEffect.class, "img",
+                    noGlTexture(64, 64));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL IceShatterEffect", failure);
         }
     }
 

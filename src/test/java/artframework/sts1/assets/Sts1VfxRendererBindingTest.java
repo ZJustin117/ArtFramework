@@ -52,6 +52,8 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.GENERIC_SMOKE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_BLUR));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.ICE_SHATTER));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.WEB_PARTICLE));
 
         // A near-miss stays not-ready.
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
@@ -68,6 +70,10 @@ public class Sts1VfxRendererBindingTest {
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE + "$Sub"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.GENERIC_SMOKE + "$Sub"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_BLUR + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.ICE_SHATTER + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.ICE_SHATTER + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WEB_PARTICLE + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WEB_PARTICLE + "2"));
     }
 
     @Test
@@ -89,14 +95,20 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.GENERIC_SMOKE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_BLUR));
-        assertEquals("the newest eleven FQNs are appended last, in order",
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.ICE_SHATTER));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.WEB_PARTICLE));
+        assertEquals("the two newest FQNs are appended last, in order",
+                java.util.Arrays.asList(VfxClaimPolicy.ICE_SHATTER, VfxClaimPolicy.WEB_PARTICLE),
+                supported.subList(supported.size() - 2, supported.size()));
+        assertEquals("the thirteen newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
                         VfxClaimPolicy.NEMESIS_FIRE, VfxClaimPolicy.SHIELD_PARTICLE,
                         VfxClaimPolicy.DEBUFF_PARTICLE, VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL,
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
-                        VfxClaimPolicy.EXHAUST_BLUR),
-                supported.subList(supported.size() - 11, supported.size()));
+                        VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
+                        VfxClaimPolicy.WEB_PARTICLE),
+                supported.subList(supported.size() - 13, supported.size()));
     }
 
     @Test

@@ -6,8 +6,8 @@
 # vfx-misc-root
 # FireBurstParticleEffect/NemesisFireParticle/GhostlyWeakFireEffect/GenericSmokeEffect/
 # ExhaustBlurEffect, the vfx-combat
-# FlashAtkImgEffect/RedFireBurstParticleEffect/SmokeBlurEffect, and the two bare-Texture
-# ShieldParticleEffect/DebuffParticleEffect). Gate-OFF is
+# FlashAtkImgEffect/RedFireBurstParticleEffect/SmokeBlurEffect, and the four bare-Texture
+# ShieldParticleEffect/DebuffParticleEffect/IceShatterEffect/WebParticleEffect). Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.
 #
@@ -77,6 +77,8 @@ steps:
   - console: "art claim spawn ghostlyfire 4"
   - console: "art claim spawn genericsmoke 4"
   - console: "art claim spawn exhaustblur 4"
+  - console: "art claim spawn iceshatter 4"
+  - console: "art claim spawn web 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -132,6 +134,8 @@ steps:
   - console: "art claim spawn ghostlyfire 4"
   - console: "art claim spawn genericsmoke 4"
   - console: "art claim spawn exhaustblur 4"
+  - console: "art claim spawn iceshatter 4"
+  - console: "art claim spawn web 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

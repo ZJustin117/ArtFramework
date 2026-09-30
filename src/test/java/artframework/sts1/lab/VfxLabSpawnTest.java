@@ -68,6 +68,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.GENERIC_SMOKE, VfxLabSpawn.classNameFor("gsmoke"));
         assertEquals(VfxClaimPolicy.EXHAUST_BLUR, VfxLabSpawn.classNameFor("exhaustblur"));
         assertEquals(VfxClaimPolicy.EXHAUST_BLUR, VfxLabSpawn.classNameFor("exhaust"));
+        assertEquals(VfxClaimPolicy.ICE_SHATTER, VfxLabSpawn.classNameFor("iceshatter"));
+        assertEquals(VfxClaimPolicy.ICE_SHATTER, VfxLabSpawn.classNameFor("ice"));
+        assertEquals(VfxClaimPolicy.WEB_PARTICLE, VfxLabSpawn.classNameFor("web"));
+        assertEquals(VfxClaimPolicy.WEB_PARTICLE, VfxLabSpawn.classNameFor("webparticle"));
     }
 
     @Test
@@ -111,6 +115,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.GENERIC_SMOKE, VfxLabSpawn.classNameFor("  GsMoKe "));
         assertEquals(VfxClaimPolicy.EXHAUST_BLUR, VfxLabSpawn.classNameFor("EXHAUSTBLUR"));
         assertEquals(VfxClaimPolicy.EXHAUST_BLUR, VfxLabSpawn.classNameFor("  ExHaUsT "));
+        assertEquals(VfxClaimPolicy.ICE_SHATTER, VfxLabSpawn.classNameFor("  IcEsHaTtEr "));
+        assertEquals(VfxClaimPolicy.ICE_SHATTER, VfxLabSpawn.classNameFor("ICE"));
+        assertEquals(VfxClaimPolicy.WEB_PARTICLE, VfxLabSpawn.classNameFor("  WeB "));
+        assertEquals(VfxClaimPolicy.WEB_PARTICLE, VfxLabSpawn.classNameFor("WEBPARTICLE"));
     }
 
     @Test
@@ -338,6 +346,17 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("gsmoke", VfxClaimPolicy.GENERIC_SMOKE);
         assertSpawnRequests("exhaustblur", VfxClaimPolicy.EXHAUST_BLUR);
         assertSpawnRequests("exhaust", VfxClaimPolicy.EXHAUST_BLUR);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheTwoNewestBareTextureMembersThroughTheFactorySeam() {
+        // The two newest bare-Texture (fixed source rect) FQNs; the capturing factory proves each
+        // alias requests exactly its FQN without touching the ImageMaster/texture-backed
+        // constructors.
+        assertSpawnRequests("iceshatter", VfxClaimPolicy.ICE_SHATTER);
+        assertSpawnRequests("ice", VfxClaimPolicy.ICE_SHATTER);
+        assertSpawnRequests("web", VfxClaimPolicy.WEB_PARTICLE);
+        assertSpawnRequests("webparticle", VfxClaimPolicy.WEB_PARTICLE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

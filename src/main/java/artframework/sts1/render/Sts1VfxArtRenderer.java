@@ -21,9 +21,9 @@ import java.lang.reflect.Field;
  * {@code vfx-misc-root}
  * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}/{@code GhostlyWeakFireEffect}/
  * {@code GenericSmokeEffect}/{@code ExhaustBlurEffect}, and the {@code vfx-combat}
- * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the two
- * {@code vfx-misc-root} bare-{@code Texture} members {@code ShieldParticleEffect} and
- * {@code DebuffParticleEffect}).
+ * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the four
+ * bare-{@code Texture} members {@code ShieldParticleEffect}, {@code DebuffParticleEffect},
+ * {@code IceShatterEffect}, and {@code WebParticleEffect}).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -97,10 +97,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
 
     /**
      * Immutable snapshot of the fields a bare-{@code Texture} draw needs ({@code CalmParticleEffect}
-     * / {@code ShieldParticleEffect} / {@code DebuffParticleEffect}). {@code rotation} is required
-     * for the kinds whose formula consumes it (Calm, Debuff) and optional (defaulting to {@code 0})
-     * for Shield, which hardcodes {@code 0f}; {@code img} is a {@link Texture} only for Debuff and
-     * {@code null} otherwise.
+     * / {@code ShieldParticleEffect} / {@code DebuffParticleEffect} / {@code IceShatterEffect} /
+     * {@code WebParticleEffect}). {@code rotation} is required for the kinds whose formula consumes
+     * it (Calm, Debuff, IceShatter) and optional (defaulting to {@code 0}) for Shield and Web, which
+     * hardcode {@code 0f}; {@code img} is a {@link Texture} for Debuff and IceShatter and
+     * {@code null} otherwise (Web resolves the static {@link ImageMaster#WEB_VFX}).
      */
     static final class TextureFields {
         final float x;
@@ -185,17 +186,19 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * Snapshots the fields a bare-{@code Texture} draw needs. Required: {@code x}, {@code y},
      * {@code scale}, {@code color} ({@link Color}); {@code rotation} is additionally required for
-     * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE} (whose formula consumes it) and optional
-     * (defaulting to {@code 0}) for {@code SHIELD_PARTICLE} (hardcoded rotation); {@code dur_div2}
-     * /{@code duration} are optional and default to {@code 0}. For {@code DEBUFF_PARTICLE} the
-     * instance {@code img} must be a {@link Texture}; a missing/mistyped {@code img} fails the
-     * snapshot. Returns {@code null} when the effect is null or any required field is absent,
-     * unreadable, or of the wrong type; never throws.
+     * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE}/{@code ICE_SHATTER} (whose formula consumes it)
+     * and optional (defaulting to {@code 0}) for {@code SHIELD_PARTICLE}/{@code WEB_PARTICLE}
+     * (hardcoded rotation); {@code dur_div2}/{@code duration} are optional and default to {@code 0}.
+     * For {@code DEBUFF_PARTICLE} and {@code ICE_SHATTER} the instance {@code img} must be a
+     * {@link Texture} (WEB resolves the static {@link ImageMaster#WEB_VFX} instead); a
+     * missing/mistyped {@code img} fails the snapshot. Returns {@code null} when the effect is null
+     * or any required field is absent, unreadable, or of the wrong type; never throws.
      */
     static TextureFields readTextureFields(VfxDrawGeometry.Kind kind, Object effect) {
         if (effect == null) return null;
         boolean requireRotation = kind == VfxDrawGeometry.Kind.CALM_PARTICLE
-                || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE;
+                || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
+                || kind == VfxDrawGeometry.Kind.ICE_SHATTER;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
@@ -210,7 +213,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             Object color = readRaw(effect, "color");
             if (!(color instanceof Color)) return null;
             Texture img = null;
-            if (kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
+            if (kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.ICE_SHATTER) {
                 Object raw = readRaw(effect, "img");
                 if (!(raw instanceof Texture)) return null;
                 img = (Texture) raw;
@@ -243,10 +247,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * the same arguments the native call passes, so libGDX resolves the region's UV rect (including
      * any atlas {@code rotate} baking) exactly as the native effect does.
      *
-     * <p>The bare-{@code Texture} kinds (Calm, Shield, Debuff) have no packed region: they draw a
-     * fixed source rect, so this branch resolves the native {@link Texture} the render reads —
-     * {@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm, {@link ImageMaster#INTENT_DEFEND} for
-     * Shield, and the effect's own instance {@code img} for Debuff — and replays the native raw
+     * <p>The bare-{@code Texture} kinds (Calm, Shield, Debuff, IceShatter, Web) have no packed
+     * region: they draw a fixed source rect, so this branch resolves the native {@link Texture} the
+     * render reads — {@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm,
+     * {@link ImageMaster#INTENT_DEFEND} for Shield, {@link ImageMaster#WEB_VFX} for Web, and the
+     * effect's own instance {@code img} for Debuff and IceShatter — and replays the native raw
      * texture + source-rect overload.
      *
      * <p>Never throws. Returns {@code true} only after a real draw; any null input, unmapped class,
@@ -262,7 +267,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             if (kind == null) return false;
             if (kind == VfxDrawGeometry.Kind.CALM_PARTICLE
                     || kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
+                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.ICE_SHATTER
+                    || kind == VfxDrawGeometry.Kind.WEB_PARTICLE) {
                 return renderTexture(sb, kind, effect);
             }
             Fields f = readFields(kind, effect);
@@ -306,12 +313,32 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * Resolves the {@link Color} the bare-{@code Texture} branch passes to
+     * {@code SpriteBatch.setColor}. Null collapses to white (the same default the img-based branch
+     * uses); for a kind that {@link VfxDrawGeometry#whiteAlphaOnly} reports true for, the RGB
+     * channels are forced to {@code 1f} and only the effect color's alpha is kept, mirroring the
+     * native {@code new Color(1f, 1f, 1f, color.a)}; every other kind passes the color through
+     * unchanged. Never mutates the effect's color and never throws (the caller already knows the
+     * color is a non-null {@link Color}, but nulls still fail safe to white).
+     */
+    static Color resolveColor(VfxDrawGeometry.Kind kind, Color effectColor) {
+        if (effectColor == null) {
+            return Color.WHITE;
+        }
+        if (VfxDrawGeometry.whiteAlphaOnly(kind)) {
+            return new Color(1f, 1f, 1f, effectColor.a);
+        }
+        return effectColor;
+    }
+
+    /**
      * Bare-{@code Texture} branch: resolves the native texture the kind's {@code render} reads
      * ({@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm, {@link ImageMaster#INTENT_DEFEND} for
-     * Shield, the effect's own {@code img} for Debuff), replays the raw texture + source-rect draw
-     * with the {@link VfxDrawGeometry#params} geometry and the per-kind src rect, honors
-     * {@link VfxDrawGeometry#additiveBlend}, and restores blend/color. Fails open ({@code false}, no
-     * side effects) on any missing input.
+     * Shield, {@link ImageMaster#WEB_VFX} for Web, the effect's own {@code img} for Debuff and
+     * IceShatter), replays the raw texture + source-rect draw with the {@link VfxDrawGeometry#params}
+     * geometry and the per-kind src rect, honors {@link VfxDrawGeometry#additiveBlend}, applies the
+     * {@link VfxDrawGeometry#whiteAlphaOnly} color rule (Web forces the set color's RGB to white),
+     * and restores blend/color. Fails open ({@code false}, no side effects) on any missing input.
      */
     private boolean renderTexture(SpriteBatch sb, VfxDrawGeometry.Kind kind,
             AbstractGameEffect effect) {
@@ -320,7 +347,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         Texture texture;
         if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
             texture = ImageMaster.INTENT_DEFEND;
-        } else if (kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
+        } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE) {
+            texture = ImageMaster.WEB_VFX;
+        } else if (kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
+                || kind == VfxDrawGeometry.Kind.ICE_SHATTER) {
             texture = f.img;
         } else {
             texture = ImageMaster.FROST_ACTIVATE_VFX_1;
@@ -343,6 +373,16 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.DEBUFF_SRC_Y;
             srcW = VfxDrawGeometry.DEBUFF_SRC_W;
             srcH = VfxDrawGeometry.DEBUFF_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.ICE_SHATTER) {
+            srcX = VfxDrawGeometry.ICE_SHATTER_SRC_X;
+            srcY = VfxDrawGeometry.ICE_SHATTER_SRC_Y;
+            srcW = VfxDrawGeometry.ICE_SHATTER_SRC_W;
+            srcH = VfxDrawGeometry.ICE_SHATTER_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE) {
+            srcX = VfxDrawGeometry.WEB_SRC_X;
+            srcY = VfxDrawGeometry.WEB_SRC_Y;
+            srcW = VfxDrawGeometry.WEB_SRC_W;
+            srcH = VfxDrawGeometry.WEB_SRC_H;
         } else {
             srcX = VfxDrawGeometry.CALM_SRC_X;
             srcY = VfxDrawGeometry.CALM_SRC_Y;
@@ -356,7 +396,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         Color previous = new Color(sb.getColor());
         boolean blendChanged = false;
         try {
-            sb.setColor(f.color != null ? f.color : Color.WHITE);
+            sb.setColor(resolveColor(kind, f.color));
             if (additive) {
                 sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
                 blendChanged = true;

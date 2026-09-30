@@ -63,6 +63,8 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.GHOSTLY_WEAK_FIRE));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.GENERIC_SMOKE));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.EXHAUST_BLUR));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.ICE_SHATTER));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.WEB_PARTICLE));
     }
 
     @Test
@@ -113,25 +115,34 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.GHOSTLY_WEAK_FIRE));
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.GENERIC_SMOKE));
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.EXHAUST_BLUR));
-        assertEquals("the four newest FQNs are appended last, in order",
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.ICE_SHATTER));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.WEB_PARTICLE));
+        assertEquals("the two newest FQNs are appended last, in order",
+                java.util.Arrays.asList(VfxClaimPolicy.ICE_SHATTER, VfxClaimPolicy.WEB_PARTICLE),
+                VfxClaimPolicy.supportedClasses().subList(
+                        VfxClaimPolicy.supportedClasses().size() - 2,
+                        VfxClaimPolicy.supportedClasses().size()));
+        assertEquals("the six newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL,
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
-                        VfxClaimPolicy.EXHAUST_BLUR),
+                        VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
+                        VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 4,
+                        VfxClaimPolicy.supportedClasses().size() - 6,
                         VfxClaimPolicy.supportedClasses().size()));
-        assertEquals("the newest eleven FQNs stay in append order",
+        assertEquals("the thirteen newest FQNs stay in append order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
                         VfxClaimPolicy.NEMESIS_FIRE, VfxClaimPolicy.SHIELD_PARTICLE,
                         VfxClaimPolicy.DEBUFF_PARTICLE, VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL,
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
-                        VfxClaimPolicy.EXHAUST_BLUR),
+                        VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
+                        VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 11,
+                        VfxClaimPolicy.supportedClasses().size() - 13,
                         VfxClaimPolicy.supportedClasses().size()));
-        assertEquals("the last FQN is the exhaust blur",
-                VfxClaimPolicy.EXHAUST_BLUR,
+        assertEquals("the last FQN is the web particle",
+                VfxClaimPolicy.WEB_PARTICLE,
                 VfxClaimPolicy.supportedClasses()
                         .get(VfxClaimPolicy.supportedClasses().size() - 1));
     }

@@ -9,8 +9,10 @@ import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
+import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
 import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
+import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect;
@@ -34,9 +36,9 @@ import java.util.function.Predicate;
  * {@code vfx-misc-root}
  * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}/{@code GhostlyWeakFireEffect}/
  * {@code GenericSmokeEffect}/{@code ExhaustBlurEffect}, and the {@code vfx-combat}
- * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the two
- * {@code vfx-misc-root} bare-{@code Texture} members {@code ShieldParticleEffect} and
- * {@code DebuffParticleEffect}) into the
+ * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the four
+ * bare-{@code Texture} members {@code ShieldParticleEffect}/{@code DebuffParticleEffect} (root) and
+ * {@code IceShatterEffect}/{@code WebParticleEffect} ({@code vfx-combat})) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -134,6 +136,12 @@ public final class VfxLabSpawn {
         }
         if ("exhaustblur".equalsIgnoreCase(value) || "exhaust".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.EXHAUST_BLUR;
+        }
+        if ("iceshatter".equalsIgnoreCase(value) || "ice".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.ICE_SHATTER;
+        }
+        if ("web".equalsIgnoreCase(value) || "webparticle".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.WEB_PARTICLE;
         }
         return null;
     }
@@ -336,6 +344,18 @@ public final class VfxLabSpawn {
             // null outside a live game; any failure is caught by spawn's fail-open guard rather
             // than propagating.
             return new ExhaustBlurEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.ICE_SHATTER.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The instance img is ImageMaster-backed
+            // (FROST_ACTIVATE_VFX_1/2) and may be null outside a live game; any failure is caught by
+            // spawn's fail-open guard rather than propagating.
+            return new IceShatterEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.WEB_PARTICLE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The static ImageMaster.WEB_VFX texture
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new WebParticleEffect(960f, 540f);
         }
         return null;
     }

@@ -12,8 +12,9 @@
 # plus the five newest vfx-combat FlameParticleEffect/LightningOrbActivateEffect/
 # DamageImpactBlurEffect/DamageImpactLineEffect/DarkOrbPassiveEffect, the three newest
 # WarningSignEffect/StunStarEffect/FallingDustEffect, the three newest LightningEffect/
-# FlameBallParticleEffect/ShineLinesEffect, and the three newest TorchParticleMEffect/
-# TorchParticleSEffect/DustEffect). Gate-OFF is
+# FlameBallParticleEffect/ShineLinesEffect, the three newest TorchParticleMEffect/
+# TorchParticleSEffect/DustEffect, and the two newest bare-Texture members with per-instance flip
+# flags LightningOrbPassiveEffect/GlowyFireEyesEffect). Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.
 #
@@ -111,6 +112,8 @@ steps:
   - console: "art claim spawn torchm 4"
   - console: "art claim spawn torchs 4"
   - console: "art claim spawn scenedust 4"
+  - console: "art claim spawn lop 4"
+  - console: "art claim spawn glowyeyes 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -183,6 +186,8 @@ steps:
   - console: "art claim spawn torchm 4"
   - console: "art claim spawn torchs 4"
   - console: "art claim spawn scenedust 4"
+  - console: "art claim spawn lop 4"
+  - console: "art claim spawn glowyeyes 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

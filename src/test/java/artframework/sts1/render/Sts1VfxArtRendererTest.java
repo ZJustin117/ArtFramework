@@ -348,6 +348,74 @@ public class Sts1VfxArtRendererTest {
     }
 
     /**
+     * {@code LightningOrbPassiveEffect} layout: own instance {@code Texture img}, the consumed
+     * inherited {@code rotation}, and the per-instance {@code flipX}/{@code flipY} booleans.
+     */
+    static class LightningOrbPassiveHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private Texture img;
+        private boolean flipX;
+        private boolean flipY;
+    }
+
+    /**
+     * {@code LightningOrbPassiveEffect} layout with BOTH flip fields absent (the missing-flip case:
+     * the snapshot must still resolve and draw with {@code false, false}).
+     */
+    static class LightningOrbPassiveNoFlipBase {
+        protected float scale;
+        protected float rotation;
+        protected Color color;
+    }
+
+    static class LightningOrbPassiveNoFlipHolder extends LightningOrbPassiveNoFlipBase {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /** LOP-shaped holder with a valid instance {@code img} but NO {@code rotation} field. */
+    static class LightningOrbPassiveNoRotationBase {
+        protected float scale;
+        protected Color color;
+    }
+
+    static class LightningOrbPassiveNoRotationHolder extends LightningOrbPassiveNoRotationBase {
+        private float x;
+        private float y;
+        private Texture img;
+        private boolean flipX;
+        private boolean flipY;
+    }
+
+    /**
+     * {@code GlowyFireEyesEffect} layout: own instance {@code Texture img}, the per-instance
+     * {@code flippedX} boolean, and NO {@code rotation} field (the native draw hardcodes {@code 0f}).
+     */
+    static class GlowyFireEyesBase {
+        protected float scale;
+        protected Color color;
+    }
+
+    static class GlowyFireEyesHolder extends GlowyFireEyesBase {
+        private float x;
+        private float y;
+        private Texture img;
+        private boolean flippedX;
+    }
+
+    /**
+     * {@code GlowyFireEyesEffect} layout with the {@code flippedX} field absent (the missing-flip
+     * case: the snapshot must still resolve and draw with {@code false, false}).
+     */
+    static class GlowyFireEyesNoFlipHolder extends GlowyFireEyesBase {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /**
      * {@code WarningSignEffect} layout: {@code x}/{@code y} declared on the class plus the inherited
      * {@code scale}/{@code rotation}/{@code color} from {@code AbstractGameEffect} — no {@code img}
      * field (the static {@code ImageMaster.WARNING_ICON_VFX} is resolved by the renderer) and no
@@ -2563,6 +2631,247 @@ public class Sts1VfxArtRendererTest {
         }
     }
 
+    @Test
+    public void lightningOrbPassiveDrawsItsInstanceTextureWithBothFlipFlagsAdditively() {
+        // LOP is additive, draws its OWN instance Texture img over the 122x122 fixed rect with the
+        // rotation field, and passes the effect's own flipX/flipY booleans to the raw-texture
+        // overload (the first per-instance flip kind).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        Color color = new Color(0.4f, 0.5f, 0.6f, 0.7f);
+        AbstractGameEffect lop = seededLightningOrbPassive(color, 12.5f, -3.25f, 1.25f, 137f,
+                true, true);
+
+        assertTrue(renderer.render(batch, lop));
+
+        assertEquals("the additive LOP draw installs and restores blend", 2, batch.setBlendCalls);
+        assertEquals("the kind must emit exactly one draw", 1, batch.drawCalls);
+        assertSame("LOP must draw its own instance Texture img",
+                readField(lop, "img"), batch.drawnTexture);
+
+        // draw(texture, x-61, y-61, 61, 61, 122, 122, scale, scale, rotation, 0,0,122,122, flipX,
+        //      flipY)
+        assertEquals(12.5f - 61f, floatAt(batch, 0), EPS);
+        assertEquals(-3.25f - 61f, floatAt(batch, 1), EPS);
+        assertEquals(61f, floatAt(batch, 2), EPS);
+        assertEquals(61f, floatAt(batch, 3), EPS);
+        assertEquals(122f, floatAt(batch, 4), EPS);
+        assertEquals(122f, floatAt(batch, 5), EPS);
+        assertEquals(1.25f, floatAt(batch, 6), EPS);
+        assertEquals(1.25f, floatAt(batch, 7), EPS);
+        assertEquals("LOP consumes the rotation field", 137f, floatAt(batch, 8), EPS);
+        assertEquals(0f, floatAt(batch, 9), EPS);
+        assertEquals(0f, floatAt(batch, 10), EPS);
+        assertEquals(122f, floatAt(batch, 11), EPS);
+        assertEquals(122f, floatAt(batch, 12), EPS);
+        assertTrue("the draw's flip flags must have been captured", batch.drawnFlipsCaptured);
+        assertTrue("LOP's flipX must reach the draw", batch.drawnFlipX);
+        assertTrue("LOP's flipY must reach the draw", batch.drawnFlipY);
+        assertEquals(0.4f, batch.firstSetColor.r, EPS);
+    }
+
+    @Test
+    public void lightningOrbPassiveHonoursTheFlipFlagsPerInstance() {
+        // The flip booleans are per-instance: the same kind reads (false, true) from a different
+        // effect whose own fields hold that combination.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect lop = seededLightningOrbPassive(Color.WHITE, 1f, 2f, 1f, 0f,
+                false, true);
+
+        assertTrue(renderer.render(batch, lop));
+        assertTrue(batch.drawnFlipsCaptured);
+        assertFalse("LOP's flipX must follow the effect field", batch.drawnFlipX);
+        assertTrue("LOP's flipY must follow the effect field", batch.drawnFlipY);
+    }
+
+    @Test
+    public void glowyFireEyesDrawsItsInstanceTextureWithOnlyTheHorizontalFlipAndNoRotation() {
+        // GFE is additive, draws its OWN instance Texture img over the 128x128 fixed rect with a
+        // hardcoded zero rotation (it has NO rotation field), and passes only its own flippedX
+        // horizontal flip (the vertical flip is always false).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        Color color = new Color(0.2f, 0.3f, 0.4f, 0.5f);
+        AbstractGameEffect gfe = seededGlowyFireEyes(color, 12.5f, -3.25f, 1.25f, true);
+
+        assertTrue(renderer.render(batch, gfe));
+
+        assertEquals("the additive GFE draw installs and restores blend", 2, batch.setBlendCalls);
+        assertEquals("the kind must emit exactly one draw", 1, batch.drawCalls);
+        assertSame("GFE must draw its own instance Texture img",
+                readField(gfe, "img"), batch.drawnTexture);
+        assertEquals(12.5f - 64f, floatAt(batch, 0), EPS);
+        assertEquals(-3.25f - 64f, floatAt(batch, 1), EPS);
+        assertEquals(64f, floatAt(batch, 2), EPS);
+        assertEquals(64f, floatAt(batch, 3), EPS);
+        assertEquals(128f, floatAt(batch, 4), EPS);
+        assertEquals(128f, floatAt(batch, 5), EPS);
+        assertEquals(1.25f, floatAt(batch, 6), EPS);
+        assertEquals(1.25f, floatAt(batch, 7), EPS);
+        assertEquals("GFE hardcodes rotation 0f", 0f, floatAt(batch, 8), EPS);
+        assertEquals(0f, floatAt(batch, 9), EPS);
+        assertEquals(0f, floatAt(batch, 10), EPS);
+        assertEquals(128f, floatAt(batch, 11), EPS);
+        assertEquals(128f, floatAt(batch, 12), EPS);
+        assertTrue(batch.drawnFlipsCaptured);
+        assertTrue("GFE's flippedX must reach the draw", batch.drawnFlipX);
+        assertFalse("GFE's vertical flip is always false", batch.drawnFlipY);
+        assertEquals(0.2f, batch.firstSetColor.r, EPS);
+    }
+
+    @Test
+    public void readTextureFieldsResolvesTheTwoFlipKindsAndDefaultsMissingFlipsToFalse() {
+        // LOP: instance Texture img + the required rotation + both flip booleans resolve.
+        LightningOrbPassiveHolder lop = new LightningOrbPassiveHolder();
+        lop.x = 3.5f;
+        lop.y = -1.25f;
+        lop.scale = 0.75f;
+        lop.rotation = 22f;
+        lop.color = Color.WHITE;
+        lop.img = noGlTexture(122, 122);
+        lop.flipX = true;
+        lop.flipY = false;
+
+        Sts1VfxArtRenderer.TextureFields lopFields = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE, lop);
+        assertNotNull(lopFields);
+        assertSame(lop.img, lopFields.img);
+        assertEquals(22f, lopFields.rotation, EPS);
+        assertTrue(lopFields.flipX);
+        assertFalse(lopFields.flipY);
+
+        // LOP without the (optional) flip fields still resolves, with both flips false.
+        LightningOrbPassiveNoFlipHolder noFlip = new LightningOrbPassiveNoFlipHolder();
+        noFlip.x = 1f;
+        noFlip.y = 2f;
+        noFlip.scale = 1f;
+        noFlip.rotation = 0f;
+        noFlip.color = Color.WHITE;
+        noFlip.img = noGlTexture(122, 122);
+        Sts1VfxArtRenderer.TextureFields noFlipFields = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE, noFlip);
+        assertNotNull("a missing flip flag must not fail the snapshot", noFlipFields);
+        assertFalse(noFlipFields.flipX);
+        assertFalse(noFlipFields.flipY);
+
+        // LOP requires the rotation field: a holder with img but no rotation must fail open.
+        LightningOrbPassiveNoRotationHolder noRotation =
+                new LightningOrbPassiveNoRotationHolder();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = noGlTexture(122, 122);
+        noRotation.flipX = true;
+        noRotation.flipY = true;
+        assertNull("an LOP holder with img but no rotation field must fail open",
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE, noRotation));
+
+        // GFE: instance Texture img + flippedX resolve WITHOUT a rotation field (it has none).
+        GlowyFireEyesHolder gfe = new GlowyFireEyesHolder();
+        gfe.x = 3.5f;
+        gfe.y = -1.25f;
+        gfe.scale = 0.75f;
+        gfe.color = Color.WHITE;
+        gfe.img = noGlTexture(128, 128);
+        gfe.flippedX = true;
+        Sts1VfxArtRenderer.TextureFields gfeFields = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.GLOWY_FIRE_EYES, gfe);
+        assertNotNull("GFE must resolve without a rotation field", gfeFields);
+        assertSame(gfe.img, gfeFields.img);
+        assertEquals(0f, gfeFields.rotation, EPS);
+        assertTrue(gfeFields.flipX);
+        assertFalse("GFE's vertical flip is always false", gfeFields.flipY);
+
+        // GFE with the optional flippedX absent still resolves, defaulting both flips to false.
+        GlowyFireEyesNoFlipHolder gfeNoFlip = new GlowyFireEyesNoFlipHolder();
+        gfeNoFlip.x = 1f;
+        gfeNoFlip.y = 2f;
+        gfeNoFlip.scale = 1f;
+        gfeNoFlip.color = Color.WHITE;
+        gfeNoFlip.img = noGlTexture(128, 128);
+        Sts1VfxArtRenderer.TextureFields gfeNoFlipFields = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.GLOWY_FIRE_EYES, gfeNoFlip);
+        assertNotNull(gfeNoFlipFields);
+        assertFalse(gfeNoFlipFields.flipX);
+        assertFalse(gfeNoFlipFields.flipY);
+    }
+
+    @Test
+    public void preexistingShapeCKindStillDrawsWithFalseFalseFlips() {
+        // Regression: the per-instance flips are false for every pre-existing shape-C kind, so its
+        // draw is unchanged (src rect passthrough with false, false).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect ice = seededIceEffect(Color.WHITE, 12.5f, -3.25f, 1.25f, 137f);
+
+        assertTrue(renderer.render(batch, ice));
+        assertTrue(batch.drawnFlipsCaptured);
+        assertFalse("a pre-existing shape-C kind must draw with flipX false", batch.drawnFlipX);
+        assertFalse("a pre-existing shape-C kind must draw with flipY false", batch.drawnFlipY);
+    }
+
+    /** Real {@code LightningOrbPassiveEffect} with seeded draw fields and the two flip booleans. */
+    private static AbstractGameEffect seededLightningOrbPassive(Color color, float x, float y,
+            float scale, float rotation, boolean flipX, boolean flipY) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect.class,
+                    "img", noGlTexture(122, 122));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect.class,
+                    "flipX", Boolean.valueOf(flipX));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect.class,
+                    "flipY", Boolean.valueOf(flipY));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL LightningOrbPassiveEffect", failure);
+        }
+    }
+
+    /** Real {@code GlowyFireEyesEffect} with seeded draw fields and its {@code flippedX} boolean. */
+    private static AbstractGameEffect seededGlowyFireEyes(Color color, float x, float y,
+            float scale, boolean flippedX) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect effect =
+                    (com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect.class, "img",
+                    noGlTexture(128, 128));
+            setField(effect, com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect.class, "flippedX",
+                    Boolean.valueOf(flippedX));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL GlowyFireEyesEffect", failure);
+        }
+    }
+
     private static float floatAt(CountingBatch batch, int index) {
         return batch.drawnArgs[index];
     }
@@ -2642,6 +2951,10 @@ public class Sts1VfxArtRendererTest {
         /** The first raw-texture + source-rect draw's arguments (the ICE/WEB/Calm/Shield shape). */
         Texture drawnTexture;
         float[] drawnArgs;
+        /** Whether the first raw-texture draw's flip flags were captured. */
+        boolean drawnFlipsCaptured;
+        boolean drawnFlipX;
+        boolean drawnFlipY;
 
         CountingBatch() {
             // Never invoked: instances are created with Unsafe.allocateInstance so no GL/asset state
@@ -2688,6 +3001,9 @@ public class Sts1VfxArtRendererTest {
                 drawnTexture = texture;
                 drawnArgs = new float[] {x, y, originX, originY, width, height,
                         scaleX, scaleY, rotation, srcX, srcY, srcWidth, srcHeight};
+                drawnFlipsCaptured = true;
+                drawnFlipX = flipX;
+                drawnFlipY = flipY;
             }
         }
     }

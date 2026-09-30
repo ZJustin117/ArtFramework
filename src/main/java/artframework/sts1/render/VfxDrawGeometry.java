@@ -23,7 +23,10 @@ package artframework.sts1.render;
  * and the {@code vfx-misc-root} {@code ShineLinesEffect} (in that order), and the three newest are
  * the {@code vfx-scene-world} {@code TorchParticleMEffect}/{@code TorchParticleSEffect} (additive
  * center-packed, no new rule) and {@code DustEffect} (ambient center-packed reusing the
- * {@code FALLING_DUST} region-offset origin).
+ * {@code FALLING_DUST} region-offset origin), and the two newest are the {@code vfx-combat}
+ * {@code LightningOrbPassiveEffect} and the {@code vfx-misc-root} {@code GlowyFireEyesEffect},
+ * which extend the bare-{@code Texture} shape-C path with the first per-instance FLIP flags
+ * (see {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY}).
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -153,19 +156,36 @@ package artframework.sts1.render;
  *   DustEffect.render (note: no setBlendFunction; ambient blend; the ORIGIN is the region's own
  *                      offsetX/offsetY, NOT packed/2 — the same rule as FallingDustEffect):
  *     sb.draw(img, x, y, img.offsetX, img.offsetY, pw, ph, scale, scale, rotation)
+ *   LightningOrbPassiveEffect.render (note: additive blend; uses the rotation field and its own
+ *                                      instance Texture img; the flipX/flipY booleans come from the
+ *                                      effect's own fields — the first per-instance flip kind):
+ *     sb.draw(img, x - 61f, y - 61f, 61f, 61f, 122f, 122f, scale, scale, rotation,
+ *             0, 0, 122, 122, flipX, flipY)
+ *   GlowyFireEyesEffect.render (note: additive blend; rotation hardcoded to 0f; the class has no
+ *                                rotation field; only the horizontal flip is per-instance and the
+ *                                vertical flip is always false):
+ *     sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, 0f,
+ *             0, 0, 128, 128, flippedX, false)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
  * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown, WarningSign,
- * and
- * DarkOrb — draw a
+ * DarkOrb, LightningOrbPassive, and
+ * GlowyFireEyes — draw a
  * fixed source rect
  * rather than a packed region, so their native origin/size/source rect are host-neutral constants
- * and the packed region size is ignored; Shield, Web, Entangle, and WarningSign hardcode rotation
+ * and the packed region size is ignored; Shield, Web, Entangle, WarningSign, and GlowyFireEyes
+ * hardcode rotation
  * {@code 0f},
- * Debuff, IceShatter, Unknown, and DarkOrb consume their {@code rotation} field, and Calm keeps its
+ * Debuff, IceShatter, Unknown, DarkOrb, and LightningOrbPassive consume their {@code rotation}
+ * field, and Calm keeps its
  * {@code scaleY} formula. WarningSign is the only kind whose uniform scale is a hardcoded
- * {@code settingsScale * 2f} rather than the effect's own {@code scale} field (it has none). Web and
+ * {@code settingsScale * 2f} rather than the effect's own {@code scale} field (it has none). Two of
+ * the bare-{@code Texture} kinds are the first to carry per-instance FLIP booleans: the native
+ * {@code LightningOrbPassiveEffect} passes its own {@code flipX} and {@code flipY} fields, and
+ * {@code GlowyFireEyesEffect} passes its own {@code flippedX} with a hardcoded {@code false} vertical
+ * flip, so {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY} report them; every other kind keeps
+ * {@code false, false}. Web and
  * Entangle
  * are the only kinds whose native {@code render} rewrites the set color, forcing RGB to white
  * and taking alpha from the effect's color (see {@link #whiteAlphaOnly}). {@code DivinityStanceChangeParticle}, the
@@ -264,7 +284,9 @@ public final class VfxDrawGeometry {
         SHINE_LINES,
         TORCH_PARTICLE_M,
         TORCH_PARTICLE_S,
-        SCENE_DUST
+        SCENE_DUST,
+        LIGHTNING_ORB_PASSIVE,
+        GLOWY_FIRE_EYES
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -396,6 +418,44 @@ public final class VfxDrawGeometry {
     public static final int DARK_ORB_SRC_W = 74;
     /** Native DarkOrb draw source rect height ({@code 74}, the full region). */
     public static final int DARK_ORB_SRC_H = 74;
+
+    // Native LightningOrbPassiveEffect draw constants (see the class Javadoc): fixed
+    // offset/origin/size and the fixed source rect (0, 0, 122, 122 — the full 122x122 rect) over its
+    // own instance Texture img. The rotation comes from the field and the native draw passes the
+    // effect's own flipX/flipY booleans (the first claimable kind to do so).
+    /** Native LightningOrbPassive draw offset/origin ({@code 61f}). */
+    public static final float LIGHTNING_ORB_PASSIVE_OFFSET = 61f;
+    /** Native LightningOrbPassive draw origin ({@code 61f}). */
+    public static final float LIGHTNING_ORB_PASSIVE_ORIGIN = 61f;
+    /** Native LightningOrbPassive draw width/height ({@code 122f}). */
+    public static final float LIGHTNING_ORB_PASSIVE_SIZE = 122f;
+    /** Native LightningOrbPassive draw source rect x ({@code 0}). */
+    public static final int LIGHTNING_ORB_PASSIVE_SRC_X = 0;
+    /** Native LightningOrbPassive draw source rect y ({@code 0}). */
+    public static final int LIGHTNING_ORB_PASSIVE_SRC_Y = 0;
+    /** Native LightningOrbPassive draw source rect width ({@code 122}, the full rect). */
+    public static final int LIGHTNING_ORB_PASSIVE_SRC_W = 122;
+    /** Native LightningOrbPassive draw source rect height ({@code 122}, the full rect). */
+    public static final int LIGHTNING_ORB_PASSIVE_SRC_H = 122;
+
+    // Native GlowyFireEyesEffect draw constants (see the class Javadoc): fixed offset/origin/size and
+    // the fixed source rect (0, 0, 128, 128 — the full 128x128 rect) over its own instance Texture
+    // img. The rotation is hardcoded to 0f and the native draw passes the effect's own flippedX
+    // boolean with a hardcoded false vertical flip.
+    /** Native GlowyFireEyes draw offset/origin ({@code 64f}). */
+    public static final float GLOWY_FIRE_EYES_OFFSET = 64f;
+    /** Native GlowyFireEyes draw origin ({@code 64f}). */
+    public static final float GLOWY_FIRE_EYES_ORIGIN = 64f;
+    /** Native GlowyFireEyes draw width/height ({@code 128f}). */
+    public static final float GLOWY_FIRE_EYES_SIZE = 128f;
+    /** Native GlowyFireEyes draw source rect x ({@code 0}). */
+    public static final int GLOWY_FIRE_EYES_SRC_X = 0;
+    /** Native GlowyFireEyes draw source rect y ({@code 0}). */
+    public static final int GLOWY_FIRE_EYES_SRC_Y = 0;
+    /** Native GlowyFireEyes draw source rect width ({@code 128}, the full rect). */
+    public static final int GLOWY_FIRE_EYES_SRC_W = 128;
+    /** Native GlowyFireEyes draw source rect height ({@code 128}, the full rect). */
+    public static final int GLOWY_FIRE_EYES_SRC_H = 128;
 
     // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
     // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
@@ -554,6 +614,8 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.TORCH_PARTICLE_M.equals(value)) return Kind.TORCH_PARTICLE_M;
         if (VfxClaimPolicy.TORCH_PARTICLE_S.equals(value)) return Kind.TORCH_PARTICLE_S;
         if (VfxClaimPolicy.SCENE_DUST.equals(value)) return Kind.SCENE_DUST;
+        if (VfxClaimPolicy.LIGHTNING_ORB_PASSIVE.equals(value)) return Kind.LIGHTNING_ORB_PASSIVE;
+        if (VfxClaimPolicy.GLOWY_FIRE_EYES.equals(value)) return Kind.GLOWY_FIRE_EYES;
         return null;
     }
 
@@ -593,8 +655,9 @@ public final class VfxDrawGeometry {
      * center-packed members {@link Kind#FLAME_PARTICLE}/{@link Kind#LIGHTNING_ORB_ACTIVATE},
      * the additive bare-texture members {@link Kind#DARK_ORB_PASSIVE}, the additive
      * {@link Kind#WARNING_SIGN}, the newest additive members {@link Kind#LIGHTNING_EFFECT}/
-     * {@link Kind#FLAME_BALL}, and the two additive center-packed {@link Kind#TORCH_PARTICLE_M}/
-     * {@link Kind#TORCH_PARTICLE_S} — is additive.
+     * {@link Kind#FLAME_BALL}, the two additive center-packed {@link Kind#TORCH_PARTICLE_M}/
+     * {@link Kind#TORCH_PARTICLE_S}, and the two newest additive bare-{@code Texture} members
+     * {@link Kind#LIGHTNING_ORB_PASSIVE}/{@link Kind#GLOWY_FIRE_EYES} — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -659,6 +722,45 @@ public final class VfxDrawGeometry {
             throw new IllegalArgumentException("kind must not be null");
         }
         return kind == Kind.WEB_PARTICLE || kind == Kind.ENTANGLE;
+    }
+
+    /**
+     * Pure per-kind predicate for the new per-instance horizontal-flip capability of the
+     * bare-{@code Texture} shape-C path: {@code true} only for the kinds whose native {@code render}
+     * passes the effect's own horizontal flip boolean to the raw-texture draw overload. Today that is
+     * exactly {@link Kind#LIGHTNING_ORB_PASSIVE} (its {@code flipX} field) and
+     * {@link Kind#GLOWY_FIRE_EYES} (its {@code flippedX} field). Every other kind — including every
+     * other bare-{@code Texture} member ({@link Kind#CALM_PARTICLE}, {@link Kind#SHIELD_PARTICLE},
+     * {@link Kind#DEBUFF_PARTICLE}, {@link Kind#ICE_SHATTER}, {@link Kind#WEB_PARTICLE},
+     * {@link Kind#ENTANGLE}, {@link Kind#UNKNOWN_PARTICLE}, {@link Kind#WARNING_SIGN},
+     * {@link Kind#DARK_ORB_PASSIVE}) — hardcodes {@code false}, so the host draw must not read a
+     * flip field for it.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean usesInstanceFlipX(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.LIGHTNING_ORB_PASSIVE || kind == Kind.GLOWY_FIRE_EYES;
+    }
+
+    /**
+     * Pure per-kind predicate for the new per-instance vertical-flip capability of the
+     * bare-{@code Texture} shape-C path: {@code true} only for the kinds whose native {@code render}
+     * passes the effect's own vertical flip boolean to the raw-texture draw overload. Today that is
+     * exactly {@link Kind#LIGHTNING_ORB_PASSIVE} (its {@code flipY} field);
+     * {@link Kind#GLOWY_FIRE_EYES} uses only its horizontal {@code flippedX} field and hardcodes the
+     * vertical flip to {@code false}, so it is {@code false} here. Every other kind hardcodes
+     * {@code false} for both flips.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean usesInstanceFlipY(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.LIGHTNING_ORB_PASSIVE;
     }
 
     /**
@@ -850,6 +952,27 @@ public final class VfxDrawGeometry {
                 // setBlendFunction, so it is another ambient member of this one branch.
                 return new Params(x, y, regionOffsetX, regionOffsetY, packedWidth, packedHeight,
                         scale, scale, rotation);
+            case LIGHTNING_ORB_PASSIVE:
+                // Native LightningOrbPassiveEffect ignores the (absent) region: a fixed
+                // offset/origin/size rect (offset 61, origin 61, size 122) and the field rotation;
+                // packedWidth/packedHeight, vY, vX, the region offsets, dur_div2, duration, and
+                // Settings.scale are unused. Its src rect is (0, 0, 122, 122), the full native rect.
+                // The per-instance flipX/flipY booleans are resolved by the renderer (see
+                // usesInstanceFlipX/usesInstanceFlipY), not here.
+                return new Params(x - LIGHTNING_ORB_PASSIVE_OFFSET, y - LIGHTNING_ORB_PASSIVE_OFFSET,
+                        LIGHTNING_ORB_PASSIVE_ORIGIN, LIGHTNING_ORB_PASSIVE_ORIGIN,
+                        LIGHTNING_ORB_PASSIVE_SIZE, LIGHTNING_ORB_PASSIVE_SIZE,
+                        scale, scale, rotation);
+            case GLOWY_FIRE_EYES:
+                // Native GlowyFireEyesEffect ignores the (absent) region: a fixed
+                // offset/origin/size rect (offset 64, origin 64, size 128) and a HARDCODED zero
+                // rotation (the class has no rotation field); packedWidth/packedHeight, vY, vX, the
+                // region offsets, dur_div2, duration, and Settings.scale are unused. Its src rect is
+                // (0, 0, 128, 128), the full native rect. Only the horizontal flip (from the effect's
+                // flippedX field) is passed; the vertical flip is always false.
+                return new Params(x - GLOWY_FIRE_EYES_OFFSET, y - GLOWY_FIRE_EYES_OFFSET,
+                        GLOWY_FIRE_EYES_ORIGIN, GLOWY_FIRE_EYES_ORIGIN,
+                        GLOWY_FIRE_EYES_SIZE, GLOWY_FIRE_EYES_SIZE, scale, scale, 0f);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

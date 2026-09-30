@@ -195,6 +195,10 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect";
     public static final String SCENE_DUST =
             "com.megacrit.cardcrawl.vfx.scene.DustEffect";
+    public static final String LIGHTNING_ORB_PASSIVE =
+            "com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect";
+    public static final String GLOWY_FIRE_EYES =
+            "com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -208,7 +212,8 @@ public final class VfxClaimPolicy {
                     LIGHTNING_ORB_ACTIVATE, DAMAGE_IMPACT_BLUR, DAMAGE_IMPACT_LINE,
                     DARK_ORB_PASSIVE, WARNING_SIGN, STUN_STAR, FALLING_DUST,
                     LIGHTNING_EFFECT, FLAME_BALL, SHINE_LINES,
-                    TORCH_PARTICLE_M, TORCH_PARTICLE_S, SCENE_DUST));
+                    TORCH_PARTICLE_M, TORCH_PARTICLE_S, SCENE_DUST,
+                    LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES));
 
     private VfxClaimPolicy() {}
 
@@ -257,7 +262,9 @@ public final class VfxClaimPolicy {
                 || SHINE_LINES.equals(value)
                 || TORCH_PARTICLE_M.equals(value)
                 || TORCH_PARTICLE_S.equals(value)
-                || SCENE_DUST.equals(value);
+                || SCENE_DUST.equals(value)
+                || LIGHTNING_ORB_PASSIVE.equals(value)
+                || GLOWY_FIRE_EYES.equals(value);
     }
 
     /**
@@ -313,7 +320,16 @@ public final class VfxClaimPolicy {
      * center-packed {@code AtlasRegion} members that reuse the {@code StanceAuraEffect} geometry with
      * no new rule (their {@code vY} is update-only), and {@code DustEffect} is an ambient
      * center-packed {@code AtlasRegion} member (NO-ARG constructor) whose origin is the region's own
-     * {@code offsetX}/{@code offsetY} (the same rule as {@code FallingDustEffect}).
+     * {@code offsetX}/{@code offsetY} (the same rule as {@code FallingDustEffect}). The two newest
+     * members ({@code LightningOrbPassiveEffect} in {@code vfx-combat} and
+     * {@code GlowyFireEyesEffect} in {@code vfx-misc-root}) extend the bare-{@code Texture}
+     * shape-C path with per-instance FLIP flags — the first claimable kinds whose native
+     * {@code render} passes the effect's own flip booleans to the raw-texture draw overload — and
+     * are appended last in that order; {@code LightningOrbPassiveEffect} is additive over a
+     * {@code 122}-rect and consumes its inherited {@code rotation} field and its own
+     * {@code flipX}/{@code flipY} booleans, while {@code GlowyFireEyesEffect} is additive over a
+     * {@code 128}-rect with a hardcoded zero rotation and its own single {@code flippedX} boolean
+     * (vertical flip always {@code false}).
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

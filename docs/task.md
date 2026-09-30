@@ -542,6 +542,31 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       phases. No new patch/bridge/console wiring; default-off gate + per-instance token semantics
       unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F19 (per-instance flip flags on the bare-`Texture` shape-C path; two more members):
+      the family-neutral seam's shape-C fixed-rect draw now supports per-instance `flipX`/`flipY`
+      booleans, passed to the raw-texture `SpriteBatch.draw(Texture, ..., srcX, srcY, srcW, srcH,
+      flipX, flipY)` overload. `VfxDrawGeometry` gains `Kind.LIGHTNING_ORB_PASSIVE` (fixed rect
+      offset/origin 61, size 122, src `0,0,122,122`, additive, uses the inherited `rotation` field)
+      and `Kind.GLOWY_FIRE_EYES` (fixed rect offset/origin 64, size 128, src `0,0,128,128`, additive,
+      rotation hardcoded `0f` — the class has no `rotation` field) with new constants and two new
+      pure predicates `usesInstanceFlipX`/`usesInstanceFlipY` (`true`/`true` for LOP; `true`/`false`
+      for GFE; `false`/`false` for every other kind; throw on null like `additiveBlend`);
+      `kindFor` maps the two exact FQNs (near-miss/nested fail open), `additiveBlend` is `true` for
+      both, and `whiteAlphaOnly` is unchanged. `Sts1VfxArtRenderer` resolves the flip booleans
+      reflectively BY KIND inside the ONE existing shape-C branch — `LIGHTNING_ORB_PASSIVE` reads its
+      own `flipX`/`flipY` and requires the `rotation` field plus an instance `Texture img`;
+      `GLOWY_FIRE_EYES` reads its own `flippedX` (the vertical flip is always `false`), forces
+      rotation `0f`, and requires an instance `Texture img` but NOT a `rotation` field. A
+      missing/unreadable flip flag defaults to `false` (flip is optional decoration, so it does NOT
+      fail open); every pre-existing kind still draws with `false, false`, so no existing kind's draw
+      changed. `VfxClaimPolicy` `LIGHTNING_ORB_PASSIVE`/`GLOWY_FIRE_EYES` append LAST to
+      `supportedClasses()`/`supports(...)` in that order; `VfxLabSpawn.classNameFor` gains
+      `"lightningorbpassive"`/`"lop"` (`new LightningOrbPassiveEffect(960f, 540f)`) and
+      `"glowyfireeyes"`/`"glowyeyes"` (`new GlowyFireEyesEffect(960f, 540f)`) behind the existing
+      fail-open guard, and `art claim spawn lop 4` / `art claim spawn glowyeyes 4` run in both
+      `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
+      token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

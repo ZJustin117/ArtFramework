@@ -112,6 +112,12 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.TORCH_PARTICLE_S, VfxLabSpawn.classNameFor("torchs"));
         assertEquals(VfxClaimPolicy.SCENE_DUST, VfxLabSpawn.classNameFor("scenedust"));
         assertEquals(VfxClaimPolicy.SCENE_DUST, VfxLabSpawn.classNameFor("dusteffect"));
+        assertEquals(VfxClaimPolicy.LIGHTNING_ORB_PASSIVE,
+                VfxLabSpawn.classNameFor("lightningorbpassive"));
+        assertEquals(VfxClaimPolicy.LIGHTNING_ORB_PASSIVE, VfxLabSpawn.classNameFor("lop"));
+        assertEquals(VfxClaimPolicy.GLOWY_FIRE_EYES,
+                VfxLabSpawn.classNameFor("glowyfireeyes"));
+        assertEquals(VfxClaimPolicy.GLOWY_FIRE_EYES, VfxLabSpawn.classNameFor("glowyeyes"));
     }
 
     @Test
@@ -499,6 +505,16 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("torchs", VfxClaimPolicy.TORCH_PARTICLE_S);
         assertSpawnRequests("scenedust", VfxClaimPolicy.SCENE_DUST);
         assertSpawnRequests("dusteffect", VfxClaimPolicy.SCENE_DUST);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF19MembersThroughTheFactorySeam() {
+        // The two newest claimable FQNs (the per-instance flip members); the capturing factory proves
+        // each alias requests exactly its FQN without touching the ImageMaster-backed constructors.
+        assertSpawnRequests("lightningorbpassive", VfxClaimPolicy.LIGHTNING_ORB_PASSIVE);
+        assertSpawnRequests("lop", VfxClaimPolicy.LIGHTNING_ORB_PASSIVE);
+        assertSpawnRequests("glowyfireeyes", VfxClaimPolicy.GLOWY_FIRE_EYES);
+        assertSpawnRequests("glowyeyes", VfxClaimPolicy.GLOWY_FIRE_EYES);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

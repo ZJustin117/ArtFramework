@@ -220,6 +220,16 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.FALLING_DUST,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.FallingDustEffect"));
+        assertSame(VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.LIGHTNING_ORB_PASSIVE));
+        assertSame(VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect"));
+        assertSame(VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.GLOWY_FIRE_EYES));
+        assertSame(VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect"));
     }
 
     @Test
@@ -529,6 +539,27 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.DustEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.scene.Dust")); // near-miss (no Effect)
+        // The two newest flip members: exact FQN only, near-misses fail open.
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("LightningOrbPassiveEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.LightningOrbPassiveEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.LightningOrbPassive")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffectPassive"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("GlowyFireEyesEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.GlowyFireEyesEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GlowyFireEyes")); // near-miss (no Effect)
     }
 
     @Test
@@ -1581,6 +1612,140 @@ public class VfxDrawGeometryTest {
             assertTrue("expected additive blend for " + kind,
                     VfxDrawGeometry.additiveBlend(kind));
             assertFalse(VfxDrawGeometry.whiteAlphaOnly(kind));
+        }
+    }
+
+    @Test
+    public void lightningOrbPassiveUsesItsFixedRectRotationAndBothFlipFlags() {
+        // Native: setColor(color); setBlendFunction(770,1);
+        //   sb.draw(img, x - 61f, y - 61f, 61f, 61f, 122f, 122f, scale, scale, rotation,
+        //           0, 0, 122, 122, flipX, flipY); setBlendFunction(770,771).
+        // The fixed rect is (offset/origin 61, size 122, src 0,0,122,122), the rotation comes from
+        // the field, and the flip booleans are per-instance (resolved by the renderer).
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f, 64f, 48f,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 10f /* regionOffsetY ignored */,
+                0f, 0f);
+
+        assertEquals(x - 61f, p.x, EPS);
+        assertEquals(y - 61f, p.y, EPS);
+        assertEquals(61f, p.originX, EPS);
+        assertEquals(61f, p.originY, EPS);
+        assertEquals(122f, p.width, EPS);
+        assertEquals(122f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("LOP consumes the rotation field", rotation, p.rotation, EPS);
+
+        assertEquals(61f, VfxDrawGeometry.LIGHTNING_ORB_PASSIVE_OFFSET, EPS);
+        assertEquals(61f, VfxDrawGeometry.LIGHTNING_ORB_PASSIVE_ORIGIN, EPS);
+        assertEquals(122f, VfxDrawGeometry.LIGHTNING_ORB_PASSIVE_SIZE, EPS);
+        assertEquals(122, VfxDrawGeometry.LIGHTNING_ORB_PASSIVE_SRC_W);
+        assertEquals(122, VfxDrawGeometry.LIGHTNING_ORB_PASSIVE_SRC_H);
+
+        assertTrue("LIGHTNING_ORB_PASSIVE installs additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE));
+    }
+
+    @Test
+    public void glowyFireEyesUsesItsFixedRectAndHardcodedZeroRotation() {
+        // Native: setBlendFunction(770,1); setColor(color);
+        //   sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, 0f,
+        //           0, 0, 128, 128, flippedX, false); setBlendFunction(770,771).
+        // The rotation is hardcoded 0f (GlowyFireEyesEffect has no rotation field) and only the
+        // horizontal flip is per-instance.
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f, 64f, 48f,
+                1234f /* vX ignored */, 6f, 10f, 0f, 0f);
+
+        assertEquals(x - 64f, p.x, EPS);
+        assertEquals(y - 64f, p.y, EPS);
+        assertEquals(64f, p.originX, EPS);
+        assertEquals(64f, p.originY, EPS);
+        assertEquals(128f, p.width, EPS);
+        assertEquals(128f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("GFE hardcodes rotation 0f", 0f, p.rotation, EPS);
+
+        assertEquals(64f, VfxDrawGeometry.GLOWY_FIRE_EYES_OFFSET, EPS);
+        assertEquals(64f, VfxDrawGeometry.GLOWY_FIRE_EYES_ORIGIN, EPS);
+        assertEquals(128f, VfxDrawGeometry.GLOWY_FIRE_EYES_SIZE, EPS);
+        assertEquals(128, VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_W);
+        assertEquals(128, VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_H);
+
+        assertTrue("GLOWY_FIRE_EYES installs additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.GLOWY_FIRE_EYES));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.GLOWY_FIRE_EYES));
+    }
+
+    @Test
+    public void instanceFlipPredicatesAreTrueOnlyForTheTwoNewFlipKinds() {
+        // LOP passes BOTH flipX and flipY; GFE passes only the horizontal flippedX (its vertical
+        // flip is hardcoded false); every other kind hardcodes false, false.
+        assertTrue(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE));
+        assertTrue(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE));
+        assertTrue(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.GLOWY_FIRE_EYES));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.GLOWY_FIRE_EYES));
+
+        // A sample of pre-existing kinds (including every other bare-Texture member).
+        VfxDrawGeometry.Kind[] none = {
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                VfxDrawGeometry.Kind.CALM_PARTICLE,
+                VfxDrawGeometry.Kind.SHIELD_PARTICLE,
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
+                VfxDrawGeometry.Kind.ICE_SHATTER,
+                VfxDrawGeometry.Kind.WEB_PARTICLE,
+                VfxDrawGeometry.Kind.ENTANGLE,
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
+                VfxDrawGeometry.Kind.WARNING_SIGN,
+                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
+                VfxDrawGeometry.Kind.SCENE_DUST };
+        for (VfxDrawGeometry.Kind kind : none) {
+            assertFalse("no per-instance X flip for " + kind,
+                    VfxDrawGeometry.usesInstanceFlipX(kind));
+            assertFalse("no per-instance Y flip for " + kind,
+                    VfxDrawGeometry.usesInstanceFlipY(kind));
+        }
+
+        // The truth table is exhaustive over the enum.
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            assertEquals("X flip truth table for " + kind,
+                    kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
+                            || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
+                    VfxDrawGeometry.usesInstanceFlipX(kind));
+            assertEquals("Y flip truth table for " + kind,
+                    kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE,
+                    VfxDrawGeometry.usesInstanceFlipY(kind));
+        }
+    }
+
+    @Test
+    public void instanceFlipPredicatesNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.usesInstanceFlipX(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+        try {
+            VfxDrawGeometry.usesInstanceFlipY(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
         }
     }
 

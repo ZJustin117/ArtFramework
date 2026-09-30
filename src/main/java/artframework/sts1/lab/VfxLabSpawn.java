@@ -11,6 +11,7 @@ import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.FlameBallParticleEffect;
 import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
+import com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
 import com.megacrit.cardcrawl.vfx.ShineLinesEffect;
 import com.megacrit.cardcrawl.vfx.WarningSignEffect;
@@ -23,6 +24,7 @@ import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect;
+import com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.StunStarEffect;
@@ -66,7 +68,10 @@ import java.util.function.Predicate;
  * {@code LightningEffect} ({@code vfx-combat}), {@code FlameBallParticleEffect}, and
  * {@code ShineLinesEffect} (root), plus the three newest members
  * {@code TorchParticleMEffect}/{@code TorchParticleSEffect}/{@code DustEffect}
- * ({@code vfx-scene-world}; {@code DustEffect} uses its NO-ARG constructor) — into
+ * ({@code vfx-scene-world}; {@code DustEffect} uses its NO-ARG constructor), plus the two newest
+ * bare-{@code Texture} members {@code LightningOrbPassiveEffect} ({@code vfx-combat}) and
+ * {@code GlowyFireEyesEffect} (root) — the first kinds on the shape-C path to pass per-instance flip
+ * flags — into
  * the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
@@ -226,6 +231,12 @@ public final class VfxLabSpawn {
         }
         if ("scenedust".equalsIgnoreCase(value) || "dusteffect".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.SCENE_DUST;
+        }
+        if ("lightningorbpassive".equalsIgnoreCase(value) || "lop".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.LIGHTNING_ORB_PASSIVE;
+        }
+        if ("glowyfireeyes".equalsIgnoreCase(value) || "glowyeyes".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.GLOWY_FIRE_EYES;
         }
         return null;
     }
@@ -552,6 +563,18 @@ public final class VfxLabSpawn {
             // (and img from a private getImg()); img may be null outside a live game, so any failure
             // is caught by spawn's fail-open guard rather than propagating.
             return new DustEffect();
+        }
+        if (VfxClaimPolicy.LIGHTNING_ORB_PASSIVE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The instance img is ImageMaster-backed
+            // and may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new LightningOrbPassiveEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.GLOWY_FIRE_EYES.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The instance img is ImageMaster-backed
+            // and may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new GlowyFireEyesEffect(960f, 540f);
         }
         return null;
     }

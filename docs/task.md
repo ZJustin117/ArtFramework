@@ -250,6 +250,30 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       in both `d1_aura_claim.yaml` phases. No new formula, patch, bridge, or console wiring;
       default-off gate and per-instance token semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F12 (four more members: two additive + two ambient, existing geometry only):
+      `com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect` (`vfx-scene-world`) and
+      `com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect`, `com.megacrit.cardcrawl.vfx
+      .GenericSmokeEffect`, and `com.megacrit.cardcrawl.vfx.ExhaustBlurEffect` (all three
+      `vfx-misc-root`) join the seam reusing the additive center-packed `STANCE_AURA` geometry
+      (x/y passthrough, center packed/2 origin, packed w/h, uniform scale, rotation) — no new
+      formula branch. `TorchParticleXLEffect` and `GhostlyWeakFireEffect` install
+      `setBlendFunction(770, 1)` before and `(770, 771)` after, so `VfxDrawGeometry.additiveBlend`
+      reports `true` for them; `GenericSmokeEffect` and `ExhaustBlurEffect` never call
+      `setBlendFunction` (ambient), so it reports `false`. All four own a `vY` used only by
+      `update()` and ignored by `render`, so they stay on the optional-`vY` reader path and no kind
+      joins the `WRATH_PARTICLE`/`DIVINITY_PARTICLE` `requireVY` set. `VfxClaimPolicy
+      .SCENE_TORCH_PARTICLE_XL`/`GHOSTLY_WEAK_FIRE`/`GENERIC_SMOKE`/`EXHAUST_BLUR` append last to
+      `supportedClasses()` in that order, and `VfxDrawGeometry.Kind.TORCH_PARTICLE_XL`/
+      `GHOSTLY_WEAK_FIRE`/`GENERIC_SMOKE`/`EXHAUST_BLUR` map via the existing additive-params
+      branch. `VfxLabSpawn.classNameFor` gains `"torchxl"` (`new TorchParticleXLEffect(960f, 540f)`),
+      `"ghostlyfire"`/`"ghostly"` (`new GhostlyWeakFireEffect(960f, 540f)`),
+      `"genericsmoke"`/`"gsmoke"` (`new GenericSmokeEffect(960f, 540f)`), and
+      `"exhaustblur"`/`"exhaust"` (`new ExhaustBlurEffect(960f, 540f)`) — aliases checked against
+      the existing set for collisions — behind the existing fail-open guard, and
+      `art claim spawn torchxl|ghostlyfire|genericsmoke|exhaustblur 4` runs in both
+      `d1_aura_claim.yaml` phases. No new formula, patch, bridge, or console wiring; default-off
+      gate and per-instance token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

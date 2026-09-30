@@ -2,8 +2,10 @@
 # read-only backend.renderPlan.aura.{gate,ready,draws} probe slice (the same nested map is also
 # exposed as backend.renderPlan.vfxClaim; the seam is family-neutral, current members are the
 # vfx-stance-aura FQNs plus the cross-family vfx-scene-world LightFlareSEffect/LightFlareMEffect/
-# LightFlareLEffect/TorchParticleLEffect/CeilingDustCloudEffect, the vfx-misc-root
-# FireBurstParticleEffect/NemesisFireParticle, the vfx-combat
+# LightFlareLEffect/TorchParticleLEffect/TorchParticleXLEffect/CeilingDustCloudEffect, the
+# vfx-misc-root
+# FireBurstParticleEffect/NemesisFireParticle/GhostlyWeakFireEffect/GenericSmokeEffect/
+# ExhaustBlurEffect, the vfx-combat
 # FlashAtkImgEffect/RedFireBurstParticleEffect/SmokeBlurEffect, and the two bare-Texture
 # ShieldParticleEffect/DebuffParticleEffect). Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
@@ -71,6 +73,10 @@ steps:
   - console: "art claim spawn nemesis 4"
   - console: "art claim spawn shield 4"
   - console: "art claim spawn debuff 4"
+  - console: "art claim spawn torchxl 4"
+  - console: "art claim spawn ghostlyfire 4"
+  - console: "art claim spawn genericsmoke 4"
+  - console: "art claim spawn exhaustblur 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -122,6 +128,10 @@ steps:
   - console: "art claim spawn nemesis 4"
   - console: "art claim spawn shield 4"
   - console: "art claim spawn debuff 4"
+  - console: "art claim spawn torchxl 4"
+  - console: "art claim spawn ghostlyfire 4"
+  - console: "art claim spawn genericsmoke 4"
+  - console: "art claim spawn exhaustblur 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

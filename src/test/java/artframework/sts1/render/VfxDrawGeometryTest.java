@@ -101,6 +101,27 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.DebuffParticleEffect"));
+        // the four newest members, via constants and literal FQNs
+        assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_XL,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL));
+        assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_XL,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect"));
+        assertSame(VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.GHOSTLY_WEAK_FIRE));
+        assertSame(VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect"));
+        assertSame(VfxDrawGeometry.Kind.GENERIC_SMOKE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.GENERIC_SMOKE));
+        assertSame(VfxDrawGeometry.Kind.GENERIC_SMOKE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.GenericSmokeEffect"));
+        assertSame(VfxDrawGeometry.Kind.EXHAUST_BLUR,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.EXHAUST_BLUR));
+        assertSame(VfxDrawGeometry.Kind.EXHAUST_BLUR,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.ExhaustBlurEffect"));
     }
 
     @Test
@@ -197,6 +218,42 @@ public class VfxDrawGeometryTest {
         assertNull(VfxDrawGeometry.kindFor("DebuffParticleEffect")); // simple name only
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.combat.DebuffParticleEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("TorchParticleXLEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.TorchParticleXLEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleEffect")); // near-miss (no XL)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("GhostlyWeakFireEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.GhostlyWeakFireEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GhostlyWeakFire")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GenericSmokeEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GenericSmokeEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("GenericSmokeEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.GenericSmokeEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.GenericSmoke")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ExhaustBlurEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ExhaustBlurEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("ExhaustBlurEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.ExhaustBlurEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ExhaustBlur")); // near-miss (no Effect)
     }
 
     @Test
@@ -551,6 +608,55 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
+    public void fourNewestMembersMatchStanceAuraGeometryExactlyWithVYIgnored() {
+        // The four newest members all draw the same formula as StanceAuraEffect: x/y passthrough
+        // (every one of them has a vY field that render never reads), center origin, packed size,
+        // uniform scale. TorchParticleXLEffect and GhostlyWeakFireEffect are additive; the generic
+        // smoke and exhaust blur never call setBlendFunction at all.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_XL,
+                VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE,
+                VfxDrawGeometry.Kind.GENERIC_SMOKE,
+                VfxDrawGeometry.Kind.EXHAUST_BLUR }) {
+            // vY=999f is ignored by every one of these formulas (vY is update-only).
+            VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                    kind, x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+            assertEquals("x passthrough for " + kind, x, p.x, EPS);
+            assertEquals("y passthrough for " + kind, y, p.y, EPS);
+            assertEquals("originX for " + kind, pw / 2f, p.originX, EPS);
+            assertEquals("originY for " + kind, ph / 2f, p.originY, EPS);
+            assertEquals("width for " + kind, pw, p.width, EPS);
+            assertEquals("height for " + kind, ph, p.height, EPS);
+            assertEquals("scaleX for " + kind, scale, p.scaleX, EPS);
+            assertEquals("scaleY for " + kind, scale, p.scaleY, EPS);
+            assertEquals("rotation for " + kind, rotation, p.rotation, EPS);
+            // Byte-identical to the STANCE_AURA result (vY=0) for the same inputs.
+            assertEquals("geometry must equal STANCE_AURA for " + kind, aura, p);
+
+            // A different vY produces byte-identical geometry (vY is ignored).
+            VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                    kind, x, y, -12345f, scale, rotation, 7f, 5f, 2f, pw, ph);
+            assertEquals("vY must be ignored for " + kind, p, q);
+
+            boolean additive = kind == VfxDrawGeometry.Kind.TORCH_PARTICLE_XL
+                    || kind == VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE;
+            assertEquals("blend policy for " + kind, additive,
+                    VfxDrawGeometry.additiveBlend(kind));
+        }
+    }
+
+    @Test
     public void shieldParticleUsesTheFixedNativeRectAndForcesZeroRotation() {
         // Native: draw(ImageMaster.INTENT_DEFEND, x - 32f, y - 32f, 32f, 32f, 64f, 64f,
         //            scale, scale, 0f, 0, 0, 64, 64, false, false)
@@ -650,12 +756,21 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.RED_FIRE_BURST));
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SHIELD_PARTICLE));
 
+        // The two newest ambient packed-region members never call setBlendFunction ...
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.GENERIC_SMOKE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.EXHAUST_BLUR));
+        // ... while the two newest additive members do.
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.TORCH_PARTICLE_XL));
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
                     || kind == VfxDrawGeometry.Kind.CEILING_DUST
                     || kind == VfxDrawGeometry.Kind.NEMESIS_FIRE
-                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
+                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.GENERIC_SMOKE
+                    || kind == VfxDrawGeometry.Kind.EXHAUST_BLUR) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,

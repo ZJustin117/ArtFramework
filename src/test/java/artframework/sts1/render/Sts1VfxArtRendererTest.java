@@ -7,9 +7,13 @@ import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
+import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
+import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
+import com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import org.junit.Test;
 
@@ -246,6 +250,10 @@ public class Sts1VfxArtRendererTest {
                 VfxDrawGeometry.Kind.SMOKE_BLUR,
                 VfxDrawGeometry.Kind.CEILING_DUST,
                 VfxDrawGeometry.Kind.NEMESIS_FIRE,
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_XL,
+                VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE,
+                VfxDrawGeometry.Kind.GENERIC_SMOKE,
+                VfxDrawGeometry.Kind.EXHAUST_BLUR,
                 VfxDrawGeometry.Kind.STANCE_AURA }) {
             Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
 
@@ -299,7 +307,7 @@ public class Sts1VfxArtRendererTest {
 
     @Test
     public void readFieldsResolvesVYOwnersWithVYPresentAndIgnoresIt() {
-        // TorchParticleLEffect plus the five newest members have a vY field but render never reads
+        // TorchParticleLEffect plus the nine newest members have a vY field but render never reads
         // it; the optional-vY path must still resolve for them (vY captured but not consumed by the
         // geometry).
         FullEffect effect = new FullEffect();
@@ -317,7 +325,11 @@ public class Sts1VfxArtRendererTest {
                 VfxDrawGeometry.Kind.RED_FIRE_BURST,
                 VfxDrawGeometry.Kind.SMOKE_BLUR,
                 VfxDrawGeometry.Kind.CEILING_DUST,
-                VfxDrawGeometry.Kind.NEMESIS_FIRE }) {
+                VfxDrawGeometry.Kind.NEMESIS_FIRE,
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_XL,
+                VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE,
+                VfxDrawGeometry.Kind.GENERIC_SMOKE,
+                VfxDrawGeometry.Kind.EXHAUST_BLUR }) {
             Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
 
             assertNotNull("vY must be optional for " + kind, f);
@@ -574,6 +586,18 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.DebuffParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.GENERIC_SMOKE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.GenericSmokeEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.EXHAUST_BLUR));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.ExhaustBlurEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -588,6 +612,11 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.SHIELD_PARTICLE + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.GENERIC_SMOKE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.EXHAUST_BLUR + "$Sub"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -643,6 +672,32 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.render(fire, fireBurst));
         assertEquals("the additive member FireBurstParticleEffect installs and restores blend",
                 2, fire.setBlendCalls);
+
+        // The four newest members: the generic smoke and exhaust blur never call setBlendFunction
+        // natively (ambient), while the torch XL and ghostly weak fire are additive.
+        CountingBatch smoke2 = newCountingBatch();
+        AbstractGameEffect genericSmoke = seededEffect(GenericSmokeEffect.class);
+        assertTrue(renderer.render(smoke2, genericSmoke));
+        assertEquals("the ambient member GenericSmokeEffect must not touch the blend function",
+                0, smoke2.setBlendCalls);
+
+        CountingBatch blur = newCountingBatch();
+        AbstractGameEffect exhaustBlur = seededEffect(ExhaustBlurEffect.class);
+        assertTrue(renderer.render(blur, exhaustBlur));
+        assertEquals("the ambient member ExhaustBlurEffect must not touch the blend function",
+                0, blur.setBlendCalls);
+
+        CountingBatch torchXl = newCountingBatch();
+        AbstractGameEffect torchXlEffect = seededEffect(TorchParticleXLEffect.class);
+        assertTrue(renderer.render(torchXl, torchXlEffect));
+        assertEquals("the additive member TorchParticleXLEffect installs and restores blend",
+                2, torchXl.setBlendCalls);
+
+        CountingBatch ghostly = newCountingBatch();
+        AbstractGameEffect ghostlyFire = seededEffect(GhostlyWeakFireEffect.class);
+        assertTrue(renderer.render(ghostly, ghostlyFire));
+        assertEquals("the additive member GhostlyWeakFireEffect installs and restores blend",
+                2, ghostly.setBlendCalls);
     }
 
     // --- no-GL draws (mirrors BackgroundRenderPatchesTest/Sts1GdxAtlasRegionsTest conventions) ---

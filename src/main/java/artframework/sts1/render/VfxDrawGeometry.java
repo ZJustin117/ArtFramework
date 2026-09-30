@@ -6,7 +6,10 @@ package artframework.sts1.render;
  * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
  * {@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
  * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
- * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}),
+ * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}; the four
+ * newest members are the {@code vfx-scene-world} {@code TorchParticleXLEffect} and the
+ * {@code vfx-misc-root} {@code GhostlyWeakFireEffect}/{@code GenericSmokeEffect}/
+ * {@code ExhaustBlurEffect}),
  * mirroring the native render formula exactly.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
@@ -17,7 +20,8 @@ package artframework.sts1.render;
  * {@code setBlendFunction} at all, so they must draw under the ambient blend and restore only the
  * previous color ({@link #additiveBlend} returns {@code false} for them). The ambient kinds are
  * {@code FlashAtkImgEffect} (the first), plus the {@code SmokeBlurEffect},
- * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, and {@code DebuffParticleEffect}
+ * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code DebuffParticleEffect},
+ * {@code GenericSmokeEffect}, and {@code ExhaustBlurEffect}
  * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
@@ -67,6 +71,14 @@ package artframework.sts1.render;
  *   DebuffParticleEffect.render (note: no setBlendFunction; ambient blend; uses the rotation field):
  *     sb.draw(img, x - 16f, y - 16f, 16f, 16f, 32f, 32f,
  *             scale, scale, rotation, 0, 0, 32, 32, false, false)
+ *   TorchParticleXLEffect.render (note: additive blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   GhostlyWeakFireEffect.render (note: additive blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   GenericSmokeEffect.render (note: no setBlendFunction; ambient blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   ExhaustBlurEffect.render (note: no setBlendFunction; ambient blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The three
@@ -80,13 +92,17 @@ package artframework.sts1.render;
  * {@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the {@code vfx-scene-world}
  * {@code CeilingDustCloudEffect}, share the {@code StanceAuraEffect} geometry (x/y passthrough, no
  * consumed {@code vY}) — the three later scene-world members, the two fire bursts, the smoke blur,
- * the ceiling dust, and the nemesis fire are geometry-identical to the additive center-packed branch
+ * the ceiling dust, the nemesis fire, and the four newest members ({@code TorchParticleXLEffect},
+ * {@code GhostlyWeakFireEffect}, {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}) are
+ * geometry-identical to the additive center-packed branch
  * and the ones that own a {@code vY} field ignore it in {@code render} — so they all map to the
  * same {@link Kind#STANCE_AURA} formula branch. Only blend distinguishes them:
  * {@code FlashAtkImgEffect}/{@code SmokeBlurEffect}/{@code CeilingDustCloudEffect}/
- * {@code NemesisFireParticle}/{@code DebuffParticleEffect} never switch blend function, so
+ * {@code NemesisFireParticle}/{@code DebuffParticleEffect}/{@code GenericSmokeEffect}/
+ * {@code ExhaustBlurEffect} never switch blend function, so
  * {@link #additiveBlend} reports
- * {@code false} for them, while the two fire bursts and {@code ShieldParticleEffect} are additive
+ * {@code false} for them, while the two fire bursts, {@code TorchParticleXLEffect},
+ * {@code GhostlyWeakFireEffect}, and {@code ShieldParticleEffect} are additive
  * like the rest. {@code ShieldParticleEffect}/{@code DebuffParticleEffect} are the first two
  * members beyond {@code CalmParticleEffect} to draw a bare {@code Texture}, so they join the
  * fixed-source-rect shape via their own geometry branches rather than the packed-region branches.
@@ -111,7 +127,11 @@ public final class VfxDrawGeometry {
         CEILING_DUST,
         NEMESIS_FIRE,
         SHIELD_PARTICLE,
-        DEBUFF_PARTICLE
+        DEBUFF_PARTICLE,
+        TORCH_PARTICLE_XL,
+        GHOSTLY_WEAK_FIRE,
+        GENERIC_SMOKE,
+        EXHAUST_BLUR
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -266,6 +286,10 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.NEMESIS_FIRE.equals(value)) return Kind.NEMESIS_FIRE;
         if (VfxClaimPolicy.SHIELD_PARTICLE.equals(value)) return Kind.SHIELD_PARTICLE;
         if (VfxClaimPolicy.DEBUFF_PARTICLE.equals(value)) return Kind.DEBUFF_PARTICLE;
+        if (VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL.equals(value)) return Kind.TORCH_PARTICLE_XL;
+        if (VfxClaimPolicy.GHOSTLY_WEAK_FIRE.equals(value)) return Kind.GHOSTLY_WEAK_FIRE;
+        if (VfxClaimPolicy.GENERIC_SMOKE.equals(value)) return Kind.GENERIC_SMOKE;
+        if (VfxClaimPolicy.EXHAUST_BLUR.equals(value)) return Kind.EXHAUST_BLUR;
         return null;
     }
 
@@ -277,13 +301,16 @@ public final class VfxDrawGeometry {
      *
      * <p>Most kinds are additive; the ambient kinds ({@link Kind#FLASH_ATK_IMG},
      * {@link Kind#SMOKE_BLUR}, {@link Kind#CEILING_DUST}, {@link Kind#NEMESIS_FIRE},
-     * {@link Kind#DEBUFF_PARTICLE}) never call
+     * {@link Kind#DEBUFF_PARTICLE}, {@link Kind#GENERIC_SMOKE}, {@link Kind#EXHAUST_BLUR}) never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
-     * nemesis fire are the first ambient members beyond it, and {@link Kind#DEBUFF_PARTICLE} is the
-     * first ambient bare-{@code Texture} member. Every other kind — including the two fire
-     * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}) and the additive bare-texture
-     * {@link Kind#SHIELD_PARTICLE} — is additive.
+     * nemesis fire are the first ambient members beyond it, {@link Kind#DEBUFF_PARTICLE} is the
+     * first ambient bare-{@code Texture} member, and {@link Kind#GENERIC_SMOKE}/{@link
+     * Kind#EXHAUST_BLUR} are the newest ambient packed-region members. Every other kind — including
+     * the two fire
+     * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}), the additive bare-texture
+     * {@link Kind#SHIELD_PARTICLE}, and the additive {@link Kind#TORCH_PARTICLE_XL}/{@link
+     * Kind#GHOSTLY_WEAK_FIRE} — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -295,7 +322,9 @@ public final class VfxDrawGeometry {
                 && kind != Kind.SMOKE_BLUR
                 && kind != Kind.CEILING_DUST
                 && kind != Kind.NEMESIS_FIRE
-                && kind != Kind.DEBUFF_PARTICLE;
+                && kind != Kind.DEBUFF_PARTICLE
+                && kind != Kind.GENERIC_SMOKE
+                && kind != Kind.EXHAUST_BLUR;
     }
 
     /**
@@ -303,7 +332,8 @@ public final class VfxDrawGeometry {
      * region size; the per-kind color/blend state is applied by the host draw (see
      * {@link #additiveBlend}: additive kinds install/restore {@code 770/1}-&rarr;{@code 770/771},
      * while the ambient kinds ({@code FLASH_ATK_IMG}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
-     * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}) leave the ambient blend untouched and restore
+     * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR})
+     * leave the ambient blend untouched and restore
      * only color).
      *
      * @throws IllegalArgumentException when {@code kind} is null
@@ -329,14 +359,19 @@ public final class VfxDrawGeometry {
             case SMOKE_BLUR:
             case CEILING_DUST:
             case NEMESIS_FIRE:
+            case TORCH_PARTICLE_XL:
+            case GHOSTLY_WEAK_FIRE:
+            case GENERIC_SMOKE:
+            case EXHAUST_BLUR:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
-                // smoke blur, the ceiling dust, and the nemesis fire mirror StanceAuraEffect
-                // exactly: x/y passthrough (no vY is consumed; every member that owns a vY field —
-                // TorchParticleLEffect and all five new members — uses it only in update()),
-                // center origin, packed size, uniform scale. Flash, the smoke blur, the ceiling
-                // dust, and the nemesis fire differ only in blend (ambient, via additiveBlend ==
-                // false).
+                // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
+                // GhostlyWeakFireEffect, GenericSmokeEffect, and ExhaustBlurEffect mirror
+                // StanceAuraEffect exactly: x/y passthrough (no vY is consumed; every member that
+                // owns a vY field — TorchParticleLEffect and all nine newer members — uses it only
+                // in update()), center origin, packed size, uniform scale. Flash, the smoke blur,
+                // the ceiling dust, the nemesis fire, the generic smoke, and the exhaust blur differ
+                // only in blend (ambient, via additiveBlend == false).
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
             case DIVINITY_PARTICLE:

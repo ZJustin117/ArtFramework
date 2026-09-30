@@ -17,8 +17,10 @@ import java.lang.reflect.Field;
  * STS1 host-side {@link VfxArtRenderer.Adapter} for the family-neutral per-instance transient-effect
  * claim seam (current members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
  * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
- * {@code TorchParticleLEffect}/{@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
- * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
+ * {@code TorchParticleLEffect}/{@code TorchParticleXLEffect}/{@code CeilingDustCloudEffect}, the
+ * {@code vfx-misc-root}
+ * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}/{@code GhostlyWeakFireEffect}/
+ * {@code GenericSmokeEffect}/{@code ExhaustBlurEffect}, and the {@code vfx-combat}
  * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the two
  * {@code vfx-misc-root} bare-{@code Texture} members {@code ShieldParticleEffect} and
  * {@code DebuffParticleEffect}).
@@ -32,7 +34,8 @@ import java.lang.reflect.Field;
  * {@code SpriteBatch.draw} with color save-restore and a per-kind blend policy
  * ({@link VfxDrawGeometry#additiveBlend}): additive for most kinds, but ambient — no
  * {@code setBlendFunction} call at all — for the ambient kinds ({@code FlashAtkImgEffect},
- * {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}).
+ * {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect}, {@code NemesisFireParticle},
+ * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}).
  * {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload.
@@ -134,13 +137,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * the kinds whose {@link VfxDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
      * {@code DIVINITY_PARTICLE}); for the kinds that ignore it ({@code STANCE_AURA},
      * {@code DIVINITY_STANCE_CHANGE}, {@code LIGHT_FLARE}, {@code LIGHT_FLARE_M},
-     * {@code LIGHT_FLARE_L}, {@code TORCH_PARTICLE_L}, {@code FLASH_ATK_IMG}, and the five newest
+     * {@code LIGHT_FLARE_L}, {@code TORCH_PARTICLE_L}, {@code FLASH_ATK_IMG}, and the nine newest
      * members {@code FIRE_BURST}, {@code RED_FIRE_BURST}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
-     * {@code NEMESIS_FIRE}) it is optional and
+     * {@code NEMESIS_FIRE}, {@code TORCH_PARTICLE_XL}, {@code GHOSTLY_WEAK_FIRE},
+     * {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR}) it is optional and
      * defaults to {@code 0}, which is required because {@code DivinityStanceChangeParticle},
      * {@code LightFlareSEffect}, {@code FlashAtkImgEffect}, and {@code LightFlareMEffect}/
      * {@code LightFlareLEffect} have no {@code vY} field — and {@code TorchParticleLEffect} and all
-     * five newer members have one
+     * nine newer members have one
      * but never read it in {@code render} (it is update-only). Returns {@code null}
      * when the effect is null or any required field is absent, unreadable, or of the wrong type;
      * never throws.
@@ -149,7 +153,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (effect == null) return null;
         // vY is only meaningful for the formulas that add it to y; requiring it elsewhere would
         // wrongly reject DivinityStanceChangeParticle/LightFlareSEffect and LightFlareMEffect/
-        // LightFlareLEffect (no vY field) and TorchParticleLEffect plus the five newest members
+        // LightFlareLEffect (no vY field) and TorchParticleLEffect plus the nine newest members
         // (their vY is update-only), and omitting it where it is consumed would silently draw at an
         // un-shifted y instead of failing open to the native draw.
         boolean requireVY = kind == VfxDrawGeometry.Kind.WRATH_PARTICLE

@@ -4,7 +4,10 @@ import artframework.sts1.render.VfxClaimPolicy;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
+import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
+import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
 import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
@@ -13,6 +16,7 @@ import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect;
+import com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect;
 import com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle;
@@ -26,8 +30,10 @@ import java.util.function.Predicate;
  * Lab/dev helper that queues native transient effects from the family-neutral per-instance claim
  * seam (current members are the {@code vfx-stance-aura} FQNs plus the cross-family
  * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
- * {@code TorchParticleLEffect}/{@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
- * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
+ * {@code TorchParticleLEffect}/{@code TorchParticleXLEffect}/{@code CeilingDustCloudEffect}, the
+ * {@code vfx-misc-root}
+ * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}/{@code GhostlyWeakFireEffect}/
+ * {@code GenericSmokeEffect}/{@code ExhaustBlurEffect}, and the {@code vfx-combat}
  * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the two
  * {@code vfx-misc-root} bare-{@code Texture} members {@code ShieldParticleEffect} and
  * {@code DebuffParticleEffect}) into the
@@ -116,6 +122,18 @@ public final class VfxLabSpawn {
         }
         if ("debuff".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.DEBUFF_PARTICLE;
+        }
+        if ("torchxl".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL;
+        }
+        if ("ghostlyfire".equalsIgnoreCase(value) || "ghostly".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.GHOSTLY_WEAK_FIRE;
+        }
+        if ("genericsmoke".equalsIgnoreCase(value) || "gsmoke".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.GENERIC_SMOKE;
+        }
+        if ("exhaustblur".equalsIgnoreCase(value) || "exhaust".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.EXHAUST_BLUR;
         }
         return null;
     }
@@ -294,6 +312,30 @@ public final class VfxLabSpawn {
             // and may be null outside a live game; any failure is caught by spawn's fail-open guard
             // rather than propagating.
             return new com.megacrit.cardcrawl.vfx.DebuffParticleEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img comes from the public static imgs[]
+            // array at construction time and may be null outside a live game; any failure is caught
+            // by spawn's fail-open guard rather than propagating.
+            return new TorchParticleXLEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.GHOSTLY_WEAK_FIRE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img comes from a private getImg() at
+            // construction time and may be null outside a live game; any failure is caught by
+            // spawn's fail-open guard rather than propagating.
+            return new GhostlyWeakFireEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.GENERIC_SMOKE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is ImageMaster-backed and may be
+            // null outside a live game; any failure is caught by spawn's fail-open guard rather
+            // than propagating.
+            return new GenericSmokeEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.EXHAUST_BLUR.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is ImageMaster-backed and may be
+            // null outside a live game; any failure is caught by spawn's fail-open guard rather
+            // than propagating.
+            return new ExhaustBlurEffect(960f, 540f);
         }
         return null;
     }

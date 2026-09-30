@@ -48,6 +48,10 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.NEMESIS_FIRE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.SHIELD_PARTICLE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.GENERIC_SMOKE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_BLUR));
 
         // A near-miss stays not-ready.
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
@@ -59,6 +63,11 @@ public class Sts1VfxRendererBindingTest {
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.SHIELD_PARTICLE + "2"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE + "$Sub"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.GENERIC_SMOKE + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_BLUR + "$Sub"));
     }
 
     @Test
@@ -76,12 +85,18 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.NEMESIS_FIRE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.SHIELD_PARTICLE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE));
-        assertEquals("the newest seven FQNs are appended last, in order",
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.GHOSTLY_WEAK_FIRE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.GENERIC_SMOKE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_BLUR));
+        assertEquals("the newest eleven FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
                         VfxClaimPolicy.NEMESIS_FIRE, VfxClaimPolicy.SHIELD_PARTICLE,
-                        VfxClaimPolicy.DEBUFF_PARTICLE),
-                supported.subList(supported.size() - 7, supported.size()));
+                        VfxClaimPolicy.DEBUFF_PARTICLE, VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL,
+                        VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
+                        VfxClaimPolicy.EXHAUST_BLUR),
+                supported.subList(supported.size() - 11, supported.size()));
     }
 
     @Test

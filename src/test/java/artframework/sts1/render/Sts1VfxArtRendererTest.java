@@ -98,6 +98,44 @@ public class Sts1VfxArtRendererTest {
         private float y;
     }
 
+    /** Shield layout: no {@code img}/{@code rotation} field; hardcoded zero rotation. */
+    static class ShieldEffect extends BaseEffect {
+        private float x;
+        private float y;
+    }
+
+    /** Shield layout missing the required {@code scale}. */
+    static class ShieldNoScaleBase {
+        protected float rotation;
+        protected Color color;
+    }
+
+    static class ShieldNoScaleEffect extends ShieldNoScaleBase {
+        private float x;
+        private float y;
+    }
+
+    /** Debuff layout: own instance {@code Texture img} plus the required rotational fields. */
+    static class DebuffEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /** Debuff layout whose {@code img} is an AtlasRegion instead of a Texture. */
+    static class DebuffAtlasImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** Debuff layout with a null {@code img}. */
+    static class DebuffNullImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
     /** Base without the inherited {@code color} field. */
     static class NoColorBase {
         protected float scale;
@@ -336,7 +374,8 @@ public class Sts1VfxArtRendererTest {
         effect.rotation = 15f;
         effect.color = new Color(0.2f, 0.3f, 0.4f, 0.5f);
 
-        Sts1VfxArtRenderer.CalmFields f = Sts1VfxArtRenderer.readCalmFields(effect);
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.CALM_PARTICLE, effect);
 
         assertNotNull(f);
         assertEquals(4.5f, f.x, EPS);
@@ -346,6 +385,7 @@ public class Sts1VfxArtRendererTest {
         assertEquals(0.25f, f.durDiv2, EPS);
         assertEquals(1.5f, f.duration, EPS);
         assertSame(effect.color, f.color);
+        assertNull("Calm resolves no instance texture", f.img);
     }
 
     @Test
@@ -357,7 +397,8 @@ public class Sts1VfxArtRendererTest {
         effect.rotation = 6f;
         effect.color = Color.WHITE;
 
-        Sts1VfxArtRenderer.CalmFields f = Sts1VfxArtRenderer.readCalmFields(effect);
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.CALM_PARTICLE, effect);
 
         assertNotNull(f);
         assertEquals(1f, f.x, EPS);
@@ -367,28 +408,32 @@ public class Sts1VfxArtRendererTest {
         assertEquals(0f, f.durDiv2, EPS);
         assertEquals(0f, f.duration, EPS);
         assertSame(Color.WHITE, f.color);
+        assertNull(f.img);
     }
 
     @Test
     public void readCalmFieldsFailsOpenForNullMissingColorOrMissingXY() {
-        assertNull(Sts1VfxArtRenderer.readCalmFields(null));
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.CALM_PARTICLE, null));
 
         CalmNoColorEffect noColor = new CalmNoColorEffect();
         noColor.x = 1f;
         noColor.y = 2f;
         noColor.scale = 1f;
         noColor.rotation = 0f;
-        assertNull(Sts1VfxArtRenderer.readCalmFields(noColor));
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.CALM_PARTICLE, noColor));
 
         // CalmNoDurationEffect has no dur_div2/duration, but does have x/y/scale/rotation/color.
         CalmNoDurationEffect ok = new CalmNoDurationEffect();
         ok.color = Color.WHITE;
-        assertNotNull(Sts1VfxArtRenderer.readCalmFields(ok));
+        assertNotNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.CALM_PARTICLE, ok));
     }
 
     @Test
     public void readFieldsIsNotUsedForCalmBecauseCalmHasNoImg() {
-        // The img-based reader still requires img; Calm uses readCalmFields instead.
+        // The img-based reader still requires img; Calm uses readTextureFields instead.
         CalmEffect effect = new CalmEffect();
         effect.x = 1f;
         effect.y = 2f;
@@ -398,6 +443,86 @@ public class Sts1VfxArtRendererTest {
 
         assertNull(Sts1VfxArtRenderer.readFields(
                 VfxDrawGeometry.Kind.STANCE_AURA, effect));
+    }
+
+    @Test
+    public void readTextureFieldsResolvesShieldWithoutARequiredRotation() {
+        // ShieldParticleEffect has no rotation field and hardcodes 0f: rotation must be optional
+        // (defaults to 0) and its img must stay null.
+        ShieldEffect effect = new ShieldEffect();
+        effect.x = 3.5f;
+        effect.y = -1.25f;
+        effect.scale = 0.75f;
+        effect.color = new Color(0.1f, 0.2f, 0.3f, 0.4f);
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.SHIELD_PARTICLE, effect);
+
+        assertNotNull(f);
+        assertEquals(3.5f, f.x, EPS);
+        assertEquals(-1.25f, f.y, EPS);
+        assertEquals(0.75f, f.scale, EPS);
+        assertEquals(0f, f.rotation, EPS);
+        assertSame(effect.color, f.color);
+        assertNull(f.img);
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForShieldMissingScale() {
+        ShieldNoScaleEffect effect = new ShieldNoScaleEffect();
+        effect.x = 1f;
+        effect.y = 2f;
+        effect.color = Color.WHITE;
+
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.SHIELD_PARTICLE, effect));
+    }
+
+    @Test
+    public void readTextureFieldsResolvesDebuffFromItsInstanceTexture() {
+        DebuffEffect effect = new DebuffEffect();
+        effect.x = -4.5f;
+        effect.y = 2.25f;
+        effect.scale = 1.25f;
+        effect.rotation = 37f;
+        effect.color = Color.WHITE;
+        effect.img = noGlTexture(64, 64);
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE, effect);
+
+        assertNotNull(f);
+        assertEquals(-4.5f, f.x, EPS);
+        assertEquals(2.25f, f.y, EPS);
+        assertEquals(1.25f, f.scale, EPS);
+        assertEquals(37f, f.rotation, EPS);
+        assertSame(effect.color, f.color);
+        assertSame(effect.img, f.img);
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForDebuffWithAtlasRegionOrNullImg() {
+        // A wrongly typed img (AtlasRegion rather than a bare Texture) must fail open ...
+        DebuffAtlasImgEffect atlas = new DebuffAtlasImgEffect();
+        atlas.x = 1f;
+        atlas.y = 2f;
+        atlas.scale = 1f;
+        atlas.rotation = 0f;
+        atlas.color = Color.WHITE;
+        atlas.img = fakeRegion();
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE, atlas));
+
+        // ... and so must a null img.
+        DebuffNullImgEffect none = new DebuffNullImgEffect();
+        none.x = 1f;
+        none.y = 2f;
+        none.scale = 1f;
+        none.rotation = 0f;
+        none.color = Color.WHITE;
+        none.img = null;
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE, none));
     }
 
     @Test
@@ -443,6 +568,12 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.NEMESIS_FIRE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.NemesisFireParticle"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SHIELD_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.ShieldParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.DebuffParticleEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -453,6 +584,10 @@ public class Sts1VfxArtRendererTest {
                 VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_LIGHT_FLARE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.FLASH_ATK_IMG + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SHIELD_PARTICLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SHIELD_PARTICLE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DEBUFF_PARTICLE + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(

@@ -34,7 +34,13 @@ import java.util.List;
  * {@code NemesisFireParticle}) also reuse the geometry but never call
  * {@code setBlendFunction} (ambient blend, like {@code FlashAtkImgEffect}). All five new members
  * have a {@code vY} field that their native {@code render} ignores (used only by
- * {@code update()}), so they all stay on the optional-{@code vY} reader path. The additive
+ * {@code update()}), so they all stay on the optional-{@code vY} reader path. The two newest
+ * members introduce the third draw shape, a bare {@code Texture} + fixed source rect (the first
+ * being {@code CalmParticleEffect}, which became kind-driven): {@code ShieldParticleEffect}
+ * paints the static {@code ImageMaster.INTENT_DEFEND} {@code Texture} additively with a
+ * hardcoded zero rotation, and {@code DebuffParticleEffect} paints its own instance
+ * {@code Texture} {@code img} under the ambient blend and consumes its {@code rotation} field.
+ * The additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
  */
@@ -70,13 +76,17 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect";
     public static final String NEMESIS_FIRE =
             "com.megacrit.cardcrawl.vfx.NemesisFireParticle";
+    public static final String SHIELD_PARTICLE =
+            "com.megacrit.cardcrawl.vfx.ShieldParticleEffect";
+    public static final String DEBUFF_PARTICLE =
+            "com.megacrit.cardcrawl.vfx.DebuffParticleEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
                     CALM_PARTICLE_EFFECT, DIVINITY_STANCE_CHANGE_PARTICLE, SCENE_LIGHT_FLARE,
                     FLASH_ATK_IMG, SCENE_LIGHT_FLARE_M, SCENE_LIGHT_FLARE_L,
                     SCENE_TORCH_PARTICLE_L, FIRE_BURST, RED_FIRE_BURST, SMOKE_BLUR,
-                    CEILING_DUST, NEMESIS_FIRE));
+                    CEILING_DUST, NEMESIS_FIRE, SHIELD_PARTICLE, DEBUFF_PARTICLE));
 
     private VfxClaimPolicy() {}
 
@@ -99,14 +109,18 @@ public final class VfxClaimPolicy {
                 || RED_FIRE_BURST.equals(value)
                 || SMOKE_BLUR.equals(value)
                 || CEILING_DUST.equals(value)
-                || NEMESIS_FIRE.equals(value);
+                || NEMESIS_FIRE.equals(value)
+                || SHIELD_PARTICLE.equals(value)
+                || DEBUFF_PARTICLE.equals(value);
     }
 
     /**
      * The exact claimable FQNs, in their listed/append order (mirrored by {@link #supports});
      * the three newest scene-world members (m/l flare, l torch) are appended last rather than
      * following strict source-declaration order, and the five newest members (the two fire bursts,
-     * the smoke blur, the ceiling dust, and the nemesis fire) are appended after those.
+     * the smoke blur, the ceiling dust, and the nemesis fire) are appended after those. The two
+     * newest members ({@code ShieldParticleEffect}, {@code DebuffParticleEffect}) — the bare
+     * {@code Texture} + fixed source-rect shape — are appended after the nemesis fire.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

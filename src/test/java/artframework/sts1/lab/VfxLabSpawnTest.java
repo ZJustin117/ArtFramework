@@ -59,6 +59,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.CEILING_DUST, VfxLabSpawn.classNameFor("dust"));
         assertEquals(VfxClaimPolicy.NEMESIS_FIRE, VfxLabSpawn.classNameFor("nemesisfire"));
         assertEquals(VfxClaimPolicy.NEMESIS_FIRE, VfxLabSpawn.classNameFor("nemesis"));
+        assertEquals(VfxClaimPolicy.SHIELD_PARTICLE, VfxLabSpawn.classNameFor("shield"));
+        assertEquals(VfxClaimPolicy.DEBUFF_PARTICLE, VfxLabSpawn.classNameFor("debuff"));
     }
 
     @Test
@@ -93,6 +95,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.CEILING_DUST, VfxLabSpawn.classNameFor("DUST"));
         assertEquals(VfxClaimPolicy.NEMESIS_FIRE, VfxLabSpawn.classNameFor("NEMESISFIRE"));
         assertEquals(VfxClaimPolicy.NEMESIS_FIRE, VfxLabSpawn.classNameFor("  NeMeSiS "));
+        assertEquals(VfxClaimPolicy.SHIELD_PARTICLE, VfxLabSpawn.classNameFor("  ShIeLd "));
+        assertEquals(VfxClaimPolicy.DEBUFF_PARTICLE, VfxLabSpawn.classNameFor("DEBUFF"));
     }
 
     @Test
@@ -298,6 +302,14 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("dust", VfxClaimPolicy.CEILING_DUST);
         assertSpawnRequests("nemesisfire", VfxClaimPolicy.NEMESIS_FIRE);
         assertSpawnRequests("nemesis", VfxClaimPolicy.NEMESIS_FIRE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheBareTextureMembersThroughTheFactorySeam() {
+        // The two bare-Texture (fixed source rect) FQNs; the capturing factory proves each alias
+        // requests exactly its FQN without touching the ImageMaster/texture-backed constructors.
+        assertSpawnRequests("shield", VfxClaimPolicy.SHIELD_PARTICLE);
+        assertSpawnRequests("debuff", VfxClaimPolicy.DEBUFF_PARTICLE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

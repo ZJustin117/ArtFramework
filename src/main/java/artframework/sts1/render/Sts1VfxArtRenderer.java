@@ -19,7 +19,9 @@ import java.lang.reflect.Field;
  * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
  * {@code TorchParticleLEffect}/{@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
  * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
- * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}).
+ * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the two
+ * {@code vfx-misc-root} bare-{@code Texture} members {@code ShieldParticleEffect} and
+ * {@code DebuffParticleEffect}).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -33,7 +35,12 @@ import java.lang.reflect.Field;
  * {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}).
  * {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
- * own branch resolves that texture and uses the raw texture + source-rect draw overload. A false
+ * own branch resolves that texture and uses the raw texture + source-rect draw overload.
+ * {@code ShieldParticleEffect} and {@code DebuffParticleEffect} are the second and third
+ * bare-{@code Texture} kinds: they share that generalized fixed-source-rect path, with Shield
+ * resolving the static {@link ImageMaster#INTENT_DEFEND} {@code Texture} additively (rotation
+ * hardcoded {@code 0}) and Debuff resolving its own instance {@code Texture} {@code img} under the
+ * ambient blend (consuming its {@code rotation} field). A false
  * result still means "no pixels produced" so the caller fails open to the native draw.
  *
  * <p>Reflection is confined to reading the native effect's own fields (no patch, no host mutation),
@@ -86,10 +93,13 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
-     * Immutable snapshot of the fields a {@code CalmParticleEffect} draw needs. Calm owns no
-     * {@code img}; only {@code dur_div2}/{@code duration} are optional (default {@code 0}).
+     * Immutable snapshot of the fields a bare-{@code Texture} draw needs ({@code CalmParticleEffect}
+     * / {@code ShieldParticleEffect} / {@code DebuffParticleEffect}). {@code rotation} is required
+     * for the kinds whose formula consumes it (Calm, Debuff) and optional (defaulting to {@code 0})
+     * for Shield, which hardcodes {@code 0f}; {@code img} is a {@link Texture} only for Debuff and
+     * {@code null} otherwise.
      */
-    static final class CalmFields {
+    static final class TextureFields {
         final float x;
         final float y;
         final float scale;
@@ -97,9 +107,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         final float durDiv2;
         final float duration;
         final Color color;
+        final Texture img;
 
-        CalmFields(float x, float y, float scale, float rotation, float durDiv2, float duration,
-                Color color) {
+        TextureFields(float x, float y, float scale, float rotation, float durDiv2, float duration,
+                Color color, Texture img) {
             this.x = x;
             this.y = y;
             this.scale = scale;
@@ -107,6 +118,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             this.durDiv2 = durDiv2;
             this.duration = duration;
             this.color = color;
+            this.img = img;
         }
     }
 
@@ -167,27 +179,41 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
-     * Snapshots the {@code CalmParticleEffect} draw fields, which do <em>not</em> include an
-     * {@code img}. Required: {@code x}, {@code y}, {@code scale}, {@code rotation}, {@code color}
-     * ({@link Color}); {@code dur_div2}/{@code duration} are optional and default to {@code 0}.
-     * Returns {@code null} when the effect is null or any required field is absent, unreadable, or of
-     * the wrong type; never throws.
+     * Snapshots the fields a bare-{@code Texture} draw needs. Required: {@code x}, {@code y},
+     * {@code scale}, {@code color} ({@link Color}); {@code rotation} is additionally required for
+     * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE} (whose formula consumes it) and optional
+     * (defaulting to {@code 0}) for {@code SHIELD_PARTICLE} (hardcoded rotation); {@code dur_div2}
+     * /{@code duration} are optional and default to {@code 0}. For {@code DEBUFF_PARTICLE} the
+     * instance {@code img} must be a {@link Texture}; a missing/mistyped {@code img} fails the
+     * snapshot. Returns {@code null} when the effect is null or any required field is absent,
+     * unreadable, or of the wrong type; never throws.
      */
-    static CalmFields readCalmFields(Object effect) {
+    static TextureFields readTextureFields(VfxDrawGeometry.Kind kind, Object effect) {
         if (effect == null) return null;
+        boolean requireRotation = kind == VfxDrawGeometry.Kind.CALM_PARTICLE
+                || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
             Float scale = readFloat(effect, "scale");
+            if (x == null || y == null || scale == null) {
+                return null;
+            }
             Float rotation = readFloat(effect, "rotation");
-            if (x == null || y == null || scale == null || rotation == null) {
+            if (requireRotation && rotation == null) {
                 return null;
             }
             Object color = readRaw(effect, "color");
             if (!(color instanceof Color)) return null;
-            return new CalmFields(x, y, scale, rotation,
+            Texture img = null;
+            if (kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
+                Object raw = readRaw(effect, "img");
+                if (!(raw instanceof Texture)) return null;
+                img = (Texture) raw;
+            }
+            return new TextureFields(x, y, scale, rotation != null ? rotation : 0f,
                     optionalFloat(effect, "dur_div2"), optionalFloat(effect, "duration"),
-                    (Color) color);
+                    (Color) color, img);
         } catch (Throwable ignored) {
             return null;
         }
@@ -213,9 +239,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * the same arguments the native call passes, so libGDX resolves the region's UV rect (including
      * any atlas {@code rotate} baking) exactly as the native effect does.
      *
-     * <p>{@code CalmParticleEffect} has no {@code img}: it draws the bare
-     * {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@code Texture} the native render reads, so this
-     * branch resolves that texture and replays the native raw texture + source-rect overload.
+     * <p>The bare-{@code Texture} kinds (Calm, Shield, Debuff) have no packed region: they draw a
+     * fixed source rect, so this branch resolves the native {@link Texture} the render reads —
+     * {@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm, {@link ImageMaster#INTENT_DEFEND} for
+     * Shield, and the effect's own instance {@code img} for Debuff — and replays the native raw
+     * texture + source-rect overload.
      *
      * <p>Never throws. Returns {@code true} only after a real draw; any null input, unmapped class,
      * unreadable field, missing/invalid region or texture, or host failure returns {@code false}
@@ -228,8 +256,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             VfxDrawGeometry.Kind kind =
                     VfxDrawGeometry.kindFor(effect.getClass().getName());
             if (kind == null) return false;
-            if (kind == VfxDrawGeometry.Kind.CALM_PARTICLE) {
-                return renderCalm(sb, effect);
+            if (kind == VfxDrawGeometry.Kind.CALM_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
+                return renderTexture(sb, kind, effect);
             }
             Fields f = readFields(kind, effect);
             if (f == null) return false;
@@ -272,30 +302,69 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
-     * Calm branch: resolves the native {@link ImageMaster#FROST_ACTIVATE_VFX_1} texture, replays the
-     * additive raw texture + source-rect draw with the {@link VfxDrawGeometry#params} geometry, and
-     * restores blend/color. Fails open ({@code false}, no side effects) on any missing input.
+     * Bare-{@code Texture} branch: resolves the native texture the kind's {@code render} reads
+     * ({@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm, {@link ImageMaster#INTENT_DEFEND} for
+     * Shield, the effect's own {@code img} for Debuff), replays the raw texture + source-rect draw
+     * with the {@link VfxDrawGeometry#params} geometry and the per-kind src rect, honors
+     * {@link VfxDrawGeometry#additiveBlend}, and restores blend/color. Fails open ({@code false}, no
+     * side effects) on any missing input.
      */
-    private boolean renderCalm(SpriteBatch sb, AbstractGameEffect effect) {
-        CalmFields f = readCalmFields(effect);
+    private boolean renderTexture(SpriteBatch sb, VfxDrawGeometry.Kind kind,
+            AbstractGameEffect effect) {
+        TextureFields f = readTextureFields(kind, effect);
         if (f == null) return false;
-        Texture texture = ImageMaster.FROST_ACTIVATE_VFX_1;
+        Texture texture;
+        if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
+            texture = ImageMaster.INTENT_DEFEND;
+        } else if (kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
+            texture = f.img;
+        } else {
+            texture = ImageMaster.FROST_ACTIVATE_VFX_1;
+        }
         if (texture == null) return false;
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.CALM_PARTICLE, f.x, f.y, 0f, f.scale, f.rotation,
+                kind, f.x, f.y, 0f, f.scale, f.rotation,
                 f.durDiv2, f.duration, Settings.scale, 0f, 0f);
+        int srcX;
+        int srcY;
+        int srcW;
+        int srcH;
+        if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
+            srcX = VfxDrawGeometry.SHIELD_SRC_X;
+            srcY = VfxDrawGeometry.SHIELD_SRC_Y;
+            srcW = VfxDrawGeometry.SHIELD_SRC_W;
+            srcH = VfxDrawGeometry.SHIELD_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
+            srcX = VfxDrawGeometry.DEBUFF_SRC_X;
+            srcY = VfxDrawGeometry.DEBUFF_SRC_Y;
+            srcW = VfxDrawGeometry.DEBUFF_SRC_W;
+            srcH = VfxDrawGeometry.DEBUFF_SRC_H;
+        } else {
+            srcX = VfxDrawGeometry.CALM_SRC_X;
+            srcY = VfxDrawGeometry.CALM_SRC_Y;
+            srcW = VfxDrawGeometry.CALM_SRC_W;
+            srcH = VfxDrawGeometry.CALM_SRC_H;
+        }
+        // Per-kind blend policy: additive kinds install and restore blend, the ambient kinds
+        // (DebuffParticleEffect is the only ambient bare-Texture kind) never call setBlendFunction
+        // natively and restore only color.
+        boolean additive = VfxDrawGeometry.additiveBlend(kind);
         Color previous = new Color(sb.getColor());
+        boolean blendChanged = false;
         try {
             sb.setColor(f.color != null ? f.color : Color.WHITE);
-            sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+            if (additive) {
+                sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+                blendChanged = true;
+            }
             sb.draw(texture, p.x, p.y, p.originX, p.originY, p.width, p.height,
-                    p.scaleX, p.scaleY, p.rotation,
-                    VfxDrawGeometry.CALM_SRC_X, VfxDrawGeometry.CALM_SRC_Y,
-                    VfxDrawGeometry.CALM_SRC_W, VfxDrawGeometry.CALM_SRC_H, false, false);
+                    p.scaleX, p.scaleY, p.rotation, srcX, srcY, srcW, srcH, false, false);
             return true;
         } finally {
             try {
-                sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                if (blendChanged) {
+                    sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                }
                 sb.setColor(previous);
             } catch (Throwable ignored) {
             }

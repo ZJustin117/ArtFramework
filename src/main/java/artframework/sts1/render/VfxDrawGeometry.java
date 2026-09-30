@@ -17,7 +17,8 @@ package artframework.sts1.render;
  * {@code setBlendFunction} at all, so they must draw under the ambient blend and restore only the
  * previous color ({@link #additiveBlend} returns {@code false} for them). The ambient kinds are
  * {@code FlashAtkImgEffect} (the first), plus the {@code SmokeBlurEffect},
- * {@code CeilingDustCloudEffect}, and {@code NemesisFireParticle} members. The native
+ * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, and {@code DebuffParticleEffect}
+ * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
  * mapping only resolves the positional/scale/rotation arguments the batch receives, with the native
@@ -60,11 +61,19 @@ package artframework.sts1.render;
  *     sb.draw(ImageMaster.FROST_ACTIVATE_VFX_1, x, y, 32f, 32f, 25f, 128f,
  *             scale, scale + (dur_div2*0.4f - duration) * Settings.scale, rotation,
  *             0, 0, 64, 64, false, false)
+ *   ShieldParticleEffect.render (note: additive blend; rotation hardcoded to 0f):
+ *     sb.draw(ImageMaster.INTENT_DEFEND, x - 32f, y - 32f, 32f, 32f, 64f, 64f,
+ *             scale, scale, 0f, 0, 0, 64, 64, false, false)
+ *   DebuffParticleEffect.render (note: no setBlendFunction; ambient blend; uses the rotation field):
+ *     sb.draw(img, x - 16f, y - 16f, 16f, 16f, 32f, 32f,
+ *             scale, scale, rotation, 0, 0, 32, 32, false, false)
  * </pre>
  *
- * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. Calm is the
- * one kind that draws a bare {@code Texture}, so its native origin/size/source rect are fixed
- * constants and the packed region size is ignored. {@code DivinityStanceChangeParticle}, the
+ * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The three
+ * bare-{@code Texture} kinds — Calm, Shield, and Debuff — draw a fixed source rect rather than a
+ * packed region, so their native origin/size/source rect are host-neutral constants and the packed
+ * region size is ignored; Shield hardcodes rotation {@code 0f}, Debuff consumes its
+ * {@code rotation} field, and Calm keeps its {@code scaleY} formula. {@code DivinityStanceChangeParticle}, the
  * cross-family {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
  * {@code TorchParticleLEffect}, the {@code vfx-misc-root} {@code FireBurstParticleEffect}/
  * {@code NemesisFireParticle}, and the {@code vfx-combat} {@code FlashAtkImgEffect}/
@@ -75,8 +84,12 @@ package artframework.sts1.render;
  * and the ones that own a {@code vY} field ignore it in {@code render} — so they all map to the
  * same {@link Kind#STANCE_AURA} formula branch. Only blend distinguishes them:
  * {@code FlashAtkImgEffect}/{@code SmokeBlurEffect}/{@code CeilingDustCloudEffect}/
- * {@code NemesisFireParticle} never switch blend function, so {@link #additiveBlend} reports
- * {@code false} for them, while the two fire bursts are additive like the rest.
+ * {@code NemesisFireParticle}/{@code DebuffParticleEffect} never switch blend function, so
+ * {@link #additiveBlend} reports
+ * {@code false} for them, while the two fire bursts and {@code ShieldParticleEffect} are additive
+ * like the rest. {@code ShieldParticleEffect}/{@code DebuffParticleEffect} are the first two
+ * members beyond {@code CalmParticleEffect} to draw a bare {@code Texture}, so they join the
+ * fixed-source-rect shape via their own geometry branches rather than the packed-region branches.
  */
 public final class VfxDrawGeometry {
 
@@ -96,7 +109,9 @@ public final class VfxDrawGeometry {
         RED_FIRE_BURST,
         SMOKE_BLUR,
         CEILING_DUST,
-        NEMESIS_FIRE
+        NEMESIS_FIRE,
+        SHIELD_PARTICLE,
+        DEBUFF_PARTICLE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -117,6 +132,44 @@ public final class VfxDrawGeometry {
     public static final int CALM_SRC_W = 64;
     /** Native Calm draw source rect height ({@code 64}). */
     public static final int CALM_SRC_H = 64;
+
+    // Native ShieldParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
+    // fixed source rect of the ImageMaster.INTENT_DEFEND texture. The rotation is hardcoded to 0.
+    /** Native Shield draw origin x ({@code 32f}). */
+    public static final float SHIELD_ORIGIN_X = 32f;
+    /** Native Shield draw origin y ({@code 32f}). */
+    public static final float SHIELD_ORIGIN_Y = 32f;
+    /** Native Shield draw width ({@code 64f}). */
+    public static final float SHIELD_WIDTH = 64f;
+    /** Native Shield draw height ({@code 64f}). */
+    public static final float SHIELD_HEIGHT = 64f;
+    /** Native Shield draw source rect x ({@code 0}). */
+    public static final int SHIELD_SRC_X = 0;
+    /** Native Shield draw source rect y ({@code 0}). */
+    public static final int SHIELD_SRC_Y = 0;
+    /** Native Shield draw source rect width ({@code 64}). */
+    public static final int SHIELD_SRC_W = 64;
+    /** Native Shield draw source rect height ({@code 64}). */
+    public static final int SHIELD_SRC_H = 64;
+
+    // Native DebuffParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
+    // fixed source rect of its own instance img Texture. The rotation comes from the field.
+    /** Native Debuff draw origin x ({@code 16f}). */
+    public static final float DEBUFF_ORIGIN_X = 16f;
+    /** Native Debuff draw origin y ({@code 16f}). */
+    public static final float DEBUFF_ORIGIN_Y = 16f;
+    /** Native Debuff draw width ({@code 32f}). */
+    public static final float DEBUFF_WIDTH = 32f;
+    /** Native Debuff draw height ({@code 32f}). */
+    public static final float DEBUFF_HEIGHT = 32f;
+    /** Native Debuff draw source rect x ({@code 0}). */
+    public static final int DEBUFF_SRC_X = 0;
+    /** Native Debuff draw source rect y ({@code 0}). */
+    public static final int DEBUFF_SRC_Y = 0;
+    /** Native Debuff draw source rect width ({@code 32}). */
+    public static final int DEBUFF_SRC_W = 32;
+    /** Native Debuff draw source rect height ({@code 32}). */
+    public static final int DEBUFF_SRC_H = 32;
 
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
@@ -211,6 +264,8 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.SMOKE_BLUR.equals(value)) return Kind.SMOKE_BLUR;
         if (VfxClaimPolicy.CEILING_DUST.equals(value)) return Kind.CEILING_DUST;
         if (VfxClaimPolicy.NEMESIS_FIRE.equals(value)) return Kind.NEMESIS_FIRE;
+        if (VfxClaimPolicy.SHIELD_PARTICLE.equals(value)) return Kind.SHIELD_PARTICLE;
+        if (VfxClaimPolicy.DEBUFF_PARTICLE.equals(value)) return Kind.DEBUFF_PARTICLE;
         return null;
     }
 
@@ -221,11 +276,14 @@ public final class VfxDrawGeometry {
      * is active.
      *
      * <p>Most kinds are additive; the ambient kinds ({@link Kind#FLASH_ATK_IMG},
-     * {@link Kind#SMOKE_BLUR}, {@link Kind#CEILING_DUST}, {@link Kind#NEMESIS_FIRE}) never call
+     * {@link Kind#SMOKE_BLUR}, {@link Kind#CEILING_DUST}, {@link Kind#NEMESIS_FIRE},
+     * {@link Kind#DEBUFF_PARTICLE}) never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
-     * nemesis fire are the first ambient members beyond it. Every other kind — including the two fire
-     * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}) — is additive.
+     * nemesis fire are the first ambient members beyond it, and {@link Kind#DEBUFF_PARTICLE} is the
+     * first ambient bare-{@code Texture} member. Every other kind — including the two fire
+     * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}) and the additive bare-texture
+     * {@link Kind#SHIELD_PARTICLE} — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -236,7 +294,8 @@ public final class VfxDrawGeometry {
         return kind != Kind.FLASH_ATK_IMG
                 && kind != Kind.SMOKE_BLUR
                 && kind != Kind.CEILING_DUST
-                && kind != Kind.NEMESIS_FIRE;
+                && kind != Kind.NEMESIS_FIRE
+                && kind != Kind.DEBUFF_PARTICLE;
     }
 
     /**
@@ -244,7 +303,8 @@ public final class VfxDrawGeometry {
      * region size; the per-kind color/blend state is applied by the host draw (see
      * {@link #additiveBlend}: additive kinds install/restore {@code 770/1}-&rarr;{@code 770/771},
      * while the ambient kinds ({@code FLASH_ATK_IMG}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
-     * {@code NEMESIS_FIRE}) leave the ambient blend untouched and restore only color).
+     * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}) leave the ambient blend untouched and restore
+     * only color).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -295,6 +355,20 @@ public final class VfxDrawGeometry {
                 return new Params(x, y, CALM_ORIGIN_X, CALM_ORIGIN_Y, CALM_WIDTH, CALM_HEIGHT,
                         scale, scaleY, rotation);
             }
+            case SHIELD_PARTICLE:
+                // Native ShieldParticleEffect ignores the (absent) region: fixed origin/size and a
+                // hardcoded zero rotation; packedWidth/packedHeight, vY, dur_div2, duration, and
+                // Settings.scale are unused.
+                return new Params(x - SHIELD_ORIGIN_X, y - SHIELD_ORIGIN_Y,
+                        SHIELD_ORIGIN_X, SHIELD_ORIGIN_Y, SHIELD_WIDTH, SHIELD_HEIGHT,
+                        scale, scale, 0f);
+            case DEBUFF_PARTICLE:
+                // Native DebuffParticleEffect ignores the (absent) region: fixed origin/size and the
+                // field rotation; packedWidth/packedHeight, vY, dur_div2, duration, and
+                // Settings.scale are unused.
+                return new Params(x - DEBUFF_ORIGIN_X, y - DEBUFF_ORIGIN_Y,
+                        DEBUFF_ORIGIN_X, DEBUFF_ORIGIN_Y, DEBUFF_WIDTH, DEBUFF_HEIGHT,
+                        scale, scale, rotation);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

@@ -91,6 +91,16 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.NEMESIS_FIRE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.NemesisFireParticle"));
+        assertSame(VfxDrawGeometry.Kind.SHIELD_PARTICLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SHIELD_PARTICLE));
+        assertSame(VfxDrawGeometry.Kind.SHIELD_PARTICLE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.ShieldParticleEffect"));
+        assertSame(VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.DEBUFF_PARTICLE));
+        assertSame(VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.DebuffParticleEffect"));
     }
 
     @Test
@@ -173,6 +183,20 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.NemesisFireParticle$Sub")); // nested
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.combat.NemesisFireParticle")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ShieldParticleEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ShieldParticleEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("ShieldParticleEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.ShieldParticleEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DebuffParticleEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DebuffParticleEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("DebuffParticleEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DebuffParticleEffect")); // wrong package
     }
 
     @Test
@@ -527,23 +551,111 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
+    public void shieldParticleUsesTheFixedNativeRectAndForcesZeroRotation() {
+        // Native: draw(ImageMaster.INTENT_DEFEND, x - 32f, y - 32f, 32f, 32f, 64f, 64f,
+        //            scale, scale, 0f, 0, 0, 64, 64, false, false)
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.SHIELD_PARTICLE,
+                x, y, 999f /* vY ignored */, scale, 45f /* rotation forced to 0 */,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+
+        assertEquals(x - 32f, p.x, EPS);
+        assertEquals(y - 32f, p.y, EPS);
+        assertEquals(32f, p.originX, EPS);
+        assertEquals(32f, p.originY, EPS);
+        assertEquals(64f, p.width, EPS);
+        assertEquals(64f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("rotation is hardcoded to 0f", 0f, p.rotation, EPS);
+
+        // A totally different rotation input produces byte-identical geometry (rotation ignored).
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.SHIELD_PARTICLE,
+                x, y, 0f, scale, -123f, 0f, 0f, 1f, 0f, 0f);
+        assertEquals(p, q);
+
+        // The host-neutral constants match the native hardcoded rect.
+        assertEquals(32f, VfxDrawGeometry.SHIELD_ORIGIN_X, EPS);
+        assertEquals(32f, VfxDrawGeometry.SHIELD_ORIGIN_Y, EPS);
+        assertEquals(64f, VfxDrawGeometry.SHIELD_WIDTH, EPS);
+        assertEquals(64f, VfxDrawGeometry.SHIELD_HEIGHT, EPS);
+        assertEquals(0, VfxDrawGeometry.SHIELD_SRC_X);
+        assertEquals(0, VfxDrawGeometry.SHIELD_SRC_Y);
+        assertEquals(64, VfxDrawGeometry.SHIELD_SRC_W);
+        assertEquals(64, VfxDrawGeometry.SHIELD_SRC_H);
+    }
+
+    @Test
+    public void debuffParticleUsesTheFixedNativeRectAndTheFieldRotation() {
+        // Native: draw(img, x - 16f, y - 16f, 16f, 16f, 32f, 32f,
+        //            scale, scale, rotation, 0, 0, 32, 32, false, false)
+        float x = -7.5f;
+        float y = 21.25f;
+        float scale = 1.25f;
+        float rotation = 137f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
+                x, y, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+
+        assertEquals(x - 16f, p.x, EPS);
+        assertEquals(y - 16f, p.y, EPS);
+        assertEquals(16f, p.originX, EPS);
+        assertEquals(16f, p.originY, EPS);
+        assertEquals(32f, p.width, EPS);
+        assertEquals(32f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("the rotation field is consumed", rotation, p.rotation, EPS);
+
+        // Different packed sizes produce byte-identical geometry (the region is ignored).
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
+                x, y, 0f, scale, rotation, 0f, 0f, 1f, 0f, 0f);
+        assertEquals(p, q);
+
+        // The host-neutral constants match the native hardcoded rect.
+        assertEquals(16f, VfxDrawGeometry.DEBUFF_ORIGIN_X, EPS);
+        assertEquals(16f, VfxDrawGeometry.DEBUFF_ORIGIN_Y, EPS);
+        assertEquals(32f, VfxDrawGeometry.DEBUFF_WIDTH, EPS);
+        assertEquals(32f, VfxDrawGeometry.DEBUFF_HEIGHT, EPS);
+        assertEquals(0, VfxDrawGeometry.DEBUFF_SRC_X);
+        assertEquals(0, VfxDrawGeometry.DEBUFF_SRC_Y);
+        assertEquals(32, VfxDrawGeometry.DEBUFF_SRC_W);
+        assertEquals(32, VfxDrawGeometry.DEBUFF_SRC_H);
+    }
+
+    @Test
     public void additiveBlendIsTrueForEveryKindExceptTheAmbientOnes() {
-        // FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect, and NemesisFireParticle never
-        // call setBlendFunction natively, so their host draw must not install additive blend.
+        // FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect, NemesisFireParticle, and
+        // DebuffParticleEffect never call setBlendFunction natively, so their host draw must not
+        // install additive blend.
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLASH_ATK_IMG));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SMOKE_BLUR));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CEILING_DUST));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.NEMESIS_FIRE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DEBUFF_PARTICLE));
 
-        // The two fire bursts are additive despite being fire-family.
+        // The two fire bursts are additive despite being fire-family; ShieldParticleEffect is the
+        // additive bare-texture member.
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FIRE_BURST));
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.RED_FIRE_BURST));
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SHIELD_PARTICLE));
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
                     || kind == VfxDrawGeometry.Kind.CEILING_DUST
-                    || kind == VfxDrawGeometry.Kind.NEMESIS_FIRE) {
+                    || kind == VfxDrawGeometry.Kind.NEMESIS_FIRE
+                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,

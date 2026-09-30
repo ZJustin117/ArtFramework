@@ -229,6 +229,27 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `d1_aura_claim.yaml` phases. No new formula, patch, bridge, or console wiring; default-off gate
       and per-instance token semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F11 (third draw shape: bare `Texture` + fixed source rect):
+      `com.megacrit.cardcrawl.vfx.ShieldParticleEffect` and
+      `com.megacrit.cardcrawl.vfx.DebuffParticleEffect` join the claim seam, making the
+      bare-`Texture` + fixed-source-rect shape kind-driven (host-neutral constants in
+      `VfxDrawGeometry`) rather than Calm-specific. `VfxClaimPolicy.SHIELD_PARTICLE`/
+      `DEBUFF_PARTICLE` append last to `supportedClasses()` in that order, and
+      `VfxDrawGeometry.Kind.SHIELD_PARTICLE`/`DEBUFF_PARTICLE` gain their own `params` branches:
+      Shield draws `ImageMaster.INTENT_DEFEND` additively with a hardcoded `0f` rotation
+      (`x-32f, y-32f, origin 32/32, size 64x64, src 0,0,64,64`), and Debuff draws its own instance
+      `Texture img` under the ambient blend consuming its `rotation` field
+      (`x-16f, y-16f, origin 16/16, size 32x32, src 0,0,32,32`); `additiveBlend` now returns
+      `false` for `DEBUFF_PARTICLE` (and `true` for `SHIELD_PARTICLE`). `Sts1VfxArtRenderer`'s
+      Calm-only branch is generalized to a kind-driven texture-rect path (`readTextureFields` +
+      `renderTexture`) shared by Calm, Shield, and Debuff with no Calm behavior change (Calm keeps
+      its `scaleY` formula and additive blend). `isReady` stays a policy/kind check for both new
+      exact FQNs. `VfxLabSpawn.classNameFor` gains `"shield"` (`new ShieldParticleEffect(960f,
+      540f)`) and `"debuff"` (`new DebuffParticleEffect(960f, 540f)`, aliases checked against the
+      existing set) behind the existing fail-open guard, and `art claim spawn shield|debuff 4` runs
+      in both `d1_aura_claim.yaml` phases. No new formula, patch, bridge, or console wiring;
+      default-off gate and per-instance token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

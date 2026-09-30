@@ -28,7 +28,9 @@ import java.util.function.Predicate;
  * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
  * {@code TorchParticleLEffect}/{@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
  * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
- * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}) into the
+ * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the two
+ * {@code vfx-misc-root} bare-{@code Texture} members {@code ShieldParticleEffect} and
+ * {@code DebuffParticleEffect}) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -108,6 +110,12 @@ public final class VfxLabSpawn {
         }
         if ("nemesisfire".equalsIgnoreCase(value) || "nemesis".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.NEMESIS_FIRE;
+        }
+        if ("shield".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SHIELD_PARTICLE;
+        }
+        if ("debuff".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.DEBUFF_PARTICLE;
         }
         return null;
     }
@@ -274,6 +282,18 @@ public final class VfxLabSpawn {
             // may be null outside a live game; any failure is caught by spawn's fail-open guard
             // rather than propagating.
             return new NemesisFireParticle(960f, 540f);
+        }
+        if (VfxClaimPolicy.SHIELD_PARTICLE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The static ImageMaster.INTENT_DEFEND
+            // texture may be null outside a live game; any failure is caught by spawn's fail-open
+            // guard rather than propagating.
+            return new com.megacrit.cardcrawl.vfx.ShieldParticleEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.DEBUFF_PARTICLE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The instance img is ImageMaster-backed
+            // and may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new com.megacrit.cardcrawl.vfx.DebuffParticleEffect(960f, 540f);
         }
         return null;
     }

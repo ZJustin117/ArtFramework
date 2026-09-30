@@ -104,6 +104,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.STUN_STAR, VfxLabSpawn.classNameFor("stun"));
         assertEquals(VfxClaimPolicy.FALLING_DUST, VfxLabSpawn.classNameFor("fallingdust"));
         assertEquals(VfxClaimPolicy.FALLING_DUST, VfxLabSpawn.classNameFor("fdust"));
+        assertEquals(VfxClaimPolicy.LIGHTNING_EFFECT, VfxLabSpawn.classNameFor("lightning"));
+        assertEquals(VfxClaimPolicy.FLAME_BALL, VfxLabSpawn.classNameFor("flameball"));
+        assertEquals(VfxClaimPolicy.SHINE_LINES, VfxLabSpawn.classNameFor("shinelines"));
+        assertEquals(VfxClaimPolicy.SHINE_LINES, VfxLabSpawn.classNameFor("shine"));
     }
 
     @Test
@@ -184,6 +188,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.STUN_STAR, VfxLabSpawn.classNameFor("STUN"));
         assertEquals(VfxClaimPolicy.FALLING_DUST, VfxLabSpawn.classNameFor("  FaLlInGdUsT "));
         assertEquals(VfxClaimPolicy.FALLING_DUST, VfxLabSpawn.classNameFor("FDUST"));
+        assertEquals(VfxClaimPolicy.LIGHTNING_EFFECT, VfxLabSpawn.classNameFor("  LiGhTnInG "));
+        assertEquals(VfxClaimPolicy.FLAME_BALL, VfxLabSpawn.classNameFor("FLAMEBALL"));
+        assertEquals(VfxClaimPolicy.SHINE_LINES, VfxLabSpawn.classNameFor("  ShInElInEs "));
+        assertEquals(VfxClaimPolicy.SHINE_LINES, VfxLabSpawn.classNameFor("SHINE"));
     }
 
     @Test
@@ -462,6 +470,16 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("stun", VfxClaimPolicy.STUN_STAR);
         assertSpawnRequests("fallingdust", VfxClaimPolicy.FALLING_DUST);
         assertSpawnRequests("fdust", VfxClaimPolicy.FALLING_DUST);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF17MembersThroughTheFactorySeam() {
+        // The three newest claimable FQNs; the capturing factory proves each alias requests exactly
+        // its FQN without touching the ImageMaster-backed constructors.
+        assertSpawnRequests("lightning", VfxClaimPolicy.LIGHTNING_EFFECT);
+        assertSpawnRequests("flameball", VfxClaimPolicy.FLAME_BALL);
+        assertSpawnRequests("shinelines", VfxClaimPolicy.SHINE_LINES);
+        assertSpawnRequests("shine", VfxClaimPolicy.SHINE_LINES);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

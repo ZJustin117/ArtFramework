@@ -18,7 +18,9 @@ package artframework.sts1.render;
  * {@code FlameParticleEffect}/{@code LightningOrbActivateEffect}/{@code DamageImpactBlurEffect}/
  * {@code DamageImpactLineEffect}/{@code DarkOrbPassiveEffect}, and the three newest are the
  * {@code vfx-misc-root} {@code WarningSignEffect}, the {@code vfx-combat} {@code StunStarEffect}, and
- * the {@code vfx-misc-root} {@code FallingDustEffect} (in that order).
+ * the {@code vfx-misc-root} {@code FallingDustEffect} (in that order), and the three newest are the
+ * {@code vfx-combat} {@code LightningEffect}, the {@code vfx-misc-root} {@code FlameBallParticleEffect},
+ * and the {@code vfx-misc-root} {@code ShineLinesEffect} (in that order).
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -31,7 +33,8 @@ package artframework.sts1.render;
  * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code DebuffParticleEffect},
  * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
  * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
- * {@code DamageImpactLineEffect}, {@code StunStarEffect}, and {@code FallingDustEffect}
+ * {@code DamageImpactLineEffect}, {@code StunStarEffect}, {@code FallingDustEffect}, and
+ * {@code ShineLinesEffect}
  * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
@@ -132,6 +135,14 @@ package artframework.sts1.render;
  *   FallingDustEffect.render (note: no setBlendFunction; ambient blend; the ORIGIN is the region's
  *                             own offsetX/offsetY, NOT packed/2):
  *     sb.draw(img, x, y, img.offsetX, img.offsetY, pw, ph, scale, scale, rotation)
+ *   LightningEffect.render (note: additive blend; the origin Y is 0f, NOT ph/2):
+ *     sb.draw(img, x, y, pw/2f, 0f, pw, ph, scale, scale, rotation)
+ *   FlameBallParticleEffect.render (note: additive blend; the origin Y is ph/2f + 20f *
+ *                                   Settings.scale; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f + 20f * Settings.scale, pw, ph, scale, scale, rotation)
+ *   ShineLinesEffect.render (note: no setBlendFunction; ambient blend; if (!isDone) guard; the
+ *                             geometry is exactly StanceAuraEffect center-packed):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -237,7 +248,10 @@ public final class VfxDrawGeometry {
         DARK_ORB_PASSIVE,
         WARNING_SIGN,
         STUN_STAR,
-        FALLING_DUST
+        FALLING_DUST,
+        LIGHTNING_EFFECT,
+        FLAME_BALL,
+        SHINE_LINES
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -400,6 +414,12 @@ public final class VfxDrawGeometry {
     /** StunStar vY position-offset multiplier ({@code 5f}). */
     public static final float STUN_STAR_VY_FACTOR = 5f;
 
+    // Native FlameBallParticleEffect origin offset (see the class Javadoc): its draw origin Y is
+    // packedHeight/2f + 20f * Settings.scale, i.e. the shared center origin lifted by this amount
+    // multiplied by the caller-supplied settings scale.
+    /** Native FlameBall origin Y offset above the shared center origin, per unit settings scale ({@code 20f}). */
+    public static final float FLAME_BALL_ORIGIN_Y_OFFSET = 20f;
+
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
         public final float x;
@@ -515,6 +535,9 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.WARNING_SIGN.equals(value)) return Kind.WARNING_SIGN;
         if (VfxClaimPolicy.STUN_STAR.equals(value)) return Kind.STUN_STAR;
         if (VfxClaimPolicy.FALLING_DUST.equals(value)) return Kind.FALLING_DUST;
+        if (VfxClaimPolicy.LIGHTNING_EFFECT.equals(value)) return Kind.LIGHTNING_EFFECT;
+        if (VfxClaimPolicy.FLAME_BALL.equals(value)) return Kind.FLAME_BALL;
+        if (VfxClaimPolicy.SHINE_LINES.equals(value)) return Kind.SHINE_LINES;
         return null;
     }
 
@@ -529,7 +552,7 @@ public final class VfxDrawGeometry {
      * {@link Kind#DEBUFF_PARTICLE}, {@link Kind#GENERIC_SMOKE}, {@link Kind#EXHAUST_BLUR},
      * {@link Kind#BLOCK_IMPACT_LINE}, {@link Kind#EXHAUST_PILE}, {@link Kind#UNKNOWN_PARTICLE},
      * {@link Kind#DAMAGE_IMPACT_BLUR}, {@link Kind#DAMAGE_IMPACT_LINE}, {@link Kind#STUN_STAR},
-     * {@link Kind#FALLING_DUST})
+     * {@link Kind#FALLING_DUST}, {@link Kind#SHINE_LINES})
      * never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
@@ -539,17 +562,20 @@ public final class VfxDrawGeometry {
      * members {@link Kind#BLOCK_IMPACT_LINE}/{@link Kind#EXHAUST_PILE} (ambient center-packed)
      * plus {@link Kind#UNKNOWN_PARTICLE} (the first ambient bare-{@code Texture} member of the new
      * 128-rect) and {@link Kind#DAMAGE_IMPACT_BLUR}/{@link Kind#DAMAGE_IMPACT_LINE} (ambient
-     * center-packed) are not the newest any more; the two newest ambient members are
+     * center-packed) are not the newest any more; the two next-newest ambient members are
      * {@link Kind#STUN_STAR}/{@link Kind#FALLING_DUST} (ambient center-packed, adding only a position
-     * offset and a region-offset origin respectively). Every other kind — including
+     * offset and a region-offset origin respectively) and the newest ambient member
+     * {@link Kind#SHINE_LINES} is ambient center-packed exactly like {@link Kind#STANCE_AURA}. Every
+     * other kind — including
      * the two fire
      * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}), the additive bare-texture
      * {@link Kind#SHIELD_PARTICLE}, the additive {@link Kind#TORCH_PARTICLE_XL}/{@link
      * Kind#GHOSTLY_WEAK_FIRE}, the two additive bare-texture members
      * {@link Kind#ICE_SHATTER}/{@link Kind#WEB_PARTICLE}, {@link Kind#ENTANGLE}, the additive
      * center-packed members {@link Kind#FLAME_PARTICLE}/{@link Kind#LIGHTNING_ORB_ACTIVATE},
-     * the additive bare-texture members {@link Kind#DARK_ORB_PASSIVE} and the newest additive
-     * member {@link Kind#WARNING_SIGN} — is additive.
+     * the additive bare-texture members {@link Kind#DARK_ORB_PASSIVE}, the additive
+     * {@link Kind#WARNING_SIGN}, and the newest additive members {@link Kind#LIGHTNING_EFFECT}/
+     * {@link Kind#FLAME_BALL} — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -570,7 +596,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.DAMAGE_IMPACT_BLUR
                 && kind != Kind.DAMAGE_IMPACT_LINE
                 && kind != Kind.STUN_STAR
-                && kind != Kind.FALLING_DUST;
+                && kind != Kind.FALLING_DUST
+                && kind != Kind.SHINE_LINES;
     }
 
     /**
@@ -622,7 +649,7 @@ public final class VfxDrawGeometry {
      * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR},
      * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE},
      * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE}, {@code STUN_STAR},
-     * {@code FALLING_DUST})
+     * {@code FALLING_DUST}, {@code SHINE_LINES})
      * leave the ambient blend untouched and restore
      * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
      * {@code ENTANGLE}) that also rewrite their set color's
@@ -632,19 +659,29 @@ public final class VfxDrawGeometry {
      * every other caller: {@code vX} is the effect's own horizontal velocity used only by
      * {@code STUN_STAR} (whose draw position is shifted by it), while {@code regionOffsetX}/
      * {@code regionOffsetY} are the region's own trim offsets used as the draw origin only by
-     * {@code FALLING_DUST} (whose origin is NOT {@code packedWidth/2}, {@code packedHeight/2}).
+     * {@code FALLING_DUST} (whose origin is NOT {@code packedWidth/2}, {@code packedHeight/2}). The
+     * two newest tail scalars {@code originOffsetX}/{@code originOffsetY} are a fixed offset applied
+     * to the shared center-packed origin ({@code originX = packedWidth/2f + originOffsetX},
+     * {@code originY = packedHeight/2f + originOffsetY}); every pre-existing kind passes {@code 0f}
+     * for both and gets the unchanged {@code packedWidth/2f}, {@code packedHeight/2f} origin, and
+     * {@code LIGHTNING_EFFECT} passes {@code (0f, -packedHeight/2f)} so its origin Y becomes exactly
+     * {@code 0f} (scale-independent, as its native offset has no {@code Settings.scale} factor).
+     * {@code FLAME_BALL} is NOT expressed with this tail scalar: its native origin Y is
+     * {@code packedHeight/2f + 20f * settingsScale}, so it has its own pure branch that consumes the
+     * {@code settingsScale} argument the caller already supplies (keeping this class host-neutral).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
     public static Params params(Kind kind, float x, float y, float vY, float scale, float rotation,
             float durDiv2, float duration, float settingsScale,
             float packedWidth, float packedHeight,
-            float vX, float regionOffsetX, float regionOffsetY) {
+            float vX, float regionOffsetX, float regionOffsetY,
+            float originOffsetX, float originOffsetY) {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
-        float originX = packedWidth / 2f;
-        float originY = packedHeight / 2f;
+        float originX = packedWidth / 2f + originOffsetX;
+        float originY = packedHeight / 2f + originOffsetY;
         switch (kind) {
             case STANCE_AURA:
             case DIVINITY_STANCE_CHANGE:
@@ -668,6 +705,8 @@ public final class VfxDrawGeometry {
             case LIGHTNING_ORB_ACTIVATE:
             case DAMAGE_IMPACT_BLUR:
             case DAMAGE_IMPACT_LINE:
+            case LIGHTNING_EFFECT:
+            case SHINE_LINES:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -679,9 +718,20 @@ public final class VfxDrawGeometry {
                 // only in blend (ambient, via additiveBlend == false). The five newest members
                 // mirror the same geometry: FlameParticleEffect and LightningOrbActivateEffect are
                 // additive while DamageImpactBlurEffect and DamageImpactLineEffect never call
-                // setBlendFunction (ambient, again only additiveBlend differs).
+                // setBlendFunction (ambient, again only additiveBlend differs). The two newest img
+                // members also reuse this branch: LightningEffect (offsetY -ph/2f, so originY == 0)
+                // is additive and ShineLinesEffect is ambient center-packed (offset 0/0, like
+                // StanceAuraEffect).
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
+            case FLAME_BALL:
+                // Native FlameBallParticleEffect lifts only its origin Y by a settings-scaled amount:
+                // sb.draw(img, x, y, pw/2f, ph/2f + 20f * Settings.scale, pw, ph, scale, scale,
+                //         rotation). Its vY is update-only (never consumed). The 20f * settingsScale
+                // term is supplied by the caller (host-neutral: this class never reads Settings).
+                return new Params(x, y, originX,
+                        packedHeight / 2f + FLAME_BALL_ORIGIN_Y_OFFSET * settingsScale,
+                        packedWidth, packedHeight, scale, scale, rotation);
             case DIVINITY_PARTICLE:
                 return new Params(x, y + vY, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);

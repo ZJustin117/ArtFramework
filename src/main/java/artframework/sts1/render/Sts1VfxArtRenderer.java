@@ -36,7 +36,12 @@ import java.lang.reflect.Field;
  * fixed rect over the static {@code ImageMaster.WARNING_ICON_VFX} with a hardcoded
  * {@code Settings.scale * 2f} uniform scale), {@code StunStarEffect} (ambient center-packed with its
  * position shifted by its own {@code vX}/{@code vY}), and {@code FallingDustEffect} (ambient
- * center-packed with the region's own {@code offsetX}/{@code offsetY} as its origin).
+ * center-packed with the region's own {@code offsetX}/{@code offsetY} as its origin), plus the three
+ * newest members {@code LightningEffect} (additive center-packed with origin Y {@code 0f}),
+ * {@code FlameBallParticleEffect} (additive center-packed with origin Y {@code packedHeight/2f +
+ * 20f * Settings.scale}), and {@code ShineLinesEffect} (ambient center-packed; its native
+ * {@code render} also guards
+ * the draw with {@code if (!isDone)}).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -52,7 +57,7 @@ import java.lang.reflect.Field;
  * {@code NemesisFireParticle}, {@code DebuffParticleEffect}, {@code GenericSmokeEffect},
  * {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
  * {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, {@code DamageImpactLineEffect},
- * {@code StunStarEffect}, and {@code FallingDustEffect}.
+ * {@code StunStarEffect}, {@code FallingDustEffect}, and {@code ShineLinesEffect}.
  * {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload.
@@ -170,7 +175,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code LIGHT_FLARE_L}, {@code TORCH_PARTICLE_L}, {@code FLASH_ATK_IMG}, and the nine newest
      * members {@code FIRE_BURST}, {@code RED_FIRE_BURST}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
      * {@code NEMESIS_FIRE}, {@code TORCH_PARTICLE_XL}, {@code GHOSTLY_WEAK_FIRE},
-     * {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR}) it is optional and
+     * {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR} — plus the three newest img kinds
+     * {@code LIGHTNING_EFFECT}, {@code FLAME_BALL}, {@code SHINE_LINES}, whose {@code rotation}
+     * field all three consume ({@code FLAME_BALL}'s {@code vY} is update-only)) it is optional and
      * defaults to {@code 0}, which is required because {@code DivinityStanceChangeParticle},
      * {@code LightFlareSEffect}, {@code FlashAtkImgEffect}, and {@code LightFlareMEffect}/
      * {@code LightFlareLEffect} have no {@code vY} field — and {@code TorchParticleLEffect} and all
@@ -196,7 +203,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         // vY is only meaningful for the formulas that add it to y or use it in the position offset;
         // requiring it elsewhere would wrongly reject DivinityStanceChangeParticle/LightFlareSEffect
         // and LightFlareMEffect/LightFlareLEffect (no vY field) and TorchParticleLEffect plus the
-        // nine newest members (their vY is update-only), and omitting it where it is consumed would
+        // nine newest members (their vY is update-only) and the three F17 img kinds (LightningEffect
+        // and ShineLinesEffect have no vY field; FlameBallParticleEffect's is update-only), and
+        // omitting it where it is consumed would
         // silently draw at an un-shifted y/position instead of failing open to the native draw.
         // StunStarEffect consumes vY in its position offset (y - vY*5f*Settings.scale).
         boolean requireVY = kind == VfxDrawGeometry.Kind.WRATH_PARTICLE
@@ -340,6 +349,30 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * The per-kind fixed horizontal offset added to the shared center-packed origin
+     * ({@code packedWidth / 2f}); {@code 0f} for every current kind.
+     */
+    private static float originOffsetX(VfxDrawGeometry.Kind kind) {
+        return 0f;
+    }
+
+    /**
+     * The per-kind fixed vertical offset added to the shared center-packed origin
+     * ({@code packedHeight / 2f}). {@code LIGHTNING_EFFECT} passes {@code -packedHeight / 2f} so its
+     * origin Y becomes exactly {@code 0f} (a scale-independent native offset); every other kind
+     * passes {@code 0f} and keeps the unchanged {@code packedHeight / 2f} origin.
+     * {@code FLAME_BALL}'s settings-scaled origin lift ({@code +20f * Settings.scale}) is handled
+     * inside {@link VfxDrawGeometry#params} (which already receives {@code settingsScale}), so it
+     * passes {@code 0f} here.
+     */
+    private static float originOffsetY(VfxDrawGeometry.Kind kind, TextureAtlas.AtlasRegion gdx) {
+        if (kind == VfxDrawGeometry.Kind.LIGHTNING_EFFECT) {
+            return -gdx.getRegionHeight() / 2f;
+        }
+        return 0f;
+    }
+
+    /**
      * Draws the real ART sprite for a claimed transient effect, reproducing the native draw
      * including its per-kind blend behavior ({@link VfxDrawGeometry#additiveBlend} — the single
      * source of truth for the ambient set: additive for
@@ -360,7 +393,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code DebuffParticleEffect},
      * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
      * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
-     * {@code DamageImpactLineEffect}, {@code StunStarEffect}, and {@code FallingDustEffect})
+     * {@code DamageImpactLineEffect}, {@code StunStarEffect}, {@code FallingDustEffect}, and
+     * {@code ShineLinesEffect})
      * never call
      * {@code setBlendFunction} natively, so their path draws
      * under the ambient blend and restores only the previous color. Every branch restores the
@@ -419,10 +453,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                     kind, f.x, f.y, f.vY, f.scale, f.rotation, f.durDiv2, f.duration,
                     settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight(),
-                    f.vX, f.regionOffsetX, f.regionOffsetY);
+                    f.vX, f.regionOffsetX, f.regionOffsetY,
+                    originOffsetX(kind), originOffsetY(kind, gdx));
             // Per-kind blend policy: most kinds install additive blend and restore it, but the
             // ambient kinds (VfxDrawGeometry.additiveBlend(kind) == false — see that method for the
-            // authoritative list, which includes the newest StunStarEffect and FallingDustEffect)
+            // authoritative list, which includes the newest ShineLinesEffect)
             // never call setBlendFunction natively, so they must draw under
             // the ambient blend and restore only color.
             boolean additive = VfxDrawGeometry.additiveBlend(kind);
@@ -551,7 +586,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (texture == null) return false;
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 kind, f.x, f.y, 0f, f.scale, f.rotation,
-                f.durDiv2, f.duration, Settings.scale, 0f, 0f, 0f, 0f, 0f);
+                f.durDiv2, f.duration, Settings.scale, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
         int srcX;
         int srcY;
         int srcW;

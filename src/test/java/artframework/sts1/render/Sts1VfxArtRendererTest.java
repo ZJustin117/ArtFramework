@@ -408,6 +408,65 @@ public class Sts1VfxArtRendererTest {
         private float vY;
     }
 
+    /**
+     * {@code LightningEffect}/{@code ShineLinesEffect} layout: instance {@code AtlasRegion img} and
+     * NO {@code vY} field at all (the constructors are {@code (float, float)}), proving {@code vY}
+     * stays optional for these kinds.
+     */
+    static class LightningEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code LightningEffect} layout missing {@code img}. */
+    static class LightningNoImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+    }
+
+    /** {@code FlameBallParticleEffect} layout: instance {@code AtlasRegion img} and a {@code vY}. */
+    static class FlameBallEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private float vY;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code FlameBallParticleEffect} layout missing {@code img}. */
+    static class FlameBallNoImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float vY;
+    }
+
+    /**
+     * {@code FlameBallParticleEffect} layout with an {@code img} but no {@code vY}, proving {@code
+     * vY} is optional for FLAME_BALL (its native {@code render} ignores it).
+     */
+    static class FlameBallNoVYEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /**
+     * Base without the inherited {@code rotation} field, so the newest img kinds (which consume
+     * {@code rotation}) provably fail open on a genuinely missing rotation rather than on a missing
+     * img.
+     */
+    static class NoRotationBase {
+        protected float scale;
+        protected Color color;
+    }
+
+    /** Img holder WITHOUT a {@code rotation} field, for the three newest img kinds. */
+    static class NoRotationImgEffect extends NoRotationBase {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
     @Test
     public void readTextureFieldsResolvesIceShatterFromItsInstanceTexture() {
         IceShatterEffect effect = new IceShatterEffect();
@@ -1388,6 +1447,105 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
+    public void readFieldsResolvesTheNewestImgKindsWithOptionalVY() {
+        // LightningEffect/FlameBallParticleEffect/ShineLinesEffect all resolve from an instance
+        // AtlasRegion; LightningEffect and ShineLinesEffect have NO vY field (vY is optional for
+        // them), and FlameBallParticleEffect's vY is update-only (optional too).
+        LightningEffectHolder lightning = new LightningEffectHolder();
+        lightning.x = 4.5f;
+        lightning.y = -1.5f;
+        lightning.scale = 0.9f;
+        lightning.rotation = 30f;
+        lightning.color = Color.WHITE;
+        lightning.img = fakeRegion();
+
+        Sts1VfxArtRenderer.Fields lf = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.LIGHTNING_EFFECT, lightning);
+        assertNotNull("LIGHTNING_EFFECT resolves without a vY field", lf);
+        assertEquals(4.5f, lf.x, EPS);
+        assertEquals(-1.5f, lf.y, EPS);
+        assertEquals("the absent vY defaults to 0", 0f, lf.vY, EPS);
+        assertEquals(0.9f, lf.scale, EPS);
+        assertEquals(30f, lf.rotation, EPS);
+        assertSame(lightning.img, lf.img);
+
+        FlameBallNoVYEffect flameNoVY = new FlameBallNoVYEffect();
+        flameNoVY.x = 1f;
+        flameNoVY.y = 2f;
+        flameNoVY.scale = 1f;
+        flameNoVY.rotation = 10f;
+        flameNoVY.color = Color.WHITE;
+        flameNoVY.img = fakeRegion();
+        assertNotNull("FLAME_BALL resolves without a vY field (optional)",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.FLAME_BALL, flameNoVY));
+
+        FlameBallEffectHolder flame = new FlameBallEffectHolder();
+        flame.x = 1f;
+        flame.y = 2f;
+        flame.vY = 3.5f;
+        flame.scale = 1f;
+        flame.rotation = 10f;
+        flame.color = Color.WHITE;
+        flame.img = fakeRegion();
+        Sts1VfxArtRenderer.Fields fb = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.FLAME_BALL, flame);
+        assertNotNull(fb);
+        assertEquals("FlameBall's vY is captured but not consumed", 3.5f, fb.vY, EPS);
+
+        LightningEffectHolder shine = new LightningEffectHolder();
+        shine.x = 3f;
+        shine.y = 4f;
+        shine.scale = 0.5f;
+        shine.rotation = 5f;
+        shine.color = Color.WHITE;
+        shine.img = fakeRegion();
+        Sts1VfxArtRenderer.Fields sl = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.SHINE_LINES, shine);
+        assertNotNull("SHINE_LINES resolves without a vY field", sl);
+        assertSame(shine.img, sl.img);
+
+        // Missing img fails open for all three.
+        LightningNoImgEffect noImg = new LightningNoImgEffect();
+        noImg.x = 1f;
+        noImg.y = 2f;
+        noImg.scale = 1f;
+        noImg.rotation = 0f;
+        noImg.color = Color.WHITE;
+        assertNull("a LightningEffect holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.LIGHTNING_EFFECT, noImg));
+        FlameBallNoImgEffect flameNoImg = new FlameBallNoImgEffect();
+        flameNoImg.x = 1f;
+        flameNoImg.y = 2f;
+        flameNoImg.vY = 3f;
+        flameNoImg.scale = 1f;
+        flameNoImg.rotation = 0f;
+        flameNoImg.color = Color.WHITE;
+        assertNull("a FlameBall holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.FLAME_BALL, flameNoImg));
+        assertNull("a ShineLines holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.SHINE_LINES, noImg));
+    }
+
+    @Test
+    public void readFieldsFailsOpenForTheNewestImgKindsWhenRotationIsMissing() {
+        // All three newest img kinds consume the rotation field, so a holder with a valid img but no
+        // rotation field must fail open rather than silently drawing at rotation 0.
+        NoRotationImgEffect holder = new NoRotationImgEffect();
+        holder.x = 1f;
+        holder.y = 2f;
+        holder.scale = 1f;
+        holder.color = Color.WHITE;
+        holder.img = fakeRegion();
+
+        assertNull("LIGHTNING_EFFECT requires rotation",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.LIGHTNING_EFFECT, holder));
+        assertNull("FLAME_BALL requires rotation",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.FLAME_BALL, holder));
+        assertNull("SHINE_LINES requires rotation",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.SHINE_LINES, holder));
+    }
+
+    @Test
     public void isReadyIsTrueForTheSupportedFqnsAndFalseOtherwise() {
         Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
 
@@ -1490,6 +1648,15 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.FALLING_DUST));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.FallingDustEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.LIGHTNING_EFFECT));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.LightningEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.FLAME_BALL));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.FlameBallParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SHINE_LINES));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.ShineLinesEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -1537,6 +1704,12 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.STUN_STAR + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.FALLING_DUST + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.FALLING_DUST + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.LIGHTNING_EFFECT + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.LIGHTNING_EFFECT + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FLAME_BALL + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FLAME_BALL + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SHINE_LINES + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SHINE_LINES + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -1642,6 +1815,109 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
+    public void lightningAndFlameBallDrawAdditivelyAndShineLinesAmbiently() {
+        // LightningEffect (originY 0f, scale-independent) and FlameBallParticleEffect (originY
+        // ph/2f + 20f * Settings.scale) are additive center-packed img kinds; ShineLinesEffect is
+        // ambient center-packed and draws under the ambient blend. Each draws its own instance
+        // AtlasRegion. Settings.scale is a static mutable field, so it is reflectively pinned to a
+        // non-1.0 value here to guard the FlameBall origin scaling end-to-end.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        float previousSettingsScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float settingsScale = 1.333f;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale",
+                    Float.valueOf(settingsScale));
+            assertEquals(settingsScale, com.megacrit.cardcrawl.core.Settings.scale, EPS);
+
+            CountingBatch lightningBatch = newCountingBatch();
+            AbstractGameEffect lightning = seededLightning(100f, 200f, 0.5f, 30f, 64, 48);
+            assertTrue(renderer.render(lightningBatch, lightning));
+            assertEquals("Lightning is additive (installs and restores blend)",
+                    2, lightningBatch.setBlendCalls);
+            assertNotNull(lightningBatch.drawnRegionArgs);
+            assertEquals(100f, lightningBatch.drawnRegionArgs[0], EPS);
+            assertEquals(200f, lightningBatch.drawnRegionArgs[1], EPS);
+            assertEquals("originX is packedWidth/2f", 32f, lightningBatch.drawnRegionArgs[2], EPS);
+            assertEquals("originY is 0f (scale-independent)", 0f, lightningBatch.drawnRegionArgs[3],
+                    EPS);
+            assertTrue("Lightning can draw", renderer.canDraw(lightning));
+
+            CountingBatch flameBatch = newCountingBatch();
+            AbstractGameEffect flameBall = seededFlameBall(11f, 22f, 0.75f, 12f, 40, 24);
+            assertTrue(renderer.render(flameBatch, flameBall));
+            assertEquals("FlameBall is additive", 2, flameBatch.setBlendCalls);
+            assertNotNull(flameBatch.drawnRegionArgs);
+            assertEquals(20f, flameBatch.drawnRegionArgs[2], EPS);
+            assertEquals("originY is packedHeight/2f + 20f * Settings.scale",
+                    12f + 20f * settingsScale, flameBatch.drawnRegionArgs[3], EPS);
+            assertTrue("FlameBall can draw", renderer.canDraw(flameBall));
+
+            CountingBatch shineBatch = newCountingBatch();
+            AbstractGameEffect shine = seededShineLines(5f, 6f, 1f, 45f, 48, 32);
+            assertTrue(renderer.render(shineBatch, shine));
+            assertEquals("ShineLines never calls setBlendFunction", 0, shineBatch.setBlendCalls);
+            assertNotNull(shineBatch.drawnRegionArgs);
+            assertEquals("originX is packedWidth/2f", 24f, shineBatch.drawnRegionArgs[2], EPS);
+            assertEquals("originY is packedHeight/2f", 16f, shineBatch.drawnRegionArgs[3], EPS);
+            assertTrue("ShineLines can draw", renderer.canDraw(shine));
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale",
+                    Float.valueOf(previousSettingsScale));
+        }
+    }
+
+    /** Real {@code LightningEffect} with reflectively seeded draw fields (no GL). */
+    private static AbstractGameEffect seededLightning(float x, float y, float scale, float rotation,
+            int pw, int ph) {
+        return seedImgEffect(com.megacrit.cardcrawl.vfx.combat.LightningEffect.class,
+                x, y, scale, rotation, pw, ph);
+    }
+
+    /** Real {@code FlameBallParticleEffect} with reflectively seeded draw fields + vY (no GL). */
+    private static AbstractGameEffect seededFlameBall(float x, float y, float scale, float rotation,
+            int pw, int ph) {
+        AbstractGameEffect effect = seedImgEffect(
+                com.megacrit.cardcrawl.vfx.FlameBallParticleEffect.class,
+                x, y, scale, rotation, pw, ph);
+        try {
+            setField(effect, com.megacrit.cardcrawl.vfx.FlameBallParticleEffect.class, "vY",
+                    Float.valueOf(3.5f));
+        } catch (Exception failure) {
+            throw new AssertionError("could not seed FlameBall vY", failure);
+        }
+        return effect;
+    }
+
+    /** Real {@code ShineLinesEffect} with reflectively seeded draw fields (no GL). */
+    private static AbstractGameEffect seededShineLines(float x, float y, float scale, float rotation,
+            int pw, int ph) {
+        return seedImgEffect(com.megacrit.cardcrawl.vfx.ShineLinesEffect.class,
+                x, y, scale, rotation, pw, ph);
+    }
+
+    /** Real img-based effect of {@code type} with x/y/img/scale/rotation/color seeded (no GL). */
+    private static AbstractGameEffect seedImgEffect(Class<? extends AbstractGameEffect> type,
+            float x, float y, float scale, float rotation, int pw, int ph) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.allocateInstance(type);
+            setField(effect, type, "x", Float.valueOf(x));
+            setField(effect, type, "y", Float.valueOf(y));
+            setField(effect, type, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, pw, ph));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL " + type.getSimpleName(), failure);
+        }
+    }
+
+    @Test
     public void canDrawFailsOpenWithoutAValidRegionForTheNewestKinds() {
         Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
 
@@ -1657,6 +1933,25 @@ public class Sts1VfxArtRendererTest {
                 com.megacrit.cardcrawl.vfx.FallingDustEffect.class, "img", null);
         assertFalse("a FallingDust instance without its region cannot draw",
                 renderer.canDraw(dustNoImg));
+
+        // The three newest img kinds: a null region fails open.
+        AbstractGameEffect lightningNoImg = seededLightning(1f, 2f, 1f, 0f, 64, 48);
+        setFieldUnchecked(lightningNoImg,
+                com.megacrit.cardcrawl.vfx.combat.LightningEffect.class, "img", null);
+        assertFalse("a LightningEffect instance without its region cannot draw",
+                renderer.canDraw(lightningNoImg));
+
+        AbstractGameEffect flameNoImg = seededFlameBall(1f, 2f, 1f, 0f, 40, 24);
+        setFieldUnchecked(flameNoImg,
+                com.megacrit.cardcrawl.vfx.FlameBallParticleEffect.class, "img", null);
+        assertFalse("a FlameBall instance without its region cannot draw",
+                renderer.canDraw(flameNoImg));
+
+        AbstractGameEffect shineNoImg = seededShineLines(1f, 2f, 1f, 0f, 48, 32);
+        setFieldUnchecked(shineNoImg,
+                com.megacrit.cardcrawl.vfx.ShineLinesEffect.class, "img", null);
+        assertFalse("a ShineLines instance without its region cannot draw",
+                renderer.canDraw(shineNoImg));
     }
 
     private static void setFieldUnchecked(Object target, Class<?> owner, String name,

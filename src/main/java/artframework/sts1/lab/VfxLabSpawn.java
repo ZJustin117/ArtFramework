@@ -8,9 +8,11 @@ import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
 import com.megacrit.cardcrawl.vfx.FallingDustEffect;
 import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
+import com.megacrit.cardcrawl.vfx.FlameBallParticleEffect;
 import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
+import com.megacrit.cardcrawl.vfx.ShineLinesEffect;
 import com.megacrit.cardcrawl.vfx.WarningSignEffect;
 import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect;
@@ -19,6 +21,7 @@ import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
+import com.megacrit.cardcrawl.vfx.combat.LightningEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect;
 import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
@@ -56,7 +59,9 @@ import java.util.function.Predicate;
  * {@code vfx-combat} members {@code FlameParticleEffect}/{@code LightningOrbActivateEffect}/
  * {@code DamageImpactBlurEffect}/{@code DamageImpactLineEffect}/{@code DarkOrbPassiveEffect}, and the
  * three newest members {@code WarningSignEffect}/{@code FallingDustEffect} (root) and
- * {@code StunStarEffect} ({@code vfx-combat})} into
+ * {@code StunStarEffect} ({@code vfx-combat})}, plus the three newest members
+ * {@code LightningEffect} ({@code vfx-combat}), {@code FlameBallParticleEffect}, and
+ * {@code ShineLinesEffect} (root) — into
  * the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
@@ -198,6 +203,15 @@ public final class VfxLabSpawn {
         }
         if ("fallingdust".equalsIgnoreCase(value) || "fdust".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.FALLING_DUST;
+        }
+        if ("lightning".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.LIGHTNING_EFFECT;
+        }
+        if ("flameball".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FLAME_BALL;
+        }
+        if ("shinelines".equalsIgnoreCase(value) || "shine".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SHINE_LINES;
         }
         return null;
     }
@@ -488,6 +502,24 @@ public final class VfxLabSpawn {
             // from the static ImageMaster.DUST_* regions and may be null outside a live game; any
             // failure is caught by spawn's fail-open guard rather than propagating.
             return new FallingDustEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.LIGHTNING_EFFECT.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a static ImageMaster region and
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new LightningEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.FLAME_BALL.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is ImageMaster-backed and may be
+            // null outside a live game; any failure is caught by spawn's fail-open guard rather
+            // than propagating.
+            return new FlameBallParticleEffect(960f, 540f, 0);
+        }
+        if (VfxClaimPolicy.SHINE_LINES.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a static ImageMaster region and
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new ShineLinesEffect(960f, 540f);
         }
         return null;
     }

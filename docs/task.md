@@ -477,6 +477,43 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       new patch/bridge/console wiring; default-off gate + per-instance token semantics unchanged.
       Focused no-GL JUnit only.
 
+- [x] NRO-04 F17 (three more members: two new pure origin rules + one ambient center-packed
+      reuse): `com.megacrit.cardcrawl.vfx.combat.LightningEffect` reuses the additive center-packed
+      `AtlasRegion` geometry with a NEW pure rule — the draw origin Y is `0f` (NOT
+      `packedHeight/2f`) while origin X stays `packedWidth/2f`, size packed, uniform scale, and the
+      field rotation; `com.megacrit.cardcrawl.vfx.FlameBallParticleEffect` reuses that additive
+      center-packed geometry with a NEW pure rule — `originY = packedHeight/2f + 20f * settingsScale`
+      (`FLAME_BALL_ORIGIN_Y_OFFSET` times the caller-supplied `settingsScale`, so the origin lift
+      tracks `Settings.scale` exactly as native does; its `vY` is update-only and NOT consumed); and
+      `com.megacrit.cardcrawl.vfx.ShineLinesEffect` reuses the ambient center-packed geometry
+      UNCHANGED (origin `packedWidth/2f`, `packedHeight/2f`, no `setBlendFunction`, native
+      `if (!isDone)` guard). `VfxDrawGeometry.params(...)` gained two MORE tail scalars
+      (`float originOffsetX, float originOffsetY`) after the F16 tail params; the shared origin is
+      now `originX = packedWidth/2f + originOffsetX`, `originY = packedHeight/2f + originOffsetY`, so
+      every pre-existing kind passes `0f`/`0f` and its geometry is byte-identical (a regression
+      assertion pins this). `Kind.LIGHTNING_EFFECT` passes `(0f, -packedHeight/2f)` (scale-independent,
+      so its origin Y is exactly `0f`) and `Kind.SHINE_LINES` passes `(0f, 0f)`; `Kind.FLAME_BALL` does
+      NOT use the tail scalar — it has its own pure branch that consumes the existing `settingsScale`
+      argument to compute `packedHeight/2f + 20f * settingsScale`, so `VfxDrawGeometry` stays
+      host-neutral (it never reads `Settings`). `additiveBlend`
+      is `true` for `LIGHTNING_EFFECT`/`FLAME_BALL` and `false` for `SHINE_LINES` (ambient);
+      `whiteAlphaOnly` is unchanged. `LIGHTNING_EFFECT`/`FLAME_BALL`/`SHINE_LINES` are img-path kinds,
+      so `Sts1VfxArtRenderer` reads their `rotation` field unconditionally like every other img-path
+      kind (the `requireRotation` list belongs solely to the bare-`Texture` path and is not extended);
+      none of the three consumes `vY` (Lightning/ShineLines have no `vY` field and FlameBall's is
+      update-only), so `vY` stays optional and none is added to `requireVY`. Lightning's origin offset
+      is computed at the draw site (`-packedHeight/2f`); FlameBall's is handled in `params(...)`. The
+      single existing img draw branch is kept with no new draw path. `VfxClaimPolicy`
+      `LIGHTNING_EFFECT`/`FLAME_BALL`/`SHINE_LINES` append LAST to `supportedClasses()`/`supports(...)`
+      in that order; `VfxLabSpawn.classNameFor` gains `"lightning"` (`new LightningEffect(960f,
+      540f)`), `"flameball"` (`new FlameBallParticleEffect(960f, 540f, 0)`), and
+      `"shinelines"`/`"shine"` (`new ShineLinesEffect(960f, 540f)`) — aliases checked against the
+      existing set for collisions — behind the existing fail-open guard, and
+      `art claim spawn lightning|flameball|shinelines 4` runs in both `d1_aura_claim.yaml` phases. No
+      new patch/bridge/console wiring; default-off gate + per-instance token semantics unchanged.
+      Focused no-GL JUnit only; the FLAME_BALL origin scaling is pinned at a non-1.0 `settingsScale`
+      in both the pure `params` test and the end-to-end renderer test.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

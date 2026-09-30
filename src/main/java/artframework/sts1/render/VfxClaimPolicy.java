@@ -89,6 +89,17 @@ import java.util.List;
  * {@code vX} and {@code vY} fields; and the {@code vfx-misc-root} {@code FallingDustEffect} reuses
  * that ambient center-packed geometry with a NEW origin taken from the region's own
  * {@code offsetX}/{@code offsetY} (rather than {@code packedWidth/2}, {@code packedHeight/2}). The
+ * newest three members add one new pure origin rule each (or reuse the ambient center-packed
+ * branch): the {@code vfx-combat} {@code LightningEffect} reuses the additive center-packed
+ * {@code AtlasRegion} geometry with a NEW origin rule — the draw origin Y is {@code 0f} (not
+ * {@code packedHeight/2f}) with {@code originX} keeping {@code packedWidth/2f}, size packed,
+ * uniform scale, and the field rotation; the {@code vfx-misc-root} {@code FlameBallParticleEffect}
+ * reuses that additive center-packed geometry with a NEW origin rule — {@code originY =
+ * packedHeight/2f + 20f * settingsScale} (a settings-scaled {@code +20f} lift on the vertical
+ * origin, tracking {@code Settings.scale} exactly as native does); and the
+ * {@code vfx-misc-root} {@code ShineLinesEffect} reuses the ambient center-packed geometry
+ * unchanged (origin {@code packedWidth/2f}, {@code packedHeight/2f}, no {@code setBlendFunction},
+ * with a native {@code if (!isDone)} draw guard). The
  * additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
@@ -165,6 +176,12 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.StunStarEffect";
     public static final String FALLING_DUST =
             "com.megacrit.cardcrawl.vfx.FallingDustEffect";
+    public static final String LIGHTNING_EFFECT =
+            "com.megacrit.cardcrawl.vfx.combat.LightningEffect";
+    public static final String FLAME_BALL =
+            "com.megacrit.cardcrawl.vfx.FlameBallParticleEffect";
+    public static final String SHINE_LINES =
+            "com.megacrit.cardcrawl.vfx.ShineLinesEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -176,7 +193,8 @@ public final class VfxClaimPolicy {
                     ICE_SHATTER, WEB_PARTICLE, ENTANGLE_EFFECT, BLOCK_IMPACT_LINE,
                     EXHAUST_PILE_PARTICLE, UNKNOWN_PARTICLE, FLAME_PARTICLE,
                     LIGHTNING_ORB_ACTIVATE, DAMAGE_IMPACT_BLUR, DAMAGE_IMPACT_LINE,
-                    DARK_ORB_PASSIVE, WARNING_SIGN, STUN_STAR, FALLING_DUST));
+                    DARK_ORB_PASSIVE, WARNING_SIGN, STUN_STAR, FALLING_DUST,
+                    LIGHTNING_EFFECT, FLAME_BALL, SHINE_LINES));
 
     private VfxClaimPolicy() {}
 
@@ -219,7 +237,10 @@ public final class VfxClaimPolicy {
                 || DARK_ORB_PASSIVE.equals(value)
                 || WARNING_SIGN.equals(value)
                 || STUN_STAR.equals(value)
-                || FALLING_DUST.equals(value);
+                || FALLING_DUST.equals(value)
+                || LIGHTNING_EFFECT.equals(value)
+                || FLAME_BALL.equals(value)
+                || SHINE_LINES.equals(value);
     }
 
     /**
@@ -262,6 +283,14 @@ public final class VfxClaimPolicy {
      * {@code StunStarEffect} is an ambient center-packed {@code AtlasRegion} member whose position is
      * offset by its {@code vX}/{@code vY}, and {@code FallingDustEffect} is an ambient center-packed
      * {@code AtlasRegion} member whose origin is the region's own {@code offsetX}/{@code offsetY}.
+     * The three newest members ({@code LightningEffect}, {@code FlameBallParticleEffect},
+     * {@code ShineLinesEffect}) are appended after the falling dust in that order;
+     * {@code LightningEffect} is an additive center-packed {@code AtlasRegion} member whose origin Y
+     * is {@code 0f}, {@code FlameBallParticleEffect} is an additive center-packed {@code AtlasRegion}
+     * member whose origin Y is {@code packedHeight/2f + 20f * settingsScale}, and
+     * {@code ShineLinesEffect} is an
+     * ambient center-packed {@code AtlasRegion} member (its native {@code render} also guards the
+     * draw with {@code if (!isDone)}).
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

@@ -21,6 +21,27 @@ public final class RenderHost {
 
     public static final String C2_SURFACE_PREFIX = "c2:surface:";
 
+    /**
+     * Id prefix of per-instance transient-effect targets ({@code "native:" + "effect:" + instanceId}).
+     * These grow one-per-effect-instance under load, so probe enumeration caps them.
+     */
+    public static final String NATIVE_EFFECT_TARGET_PREFIX = "native:effect:";
+
+    /**
+     * Underscore fallback form of {@link #NATIVE_EFFECT_TARGET_PREFIX}, produced when the
+     * {@code "effect:" + instanceId} stable key is localized (colon → underscore). A legacy or
+     * fallback target with this id must not escape the probe cap.
+     */
+    public static final String NATIVE_EFFECT_TARGET_PREFIX_UNDERSCORE = "native:effect_";
+
+    /**
+     * Default cap on per-instance transient-effect targets enumerated by {@link #probeMap()} /
+     * {@code renderOrder.items}. Stable/named targets are always enumerated in full; only the
+     * {@code native:effect:*} slice is bounded so the probe payload cannot grow unbounded with
+     * live transient-effect instances.
+     */
+    public static final int DEFAULT_MAX_PROBE_EFFECT_TARGETS = 64;
+
     private final EffectRegistry effects = new EffectRegistry();
     private final ShaderRegistry shaders = new ShaderRegistry();
     private final ShaderRuntime shaderRuntime = new ShaderRuntime();
@@ -39,6 +60,7 @@ public final class RenderHost {
     private float timeSeconds;
     private float screenW = 1920f;
     private float screenH = 1080f;
+    private volatile int maxProbeEffectTargets = DEFAULT_MAX_PROBE_EFFECT_TARGETS;
 
     public RenderHost() {
         installBuiltins();
@@ -50,6 +72,25 @@ public final class RenderHost {
 
     public void setHostBackend(HostRenderBackend backend) {
         this.hostBackend = backend != null ? backend : DirectHostRenderBackend.INSTANCE;
+    }
+
+    /** Cap on transient-effect ({@code native:effect:*}) targets enumerated by probe output. */
+    public int maxProbeEffectTargets() {
+        return maxProbeEffectTargets;
+    }
+
+    /** Override the transient-effect probe cap (tests / diagnostics). Values below 0 clamp to 0. */
+    public void setMaxProbeEffectTargets(int max) {
+        this.maxProbeEffectTargets = max < 0 ? 0 : max;
+    }
+
+    /** True for per-instance transient-effect targets that grow with live effect instances. */
+    static boolean isTransientEffectTarget(RenderTarget target) {
+        if (target == null || target.id == null) {
+            return false;
+        }
+        return target.id.startsWith(NATIVE_EFFECT_TARGET_PREFIX)
+                || target.id.startsWith(NATIVE_EFFECT_TARGET_PREFIX_UNDERSCORE);
     }
 
     private void installBuiltins() {
@@ -759,13 +800,26 @@ public final class RenderHost {
         out.put("renderOrder", probeRenderOrder());
         List<Map<String, Object>> tlist = new ArrayList<Map<String, Object>>();
         Map<String, Object> bySafeId = new LinkedHashMap<String, Object>();
+        int targetsTotal = 0;
+        int effectIncluded = 0;
         for (RenderTarget t : targets.values()) {
+            targetsTotal++;
+            if (isTransientEffectTarget(t)) {
+                if (effectIncluded >= maxProbeEffectTargets) {
+                    continue;
+                }
+                effectIncluded++;
+            }
             Map<String, Object> one = probeTarget(t);
             tlist.add(one);
             bySafeId.put(safeTargetKey(t.id), one);
         }
+        int targetsIncluded = tlist.size();
         out.put("targets", tlist);
         out.put("targetsById", bySafeId);
+        out.put("targetsTotal", Integer.valueOf(targetsTotal));
+        out.put("targetsIncluded", Integer.valueOf(targetsIncluded));
+        out.put("targetsTruncated", Boolean.valueOf(targetsIncluded < targetsTotal));
         out.put("demoEffects", probeDemoEffects());
         out.put("c2SurfaceEffects", probeC2SurfaceEffects());
         out.put("c2ItemEffects", probeC2ItemEffects());
@@ -819,30 +873,46 @@ public final class RenderHost {
         Map<String, Integer> keyCounts = new LinkedHashMap<String, Integer>();
         RenderOrder previous = null;
         boolean monotonic = true;
+        int effectIncluded = 0;
+        // Diagnostics (monotonic/duplicates) are computed over ALL ordered targets; only the
+        // enumerated `items` list is bounded for per-instance transient-effect targets.
         for (RenderTarget target : ordered) {
             RenderOrder current = new RenderOrder(target.phase(), target.z(), target.stableKey());
             if (previous != null && RenderOrder.COMPARATOR.compare(previous, current) > 0) {
                 monotonic = false;
             }
             previous = current;
+            Integer prior = keyCounts.get(target.stableKey());
+            keyCounts.put(target.stableKey(), Integer.valueOf(prior == null ? 1 : prior.intValue() + 1));
+            if (isTransientEffectTarget(target)) {
+                if (effectIncluded >= maxProbeEffectTargets) {
+                    continue;
+                }
+                effectIncluded++;
+            }
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("id", target.id);
             item.put("phase", target.phase().name());
             item.put("z", Float.valueOf(target.z()));
             item.put("stableKey", target.stableKey());
             items.add(item);
-            Integer prior = keyCounts.get(target.stableKey());
-            keyCounts.put(target.stableKey(), Integer.valueOf(prior == null ? 1 : prior.intValue() + 1));
         }
         List<String> duplicates = new ArrayList<String>();
         for (String key : keyCounts.keySet()) {
             if (keyCounts.get(key).intValue() > 1) duplicates.add(key);
         }
+        int total = ordered.size();
+        int included = items.size();
         out.put("status", duplicates.isEmpty() ? "ready" : "duplicate-keys");
-        out.put("count", Integer.valueOf(items.size()));
+        // `count` is the FULL ordered target count (pre-cap meaning); `total` is an alias of it.
+        // `included` is the enumerated item count; `truncated` reports whether items were capped.
+        out.put("count", Integer.valueOf(total));
         out.put("monotonic", Boolean.valueOf(monotonic));
         out.put("items", items);
         out.put("duplicateStableKeys", duplicates);
+        out.put("total", Integer.valueOf(total));
+        out.put("included", Integer.valueOf(included));
+        out.put("truncated", Boolean.valueOf(included < total));
         return out;
     }
 
@@ -972,6 +1042,7 @@ public final class RenderHost {
         timeSeconds = 0f;
         screenW = 1920f;
         screenH = 1080f;
+        maxProbeEffectTargets = DEFAULT_MAX_PROBE_EFFECT_TARGETS;
         installBuiltins();
     }
 }

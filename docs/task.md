@@ -301,16 +301,31 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       future id-reuse regression. The identity change is a strict improvement independent of the
       removed container instrument.
 
-- [ ] NRM-14 Probe payload / logging allocation under heavy transient-effect load: the
-      transient-effect capacity bounds (NRM-12/13) keep the ledgers bounded (D1 soak: 220 spawn
-      rounds held the Java heap flat at ~11.5 MB, `active` plateau 1114 ≪ cap 4096), but under a
-      sustained heavy claim-spawn soak plus frequent large `art probe` reads the D1 JVM still hit
-      `java.lang.OutOfMemoryError: Java heap space` (512 MB heap) and froze the render loop. The
-      single `ART_PROBE` line scales with active entities (up to ~815 KB in the soak;
-      `render.targets`/`targetsById` proportional to active effects), and `latest.log` grew to
-      ~40 MB. Next: bound/summarize the probe's per-entity target arrays (e.g. cap the enumerated
-      targets or emit counts + a bounded sample), and/or make probe publication
-      allocation-friendly, then re-run the heavy soak to confirm no OOM.
+- [x] NRM-14 Probe payload / logging allocation under heavy transient-effect load: the
+      transient-effect capacity bounds (NRM-12/13) kept the ledgers bounded, but under a sustained
+      heavy claim-spawn soak plus frequent large `art probe` reads the D1 JVM still hit
+      `java.lang.OutOfMemoryError: Java heap space` (512 MB heap) and froze the render loop: the
+      single `ART_PROBE` line grew to ~815 KB on `render.targets`/`targetsById` and `latest.log`
+      reached ~40 MB. Fix: the probe payload is now bounded on BOTH axes — per-instance
+      transient-effect render targets (`render.targets`/`render.targetsById`/`render.renderOrder.items`)
+      and per-scope `presentation[].entities` are each capped at 64 (overridable via
+      `RenderHost.setMaxProbeEffectTargets` / `PresentationRegistry.setMaxProbeEffectEntities`),
+      while stable/named entries are always enumerated in full. Additive keys report the bound:
+      `targetsTotal`/`targetsIncluded`/`targetsTruncated` (+ `renderOrder.total`/`included`;
+      `renderOrder.count` remains the FULL ordered total) and per-scope
+      `entitiesTotal`/`entitiesIncluded`/`entitiesTruncated`. `renderOrder.monotonic`/
+      `duplicateStableKeys` are still computed over ALL targets. The render-target predicate covers
+      both `native:effect:` and the `native:effect_` fallback. D1 evidence: a heavy claim-spawn soak
+      grew the true live/target count 151 → 3,219 (~21×) while the `ART_PROBE` line stayed flat at
+      ~136 KB (unbounded it would have been ~4.9 MB); per-scope presentation and render target lists
+      stayed at 64 + stable with truncation flags set and totals reporting the true counts; `grep`
+      for `OutOfMemoryError`/`FATAL EXCEPTION` = 0; Java heap flat (~12.8 MB); 20 rapid back-to-back
+      `art probe` reads all returned fresh data with the render loop alive. Residual / known: the
+      previously-documented NRM-12 observation gap remains (effects whose `update()` does not call
+      `super.update()` are not observed as complete, so `transientEffects.active` can sit at the 4096
+      cap after a heavy soak) — the count and hence the payload stay hard-bounded regardless; and
+      per-probe `renderOrder` allocation is still O(N) in live targets even though the emitted
+      payload is bounded.
 
 - [x] NRO-04 crash fix (retire-by-flag instead of structural removal): `art claim clear`
       (legacy alias `art aura clear`) could crash the game with a render-thread

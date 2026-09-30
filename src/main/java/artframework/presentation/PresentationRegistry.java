@@ -15,7 +15,57 @@ public final class PresentationRegistry {
             new LinkedHashMap<String, PresentationContext>();
     private static final PresentationWorld WORLD = ArtEcs.world();
 
+    /**
+     * Owner convention of per-instance transient-effect entities, projected by the
+     * transient-effect pipeline ({@code Sts1NativePresentationAdapter}): the node
+     * {@code name} is {@code "effect:" + instanceId}.
+     */
+    static final String TRANSIENT_EFFECT_NAME_PREFIX = "effect:";
+
+    /**
+     * Localized (colon → underscore) fallback form of {@link #TRANSIENT_EFFECT_NAME_PREFIX},
+     * carried in the presentation key's {@code localId}. Used so a legacy/fallback entity cannot
+     * escape the probe cap.
+     */
+    static final String TRANSIENT_EFFECT_LOCAL_PREFIX = "effect_";
+
+    /**
+     * Default cap on per-instance transient-effect entities enumerated per scope by
+     * {@link #probeAll()}. Stable/named entities are always enumerated in full; only the
+     * {@code effect:*} slice is bounded so the probe payload cannot grow unbounded with live
+     * transient-effect instances.
+     */
+    public static final int DEFAULT_MAX_PROBE_EFFECT_ENTITIES = 64;
+
+    private static volatile int maxProbeEffectEntities = DEFAULT_MAX_PROBE_EFFECT_ENTITIES;
+
     private PresentationRegistry() {}
+
+    /** Cap on transient-effect ({@code effect:*}) entities enumerated per scope by probe output. */
+    public static int maxProbeEffectEntities() {
+        return maxProbeEffectEntities;
+    }
+
+    /** Override the transient-effect probe cap (tests / diagnostics). Negatives clamp to 0. */
+    public static void setMaxProbeEffectEntities(int max) {
+        maxProbeEffectEntities = max < 0 ? 0 : max;
+    }
+
+    /**
+     * True for per-instance transient-effect entities whose population grows with live effect
+     * instances. Matches the {@code effect:} owner name or its localized {@code effect_} key form;
+     * stable/named entities never match.
+     */
+    static boolean isTransientEffectEntity(NodeIdentityComponent identity) {
+        if (identity == null) {
+            return false;
+        }
+        if (identity.name != null && identity.name.startsWith(TRANSIENT_EFFECT_NAME_PREFIX)) {
+            return true;
+        }
+        String local = identity.key != null ? identity.key.localId : null;
+        return local != null && local.startsWith(TRANSIENT_EFFECT_LOCAL_PREFIX);
+    }
 
     public static synchronized PresentationContext context(String scope) {
         PresentationContext current = CONTEXTS.get(scope);
@@ -55,6 +105,7 @@ public final class PresentationRegistry {
         for (PresentationContext context : CONTEXTS.values()) context.close();
         WORLD.clear();
         for (PresentationContext context : CONTEXTS.values()) context.resetOwnershipForTests();
+        maxProbeEffectEntities = DEFAULT_MAX_PROBE_EFFECT_ENTITIES;
     }
 
     /** The sole ART-owned world for all registered scopes. */
@@ -69,8 +120,19 @@ public final class PresentationRegistry {
             Map<String, Object> scope = new LinkedHashMap<String, Object>();
             scope.put("scope", context.scope());
             List<Map<String, Object>> entities = new ArrayList<Map<String, Object>>();
+            int entitiesTotal = 0;
+            int effectIncluded = 0;
+            // Stable/named entities are always enumerated; only per-instance transient-effect
+            // entities are capped so a heavy effect soak cannot grow the probe payload unbounded.
             for (EntityId entity : context.entities()) {
+                entitiesTotal++;
                 NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+                if (isTransientEffectEntity(identity)) {
+                    if (effectIncluded >= maxProbeEffectEntities) {
+                        continue;
+                    }
+                    effectIncluded++;
+                }
                 NodeHierarchyComponent hierarchy = context.world().get(entity, NodeHierarchyComponent.class);
                 NodeLifecycleComponent lifecycle = context.world().get(entity, NodeLifecycleComponent.class);
                 Map<String, Object> row = new LinkedHashMap<String, Object>();
@@ -86,7 +148,12 @@ public final class PresentationRegistry {
                 row.put("components", componentNames(context, entity));
                 entities.add(row);
             }
+            int entitiesIncluded = entities.size();
             scope.put("entities", entities);
+            scope.put("entitiesTotal", Integer.valueOf(entitiesTotal));
+            scope.put("entitiesIncluded", Integer.valueOf(entitiesIncluded));
+            scope.put("entitiesTruncated",
+                    Boolean.valueOf(entitiesIncluded < entitiesTotal));
             result.add(scope);
         }
         return Collections.unmodifiableList(result);

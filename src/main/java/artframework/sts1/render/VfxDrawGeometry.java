@@ -3,7 +3,8 @@ package artframework.sts1.render;
 /**
  * Pure draw geometry for one claimed per-instance transient effect (family-neutral seam; current
  * members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
- * {@code LightFlareSEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}), mirroring the
+ * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
+ * {@code TorchParticleLEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}), mirroring the
  * native render formula exactly.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
@@ -28,6 +29,12 @@ package artframework.sts1.render;
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   LightFlareSEffect.render:
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   LightFlareMEffect.render:
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   LightFlareLEffect.render:
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   TorchParticleLEffect.render (note: has vY, but render ignores it; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   FlashAtkImgEffect.render (note: no setBlendFunction; ambient blend):
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   WrathParticleEffect.render:
@@ -44,8 +51,11 @@ package artframework.sts1.render;
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. Calm is the
  * one kind that draws a bare {@code Texture}, so its native origin/size/source rect are fixed
  * constants and the packed region size is ignored. {@code DivinityStanceChangeParticle}, the
- * cross-family {@code LightFlareSEffect}, and the {@code vfx-combat} {@code FlashAtkImgEffect}
- * share the {@code StanceAuraEffect} geometry (x/y passthrough, no {@code vY}), so they map to the
+ * cross-family {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
+ * {@code TorchParticleLEffect}, and the {@code vfx-combat} {@code FlashAtkImgEffect}
+ * share the {@code StanceAuraEffect} geometry (x/y passthrough, no {@code vY}) — the three later
+ * scene-world members are geometry-identical to the additive center-packed branch and
+ * {@code TorchParticleLEffect} ignores its own {@code vY} in {@code render} — so they all map to the
  * same {@link Kind#STANCE_AURA} formula branch. {@code FlashAtkImgEffect} differs only in blend:
  * it never switches blend function, so {@link #additiveBlend} reports {@code false} for it.
  */
@@ -59,7 +69,10 @@ public final class VfxDrawGeometry {
         CALM_PARTICLE,
         DIVINITY_STANCE_CHANGE,
         LIGHT_FLARE,
-        FLASH_ATK_IMG
+        FLASH_ATK_IMG,
+        LIGHT_FLARE_M,
+        LIGHT_FLARE_L,
+        TORCH_PARTICLE_L
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -166,6 +179,9 @@ public final class VfxDrawGeometry {
         }
         if (VfxClaimPolicy.SCENE_LIGHT_FLARE.equals(value)) return Kind.LIGHT_FLARE;
         if (VfxClaimPolicy.FLASH_ATK_IMG.equals(value)) return Kind.FLASH_ATK_IMG;
+        if (VfxClaimPolicy.SCENE_LIGHT_FLARE_M.equals(value)) return Kind.LIGHT_FLARE_M;
+        if (VfxClaimPolicy.SCENE_LIGHT_FLARE_L.equals(value)) return Kind.LIGHT_FLARE_L;
+        if (VfxClaimPolicy.SCENE_TORCH_PARTICLE_L.equals(value)) return Kind.TORCH_PARTICLE_L;
         return null;
     }
 
@@ -209,10 +225,14 @@ public final class VfxDrawGeometry {
             case DIVINITY_STANCE_CHANGE:
             case LIGHT_FLARE:
             case FLASH_ATK_IMG:
-                // DivinityStanceChangeParticle, the cross-family LightFlareSEffect, and the
-                // vfx-combat FlashAtkImgEffect mirror StanceAuraEffect exactly: x/y passthrough (no
-                // vY field), center origin, packed size, uniform scale. Flash differs only in blend
-                // (ambient, via additiveBlend == false).
+            case LIGHT_FLARE_M:
+            case LIGHT_FLARE_L:
+            case TORCH_PARTICLE_L:
+                // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
+                // TorchParticleLEffect, and the vfx-combat FlashAtkImgEffect mirror StanceAuraEffect
+                // exactly: x/y passthrough (no vY consumed; TorchParticleLEffect's vY is update-only),
+                // center origin, packed size, uniform scale. Flash differs only in blend (ambient,
+                // via additiveBlend == false).
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
             case DIVINITY_PARTICLE:

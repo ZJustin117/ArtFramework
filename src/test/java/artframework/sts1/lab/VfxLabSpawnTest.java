@@ -40,6 +40,15 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("lightflare"));
         assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, VfxLabSpawn.classNameFor("flash"));
         assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, VfxLabSpawn.classNameFor("flashatk"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE_M, VfxLabSpawn.classNameFor("flareM"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE_M,
+                VfxLabSpawn.classNameFor("lightflareM"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE_L, VfxLabSpawn.classNameFor("flareL"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE_L,
+                VfxLabSpawn.classNameFor("lightflareL"));
+        assertEquals(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L, VfxLabSpawn.classNameFor("torch"));
+        assertEquals(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L,
+                VfxLabSpawn.classNameFor("torchparticle"));
     }
 
     @Test
@@ -56,6 +65,15 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE, VfxLabSpawn.classNameFor("LIGHTFLARE"));
         assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, VfxLabSpawn.classNameFor("  FlAsH "));
         assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, VfxLabSpawn.classNameFor("FLASHATK"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE_M, VfxLabSpawn.classNameFor("  FlArEm "));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE_M,
+                VfxLabSpawn.classNameFor("LIGHTFLAREM"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE_L, VfxLabSpawn.classNameFor("FLAREL"));
+        assertEquals(VfxClaimPolicy.SCENE_LIGHT_FLARE_L,
+                VfxLabSpawn.classNameFor("lightflarel"));
+        assertEquals(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L, VfxLabSpawn.classNameFor("  ToRcH "));
+        assertEquals(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L,
+                VfxLabSpawn.classNameFor("TORCHPARTICLE"));
     }
 
     @Test
@@ -230,6 +248,33 @@ public class VfxLabSpawnTest {
         assertEquals(3, factory2.requested.size());
         for (String fqn : factory2.requested) {
             assertEquals(VfxClaimPolicy.FLASH_ATK_IMG, fqn);
+        }
+    }
+
+    @Test
+    public void spawnHappyPathQueuesLaterSceneWorldMembersThroughTheFactorySeam() {
+        // The three later vfx-scene-world claimable FQNs; the capturing factory proves each alias
+        // requests exactly its FQN without touching the GL-backed constructors (the flare pair's
+        // static imgs[] and TorchParticleLEffect's getImg() are null off-game).
+        assertSpawnRequests("flareM", VfxClaimPolicy.SCENE_LIGHT_FLARE_M);
+        assertSpawnRequests("lightflareM", VfxClaimPolicy.SCENE_LIGHT_FLARE_M);
+        assertSpawnRequests("flareL", VfxClaimPolicy.SCENE_LIGHT_FLARE_L);
+        assertSpawnRequests("lightflareL", VfxClaimPolicy.SCENE_LIGHT_FLARE_L);
+        assertSpawnRequests("torch", VfxClaimPolicy.SCENE_TORCH_PARTICLE_L);
+        assertSpawnRequests("torchparticle", VfxClaimPolicy.SCENE_TORCH_PARTICLE_L);
+    }
+
+    private static void assertSpawnRequests(String alias, String expectedFqn) {
+        RecordingQueue queue = new RecordingQueue();
+        CapturingFactory factory = new CapturingFactory();
+        VfxLabSpawn.setQueueForTests(queue);
+        VfxLabSpawn.setFactoryForTests(factory);
+
+        assertEquals(4, VfxLabSpawn.spawn(alias, 4));
+        assertEquals(4, queue.added.size());
+        assertEquals(4, factory.requested.size());
+        for (String fqn : factory.requested) {
+            assertEquals(expectedFqn, fqn);
         }
     }
 

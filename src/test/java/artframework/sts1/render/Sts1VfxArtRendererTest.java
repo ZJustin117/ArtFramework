@@ -198,6 +198,8 @@ public class Sts1VfxArtRendererTest {
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
                 VfxDrawGeometry.Kind.LIGHT_FLARE,
+                VfxDrawGeometry.Kind.LIGHT_FLARE_M,
+                VfxDrawGeometry.Kind.LIGHT_FLARE_L,
                 VfxDrawGeometry.Kind.FLASH_ATK_IMG,
                 VfxDrawGeometry.Kind.STANCE_AURA }) {
             Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
@@ -248,6 +250,29 @@ public class Sts1VfxArtRendererTest {
                 VfxDrawGeometry.Kind.WRATH_PARTICLE, withVY);
         assertNotNull(f);
         assertEquals(42f, f.vY, EPS);
+    }
+
+    @Test
+    public void readFieldsResolvesTorchParticleLWithVYPresentAndIgnoresIt() {
+        // TorchParticleLEffect has a vY field but render never reads it; the optional-vY path must
+        // still resolve for it (vY captured but not consumed by the geometry).
+        FullEffect effect = new FullEffect();
+        effect.x = 3.25f;
+        effect.y = -2.5f;
+        effect.vY = 1.75f;
+        effect.scale = 0.9f;
+        effect.rotation = 12f;
+        effect.color = Color.WHITE;
+        effect.img = fakeRegion();
+
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_L, effect);
+
+        assertNotNull(f);
+        assertEquals(1.75f, f.vY, EPS);
+        assertEquals(3.25f, f.x, EPS);
+        assertEquals(-2.5f, f.y, EPS);
+        assertSame(effect.img, f.img);
     }
 
     @Test
@@ -379,6 +404,15 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.FLASH_ATK_IMG));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SCENE_LIGHT_FLARE_M));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SCENE_LIGHT_FLARE_L));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));

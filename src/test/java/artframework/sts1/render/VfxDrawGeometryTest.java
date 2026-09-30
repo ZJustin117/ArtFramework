@@ -30,6 +30,12 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.SCENE_LIGHT_FLARE));
         assertSame(VfxDrawGeometry.Kind.FLASH_ATK_IMG,
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.FLASH_ATK_IMG));
+        assertSame(VfxDrawGeometry.Kind.LIGHT_FLARE_M,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SCENE_LIGHT_FLARE_M));
+        assertSame(VfxDrawGeometry.Kind.LIGHT_FLARE_L,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SCENE_LIGHT_FLARE_L));
+        assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_L,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L));
         // the exact literal FQNs, not just the policy constants
         assertSame(VfxDrawGeometry.Kind.STANCE_AURA,
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect"));
@@ -50,6 +56,15 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.FLASH_ATK_IMG,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect"));
+        assertSame(VfxDrawGeometry.Kind.LIGHT_FLARE_M,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect"));
+        assertSame(VfxDrawGeometry.Kind.LIGHT_FLARE_L,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect"));
+        assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_L,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect"));
     }
 
     @Test
@@ -88,6 +103,22 @@ public class VfxDrawGeometryTest {
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.combat.FlashAtkEffect")); // near-miss (no Img)
         assertNull(VfxDrawGeometry.kindFor("FlashAtkImgEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("LightFlareMEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("LightFlareLEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.TorchParticleEffect")); // near-miss (no L)
     }
 
     @Test
@@ -356,6 +387,44 @@ public class VfxDrawGeometryTest {
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
         assertEquals(p, q);
+    }
+
+    @Test
+    public void laterSceneWorldMembersMatchStanceAuraGeometryExactly() {
+        // LightFlareMEffect/LightFlareLEffect/TorchParticleLEffect all draw the same formula as
+        // StanceAuraEffect: x/y passthrough, center origin, packed size, uniform scale. The flare
+        // pair has no vY field; TorchParticleLEffect has one but render never reads it.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.LIGHT_FLARE_M,
+                VfxDrawGeometry.Kind.LIGHT_FLARE_L,
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_L }) {
+            VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+            assertEquals("x passthrough for " + kind, x, p.x, EPS);
+            assertEquals("y passthrough for " + kind, y, p.y, EPS);
+            assertEquals("originX for " + kind, pw / 2f, p.originX, EPS);
+            assertEquals("originY for " + kind, ph / 2f, p.originY, EPS);
+            assertEquals("width for " + kind, pw, p.width, EPS);
+            assertEquals("height for " + kind, ph, p.height, EPS);
+            assertEquals("scaleX for " + kind, scale, p.scaleX, EPS);
+            assertEquals("scaleY for " + kind, scale, p.scaleY, EPS);
+            assertEquals("rotation for " + kind, rotation, p.rotation, EPS);
+            // Byte-identical to the STANCE_AURA result for the same inputs.
+            assertEquals("geometry must equal STANCE_AURA for " + kind, aura, p);
+            assertTrue("expected additive blend for " + kind,
+                    VfxDrawGeometry.additiveBlend(kind));
+        }
     }
 
     @Test

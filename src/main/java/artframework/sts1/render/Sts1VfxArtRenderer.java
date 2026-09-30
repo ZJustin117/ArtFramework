@@ -16,7 +16,8 @@ import java.lang.reflect.Field;
 /**
  * STS1 host-side {@link VfxArtRenderer.Adapter} for the family-neutral per-instance transient-effect
  * claim seam (current members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
- * {@code LightFlareSEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}).
+ * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
+ * {@code TorchParticleLEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -116,17 +117,21 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code duration} are always optional and default to {@code 0}. {@code vY} is required only for
      * the kinds whose {@link VfxDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
      * {@code DIVINITY_PARTICLE}); for the kinds that ignore it ({@code STANCE_AURA},
-     * {@code DIVINITY_STANCE_CHANGE}, {@code LIGHT_FLARE}, {@code FLASH_ATK_IMG}) it is optional and
+     * {@code DIVINITY_STANCE_CHANGE}, {@code LIGHT_FLARE}, {@code LIGHT_FLARE_M},
+     * {@code LIGHT_FLARE_L}, {@code TORCH_PARTICLE_L}, {@code FLASH_ATK_IMG}) it is optional and
      * defaults to {@code 0}, which is required because {@code DivinityStanceChangeParticle},
-     * {@code LightFlareSEffect}, and {@code FlashAtkImgEffect} have no {@code vY} field. Returns
-     * {@code null}
+     * {@code LightFlareSEffect}, {@code FlashAtkImgEffect}, and {@code LightFlareMEffect}/
+     * {@code LightFlareLEffect} have no {@code vY} field — and {@code TorchParticleLEffect} has one
+     * but never reads it in {@code render} (it is update-only). Returns {@code null}
      * when the effect is null or any required field is absent, unreadable, or of the wrong type;
      * never throws.
      */
     static Fields readFields(VfxDrawGeometry.Kind kind, Object effect) {
         if (effect == null) return null;
         // vY is only meaningful for the formulas that add it to y; requiring it elsewhere would
-        // wrongly reject DivinityStanceChangeParticle/LightFlareSEffect, and omitting it where it
+        // wrongly reject DivinityStanceChangeParticle/LightFlareSEffect and LightFlareMEffect/
+        // LightFlareLEffect (no vY field) and TorchParticleLEffect (vY is update-only), and omitting
+        // it where it
         // is consumed would
         // silently draw at an un-shifted y instead of failing open to the native draw.
         boolean requireVY = kind == VfxDrawGeometry.Kind.WRATH_PARTICLE

@@ -4,7 +4,10 @@ import artframework.sts1.render.VfxClaimPolicy;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
+import com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect;
+import com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect;
 import com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle;
@@ -17,8 +20,9 @@ import java.util.function.Predicate;
 /**
  * Lab/dev helper that queues native transient effects from the family-neutral per-instance claim
  * seam (current members are the {@code vfx-stance-aura} FQNs plus the cross-family
- * {@code LightFlareSEffect} and {@code FlashAtkImgEffect}) into the live STS effect containers so a
- * device-side lab run can exercise the family without combat.
+ * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
+ * {@code TorchParticleLEffect} and {@code FlashAtkImgEffect}) into the live STS effect containers so
+ * a device-side lab run can exercise the family without combat.
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -69,6 +73,15 @@ public final class VfxLabSpawn {
         }
         if ("flare".equalsIgnoreCase(value) || "lightflare".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.SCENE_LIGHT_FLARE;
+        }
+        if ("flareM".equalsIgnoreCase(value) || "lightflareM".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SCENE_LIGHT_FLARE_M;
+        }
+        if ("flareL".equalsIgnoreCase(value) || "lightflareL".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SCENE_LIGHT_FLARE_L;
+        }
+        if ("torch".equalsIgnoreCase(value) || "torchparticle".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SCENE_TORCH_PARTICLE_L;
         }
         if ("flash".equalsIgnoreCase(value) || "flashatk".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.FLASH_ATK_IMG;
@@ -180,6 +193,24 @@ public final class VfxLabSpawn {
             // game; the constructor may throw and spawn's fail-open guard drops it rather than
             // propagating.
             return new LightFlareSEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.SCENE_LIGHT_FLARE_M.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The static imgs[] is allocated, but its
+            // entries may be null off-game (img is chosen from imgs[] at construction time); any
+            // failure is caught by spawn's fail-open guard rather than propagating.
+            return new LightFlareMEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.SCENE_LIGHT_FLARE_L.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The static imgs[] is allocated, but its
+            // entries may be null off-game (img is chosen from imgs[] at construction time); any
+            // failure is caught by spawn's fail-open guard rather than propagating.
+            return new LightFlareLEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.SCENE_TORCH_PARTICLE_L.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img comes from a private getImg() at
+            // construction time and may be null outside a live game; any failure is caught by spawn's
+            // fail-open guard rather than propagating.
+            return new TorchParticleLEffect(960f, 540f);
         }
         if (VfxClaimPolicy.FLASH_ATK_IMG.equals(fqn)) {
             // Safe lab defaults: screen-center-ish point and a concrete attack effect. The static

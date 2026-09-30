@@ -49,6 +49,9 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_LIGHT_FLARE));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.FLASH_ATK_IMG));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_LIGHT_FLARE_M));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_LIGHT_FLARE_L));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L));
     }
 
     @Test
@@ -81,8 +84,14 @@ public class VfxDelegationSeamTest {
                 .contains(VfxClaimPolicy.DIVINITY_STANCE_CHANGE_PARTICLE));
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.SCENE_LIGHT_FLARE));
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.FLASH_ATK_IMG));
+        assertTrue(VfxClaimPolicy.supportedClasses()
+                .contains(VfxClaimPolicy.SCENE_LIGHT_FLARE_M));
+        assertTrue(VfxClaimPolicy.supportedClasses()
+                .contains(VfxClaimPolicy.SCENE_LIGHT_FLARE_L));
+        assertTrue(VfxClaimPolicy.supportedClasses()
+                .contains(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L));
         assertEquals("the new FQN is appended last",
-                VfxClaimPolicy.FLASH_ATK_IMG,
+                VfxClaimPolicy.SCENE_TORCH_PARTICLE_L,
                 VfxClaimPolicy.supportedClasses()
                         .get(VfxClaimPolicy.supportedClasses().size() - 1));
     }

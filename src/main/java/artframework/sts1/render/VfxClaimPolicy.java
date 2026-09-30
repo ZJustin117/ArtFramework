@@ -11,12 +11,17 @@ import java.util.List;
  * hooks, so the claimable classes are recognized by FQN at the shared effect-container seam. The
  * seam is generic over per-instance transient-effect families, so the current members are
  * cross-family: the five {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
- * {@code LightFlareSEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}. The aura members
- * are the four {@code AtlasRegion}-drawn classes
+ * {@code LightFlareSEffect}, {@code LightFlareMEffect}, {@code LightFlareLEffect}, and
+ * {@code TorchParticleLEffect}, and the {@code vfx-combat} {@code FlashAtkImgEffect}. The aura
+ * members are the four {@code AtlasRegion}-drawn classes
  * ({@code StanceAuraEffect}, {@code WrathParticleEffect}, {@code DivinityParticleEffect},
  * {@code DivinityStanceChangeParticle}) plus {@code CalmParticleEffect} (which draws a bare
  * {@code Texture}); {@code LightFlareSEffect} is the first non-aura member and draws an
- * {@code AtlasRegion} with the same additive geometry as {@code StanceAuraEffect};
+ * {@code AtlasRegion} with the same additive geometry as {@code StanceAuraEffect}; the three
+ * later {@code vfx-scene-world} members ({@code LightFlareMEffect}, {@code LightFlareLEffect},
+ * {@code TorchParticleLEffect}) are geometry-identical to that additive center-packed branch;
+ * {@code TorchParticleLEffect} has a {@code vY} field but its native {@code render} ignores it
+ * (it is used only by {@code update()}), so it stays on the optional-{@code vY} reader path;
  * {@code FlashAtkImgEffect} is the first {@code vfx-combat} member and reuses the same geometry but
  * never switches blend function (ambient blend, see
  * {@link VfxDrawGeometry#additiveBlend}). The additive members are the only ones whose host draw
@@ -36,13 +41,20 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle";
     public static final String SCENE_LIGHT_FLARE =
             "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect";
+    public static final String SCENE_LIGHT_FLARE_M =
+            "com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect";
+    public static final String SCENE_LIGHT_FLARE_L =
+            "com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect";
+    public static final String SCENE_TORCH_PARTICLE_L =
+            "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect";
     public static final String FLASH_ATK_IMG =
             "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
                     CALM_PARTICLE_EFFECT, DIVINITY_STANCE_CHANGE_PARTICLE, SCENE_LIGHT_FLARE,
-                    FLASH_ATK_IMG));
+                    FLASH_ATK_IMG, SCENE_LIGHT_FLARE_M, SCENE_LIGHT_FLARE_L,
+                    SCENE_TORCH_PARTICLE_L));
 
     private VfxClaimPolicy() {}
 
@@ -57,10 +69,17 @@ public final class VfxClaimPolicy {
                 || CALM_PARTICLE_EFFECT.equals(value)
                 || DIVINITY_STANCE_CHANGE_PARTICLE.equals(value)
                 || SCENE_LIGHT_FLARE.equals(value)
-                || FLASH_ATK_IMG.equals(value);
+                || FLASH_ATK_IMG.equals(value)
+                || SCENE_LIGHT_FLARE_M.equals(value)
+                || SCENE_LIGHT_FLARE_L.equals(value)
+                || SCENE_TORCH_PARTICLE_L.equals(value);
     }
 
-    /** The exact claimable FQNs, in declaration order. */
+    /**
+     * The exact claimable FQNs, in their listed/append order (mirrored by {@link #supports});
+     * the three newest scene-world members (m/l flare, l torch) are appended last rather than
+     * following strict source-declaration order.
+     */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;
     }

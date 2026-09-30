@@ -26,7 +26,11 @@ package artframework.sts1.render;
  * {@code FALLING_DUST} region-offset origin), and the two newest are the {@code vfx-combat}
  * {@code LightningOrbPassiveEffect} and the {@code vfx-misc-root} {@code GlowyFireEyesEffect},
  * which extend the bare-{@code Texture} shape-C path with the first per-instance FLIP flags
- * (see {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY}).
+ * (see {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY}), and the two newest are the
+ * {@code vfx-combat} {@code FlyingSpikeEffect} (additive center-packed, no new rule) and the
+ * {@code vfx-misc-root} {@code ConeEffect} (ambient center-packed with a NEW origin rule —
+ * {@code originX = 0f} rather than {@code packedWidth/2f} — and a {@code scale * 1.1f} uniform
+ * scale).
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -40,7 +44,7 @@ package artframework.sts1.render;
  * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
  * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
  * {@code DamageImpactLineEffect}, {@code StunStarEffect}, {@code FallingDustEffect},
- * {@code ShineLinesEffect}, and {@code DustEffect}
+ * {@code ShineLinesEffect}, {@code DustEffect}, and {@code ConeEffect}
  * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
@@ -166,6 +170,11 @@ package artframework.sts1.render;
  *                                vertical flip is always false):
  *     sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, 0f,
  *             0, 0, 128, 128, flippedX, false)
+ *   FlyingSpikeEffect.render (note: additive blend; vX/vY are update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   ConeEffect.render (note: no setBlendFunction; ambient blend; the origin X is 0f, NOT pw/2f, and
+ *                      the uniform scale is scale * 1.1f):
+ *     sb.draw(img, x, y, 0f, ph/2f, pw, ph, scale*1.1f, scale*1.1f, rotation)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -286,7 +295,9 @@ public final class VfxDrawGeometry {
         TORCH_PARTICLE_S,
         SCENE_DUST,
         LIGHTNING_ORB_PASSIVE,
-        GLOWY_FIRE_EYES
+        GLOWY_FIRE_EYES,
+        FLYING_SPIKE,
+        CONE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -493,6 +504,12 @@ public final class VfxDrawGeometry {
     /** Native FlameBall origin Y offset above the shared center origin, per unit settings scale ({@code 20f}). */
     public static final float FLAME_BALL_ORIGIN_Y_OFFSET = 20f;
 
+    // Native ConeEffect draw multiplier (see the class Javadoc): its uniform draw scale is the
+    // effect's own scale multiplied by this hardcoded factor, and its draw origin X is 0f (NOT the
+    // shared packedWidth/2f center) with origin Y still packedHeight/2f.
+    /** Native ConeEffect uniform scale multiplier ({@code 1.1f}). */
+    public static final float CONE_SCALE_MULTIPLIER = 1.1f;
+
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
         public final float x;
@@ -616,6 +633,8 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.SCENE_DUST.equals(value)) return Kind.SCENE_DUST;
         if (VfxClaimPolicy.LIGHTNING_ORB_PASSIVE.equals(value)) return Kind.LIGHTNING_ORB_PASSIVE;
         if (VfxClaimPolicy.GLOWY_FIRE_EYES.equals(value)) return Kind.GLOWY_FIRE_EYES;
+        if (VfxClaimPolicy.FLYING_SPIKE.equals(value)) return Kind.FLYING_SPIKE;
+        if (VfxClaimPolicy.CONE_EFFECT.equals(value)) return Kind.CONE;
         return null;
     }
 
@@ -630,7 +649,8 @@ public final class VfxDrawGeometry {
      * {@link Kind#DEBUFF_PARTICLE}, {@link Kind#GENERIC_SMOKE}, {@link Kind#EXHAUST_BLUR},
      * {@link Kind#BLOCK_IMPACT_LINE}, {@link Kind#EXHAUST_PILE}, {@link Kind#UNKNOWN_PARTICLE},
      * {@link Kind#DAMAGE_IMPACT_BLUR}, {@link Kind#DAMAGE_IMPACT_LINE}, {@link Kind#STUN_STAR},
-     * {@link Kind#FALLING_DUST}, {@link Kind#SHINE_LINES}, {@link Kind#SCENE_DUST})
+     * {@link Kind#FALLING_DUST}, {@link Kind#SHINE_LINES}, {@link Kind#SCENE_DUST},
+     * {@link Kind#CONE})
      * never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
@@ -657,7 +677,9 @@ public final class VfxDrawGeometry {
      * {@link Kind#WARNING_SIGN}, the newest additive members {@link Kind#LIGHTNING_EFFECT}/
      * {@link Kind#FLAME_BALL}, the two additive center-packed {@link Kind#TORCH_PARTICLE_M}/
      * {@link Kind#TORCH_PARTICLE_S}, and the two newest additive bare-{@code Texture} members
-     * {@link Kind#LIGHTNING_ORB_PASSIVE}/{@link Kind#GLOWY_FIRE_EYES} — is additive.
+     * {@link Kind#LIGHTNING_ORB_PASSIVE}/{@link Kind#GLOWY_FIRE_EYES}, plus the newest additive
+     * center-packed member {@link Kind#FLYING_SPIKE} — is additive. The newest ambient member is
+     * {@link Kind#CONE}.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -680,7 +702,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.STUN_STAR
                 && kind != Kind.FALLING_DUST
                 && kind != Kind.SHINE_LINES
-                && kind != Kind.SCENE_DUST;
+                && kind != Kind.SCENE_DUST
+                && kind != Kind.CONE;
     }
 
     /**
@@ -771,7 +794,7 @@ public final class VfxDrawGeometry {
      * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR},
      * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE},
      * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE}, {@code STUN_STAR},
-     * {@code FALLING_DUST}, {@code SHINE_LINES}, {@code SCENE_DUST})
+     * {@code FALLING_DUST}, {@code SHINE_LINES}, {@code SCENE_DUST}, {@code CONE})
      * leave the ambient blend untouched and restore
      * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
      * {@code ENTANGLE}) that also rewrite their set color's
@@ -832,6 +855,7 @@ public final class VfxDrawGeometry {
             case SHINE_LINES:
             case TORCH_PARTICLE_M:
             case TORCH_PARTICLE_S:
+            case FLYING_SPIKE:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -859,6 +883,13 @@ public final class VfxDrawGeometry {
                 return new Params(x, y, originX,
                         packedHeight / 2f + FLAME_BALL_ORIGIN_Y_OFFSET * settingsScale,
                         packedWidth, packedHeight, scale, scale, rotation);
+            case CONE:
+                // Native ConeEffect: setColor(color); sb.draw(img, x, y, 0f, ph/2f, pw, ph,
+                // scale*1.1f, scale*1.1f, rotation) with NO setBlendFunction. The origin X is 0f
+                // (NOT the shared packedWidth/2f center) while origin Y stays packedHeight/2f, and
+                // the uniform scale is the effect's own scale multiplied by the hardcoded 1.1f.
+                return new Params(x, y, 0f, packedHeight / 2f, packedWidth, packedHeight,
+                        scale * CONE_SCALE_MULTIPLIER, scale * CONE_SCALE_MULTIPLIER, rotation);
             case DIVINITY_PARTICLE:
                 return new Params(x, y + vY, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);

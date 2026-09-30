@@ -118,6 +118,9 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.GLOWY_FIRE_EYES,
                 VfxLabSpawn.classNameFor("glowyfireeyes"));
         assertEquals(VfxClaimPolicy.GLOWY_FIRE_EYES, VfxLabSpawn.classNameFor("glowyeyes"));
+        assertEquals(VfxClaimPolicy.FLYING_SPIKE, VfxLabSpawn.classNameFor("flyingspike"));
+        assertEquals(VfxClaimPolicy.FLYING_SPIKE, VfxLabSpawn.classNameFor("spike"));
+        assertEquals(VfxClaimPolicy.CONE_EFFECT, VfxLabSpawn.classNameFor("cone"));
     }
 
     @Test
@@ -206,6 +209,9 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.TORCH_PARTICLE_S, VfxLabSpawn.classNameFor("TORCHS"));
         assertEquals(VfxClaimPolicy.SCENE_DUST, VfxLabSpawn.classNameFor("  ScEnEdUsT "));
         assertEquals(VfxClaimPolicy.SCENE_DUST, VfxLabSpawn.classNameFor("DUSTEFFECT"));
+        assertEquals(VfxClaimPolicy.FLYING_SPIKE, VfxLabSpawn.classNameFor("  FlYiNgSpIkE "));
+        assertEquals(VfxClaimPolicy.FLYING_SPIKE, VfxLabSpawn.classNameFor("SPIKE"));
+        assertEquals(VfxClaimPolicy.CONE_EFFECT, VfxLabSpawn.classNameFor("  CoNe "));
     }
 
     @Test
@@ -515,6 +521,16 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("lop", VfxClaimPolicy.LIGHTNING_ORB_PASSIVE);
         assertSpawnRequests("glowyfireeyes", VfxClaimPolicy.GLOWY_FIRE_EYES);
         assertSpawnRequests("glowyeyes", VfxClaimPolicy.GLOWY_FIRE_EYES);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF20MembersThroughTheFactorySeam() {
+        // The two newest claimable FQNs; the capturing factory proves each alias requests exactly its
+        // FQN without touching the ImageMaster-backed constructors (ConeEffect is constructed via its
+        // NO-ARG constructor).
+        assertSpawnRequests("flyingspike", VfxClaimPolicy.FLYING_SPIKE);
+        assertSpawnRequests("spike", VfxClaimPolicy.FLYING_SPIKE);
+        assertSpawnRequests("cone", VfxClaimPolicy.CONE_EFFECT);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

@@ -49,7 +49,11 @@ import java.lang.reflect.Field;
  * consuming its {@code rotation} field and its own {@code flipX}/{@code flipY} booleans) and
  * {@code GlowyFireEyesEffect} (additive, 128&times;128 fixed rect with a hardcoded zero rotation and
  * its own {@code flippedX} horizontal flip) — the first kinds on the shape-C path to pass
- * per-instance flip flags.
+ * per-instance flip flags; and the two newest are the {@code vfx-combat} {@code FlyingSpikeEffect}
+ * (additive center-packed, no new rule; its {@code vX}/{@code vY} are update-only) and the
+ * {@code vfx-misc-root} {@code ConeEffect} (ambient center-packed with a NEW origin rule —
+ * {@code originX = 0f} rather than {@code packedWidth/2f} — and a {@code scale * 1.1f} uniform
+ * scale).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -65,8 +69,8 @@ import java.lang.reflect.Field;
  * {@code NemesisFireParticle}, {@code DebuffParticleEffect}, {@code GenericSmokeEffect},
  * {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
  * {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, {@code DamageImpactLineEffect},
- * {@code StunStarEffect}, {@code FallingDustEffect}, {@code ShineLinesEffect}, and
- * {@code DustEffect}.
+ * {@code StunStarEffect}, {@code FallingDustEffect}, {@code ShineLinesEffect},
+ * {@code DustEffect}, and {@code ConeEffect}.
  * {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload.
@@ -427,8 +431,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code NemesisFireParticle}, {@code DebuffParticleEffect}, {@code GenericSmokeEffect},
      * {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
      * {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, {@code DamageImpactLineEffect},
-     * {@code StunStarEffect}, {@code FallingDustEffect}, {@code ShineLinesEffect}, and
-     * {@code DustEffect}).
+     * {@code StunStarEffect}, {@code FallingDustEffect}, {@code ShineLinesEffect},
+     * {@code DustEffect}, and {@code ConeEffect}).
      *
      * <p>For the img-based kinds: the region comes from the effect's own live
      * {@code img} through {@link Sts1GdxAtlasRegions#fromGdx}, geometry from
@@ -441,7 +445,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
      * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
      * {@code DamageImpactLineEffect}, {@code StunStarEffect}, {@code FallingDustEffect},
-     * {@code ShineLinesEffect}, and {@code DustEffect})
+     * {@code ShineLinesEffect}, {@code DustEffect}, and {@code ConeEffect})
      * never call
      * {@code setBlendFunction} natively, so their path draws
      * under the ambient blend and restores only the previous color. Every branch restores the

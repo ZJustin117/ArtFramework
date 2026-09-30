@@ -576,6 +576,44 @@ public class Sts1VfxArtRendererTest {
         private TextureAtlas.AtlasRegion img;
     }
 
+    /**
+     * {@code FlyingSpikeEffect} layout: instance {@code AtlasRegion img} plus {@code vX}/{@code vY}
+     * (update-only, never consumed by the draw formula, which is the StanceAura center-packed one).
+     */
+    static class FlyingSpikeEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code FlyingSpikeEffect} layout missing {@code img}. */
+    static class FlyingSpikeNoImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+    }
+
+    /**
+     * {@code ConeEffect} layout: instance {@code AtlasRegion img} plus {@code x}/{@code y} and the
+     * unused {@code aV} (its draw consumes only x/y/img/scale/rotation).
+     */
+    static class ConeEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private float aV;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code ConeEffect} layout missing {@code img}. */
+    static class ConeNoImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float aV;
+    }
+
     @Test
     public void readTextureFieldsResolvesIceShatterFromItsInstanceTexture() {
         IceShatterEffect effect = new IceShatterEffect();
@@ -1655,6 +1693,81 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
+    public void readFieldsResolvesTheTwoNewestImgKindsWithOptionalVXAndVY() {
+        // FlyingSpikeEffect and ConeEffect both resolve from an instance AtlasRegion with rotation.
+        // FlyingSpike's vX/vY are update-only (never consumed by render), so they stay optional;
+        // ConeEffect has no vX/vY at all.
+        FlyingSpikeEffectHolder spike = new FlyingSpikeEffectHolder();
+        spike.x = 4.5f;
+        spike.y = -1.5f;
+        spike.vX = 12f;
+        spike.vY = 34f;
+        spike.scale = 0.9f;
+        spike.rotation = 30f;
+        spike.color = Color.WHITE;
+        spike.img = fakeRegion();
+
+        Sts1VfxArtRenderer.Fields fs = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.FLYING_SPIKE, spike);
+        assertNotNull("FLYING_SPIKE resolves from its instance AtlasRegion", fs);
+        assertEquals(4.5f, fs.x, EPS);
+        assertEquals(-1.5f, fs.y, EPS);
+        assertEquals("FlyingSpike's vX is captured but not consumed", 12f, fs.vX, EPS);
+        assertEquals("FlyingSpike's vY is captured but not consumed", 34f, fs.vY, EPS);
+        assertEquals(0.9f, fs.scale, EPS);
+        assertEquals(30f, fs.rotation, EPS);
+        assertSame(spike.img, fs.img);
+
+        ConeEffectHolder cone = new ConeEffectHolder();
+        cone.x = 1f;
+        cone.y = 2f;
+        cone.aV = 3f;
+        cone.scale = 1f;
+        cone.rotation = 15f;
+        cone.color = Color.WHITE;
+        cone.img = fakeRegion();
+
+        Sts1VfxArtRenderer.Fields cf = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.CONE, cone);
+        assertNotNull("CONE resolves from its instance AtlasRegion", cf);
+        assertEquals(1f, cf.x, EPS);
+        assertEquals(2f, cf.y, EPS);
+        assertEquals("the absent vY defaults to 0", 0f, cf.vY, EPS);
+        assertEquals(15f, cf.rotation, EPS);
+        assertSame(cone.img, cf.img);
+
+        // Missing img fails open for both, and so does a missing rotation field.
+        FlyingSpikeNoImgEffect spikeNoImg = new FlyingSpikeNoImgEffect();
+        spikeNoImg.x = 1f;
+        spikeNoImg.y = 2f;
+        spikeNoImg.scale = 1f;
+        spikeNoImg.rotation = 0f;
+        spikeNoImg.color = Color.WHITE;
+        assertNull("a FlyingSpike holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.FLYING_SPIKE, spikeNoImg));
+
+        ConeNoImgEffect coneNoImg = new ConeNoImgEffect();
+        coneNoImg.x = 1f;
+        coneNoImg.y = 2f;
+        coneNoImg.scale = 1f;
+        coneNoImg.rotation = 0f;
+        coneNoImg.color = Color.WHITE;
+        assertNull("a Cone holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.CONE, coneNoImg));
+
+        NoRotationImgEffect noRotation = new NoRotationImgEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = fakeRegion();
+        assertNull("FLYING_SPIKE requires rotation",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.FLYING_SPIKE, noRotation));
+        assertNull("CONE requires rotation",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.CONE, noRotation));
+    }
+
+    @Test
     public void readFieldsResolvesTheNewestSceneWorldImgKindsWithOptionalVY() {
         // TorchParticleMEffect/TorchParticleSEffect and DustEffect all resolve from an instance
         // AtlasRegion. The two torch kinds own a vY that their native render ignores (update-only),
@@ -1877,6 +1990,12 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.SHINE_LINES));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.ShineLinesEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.FLYING_SPIKE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.CONE_EFFECT));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.ConeEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2174,6 +2293,65 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
+    public void flyingSpikeDrawsAdditivelyCenterPackedAndConeAmbientlyWithZeroOriginXAndScaledUp() {
+        // FlyingSpikeEffect is additive center-packed (no new rule; vX/vY update-only) and ConeEffect
+        // is ambient center-packed with a NEW origin rule (originX 0f, NOT packedWidth/2f) and a
+        // uniform scale of scale * 1.1f. Both draw their own instance AtlasRegion; the seeded region
+        // is 64x48, so the center origin would be (32, 24).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        CountingBatch spikeBatch = newCountingBatch();
+        AbstractGameEffect spike = seededEffect(
+                com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect.class);
+        assertTrue(renderer.render(spikeBatch, spike));
+        assertEquals("FlyingSpike is additive (installs and restores blend)",
+                2, spikeBatch.setBlendCalls);
+        assertEquals("FlyingSpike uses the TextureRegion draw overload",
+                1, spikeBatch.textureRegionDrawCalls);
+        assertNotNull(spikeBatch.drawnRegionArgs);
+        assertEquals(5f, spikeBatch.drawnRegionArgs[0], EPS);
+        assertEquals(6f, spikeBatch.drawnRegionArgs[1], EPS);
+        assertEquals("originX is packedWidth/2f", 32f, spikeBatch.drawnRegionArgs[2], EPS);
+        assertEquals("originY is packedHeight/2f", 24f, spikeBatch.drawnRegionArgs[3], EPS);
+        assertEquals("the uniform scale is the effect scale (no 1.1 multiplier)",
+                1f, spikeBatch.drawnRegionArgs[6], EPS);
+        assertEquals(1f, spikeBatch.drawnRegionArgs[7], EPS);
+        assertTrue("FlyingSpike can draw", renderer.canDraw(spike));
+
+        CountingBatch coneBatch = newCountingBatch();
+        AbstractGameEffect cone = seededEffect(com.megacrit.cardcrawl.vfx.ConeEffect.class);
+        assertTrue(renderer.render(coneBatch, cone));
+        assertEquals("ConeEffect never calls setBlendFunction", 0, coneBatch.setBlendCalls);
+        assertEquals("ConeEffect uses the TextureRegion draw overload",
+                1, coneBatch.textureRegionDrawCalls);
+        assertNotNull(coneBatch.drawnRegionArgs);
+        assertEquals("the Cone originX is 0f, NOT packedWidth/2f",
+                0f, coneBatch.drawnRegionArgs[2], EPS);
+        assertEquals("the Cone originY is packedHeight/2f", 24f, coneBatch.drawnRegionArgs[3], EPS);
+        assertEquals("the Cone uniform scale is scale * 1.1f",
+                1.1f, coneBatch.drawnRegionArgs[6], EPS);
+        assertEquals("the Cone uniform scale is scale * 1.1f",
+                1.1f, coneBatch.drawnRegionArgs[7], EPS);
+        assertTrue("ConeEffect can draw", renderer.canDraw(cone));
+    }
+
+    @Test
+    public void preexistingCenterPackedKindStillDrawsWithTheUnchangedCenterOrigin() {
+        // Regression: the new CONE branch is off the shared center-packed path, so a pre-existing
+        // center-packed kind still draws with origin (packedWidth/2f, packedHeight/2f) and the plain
+        // effect scale.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect torchM = seededTorchParticleM(100f, 200f, 0.5f, 30f, 52, 36);
+
+        assertTrue(renderer.render(batch, torchM));
+        assertEquals("originX is packedWidth/2f", 26f, batch.drawnRegionArgs[2], EPS);
+        assertEquals("originY is packedHeight/2f", 18f, batch.drawnRegionArgs[3], EPS);
+        assertEquals("a pre-existing center-packed kind keeps the plain effect scale",
+                0.5f, batch.drawnRegionArgs[6], EPS);
+    }
+
+    @Test
     public void torchParticleMAndSDrawAdditivelyAndSceneDustAmbientlyWithRegionOffsetOrigin() {
         // TorchParticleMEffect/TorchParticleSEffect are additive center-packed img kinds (no new
         // rule); DustEffect is ambient center-packed and reuses the FALLING_DUST region-offset origin
@@ -2287,6 +2465,19 @@ public class Sts1VfxArtRendererTest {
                 com.megacrit.cardcrawl.vfx.scene.DustEffect.class, "img", null);
         assertFalse("a DustEffect instance without its region cannot draw",
                 renderer.canDraw(sceneDustNoImg));
+
+        // The two newest img kinds: a null region fails open.
+        AbstractGameEffect spikeNoImg = seededEffect(
+                com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect.class);
+        setFieldUnchecked(spikeNoImg,
+                com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect.class, "img", null);
+        assertFalse("a FlyingSpikeEffect instance without its region cannot draw",
+                renderer.canDraw(spikeNoImg));
+
+        AbstractGameEffect coneNoImg = seededEffect(com.megacrit.cardcrawl.vfx.ConeEffect.class);
+        setFieldUnchecked(coneNoImg, com.megacrit.cardcrawl.vfx.ConeEffect.class, "img", null);
+        assertFalse("a ConeEffect instance without its region cannot draw",
+                renderer.canDraw(coneNoImg));
     }
 
     private static void setFieldUnchecked(Object target, Class<?> owner, String name,

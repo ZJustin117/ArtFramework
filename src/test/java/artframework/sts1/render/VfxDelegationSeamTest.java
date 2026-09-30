@@ -85,6 +85,8 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_DUST));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.LIGHTNING_ORB_PASSIVE));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.GLOWY_FIRE_EYES));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.FLYING_SPIKE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.CONE_EFFECT));
     }
 
     @Test
@@ -160,57 +162,65 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supportedClasses()
                 .contains(VfxClaimPolicy.LIGHTNING_ORB_PASSIVE));
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.GLOWY_FIRE_EYES));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.FLYING_SPIKE));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.CONE_EFFECT));
         assertEquals("the two newest FQNs are appended last, in order",
-                java.util.Arrays.asList(VfxClaimPolicy.LIGHTNING_ORB_PASSIVE,
-                        VfxClaimPolicy.GLOWY_FIRE_EYES),
+                java.util.Arrays.asList(VfxClaimPolicy.FLYING_SPIKE,
+                        VfxClaimPolicy.CONE_EFFECT),
                 VfxClaimPolicy.supportedClasses().subList(
                         VfxClaimPolicy.supportedClasses().size() - 2,
                         VfxClaimPolicy.supportedClasses().size()));
+        assertEquals("the F19 FQNs are appended before them, in order",
+                java.util.Arrays.asList(VfxClaimPolicy.LIGHTNING_ORB_PASSIVE,
+                        VfxClaimPolicy.GLOWY_FIRE_EYES),
+                VfxClaimPolicy.supportedClasses().subList(
+                        VfxClaimPolicy.supportedClasses().size() - 4,
+                        VfxClaimPolicy.supportedClasses().size() - 2));
         assertEquals("the F18 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.TORCH_PARTICLE_M,
                         VfxClaimPolicy.TORCH_PARTICLE_S, VfxClaimPolicy.SCENE_DUST),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 5,
-                        VfxClaimPolicy.supportedClasses().size() - 2));
+                        VfxClaimPolicy.supportedClasses().size() - 7,
+                        VfxClaimPolicy.supportedClasses().size() - 4));
         assertEquals("the F17 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.LIGHTNING_EFFECT, VfxClaimPolicy.FLAME_BALL,
                         VfxClaimPolicy.SHINE_LINES),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 8,
-                        VfxClaimPolicy.supportedClasses().size() - 5));
+                        VfxClaimPolicy.supportedClasses().size() - 10,
+                        VfxClaimPolicy.supportedClasses().size() - 7));
         assertEquals("the F16 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.WARNING_SIGN, VfxClaimPolicy.STUN_STAR,
                         VfxClaimPolicy.FALLING_DUST),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 11,
-                        VfxClaimPolicy.supportedClasses().size() - 8));
+                        VfxClaimPolicy.supportedClasses().size() - 13,
+                        VfxClaimPolicy.supportedClasses().size() - 10));
         assertEquals("the five F15 FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FLAME_PARTICLE,
                         VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE, VfxClaimPolicy.DAMAGE_IMPACT_BLUR,
                         VfxClaimPolicy.DAMAGE_IMPACT_LINE, VfxClaimPolicy.DARK_ORB_PASSIVE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 16,
-                        VfxClaimPolicy.supportedClasses().size() - 11));
+                        VfxClaimPolicy.supportedClasses().size() - 18,
+                        VfxClaimPolicy.supportedClasses().size() - 13));
         assertEquals("the four F14 FQNs are appended before the five newest, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ENTANGLE_EFFECT,
                         VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
                         VfxClaimPolicy.UNKNOWN_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 20,
-                        VfxClaimPolicy.supportedClasses().size() - 16));
+                        VfxClaimPolicy.supportedClasses().size() - 22,
+                        VfxClaimPolicy.supportedClasses().size() - 18));
         assertEquals("the two F13 FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ICE_SHATTER, VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 22,
-                        VfxClaimPolicy.supportedClasses().size() - 20));
+                        VfxClaimPolicy.supportedClasses().size() - 24,
+                        VfxClaimPolicy.supportedClasses().size() - 22));
         assertEquals("the six F12 FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL,
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 26,
-                        VfxClaimPolicy.supportedClasses().size() - 20));
+                        VfxClaimPolicy.supportedClasses().size() - 28,
+                        VfxClaimPolicy.supportedClasses().size() - 22));
         assertEquals("the thirteen F10/F11 FQNs stay in append order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
@@ -220,10 +230,10 @@ public class VfxDelegationSeamTest {
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 33,
-                        VfxClaimPolicy.supportedClasses().size() - 20));
-        assertEquals("the last FQN is the glowy fire eyes",
-                VfxClaimPolicy.GLOWY_FIRE_EYES,
+                        VfxClaimPolicy.supportedClasses().size() - 35,
+                        VfxClaimPolicy.supportedClasses().size() - 22));
+        assertEquals("the last FQN is the cone effect",
+                VfxClaimPolicy.CONE_EFFECT,
                 VfxClaimPolicy.supportedClasses()
                         .get(VfxClaimPolicy.supportedClasses().size() - 1));
     }

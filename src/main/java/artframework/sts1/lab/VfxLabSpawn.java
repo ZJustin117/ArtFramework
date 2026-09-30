@@ -4,6 +4,7 @@ import artframework.sts1.render.VfxClaimPolicy;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.ConeEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
 import com.megacrit.cardcrawl.vfx.FallingDustEffect;
@@ -21,6 +22,7 @@ import com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
+import com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect;
@@ -71,7 +73,10 @@ import java.util.function.Predicate;
  * ({@code vfx-scene-world}; {@code DustEffect} uses its NO-ARG constructor), plus the two newest
  * bare-{@code Texture} members {@code LightningOrbPassiveEffect} ({@code vfx-combat}) and
  * {@code GlowyFireEyesEffect} (root) — the first kinds on the shape-C path to pass per-instance flip
- * flags — into
+ * flags — plus the two newest members {@code FlyingSpikeEffect} ({@code vfx-combat}; additive
+ * center-packed with no new rule, its {@code vX}/{@code vY} update-only) and {@code ConeEffect}
+ * (root; ambient center-packed with the {@code originX = 0f} + {@code scale * 1.1f} rule, NO-ARG
+ * constructor) into
  * the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
@@ -237,6 +242,12 @@ public final class VfxLabSpawn {
         }
         if ("glowyfireeyes".equalsIgnoreCase(value) || "glowyeyes".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.GLOWY_FIRE_EYES;
+        }
+        if ("flyingspike".equalsIgnoreCase(value) || "spike".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FLYING_SPIKE;
+        }
+        if ("cone".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.CONE_EFFECT;
         }
         return null;
     }
@@ -575,6 +586,21 @@ public final class VfxLabSpawn {
             // and may be null outside a live game; any failure is caught by spawn's fail-open guard
             // rather than propagating.
             return new GlowyFireEyesEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.FLYING_SPIKE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The ctor is
+            // (float x, float y, float rotation, float vX, float vY, Color color) and it copies the
+            // color's RGB with alpha 0; img comes from the static ImageMaster.THICK_3D_LINE region and
+            // may be null outside a live game, so any failure is caught by spawn's fail-open guard
+            // rather than propagating. vX/vY are update-only.
+            return new FlyingSpikeEffect(960f, 540f, 0f, 0f, 1f, Color.WHITE);
+        }
+        if (VfxClaimPolicy.CONE_EFFECT.equals(fqn)) {
+            // Safe lab defaults: ConeEffect has a NO-ARG constructor that randomizes its own img from
+            // the static ImageMaster.CONE_1/2/3 regions and centers x/y from Settings; img may be null
+            // outside a live game, so any failure is caught by spawn's fail-open guard rather than
+            // propagating.
+            return new ConeEffect();
         }
         return null;
     }

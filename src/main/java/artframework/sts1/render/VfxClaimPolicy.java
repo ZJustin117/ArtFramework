@@ -107,6 +107,12 @@ import java.util.List;
  * FALLING_DUST} region-offset-origin rule — its ambient draw origin is the region's own {@code
  * offsetX}/{@code offsetY} rather than {@code packedWidth/2f}/{@code packedHeight/2f} — so it adds
  * an ambient member to the same geometry branch. The
+ * two newest members are the {@code vfx-combat} {@code FlyingSpikeEffect} (additive center-packed,
+ * no new rule) and the {@code vfx-misc-root} {@code ConeEffect} (ambient center-packed with the new
+ * {@code originX = 0f} origin rule and a {@code scale * 1.1f} uniform scale); {@code
+ * DamageHeartEffect} was screened but is NOT claimed (its native {@code render} is guarded by
+ * {@code if (delayTimer < 0f)}, the same wait-phase guard that defers {@code FallingIceEffect}).
+ * The
  * additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
@@ -199,6 +205,10 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.LightningOrbPassiveEffect";
     public static final String GLOWY_FIRE_EYES =
             "com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect";
+    public static final String FLYING_SPIKE =
+            "com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect";
+    public static final String CONE_EFFECT =
+            "com.megacrit.cardcrawl.vfx.ConeEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -213,7 +223,7 @@ public final class VfxClaimPolicy {
                     DARK_ORB_PASSIVE, WARNING_SIGN, STUN_STAR, FALLING_DUST,
                     LIGHTNING_EFFECT, FLAME_BALL, SHINE_LINES,
                     TORCH_PARTICLE_M, TORCH_PARTICLE_S, SCENE_DUST,
-                    LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES));
+                    LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT));
 
     private VfxClaimPolicy() {}
 
@@ -264,7 +274,9 @@ public final class VfxClaimPolicy {
                 || TORCH_PARTICLE_S.equals(value)
                 || SCENE_DUST.equals(value)
                 || LIGHTNING_ORB_PASSIVE.equals(value)
-                || GLOWY_FIRE_EYES.equals(value);
+                || GLOWY_FIRE_EYES.equals(value)
+                || FLYING_SPIKE.equals(value)
+                || CONE_EFFECT.equals(value);
     }
 
     /**
@@ -330,6 +342,13 @@ public final class VfxClaimPolicy {
      * {@code flipX}/{@code flipY} booleans, while {@code GlowyFireEyesEffect} is additive over a
      * {@code 128}-rect with a hardcoded zero rotation and its own single {@code flippedX} boolean
      * (vertical flip always {@code false}).
+     * The two newest members are the {@code vfx-combat} {@code FlyingSpikeEffect} (additive
+     * center-packed, no new rule) and the {@code vfx-misc-root} {@code ConeEffect} (ambient
+     * center-packed with a NEW origin rule — {@code originX = 0f} rather than {@code packedWidth/2f}
+     * — and a uniform scale of {@code scale * 1.1f}). {@code DamageHeartEffect} was screened but is
+     * NOT claimed: its native {@code render} is guarded by {@code if (delayTimer < 0f)}, the same
+     * wait-phase guard that defers {@code FallingIceEffect}, so a claimed instance would otherwise
+     * ART-draw during the native wait phase.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

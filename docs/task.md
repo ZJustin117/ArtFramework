@@ -567,6 +567,38 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
       token semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F20 (two more members: one additive center-packed reuse + one ambient center-packed
+      with a new pure rule; one screened-but-deferred):
+      `com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect` reuses the additive center-packed
+      `AtlasRegion` geometry (`setBlendFunction(770, 1)` before and `(770, 771)` after) with NO new
+      rule — its geometry is byte-identical to `StanceAuraEffect` and its `vX`/`vY` are update-only
+      and NOT consumed (no addition to `requireVY`); and `com.megacrit.cardcrawl.vfx.ConeEffect`
+      (constructed through its NO-ARG constructor) is an ambient center-packed `AtlasRegion` member
+      with ONE new pure rule: the draw ORIGIN X is `0f` (NOT `packedWidth/2f`) while origin Y stays
+      `packedHeight/2f`, and the uniform draw scale is `scale * 1.1f`
+      (`CONE_SCALE_MULTIPLIER = 1.1f`), with NO `setBlendFunction`. `VfxDrawGeometry` gained
+      `Kind.FLYING_SPIKE` (added to the shared additive center-packed case list that
+      STANCE_AURA/TORCH_PARTICLE_L/TORCH_PARTICLE_XL use) and `Kind.CONE` (a new
+      `Params(x, y, 0f, packedHeight/2f, packedWidth, packedHeight, scale*1.1f, scale*1.1f,
+      rotation)` branch); `kindFor` maps the two exact FQNs (near-miss/nested fail open) and
+      `additiveBlend` is `true` for `FLYING_SPIKE` and `false` for `CONE` (the ambient enumeration in
+      the class/`additiveBlend`/`params` Javadocs was extended to match the `additiveBlend` body);
+      `whiteAlphaOnly`/`usesInstanceFlipX`/`usesInstanceFlipY` are unchanged. Both are img-path kinds,
+      so `Sts1VfxArtRenderer` reads their `rotation` field unconditionally on the existing single img
+      draw branch (no new draw path) and captures no new field. `VfxClaimPolicy`
+      `FLYING_SPIKE`/`CONE_EFFECT` append LAST to `supportedClasses()`/`supports(...)` in that order;
+      `VfxLabSpawn.classNameFor` gains `"flyingspike"`/`"spike"` (`new FlyingSpikeEffect(960f, 540f,
+      0f, 0f, 1f, Color.WHITE)`) and `"cone"` (`new ConeEffect()`, the NO-ARG constructor) — aliases
+      checked against the existing set for collisions — behind the existing fail-open guard, and
+      `art claim spawn flyingspike 4` / `art claim spawn cone 4` run in both `d1_aura_claim.yaml`
+      phases. No new patch/bridge/console wiring; default-off gate + per-instance token semantics
+      unchanged. Focused no-GL JUnit only.
+      DEFERRED: `com.megacrit.cardcrawl.vfx.DamageHeartEffect` was screened but is NOT claimed: its
+      native `render` is guarded by `if (delayTimer < 0f)`, the same wait-phase guard that defers
+      `FallingIceEffect` (whose `render` is guarded by `if (waitTimer < 0f)`) — a claimed instance
+      would otherwise ART-draw during the native wait phase, so a guard-rule would be needed to stay
+      in parity.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

@@ -230,6 +230,16 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect"));
+        // The two newest members, via constants and literal FQNs.
+        assertSame(VfxDrawGeometry.Kind.FLYING_SPIKE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FLYING_SPIKE));
+        assertSame(VfxDrawGeometry.Kind.FLYING_SPIKE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect"));
+        assertSame(VfxDrawGeometry.Kind.CONE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.CONE_EFFECT));
+        assertSame(VfxDrawGeometry.Kind.CONE,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.ConeEffect"));
     }
 
     @Test
@@ -560,6 +570,24 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.combat.GlowyFireEyesEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.GlowyFireEyes")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("FlyingSpikeEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.FlyingSpikeEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlyingSpike")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ConeEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ConeEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("ConeEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.ConeEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.Cone")); // near-miss (no Effect)
     }
 
     @Test
@@ -1750,6 +1778,82 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
+    public void flyingSpikeReusesTheStanceAuraCenterPackedGeometryAndStaysAdditive() {
+        // Native FlyingSpikeEffect: setBlendFunction(770,1); setColor(color);
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation);
+        //   setBlendFunction(770,771). Its vX/vY are update-only (never read in render), so its
+        // geometry is byte-identical to STANCE_AURA and it is additive.
+        float pw = 52f;
+        float ph = 36f;
+        float x = 7.5f;
+        float y = -4.25f;
+        float scale = 0.85f;
+        float rotation = 26f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 1234f, 0f, 0f, 0f, 0f);
+        VfxDrawGeometry.Params spike = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.FLYING_SPIKE,
+                x, y, 999f /* vY ignored (update-only) */, scale, rotation, 7f, 5f, 2f,
+                pw, ph, 1234f /* vX ignored (update-only) */, 0f, 0f, 0f, 0f);
+
+        assertEquals("FLYING_SPIKE matches the STANCE_AURA center-packed geometry", aura, spike);
+        assertTrue("FLYING_SPIKE installs additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLYING_SPIKE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FLYING_SPIKE));
+    }
+
+    @Test
+    public void coneUsesTheZeroOriginXAndTheUniformOnePointOneScaleAmbiently() {
+        // Native ConeEffect: setColor(color); sb.draw(img, x, y, 0f, ph/2f, pw, ph,
+        //   scale*1.1f, scale*1.1f, rotation) — NO setBlendFunction. The origin X is 0f (NOT the
+        // shared packedWidth/2f center), origin Y stays packedHeight/2f, and the uniform scale is the
+        // effect's own scale times the hardcoded 1.1f.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.CONE,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f, pw, ph,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 10f /* regionOffsetY ignored */,
+                0f, 0f);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals("the Cone origin X is 0f, NOT packedWidth/2f", 0f, p.originX, EPS);
+        assertEquals("the Cone origin Y is packedHeight/2f", ph / 2f, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals("the Cone uniform scale is scale * 1.1f", scale * 1.1f, p.scaleX, EPS);
+        assertEquals("the Cone uniform scale is scale * 1.1f", scale * 1.1f, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        assertEquals(1.1f, VfxDrawGeometry.CONE_SCALE_MULTIPLIER, EPS);
+        assertFalse("CONE never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CONE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.CONE));
+    }
+
+    @Test
+    public void newestTwoKindsBlendTruthTableIsAdditiveAmbient() {
+        // FLYING_SPIKE is additive (setBlendFunction around its draw); CONE never calls
+        // setBlendFunction (ambient). Neither rewrites the set color.
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLYING_SPIKE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CONE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FLYING_SPIKE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.CONE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.FLYING_SPIKE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.CONE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.FLYING_SPIKE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.CONE));
+    }
+
+    @Test
     public void sceneDustReusesTheFallingDustRegionOffsetOriginAndStaysAmbient() {
         // Native DustEffect: setColor(color); sb.draw(img, x, y, img.offsetX, img.offsetY, pw, ph,
         // scale, scale, rotation) — NO setBlendFunction. It reuses the FALLING_DUST rule verbatim:
@@ -1851,6 +1955,11 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.TORCH_PARTICLE_S));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SCENE_DUST));
 
+        // The two newest members: FlyingSpikeEffect is additive while ConeEffect never calls
+        // setBlendFunction (ambient).
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLYING_SPIKE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CONE));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -1867,7 +1976,8 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.STUN_STAR
                     || kind == VfxDrawGeometry.Kind.FALLING_DUST
                     || kind == VfxDrawGeometry.Kind.SHINE_LINES
-                    || kind == VfxDrawGeometry.Kind.SCENE_DUST) {
+                    || kind == VfxDrawGeometry.Kind.SCENE_DUST
+                    || kind == VfxDrawGeometry.Kind.CONE) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -1933,7 +2043,9 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.SHINE_LINES,
                 VfxDrawGeometry.Kind.TORCH_PARTICLE_M,
                 VfxDrawGeometry.Kind.TORCH_PARTICLE_S,
-                VfxDrawGeometry.Kind.SCENE_DUST }) {
+                VfxDrawGeometry.Kind.SCENE_DUST,
+                VfxDrawGeometry.Kind.FLYING_SPIKE,
+                VfxDrawGeometry.Kind.CONE }) {
             assertFalse("must not be a no-pixel-without-image kind: " + kind,
                     VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind));
         }
@@ -1982,6 +2094,8 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.TORCH_PARTICLE_M));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.TORCH_PARTICLE_S));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.SCENE_DUST));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FLYING_SPIKE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.CONE));
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE

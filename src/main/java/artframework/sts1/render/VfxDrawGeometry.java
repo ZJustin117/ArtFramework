@@ -4,16 +4,20 @@ package artframework.sts1.render;
  * Pure draw geometry for one claimed per-instance transient effect (family-neutral seam; current
  * members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
  * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
- * {@code TorchParticleLEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}), mirroring the
- * native render formula exactly.
+ * {@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
+ * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
+ * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}),
+ * mirroring the native render formula exactly.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
  * claimable effects draw additively — the host draw calls {@code setColor(color)} and
  * {@code setBlendFunction(770, 1)} around {@code SpriteBatch.draw(...)} and restores
- * {@code setBlendFunction(770, 771)} afterwards — but {@code FlashAtkImgEffect} never calls
- * {@code setBlendFunction} at all, so it must draw under the ambient blend and restore only the
- * previous color ({@link #additiveBlend} returns {@code false} for it). The native
+ * {@code setBlendFunction(770, 771)} afterwards — but the ambient kinds never call
+ * {@code setBlendFunction} at all, so they must draw under the ambient blend and restore only the
+ * previous color ({@link #additiveBlend} returns {@code false} for them). The ambient kinds are
+ * {@code FlashAtkImgEffect} (the first), plus the {@code SmokeBlurEffect},
+ * {@code CeilingDustCloudEffect}, and {@code NemesisFireParticle} members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
  * mapping only resolves the positional/scale/rotation arguments the batch receives, with the native
@@ -37,6 +41,16 @@ package artframework.sts1.render;
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   FlashAtkImgEffect.render (note: no setBlendFunction; ambient blend):
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   FireBurstParticleEffect.render (note: additive blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   RedFireBurstParticleEffect.render (note: additive blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   SmokeBlurEffect.render (note: no setBlendFunction; ambient blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   CeilingDustCloudEffect.render (note: no setBlendFunction; ambient blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   NemesisFireParticle.render (note: no setBlendFunction; ambient blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   WrathParticleEffect.render:
  *     sb.draw(img, x, y + vY, pw/2f, ph/2f, pw, ph,
  *             scale*0.8f, (0.1f + ((dur_div2*2f - duration)*2f*scale)) * Settings.scale, rotation)
@@ -52,12 +66,17 @@ package artframework.sts1.render;
  * one kind that draws a bare {@code Texture}, so its native origin/size/source rect are fixed
  * constants and the packed region size is ignored. {@code DivinityStanceChangeParticle}, the
  * cross-family {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
- * {@code TorchParticleLEffect}, and the {@code vfx-combat} {@code FlashAtkImgEffect}
- * share the {@code StanceAuraEffect} geometry (x/y passthrough, no {@code vY}) — the three later
- * scene-world members are geometry-identical to the additive center-packed branch and
- * {@code TorchParticleLEffect} ignores its own {@code vY} in {@code render} — so they all map to the
- * same {@link Kind#STANCE_AURA} formula branch. {@code FlashAtkImgEffect} differs only in blend:
- * it never switches blend function, so {@link #additiveBlend} reports {@code false} for it.
+ * {@code TorchParticleLEffect}, the {@code vfx-misc-root} {@code FireBurstParticleEffect}/
+ * {@code NemesisFireParticle}, and the {@code vfx-combat} {@code FlashAtkImgEffect}/
+ * {@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the {@code vfx-scene-world}
+ * {@code CeilingDustCloudEffect}, share the {@code StanceAuraEffect} geometry (x/y passthrough, no
+ * consumed {@code vY}) — the three later scene-world members, the two fire bursts, the smoke blur,
+ * the ceiling dust, and the nemesis fire are geometry-identical to the additive center-packed branch
+ * and the ones that own a {@code vY} field ignore it in {@code render} — so they all map to the
+ * same {@link Kind#STANCE_AURA} formula branch. Only blend distinguishes them:
+ * {@code FlashAtkImgEffect}/{@code SmokeBlurEffect}/{@code CeilingDustCloudEffect}/
+ * {@code NemesisFireParticle} never switch blend function, so {@link #additiveBlend} reports
+ * {@code false} for them, while the two fire bursts are additive like the rest.
  */
 public final class VfxDrawGeometry {
 
@@ -72,7 +91,12 @@ public final class VfxDrawGeometry {
         FLASH_ATK_IMG,
         LIGHT_FLARE_M,
         LIGHT_FLARE_L,
-        TORCH_PARTICLE_L
+        TORCH_PARTICLE_L,
+        FIRE_BURST,
+        RED_FIRE_BURST,
+        SMOKE_BLUR,
+        CEILING_DUST,
+        NEMESIS_FIRE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -182,6 +206,11 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.SCENE_LIGHT_FLARE_M.equals(value)) return Kind.LIGHT_FLARE_M;
         if (VfxClaimPolicy.SCENE_LIGHT_FLARE_L.equals(value)) return Kind.LIGHT_FLARE_L;
         if (VfxClaimPolicy.SCENE_TORCH_PARTICLE_L.equals(value)) return Kind.TORCH_PARTICLE_L;
+        if (VfxClaimPolicy.FIRE_BURST.equals(value)) return Kind.FIRE_BURST;
+        if (VfxClaimPolicy.RED_FIRE_BURST.equals(value)) return Kind.RED_FIRE_BURST;
+        if (VfxClaimPolicy.SMOKE_BLUR.equals(value)) return Kind.SMOKE_BLUR;
+        if (VfxClaimPolicy.CEILING_DUST.equals(value)) return Kind.CEILING_DUST;
+        if (VfxClaimPolicy.NEMESIS_FIRE.equals(value)) return Kind.NEMESIS_FIRE;
         return null;
     }
 
@@ -191,9 +220,12 @@ public final class VfxDrawGeometry {
      * {@code false} when it never touches the blend function and draws under whatever ambient blend
      * is active.
      *
-     * <p>Every existing kind is additive; {@link Kind#FLASH_ATK_IMG} is the first ambient kind
-     * ({@code FlashAtkImgEffect} does not call {@code setBlendFunction} at all), so the host draw must
-     * not install or restore a blend function for it.
+     * <p>Most kinds are additive; the ambient kinds ({@link Kind#FLASH_ATK_IMG},
+     * {@link Kind#SMOKE_BLUR}, {@link Kind#CEILING_DUST}, {@link Kind#NEMESIS_FIRE}) never call
+     * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
+     * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
+     * nemesis fire are the first ambient members beyond it. Every other kind — including the two fire
+     * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}) — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -201,14 +233,18 @@ public final class VfxDrawGeometry {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
-        return kind != Kind.FLASH_ATK_IMG;
+        return kind != Kind.FLASH_ATK_IMG
+                && kind != Kind.SMOKE_BLUR
+                && kind != Kind.CEILING_DUST
+                && kind != Kind.NEMESIS_FIRE;
     }
 
     /**
      * Pure geometry for one claim. The caller supplies the effect field floats and the packed
      * region size; the per-kind color/blend state is applied by the host draw (see
      * {@link #additiveBlend}: additive kinds install/restore {@code 770/1}-&rarr;{@code 770/771},
-     * while {@code FLASH_ATK_IMG} leaves the ambient blend untouched and restores only color).
+     * while the ambient kinds ({@code FLASH_ATK_IMG}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
+     * {@code NEMESIS_FIRE}) leave the ambient blend untouched and restore only color).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -228,11 +264,19 @@ public final class VfxDrawGeometry {
             case LIGHT_FLARE_M:
             case LIGHT_FLARE_L:
             case TORCH_PARTICLE_L:
+            case FIRE_BURST:
+            case RED_FIRE_BURST:
+            case SMOKE_BLUR:
+            case CEILING_DUST:
+            case NEMESIS_FIRE:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
-                // TorchParticleLEffect, and the vfx-combat FlashAtkImgEffect mirror StanceAuraEffect
-                // exactly: x/y passthrough (no vY consumed; TorchParticleLEffect's vY is update-only),
-                // center origin, packed size, uniform scale. Flash differs only in blend (ambient,
-                // via additiveBlend == false).
+                // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
+                // smoke blur, the ceiling dust, and the nemesis fire mirror StanceAuraEffect
+                // exactly: x/y passthrough (no vY is consumed; every member that owns a vY field —
+                // TorchParticleLEffect and all five new members — uses it only in update()),
+                // center origin, packed size, uniform scale. Flash, the smoke blur, the ceiling
+                // dust, and the nemesis fire differ only in blend (ambient, via additiveBlend ==
+                // false).
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
             case DIVINITY_PARTICLE:

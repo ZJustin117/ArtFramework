@@ -206,6 +206,29 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       formula, patch, bridge, or console wiring; default-off gate and per-instance token semantics
       unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F10 (five more members: two additive fire bursts + three ambient members):
+      `com.megacrit.cardcrawl.vfx.FireBurstParticleEffect` (`vfx-misc-root`) and
+      `com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect` (`vfx-combat`) join the claim
+      seam reusing the additive `STANCE_AURA` geometry (x/y passthrough, center origin, packed size,
+      uniform scale, additive blend), and `com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect`
+      (`vfx-combat`), `com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect`
+      (`vfx-scene-world`), and `com.megacrit.cardcrawl.vfx.NemesisFireParticle` (`vfx-misc-root`)
+      join with the same geometry but are the first ambient (no-`setBlendFunction`) members beyond
+      `FlashAtkImgEffect`: `VfxDrawGeometry.additiveBlend` now returns `false` for
+      `SMOKE_BLUR`/`CEILING_DUST`/`NEMESIS_FIRE` (and `FLASH_ATK_IMG`) and `true` for the two fire
+      bursts and every other kind. `VfxClaimPolicy.FIRE_BURST`/`RED_FIRE_BURST`/`SMOKE_BLUR`/
+      `CEILING_DUST`/`NEMESIS_FIRE` are appended last to `supportedClasses()` in that order, and
+      `VfxDrawGeometry.Kind.FIRE_BURST`/`RED_FIRE_BURST`/`SMOKE_BLUR`/`CEILING_DUST`/`NEMESIS_FIRE`
+      reuse the single existing additive-params branch. All five have a `vY` field used only by
+      `update()`, so they stay on the optional-`vY` reader path and no kind joins the
+      `WRATH_PARTICLE`/`DIVINITY_PARTICLE` `requireVY` set. `VfxLabSpawn.classNameFor` gains
+      `"fireburst"`/`"fire"`, `"redfireburst"`/`"redfire"`, `"smokeblur"`/`"smoke"`,
+      `"ceilingdust"`/`"dust"`, and `"nemesisfire"`/`"nemesis"` (aliases checked against the
+      existing set), constructing the five effects at `(960f, 540f)` behind the existing fail-open
+      guard, and `art claim spawn fire|redfire|smoke|dust|nemesis 4` runs in both
+      `d1_aura_claim.yaml` phases. No new formula, patch, bridge, or console wiring; default-off gate
+      and per-instance token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

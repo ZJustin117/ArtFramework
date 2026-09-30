@@ -7,7 +7,9 @@ import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect;
+import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import org.junit.Test;
 
@@ -201,6 +203,11 @@ public class Sts1VfxArtRendererTest {
                 VfxDrawGeometry.Kind.LIGHT_FLARE_M,
                 VfxDrawGeometry.Kind.LIGHT_FLARE_L,
                 VfxDrawGeometry.Kind.FLASH_ATK_IMG,
+                VfxDrawGeometry.Kind.FIRE_BURST,
+                VfxDrawGeometry.Kind.RED_FIRE_BURST,
+                VfxDrawGeometry.Kind.SMOKE_BLUR,
+                VfxDrawGeometry.Kind.CEILING_DUST,
+                VfxDrawGeometry.Kind.NEMESIS_FIRE,
                 VfxDrawGeometry.Kind.STANCE_AURA }) {
             Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
 
@@ -253,9 +260,10 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
-    public void readFieldsResolvesTorchParticleLWithVYPresentAndIgnoresIt() {
-        // TorchParticleLEffect has a vY field but render never reads it; the optional-vY path must
-        // still resolve for it (vY captured but not consumed by the geometry).
+    public void readFieldsResolvesVYOwnersWithVYPresentAndIgnoresIt() {
+        // TorchParticleLEffect plus the five newest members have a vY field but render never reads
+        // it; the optional-vY path must still resolve for them (vY captured but not consumed by the
+        // geometry).
         FullEffect effect = new FullEffect();
         effect.x = 3.25f;
         effect.y = -2.5f;
@@ -265,14 +273,21 @@ public class Sts1VfxArtRendererTest {
         effect.color = Color.WHITE;
         effect.img = fakeRegion();
 
-        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
-                VfxDrawGeometry.Kind.TORCH_PARTICLE_L, effect);
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_L,
+                VfxDrawGeometry.Kind.FIRE_BURST,
+                VfxDrawGeometry.Kind.RED_FIRE_BURST,
+                VfxDrawGeometry.Kind.SMOKE_BLUR,
+                VfxDrawGeometry.Kind.CEILING_DUST,
+                VfxDrawGeometry.Kind.NEMESIS_FIRE }) {
+            Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
 
-        assertNotNull(f);
-        assertEquals(1.75f, f.vY, EPS);
-        assertEquals(3.25f, f.x, EPS);
-        assertEquals(-2.5f, f.y, EPS);
-        assertSame(effect.img, f.img);
+            assertNotNull("vY must be optional for " + kind, f);
+            assertEquals("vY is captured but ignored for " + kind, 1.75f, f.vY, EPS);
+            assertEquals(3.25f, f.x, EPS);
+            assertEquals(-2.5f, f.y, EPS);
+            assertSame(effect.img, f.img);
+        }
     }
 
     @Test
@@ -413,6 +428,21 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.FIRE_BURST));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.FireBurstParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.RED_FIRE_BURST));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SMOKE_BLUR));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.CEILING_DUST));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.NEMESIS_FIRE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.NemesisFireParticle"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -463,6 +493,21 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.render(additive, aura));
         assertEquals("an additive kind installs and restores the blend function",
                 2, additive.setBlendCalls);
+
+        // The first ambient members beyond FlashAtkImgEffect: SmokeBlurEffect never calls
+        // setBlendFunction natively, so its claim draw must leave the blend untouched.
+        CountingBatch smoke = newCountingBatch();
+        AbstractGameEffect smokeBlur = seededEffect(SmokeBlurEffect.class);
+        assertTrue(renderer.render(smoke, smokeBlur));
+        assertEquals("the ambient member SmokeBlurEffect must not touch the blend function",
+                0, smoke.setBlendCalls);
+
+        // The two fire bursts are additive despite being fire-family.
+        CountingBatch fire = newCountingBatch();
+        AbstractGameEffect fireBurst = seededEffect(FireBurstParticleEffect.class);
+        assertTrue(renderer.render(fire, fireBurst));
+        assertEquals("the additive member FireBurstParticleEffect installs and restores blend",
+                2, fire.setBlendCalls);
     }
 
     // --- no-GL draws (mirrors BackgroundRenderPatchesTest/Sts1GdxAtlasRegionsTest conventions) ---
@@ -555,6 +600,31 @@ public class Sts1VfxArtRendererTest {
             return effect;
         } catch (Exception failure) {
             throw new AssertionError("could not build no-GL FlashAtkImgEffect", failure);
+        }
+    }
+
+    /**
+     * Real effect of {@code type} with reflectively seeded {@code x}/{@code y}/{@code img} fields
+     * (no game/GL context); the inherited {@code scale}/{@code rotation}/{@code color} come from
+     * {@code AbstractGameEffect}.
+     */
+    private static AbstractGameEffect seededEffect(Class<? extends AbstractGameEffect> type) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.allocateInstance(type);
+            setField(effect, type, "x", Float.valueOf(5f));
+            setField(effect, type, "y", Float.valueOf(6f));
+            setField(effect, type, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL " + type.getSimpleName(), failure);
         }
     }
 

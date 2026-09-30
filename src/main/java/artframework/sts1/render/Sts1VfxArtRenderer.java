@@ -17,7 +17,9 @@ import java.lang.reflect.Field;
  * STS1 host-side {@link VfxArtRenderer.Adapter} for the family-neutral per-instance transient-effect
  * claim seam (current members are the {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
  * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
- * {@code TorchParticleLEffect} and the {@code vfx-combat} {@code FlashAtkImgEffect}).
+ * {@code TorchParticleLEffect}/{@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
+ * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
+ * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -27,7 +29,9 @@ import java.lang.reflect.Field;
  * draw arguments through {@link VfxDrawGeometry#params}, and replays the native
  * {@code SpriteBatch.draw} with color save-restore and a per-kind blend policy
  * ({@link VfxDrawGeometry#additiveBlend}): additive for most kinds, but ambient — no
- * {@code setBlendFunction} call at all — for {@code FlashAtkImgEffect}. {@code CalmParticleEffect} has no
+ * {@code setBlendFunction} call at all — for the ambient kinds ({@code FlashAtkImgEffect},
+ * {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}).
+ * {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload. A false
  * result still means "no pixels produced" so the caller fails open to the native draw.
@@ -118,11 +122,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * the kinds whose {@link VfxDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
      * {@code DIVINITY_PARTICLE}); for the kinds that ignore it ({@code STANCE_AURA},
      * {@code DIVINITY_STANCE_CHANGE}, {@code LIGHT_FLARE}, {@code LIGHT_FLARE_M},
-     * {@code LIGHT_FLARE_L}, {@code TORCH_PARTICLE_L}, {@code FLASH_ATK_IMG}) it is optional and
+     * {@code LIGHT_FLARE_L}, {@code TORCH_PARTICLE_L}, {@code FLASH_ATK_IMG}, and the five newest
+     * members {@code FIRE_BURST}, {@code RED_FIRE_BURST}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
+     * {@code NEMESIS_FIRE}) it is optional and
      * defaults to {@code 0}, which is required because {@code DivinityStanceChangeParticle},
      * {@code LightFlareSEffect}, {@code FlashAtkImgEffect}, and {@code LightFlareMEffect}/
-     * {@code LightFlareLEffect} have no {@code vY} field — and {@code TorchParticleLEffect} has one
-     * but never reads it in {@code render} (it is update-only). Returns {@code null}
+     * {@code LightFlareLEffect} have no {@code vY} field — and {@code TorchParticleLEffect} and all
+     * five newer members have one
+     * but never read it in {@code render} (it is update-only). Returns {@code null}
      * when the effect is null or any required field is absent, unreadable, or of the wrong type;
      * never throws.
      */
@@ -130,10 +137,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (effect == null) return null;
         // vY is only meaningful for the formulas that add it to y; requiring it elsewhere would
         // wrongly reject DivinityStanceChangeParticle/LightFlareSEffect and LightFlareMEffect/
-        // LightFlareLEffect (no vY field) and TorchParticleLEffect (vY is update-only), and omitting
-        // it where it
-        // is consumed would
-        // silently draw at an un-shifted y instead of failing open to the native draw.
+        // LightFlareLEffect (no vY field) and TorchParticleLEffect plus the five newest members
+        // (their vY is update-only), and omitting it where it is consumed would silently draw at an
+        // un-shifted y instead of failing open to the native draw.
         boolean requireVY = kind == VfxDrawGeometry.Kind.WRATH_PARTICLE
                 || kind == VfxDrawGeometry.Kind.DIVINITY_PARTICLE;
         try {
@@ -190,14 +196,18 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * Draws the real ART sprite for a claimed transient effect, reproducing the native draw
      * including its per-kind blend behavior ({@link VfxDrawGeometry#additiveBlend}: additive for
-     * most kinds, ambient — no {@code setBlendFunction} call — for {@code FlashAtkImgEffect}).
+     * most kinds, ambient — no {@code setBlendFunction} call — for the ambient kinds
+     * {@code FlashAtkImgEffect}, {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect}, and
+     * {@code NemesisFireParticle}).
      *
      * <p>For the img-based kinds: the region comes from the effect's own live
      * {@code img} through {@link Sts1GdxAtlasRegions#fromGdx}, geometry from
      * {@link VfxDrawGeometry#params}, color from the effect's own {@link Color} (or white). The
      * per-kind blend policy is {@link VfxDrawGeometry#additiveBlend}: additive kinds install
      * {@code (SRC_ALPHA, ONE)} and restore {@code (SRC_ALPHA, ONE_MINUS_SRC_ALPHA)};
-     * {@code FlashAtkImgEffect} never calls {@code setBlendFunction} natively, so its branch draws
+     * the ambient kinds ({@code FlashAtkImgEffect}, {@code SmokeBlurEffect},
+     * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}) never call
+     * {@code setBlendFunction} natively, so their path draws
      * under the ambient blend and restores only the previous color. Every branch restores the
      * previous color. That draw uses the {@code SpriteBatch#draw(TextureRegion, ...)} overload with
      * the same arguments the native call passes, so libGDX resolves the region's UV rect (including
@@ -231,9 +241,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                     kind, f.x, f.y, f.vY, f.scale, f.rotation, f.durDiv2, f.duration,
                     settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight());
-            // Per-kind blend policy: most kinds install additive blend and restore it, but
-            // FlashAtkImgEffect never calls setBlendFunction natively, so it must draw under the
-            // ambient blend and restore only color.
+            // Per-kind blend policy: most kinds install additive blend and restore it, but the
+            // ambient kinds (FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect,
+            // NemesisFireParticle) never call setBlendFunction natively, so they must draw under
+            // the ambient blend and restore only color.
             boolean additive = VfxDrawGeometry.additiveBlend(kind);
             Color previous = new Color(sb.getColor());
             boolean blendChanged = false;

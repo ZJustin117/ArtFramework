@@ -49,6 +49,16 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L, VfxLabSpawn.classNameFor("torch"));
         assertEquals(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L,
                 VfxLabSpawn.classNameFor("torchparticle"));
+        assertEquals(VfxClaimPolicy.FIRE_BURST, VfxLabSpawn.classNameFor("fireburst"));
+        assertEquals(VfxClaimPolicy.FIRE_BURST, VfxLabSpawn.classNameFor("fire"));
+        assertEquals(VfxClaimPolicy.RED_FIRE_BURST, VfxLabSpawn.classNameFor("redfireburst"));
+        assertEquals(VfxClaimPolicy.RED_FIRE_BURST, VfxLabSpawn.classNameFor("redfire"));
+        assertEquals(VfxClaimPolicy.SMOKE_BLUR, VfxLabSpawn.classNameFor("smokeblur"));
+        assertEquals(VfxClaimPolicy.SMOKE_BLUR, VfxLabSpawn.classNameFor("smoke"));
+        assertEquals(VfxClaimPolicy.CEILING_DUST, VfxLabSpawn.classNameFor("ceilingdust"));
+        assertEquals(VfxClaimPolicy.CEILING_DUST, VfxLabSpawn.classNameFor("dust"));
+        assertEquals(VfxClaimPolicy.NEMESIS_FIRE, VfxLabSpawn.classNameFor("nemesisfire"));
+        assertEquals(VfxClaimPolicy.NEMESIS_FIRE, VfxLabSpawn.classNameFor("nemesis"));
     }
 
     @Test
@@ -74,6 +84,15 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L, VfxLabSpawn.classNameFor("  ToRcH "));
         assertEquals(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L,
                 VfxLabSpawn.classNameFor("TORCHPARTICLE"));
+        assertEquals(VfxClaimPolicy.FIRE_BURST, VfxLabSpawn.classNameFor("  FiReBuRsT "));
+        assertEquals(VfxClaimPolicy.FIRE_BURST, VfxLabSpawn.classNameFor("FIRE"));
+        assertEquals(VfxClaimPolicy.RED_FIRE_BURST, VfxLabSpawn.classNameFor("  ReDfIrE "));
+        assertEquals(VfxClaimPolicy.SMOKE_BLUR, VfxLabSpawn.classNameFor("SMOKEBLUR"));
+        assertEquals(VfxClaimPolicy.SMOKE_BLUR, VfxLabSpawn.classNameFor("  SmOkE "));
+        assertEquals(VfxClaimPolicy.CEILING_DUST, VfxLabSpawn.classNameFor("CEILINGDUST"));
+        assertEquals(VfxClaimPolicy.CEILING_DUST, VfxLabSpawn.classNameFor("DUST"));
+        assertEquals(VfxClaimPolicy.NEMESIS_FIRE, VfxLabSpawn.classNameFor("NEMESISFIRE"));
+        assertEquals(VfxClaimPolicy.NEMESIS_FIRE, VfxLabSpawn.classNameFor("  NeMeSiS "));
     }
 
     @Test
@@ -262,6 +281,23 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("lightflareL", VfxClaimPolicy.SCENE_LIGHT_FLARE_L);
         assertSpawnRequests("torch", VfxClaimPolicy.SCENE_TORCH_PARTICLE_L);
         assertSpawnRequests("torchparticle", VfxClaimPolicy.SCENE_TORCH_PARTICLE_L);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheNewestFiveMembersThroughTheFactorySeam() {
+        // The two fire-burst and three ambient FQNs; the capturing factory proves each alias
+        // requests exactly its FQN without touching the GL/image-backed constructors (the static
+        // ImageMaster regions may be null off-game).
+        assertSpawnRequests("fireburst", VfxClaimPolicy.FIRE_BURST);
+        assertSpawnRequests("fire", VfxClaimPolicy.FIRE_BURST);
+        assertSpawnRequests("redfireburst", VfxClaimPolicy.RED_FIRE_BURST);
+        assertSpawnRequests("redfire", VfxClaimPolicy.RED_FIRE_BURST);
+        assertSpawnRequests("smokeblur", VfxClaimPolicy.SMOKE_BLUR);
+        assertSpawnRequests("smoke", VfxClaimPolicy.SMOKE_BLUR);
+        assertSpawnRequests("ceilingdust", VfxClaimPolicy.CEILING_DUST);
+        assertSpawnRequests("dust", VfxClaimPolicy.CEILING_DUST);
+        assertSpawnRequests("nemesisfire", VfxClaimPolicy.NEMESIS_FIRE);
+        assertSpawnRequests("nemesis", VfxClaimPolicy.NEMESIS_FIRE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

@@ -52,6 +52,11 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_LIGHT_FLARE_M));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_LIGHT_FLARE_L));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.FIRE_BURST));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.RED_FIRE_BURST));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.SMOKE_BLUR));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.CEILING_DUST));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.NEMESIS_FIRE));
     }
 
     @Test
@@ -90,8 +95,20 @@ public class VfxDelegationSeamTest {
                 .contains(VfxClaimPolicy.SCENE_LIGHT_FLARE_L));
         assertTrue(VfxClaimPolicy.supportedClasses()
                 .contains(VfxClaimPolicy.SCENE_TORCH_PARTICLE_L));
-        assertEquals("the new FQN is appended last",
-                VfxClaimPolicy.SCENE_TORCH_PARTICLE_L,
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.FIRE_BURST));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.RED_FIRE_BURST));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.SMOKE_BLUR));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.CEILING_DUST));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.NEMESIS_FIRE));
+        assertEquals("the five newest FQNs are appended last, in order",
+                java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
+                        VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
+                        VfxClaimPolicy.NEMESIS_FIRE),
+                VfxClaimPolicy.supportedClasses().subList(
+                        VfxClaimPolicy.supportedClasses().size() - 5,
+                        VfxClaimPolicy.supportedClasses().size()));
+        assertEquals("the last FQN is the nemesis fire",
+                VfxClaimPolicy.NEMESIS_FIRE,
                 VfxClaimPolicy.supportedClasses()
                         .get(VfxClaimPolicy.supportedClasses().size() - 1));
     }

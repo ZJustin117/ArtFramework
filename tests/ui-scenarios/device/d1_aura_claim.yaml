@@ -2,7 +2,9 @@
 # read-only backend.renderPlan.aura.{gate,ready,draws} probe slice (the same nested map is also
 # exposed as backend.renderPlan.vfxClaim; the seam is family-neutral, current members are the
 # vfx-stance-aura FQNs plus the cross-family vfx-scene-world LightFlareSEffect/LightFlareMEffect/
-# LightFlareLEffect/TorchParticleLEffect and the vfx-combat FlashAtkImgEffect). Gate-OFF is
+# LightFlareLEffect/TorchParticleLEffect/CeilingDustCloudEffect, the vfx-misc-root
+# FireBurstParticleEffect/NemesisFireParticle, and the vfx-combat
+# FlashAtkImgEffect/RedFireBurstParticleEffect/SmokeBlurEffect). Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.
 #
@@ -61,6 +63,11 @@ steps:
   - console: "art claim spawn flareL 4"
   - console: "art claim spawn torch 4"
   - console: "art claim spawn flash 4"
+  - console: "art claim spawn fire 4"
+  - console: "art claim spawn redfire 4"
+  - console: "art claim spawn smoke 4"
+  - console: "art claim spawn dust 4"
+  - console: "art claim spawn nemesis 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -105,6 +112,11 @@ steps:
   - console: "art claim spawn flareL 4"
   - console: "art claim spawn torch 4"
   - console: "art claim spawn flash 4"
+  - console: "art claim spawn fire 4"
+  - console: "art claim spawn redfire 4"
+  - console: "art claim spawn smoke 4"
+  - console: "art claim spawn dust 4"
+  - console: "art claim spawn nemesis 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

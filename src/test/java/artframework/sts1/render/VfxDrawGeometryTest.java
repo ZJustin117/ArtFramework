@@ -65,6 +65,32 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.TORCH_PARTICLE_L,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect"));
+        assertSame(VfxDrawGeometry.Kind.FIRE_BURST,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FIRE_BURST));
+        assertSame(VfxDrawGeometry.Kind.RED_FIRE_BURST,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.RED_FIRE_BURST));
+        assertSame(VfxDrawGeometry.Kind.SMOKE_BLUR,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SMOKE_BLUR));
+        assertSame(VfxDrawGeometry.Kind.CEILING_DUST,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.CEILING_DUST));
+        assertSame(VfxDrawGeometry.Kind.NEMESIS_FIRE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.NEMESIS_FIRE));
+        // the exact literal FQNs of the five newest members
+        assertSame(VfxDrawGeometry.Kind.FIRE_BURST,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.FireBurstParticleEffect"));
+        assertSame(VfxDrawGeometry.Kind.RED_FIRE_BURST,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect"));
+        assertSame(VfxDrawGeometry.Kind.SMOKE_BLUR,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect"));
+        assertSame(VfxDrawGeometry.Kind.CEILING_DUST,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect"));
+        assertSame(VfxDrawGeometry.Kind.NEMESIS_FIRE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.NemesisFireParticle"));
     }
 
     @Test
@@ -119,6 +145,34 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect$Sub")); // nested
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.scene.TorchParticleEffect")); // near-miss (no L)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.FireBurstParticleEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.FireBurstParticleEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("FireBurstParticleEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FireBurstParticleEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("SmokeBlurEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.CeilingDustEffect")); // near-miss (no Cloud)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.NemesisFireParticle2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.NemesisFireParticle$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.NemesisFireParticle")); // wrong package
     }
 
     @Test
@@ -428,13 +482,68 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
-    public void additiveBlendIsTrueForEveryKindExceptFlashAtkImg() {
-        // FlashAtkImgEffect never calls setBlendFunction natively, so its host draw must not
-        // install additive blend.
+    public void twoFireBurstsAndThreeAmbientMembersMatchStanceAuraGeometryExactly() {
+        // The five newest members all draw the same formula as StanceAuraEffect: x/y passthrough
+        // (every one of them has a vY field that render never reads), center origin, packed size,
+        // uniform scale. The two fire bursts are additive; the smoke blur, ceiling dust, and
+        // nemesis fire never call setBlendFunction at all.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.FIRE_BURST,
+                VfxDrawGeometry.Kind.RED_FIRE_BURST,
+                VfxDrawGeometry.Kind.SMOKE_BLUR,
+                VfxDrawGeometry.Kind.CEILING_DUST,
+                VfxDrawGeometry.Kind.NEMESIS_FIRE }) {
+            // vY=999f is ignored by every one of these formulas (vY is update-only).
+            VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                    kind, x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+            assertEquals("x passthrough for " + kind, x, p.x, EPS);
+            assertEquals("y passthrough for " + kind, y, p.y, EPS);
+            assertEquals("originX for " + kind, pw / 2f, p.originX, EPS);
+            assertEquals("originY for " + kind, ph / 2f, p.originY, EPS);
+            assertEquals("width for " + kind, pw, p.width, EPS);
+            assertEquals("height for " + kind, ph, p.height, EPS);
+            assertEquals("scaleX for " + kind, scale, p.scaleX, EPS);
+            assertEquals("scaleY for " + kind, scale, p.scaleY, EPS);
+            assertEquals("rotation for " + kind, rotation, p.rotation, EPS);
+            // Byte-identical to the STANCE_AURA result (vY=0) for the same inputs.
+            assertEquals("geometry must equal STANCE_AURA for " + kind, aura, p);
+
+            boolean additive = kind == VfxDrawGeometry.Kind.FIRE_BURST
+                    || kind == VfxDrawGeometry.Kind.RED_FIRE_BURST;
+            assertEquals("blend policy for " + kind, additive,
+                    VfxDrawGeometry.additiveBlend(kind));
+        }
+    }
+
+    @Test
+    public void additiveBlendIsTrueForEveryKindExceptTheAmbientOnes() {
+        // FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect, and NemesisFireParticle never
+        // call setBlendFunction natively, so their host draw must not install additive blend.
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLASH_ATK_IMG));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SMOKE_BLUR));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CEILING_DUST));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.NEMESIS_FIRE));
+
+        // The two fire bursts are additive despite being fire-family.
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FIRE_BURST));
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.RED_FIRE_BURST));
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
-            if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG) {
+            if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
+                    || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
+                    || kind == VfxDrawGeometry.Kind.CEILING_DUST
+                    || kind == VfxDrawGeometry.Kind.NEMESIS_FIRE) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,

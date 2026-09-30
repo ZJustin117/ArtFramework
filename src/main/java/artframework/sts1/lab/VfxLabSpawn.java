@@ -4,6 +4,11 @@ import artframework.sts1.render.VfxClaimPolicy;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
+import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
+import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
+import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
+import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect;
@@ -21,7 +26,10 @@ import java.util.function.Predicate;
  * Lab/dev helper that queues native transient effects from the family-neutral per-instance claim
  * seam (current members are the {@code vfx-stance-aura} FQNs plus the cross-family
  * {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
- * {@code TorchParticleLEffect} and {@code FlashAtkImgEffect}) into the live STS effect containers so
+ * {@code TorchParticleLEffect}/{@code CeilingDustCloudEffect}, the {@code vfx-misc-root}
+ * {@code FireBurstParticleEffect}/{@code NemesisFireParticle}, and the {@code vfx-combat}
+ * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}) into the
+ * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
@@ -85,6 +93,21 @@ public final class VfxLabSpawn {
         }
         if ("flash".equalsIgnoreCase(value) || "flashatk".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.FLASH_ATK_IMG;
+        }
+        if ("fireburst".equalsIgnoreCase(value) || "fire".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FIRE_BURST;
+        }
+        if ("redfireburst".equalsIgnoreCase(value) || "redfire".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.RED_FIRE_BURST;
+        }
+        if ("smokeblur".equalsIgnoreCase(value) || "smoke".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SMOKE_BLUR;
+        }
+        if ("ceilingdust".equalsIgnoreCase(value) || "dust".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.CEILING_DUST;
+        }
+        if ("nemesisfire".equalsIgnoreCase(value) || "nemesis".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.NEMESIS_FIRE;
         }
         return null;
     }
@@ -219,6 +242,38 @@ public final class VfxLabSpawn {
             return new com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect(
                     960f, 540f,
                     com.megacrit.cardcrawl.actions.AbstractGameAction.AttackEffect.BLUNT_HEAVY);
+        }
+        if (VfxClaimPolicy.FIRE_BURST.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The effect selects its region from
+            // ImageMaster static art (TORCH_FIRE_1/2/3) at construction time, and that art may be
+            // null outside a live game; any failure is caught by spawn's fail-open guard rather
+            // than propagating.
+            return new FireBurstParticleEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.RED_FIRE_BURST.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The effect selects its region from
+            // ImageMaster static art (FLAME_1/2/3) at construction time, and that art may be null
+            // outside a live game; any failure is caught by spawn's fail-open guard rather than
+            // propagating.
+            return new RedFireBurstParticleEffect(960f, 540f, 0);
+        }
+        if (VfxClaimPolicy.SMOKE_BLUR.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is ImageMaster-backed and may be
+            // null outside a live game; any failure is caught by spawn's fail-open guard rather
+            // than propagating.
+            return new SmokeBlurEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.CEILING_DUST.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a static ImageMaster region and
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new CeilingDustCloudEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.NEMESIS_FIRE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a static ImageMaster region and
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new NemesisFireParticle(960f, 540f);
         }
         return null;
     }

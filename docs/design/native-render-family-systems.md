@@ -127,21 +127,23 @@ host-drawn particle groups that never enter the containers. Both entries default
 per-subclass hook is planned (refacter ledger `NRO-04`). Subclass families are
 covered by virtual dispatch at the container sites, not by their own patches.
 
-The `vfx-stance-aura` family additionally has a **default-off per-instance claim** through the
-family-neutral transient-effect seam (`VfxDelegationGate` + `VfxClaimPolicy` + the injected
-`VfxArtRenderer` draw seam; the seam is generic over per-instance families, and its current members
-are the `vfx-stance-aura` FQNs).
-While the gate is off — the default — native effect pixels continue unchanged. When
-the gate is on, only the three exact classes `StanceAuraEffect`, `WrathParticleEffect`,
-and `DivinityParticleEffect` are claimable, and only when the injected renderer reports
-ready; an unsupported class, a not-ready renderer, panic, or background-only mode keeps
-`CAPTURE_AND_PASS`. A successful ART draw suppresses **only that instance** (its own
-token/evidence); the rest of the effect queue is untouched. F1 ships the plumbing only —
-the default renderer is never ready, so no pixel changes yet. F2c binds the real
-`Sts1VfxArtRenderer` at mod init (`Sts1HostAssets.installVfxRenderer()`, idempotent, failure
-guarded so mod init never breaks), so the seam reports ready for the three supported classes;
-the renderer holds no host state and needs no recreation hook. The default-off gate still
-decides whether it is consulted, so native remains authoritative while `art aura off`.
+The transient-effect seam additionally has a **default-off per-instance claim** (`VfxDelegationGate`
++ `VfxClaimPolicy` + the injected `VfxArtRenderer` draw seam). The seam is family-neutral and
+currently cross-family: it is claimable for the `vfx-stance-aura` FQNs (5), the
+`vfx-scene-world` FQNs (`LightFlareSEffect`/`M`/`L`, `TorchParticleLEffect`, `CeilingDustCloudEffect`),
+the `vfx-combat` FQNs (`FlashAtkImgEffect`, `RedFireBurstParticleEffect`, `SmokeBlurEffect`), and the
+`vfx-misc-root` FQNs (`FireBurstParticleEffect`, `NemesisFireParticle`); see
+`VfxClaimPolicy.supportedClasses()` for the authoritative list. Blend is per-kind (additive vs
+ambient). While the gate is off — the default — native effect pixels continue unchanged. When the
+gate is on, only those exact FQNs are claimable, and only when the injected renderer reports ready;
+an unsupported class, a not-ready renderer, panic, or background-only mode keeps `CAPTURE_AND_PASS`.
+A successful ART draw suppresses **only that instance** (its own token/evidence); the rest of the
+effect queue is untouched. F1 ships the plumbing only — the default renderer is never ready, so no
+pixel changes yet. F2c binds the real `Sts1VfxArtRenderer` at mod init
+(`Sts1HostAssets.installVfxRenderer()`, idempotent, failure guarded so mod init never breaks), so the
+seam reports ready for the supported classes; the renderer holds no host state and needs no
+recreation hook. The default-off gate still decides whether it is consulted, so native remains
+authoritative while `art aura off`.
 
 **D1 verification recipe (aura claim):** the default-off `vfx-stance-aura` claim is self-asserting
 on D1 through the read-only `backend.renderPlan.aura.{gate,ready,draws}` probe slice

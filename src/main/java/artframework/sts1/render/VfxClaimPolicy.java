@@ -12,7 +12,10 @@ import java.util.List;
  * seam is generic over per-instance transient-effect families, so the current members are
  * cross-family: the five {@code vfx-stance-aura} FQNs plus the {@code vfx-scene-world}
  * {@code LightFlareSEffect}, {@code LightFlareMEffect}, {@code LightFlareLEffect}, and
- * {@code TorchParticleLEffect}, and the {@code vfx-combat} {@code FlashAtkImgEffect}. The aura
+ * {@code TorchParticleLEffect}, the {@code vfx-combat} {@code FlashAtkImgEffect},
+ * {@code RedFireBurstParticleEffect}, and {@code SmokeBlurEffect}, the {@code vfx-misc-root}
+ * {@code FireBurstParticleEffect} and {@code NemesisFireParticle}, and the {@code vfx-scene-world}
+ * {@code CeilingDustCloudEffect}. The aura
  * members are the four {@code AtlasRegion}-drawn classes
  * ({@code StanceAuraEffect}, {@code WrathParticleEffect}, {@code DivinityParticleEffect},
  * {@code DivinityStanceChangeParticle}) plus {@code CalmParticleEffect} (which draws a bare
@@ -24,8 +27,16 @@ import java.util.List;
  * (it is used only by {@code update()}), so it stays on the optional-{@code vY} reader path;
  * {@code FlashAtkImgEffect} is the first {@code vfx-combat} member and reuses the same geometry but
  * never switches blend function (ambient blend, see
- * {@link VfxDrawGeometry#additiveBlend}). The additive members are the only ones whose host draw
- * installs additive blend; every member may be claimed per instance.
+ * {@link VfxDrawGeometry#additiveBlend}); the two fire-burst members
+ * ({@code FireBurstParticleEffect} in {@code vfx-misc-root} and {@code RedFireBurstParticleEffect}
+ * in {@code vfx-combat}) are additive and reuse that same additive center-packed geometry; the
+ * three ambient members ({@code SmokeBlurEffect}, {@code CeilingDustCloudEffect}, and
+ * {@code NemesisFireParticle}) also reuse the geometry but never call
+ * {@code setBlendFunction} (ambient blend, like {@code FlashAtkImgEffect}). All five new members
+ * have a {@code vY} field that their native {@code render} ignores (used only by
+ * {@code update()}), so they all stay on the optional-{@code vY} reader path. The additive
+ * members are the only ones whose host draw installs additive blend; every member may be claimed
+ * per instance.
  */
 public final class VfxClaimPolicy {
 
@@ -49,12 +60,23 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect";
     public static final String FLASH_ATK_IMG =
             "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect";
+    public static final String FIRE_BURST =
+            "com.megacrit.cardcrawl.vfx.FireBurstParticleEffect";
+    public static final String RED_FIRE_BURST =
+            "com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect";
+    public static final String SMOKE_BLUR =
+            "com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect";
+    public static final String CEILING_DUST =
+            "com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect";
+    public static final String NEMESIS_FIRE =
+            "com.megacrit.cardcrawl.vfx.NemesisFireParticle";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
                     CALM_PARTICLE_EFFECT, DIVINITY_STANCE_CHANGE_PARTICLE, SCENE_LIGHT_FLARE,
                     FLASH_ATK_IMG, SCENE_LIGHT_FLARE_M, SCENE_LIGHT_FLARE_L,
-                    SCENE_TORCH_PARTICLE_L));
+                    SCENE_TORCH_PARTICLE_L, FIRE_BURST, RED_FIRE_BURST, SMOKE_BLUR,
+                    CEILING_DUST, NEMESIS_FIRE));
 
     private VfxClaimPolicy() {}
 
@@ -72,13 +94,19 @@ public final class VfxClaimPolicy {
                 || FLASH_ATK_IMG.equals(value)
                 || SCENE_LIGHT_FLARE_M.equals(value)
                 || SCENE_LIGHT_FLARE_L.equals(value)
-                || SCENE_TORCH_PARTICLE_L.equals(value);
+                || SCENE_TORCH_PARTICLE_L.equals(value)
+                || FIRE_BURST.equals(value)
+                || RED_FIRE_BURST.equals(value)
+                || SMOKE_BLUR.equals(value)
+                || CEILING_DUST.equals(value)
+                || NEMESIS_FIRE.equals(value);
     }
 
     /**
      * The exact claimable FQNs, in their listed/append order (mirrored by {@link #supports});
      * the three newest scene-world members (m/l flare, l torch) are appended last rather than
-     * following strict source-declaration order.
+     * following strict source-declaration order, and the five newest members (the two fire bursts,
+     * the smoke blur, the ceiling dust, and the nemesis fire) are appended after those.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

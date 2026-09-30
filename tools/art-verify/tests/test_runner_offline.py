@@ -6,6 +6,7 @@ import tempfile
 from unittest.mock import patch
 from pathlib import Path
 
+from assert_ops import AssertError, run_assert
 from runner import _harness_screenshot, _run_step, run_scenario
 from test_png_compare import write_test_png
 from scenario_loader import load_scenario
@@ -26,6 +27,7 @@ LIGHTWAVE_EFFECTS = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f15_lightwav
 LIGHTWAVE_COVERAGE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f19_lightwave_component_coverage.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
 SPINE42_SCREENSHOT = ROOT / "tests" / "ui-scenarios" / "device" / "d1_spine42_screenshot.yaml"
+D1_AURA_CLAIM = ROOT / "tests" / "ui-scenarios" / "device" / "d1_aura_claim.yaml"
 
 
 class RunnerOfflineTest(unittest.TestCase):
@@ -284,6 +286,47 @@ steps:
         self.assertEqual("baseline", loaded["steps"][0]["capture"]["var"])
         self.assertEqual("baseline", loaded["steps"][1]["assert"]["gt_var"])
         self.assertEqual("pass", result["status"], result.get("error"))
+
+    def test_transient_gauge_is_asserted_with_bounded_lte_not_lifetime_eq(self):
+        from assert_ops import AssertError
+
+        # delegatedWithoutEvidence is a transient gauge; a bounded lte must accept the benign 0/1
+        # samples and still fail a real regression (>=2).
+        run_assert({"gauge": 0}, {"path": "gauge", "lte": 1})
+        run_assert({"gauge": 1}, {"path": "gauge", "lte": 1})
+        with self.assertRaisesRegex(AssertError, "op=lte"):
+            run_assert({"gauge": 2}, {"path": "gauge", "lte": 1})
+
+        loaded = load_scenario(D1_AURA_CLAIM)
+        asserts = []
+        for step in loaded["steps"]:
+            if not isinstance(step, dict):
+                continue
+            if isinstance(step.get("assert"), dict):
+                asserts.append(step["assert"])
+            wait = step.get("wait_probe")
+            if isinstance(wait, dict) and isinstance(wait.get("assert"), dict):
+                asserts.append(wait["assert"])
+        gauge = [
+            a
+            for a in asserts
+            if a.get("path") == "backend.renderPlan.nativeRender.delegatedWithoutEvidence"
+        ]
+        self.assertEqual(1, len(gauge))
+        self.assertEqual({"path": "backend.renderPlan.nativeRender.delegatedWithoutEvidence", "lte": 1}, gauge[0])
+        # The leak counter and the strictness gate stay strong assertions.
+        orphans = [
+            a
+            for a in asserts
+            if a.get("path") == "backend.renderPlan.nativeRender.orphanArtOutput"
+        ]
+        self.assertEqual([{"path": "backend.renderPlan.nativeRender.orphanArtOutput", "eq_var": "orphan_before"}], orphans)
+        self.assertIn(
+            {"path": "backend.renderPlan.nativeRenderStrict.accepted", "eq": True}, asserts
+        )
+        self.assertIn({"path": "backend.renderPlan.aura.draws", "eq_var": "aura_draws_off_baseline"}, asserts)
+        self.assertIn({"path": "backend.renderPlan.aura.draws", "gt_var": "aura_draws_on_baseline"}, asserts)
+        self.assertNotIn("dewe_before", [s["capture"].get("var") for s in loaded["steps"] if "capture" in s])
 
     def test_fixture_screenshot_is_skipped(self):
         with patch("runner._harness_screenshot") as capture:

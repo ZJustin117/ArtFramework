@@ -65,6 +65,10 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.EXHAUST_BLUR));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.ICE_SHATTER));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.WEB_PARTICLE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.ENTANGLE_EFFECT));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.BLOCK_IMPACT_LINE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.EXHAUST_PILE_PARTICLE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.UNKNOWN_PARTICLE));
     }
 
     @Test
@@ -117,19 +121,31 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.EXHAUST_BLUR));
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.ICE_SHATTER));
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.WEB_PARTICLE));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.ENTANGLE_EFFECT));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.BLOCK_IMPACT_LINE));
+        assertTrue(VfxClaimPolicy.supportedClasses()
+                .contains(VfxClaimPolicy.EXHAUST_PILE_PARTICLE));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.UNKNOWN_PARTICLE));
+        assertEquals("the four newest FQNs are appended last, in order",
+                java.util.Arrays.asList(VfxClaimPolicy.ENTANGLE_EFFECT,
+                        VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
+                        VfxClaimPolicy.UNKNOWN_PARTICLE),
+                VfxClaimPolicy.supportedClasses().subList(
+                        VfxClaimPolicy.supportedClasses().size() - 4,
+                        VfxClaimPolicy.supportedClasses().size()));
         assertEquals("the two newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ICE_SHATTER, VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 2,
-                        VfxClaimPolicy.supportedClasses().size()));
+                        VfxClaimPolicy.supportedClasses().size() - 6,
+                        VfxClaimPolicy.supportedClasses().size() - 4));
         assertEquals("the six newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL,
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 6,
-                        VfxClaimPolicy.supportedClasses().size()));
+                        VfxClaimPolicy.supportedClasses().size() - 10,
+                        VfxClaimPolicy.supportedClasses().size() - 4));
         assertEquals("the thirteen newest FQNs stay in append order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
@@ -139,10 +155,10 @@ public class VfxDelegationSeamTest {
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 13,
-                        VfxClaimPolicy.supportedClasses().size()));
-        assertEquals("the last FQN is the web particle",
-                VfxClaimPolicy.WEB_PARTICLE,
+                        VfxClaimPolicy.supportedClasses().size() - 17,
+                        VfxClaimPolicy.supportedClasses().size() - 4));
+        assertEquals("the last FQN is the unknown particle",
+                VfxClaimPolicy.UNKNOWN_PARTICLE,
                 VfxClaimPolicy.supportedClasses()
                         .get(VfxClaimPolicy.supportedClasses().size() - 1));
     }

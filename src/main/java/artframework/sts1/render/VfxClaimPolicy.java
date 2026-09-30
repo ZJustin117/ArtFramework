@@ -58,7 +58,20 @@ import java.util.List;
  * {@code ImageMaster.WEB_VFX} {@code Texture}, hardcodes rotation {@code 0f}, and forces the set
  * color to {@code (1, 1, 1, color.a)} (RGB white, alpha from the effect's color) — see
  * {@link VfxDrawGeometry#whiteAlphaOnly}. Neither adds a new formula branch beyond that shape.
- * The additive
+ * The four newest members reuse the three existing draw shapes and add only one fixed rect: the
+ * {@code vfx-combat} {@code EntangleEffect} is byte-identical to {@code WebParticleEffect} (the
+ * static {@code ImageMaster.WEB_VFX} {@code Texture}, offset 0, origin {@code (32, 32)}, size
+ * {@code (64, 64)}, src {@code (0, 0, 64, 64)}, rotation hardcoded {@code 0f}, additive blend, and
+ * the same {@code (1, 1, 1, color.a)} set-color rule), so it shares that kind's static-texture and
+ * white-alpha configuration rather than adding a new formula; the {@code vfx-combat}
+ * {@code BlockImpactLineEffect} and the {@code vfx-misc-root} {@code ExhaustPileParticle} both reuse
+ * the ambient center-packed geometry ({@code sb.draw(img, x, y, packedWidth/2f, packedHeight/2f,
+ * packedWidth, packedHeight, scale, scale, rotation)} with no {@code setBlendFunction}), the latter
+ * resolving a {@code private static} {@code AtlasRegion img} declared on its own class; and the
+ * {@code vfx-combat} {@code UnknownParticleEffect} introduces one new ambient fixed rect
+ * ({@code sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, rotation, 0, 0, 128,
+ * 128, false, false)}) over its own instance {@code Texture img} and consuming its {@code rotation}
+ * field. The additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
  */
@@ -110,6 +123,14 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.IceShatterEffect";
     public static final String WEB_PARTICLE =
             "com.megacrit.cardcrawl.vfx.combat.WebParticleEffect";
+    public static final String ENTANGLE_EFFECT =
+            "com.megacrit.cardcrawl.vfx.combat.EntangleEffect";
+    public static final String BLOCK_IMPACT_LINE =
+            "com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect";
+    public static final String EXHAUST_PILE_PARTICLE =
+            "com.megacrit.cardcrawl.vfx.ExhaustPileParticle";
+    public static final String UNKNOWN_PARTICLE =
+            "com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -118,7 +139,8 @@ public final class VfxClaimPolicy {
                     SCENE_TORCH_PARTICLE_L, FIRE_BURST, RED_FIRE_BURST, SMOKE_BLUR,
                     CEILING_DUST, NEMESIS_FIRE, SHIELD_PARTICLE, DEBUFF_PARTICLE,
                     SCENE_TORCH_PARTICLE_XL, GHOSTLY_WEAK_FIRE, GENERIC_SMOKE, EXHAUST_BLUR,
-                    ICE_SHATTER, WEB_PARTICLE));
+                    ICE_SHATTER, WEB_PARTICLE, ENTANGLE_EFFECT, BLOCK_IMPACT_LINE,
+                    EXHAUST_PILE_PARTICLE, UNKNOWN_PARTICLE));
 
     private VfxClaimPolicy() {}
 
@@ -149,7 +171,11 @@ public final class VfxClaimPolicy {
                 || GENERIC_SMOKE.equals(value)
                 || EXHAUST_BLUR.equals(value)
                 || ICE_SHATTER.equals(value)
-                || WEB_PARTICLE.equals(value);
+                || WEB_PARTICLE.equals(value)
+                || ENTANGLE_EFFECT.equals(value)
+                || BLOCK_IMPACT_LINE.equals(value)
+                || EXHAUST_PILE_PARTICLE.equals(value)
+                || UNKNOWN_PARTICLE.equals(value);
     }
 
     /**
@@ -170,7 +196,15 @@ public final class VfxClaimPolicy {
      * {@code WebParticleEffect}) — the bare {@code Texture} + fixed source-rect shape again, both
      * additive — are appended after the exhaust blur in that order; {@code IceShatterEffect} owns a
      * {@code vY} that its native {@code render} ignores (used only by {@code update()}), while
-     * {@code WebParticleEffect} has no {@code vY} field at all.
+     * {@code WebParticleEffect} has no {@code vY} field at all. The four newest members
+     * ({@code EntangleEffect}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
+     * {@code UnknownParticleEffect}) are appended after the web particle in that order; {@code
+     * EntangleEffect} is byte-identical to {@code WebParticleEffect} (the static {@code
+     * ImageMaster.WEB_VFX} {@code Texture} and the white-alpha set-color rule), {@code
+     * BlockImpactLineEffect} and {@code ExhaustPileParticle} are ambient center-packed
+     * {@code AtlasRegion} members ({@code ExhaustPileParticle.img} is {@code private static}), and
+     * {@code UnknownParticleEffect} is the first ambient bare-{@code Texture} member whose fixed
+     * source rect is {@code (128, 128)} and whose {@code rotation} field IS consumed.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

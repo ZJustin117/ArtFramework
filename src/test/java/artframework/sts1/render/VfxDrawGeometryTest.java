@@ -133,6 +133,27 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.WEB_PARTICLE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.WebParticleEffect"));
+        // the four newest members, via constants and literal FQNs
+        assertSame(VfxDrawGeometry.Kind.ENTANGLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.ENTANGLE_EFFECT));
+        assertSame(VfxDrawGeometry.Kind.ENTANGLE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.EntangleEffect"));
+        assertSame(VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.BLOCK_IMPACT_LINE));
+        assertSame(VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect"));
+        assertSame(VfxDrawGeometry.Kind.EXHAUST_PILE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.EXHAUST_PILE_PARTICLE));
+        assertSame(VfxDrawGeometry.Kind.EXHAUST_PILE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.ExhaustPileParticle"));
+        assertSame(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.UNKNOWN_PARTICLE));
+        assertSame(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect"));
     }
 
     @Test
@@ -283,6 +304,42 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.scene.WebParticleEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.combat.WebParticle")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.EntangleEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.EntangleEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("EntangleEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.EntangleEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.Entangle")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("BlockImpactLineEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.BlockImpactLineEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.BlockImpactEffect")); // near-miss (no Line)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ExhaustPileParticle2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ExhaustPileParticle$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("ExhaustPileParticle")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.ExhaustPileParticle")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.ExhaustPileEffect")); // near-miss (Particle)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("UnknownParticleEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.UnknownParticleEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.UnknownParticle")); // near-miss (no Effect)
     }
 
     @Test
@@ -852,6 +909,122 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
+    public void entangleMatchesWebParticleGeometryAndWhiteAlphaRuleExactly() {
+        // Native EntangleEffect is byte-identical to WebParticleEffect: the static
+        // ImageMaster.WEB_VFX Texture, x/y passthrough, origin (32, 32), size (64, 64), src
+        // (0, 0, 64, 64), and a hardcoded zero rotation (EntangleEffect has no rotation field).
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.ENTANGLE,
+                x, y, 999f /* vY ignored */, scale, 45f /* rotation ignored */,
+                7f, 5f, 2f, 48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(32f, p.originX, EPS);
+        assertEquals(32f, p.originY, EPS);
+        assertEquals(64f, p.width, EPS);
+        assertEquals(64f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("rotation is hardcoded to 0f", 0f, p.rotation, EPS);
+
+        // Byte-identical to the WEB_PARTICLE result for the same inputs.
+        VfxDrawGeometry.Params web = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WEB_PARTICLE,
+                x, y, 999f, scale, 45f, 7f, 5f, 2f, 48f, 96f);
+        assertEquals("ENTANGLE must reuse the WEB_PARTICLE configuration", web, p);
+
+        assertTrue("ENTANGLE is additive", VfxDrawGeometry.additiveBlend(
+                VfxDrawGeometry.Kind.ENTANGLE));
+        assertTrue("ENTANGLE shares the WEB white-alpha rule",
+                VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.ENTANGLE));
+    }
+
+    @Test
+    public void blockImpactLineAndExhaustPileMatchStanceAuraGeometryExactlyAndDrawAmbient() {
+        // BlockImpactLineEffect and ExhaustPileParticle both mirror StanceAuraEffect geometry
+        // exactly (x/y passthrough, center packed/2 origin, packed w/h, uniform scale, rotation) and
+        // never call setBlendFunction (ambient blend).
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE,
+                VfxDrawGeometry.Kind.EXHAUST_PILE }) {
+            VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+            assertEquals("x passthrough for " + kind, x, p.x, EPS);
+            assertEquals("y passthrough for " + kind, y, p.y, EPS);
+            assertEquals("originX for " + kind, pw / 2f, p.originX, EPS);
+            assertEquals("originY for " + kind, ph / 2f, p.originY, EPS);
+            assertEquals("width for " + kind, pw, p.width, EPS);
+            assertEquals("height for " + kind, ph, p.height, EPS);
+            assertEquals("scaleX for " + kind, scale, p.scaleX, EPS);
+            assertEquals("scaleY for " + kind, scale, p.scaleY, EPS);
+            assertEquals("rotation for " + kind, rotation, p.rotation, EPS);
+            assertEquals("geometry must equal STANCE_AURA for " + kind, aura, p);
+            assertFalse("expected ambient blend for " + kind,
+                    VfxDrawGeometry.additiveBlend(kind));
+        }
+    }
+
+    @Test
+    public void unknownParticleUsesTheNew128RectAndTheFieldRotationAmbiently() {
+        // Native: draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f,
+        //            scale, scale, rotation, 0, 0, 128, 128, false, false)
+        float x = -7.5f;
+        float y = 21.25f;
+        float scale = 1.25f;
+        float rotation = 137f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
+                x, y, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+
+        assertEquals(x - 64f, p.x, EPS);
+        assertEquals(y - 64f, p.y, EPS);
+        assertEquals(64f, p.originX, EPS);
+        assertEquals(64f, p.originY, EPS);
+        assertEquals(128f, p.width, EPS);
+        assertEquals(128f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("the rotation field is consumed", rotation, p.rotation, EPS);
+
+        // A different vY and packed size produce byte-identical geometry.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f);
+        assertEquals(p, q);
+
+        // The host-neutral constants match the native hardcoded rect.
+        assertEquals(64f, VfxDrawGeometry.UNKNOWN_OFFSET, EPS);
+        assertEquals(64f, VfxDrawGeometry.UNKNOWN_ORIGIN, EPS);
+        assertEquals(128f, VfxDrawGeometry.UNKNOWN_SIZE, EPS);
+        assertEquals(0, VfxDrawGeometry.UNKNOWN_SRC_X);
+        assertEquals(0, VfxDrawGeometry.UNKNOWN_SRC_Y);
+        assertEquals(128, VfxDrawGeometry.UNKNOWN_SRC_W);
+        assertEquals(128, VfxDrawGeometry.UNKNOWN_SRC_H);
+
+        assertFalse("UNKNOWN_PARTICLE never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE));
+    }
+
+    @Test
     public void additiveBlendIsTrueForEveryKindExceptTheAmbientOnes() {
         // FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect, NemesisFireParticle, and
         // DebuffParticleEffect never call setBlendFunction natively, so their host draw must not
@@ -879,6 +1052,13 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.ICE_SHATTER));
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.WEB_PARTICLE));
 
+        // The four newest members: Entangle is additive while the block impact line, exhaust pile,
+        // and unknown particle never call setBlendFunction natively (ambient).
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.ENTANGLE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.EXHAUST_PILE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -886,7 +1066,10 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.NEMESIS_FIRE
                     || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
                     || kind == VfxDrawGeometry.Kind.GENERIC_SMOKE
-                    || kind == VfxDrawGeometry.Kind.EXHAUST_BLUR) {
+                    || kind == VfxDrawGeometry.Kind.EXHAUST_BLUR
+                    || kind == VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE
+                    || kind == VfxDrawGeometry.Kind.EXHAUST_PILE
+                    || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -905,10 +1088,12 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
-    public void whiteAlphaOnlyIsTrueOnlyForWebParticle() {
-        // WebParticleEffect is the only kind whose native render rewrites the set color, forcing
-        // RGB to white and taking alpha from the effect's color.
+    public void whiteAlphaOnlyIsTrueOnlyForWebParticleAndEntangle() {
+        // WebParticleEffect and (byte-identically) EntangleEffect are the only kinds whose native
+        // render rewrites the set color, forcing RGB to white and taking alpha from the effect's
+        // color.
         assertTrue(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.WEB_PARTICLE));
+        assertTrue(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.ENTANGLE));
 
         // Every other kind — including the other bare-Texture members — passes the effect's own
         // color through unchanged.
@@ -916,9 +1101,11 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.CALM_PARTICLE));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.SHIELD_PARTICLE));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.DEBUFF_PARTICLE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE));
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
-            if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE) {
+            if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.ENTANGLE) {
                 continue;
             }
             assertFalse("expected the pass-through color rule for " + kind,

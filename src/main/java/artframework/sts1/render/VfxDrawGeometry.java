@@ -10,7 +10,10 @@ package artframework.sts1.render;
  * later members are the {@code vfx-scene-world} {@code TorchParticleXLEffect} and the
  * {@code vfx-misc-root} {@code GhostlyWeakFireEffect}/{@code GenericSmokeEffect}/
  * {@code ExhaustBlurEffect}, and the two newest are the {@code vfx-combat} bare-{@code Texture}
- * {@code IceShatterEffect}/{@code WebParticleEffect}),
+ * {@code IceShatterEffect}/{@code WebParticleEffect}; the four newest members are the
+ * {@code vfx-combat} {@code EntangleEffect} (byte-identical to {@code WebParticleEffect}) and
+ * {@code BlockImpactLineEffect}/{@code UnknownParticleEffect} plus the {@code vfx-misc-root}
+ * {@code ExhaustPileParticle}),
  * mirroring the native render formula exactly.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
@@ -22,7 +25,8 @@ package artframework.sts1.render;
  * previous color ({@link #additiveBlend} returns {@code false} for them). The ambient kinds are
  * {@code FlashAtkImgEffect} (the first), plus the {@code SmokeBlurEffect},
  * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code DebuffParticleEffect},
- * {@code GenericSmokeEffect}, and {@code ExhaustBlurEffect}
+ * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
+ * {@code ExhaustPileParticle}, and {@code UnknownParticleEffect}
  * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
@@ -86,14 +90,29 @@ package artframework.sts1.render;
  *   WebParticleEffect.render (note: additive blend; rotation hardcoded to 0f):
  *     sb.draw(ImageMaster.WEB_VFX, x, y, 32f, 32f, 64f, 64f, scale, scale, 0f,
  *             0, 0, 64, 64, false, false)
+ *   EntangleEffect.render (note: additive blend; rotation hardcoded to 0f; byte-identical to Web;
+ *                          no rotation field, no img field):
+ *     sb.draw(ImageMaster.WEB_VFX, x, y, 32f, 32f, 64f, 64f, scale, scale, 0f,
+ *             0, 0, 64, 64, false, false)
+ *   BlockImpactLineEffect.render (note: no setBlendFunction; ambient blend):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   ExhaustPileParticle.render (note: no setBlendFunction; ambient blend; img is private static
+ *                               and declared on the class):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   UnknownParticleEffect.render (note: no setBlendFunction; ambient blend; uses the rotation
+ *                                 field and its own instance Texture img):
+ *     sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, rotation,
+ *             0, 0, 128, 128, false, false)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
- * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, and Web — draw a fixed source rect
+ * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, Web, Entangle, and Unknown — draw a
+ * fixed source rect
  * rather than a packed region, so their native origin/size/source rect are host-neutral constants
- * and the packed region size is ignored; Shield and Web hardcode rotation {@code 0f}, Debuff and
- * IceShatter consume their {@code rotation} field, and Calm keeps its {@code scaleY} formula. Web
- * is also the only kind whose native {@code render} rewrites the set color, forcing RGB to white
+ * and the packed region size is ignored; Shield, Web, and Entangle hardcode rotation {@code 0f},
+ * Debuff, IceShatter, and Unknown consume their {@code rotation} field, and Calm keeps its
+ * {@code scaleY} formula. Web and Entangle
+ * are the only kinds whose native {@code render} rewrites the set color, forcing RGB to white
  * and taking alpha from the effect's color (see {@link #whiteAlphaOnly}). {@code DivinityStanceChangeParticle}, the
  * cross-family {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
  * {@code TorchParticleLEffect}, the {@code vfx-misc-root} {@code FireBurstParticleEffect}/
@@ -118,8 +137,20 @@ package artframework.sts1.render;
  * the two newest members {@code IceShatterEffect}/{@code WebParticleEffect} join that same
  * bare-{@code Texture} shape, with {@code IceShatterEffect} consuming its {@code rotation} field
  * ({@link Kind#ICE_SHATTER}) and {@code WebParticleEffect} hardcoding rotation {@code 0f} and
- * forcing its set color to {@code (1, 1, 1, color.a)} ({@link Kind#WEB_PARTICLE}, the sole
- * {@link #whiteAlphaOnly} kind).
+ * forcing its set color to {@code (1, 1, 1, color.a)} ({@link Kind#WEB_PARTICLE}).
+ * The four newest members reuse the three existing shapes with a single new fixed rect:
+ * {@code EntangleEffect} ({@link Kind#ENTANGLE}) is byte-identical to {@code WebParticleEffect} —
+ * same static {@code ImageMaster.WEB_VFX} texture, offset 0, origin {@code (32, 32)}, size
+ * {@code (64, 64)}, src {@code (0, 0, 64, 64)}, hardcoded rotation {@code 0f}, additive blend, and
+ * the white-alpha set-color rule (so {@link #whiteAlphaOnly} is true for it too) — {@code
+ * BlockImpactLineEffect} ({@link Kind#BLOCK_IMPACT_LINE}) and {@code ExhaustPileParticle}
+ * ({@link Kind#EXHAUST_PILE}) reuse the ambient center-packed {@link Kind#STANCE_AURA} geometry
+ * ({@code ExhaustPileParticle.img} is a {@code private static} {@code AtlasRegion} declared on the
+ * class), and {@code UnknownParticleEffect} ({@link Kind#UNKNOWN_PARTICLE}) is a NEW ambient
+ * fixed-rect formula — offset {@code (-64, -64)}, origin {@code (64, 64)}, size {@code (128, 128)},
+ * src {@code (0, 0, 128, 128)}, consuming its {@code rotation} field — over its own instance
+ * {@code Texture img}. It is the first kind whose fixed rect is not {@code (64, 64)} or
+ * {@code (32, 32)}, and it draws under the ambient blend (no {@code setBlendFunction}).
  */
 public final class VfxDrawGeometry {
 
@@ -147,7 +178,11 @@ public final class VfxDrawGeometry {
         GENERIC_SMOKE,
         EXHAUST_BLUR,
         ICE_SHATTER,
-        WEB_PARTICLE
+        WEB_PARTICLE,
+        ENTANGLE,
+        BLOCK_IMPACT_LINE,
+        EXHAUST_PILE,
+        UNKNOWN_PARTICLE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -244,6 +279,23 @@ public final class VfxDrawGeometry {
     public static final int WEB_SRC_W = 64;
     /** Native Web draw source rect height ({@code 64}). */
     public static final int WEB_SRC_H = 64;
+
+    // Native UnknownParticleEffect draw constants (see the class Javadoc): fixed offset/origin/size
+    // and the fixed source rect of its own instance img Texture. The rotation comes from the field.
+    /** Native Unknown draw offset/origin ({@code 64f}). */
+    public static final float UNKNOWN_OFFSET = 64f;
+    /** Native Unknown draw origin ({@code 64f}). */
+    public static final float UNKNOWN_ORIGIN = 64f;
+    /** Native Unknown draw width/height ({@code 128f}). */
+    public static final float UNKNOWN_SIZE = 128f;
+    /** Native Unknown draw source rect x ({@code 0}). */
+    public static final int UNKNOWN_SRC_X = 0;
+    /** Native Unknown draw source rect y ({@code 0}). */
+    public static final int UNKNOWN_SRC_Y = 0;
+    /** Native Unknown draw source rect width ({@code 128}). */
+    public static final int UNKNOWN_SRC_W = 128;
+    /** Native Unknown draw source rect height ({@code 128}). */
+    public static final int UNKNOWN_SRC_H = 128;
 
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
@@ -346,6 +398,10 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.EXHAUST_BLUR.equals(value)) return Kind.EXHAUST_BLUR;
         if (VfxClaimPolicy.ICE_SHATTER.equals(value)) return Kind.ICE_SHATTER;
         if (VfxClaimPolicy.WEB_PARTICLE.equals(value)) return Kind.WEB_PARTICLE;
+        if (VfxClaimPolicy.ENTANGLE_EFFECT.equals(value)) return Kind.ENTANGLE;
+        if (VfxClaimPolicy.BLOCK_IMPACT_LINE.equals(value)) return Kind.BLOCK_IMPACT_LINE;
+        if (VfxClaimPolicy.EXHAUST_PILE_PARTICLE.equals(value)) return Kind.EXHAUST_PILE;
+        if (VfxClaimPolicy.UNKNOWN_PARTICLE.equals(value)) return Kind.UNKNOWN_PARTICLE;
         return null;
     }
 
@@ -357,17 +413,22 @@ public final class VfxDrawGeometry {
      *
      * <p>Most kinds are additive; the ambient kinds ({@link Kind#FLASH_ATK_IMG},
      * {@link Kind#SMOKE_BLUR}, {@link Kind#CEILING_DUST}, {@link Kind#NEMESIS_FIRE},
-     * {@link Kind#DEBUFF_PARTICLE}, {@link Kind#GENERIC_SMOKE}, {@link Kind#EXHAUST_BLUR}) never call
+     * {@link Kind#DEBUFF_PARTICLE}, {@link Kind#GENERIC_SMOKE}, {@link Kind#EXHAUST_BLUR},
+     * {@link Kind#BLOCK_IMPACT_LINE}, {@link Kind#EXHAUST_PILE}, {@link Kind#UNKNOWN_PARTICLE})
+     * never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
      * nemesis fire are the first ambient members beyond it, {@link Kind#DEBUFF_PARTICLE} is the
-     * first ambient bare-{@code Texture} member, and {@link Kind#GENERIC_SMOKE}/{@link
-     * Kind#EXHAUST_BLUR} are the newest ambient packed-region members. Every other kind — including
+     * first ambient bare-{@code Texture} member, {@link Kind#GENERIC_SMOKE}/{@link
+     * Kind#EXHAUST_BLUR} are the newest ambient packed-region members, and the newest ambient
+     * members are {@link Kind#BLOCK_IMPACT_LINE}/{@link Kind#EXHAUST_PILE} (ambient center-packed)
+     * plus {@link Kind#UNKNOWN_PARTICLE} (the first ambient bare-{@code Texture} member of the new
+     * 128-rect). Every other kind — including
      * the two fire
      * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}), the additive bare-texture
      * {@link Kind#SHIELD_PARTICLE}, the additive {@link Kind#TORCH_PARTICLE_XL}/{@link
-     * Kind#GHOSTLY_WEAK_FIRE}, and the two newest additive bare-texture members
-     * {@link Kind#ICE_SHATTER}/{@link Kind#WEB_PARTICLE} — is additive.
+     * Kind#GHOSTLY_WEAK_FIRE}, the two additive bare-texture members
+     * {@link Kind#ICE_SHATTER}/{@link Kind#WEB_PARTICLE}, and {@link Kind#ENTANGLE} — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -381,17 +442,22 @@ public final class VfxDrawGeometry {
                 && kind != Kind.NEMESIS_FIRE
                 && kind != Kind.DEBUFF_PARTICLE
                 && kind != Kind.GENERIC_SMOKE
-                && kind != Kind.EXHAUST_BLUR;
+                && kind != Kind.EXHAUST_BLUR
+                && kind != Kind.BLOCK_IMPACT_LINE
+                && kind != Kind.EXHAUST_PILE
+                && kind != Kind.UNKNOWN_PARTICLE;
     }
 
     /**
      * Pure per-kind color rule for the bare-{@code Texture} shape: {@code true} only for
-     * {@link Kind#WEB_PARTICLE}, whose native {@code render} does not pass the effect's own
-     * {@code color} to {@code setColor} but instead builds {@code new Color(1f, 1f, 1f, color.a)} —
-     * i.e. it forces the RGB channels to white and takes only the alpha from the effect's color.
-     * Every other kind (including the other bare-{@code Texture} members {@link Kind#CALM_PARTICLE},
-     * {@link Kind#SHIELD_PARTICLE}, {@link Kind#DEBUFF_PARTICLE}, and {@link Kind#ICE_SHATTER}) sets
-     * the effect's {@code color} unchanged, so the host draw must not rewrite its RGB.
+     * {@link Kind#WEB_PARTICLE} and {@link Kind#ENTANGLE}, whose native {@code render} does not pass
+     * the effect's own {@code color} to {@code setColor} but instead builds
+     * {@code new Color(1f, 1f, 1f, color.a)} — i.e. it forces the RGB channels to white and takes
+     * only the alpha from the effect's color ({@code EntangleEffect} is byte-identical to
+     * {@code WebParticleEffect}). Every other kind (including the other bare-{@code Texture} members
+     * {@link Kind#CALM_PARTICLE}, {@link Kind#SHIELD_PARTICLE}, {@link Kind#DEBUFF_PARTICLE},
+     * {@link Kind#ICE_SHATTER}, and {@link Kind#UNKNOWN_PARTICLE}) sets the effect's {@code color}
+     * unchanged, so the host draw must not rewrite its RGB.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -399,7 +465,7 @@ public final class VfxDrawGeometry {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
-        return kind == Kind.WEB_PARTICLE;
+        return kind == Kind.WEB_PARTICLE || kind == Kind.ENTANGLE;
     }
 
     /**
@@ -407,9 +473,11 @@ public final class VfxDrawGeometry {
      * region size; the per-kind color/blend state is applied by the host draw (see
      * {@link #additiveBlend}: additive kinds install/restore {@code 770/1}-&rarr;{@code 770/771},
      * while the ambient kinds ({@code FLASH_ATK_IMG}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
-     * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR})
+     * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR},
+     * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE})
      * leave the ambient blend untouched and restore
-     * only color; see {@link #whiteAlphaOnly} for the one kind that also rewrites its set color's
+     * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
+     * {@code ENTANGLE}) that also rewrite their set color's
      * RGB to white).
      *
      * @throws IllegalArgumentException when {@code kind} is null
@@ -439,6 +507,8 @@ public final class VfxDrawGeometry {
             case GHOSTLY_WEAK_FIRE:
             case GENERIC_SMOKE:
             case EXHAUST_BLUR:
+            case BLOCK_IMPACT_LINE:
+            case EXHAUST_PILE:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -492,6 +562,21 @@ public final class VfxDrawGeometry {
                 // Settings.scale are unused.
                 return new Params(x, y, WEB_ORIGIN_X, WEB_ORIGIN_Y,
                         WEB_WIDTH, WEB_HEIGHT, scale, scale, 0f);
+            case ENTANGLE:
+                // Native EntangleEffect is byte-identical to WebParticleEffect: the static
+                // ImageMaster.WEB_VFX Texture, fixed origin/size, and a hardcoded zero rotation
+                // (EntangleEffect has no rotation field); packedWidth/packedHeight, vY, dur_div2,
+                // duration, and Settings.scale are unused. Reuses the WEB constants so the two kinds
+                // share one static-texture/white-alpha configuration.
+                return new Params(x, y, WEB_ORIGIN_X, WEB_ORIGIN_Y,
+                        WEB_WIDTH, WEB_HEIGHT, scale, scale, 0f);
+            case UNKNOWN_PARTICLE:
+                // Native UnknownParticleEffect ignores the (absent) region: a new fixed
+                // offset/origin/size rect and the field rotation; packedWidth/packedHeight, vY,
+                // dur_div2, duration, and Settings.scale are unused.
+                return new Params(x - UNKNOWN_OFFSET, y - UNKNOWN_OFFSET,
+                        UNKNOWN_ORIGIN, UNKNOWN_ORIGIN, UNKNOWN_SIZE, UNKNOWN_SIZE,
+                        scale, scale, rotation);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

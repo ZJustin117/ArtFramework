@@ -5,13 +5,17 @@ import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
+import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
 import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
+import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
+import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
 import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
+import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
@@ -38,7 +42,9 @@ import java.util.function.Predicate;
  * {@code GenericSmokeEffect}/{@code ExhaustBlurEffect}, and the {@code vfx-combat}
  * {@code FlashAtkImgEffect}/{@code RedFireBurstParticleEffect}/{@code SmokeBlurEffect}, plus the four
  * bare-{@code Texture} members {@code ShieldParticleEffect}/{@code DebuffParticleEffect} (root) and
- * {@code IceShatterEffect}/{@code WebParticleEffect} ({@code vfx-combat})) into the
+ * {@code IceShatterEffect}/{@code WebParticleEffect} ({@code vfx-combat}), and the four newest
+ * members {@code EntangleEffect}/{@code BlockImpactLineEffect}/{@code UnknownParticleEffect}
+ * ({@code vfx-combat}) and {@code ExhaustPileParticle} (root)) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -142,6 +148,18 @@ public final class VfxLabSpawn {
         }
         if ("web".equalsIgnoreCase(value) || "webparticle".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.WEB_PARTICLE;
+        }
+        if ("entangle".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.ENTANGLE_EFFECT;
+        }
+        if ("blockline".equalsIgnoreCase(value) || "blockimpact".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.BLOCK_IMPACT_LINE;
+        }
+        if ("exhaustpile".equalsIgnoreCase(value) || "exhaustparticle".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.EXHAUST_PILE_PARTICLE;
+        }
+        if ("unknown".equalsIgnoreCase(value) || "unknownparticle".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.UNKNOWN_PARTICLE;
         }
         return null;
     }
@@ -356,6 +374,34 @@ public final class VfxLabSpawn {
             // may be null outside a live game; any failure is caught by spawn's fail-open guard
             // rather than propagating.
             return new WebParticleEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.ENTANGLE_EFFECT.equals(fqn)) {
+            // Safe lab defaults: the ctor is (float tX, float tY, float startX, float startY) — it
+            // sets x=startX, y=startY (the start point) and tX=a1-32f, tY=a2-32f (the target), then
+            // drifts dX/dY from the start. Passing the same center point for both the target and the
+            // start keeps the effect centered at (960, 540) and drifting near-center; passing 0f for
+            // the start would begin it at (0, 0). The static ImageMaster.WEB_VFX texture may be null
+            // outside a live game; any failure is caught by spawn's fail-open guard rather than
+            // propagating.
+            return new EntangleEffect(960f, 540f, 960f, 540f);
+        }
+        if (VfxClaimPolicy.BLOCK_IMPACT_LINE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is picked randomly at construction
+            // from ImageMaster-backed regions and may be null outside a live game; any failure is
+            // caught by spawn's fail-open guard rather than propagating.
+            return new BlockImpactLineEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.EXHAUST_PILE_PARTICLE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a private static
+            // ImageMaster-backed region and may be null outside a live game; any failure is caught
+            // by spawn's fail-open guard rather than propagating.
+            return new ExhaustPileParticle(960f, 540f);
+        }
+        if (VfxClaimPolicy.UNKNOWN_PARTICLE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The instance img is ImageMaster-backed
+            // and may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new UnknownParticleEffect(960f, 540f);
         }
         return null;
     }

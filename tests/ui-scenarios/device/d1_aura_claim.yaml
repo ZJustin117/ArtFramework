@@ -7,14 +7,24 @@
 # FireBurstParticleEffect/NemesisFireParticle/GhostlyWeakFireEffect/GenericSmokeEffect/
 # ExhaustBlurEffect, the vfx-combat
 # FlashAtkImgEffect/RedFireBurstParticleEffect/SmokeBlurEffect, and the four bare-Texture
-# ShieldParticleEffect/DebuffParticleEffect/IceShatterEffect/WebParticleEffect). Gate-OFF is
+# ShieldParticleEffect/DebuffParticleEffect/IceShatterEffect/WebParticleEffect, plus the four newest
+# EntangleEffect/BlockImpactLineEffect/UnknownParticleEffect (vfx-combat) and ExhaustPileParticle).
+# Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.
 #
 # NOTE: backend.renderPlan.aura.draws is a process-static LIFETIME counter (never reset outside
-# tests), and nativeRender.delegatedWithoutEvidence / orphanArtOutput are lifetime-global too.
-# The phases therefore assert captured BASELINES and DELTAS (eq_var / gt_var), never absolute
-# values, so the scenario is session-robust. Each assert/capture is preceded by a fresh probe.
+# tests), and nativeRender.orphanArtOutput is likewise a lifetime-global leak counter. Those are
+# asserted against captured BASELINES (eq_var / gt_var for draws, eq_var orphan_before for orphans),
+# never absolute values, so the scenario is session-robust.
+#
+# nativeRender.delegatedWithoutEvidence is deliberately NOT treated as a lifetime invariant: it is
+# the transient gauge openDelegatedGapCount + terminalMissingEvidenceCount, and the open-gap
+# component oscillates 0<->1 between cross-thread probe samples, so a captured baseline can land on
+# a transient 1 and a later read on 0. It is therefore asserted only as a bounded gauge
+# (lte: 1, benign at 0/1); the real strictness guarantee is carried by
+# nativeRenderStrict.accepted eq true together with zero leaked/unknown/rejected evidence.
+# Each assert/capture is preceded by a fresh probe.
 name: d1_aura_claim
 schemaVersion: 1
 mode: device
@@ -79,6 +89,10 @@ steps:
   - console: "art claim spawn exhaustblur 4"
   - console: "art claim spawn iceshatter 4"
   - console: "art claim spawn web 4"
+  - console: "art claim spawn entangle 4"
+  - console: "art claim spawn blockline 4"
+  - console: "art claim spawn exhaustpile 4"
+  - console: "art claim spawn unknown 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -108,9 +122,6 @@ steps:
       path: backend.renderPlan.aura.draws
       var: aura_draws_on_baseline
   - capture:
-      path: backend.renderPlan.nativeRender.delegatedWithoutEvidence
-      var: dewe_before
-  - capture:
       path: backend.renderPlan.nativeRender.orphanArtOutput
       var: orphan_before
   - console: "art aura spawn stance 4"
@@ -136,6 +147,10 @@ steps:
   - console: "art claim spawn exhaustblur 4"
   - console: "art claim spawn iceshatter 4"
   - console: "art claim spawn web 4"
+  - console: "art claim spawn entangle 4"
+  - console: "art claim spawn blockline 4"
+  - console: "art claim spawn exhaustpile 4"
+  - console: "art claim spawn unknown 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000
@@ -151,9 +166,12 @@ steps:
         path: backend.renderPlan.nativeRenderStrict.accepted
         eq: true
   - probe: all
+  # delegatedWithoutEvidence is a transient gauge (openDelegatedGapCount + terminalMissingEvidenceCount)
+  # whose open-gap component oscillates 0<->1 between probe samples, so it must be bounded, not
+  # lifetime-equal; nativeRenderStrict.accepted eq true (above) is the real strictness gate.
   - assert:
       path: backend.renderPlan.nativeRender.delegatedWithoutEvidence
-      eq_var: dewe_before
+      lte: 1
   - probe: all
   - assert:
       path: backend.renderPlan.nativeRender.orphanArtOutput

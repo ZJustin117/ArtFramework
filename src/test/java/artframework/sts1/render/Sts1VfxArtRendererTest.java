@@ -6,13 +6,18 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
+import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
 import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
+import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
+import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
+import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
@@ -209,6 +214,89 @@ public class Sts1VfxArtRendererTest {
         private float y;
     }
 
+    /**
+     * {@code EntangleEffect} layout: no {@code img} field (the static {@code ImageMaster.WEB_VFX})
+     * and no {@code rotation} field (hardcoded {@code 0f}); it also owns no {@code vY}.
+     */
+    static class EntangleHolder extends BaseEffect {
+        private float x;
+        private float y;
+    }
+
+    /**
+     * {@code ExhaustPileParticle} layout: {@code img} is a {@code private static AtlasRegion}
+     * declared on the class, plus the instance {@code x}/{@code y}/{@code scale} and the inherited
+     * {@code rotation}.
+     */
+    static class ExhaustPileEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private static TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code ExhaustPileParticle} layout with the static {@code img} null. */
+    static class ExhaustPileNullImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private static TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code BlockImpactLineEffect} layout: own instance {@code img} plus inherited fields. */
+    static class BlockImpactLineEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /**
+     * {@code UnknownParticleEffect} layout: own instance {@code Texture img} plus the consumed
+     * {@code rotation} field.
+     */
+    static class UnknownParticleEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private float scale;
+        private Texture img;
+    }
+
+    /** {@code UnknownParticleEffect} layout with an AtlasRegion {@code img} instead of a Texture. */
+    static class UnknownAtlasImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code UnknownParticleEffect} layout with a null instance {@code img}. */
+    static class UnknownNullImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /**
+     * UNKNOWN-shaped base WITHOUT an inherited {@code rotation} field, so a holder that DOES carry a
+     * valid instance {@code Texture img} proves the {@code rotation} field is genuinely required.
+     */
+    static class UnknownNoRotationBase {
+        protected float scale;
+        protected Color color;
+    }
+
+    /** UNKNOWN holder with a valid instance {@code img} but NO {@code rotation} field. */
+    static class UnknownNoRotationEffect extends UnknownNoRotationBase {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /** The same UNKNOWN layout with a {@code rotation} field present. */
+    static class UnknownRotationEffect extends UnknownNoRotationBase {
+        private float x;
+        private float y;
+        private Texture img;
+        private float rotation;
+    }
+
     @Test
     public void readTextureFieldsResolvesIceShatterFromItsInstanceTexture() {
         IceShatterEffect effect = new IceShatterEffect();
@@ -322,6 +410,163 @@ public class Sts1VfxArtRendererTest {
 
         assertNull(Sts1VfxArtRenderer.readTextureFields(
                 VfxDrawGeometry.Kind.WEB_PARTICLE, effect));
+    }
+
+    @Test
+    public void readTextureFieldsResolvesEntangleWithoutImgOrRotation() {
+        // EntangleEffect resolves the static ImageMaster.WEB_VFX texture and hardcodes rotation 0f,
+        // so its holder needs neither an img field nor a rotation field.
+        EntangleHolder effect = new EntangleHolder();
+        effect.x = 12.5f;
+        effect.y = -1.25f;
+        effect.scale = 0.75f;
+        effect.color = new Color(0.1f, 0.2f, 0.3f, 0.4f);
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.ENTANGLE, effect);
+
+        assertNotNull(f);
+        assertEquals(12.5f, f.x, EPS);
+        assertEquals(-1.25f, f.y, EPS);
+        assertEquals(0.75f, f.scale, EPS);
+        assertEquals(0f, f.rotation, EPS);
+        assertSame(effect.color, f.color);
+        assertNull("Entangle resolves the static ImageMaster.WEB_VFX, not an instance img",
+                f.img);
+    }
+
+    @Test
+    public void readFieldsResolvesExhaustPileFromItsStaticImgField() {
+        // ExhaustPileParticle.img is a private STATIC AtlasRegion declared on the class; the
+        // superclass-walking reader must resolve it via getDeclaredField + field.get(effect).
+        TextureAtlas.AtlasRegion region = fakeRegion();
+        ExhaustPileEffect.img = region;
+        ExhaustPileEffect effect = new ExhaustPileEffect();
+        effect.x = 5.5f;
+        effect.y = -2.25f;
+        effect.scale = 1.1f;
+        effect.rotation = 18f;
+        effect.color = Color.WHITE;
+
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.EXHAUST_PILE, effect);
+
+        assertNotNull("a static img field must resolve for the exhaust pile", f);
+        assertEquals(5.5f, f.x, EPS);
+        assertEquals(-2.25f, f.y, EPS);
+        assertEquals(1.1f, f.scale, EPS);
+        assertEquals(18f, f.rotation, EPS);
+        assertSame(region, f.img);
+
+        // A null static img fails the snapshot (fail open to native).
+        ExhaustPileNullImgEffect.img = null;
+        ExhaustPileNullImgEffect none = new ExhaustPileNullImgEffect();
+        none.x = 1f;
+        none.y = 2f;
+        none.scale = 1f;
+        none.rotation = 0f;
+        none.color = Color.WHITE;
+        assertNull(Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.EXHAUST_PILE, none));
+    }
+
+    @Test
+    public void readFieldsResolvesBlockImpactLineFromItsInstanceImg() {
+        BlockImpactLineEffectHolder effect = new BlockImpactLineEffectHolder();
+        effect.x = 4.5f;
+        effect.y = -1.5f;
+        effect.scale = 0.9f;
+        effect.rotation = 30f;
+        effect.color = Color.WHITE;
+        effect.img = fakeRegion();
+
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE, effect);
+
+        assertNotNull(f);
+        assertEquals(4.5f, f.x, EPS);
+        assertEquals(-1.5f, f.y, EPS);
+        assertEquals(0.9f, f.scale, EPS);
+        assertEquals(30f, f.rotation, EPS);
+        assertSame(effect.img, f.img);
+    }
+
+    @Test
+    public void readTextureFieldsResolvesUnknownParticleFromItsInstanceTexture() {
+        UnknownParticleEffectHolder effect = new UnknownParticleEffectHolder();
+        effect.x = -7.5f;
+        effect.y = 21.25f;
+        effect.scale = 1.25f;
+        effect.rotation = 137f;
+        effect.color = Color.WHITE;
+        effect.img = noGlTexture(128, 128);
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE, effect);
+
+        assertNotNull(f);
+        assertEquals(-7.5f, f.x, EPS);
+        assertEquals(21.25f, f.y, EPS);
+        assertEquals(1.25f, f.scale, EPS);
+        assertEquals("UnknownParticle consumes its rotation field", 137f, f.rotation, EPS);
+        assertSame(effect.img, f.img);
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForUnknownWithAtlasRegionOrNullImg() {
+        UnknownAtlasImgEffect atlas = new UnknownAtlasImgEffect();
+        atlas.x = 1f;
+        atlas.y = 2f;
+        atlas.scale = 1f;
+        atlas.rotation = 0f;
+        atlas.color = Color.WHITE;
+        atlas.img = fakeRegion();
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE, atlas));
+
+        UnknownNullImgEffect none = new UnknownNullImgEffect();
+        none.x = 1f;
+        none.y = 2f;
+        none.scale = 1f;
+        none.rotation = 0f;
+        none.color = Color.WHITE;
+        none.img = null;
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE, none));
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForUnknownWithoutARotationField() {
+        // UnknownParticle consumes its rotation field, so a holder that HAS a valid instance Texture
+        // img but no rotation field must fail open rather than silently draw at rotation 0. The same
+        // layout WITH a rotation field must resolve.
+        Texture img = noGlTexture(128, 128);
+
+        UnknownNoRotationEffect noRotation = new UnknownNoRotationEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = img;
+
+        assertNull("an UNKNOWN holder with img but no rotation field must fail open",
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.UNKNOWN_PARTICLE, noRotation));
+
+        UnknownRotationEffect withRotation = new UnknownRotationEffect();
+        withRotation.x = 1f;
+        withRotation.y = 2f;
+        withRotation.scale = 1f;
+        withRotation.color = Color.WHITE;
+        withRotation.img = img;
+        withRotation.rotation = 12f;
+
+        Sts1VfxArtRenderer.TextureFields resolved =
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.UNKNOWN_PARTICLE, withRotation);
+        assertNotNull("the same UNKNOWN layout with a rotation field must resolve", resolved);
+        assertEquals(12f, resolved.rotation, EPS);
+        assertSame(img, resolved.img);
     }
 
     /** Base without the inherited {@code color} field. */
@@ -788,6 +1033,18 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.WEB_PARTICLE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.WebParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.ENTANGLE_EFFECT));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.EntangleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.BLOCK_IMPACT_LINE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.EXHAUST_PILE_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.ExhaustPileParticle"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -811,6 +1068,14 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.ICE_SHATTER + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.WEB_PARTICLE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.WEB_PARTICLE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.ENTANGLE_EFFECT + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.ENTANGLE_EFFECT + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.BLOCK_IMPACT_LINE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.BLOCK_IMPACT_LINE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.EXHAUST_PILE_PARTICLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.EXHAUST_PILE_PARTICLE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -983,6 +1248,66 @@ public class Sts1VfxArtRendererTest {
         assertEquals(0.6f, batch.firstSetColor.a, EPS);
     }
 
+    @Test
+    public void newAmbientAndAdditiveKindsDrawThroughTheExpectedShapes() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Texture previousWebVfx = ImageMaster.WEB_VFX;
+        Texture webVfx = noGlTexture(64, 64);
+        try {
+            setStaticField(ImageMaster.class, "WEB_VFX", webVfx);
+
+            // EntangleEffect reuses the additive shape-C path with the static WEB_VFX texture and
+            // the shared white-alpha rule; it has no img/rotation needs.
+            CountingBatch entangleBatch = newCountingBatch();
+            AbstractGameEffect entangle = seededEntangle(new Color(0.2f, 0.4f, 0.6f, 0.35f));
+            assertTrue(renderer.render(entangleBatch, entangle));
+            assertEquals("Entangle is additive", 2, entangleBatch.setBlendCalls);
+            assertSame("Entangle draws the static WEB_VFX texture",
+                    webVfx, entangleBatch.drawnTexture);
+            assertNotNull(entangleBatch.firstSetColor);
+            assertEquals("Entangle forces RGB white", 1f, entangleBatch.firstSetColor.r, EPS);
+            assertEquals(0.35f, entangleBatch.firstSetColor.a, EPS);
+            // rotation is hardcoded to 0f
+            assertEquals(0f, floatAt(entangleBatch, 8), EPS);
+
+            // BlockImpactLineEffect is ambient center-packed over its own instance AtlasRegion.
+            CountingBatch blockBatch = newCountingBatch();
+            AbstractGameEffect block = seededBlockImpactLine();
+            assertTrue(renderer.render(blockBatch, block));
+            assertEquals("BlockImpactLine never calls setBlendFunction",
+                    0, blockBatch.setBlendCalls);
+            assertEquals("the block impact line uses the TextureRegion draw overload",
+                    0, blockBatch.drawCalls);
+            assertEquals(1, blockBatch.textureRegionDrawCalls);
+
+            // ExhaustPileParticle resolves a private STATIC AtlasRegion and is ambient.
+            CountingBatch pileBatch = newCountingBatch();
+            AbstractGameEffect pile = seededExhaustPile();
+            assertTrue("a static img must resolve for the exhaust pile",
+                    renderer.render(pileBatch, pile));
+            assertEquals("ExhaustPile never calls setBlendFunction",
+                    0, pileBatch.setBlendCalls);
+
+            // UnknownParticleEffect is ambient and draws its own instance Texture over the new
+            // 128-rect, consuming its rotation field.
+            CountingBatch unknownBatch = newCountingBatch();
+            AbstractGameEffect unknown = seededUnknown(new Color(0.5f, 0.6f, 0.7f, 0.8f), 37f);
+            assertTrue(renderer.render(unknownBatch, unknown));
+            assertEquals("UnknownParticle never calls setBlendFunction",
+                    0, unknownBatch.setBlendCalls);
+            assertEquals("the unknown particle uses the raw-texture draw overload",
+                    1, unknownBatch.drawCalls);
+            assertEquals("the UNKNOWN rect is 128x128",
+                    128f, floatAt(unknownBatch, 4), EPS);
+            assertEquals(128f, floatAt(unknownBatch, 5), EPS);
+            assertEquals("UNKNOWN consumes the rotation field",
+                    37f, floatAt(unknownBatch, 8), EPS);
+            assertEquals(0.5f, unknownBatch.firstSetColor.r, EPS);
+        } finally {
+            setStaticField(ImageMaster.class, "WEB_VFX", previousWebVfx);
+        }
+    }
+
     private static float floatAt(CountingBatch batch, int index) {
         return batch.drawnArgs[index];
     }
@@ -1051,6 +1376,8 @@ public class Sts1VfxArtRendererTest {
     static class CountingBatch extends SpriteBatch {
         int setBlendCalls;
         int drawCalls;
+        /** Count of {@code draw(TextureRegion, ...)} (the packed-region shape) calls. */
+        int textureRegionDrawCalls;
         /** First {@link Color} passed to {@link #setColor(Color)} (the applied draw tint). */
         Color firstSetColor;
         /** The first raw-texture + source-rect draw's arguments (the ICE/WEB/Calm/Shield shape). */
@@ -1079,6 +1406,13 @@ public class Sts1VfxArtRendererTest {
                 firstSetColor = new Color(color);
             }
             super.setColor(color);
+        }
+
+        @Override
+        public void draw(TextureRegion region, float x, float y, float originX, float originY,
+                float width, float height, float scaleX, float scaleY, float rotation) {
+            // Record the call only; skipping super avoids the real (absent) GL texture bind path.
+            textureRegionDrawCalls++;
         }
 
         @Override
@@ -1214,6 +1548,107 @@ public class Sts1VfxArtRendererTest {
             return effect;
         } catch (Exception failure) {
             throw new AssertionError("could not build no-GL WebParticleEffect", failure);
+        }
+    }
+
+    /**
+     * Real {@code EntangleEffect} with reflectively seeded {@code x}/{@code y} fields (no
+     * {@code img} field, per the native layout) and the given color; the inherited
+     * {@code scale}/{@code rotation} come from {@code AbstractGameEffect}.
+     */
+    private static AbstractGameEffect seededEntangle(Color color) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            EntangleEffect effect =
+                    (EntangleEffect) unsafe.allocateInstance(EntangleEffect.class);
+            setField(effect, EntangleEffect.class, "x", Float.valueOf(5f));
+            setField(effect, EntangleEffect.class, "y", Float.valueOf(6f));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL EntangleEffect", failure);
+        }
+    }
+
+    /**
+     * Real {@code BlockImpactLineEffect} with reflectively seeded {@code x}/{@code y}/{@code img}
+     * fields (its own instance {@code AtlasRegion}) and the inherited
+     * {@code scale}/{@code rotation}/{@code color} (no game/GL context).
+     */
+    private static AbstractGameEffect seededBlockImpactLine() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            BlockImpactLineEffect effect =
+                    (BlockImpactLineEffect) unsafe.allocateInstance(BlockImpactLineEffect.class);
+            setField(effect, BlockImpactLineEffect.class, "x", Float.valueOf(5f));
+            setField(effect, BlockImpactLineEffect.class, "y", Float.valueOf(6f));
+            setField(effect, BlockImpactLineEffect.class, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL BlockImpactLineEffect", failure);
+        }
+    }
+
+    /**
+     * Real {@code ExhaustPileParticle} with reflectively seeded {@code x}/{@code y}/{@code scale}
+     * and its {@code private static AtlasRegion img} field (no game/GL context). The static field is
+     * set on the class, then read back by the renderer's superclass-walking reader.
+     */
+    private static AbstractGameEffect seededExhaustPile() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            setStaticField(ExhaustPileParticle.class, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+            ExhaustPileParticle effect =
+                    (ExhaustPileParticle) unsafe.allocateInstance(ExhaustPileParticle.class);
+            setField(effect, ExhaustPileParticle.class, "x", Float.valueOf(5f));
+            setField(effect, ExhaustPileParticle.class, "y", Float.valueOf(6f));
+            setField(effect, ExhaustPileParticle.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL ExhaustPileParticle", failure);
+        }
+    }
+
+    /**
+     * Real {@code UnknownParticleEffect} with reflectively seeded {@code x}/{@code y}/{@code scale},
+     * its own instance {@code Texture img}, the consumed inherited {@code rotation}, and the given
+     * color (no game/GL context).
+     */
+    private static AbstractGameEffect seededUnknown(Color color, float rotation) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            UnknownParticleEffect effect =
+                    (UnknownParticleEffect) unsafe.allocateInstance(UnknownParticleEffect.class);
+            setField(effect, UnknownParticleEffect.class, "x", Float.valueOf(5f));
+            setField(effect, UnknownParticleEffect.class, "y", Float.valueOf(6f));
+            setField(effect, UnknownParticleEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, UnknownParticleEffect.class, "img", noGlTexture(128, 128));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL UnknownParticleEffect", failure);
         }
     }
 

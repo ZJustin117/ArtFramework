@@ -72,6 +72,16 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.ICE_SHATTER, VfxLabSpawn.classNameFor("ice"));
         assertEquals(VfxClaimPolicy.WEB_PARTICLE, VfxLabSpawn.classNameFor("web"));
         assertEquals(VfxClaimPolicy.WEB_PARTICLE, VfxLabSpawn.classNameFor("webparticle"));
+        assertEquals(VfxClaimPolicy.ENTANGLE_EFFECT, VfxLabSpawn.classNameFor("entangle"));
+        assertEquals(VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxLabSpawn.classNameFor("blockline"));
+        assertEquals(VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxLabSpawn.classNameFor("blockimpact"));
+        assertEquals(VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
+                VfxLabSpawn.classNameFor("exhaustpile"));
+        assertEquals(VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
+                VfxLabSpawn.classNameFor("exhaustparticle"));
+        assertEquals(VfxClaimPolicy.UNKNOWN_PARTICLE, VfxLabSpawn.classNameFor("unknown"));
+        assertEquals(VfxClaimPolicy.UNKNOWN_PARTICLE,
+                VfxLabSpawn.classNameFor("unknownparticle"));
     }
 
     @Test
@@ -119,6 +129,17 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.ICE_SHATTER, VfxLabSpawn.classNameFor("ICE"));
         assertEquals(VfxClaimPolicy.WEB_PARTICLE, VfxLabSpawn.classNameFor("  WeB "));
         assertEquals(VfxClaimPolicy.WEB_PARTICLE, VfxLabSpawn.classNameFor("WEBPARTICLE"));
+        assertEquals(VfxClaimPolicy.ENTANGLE_EFFECT, VfxLabSpawn.classNameFor("  EnTaNgLe "));
+        assertEquals(VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxLabSpawn.classNameFor("  BlOcKlInE "));
+        assertEquals(VfxClaimPolicy.BLOCK_IMPACT_LINE,
+                VfxLabSpawn.classNameFor("BLOCKIMPACT"));
+        assertEquals(VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
+                VfxLabSpawn.classNameFor("  ExHaUsTpIlE "));
+        assertEquals(VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
+                VfxLabSpawn.classNameFor("EXHAUSTPARTICLE"));
+        assertEquals(VfxClaimPolicy.UNKNOWN_PARTICLE, VfxLabSpawn.classNameFor("  UnKnOwN "));
+        assertEquals(VfxClaimPolicy.UNKNOWN_PARTICLE,
+                VfxLabSpawn.classNameFor("UNKNOWNPARTICLE"));
     }
 
     @Test
@@ -357,6 +378,19 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("ice", VfxClaimPolicy.ICE_SHATTER);
         assertSpawnRequests("web", VfxClaimPolicy.WEB_PARTICLE);
         assertSpawnRequests("webparticle", VfxClaimPolicy.WEB_PARTICLE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF14MembersThroughTheFactorySeam() {
+        // The four newest claimable FQNs; the capturing factory proves each alias requests exactly
+        // its FQN without touching the ImageMaster/texture-backed constructors.
+        assertSpawnRequests("entangle", VfxClaimPolicy.ENTANGLE_EFFECT);
+        assertSpawnRequests("blockline", VfxClaimPolicy.BLOCK_IMPACT_LINE);
+        assertSpawnRequests("blockimpact", VfxClaimPolicy.BLOCK_IMPACT_LINE);
+        assertSpawnRequests("exhaustpile", VfxClaimPolicy.EXHAUST_PILE_PARTICLE);
+        assertSpawnRequests("exhaustparticle", VfxClaimPolicy.EXHAUST_PILE_PARTICLE);
+        assertSpawnRequests("unknown", VfxClaimPolicy.UNKNOWN_PARTICLE);
+        assertSpawnRequests("unknownparticle", VfxClaimPolicy.UNKNOWN_PARTICLE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

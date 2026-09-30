@@ -299,6 +299,43 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       web 4` run in both `d1_aura_claim.yaml` phases. Default-off gate + per-instance token semantics
       unchanged; focused no-GL JUnit only.
 
+- [x] NRO-04 F14 (four more members: one reusing the Web static-texture config, two ambient
+      center-packed incl. a static-`img` member, and one new ambient 128-rect):
+      `com.megacrit.cardcrawl.vfx.combat.EntangleEffect` is byte-identical to `WebParticleEffect` —
+      the static `ImageMaster.WEB_VFX` `Texture`, offset 0, origin `32,32`, size `64×64`, src
+      `0,0,64,64`, hardcoded rotation `0f`, additive blend, and the same `setColor(new Color(1,1,1,
+      color.a))` white-alpha rule — so it reuses the WEB_PARTICLE static-texture/white-alpha
+      configuration (`VfxDrawGeometry.Kind.ENTANGLE` maps to the same params and
+      `whiteAlphaOnly` is now true for both; the renderer resolves both kinds to the single
+      `ImageMaster.WEB_VFX` texture and one shared `WEB_*` src rect instead of duplicating logic);
+      `com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect` and
+      `com.megacrit.cardcrawl.vfx.ExhaustPileParticle` reuse the center-packed `STANCE_AURA`
+      params branch with ambient blend (`additiveBlend` false), with `ExhaustPileParticle.img` being a
+      `private static AtlasRegion` declared on its own class — the existing `readFields`
+      superclass-walking `readRaw` resolves it via `getDeclaredField` + `field.get(effect)` (which
+      works for statics) with no reader change, asserted by a static-field holder test; and
+      `com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect` introduces a NEW ambient shape-C
+      fixed rect `sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, rotation, 0, 0,
+      128, 128, false, false)` over its own instance `Texture img` with new host-neutral constants
+      (`UNKNOWN_OFFSET`/`UNKNOWN_ORIGIN`/`UNKNOWN_SIZE`/`UNKNOWN_SRC_*`) and the `rotation` field
+      consumed (`readTextureFields` requires `rotation` for UNKNOWN and does NOT for ENTANGLE, which
+      is forced `0f`). `VfxClaimPolicy.ENTANGLE_EFFECT`/`BLOCK_IMPACT_LINE`/
+      `EXHAUST_PILE_PARTICLE`/`UNKNOWN_PARTICLE` append last to `supportedClasses()` in that order.
+      `VfxLabSpawn.classNameFor` gains `"entangle"` (`new EntangleEffect(960f, 540f, 960f, 540f)` —
+      the ctor is `(tX, tY, startX, startY)` and sets `x=startX, y=startY` with target
+      `(tX-32, tY-32)`, so passing the center for both keeps it centered),
+      `"blockline"`/`"blockimpact"` (`new BlockImpactLineEffect(960f, 540f)`),
+      `"exhaustpile"`/`"exhaustparticle"` (`new ExhaustPileParticle(960f, 540f)`), and
+      `"unknown"`/`"unknownparticle"` (`new UnknownParticleEffect(960f, 540f)`) — aliases checked
+      against the existing set for collisions — behind the existing fail-open guard, and
+      `art claim spawn entangle|blockline|exhaustpile|unknown 4` runs in both `d1_aura_claim.yaml`
+      phases. No new patch, bridge, or console wiring; default-off gate + per-instance token
+      semantics unchanged. Focused no-GL JUnit only.
+
+- [ ] NRO-04 screening note: `com.megacrit.cardcrawl.vfx.combat.WarningSignEffect` was screened and
+      DEFERRED — its `scale` is hardcoded `Settings.scale * 2f` (there is no `scale` field), so
+      claiming it would need a new scale-rule capability rather than an existing draw shape.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

@@ -54,6 +54,10 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_BLUR));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.ICE_SHATTER));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.WEB_PARTICLE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.ENTANGLE_EFFECT));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.BLOCK_IMPACT_LINE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_PILE_PARTICLE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE));
 
         // A near-miss stays not-ready.
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
@@ -74,6 +78,14 @@ public class Sts1VfxRendererBindingTest {
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.ICE_SHATTER + "2"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WEB_PARTICLE + "$Sub"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WEB_PARTICLE + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.ENTANGLE_EFFECT + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.ENTANGLE_EFFECT + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.BLOCK_IMPACT_LINE + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.BLOCK_IMPACT_LINE + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_PILE_PARTICLE + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_PILE_PARTICLE + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE + "2"));
     }
 
     @Test
@@ -97,9 +109,18 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_BLUR));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.ICE_SHATTER));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.WEB_PARTICLE));
-        assertEquals("the two newest FQNs are appended last, in order",
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.ENTANGLE_EFFECT));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.BLOCK_IMPACT_LINE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.EXHAUST_PILE_PARTICLE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE));
+        assertEquals("the four newest FQNs are appended last, in order",
+                java.util.Arrays.asList(VfxClaimPolicy.ENTANGLE_EFFECT,
+                        VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
+                        VfxClaimPolicy.UNKNOWN_PARTICLE),
+                supported.subList(supported.size() - 4, supported.size()));
+        assertEquals("the two next-newest FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ICE_SHATTER, VfxClaimPolicy.WEB_PARTICLE),
-                supported.subList(supported.size() - 2, supported.size()));
+                supported.subList(supported.size() - 6, supported.size() - 4));
         assertEquals("the thirteen newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
@@ -108,7 +129,7 @@ public class Sts1VfxRendererBindingTest {
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
-                supported.subList(supported.size() - 13, supported.size()));
+                supported.subList(supported.size() - 17, supported.size() - 4));
     }
 
     @Test

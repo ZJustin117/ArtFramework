@@ -11,8 +11,13 @@ import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
 import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
+import com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect;
+import com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect;
+import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
+import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
+import com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect;
 import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
@@ -44,7 +49,10 @@ import java.util.function.Predicate;
  * bare-{@code Texture} members {@code ShieldParticleEffect}/{@code DebuffParticleEffect} (root) and
  * {@code IceShatterEffect}/{@code WebParticleEffect} ({@code vfx-combat}), and the four newest
  * members {@code EntangleEffect}/{@code BlockImpactLineEffect}/{@code UnknownParticleEffect}
- * ({@code vfx-combat}) and {@code ExhaustPileParticle} (root)) into the
+ * ({@code vfx-combat}) and {@code ExhaustPileParticle} (root), and the five newest
+ * {@code vfx-combat} members {@code FlameParticleEffect}/{@code LightningOrbActivateEffect}/
+ * {@code DamageImpactBlurEffect}/{@code DamageImpactLineEffect}/{@code DarkOrbPassiveEffect}) into
+ * the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -160,6 +168,22 @@ public final class VfxLabSpawn {
         }
         if ("unknown".equalsIgnoreCase(value) || "unknownparticle".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.UNKNOWN_PARTICLE;
+        }
+        if ("flame".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FLAME_PARTICLE;
+        }
+        if ("lightningorb".equalsIgnoreCase(value)
+                || "lightningactivate".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE;
+        }
+        if ("damageblur".equalsIgnoreCase(value) || "dmgblur".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.DAMAGE_IMPACT_BLUR;
+        }
+        if ("damageline".equalsIgnoreCase(value) || "dmgline".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.DAMAGE_IMPACT_LINE;
+        }
+        if ("darkorb".equalsIgnoreCase(value) || "darkorbpassive".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.DARK_ORB_PASSIVE;
         }
         return null;
     }
@@ -402,6 +426,36 @@ public final class VfxLabSpawn {
             // and may be null outside a live game; any failure is caught by spawn's fail-open guard
             // rather than propagating.
             return new UnknownParticleEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.FLAME_PARTICLE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a static ImageMaster region and
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new FlameParticleEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a static ImageMaster region and
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new LightningOrbActivateEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.DAMAGE_IMPACT_BLUR.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a static ImageMaster region and
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new DamageImpactBlurEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.DAMAGE_IMPACT_LINE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is a static ImageMaster region and
+            // may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new DamageImpactLineEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.DARK_ORB_PASSIVE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The instance img is ImageMaster-backed
+            // and may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new DarkOrbPassiveEffect(960f, 540f);
         }
         return null;
     }

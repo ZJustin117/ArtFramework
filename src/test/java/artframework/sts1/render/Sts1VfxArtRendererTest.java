@@ -14,6 +14,7 @@ import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
+import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
@@ -297,6 +298,55 @@ public class Sts1VfxArtRendererTest {
         private float rotation;
     }
 
+    /**
+     * {@code DarkOrbPassiveEffect} layout: own instance {@code Texture img}, the unrelated
+     * {@code rotationSpeed} field, and the consumed inherited {@code rotation}.
+     */
+    static class DarkOrbEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float rotationSpeed;
+        private Texture img;
+    }
+
+    /** {@code DarkOrbPassiveEffect} layout with an AtlasRegion {@code img} instead of a Texture. */
+    static class DarkOrbAtlasImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code DarkOrbPassiveEffect} layout with a null instance {@code img}. */
+    static class DarkOrbNullImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /**
+     * DARK_ORB-shaped base WITHOUT an inherited {@code rotation} field, so a holder that DOES carry a
+     * valid instance {@code Texture img} proves the {@code rotation} field is genuinely required.
+     */
+    static class DarkOrbNoRotationBase {
+        protected float scale;
+        protected Color color;
+    }
+
+    /** DARK_ORB holder with a valid instance {@code img} but NO {@code rotation} field. */
+    static class DarkOrbNoRotationEffect extends DarkOrbNoRotationBase {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /** The same DARK_ORB layout with a {@code rotation} field present. */
+    static class DarkOrbRotationEffect extends DarkOrbNoRotationBase {
+        private float x;
+        private float y;
+        private Texture img;
+        private float rotation;
+    }
+
     @Test
     public void readTextureFieldsResolvesIceShatterFromItsInstanceTexture() {
         IceShatterEffect effect = new IceShatterEffect();
@@ -569,6 +619,135 @@ public class Sts1VfxArtRendererTest {
         assertSame(img, resolved.img);
     }
 
+    @Test
+    public void readTextureFieldsResolvesDarkOrbPassiveFromItsInstanceTexture() {
+        DarkOrbEffect effect = new DarkOrbEffect();
+        effect.x = -7.5f;
+        effect.y = 21.25f;
+        effect.scale = 1.25f;
+        effect.rotation = 137f;
+        effect.rotationSpeed = 4.5f;
+        effect.color = Color.WHITE;
+        effect.img = noGlTexture(74, 74);
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE, effect);
+
+        assertNotNull(f);
+        assertEquals(-7.5f, f.x, EPS);
+        assertEquals(21.25f, f.y, EPS);
+        assertEquals(1.25f, f.scale, EPS);
+        assertEquals("DarkOrb consumes its rotation field", 137f, f.rotation, EPS);
+        assertSame(effect.img, f.img);
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForDarkOrbWithAtlasRegionOrNullImg() {
+        DarkOrbAtlasImgEffect atlas = new DarkOrbAtlasImgEffect();
+        atlas.x = 1f;
+        atlas.y = 2f;
+        atlas.scale = 1f;
+        atlas.rotation = 0f;
+        atlas.color = Color.WHITE;
+        atlas.img = fakeRegion();
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE, atlas));
+
+        DarkOrbNullImgEffect none = new DarkOrbNullImgEffect();
+        none.x = 1f;
+        none.y = 2f;
+        none.scale = 1f;
+        none.rotation = 0f;
+        none.color = Color.WHITE;
+        none.img = null;
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE, none));
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForDarkOrbWithoutARotationField() {
+        // DarkOrbPassive consumes its rotation field, so a holder with a valid instance Texture img
+        // but no rotation field must fail open rather than silently draw at rotation 0. The same
+        // layout WITH a rotation field must resolve.
+        Texture img = noGlTexture(74, 74);
+
+        DarkOrbNoRotationEffect noRotation = new DarkOrbNoRotationEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = img;
+
+        assertNull("a DARK_ORB holder with img but no rotation field must fail open",
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.DARK_ORB_PASSIVE, noRotation));
+
+        DarkOrbRotationEffect withRotation = new DarkOrbRotationEffect();
+        withRotation.x = 1f;
+        withRotation.y = 2f;
+        withRotation.scale = 1f;
+        withRotation.color = Color.WHITE;
+        withRotation.img = img;
+        withRotation.rotation = 12f;
+
+        Sts1VfxArtRenderer.TextureFields resolved =
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.DARK_ORB_PASSIVE, withRotation);
+        assertNotNull("the same DARK_ORB layout with a rotation field must resolve", resolved);
+        assertEquals(12f, resolved.rotation, EPS);
+        assertSame(img, resolved.img);
+    }
+
+    @Test
+    public void readFieldsResolvesTheFourNewestImgKindsWithVYOptional() {
+        // FlameParticleEffect, LightningOrbActivateEffect, DamageImpactBlurEffect, and
+        // DamageImpactLineEffect are center-packed img kinds; the reader must resolve them without
+        // requiring vY.
+        NoVYEffect noVY = new NoVYEffect();
+        noVY.x = 7.5f;
+        noVY.y = -3.25f;
+        noVY.scale = 1.1f;
+        noVY.rotation = 18f;
+        noVY.color = Color.WHITE;
+        noVY.img = fakeRegion();
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.FLAME_PARTICLE,
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE }) {
+            Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, noVY);
+            assertNotNull("vY is optional for " + kind, f);
+            assertEquals(7.5f, f.x, EPS);
+            assertEquals(-3.25f, f.y, EPS);
+            assertEquals(0f, f.vY, EPS);
+            assertEquals(1.1f, f.scale, EPS);
+            assertEquals(18f, f.rotation, EPS);
+            assertSame(noVY.img, f.img);
+        }
+
+        // The same holders with a vY field present resolve and carry it (it is update-only).
+        FullEffect withVY = new FullEffect();
+        withVY.x = 3.25f;
+        withVY.y = -2.5f;
+        withVY.vY = 1.75f;
+        withVY.scale = 0.9f;
+        withVY.rotation = 12f;
+        withVY.color = Color.WHITE;
+        withVY.img = fakeRegion();
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.FLAME_PARTICLE,
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE }) {
+            Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, withVY);
+            assertNotNull(f);
+            assertEquals("vY is captured but ignored for " + kind, 1.75f, f.vY, EPS);
+            assertSame(withVY.img, f.img);
+        }
+    }
+
     /** Base without the inherited {@code color} field. */
     static class NoColorBase {
         protected float scale;
@@ -683,6 +862,10 @@ public class Sts1VfxArtRendererTest {
                 VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE,
                 VfxDrawGeometry.Kind.GENERIC_SMOKE,
                 VfxDrawGeometry.Kind.EXHAUST_BLUR,
+                VfxDrawGeometry.Kind.FLAME_PARTICLE,
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE,
                 VfxDrawGeometry.Kind.STANCE_AURA }) {
             Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(kind, effect);
 
@@ -1045,6 +1228,21 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.FLAME_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_BLUR));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_LINE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -1076,6 +1274,16 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.EXHAUST_PILE_PARTICLE + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.UNKNOWN_PARTICLE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FLAME_PARTICLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FLAME_PARTICLE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_BLUR + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_BLUR + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_LINE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_LINE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -1303,6 +1511,29 @@ public class Sts1VfxArtRendererTest {
             assertEquals("UNKNOWN consumes the rotation field",
                     37f, floatAt(unknownBatch, 8), EPS);
             assertEquals(0.5f, unknownBatch.firstSetColor.r, EPS);
+
+            // DarkOrbPassiveEffect is additive and draws its own instance Texture over the new
+            // 74x74 fixed rect, consuming its rotation field.
+            CountingBatch darkOrbBatch = newCountingBatch();
+            AbstractGameEffect darkOrb = seededDarkOrb(new Color(0.3f, 0.5f, 0.7f, 0.9f), 41f);
+            assertTrue(renderer.render(darkOrbBatch, darkOrb));
+            assertEquals("DarkOrbPassive is additive", 2, darkOrbBatch.setBlendCalls);
+            assertEquals("the dark orb uses the raw-texture draw overload",
+                    1, darkOrbBatch.drawCalls);
+            assertSame("DarkOrb draws its own instance Texture img",
+                    readField(darkOrb, "img"), darkOrbBatch.drawnTexture);
+            assertEquals(37f, floatAt(darkOrbBatch, 2), EPS);
+            assertEquals(37f, floatAt(darkOrbBatch, 3), EPS);
+            assertEquals("the DARK_ORB rect is 74x74", 74f, floatAt(darkOrbBatch, 4), EPS);
+            assertEquals(74f, floatAt(darkOrbBatch, 5), EPS);
+            assertEquals("DARK_ORB consumes the rotation field",
+                    41f, floatAt(darkOrbBatch, 8), EPS);
+            assertEquals("the src rect is 0,0,74,74 (the full region)",
+                    0f, floatAt(darkOrbBatch, 9), EPS);
+            assertEquals(0f, floatAt(darkOrbBatch, 10), EPS);
+            assertEquals(74f, floatAt(darkOrbBatch, 11), EPS);
+            assertEquals(74f, floatAt(darkOrbBatch, 12), EPS);
+            assertEquals(0.3f, darkOrbBatch.firstSetColor.r, EPS);
         } finally {
             setStaticField(ImageMaster.class, "WEB_VFX", previousWebVfx);
         }
@@ -1378,6 +1609,8 @@ public class Sts1VfxArtRendererTest {
         int drawCalls;
         /** Count of {@code draw(TextureRegion, ...)} (the packed-region shape) calls. */
         int textureRegionDrawCalls;
+        /** The first {@link TextureRegion} passed to the packed-region draw overload. */
+        TextureRegion drawnRegion;
         /** First {@link Color} passed to {@link #setColor(Color)} (the applied draw tint). */
         Color firstSetColor;
         /** The first raw-texture + source-rect draw's arguments (the ICE/WEB/Calm/Shield shape). */
@@ -1412,7 +1645,9 @@ public class Sts1VfxArtRendererTest {
         public void draw(TextureRegion region, float x, float y, float originX, float originY,
                 float width, float height, float scaleX, float scaleY, float rotation) {
             // Record the call only; skipping super avoids the real (absent) GL texture bind path.
-            textureRegionDrawCalls++;
+            if (textureRegionDrawCalls++ == 0) {
+                drawnRegion = region;
+            }
         }
 
         @Override
@@ -1653,6 +1888,31 @@ public class Sts1VfxArtRendererTest {
     }
 
     /**
+     * Real {@code DarkOrbPassiveEffect} with reflectively seeded {@code x}/{@code y}/{@code scale},
+     * its own instance {@code Texture img}, the consumed inherited {@code rotation}, and the given
+     * color (no game/GL context).
+     */
+    private static AbstractGameEffect seededDarkOrb(Color color, float rotation) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            DarkOrbPassiveEffect effect =
+                    (DarkOrbPassiveEffect) unsafe.allocateInstance(DarkOrbPassiveEffect.class);
+            setField(effect, DarkOrbPassiveEffect.class, "x", Float.valueOf(5f));
+            setField(effect, DarkOrbPassiveEffect.class, "y", Float.valueOf(6f));
+            setField(effect, DarkOrbPassiveEffect.class, "img", noGlTexture(74, 74));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL DarkOrbPassiveEffect", failure);
+        }
+    }
+
+    /**
      * Real {@code IceShatterEffect} with reflectively seeded {@code x}/{@code y}/{@code img}
      * fields, its inherited {@code scale}/{@code rotation}, and the given color (no game/GL
      * context).
@@ -1706,6 +1966,166 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
+    public void canDrawDistinguishesADrawableInstanceFromABlankOne() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        // FlashAtkImgEffect with no img: nothing to draw (its native render guards if (img != null)).
+        assertFalse("a blank flash instance has nothing to draw",
+                renderer.canDraw(blankFlashEffect()));
+
+        // The same real effect with a present region + texture can draw.
+        assertTrue("a seeded flash instance can draw",
+                renderer.canDraw(flashEffect()));
+
+        // A center-packed kind with an absent img cannot draw ...
+        assertFalse("a center-packed effect without img cannot draw",
+                renderer.canDraw(seededEffectWithNullImg(FireBurstParticleEffect.class)));
+
+        // ... and a shape-C kind whose instance img is absent cannot draw either.
+        assertFalse("a shape-C effect without its instance Texture cannot draw",
+                renderer.canDraw(seededIceWithoutImg()));
+
+        // A wrong/absent effect type, and null, fail closed.
+        assertFalse(renderer.canDraw(null));
+        assertFalse(renderer.canDraw("not an effect"));
+    }
+
+    @Test
+    public void canDrawDelegatorReturnsFalseWithoutAnAdapter() {
+        VfxArtRenderer.uninstall();
+        assertFalse("no installed adapter means canDraw is false",
+                VfxArtRenderer.canDraw(flashEffect()));
+    }
+
+    @Test
+    public void flipPollutedSharedRegionStillDrawsTheCanonicalRect() {
+        // Regression for F15d: a native sibling flips the SHARED static AtlasRegion in place, which
+        // swaps u/u2 (and mutates offsetX). The claim suppresses the native draw, so ART must still
+        // draw the canonical rect (not decline) instead of passing the flipped region through, which
+        // used to make the neutral descriptor invalid -> fail open -> dispositionMismatch.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Texture page = noGlTexture(256, 256);
+        TextureAtlas.AtlasRegion shared = new TextureAtlas.AtlasRegion(page, 10, 20, 64, 48);
+        shared.name = "shared";
+        shared.originalWidth = 64;
+        shared.originalHeight = 48;
+        // Simulate the native sibling pollution on this shared region instance.
+        shared.flip(true, false);
+
+        AbstractGameEffect flash = seededFlashEffect(shared);
+        CountingBatch batch = newCountingBatch();
+
+        assertTrue("a flip-polluted shared region must still draw (no decline)",
+                renderer.render(batch, flash));
+        assertEquals("the img path uses the TextureRegion draw overload",
+                1, batch.textureRegionDrawCalls);
+        assertEquals(0, batch.drawCalls);
+        assertNotNull("the drawn region must have been captured", batch.drawnRegion);
+
+        // The drawn view is canonicalized: u < u2 and v < v2, with the SAME packed footprint as the
+        // un-flipped region (UV width == 64/256, height == 48/256), independent of the pollution.
+        TextureRegion drawn = batch.drawnRegion;
+        assertTrue("canonical u must be the left edge", drawn.getU() < drawn.getU2());
+        assertTrue("canonical v must be the top edge", drawn.getV() < drawn.getV2());
+        assertEquals(10f / 256f, drawn.getU(), 1e-5f);
+        assertEquals(74f / 256f, drawn.getU2(), 1e-5f);
+        assertEquals(20f / 256f, drawn.getV(), 1e-5f);
+        assertEquals(68f / 256f, drawn.getV2(), 1e-5f);
+        // The shared region itself is left untouched (the renderer never mutates it).
+        assertTrue("the renderer must not mutate the shared region back",
+                shared.getU() > shared.getU2());
+    }
+
+    /** Real {@code FlashAtkImgEffect} bound to the given region; inherited fields seeded. */
+    private static AbstractGameEffect seededFlashEffect(TextureAtlas.AtlasRegion region) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            FlashAtkImgEffect effect =
+                    (FlashAtkImgEffect) unsafe.allocateInstance(FlashAtkImgEffect.class);
+            effect.img = region;
+            setField(effect, FlashAtkImgEffect.class, "x", Float.valueOf(5f));
+            setField(effect, FlashAtkImgEffect.class, "y", Float.valueOf(6f));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build a no-GL FlashAtkImgEffect", failure);
+        }
+    }
+
+    /** Real {@code FlashAtkImgEffect} with seeded draw fields but a null {@code img}. */
+    private static AbstractGameEffect blankFlashEffect() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            FlashAtkImgEffect effect =
+                    (FlashAtkImgEffect) unsafe.allocateInstance(FlashAtkImgEffect.class);
+            setField(effect, FlashAtkImgEffect.class, "x", Float.valueOf(5f));
+            setField(effect, FlashAtkImgEffect.class, "y", Float.valueOf(6f));
+            setField(effect, FlashAtkImgEffect.class, "img", null);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build a blank no-GL FlashAtkImgEffect", failure);
+        }
+    }
+
+    /** Real center-packed effect of {@code type} with x/y/scale/rotation/color but a null img. */
+    private static AbstractGameEffect seededEffectWithNullImg(
+            Class<? extends AbstractGameEffect> type) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.allocateInstance(type);
+            setField(effect, type, "x", Float.valueOf(5f));
+            setField(effect, type, "y", Float.valueOf(6f));
+            setField(effect, type, "img", null);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL " + type.getSimpleName(), failure);
+        }
+    }
+
+    /** Real {@code IceShatterEffect} with seeded fields but no instance {@code Texture img}. */
+    private static AbstractGameEffect seededIceWithoutImg() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.IceShatterEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.IceShatterEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.IceShatterEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.IceShatterEffect.class, "x",
+                    Float.valueOf(5f));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.IceShatterEffect.class, "y",
+                    Float.valueOf(6f));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.IceShatterEffect.class, "img",
+                    null);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build a no-GL IceShatterEffect", failure);
+        }
+    }
+
+    @Test
     public void installDelegatesReadinessAndDrawToTheInstalledAdapter() {
         try {
             VfxArtRenderer.uninstall();
@@ -1720,6 +2140,11 @@ public class Sts1VfxArtRendererTest {
 
                 @Override
                 public boolean render(SpriteBatch sb, AbstractGameEffect effect) {
+                    return true;
+                }
+
+                @Override
+                public boolean canDraw(Object effect) {
                     return true;
                 }
             });
@@ -1747,6 +2172,11 @@ public class Sts1VfxArtRendererTest {
             public boolean render(SpriteBatch sb, AbstractGameEffect effect) {
                 return true;
             }
+
+            @Override
+            public boolean canDraw(Object effect) {
+                return true;
+            }
         });
         assertTrue(VfxArtRenderer.isReady("anything"));
 
@@ -1754,5 +2184,7 @@ public class Sts1VfxArtRendererTest {
 
         assertFalse(VfxArtRenderer.isReady("anything"));
         assertFalse(VfxArtRenderer.render(null, null));
+        assertFalse("no adapter installed means canDraw is false",
+                VfxArtRenderer.canDraw(null));
     }
 }

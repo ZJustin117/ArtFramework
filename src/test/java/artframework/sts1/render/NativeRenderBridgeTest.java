@@ -1264,6 +1264,155 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void blankFlashDeclineIsNoPixelIsolationNotAMismatch() {
+        // Regression: FlashAtkImgEffect natively guards its draw with if (img != null), so a claimed
+        // instance with no img produces no pixels either way. Declining it must NOT count as a
+        // delegated mismatch / delegated-without-evidence (which would flip nativeRenderStrict).
+        VfxDelegationGate.setActive(true);
+        // The real renderer: it is ready for FlashAtkImgEffect but cannotDraw a blank instance.
+        VfxArtRenderer.setForTests(new Sts1VfxArtRenderer());
+        AbstractGameEffect blank = blankFlashEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(blank, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertTrue(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+
+        NativeRenderBridge.recordEffectDeclined(disposition.invocationId, blank);
+
+        assertFalse("a no-pixel decline still consumes the pending claim token",
+                NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+        assertEquals("a blank flash decline is not a delegated mismatch",
+                Integer.valueOf(0), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+        assertEquals("a blank flash decline is not delegated-without-evidence",
+                Integer.valueOf(0),
+                NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals("a blank flash decline is recorded as no-pixel isolation",
+                Integer.valueOf(1),
+                NativeRenderBridge.probeSlice().get("noPixelIsolationCount"));
+        assertEquals("no delegated gap is left open",
+                Integer.valueOf(0), NativeRenderBridge.strictReport().get("openInvocation"));
+    }
+
+    @Test
+    public void nonBlankDeclineStillCountsAsAMismatch() {
+        // The genuine path is preserved: a claimed instance of a kind that DOES draw (a center-packed
+        // effect) that fails open still increments the mismatch / delegated-without-evidence
+        // counters, so a real renderer defect is never masked.
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(new Sts1VfxArtRenderer());
+        AbstractGameEffect drawable = supportedAuraEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(drawable, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+
+        NativeRenderBridge.recordEffectDeclined(disposition.invocationId, drawable);
+
+        assertFalse("the decline consumes the pending claim token",
+                NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+        assertEquals("a drawable decline still records a delegated mismatch",
+                Integer.valueOf(1), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+        assertEquals("a drawable decline is still delegated-without-evidence",
+                Integer.valueOf(1),
+                NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals("no no-pixel isolation is recorded for a drawable decline",
+                Integer.valueOf(0),
+                NativeRenderBridge.probeSlice().get("noPixelIsolationCount"));
+    }
+
+    /** Real {@code FlashAtkImgEffect} with seeded fields but a null {@code img}. */
+    private static AbstractGameEffect blankFlashEffect() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect.class, "x",
+                    Float.valueOf(5f));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect.class, "y",
+                    Float.valueOf(6f));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect.class, "img",
+                    null);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color",
+                    com.badlogic.gdx.graphics.Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not allocate a blank FlashAtkImgEffect", failure);
+        }
+    }
+
+    private static void setField(Object target, Class<?> owner, String name, Object value)
+            throws Exception {
+        java.lang.reflect.Field field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    @Test
+    public void genuineFallbackAttributesTheDecliningClassAndStaysBounded() {
+        // F15c: a genuine fail-open records which class declined, in a bounded map, without changing
+        // any existing counter. The benign no-pixel branch (F15b) is NOT attributed here.
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
+
+        AbstractGameEffect aura = supportedAuraEffect();
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(aura, "render");
+        NativeRenderBridge.recordEffectFailure(disposition.invocationId, aura);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> declined =
+                (Map<String, Integer>) NativeRenderBridge.probeSlice().get("declinedByClass");
+        assertNotNull("the probe exposes the per-class decline attribution", declined);
+        assertEquals("the declining class is named",
+                Integer.valueOf(1),
+                declined.get("com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect"));
+        assertEquals("declinedTotal counts the decline",
+                Integer.valueOf(1), NativeRenderBridge.probeSlice().get("declinedTotal"));
+        // Existing counters are unchanged by the new attribution.
+        assertEquals("fallback still records a delegated mismatch",
+                Integer.valueOf(1), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+        assertEquals("fallback still leaves evidence missing",
+                Integer.valueOf(1),
+                NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+    }
+
+    @Test
+    public void genuineFallbackWithoutAnEffectAttributesUnknown() {
+        // recordEffectFailure(long) with no effect names the decline "<unknown>" rather than dropping
+        // it, and the benign no-pixel branch is never attributed.
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(
+                supportedAuraEffect(), "render");
+
+        NativeRenderBridge.recordEffectFailure(disposition.invocationId);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> declined =
+                (Map<String, Integer>) NativeRenderBridge.probeSlice().get("declinedByClass");
+        assertNotNull(declined);
+        assertEquals(Integer.valueOf(1), declined.get("<unknown>"));
+
+        // The F15b benign branch stays separate: a blank flash decline is not attributed here.
+        NativeRenderBridge.resetForTests();
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(new Sts1VfxArtRenderer());
+        AbstractGameEffect blank = blankFlashEffect();
+        RenderDisposition blankDisposition = NativeRenderBridge.beginEffectRender(blank, "render");
+        NativeRenderBridge.recordEffectDeclined(blankDisposition.invocationId, blank);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> after =
+                (Map<String, Integer>) NativeRenderBridge.probeSlice().get("declinedByClass");
+        assertFalse("a benign no-pixel decline is not attributed as a genuine decline",
+                after.containsKey("com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect"));
+    }
+
+    @Test
     public void auraClaimPanicAndBackgroundOnlyStillWin() {
         VfxDelegationGate.setActive(true);
         VfxArtRenderer.setForTests(alwaysReadyAdapter());
@@ -1287,6 +1436,7 @@ public class NativeRenderBridgeTest {
             @Override public boolean render(SpriteBatch sb, AbstractGameEffect effect) {
                 return true;
             }
+            @Override public boolean canDraw(Object effect) { return true; }
         };
     }
 

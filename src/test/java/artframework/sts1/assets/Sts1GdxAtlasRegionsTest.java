@@ -88,6 +88,61 @@ public class Sts1GdxAtlasRegionsTest {
     }
 
     @Test
+    public void flippedRegionStaysFlipInvariantAndValid() {
+        Texture texture = newTexture(256, 256);
+        TextureAtlas.AtlasRegion gdx = new TextureAtlas.AtlasRegion(texture, 10, 20, 64, 48);
+        gdx.name = "shared";
+        gdx.originalWidth = 64;
+        gdx.originalHeight = 48;
+
+        AtlasRegion unflipped = Sts1GdxAtlasRegions.fromGdx(gdx);
+        assertTrue(unflipped.valid());
+        int originalLeft = unflipped.x;
+        int originalTop = unflipped.y;
+
+        // A native sibling flips the SHARED region in place: u/u2 swap (and offsetX mutates), so
+        // getRegionX() jumps to the right edge while getRegionWidth() stays the packed footprint.
+        gdx.flip(true, false);
+        assertTrue("the native flip really moved the sampled left edge",
+                gdx.getRegionX() > originalLeft);
+
+        AtlasRegion horizontal = Sts1GdxAtlasRegions.fromGdx(gdx);
+        assertNotNull("a flipped region still yields a descriptor", horizontal);
+        assertTrue("a flip-polluted region must stay valid", horizontal.valid());
+        assertEquals("the flip-invariant top-left is the ORIGINAL left edge",
+                originalLeft, horizontal.x);
+        assertEquals("the packed width is unchanged by the flip",
+                originalLeft + 64, horizontal.x + horizontal.width);
+        assertEquals(64, horizontal.width);
+        assertEquals(48, horizontal.height);
+
+        // Vertical flip: v/v2 swap, y must stay the original top edge and stay valid.
+        gdx.flip(false, false); // undo the horizontal flip on the shared region
+        gdx.flip(false, true);
+        AtlasRegion vertical = Sts1GdxAtlasRegions.fromGdx(gdx);
+        assertNotNull(vertical);
+        assertTrue("a vertically flip-polluted region must stay valid", vertical.valid());
+        assertEquals("the flip-invariant top is the ORIGINAL top edge", originalTop, vertical.y);
+        assertEquals(48, vertical.height);
+        assertEquals(64, vertical.width);
+    }
+
+    @Test
+    public void unflippedRegionLeftEdgeMatchesRegionXExactly() {
+        // The min-of-UV-corners rule must be byte-identical to getRegionX()/getRegionY() when the
+        // region is not flipped.
+        Texture texture = newTexture(256, 256);
+        TextureAtlas.AtlasRegion gdx = new TextureAtlas.AtlasRegion(texture, 33, 41, 64, 48);
+
+        AtlasRegion region = Sts1GdxAtlasRegions.fromGdx(gdx);
+
+        assertEquals(gdx.getRegionX(), region.x);
+        assertEquals(gdx.getRegionY(), region.y);
+        assertEquals(gdx.getRegionWidth(), region.width);
+        assertEquals(gdx.getRegionHeight(), region.height);
+    }
+
+    @Test
     public void nullRegionAndNullTextureReturnNull() {
         assertNull(Sts1GdxAtlasRegions.fromGdx(null));
 

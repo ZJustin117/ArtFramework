@@ -78,9 +78,10 @@ public final class TransientEffectContainerPatches {
                 return;
             }
             // Always consume the pending claim before failing open (never leave a delegated gap);
-            // the consume itself must not throw out of the observation path.
+            // the consume itself must not throw out of the observation path. A decline of an
+            // instance the native effect would not have drawn either is a benign no-pixel decline.
             try {
-                NativeRenderBridge.recordEffectFailure(disposition.invocationId);
+                NativeRenderBridge.recordEffectDeclined(disposition.invocationId, effect);
             } catch (Throwable error) {
                 NativeRenderBridge.recordEffectObservationFailure();
             }

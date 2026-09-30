@@ -14,7 +14,9 @@ package artframework.sts1.render;
  * {@code vfx-combat} {@code EntangleEffect} (byte-identical to {@code WebParticleEffect}) and
  * {@code BlockImpactLineEffect}/{@code UnknownParticleEffect} plus the {@code vfx-misc-root}
  * {@code ExhaustPileParticle}),
- * mirroring the native render formula exactly.
+ * mirroring the native render formula exactly; the five newest members are the {@code vfx-combat}
+ * {@code FlameParticleEffect}/{@code LightningOrbActivateEffect}/{@code DamageImpactBlurEffect}/
+ * {@code DamageImpactLineEffect}/{@code DarkOrbPassiveEffect}.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -26,7 +28,8 @@ package artframework.sts1.render;
  * {@code FlashAtkImgEffect} (the first), plus the {@code SmokeBlurEffect},
  * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code DebuffParticleEffect},
  * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
- * {@code ExhaustPileParticle}, and {@code UnknownParticleEffect}
+ * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, and
+ * {@code DamageImpactLineEffect}
  * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
@@ -103,14 +106,27 @@ package artframework.sts1.render;
  *                                 field and its own instance Texture img):
  *     sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, rotation,
  *             0, 0, 128, 128, false, false)
+ *   FlameParticleEffect.render (note: additive blend; vY is update-only):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   LightningOrbActivateEffect.render (note: additive blend):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   DamageImpactBlurEffect.render (note: no setBlendFunction; ambient blend; no isDone guard):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   DamageImpactLineEffect.render (note: no setBlendFunction; ambient blend; if (!isDone) guard):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   DarkOrbPassiveEffect.render (note: additive blend; uses the rotation field and its own instance
+ *                                 Texture img; src 0,0,74,74 is the full region):
+ *     sb.draw(img, x - 37f, y - 37f, 37f, 37f, 74f, 74f, scale, scale, rotation,
+ *             0, 0, 74, 74, false, false)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
- * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, Web, Entangle, and Unknown — draw a
+ * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown, and
+ * DarkOrb — draw a
  * fixed source rect
  * rather than a packed region, so their native origin/size/source rect are host-neutral constants
  * and the packed region size is ignored; Shield, Web, and Entangle hardcode rotation {@code 0f},
- * Debuff, IceShatter, and Unknown consume their {@code rotation} field, and Calm keeps its
+ * Debuff, IceShatter, Unknown, and DarkOrb consume their {@code rotation} field, and Calm keeps its
  * {@code scaleY} formula. Web and Entangle
  * are the only kinds whose native {@code render} rewrites the set color, forcing RGB to white
  * and taking alpha from the effect's color (see {@link #whiteAlphaOnly}). {@code DivinityStanceChangeParticle}, the
@@ -127,10 +143,12 @@ package artframework.sts1.render;
  * same {@link Kind#STANCE_AURA} formula branch. Only blend distinguishes them:
  * {@code FlashAtkImgEffect}/{@code SmokeBlurEffect}/{@code CeilingDustCloudEffect}/
  * {@code NemesisFireParticle}/{@code DebuffParticleEffect}/{@code GenericSmokeEffect}/
- * {@code ExhaustBlurEffect} never switch blend function, so
+ * {@code ExhaustBlurEffect}/{@code DamageImpactBlurEffect}/{@code DamageImpactLineEffect} never
+ * switch blend function, so
  * {@link #additiveBlend} reports
  * {@code false} for them, while the two fire bursts, {@code TorchParticleXLEffect},
- * {@code GhostlyWeakFireEffect}, and {@code ShieldParticleEffect} are additive
+ * {@code GhostlyWeakFireEffect}, {@code FlameParticleEffect}, {@code LightningOrbActivateEffect},
+ * and {@code ShieldParticleEffect} are additive
  * like the rest. {@code ShieldParticleEffect}/{@code DebuffParticleEffect} are the first two
  * members beyond {@code CalmParticleEffect} to draw a bare {@code Texture}, so they join the
  * fixed-source-rect shape via their own geometry branches rather than the packed-region branches;
@@ -151,6 +169,17 @@ package artframework.sts1.render;
  * src {@code (0, 0, 128, 128)}, consuming its {@code rotation} field — over its own instance
  * {@code Texture img}. It is the first kind whose fixed rect is not {@code (64, 64)} or
  * {@code (32, 32)}, and it draws under the ambient blend (no {@code setBlendFunction}).
+ * The five newest members are all {@code vfx-combat} and again reuse the two existing shapes:
+ * {@code FlameParticleEffect} ({@link Kind#FLAME_PARTICLE}) and
+ * {@code LightningOrbActivateEffect} ({@link Kind#LIGHTNING_ORB_ACTIVATE}) reuse the additive
+ * center-packed geometry, {@code DamageImpactBlurEffect} ({@link Kind#DAMAGE_IMPACT_BLUR}) and
+ * {@code DamageImpactLineEffect} ({@link Kind#DAMAGE_IMPACT_LINE}) reuse that same geometry under
+ * the ambient blend (neither calls {@code setBlendFunction}; only {@code DamageImpactLineEffect}
+ * guards its draw with {@code if (!isDone)}), and {@code DarkOrbPassiveEffect}
+ * ({@link Kind#DARK_ORB_PASSIVE}) is a NEW
+ * additive shape-C fixed-rect formula — offset {@code (-37, -37)}, origin {@code (37, 37)}, size
+ * {@code (74, 74)}, src {@code (0, 0, 74, 74)}, the full 74&times;74 region, consuming its
+ * {@code rotation} field — over its own instance {@code Texture img}.
  */
 public final class VfxDrawGeometry {
 
@@ -182,7 +211,12 @@ public final class VfxDrawGeometry {
         ENTANGLE,
         BLOCK_IMPACT_LINE,
         EXHAUST_PILE,
-        UNKNOWN_PARTICLE
+        UNKNOWN_PARTICLE,
+        FLAME_PARTICLE,
+        LIGHTNING_ORB_ACTIVATE,
+        DAMAGE_IMPACT_BLUR,
+        DAMAGE_IMPACT_LINE,
+        DARK_ORB_PASSIVE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -297,6 +331,24 @@ public final class VfxDrawGeometry {
     /** Native Unknown draw source rect height ({@code 128}). */
     public static final int UNKNOWN_SRC_H = 128;
 
+    // Native DarkOrbPassiveEffect draw constants (see the class Javadoc): fixed
+    // offset/origin/size and the fixed source rect (0, 0, 74, 74 — the full 74x74 region) over its
+    // own instance img Texture. The rotation comes from the field.
+    /** Native DarkOrb draw offset/origin ({@code 37f}). */
+    public static final float DARK_ORB_OFFSET = 37f;
+    /** Native DarkOrb draw origin ({@code 37f}). */
+    public static final float DARK_ORB_ORIGIN = 37f;
+    /** Native DarkOrb draw width/height ({@code 74f}). */
+    public static final float DARK_ORB_SIZE = 74f;
+    /** Native DarkOrb draw source rect x ({@code 0}). */
+    public static final int DARK_ORB_SRC_X = 0;
+    /** Native DarkOrb draw source rect y ({@code 0}). */
+    public static final int DARK_ORB_SRC_Y = 0;
+    /** Native DarkOrb draw source rect width ({@code 74}, the full region). */
+    public static final int DARK_ORB_SRC_W = 74;
+    /** Native DarkOrb draw source rect height ({@code 74}, the full region). */
+    public static final int DARK_ORB_SRC_H = 74;
+
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
         public final float x;
@@ -402,6 +454,13 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.BLOCK_IMPACT_LINE.equals(value)) return Kind.BLOCK_IMPACT_LINE;
         if (VfxClaimPolicy.EXHAUST_PILE_PARTICLE.equals(value)) return Kind.EXHAUST_PILE;
         if (VfxClaimPolicy.UNKNOWN_PARTICLE.equals(value)) return Kind.UNKNOWN_PARTICLE;
+        if (VfxClaimPolicy.FLAME_PARTICLE.equals(value)) return Kind.FLAME_PARTICLE;
+        if (VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE.equals(value)) {
+            return Kind.LIGHTNING_ORB_ACTIVATE;
+        }
+        if (VfxClaimPolicy.DAMAGE_IMPACT_BLUR.equals(value)) return Kind.DAMAGE_IMPACT_BLUR;
+        if (VfxClaimPolicy.DAMAGE_IMPACT_LINE.equals(value)) return Kind.DAMAGE_IMPACT_LINE;
+        if (VfxClaimPolicy.DARK_ORB_PASSIVE.equals(value)) return Kind.DARK_ORB_PASSIVE;
         return null;
     }
 
@@ -414,21 +473,25 @@ public final class VfxDrawGeometry {
      * <p>Most kinds are additive; the ambient kinds ({@link Kind#FLASH_ATK_IMG},
      * {@link Kind#SMOKE_BLUR}, {@link Kind#CEILING_DUST}, {@link Kind#NEMESIS_FIRE},
      * {@link Kind#DEBUFF_PARTICLE}, {@link Kind#GENERIC_SMOKE}, {@link Kind#EXHAUST_BLUR},
-     * {@link Kind#BLOCK_IMPACT_LINE}, {@link Kind#EXHAUST_PILE}, {@link Kind#UNKNOWN_PARTICLE})
+     * {@link Kind#BLOCK_IMPACT_LINE}, {@link Kind#EXHAUST_PILE}, {@link Kind#UNKNOWN_PARTICLE},
+     * {@link Kind#DAMAGE_IMPACT_BLUR}, {@link Kind#DAMAGE_IMPACT_LINE})
      * never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
      * nemesis fire are the first ambient members beyond it, {@link Kind#DEBUFF_PARTICLE} is the
      * first ambient bare-{@code Texture} member, {@link Kind#GENERIC_SMOKE}/{@link
-     * Kind#EXHAUST_BLUR} are the newest ambient packed-region members, and the newest ambient
+     * Kind#EXHAUST_BLUR} are the newest ambient packed-region members, the newest ambient
      * members are {@link Kind#BLOCK_IMPACT_LINE}/{@link Kind#EXHAUST_PILE} (ambient center-packed)
      * plus {@link Kind#UNKNOWN_PARTICLE} (the first ambient bare-{@code Texture} member of the new
-     * 128-rect). Every other kind — including
+     * 128-rect), and {@link Kind#DAMAGE_IMPACT_BLUR}/{@link Kind#DAMAGE_IMPACT_LINE} are the newest
+     * ambient center-packed members. Every other kind — including
      * the two fire
      * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}), the additive bare-texture
      * {@link Kind#SHIELD_PARTICLE}, the additive {@link Kind#TORCH_PARTICLE_XL}/{@link
      * Kind#GHOSTLY_WEAK_FIRE}, the two additive bare-texture members
-     * {@link Kind#ICE_SHATTER}/{@link Kind#WEB_PARTICLE}, and {@link Kind#ENTANGLE} — is additive.
+     * {@link Kind#ICE_SHATTER}/{@link Kind#WEB_PARTICLE}, {@link Kind#ENTANGLE}, the two newest
+     * additive center-packed members {@link Kind#FLAME_PARTICLE}/{@link Kind#LIGHTNING_ORB_ACTIVATE},
+     * and the newest additive bare-texture member {@link Kind#DARK_ORB_PASSIVE} — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -445,7 +508,28 @@ public final class VfxDrawGeometry {
                 && kind != Kind.EXHAUST_BLUR
                 && kind != Kind.BLOCK_IMPACT_LINE
                 && kind != Kind.EXHAUST_PILE
-                && kind != Kind.UNKNOWN_PARTICLE;
+                && kind != Kind.UNKNOWN_PARTICLE
+                && kind != Kind.DAMAGE_IMPACT_BLUR
+                && kind != Kind.DAMAGE_IMPACT_LINE;
+    }
+
+    /**
+     * Pure per-kind predicate: {@code true} only for the kinds whose native {@code render} can
+     * legitimately produce no pixels at all because it guards the draw on a present image. Today
+     * that is exactly {@link Kind#FLASH_ATK_IMG}, whose native {@code FlashAtkImgEffect.render}
+     * wraps its {@code sb.draw} in {@code if (img != null)} — so an instance with a null
+     * {@code img} draws nothing natively, and an ART fail-open on that instance loses no pixels.
+     * Every other claimable kind draws unconditionally (or draws a fixed static texture), so it is
+     * {@code false}. Callers use this to classify a declined claim as a benign no-pixel decline
+     * rather than a {@code dispositionMismatch}.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean nativeSkipsDrawWithoutImage(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.FLASH_ATK_IMG;
     }
 
     /**
@@ -456,7 +540,8 @@ public final class VfxDrawGeometry {
      * only the alpha from the effect's color ({@code EntangleEffect} is byte-identical to
      * {@code WebParticleEffect}). Every other kind (including the other bare-{@code Texture} members
      * {@link Kind#CALM_PARTICLE}, {@link Kind#SHIELD_PARTICLE}, {@link Kind#DEBUFF_PARTICLE},
-     * {@link Kind#ICE_SHATTER}, and {@link Kind#UNKNOWN_PARTICLE}) sets the effect's {@code color}
+     * {@link Kind#ICE_SHATTER}, {@link Kind#UNKNOWN_PARTICLE}, and {@link Kind#DARK_ORB_PASSIVE})
+     * sets the effect's {@code color}
      * unchanged, so the host draw must not rewrite its RGB.
      *
      * @throws IllegalArgumentException when {@code kind} is null
@@ -474,7 +559,8 @@ public final class VfxDrawGeometry {
      * {@link #additiveBlend}: additive kinds install/restore {@code 770/1}-&rarr;{@code 770/771},
      * while the ambient kinds ({@code FLASH_ATK_IMG}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
      * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR},
-     * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE})
+     * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE},
+     * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE})
      * leave the ambient blend untouched and restore
      * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
      * {@code ENTANGLE}) that also rewrite their set color's
@@ -509,6 +595,10 @@ public final class VfxDrawGeometry {
             case EXHAUST_BLUR:
             case BLOCK_IMPACT_LINE:
             case EXHAUST_PILE:
+            case FLAME_PARTICLE:
+            case LIGHTNING_ORB_ACTIVATE:
+            case DAMAGE_IMPACT_BLUR:
+            case DAMAGE_IMPACT_LINE:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -517,7 +607,10 @@ public final class VfxDrawGeometry {
                 // owns a vY field — TorchParticleLEffect and all nine newer members — uses it only
                 // in update()), center origin, packed size, uniform scale. Flash, the smoke blur,
                 // the ceiling dust, the nemesis fire, the generic smoke, and the exhaust blur differ
-                // only in blend (ambient, via additiveBlend == false).
+                // only in blend (ambient, via additiveBlend == false). The five newest members
+                // mirror the same geometry: FlameParticleEffect and LightningOrbActivateEffect are
+                // additive while DamageImpactBlurEffect and DamageImpactLineEffect never call
+                // setBlendFunction (ambient, again only additiveBlend differs).
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
             case DIVINITY_PARTICLE:
@@ -576,6 +669,14 @@ public final class VfxDrawGeometry {
                 // dur_div2, duration, and Settings.scale are unused.
                 return new Params(x - UNKNOWN_OFFSET, y - UNKNOWN_OFFSET,
                         UNKNOWN_ORIGIN, UNKNOWN_ORIGIN, UNKNOWN_SIZE, UNKNOWN_SIZE,
+                        scale, scale, rotation);
+            case DARK_ORB_PASSIVE:
+                // Native DarkOrbPassiveEffect ignores the (absent) region: a new fixed
+                // offset/origin/size rect and the field rotation; packedWidth/packedHeight, vY,
+                // dur_div2, duration, and Settings.scale are unused. Its src rect is (0, 0, 74, 74),
+                // the full 74x74 region the effect passes natively.
+                return new Params(x - DARK_ORB_OFFSET, y - DARK_ORB_OFFSET,
+                        DARK_ORB_ORIGIN, DARK_ORB_ORIGIN, DARK_ORB_SIZE, DARK_ORB_SIZE,
                         scale, scale, rotation);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);

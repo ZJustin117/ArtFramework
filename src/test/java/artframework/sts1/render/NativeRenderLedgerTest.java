@@ -433,6 +433,55 @@ public class NativeRenderLedgerTest {
     }
 
     @Test
+    public void declinedClassAttributionIsBoundedAndStillTotalsEveryDecline() {
+        NativeRenderLedger ledger = new NativeRenderLedger();
+        int cap = NativeRenderLedger.DECLINED_CLASS_CAPACITY;
+        int overflow = 10;
+
+        for (int i = 0; i < cap + overflow; i++) {
+            ledger.recordDeclinedClass("example.Decline" + i);
+        }
+
+        assertEquals("the per-class map is bounded by the cap",
+                cap, ledger.declinedByClass().size());
+        assertEquals("declinedTotal counts every decline",
+                cap + overflow, ledger.declinedTotal());
+        assertEquals("the oldest classes were evicted",
+                Integer.valueOf(overflow), ledger.probeSlice().get("declinedOverflow"));
+        // The probe exposes the bounded attribution diagnostics additively.
+        assertEquals(Integer.valueOf(cap + overflow), ledger.probeSlice().get("declinedTotal"));
+        assertEquals(cap, ((Map<?, ?>) ledger.probeSlice().get("declinedByClass")).size());
+
+        // Repeated declines of one class accumulate; null/blank collapse to "<unknown>".
+        ledger.recordDeclinedClass("example.Repeat");
+        ledger.recordDeclinedClass("example.Repeat");
+        ledger.recordDeclinedClass(null);
+        ledger.recordDeclinedClass("   ");
+        assertEquals(Integer.valueOf(2), ledger.declinedByClass().get("example.Repeat"));
+        assertEquals(Integer.valueOf(2),
+                ledger.declinedByClass().get(NativeRenderLedger.UNKNOWN_DECLINED_CLASS));
+
+        // clear() resets the attribution alongside the other counters.
+        ledger.clear();
+        assertEquals(0, ledger.declinedTotal());
+        assertTrue(ledger.declinedByClass().isEmpty());
+    }
+
+    @Test
+    public void declinedClassAttributionDoesNotAffectStrictAcceptance() {
+        // The attribution is diagnostic only: it never feeds the strict report.
+        NativeRenderLedger ledger = new NativeRenderLedger();
+        ledger.recordDeclinedClass("example.Decline");
+        ledger.recordDeclinedClass("example.Decline");
+
+        assertFalse("attribution must not appear in the strict report",
+                ledger.strictReport().containsKey("declinedByClass"));
+        assertFalse(ledger.strictReport().containsKey("declinedTotal"));
+        assertEquals("a fresh ledger with only diagnostics still accepts strictly",
+                Boolean.TRUE, ledger.strictReport().get("accepted"));
+    }
+
+    @Test
     public void closeInvocationCannotEraseUndecidedStrictGap() {
         NativeRenderLedger ledger = new NativeRenderLedger();
         ledger.recordInvocation(invocation(1L, 1L));

@@ -69,6 +69,11 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.BLOCK_IMPACT_LINE));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.EXHAUST_PILE_PARTICLE));
         assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.UNKNOWN_PARTICLE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.FLAME_PARTICLE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.DAMAGE_IMPACT_BLUR));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.DAMAGE_IMPACT_LINE));
+        assertTrue(VfxClaimPolicy.supports(VfxClaimPolicy.DARK_ORB_PASSIVE));
     }
 
     @Test
@@ -126,26 +131,39 @@ public class VfxDelegationSeamTest {
         assertTrue(VfxClaimPolicy.supportedClasses()
                 .contains(VfxClaimPolicy.EXHAUST_PILE_PARTICLE));
         assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.UNKNOWN_PARTICLE));
-        assertEquals("the four newest FQNs are appended last, in order",
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.FLAME_PARTICLE));
+        assertTrue(VfxClaimPolicy.supportedClasses()
+                .contains(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.DAMAGE_IMPACT_BLUR));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.DAMAGE_IMPACT_LINE));
+        assertTrue(VfxClaimPolicy.supportedClasses().contains(VfxClaimPolicy.DARK_ORB_PASSIVE));
+        assertEquals("the five newest FQNs are appended last, in order",
+                java.util.Arrays.asList(VfxClaimPolicy.FLAME_PARTICLE,
+                        VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE, VfxClaimPolicy.DAMAGE_IMPACT_BLUR,
+                        VfxClaimPolicy.DAMAGE_IMPACT_LINE, VfxClaimPolicy.DARK_ORB_PASSIVE),
+                VfxClaimPolicy.supportedClasses().subList(
+                        VfxClaimPolicy.supportedClasses().size() - 5,
+                        VfxClaimPolicy.supportedClasses().size()));
+        assertEquals("the four F14 FQNs are appended before the five newest, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ENTANGLE_EFFECT,
                         VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
                         VfxClaimPolicy.UNKNOWN_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 4,
-                        VfxClaimPolicy.supportedClasses().size()));
+                        VfxClaimPolicy.supportedClasses().size() - 9,
+                        VfxClaimPolicy.supportedClasses().size() - 5));
         assertEquals("the two newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ICE_SHATTER, VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 6,
-                        VfxClaimPolicy.supportedClasses().size() - 4));
+                        VfxClaimPolicy.supportedClasses().size() - 11,
+                        VfxClaimPolicy.supportedClasses().size() - 9));
         assertEquals("the six newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.SCENE_TORCH_PARTICLE_XL,
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 10,
-                        VfxClaimPolicy.supportedClasses().size() - 4));
+                        VfxClaimPolicy.supportedClasses().size() - 15,
+                        VfxClaimPolicy.supportedClasses().size() - 9));
         assertEquals("the thirteen newest FQNs stay in append order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
@@ -155,10 +173,10 @@ public class VfxDelegationSeamTest {
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
                 VfxClaimPolicy.supportedClasses().subList(
-                        VfxClaimPolicy.supportedClasses().size() - 17,
-                        VfxClaimPolicy.supportedClasses().size() - 4));
-        assertEquals("the last FQN is the unknown particle",
-                VfxClaimPolicy.UNKNOWN_PARTICLE,
+                        VfxClaimPolicy.supportedClasses().size() - 22,
+                        VfxClaimPolicy.supportedClasses().size() - 9));
+        assertEquals("the last FQN is the dark orb passive",
+                VfxClaimPolicy.DARK_ORB_PASSIVE,
                 VfxClaimPolicy.supportedClasses()
                         .get(VfxClaimPolicy.supportedClasses().size() - 1));
     }
@@ -175,6 +193,7 @@ public class VfxDelegationSeamTest {
             @Override public boolean isReady(String nativeClassName) { return true; }
             @Override public boolean render(com.badlogic.gdx.graphics.g2d.SpriteBatch sb,
                     com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) { return true; }
+            @Override public boolean canDraw(Object effect) { return true; }
         });
 
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT));
@@ -195,10 +214,15 @@ public class VfxDelegationSeamTest {
                     com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
                 throw new IllegalStateException("draw boom");
             }
+            @Override public boolean canDraw(Object effect) {
+                throw new IllegalStateException("canDraw boom");
+            }
         });
 
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT));
         assertFalse(VfxArtRenderer.render(null, null));
+        assertFalse("a throwing canDraw delegator fails closed",
+                VfxArtRenderer.canDraw(new Object()));
     }
 
     @Test
@@ -207,6 +231,7 @@ public class VfxDelegationSeamTest {
             @Override public boolean isReady(String nativeClassName) { return true; }
             @Override public boolean render(com.badlogic.gdx.graphics.g2d.SpriteBatch sb,
                     com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) { return true; }
+            @Override public boolean canDraw(Object effect) { return true; }
         });
 
         VfxArtRenderer.setForTests(null);
@@ -242,6 +267,7 @@ public class VfxDelegationSeamTest {
             }
             @Override public boolean render(com.badlogic.gdx.graphics.g2d.SpriteBatch sb,
                     com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) { return true; }
+            @Override public boolean canDraw(Object effect) { return true; }
         });
 
         Map<String, Object> probe = VfxArtRenderer.probeSlice();
@@ -271,6 +297,7 @@ public class VfxDelegationSeamTest {
             }
             @Override public boolean render(com.badlogic.gdx.graphics.g2d.SpriteBatch sb,
                     com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) { return false; }
+            @Override public boolean canDraw(Object effect) { return false; }
         });
         VfxDelegationGate.setActive(true);
 

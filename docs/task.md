@@ -332,6 +332,110 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       phases. No new patch, bridge, or console wiring; default-off gate + per-instance token
       semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F15 (five more `vfx-combat` members: two additive + two ambient center-packed and one
+      new additive 74×74 shape-C rect):
+      `com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect` and
+      `com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect` reuse the additive
+      center-packed `STANCE_AURA` params branch;
+      `com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect` and
+      `com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect` reuse that same geometry under the
+      ambient blend (`additiveBlend` false, no `setBlendFunction`; only `DamageImpactLineEffect`
+      guards its draw with `if (!isDone)`, the blur is straight-line); and
+      `com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect` introduces a NEW additive shape-C
+      fixed rect `sb.draw(img, x - 37f, y - 37f, 37f, 37f, 74f, 74f, scale, scale, rotation, 0, 0,
+      74, 74, false, false)` over its own instance `Texture img` with new host-neutral constants
+      (`DARK_ORB_OFFSET`/`DARK_ORB_ORIGIN`/`DARK_ORB_SIZE`/`DARK_ORB_SRC_*`, the src `0,0,74,74`
+      being the full 74×74 region it passes natively) and the inherited `rotation` field consumed
+      (`readTextureFields` requires `rotation` for DARK_ORB_PASSIVE and resolves the instance
+      `Texture`, both added to `usesInstanceTexture`). `VfxClaimPolicy.FLAME_PARTICLE`/
+      `LIGHTNING_ORB_ACTIVATE`/`DAMAGE_IMPACT_BLUR`/`DAMAGE_IMPACT_LINE`/`DARK_ORB_PASSIVE` append
+      last to `supportedClasses()` in that order. `VfxLabSpawn.classNameFor` gains `"flame"`
+      (`new FlameParticleEffect(960f, 540f)`), `"lightningorb"`/`"lightningactivate"`
+      (`new LightningOrbActivateEffect(960f, 540f)`), `"damageblur"`/`"dmgblur"`
+      (`new DamageImpactBlurEffect(960f, 540f)`), `"damageline"`/`"dmgline"`
+      (`new DamageImpactLineEffect(960f, 540f)`), and `"darkorb"`/`"darkorbpassive"`
+      (`new DarkOrbPassiveEffect(960f, 540f)`) — aliases checked against the existing set for
+      collisions — behind the existing fail-open guard, and
+      `art claim spawn flame|lightningorb|damageblur|damageline|darkorb 4` runs in both
+      `d1_aura_claim.yaml` phases. No new patch, bridge, or console wiring; default-off gate +
+      per-instance token semantics unchanged. Focused no-GL JUnit only.
+
+      Known limitations / deferred: (a) `FlameParticleEffect` sets `img.flip(!flipX, false)`
+      immediately before its draw (`flipX` is a per-instance mirror), which the claimed draw does not
+      reproduce — the claimed pixels are therefore un-mirrored relative to native for that member;
+      (b) `com.megacrit.cardcrawl.vfx.FallingDustEffect` was screened but DEFERRED because its native
+      origin uses the region's `offsetX`/`offsetY` (it would need a region-offset-origin rule rather
+      than an existing draw shape), and `com.megacrit.cardcrawl.vfx.combat.StunStarEffect` DEFERRED
+      because its origin is `x - vX*30f*Settings.scale`, `y - vY*5f*Settings.scale` (it would need a
+      settings-scaled-offset rule keyed on the effect's own `vX`/`vY`).
+
+- [x] NRO-04 F15b (benign no-pixel decline classification): a claimed instance whose native draw
+      legitimately produces no pixels is no longer counted as a `dispositionMismatch` /
+      `delegatedWithoutEvidence`. `VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind)` is a pure
+      predicate that is true ONLY for `FLASH_ATK_IMG` (whose native `FlashAtkImgEffect.render` guards
+      the draw with `if (img != null)`, so a null-`img` instance draws nothing natively);
+      `VfxArtRenderer.Adapter` gained `canDraw(Object effect)` (true when the adapter could actually
+      draw this exact instance) with a public static delegator that returns false when no adapter is
+      installed, implemented by `Sts1VfxArtRenderer.canDraw` to mirror `render`'s early-return
+      conditions (fields resolve and the resolved region/texture is present; shared
+      `resolveTexture` helper, no `render` behavior change). `NativeRenderBridge
+      .recordEffectDeclined(invocationId, effect)` replaces the fail-open `recordEffectFailure` call
+      in both observation patches: for a no-pixel kind the ART renderer cannot draw it either, so the
+      delegated lifecycle is completed without pixel evidence
+      (`completeDelegatedWithoutEvidence` + `recordNoPixelIsolation`) and the mismatch /
+      terminal-missing-evidence counters are left untouched; every other declined claim keeps the
+      existing fallback accounting, so a genuine renderer defect is never masked and
+      `nativeRenderStrict.accepted` stays reachable under heavy mixed bursts. `recordEffectFailure`
+      is retained for the other fallback paths. Focused no-GL JUnit only.
+
+- [x] NRO-04 F15c (bounded per-class decline attribution for D1 diagnosis): the render ledger now
+      tracks which native class fails open/declines on the GENUINE fallback path.
+      `NativeRenderLedger.recordDeclinedClass(String)` keeps a bounded `LinkedHashMap` of
+      class-name→count (cap `DECLINED_CLASS_CAPACITY` = 64 distinct names, oldest evicted beyond the
+      cap and tracked by `declinedOverflow`; null/blank collapses to `"<unknown>"`). The probe
+      exposes it additively as `declinedByClass` (bounded className→count map), `declinedTotal`
+      (every decline, independent of the cap), and `declinedOverflow`; these are diagnostic-only and
+      deliberately NOT added to `strictReport()`, so strict acceptance is untouched.
+      `NativeRenderBridge.recordEffectFailure(long, effect)` (new effect-taking overload; the
+      1-arg form delegates with `null` → `"<unknown>"`) and the genuine branch of
+      `recordEffectDeclined(long, effect)` attribute the declining class; both observation patches
+      already pass the effect instance. The F15b benign no-pixel branch (`nativeSkipsDrawWithoutImage`
+      + `!canDraw`) is unchanged and is NOT attributed as a genuine decline.
+      **No behavior change:** no claim/render/gate/token semantics, and no existing counter
+      (`dispositionMismatch`, `delegatedWithoutEvidence`, `noPixelIsolation`, …) changed; only new
+      additive probe keys. Focused no-GL JUnit only.
+
+      Open question for a follow-up (documented, not fixed here): a claim that fails open ALWAYS
+      continues natively (the patches call `effect.render(sb)` after the record call), so no pixels
+      are actually lost — yet `recordDelegatedFallbackIfPending` still books it as
+      `dispositionMismatch` + `delegatedWithoutEvidence`. Under heavy live combat with many claimable
+      ambient effects this grows for the whole claimable set (D1 saw 109 == 109 with
+      `noPixelIsolation == 0`), which may make the strict `accepted == 0` gate unreachable in heavy
+      live combat even though nothing is mis-rendered; F15c is the first step so the offending classes
+      can be NAMED before deciding whether the fallback should be exempted from the mismatch counter.
+
+- [x] NRO-04 F15d (flip-invariant atlas conversion + canonical img-path draw): a shared static
+      libGDX `AtlasRegion` (`ImageMaster.FLAME_1/2/3`) that a NATIVE sibling flips in place
+      (`region.flip(!flipX, false)`) swaps `u`/`u2` (and `AtlasRegion.flip` mutates `offsetX`), so
+      `getRegionX()` jumped to the RIGHT edge while `getRegionWidth()` stayed the packed footprint;
+      `Sts1GdxAtlasRegions.fromGdx` copied `getRegionX()` into the neutral `x`, making
+      `valid()` fail `x + width <= pageWidth` for regions near the page's right edge →
+      `render` returned false → the claim failed open → `dispositionMismatch`/
+      `delegatedWithoutEvidence` grew and `nativeRenderStrict.accepted` became unreachable in live
+      combat (lab spawns never triggered a native flip, so per-FQN isolation showed `+0`). `fromGdx`
+      is now flip-invariant: the neutral top-left is the MINIMUM of the two UV corners
+      (`round(min(u,u2)*pageWidth)`, `round(min(v,v2)*pageHeight)`) and the packed footprint is
+      unchanged by a flip, so it is byte-identical to `getRegionX()/getRegionY()` for an unflipped
+      region. The img path additionally draws a canonical (pollution-immune) `TextureRegion` view
+      (`u`=min, `u2`=max, `v`=min, `v2`=max, same texture) instead of the possibly-flipped shared
+      region, since the claim suppresses the native draw; params/blend/color/kind routing are
+      unchanged, and the null-region / invalid-neutral fail-open is preserved. This removes the false
+      `FlameParticleEffect`/`RedFireBurstParticleEffect` fail-opens (both draw the shared `FLAME_*`
+      regions); `RedFireBurstParticleEffect` never flips so parity is exact, while
+      `FlameParticleEffect`'s per-instance `flipX` mirror remains the documented F15 limitation (the
+      canonical orientation is drawn, not the per-instance mirror). No ledger-counter, F15b/F15c,
+      gate/token, scenario-YAML, or non-img geometry change. Focused no-GL JUnit only.
+
 - [ ] NRO-04 screening note: `com.megacrit.cardcrawl.vfx.combat.WarningSignEffect` was screened and
       DEFERRED — its `scale` is hardcoded `Settings.scale * 2f` (there is no `scale` field), so
       claiming it would need a new scale-rule capability rather than an existing draw shape.

@@ -11,6 +11,10 @@ import java.util.TreeMap;
 public final class NativeRenderLedger {
     static final int RECENT_HISTORY_CAPACITY = 256;
     static final int RECOVERY_TOMBSTONE_CAPACITY = 256;
+    /** Bound on the distinct class names tracked in {@link #declinedByClass}. */
+    static final int DECLINED_CLASS_CAPACITY = 64;
+    /** Class-name bucket used when a decline has no (or a blank) class name. */
+    static final String UNKNOWN_DECLINED_CLASS = "<unknown>";
 
     private static final class Record {
         final NativeRenderInvocation invocation;
@@ -26,6 +30,11 @@ public final class NativeRenderLedger {
     private final Map<Long, Record> recent = new LinkedHashMap<Long, Record>();
     private final Map<Long, RenderDisposition> recoveryTombstones =
             new LinkedHashMap<Long, RenderDisposition>();
+    /**
+     * Bounded per-class attribution for the genuine fail-open/decline path (diagnostic only; never
+     * feeds strict acceptance). Evicts the oldest class name beyond {@link #DECLINED_CLASS_CAPACITY}.
+     */
+    private final Map<String, Integer> declinedByClass = new LinkedHashMap<String, Integer>();
 
     private long invocationIdHighWater;
     private boolean hasInvocationId;
@@ -47,6 +56,8 @@ public final class NativeRenderLedger {
     private int leakedTransientEntityCount;
     private int recoveryFailOpenCount;
     private int cancelledInvocationCount;
+    private int declinedTotalCount;
+    private int declinedOverflowCount;
 
     /** Records ART output for the exact native invocation that produced it. */
     public synchronized void recordEvidence(long invocationId, String entityId, long frameId,
@@ -302,6 +313,39 @@ public final class NativeRenderLedger {
     /** Records an isolate-only absence result; this is not ART pixel evidence. */
     public synchronized void recordNoPixelIsolation() { noPixelIsolationCount++; }
 
+    /**
+     * Bounded diagnostic attribution for the genuine fail-open/decline path: records which native
+     * class name declined. A null/blank name collapses to {@value #UNKNOWN_DECLINED_CLASS}. The map
+     * keeps at most {@link #DECLINED_CLASS_CAPACITY} distinct names, evicting the oldest beyond the
+     * cap (tracked by {@code declinedOverflow}); {@code declinedTotal} always counts every call.
+     * Diagnostic only: this never feeds strict acceptance.
+     */
+    public synchronized void recordDeclinedClass(String className) {
+        String key = className == null || className.trim().isEmpty()
+                ? UNKNOWN_DECLINED_CLASS : className;
+        declinedTotalCount++;
+        Integer current = declinedByClass.get(key);
+        if (current == null && declinedByClass.size() >= DECLINED_CLASS_CAPACITY) {
+            java.util.Iterator<String> oldest = declinedByClass.keySet().iterator();
+            if (oldest.hasNext()) {
+                oldest.next();
+                oldest.remove();
+                declinedOverflowCount++;
+            }
+        }
+        declinedByClass.put(key, Integer.valueOf(current == null ? 1 : current.intValue() + 1));
+    }
+
+    /** Bounded snapshot of the per-class decline attribution (className -> count). */
+    public synchronized Map<String, Integer> declinedByClass() {
+        return Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(declinedByClass));
+    }
+
+    /** Total genuine declines recorded, independent of the bounded per-class map. */
+    public synchronized int declinedTotal() {
+        return declinedTotalCount;
+    }
+
     /** Close an invocation explicitly during scene/recovery cleanup. */
     public synchronized void closeInvocation(long id) {
         Long key = Long.valueOf(id);
@@ -418,6 +462,10 @@ public final class NativeRenderLedger {
         out.put("recoveryTombstoneCapacity", Integer.valueOf(RECOVERY_TOMBSTONE_CAPACITY));
         out.put("leakedTransientEntity", Integer.valueOf(leakedTransientEntityCount));
         out.put("cancelledInvocation", Integer.valueOf(cancelledInvocationCount));
+        // Diagnostic-only per-class decline attribution for the genuine fail-open path (bounded).
+        out.put("declinedByClass", declinedByClass());
+        out.put("declinedTotal", Integer.valueOf(declinedTotalCount));
+        out.put("declinedOverflow", Integer.valueOf(declinedOverflowCount));
         return out;
     }
 
@@ -478,5 +526,8 @@ public final class NativeRenderLedger {
         leakedTransientEntityCount = 0;
         recoveryFailOpenCount = 0;
         cancelledInvocationCount = 0;
+        declinedByClass.clear();
+        declinedTotalCount = 0;
+        declinedOverflowCount = 0;
     }
 }

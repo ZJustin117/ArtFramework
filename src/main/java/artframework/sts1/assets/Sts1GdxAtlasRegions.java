@@ -42,6 +42,18 @@ package artframework.sts1.assets;
  * This adapter uses the empty string as a stable, deterministic placeholder; a host that needs a
  * real page key must supply it separately (for example from its own atlas/page table).
  *
+ * <p><strong>Flip invariance.</strong> STS1 hands out <em>shared static</em> {@code AtlasRegion}s
+ * (for example {@code ImageMaster.FLAME_1}) that native siblings also draw, and {@code
+ * TextureRegion.flip(true, *)} swaps {@code u}/{@code u2} in place (and {@code AtlasRegion.flip}
+ * additionally mutates {@code offsetX}). A flipped region therefore reports
+ * {@code getRegionX() == round(u * texWidth)} at the <em>right</em> edge while
+ * {@code getRegionWidth()} stays the packed footprint, which would make the neutral descriptor
+ * spuriously invalid ({@code x + width > pageWidth}). This adapter is therefore flip-invariant: it
+ * derives the neutral top-left from the <em>minimum</em> of the two UV corners, while the packed
+ * footprint ({@code getRegionWidth()}/{@code getRegionHeight()}) is unchanged by a flip. For an
+ * unflipped region ({@code u < u2}, {@code v < v2}) this is identical to reading
+ * {@code getRegionX()}/{@code getRegionY()}.
+ *
  * <p><strong>No GL.</strong> Only {@code getTexture()}, {@code getRegionX()}/{@code getRegionY()},
  * {@code getRegionWidth()}/{@code getRegionHeight()} and public fields are read. No method that
  * binds or uploads a texture (for example {@code getTextureObjectHandle()}) is ever called, so the
@@ -86,11 +98,18 @@ public final class Sts1GdxAtlasRegions {
         // displayWidth()/displayHeight() swap then recovers the gdx visual size.
         int packedWidth = region.getRegionWidth();
         int packedHeight = region.getRegionHeight();
+        // Flip-invariant top-left: use the minimum of the two UV corners. TextureRegion.flip(true,*)
+        // swaps u/u2 in place (AtlasRegion.flip also mutates offsetX), so getRegionX() would sit at
+        // the RIGHT edge of a flipped shared region while getRegionWidth() stays the packed footprint;
+        // taking the min restores the true top-left and is identical to getRegionX()/getRegionY() for
+        // an unflipped region (u < u2, v < v2). The packed footprint itself is flip-invariant.
+        int left = Math.round(Math.min(region.getU(), region.getU2()) * pageWidth);
+        int top = Math.round(Math.min(region.getV(), region.getV2()) * pageHeight);
         return new artframework.assets.AtlasRegion(
                 PAGE_LABEL,
                 region.name,
-                region.getRegionX(),
-                region.getRegionY(),
+                left,
+                top,
                 packedWidth,
                 packedHeight,
                 pageWidth,

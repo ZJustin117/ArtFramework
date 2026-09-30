@@ -170,6 +170,7 @@ public class VfxClaimConsumptionTest {
                 if (throwsOnDraw) throw new IllegalStateException("aura draw boom");
                 return draws;
             }
+            @Override public boolean canDraw(Object effect) { return true; }
         };
     }
 

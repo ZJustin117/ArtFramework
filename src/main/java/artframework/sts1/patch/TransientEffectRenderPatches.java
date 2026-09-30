@@ -55,11 +55,11 @@ public final class TransientEffectRenderPatches {
                 return SpireReturn.Return(null);
             }
             // Always consume the pending claim before failing open (never leave a delegated gap);
-            // the consume itself must not throw out of the observation path.
+            // the consume itself must not throw out of the observation path. A decline of an
+            // instance the native effect would not have drawn either is a benign no-pixel decline.
             try {
-                NativeRenderBridge.recordEffectFailure(disposition.invocationId);
-            } catch (Throwable error) {
-                NativeRenderBridge.recordEffectObservationFailure();
+                NativeRenderBridge.recordEffectDeclined(disposition.invocationId, __instance);
+            } catch (Throwable error) {                NativeRenderBridge.recordEffectObservationFailure();
             }
             return SpireReturn.Continue();
         }

@@ -32,6 +32,14 @@ public final class VfxArtRenderer {
         boolean isReady(String nativeClassName);
 
         boolean render(SpriteBatch sb, AbstractGameEffect effect);
+
+        /**
+         * True when {@link #render} could actually produce a draw for this exact instance, i.e. the
+         * same field/resource checks {@code render} performs up to the point of drawing all pass.
+         * Used to distinguish a benign no-pixel decline (the native effect would draw nothing
+         * either) from a genuine renderer failure.
+         */
+        boolean canDraw(Object effect);
     }
 
     private static volatile Adapter adapter;
@@ -73,6 +81,21 @@ public final class VfxArtRenderer {
         if (current == null) return false;
         try {
             return current.render(sb, effect);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * True only when the installed adapter could actually draw this exact instance (the same
+     * field/resource checks {@link #render} performs before drawing). Returns {@code false} when no
+     * adapter is installed or the probe throws, mirroring the {@link #render} delegator style.
+     */
+    public static boolean canDraw(Object effect) {
+        Adapter current = adapter;
+        if (current == null) return false;
+        try {
+            return current.canDraw(effect);
         } catch (Throwable ignored) {
             return false;
         }

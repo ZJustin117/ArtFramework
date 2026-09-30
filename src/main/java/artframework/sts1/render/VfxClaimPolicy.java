@@ -71,7 +71,14 @@ import java.util.List;
  * {@code vfx-combat} {@code UnknownParticleEffect} introduces one new ambient fixed rect
  * ({@code sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, rotation, 0, 0, 128,
  * 128, false, false)}) over its own instance {@code Texture img} and consuming its {@code rotation}
- * field. The additive
+ * field. The five newest members are all {@code vfx-combat} and reuse the two existing shapes: the
+ * {@code FlameParticleEffect} and {@code LightningOrbActivateEffect} reuse the additive
+ * center-packed geometry, the {@code DamageImpactBlurEffect} and {@code DamageImpactLineEffect}
+ * reuse that same geometry under the ambient blend (neither calls {@code setBlendFunction}), and the
+ * {@code DarkOrbPassiveEffect} introduces one new additive shape-C fixed rect
+ * ({@code sb.draw(img, x - 37f, y - 37f, 37f, 37f, 74f, 74f, scale, scale, rotation, 0, 0, 74, 74,
+ * false, false)}) over its own instance {@code Texture img} and consuming its {@code rotation}
+ * field (the src rect is the full 74&times;74 region). The additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
  */
@@ -131,6 +138,16 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.ExhaustPileParticle";
     public static final String UNKNOWN_PARTICLE =
             "com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect";
+    public static final String FLAME_PARTICLE =
+            "com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect";
+    public static final String LIGHTNING_ORB_ACTIVATE =
+            "com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect";
+    public static final String DAMAGE_IMPACT_BLUR =
+            "com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect";
+    public static final String DAMAGE_IMPACT_LINE =
+            "com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect";
+    public static final String DARK_ORB_PASSIVE =
+            "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -140,7 +157,9 @@ public final class VfxClaimPolicy {
                     CEILING_DUST, NEMESIS_FIRE, SHIELD_PARTICLE, DEBUFF_PARTICLE,
                     SCENE_TORCH_PARTICLE_XL, GHOSTLY_WEAK_FIRE, GENERIC_SMOKE, EXHAUST_BLUR,
                     ICE_SHATTER, WEB_PARTICLE, ENTANGLE_EFFECT, BLOCK_IMPACT_LINE,
-                    EXHAUST_PILE_PARTICLE, UNKNOWN_PARTICLE));
+                    EXHAUST_PILE_PARTICLE, UNKNOWN_PARTICLE, FLAME_PARTICLE,
+                    LIGHTNING_ORB_ACTIVATE, DAMAGE_IMPACT_BLUR, DAMAGE_IMPACT_LINE,
+                    DARK_ORB_PASSIVE));
 
     private VfxClaimPolicy() {}
 
@@ -175,7 +194,12 @@ public final class VfxClaimPolicy {
                 || ENTANGLE_EFFECT.equals(value)
                 || BLOCK_IMPACT_LINE.equals(value)
                 || EXHAUST_PILE_PARTICLE.equals(value)
-                || UNKNOWN_PARTICLE.equals(value);
+                || UNKNOWN_PARTICLE.equals(value)
+                || FLAME_PARTICLE.equals(value)
+                || LIGHTNING_ORB_ACTIVATE.equals(value)
+                || DAMAGE_IMPACT_BLUR.equals(value)
+                || DAMAGE_IMPACT_LINE.equals(value)
+                || DARK_ORB_PASSIVE.equals(value);
     }
 
     /**
@@ -204,7 +228,13 @@ public final class VfxClaimPolicy {
      * BlockImpactLineEffect} and {@code ExhaustPileParticle} are ambient center-packed
      * {@code AtlasRegion} members ({@code ExhaustPileParticle.img} is {@code private static}), and
      * {@code UnknownParticleEffect} is the first ambient bare-{@code Texture} member whose fixed
-     * source rect is {@code (128, 128)} and whose {@code rotation} field IS consumed.
+     * source rect is {@code (128, 128)} and whose {@code rotation} field IS consumed. The five
+     * newest members ({@code FlameParticleEffect}, {@code LightningOrbActivateEffect},
+     * {@code DamageImpactBlurEffect}, {@code DamageImpactLineEffect}, {@code DarkOrbPassiveEffect})
+     * — all {@code vfx-combat} — are appended after the unknown particle in that order; the first
+     * two reuse the additive center-packed geometry, the next two reuse it ambiently (no
+     * {@code setBlendFunction}), and {@code DarkOrbPassiveEffect} is the first additive
+     * bare-{@code Texture} member of a new {@code 74}-rect whose {@code rotation} field IS consumed.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

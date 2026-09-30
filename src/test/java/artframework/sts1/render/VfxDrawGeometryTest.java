@@ -154,6 +154,32 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect"));
+        // the five newest members, via constants and literal FQNs
+        assertSame(VfxDrawGeometry.Kind.FLAME_PARTICLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FLAME_PARTICLE));
+        assertSame(VfxDrawGeometry.Kind.FLAME_PARTICLE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect"));
+        assertSame(VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE));
+        assertSame(VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect"));
+        assertSame(VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.DAMAGE_IMPACT_BLUR));
+        assertSame(VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect"));
+        assertSame(VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.DAMAGE_IMPACT_LINE));
+        assertSame(VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect"));
+        assertSame(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.DARK_ORB_PASSIVE));
+        assertSame(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect"));
     }
 
     @Test
@@ -340,6 +366,51 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.UnknownParticleEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.combat.UnknownParticle")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("FlameParticleEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.FlameParticleEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlameParticle")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("LightningOrbActivateEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.LightningOrbActivateEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.LightningOrbActivate")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("DamageImpactBlurEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DamageImpactBlurEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DamageImpactEffect")); // near-miss (no Blur)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("DamageImpactLineEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DamageImpactLineEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DamageImpactEffect")); // near-miss (no Line)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("DarkOrbPassiveEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DarkOrbPassiveEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassive")); // near-miss (no Effect)
     }
 
     @Test
@@ -1025,6 +1096,86 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
+    public void fiveNewestMembersReuseTheExistingShapesWithOneNewFixedRect() {
+        // The five newest vfx-combat members: FlameParticleEffect and LightningOrbActivateEffect
+        // reuse the additive center-packed geometry; DamageImpactBlurEffect and
+        // DamageImpactLineEffect reuse it ambiently; DarkOrbPassiveEffect is a NEW additive fixed
+        // rect over its own instance Texture that consumes its rotation field.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.FLAME_PARTICLE,
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE }) {
+            VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph);
+
+            assertEquals("x passthrough for " + kind, x, p.x, EPS);
+            assertEquals("y passthrough for " + kind, y, p.y, EPS);
+            assertEquals("originX for " + kind, pw / 2f, p.originX, EPS);
+            assertEquals("originY for " + kind, ph / 2f, p.originY, EPS);
+            assertEquals("width for " + kind, pw, p.width, EPS);
+            assertEquals("height for " + kind, ph, p.height, EPS);
+            assertEquals("scaleX for " + kind, scale, p.scaleX, EPS);
+            assertEquals("scaleY for " + kind, scale, p.scaleY, EPS);
+            assertEquals("rotation for " + kind, rotation, p.rotation, EPS);
+            assertEquals("geometry must equal STANCE_AURA for " + kind, aura, p);
+        }
+
+        assertTrue("FLAME_PARTICLE is additive",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLAME_PARTICLE));
+        assertTrue("LIGHTNING_ORB_ACTIVATE is additive",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE));
+        assertFalse("DAMAGE_IMPACT_BLUR never calls setBlendFunction",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR));
+        assertFalse("DAMAGE_IMPACT_LINE never calls setBlendFunction",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE));
+
+        // DarkOrbPassiveEffect: a new additive 74x74 fixed rect using the rotation field.
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
+                x, y, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+
+        assertEquals(x - 37f, p.x, EPS);
+        assertEquals(y - 37f, p.y, EPS);
+        assertEquals(37f, p.originX, EPS);
+        assertEquals(37f, p.originY, EPS);
+        assertEquals(74f, p.width, EPS);
+        assertEquals(74f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("the rotation field is consumed", rotation, p.rotation, EPS);
+
+        // A different vY and packed size produce byte-identical geometry.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f);
+        assertEquals(p, q);
+
+        assertEquals(37f, VfxDrawGeometry.DARK_ORB_OFFSET, EPS);
+        assertEquals(37f, VfxDrawGeometry.DARK_ORB_ORIGIN, EPS);
+        assertEquals(74f, VfxDrawGeometry.DARK_ORB_SIZE, EPS);
+        assertEquals(0, VfxDrawGeometry.DARK_ORB_SRC_X);
+        assertEquals(0, VfxDrawGeometry.DARK_ORB_SRC_Y);
+        assertEquals(74, VfxDrawGeometry.DARK_ORB_SRC_W);
+        assertEquals(74, VfxDrawGeometry.DARK_ORB_SRC_H);
+
+        assertTrue("DARK_ORB_PASSIVE is additive",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE));
+    }
+
+    @Test
     public void additiveBlendIsTrueForEveryKindExceptTheAmbientOnes() {
         // FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect, NemesisFireParticle, and
         // DebuffParticleEffect never call setBlendFunction natively, so their host draw must not
@@ -1059,6 +1210,14 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.EXHAUST_PILE));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE));
 
+        // The five newest members: the flame particle, lightning orb activate, and dark orb passive
+        // are additive; the damage impact blur and line never call setBlendFunction (ambient).
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLAME_PARTICLE));
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE));
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -1069,7 +1228,9 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.EXHAUST_BLUR
                     || kind == VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE
                     || kind == VfxDrawGeometry.Kind.EXHAUST_PILE
-                    || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE) {
+                    || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR
+                    || kind == VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -1081,6 +1242,68 @@ public class VfxDrawGeometryTest {
     public void additiveBlendNullKindThrowsIllegalArgument() {
         try {
             VfxDrawGeometry.additiveBlend(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void nativeSkipsDrawWithoutImageIsTrueOnlyForFlashAtkImg() {
+        // Only FlashAtkImgEffect guards its native draw with if (img != null); every other kind
+        // either draws unconditionally or draws a fixed static texture.
+        assertTrue("only FLASH_ATK_IMG guards its draw on a present image",
+                VfxDrawGeometry.nativeSkipsDrawWithoutImage(
+                        VfxDrawGeometry.Kind.FLASH_ATK_IMG));
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                VfxDrawGeometry.Kind.WRATH_PARTICLE,
+                VfxDrawGeometry.Kind.DIVINITY_PARTICLE,
+                VfxDrawGeometry.Kind.CALM_PARTICLE,
+                VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
+                VfxDrawGeometry.Kind.LIGHT_FLARE,
+                VfxDrawGeometry.Kind.LIGHT_FLARE_M,
+                VfxDrawGeometry.Kind.LIGHT_FLARE_L,
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_L,
+                VfxDrawGeometry.Kind.FIRE_BURST,
+                VfxDrawGeometry.Kind.RED_FIRE_BURST,
+                VfxDrawGeometry.Kind.SMOKE_BLUR,
+                VfxDrawGeometry.Kind.CEILING_DUST,
+                VfxDrawGeometry.Kind.NEMESIS_FIRE,
+                VfxDrawGeometry.Kind.SHIELD_PARTICLE,
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
+                VfxDrawGeometry.Kind.TORCH_PARTICLE_XL,
+                VfxDrawGeometry.Kind.GHOSTLY_WEAK_FIRE,
+                VfxDrawGeometry.Kind.GENERIC_SMOKE,
+                VfxDrawGeometry.Kind.EXHAUST_BLUR,
+                VfxDrawGeometry.Kind.ICE_SHATTER,
+                VfxDrawGeometry.Kind.WEB_PARTICLE,
+                VfxDrawGeometry.Kind.ENTANGLE,
+                VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE,
+                VfxDrawGeometry.Kind.EXHAUST_PILE,
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
+                VfxDrawGeometry.Kind.FLAME_PARTICLE,
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
+                VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE,
+                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE }) {
+            assertFalse("must not be a no-pixel-without-image kind: " + kind,
+                    VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind));
+        }
+
+        // The truth table is exhaustive over the enum except FLASH_ATK_IMG.
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            assertEquals("no-pixel-without-image must be FLASH_ATK_IMG-only for " + kind,
+                    kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG,
+                    VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind));
+        }
+    }
+
+    @Test
+    public void nativeSkipsDrawWithoutImageNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.nativeSkipsDrawWithoutImage(null);
             fail("expected IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
             // expected
@@ -1102,6 +1325,8 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.SHIELD_PARTICLE));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.DEBUFF_PARTICLE));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FLAME_PARTICLE));
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE

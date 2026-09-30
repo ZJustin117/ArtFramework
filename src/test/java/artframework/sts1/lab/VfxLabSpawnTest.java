@@ -82,6 +82,22 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.UNKNOWN_PARTICLE, VfxLabSpawn.classNameFor("unknown"));
         assertEquals(VfxClaimPolicy.UNKNOWN_PARTICLE,
                 VfxLabSpawn.classNameFor("unknownparticle"));
+        assertEquals(VfxClaimPolicy.FLAME_PARTICLE, VfxLabSpawn.classNameFor("flame"));
+        assertEquals(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE,
+                VfxLabSpawn.classNameFor("lightningorb"));
+        assertEquals(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE,
+                VfxLabSpawn.classNameFor("lightningactivate"));
+        assertEquals(VfxClaimPolicy.DAMAGE_IMPACT_BLUR,
+                VfxLabSpawn.classNameFor("damageblur"));
+        assertEquals(VfxClaimPolicy.DAMAGE_IMPACT_BLUR,
+                VfxLabSpawn.classNameFor("dmgblur"));
+        assertEquals(VfxClaimPolicy.DAMAGE_IMPACT_LINE,
+                VfxLabSpawn.classNameFor("damageline"));
+        assertEquals(VfxClaimPolicy.DAMAGE_IMPACT_LINE,
+                VfxLabSpawn.classNameFor("dmgline"));
+        assertEquals(VfxClaimPolicy.DARK_ORB_PASSIVE, VfxLabSpawn.classNameFor("darkorb"));
+        assertEquals(VfxClaimPolicy.DARK_ORB_PASSIVE,
+                VfxLabSpawn.classNameFor("darkorbpassive"));
     }
 
     @Test
@@ -140,6 +156,22 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.UNKNOWN_PARTICLE, VfxLabSpawn.classNameFor("  UnKnOwN "));
         assertEquals(VfxClaimPolicy.UNKNOWN_PARTICLE,
                 VfxLabSpawn.classNameFor("UNKNOWNPARTICLE"));
+        assertEquals(VfxClaimPolicy.FLAME_PARTICLE, VfxLabSpawn.classNameFor("  FlAmE "));
+        assertEquals(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE,
+                VfxLabSpawn.classNameFor("  LiGhTnInGoRb "));
+        assertEquals(VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE,
+                VfxLabSpawn.classNameFor("LIGHTNINGACTIVATE"));
+        assertEquals(VfxClaimPolicy.DAMAGE_IMPACT_BLUR,
+                VfxLabSpawn.classNameFor("  DaMaGeBlUr "));
+        assertEquals(VfxClaimPolicy.DAMAGE_IMPACT_BLUR,
+                VfxLabSpawn.classNameFor("DMGBLUR"));
+        assertEquals(VfxClaimPolicy.DAMAGE_IMPACT_LINE,
+                VfxLabSpawn.classNameFor("  DaMaGeLiNe "));
+        assertEquals(VfxClaimPolicy.DAMAGE_IMPACT_LINE,
+                VfxLabSpawn.classNameFor("DMGLINE"));
+        assertEquals(VfxClaimPolicy.DARK_ORB_PASSIVE, VfxLabSpawn.classNameFor("  DaRkOrB "));
+        assertEquals(VfxClaimPolicy.DARK_ORB_PASSIVE,
+                VfxLabSpawn.classNameFor("DARKORBPASSIVE"));
     }
 
     @Test
@@ -391,6 +423,21 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("exhaustparticle", VfxClaimPolicy.EXHAUST_PILE_PARTICLE);
         assertSpawnRequests("unknown", VfxClaimPolicy.UNKNOWN_PARTICLE);
         assertSpawnRequests("unknownparticle", VfxClaimPolicy.UNKNOWN_PARTICLE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF15MembersThroughTheFactorySeam() {
+        // The five newest claimable FQNs; the capturing factory proves each alias requests exactly
+        // its FQN without touching the ImageMaster/texture-backed constructors.
+        assertSpawnRequests("flame", VfxClaimPolicy.FLAME_PARTICLE);
+        assertSpawnRequests("lightningorb", VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE);
+        assertSpawnRequests("lightningactivate", VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE);
+        assertSpawnRequests("damageblur", VfxClaimPolicy.DAMAGE_IMPACT_BLUR);
+        assertSpawnRequests("dmgblur", VfxClaimPolicy.DAMAGE_IMPACT_BLUR);
+        assertSpawnRequests("damageline", VfxClaimPolicy.DAMAGE_IMPACT_LINE);
+        assertSpawnRequests("dmgline", VfxClaimPolicy.DAMAGE_IMPACT_LINE);
+        assertSpawnRequests("darkorb", VfxClaimPolicy.DARK_ORB_PASSIVE);
+        assertSpawnRequests("darkorbpassive", VfxClaimPolicy.DARK_ORB_PASSIVE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

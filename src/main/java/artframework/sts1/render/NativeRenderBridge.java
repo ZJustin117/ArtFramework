@@ -653,13 +653,66 @@ public final class NativeRenderBridge {
 
     /**
      * Fails a pending transient-effect claim open to native and always consumes its token. It must
-     * not throw: a stale id with no token is a no-op.
+     * not throw: a stale id with no token is a no-op. The declining class is attributed as
+     * {@code "<unknown>"} because no effect instance is supplied; use the overload that takes the
+     * effect to name the class.
      */
     public static void recordEffectFailure(long invocationId) {
+        recordEffectFailure(invocationId, null);
+    }
+
+    /**
+     * Fails a pending transient-effect claim open to native, always consuming its token, and
+     * attributes the decline to the effect's class name for diagnostics. It must not throw: a stale
+     * id with no token is a no-op.
+     */
+    public static void recordEffectFailure(long invocationId,
+            com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
         synchronized (BRIDGE_LOCK) {
             try {
                 if (!isVfxClaimInvocation(invocationId)) return;
-                if (LEDGER.recordDelegatedFallbackIfPending(invocationId)) return;
+                if (LEDGER.recordDelegatedFallbackIfPending(invocationId)) {
+                    LEDGER.recordDeclinedClass(
+                            effect == null ? null : effect.getClass().getName());
+                    return;
+                }
+                if (LEDGER.isPendingDelegated(invocationId)) LEDGER.recordOrphanArtOutput();
+            } finally {
+                removeEffectInvocation(invocationId);
+            }
+        }
+    }
+
+    /**
+     * Records a declined claim for the given instance, distinguishing a benign no-pixel decline from
+     * a genuine renderer failure. When the kind natively draws nothing without an image
+     * ({@link VfxDrawGeometry#nativeSkipsDrawWithoutImage}) and the ART renderer could not draw the
+     * instance either ({@link VfxArtRenderer#canDraw}), the native effect would also have produced
+     * no pixels, so failing open loses nothing: the delegated lifecycle is completed without pixel
+     * evidence and counted as no-pixel isolation, NOT as a {@code dispositionMismatch} /
+     * {@code delegatedWithoutEvidence}. Every other declined claim keeps the existing fallback
+     * accounting. Always consumes the pending claim token and never throws.
+     */
+    public static void recordEffectDeclined(
+            long invocationId, com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
+        synchronized (BRIDGE_LOCK) {
+            try {
+                if (!isVfxClaimInvocation(invocationId)) return;
+                VfxDrawGeometry.Kind kind = VfxDrawGeometry.kindFor(
+                        effect == null ? null : effect.getClass().getName());
+                if (kind != null && VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind)
+                        && !VfxArtRenderer.canDraw(effect)) {
+                    if (LEDGER.completeDelegatedWithoutEvidence(invocationId)) {
+                        LEDGER.recordNoPixelIsolation();
+                    }
+                    return;
+                }
+                if (LEDGER.recordDelegatedFallbackIfPending(invocationId)) {
+                    // Genuine fallback: attribute the decline to the effect's class for diagnosis.
+                    LEDGER.recordDeclinedClass(
+                            effect == null ? null : effect.getClass().getName());
+                    return;
+                }
                 if (LEDGER.isPendingDelegated(invocationId)) LEDGER.recordOrphanArtOutput();
             } finally {
                 removeEffectInvocation(invocationId);

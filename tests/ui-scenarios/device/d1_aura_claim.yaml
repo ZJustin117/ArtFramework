@@ -7,9 +7,10 @@
 # FireBurstParticleEffect/NemesisFireParticle/GhostlyWeakFireEffect/GenericSmokeEffect/
 # ExhaustBlurEffect, the vfx-combat
 # FlashAtkImgEffect/RedFireBurstParticleEffect/SmokeBlurEffect, and the four bare-Texture
-# ShieldParticleEffect/DebuffParticleEffect/IceShatterEffect/WebParticleEffect, plus the four newest
-# EntangleEffect/BlockImpactLineEffect/UnknownParticleEffect (vfx-combat) and ExhaustPileParticle).
-# Gate-OFF is
+# ShieldParticleEffect/DebuffParticleEffect/IceShatterEffect/WebParticleEffect, the four newest
+# EntangleEffect/BlockImpactLineEffect/UnknownParticleEffect (vfx-combat) and ExhaustPileParticle,
+# plus the five newest vfx-combat FlameParticleEffect/LightningOrbActivateEffect/
+# DamageImpactBlurEffect/DamageImpactLineEffect/DarkOrbPassiveEffect). Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.
 #
@@ -93,6 +94,11 @@ steps:
   - console: "art claim spawn blockline 4"
   - console: "art claim spawn exhaustpile 4"
   - console: "art claim spawn unknown 4"
+  - console: "art claim spawn flame 4"
+  - console: "art claim spawn lightningorb 4"
+  - console: "art claim spawn damageblur 4"
+  - console: "art claim spawn damageline 4"
+  - console: "art claim spawn darkorb 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -151,6 +157,11 @@ steps:
   - console: "art claim spawn blockline 4"
   - console: "art claim spawn exhaustpile 4"
   - console: "art claim spawn unknown 4"
+  - console: "art claim spawn flame 4"
+  - console: "art claim spawn lightningorb 4"
+  - console: "art claim spawn damageblur 4"
+  - console: "art claim spawn damageline 4"
+  - console: "art claim spawn darkorb 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.helpers.ImageMaster;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
@@ -26,8 +27,12 @@ import java.lang.reflect.Field;
  * {@code IceShatterEffect}, and {@code WebParticleEffect}, and the four newest members
  * {@code EntangleEffect} (reusing the Web static-texture config), {@code BlockImpactLineEffect} and
  * {@code ExhaustPileParticle} (ambient center-packed; the latter's {@code img} is a
- * {@code private static} field), and {@code UnknownParticleEffect} (a new ambient fixed rect over
- * its own instance {@code Texture})).
+ * {@code private static} field), {@code UnknownParticleEffect} (a new ambient fixed rect over
+ * its own instance {@code Texture}), and the five newest {@code vfx-combat} members
+ * {@code FlameParticleEffect}/{@code LightningOrbActivateEffect} (additive center-packed),
+ * {@code DamageImpactBlurEffect}/{@code DamageImpactLineEffect} (ambient center-packed), and
+ * {@code DarkOrbPassiveEffect} (a new additive fixed rect over its own instance
+ * {@code Texture})).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -41,7 +46,8 @@ import java.lang.reflect.Field;
  * {@code VfxDrawGeometry.additiveBlend(kind)} is {@code false}: {@code FlashAtkImgEffect},
  * {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect}, {@code NemesisFireParticle},
  * {@code DebuffParticleEffect}, {@code GenericSmokeEffect}, {@code ExhaustBlurEffect},
- * {@code BlockImpactLineEffect}, {@code ExhaustPileParticle}, and {@code UnknownParticleEffect}).
+ * {@code BlockImpactLineEffect}, {@code ExhaustPileParticle}, {@code UnknownParticleEffect},
+ * {@code DamageImpactBlurEffect}, and {@code DamageImpactLineEffect}).
  * {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload.
@@ -104,11 +110,13 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * Immutable snapshot of the fields a bare-{@code Texture} draw needs ({@code CalmParticleEffect}
      * / {@code ShieldParticleEffect} / {@code DebuffParticleEffect} / {@code IceShatterEffect} /
-     * {@code WebParticleEffect} / {@code EntangleEffect} / {@code UnknownParticleEffect}).
+     * {@code WebParticleEffect} / {@code EntangleEffect} / {@code UnknownParticleEffect} /
+     * {@code DarkOrbPassiveEffect}).
      * {@code rotation} is required for the kinds whose formula consumes
-     * it (Calm, Debuff, IceShatter, Unknown) and optional (defaulting to {@code 0}) for Shield, Web,
+     * it (Calm, Debuff, IceShatter, Unknown, DarkOrb) and optional (defaulting to {@code 0}) for
+     * Shield, Web,
      * and Entangle, which hardcode {@code 0f}; {@code img} is a {@link Texture} for Debuff,
-     * IceShatter, and Unknown and {@code null} otherwise (Web/Entangle resolve the static
+     * IceShatter, Unknown, and DarkOrb and {@code null} otherwise (Web/Entangle resolve the static
      * {@link ImageMaster#WEB_VFX}).
      */
     static final class TextureFields {
@@ -194,12 +202,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * Snapshots the fields a bare-{@code Texture} draw needs. Required: {@code x}, {@code y},
      * {@code scale}, {@code color} ({@link Color}); {@code rotation} is additionally required for
-     * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE}/{@code ICE_SHATTER}/{@code UNKNOWN_PARTICLE}
+     * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE}/{@code ICE_SHATTER}/{@code UNKNOWN_PARTICLE}/
+     * {@code DARK_ORB_PASSIVE}
      * (whose formula consumes it)
      * and optional (defaulting to {@code 0}) for {@code SHIELD_PARTICLE}/{@code WEB_PARTICLE}/
      * {@code ENTANGLE} (hardcoded rotation); {@code dur_div2}/{@code duration} are optional and
      * default to {@code 0}.
-     * For {@code DEBUFF_PARTICLE}, {@code ICE_SHATTER}, and {@code UNKNOWN_PARTICLE} the instance
+     * For {@code DEBUFF_PARTICLE}, {@code ICE_SHATTER}, {@code UNKNOWN_PARTICLE}, and
+     * {@code DARK_ORB_PASSIVE} the instance
      * {@code img} must be a
      * {@link Texture} (CALM/SHIELD/WEB/ENTANGLE resolve a static {@code ImageMaster} texture
      * instead); a missing/mistyped {@code img} fails the snapshot. Returns {@code null} when the
@@ -210,7 +220,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         boolean requireRotation = kind == VfxDrawGeometry.Kind.CALM_PARTICLE
                 || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ICE_SHATTER
-                || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE;
+                || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
+                || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
@@ -241,14 +252,37 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * True for the bare-{@code Texture} kinds that resolve their own instance {@code Texture img}
      * rather than a static {@code ImageMaster} texture ({@code DebuffParticleEffect},
-     * {@code IceShatterEffect}, {@code UnknownParticleEffect}). {@code CalmParticleEffect},
+     * {@code IceShatterEffect}, {@code UnknownParticleEffect}, {@code DarkOrbPassiveEffect}).
+     * {@code CalmParticleEffect},
      * {@code ShieldParticleEffect}, {@code WebParticleEffect}, and {@code EntangleEffect} draw a
      * static {@code ImageMaster} texture instead.
      */
     private static boolean usesInstanceTexture(VfxDrawGeometry.Kind kind) {
         return kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ICE_SHATTER
-                || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE;
+                || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
+                || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE;
+    }
+
+    /**
+     * Builds a canonical (pollution-immune) {@link TextureRegion} view of a live gdx
+     * {@code AtlasRegion}: the packed footprint normalized to its canonical orientation
+     * ({@code u}=min, {@code u2}=max, {@code v}=min, {@code v2}=max) with the same texture. Native
+     * siblings draw the same shared static regions and call {@code region.flip(...)} in place, which
+     * swaps {@code u}/{@code u2} (and, for {@code AtlasRegion}, {@code offsetX}); the claim
+     * suppresses that native draw, so ART must emit the canonical rect rather than whatever a native
+     * sibling last left behind. Returns {@code null} when the region or its texture is null. Never
+     * mutates the input region.
+     */
+    private static TextureRegion canonicalRegion(TextureAtlas.AtlasRegion region) {
+        if (region == null) return null;
+        Texture texture = region.getTexture();
+        if (texture == null) return null;
+        float u = Math.min(region.getU(), region.getU2());
+        float u2 = Math.max(region.getU(), region.getU2());
+        float v = Math.min(region.getV(), region.getV2());
+        float v2 = Math.max(region.getV(), region.getV2());
+        return new TextureRegion(texture, u, v, u2, v2);
     }
 
     /**
@@ -256,8 +290,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * including its per-kind blend behavior ({@link VfxDrawGeometry#additiveBlend}: additive for
      * most kinds, ambient — no {@code setBlendFunction} call — for the ambient kinds
      * {@code FlashAtkImgEffect}, {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect},
-     * {@code NemesisFireParticle}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle}, and
-     * {@code UnknownParticleEffect}).
+     * {@code NemesisFireParticle}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
+     * {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, and
+     * {@code DamageImpactLineEffect}).
      *
      * <p>For the img-based kinds: the region comes from the effect's own live
      * {@code img} through {@link Sts1GdxAtlasRegions#fromGdx}, geometry from
@@ -266,20 +301,23 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code (SRC_ALPHA, ONE)} and restore {@code (SRC_ALPHA, ONE_MINUS_SRC_ALPHA)};
      * the ambient kinds ({@code FlashAtkImgEffect}, {@code SmokeBlurEffect},
      * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code BlockImpactLineEffect},
-     * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}) never call
+     * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
+     * and {@code DamageImpactLineEffect}) never call
      * {@code setBlendFunction} natively, so their path draws
      * under the ambient blend and restores only the previous color. Every branch restores the
      * previous color. That draw uses the {@code SpriteBatch#draw(TextureRegion, ...)} overload with
      * the same arguments the native call passes, so libGDX resolves the region's UV rect (including
      * any atlas {@code rotate} baking) exactly as the native effect does.
      *
-     * <p>The bare-{@code Texture} kinds (Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown)
+     * <p>The bare-{@code Texture} kinds (Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown,
+     * DarkOrb)
      * have no packed
      * region: they draw a fixed source rect, so this branch resolves the native {@link Texture} the
      * render reads — {@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm,
      * {@link ImageMaster#INTENT_DEFEND} for Shield, {@link ImageMaster#WEB_VFX} for Web and Entangle,
      * and the
-     * effect's own instance {@code img} for Debuff, IceShatter, and Unknown — and replays the native
+     * effect's own instance {@code img} for Debuff, IceShatter, Unknown, and DarkOrb — and replays
+     * the native
      * raw
      * texture + source-rect overload.
      *
@@ -300,7 +338,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                     || kind == VfxDrawGeometry.Kind.ICE_SHATTER
                     || kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                     || kind == VfxDrawGeometry.Kind.ENTANGLE
-                    || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE) {
+                    || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE) {
                 return renderTexture(sb, kind, effect);
             }
             Fields f = readFields(kind, effect);
@@ -309,7 +348,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             if (gdx == null || gdx.getTexture() == null) return false;
             AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
             if (neutral == null || !neutral.valid()) return false;
+            // The claim suppresses native rendering, so draw a CANONICAL (pollution-immune) view
+            // rather than the possibly-natively-flipped shared region: a native sibling may have
+            // called region.flip(...) in place on this same static AtlasRegion.
+            TextureRegion canonical = canonicalRegion(gdx);
+            if (canonical == null) return false;
             float settingsScale = Settings.scale;
+            // getRegionWidth()/getRegionHeight() are the flip-invariant packed footprint, so they
+            // equal the canonical region's width/height even when the shared region was flipped.
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                     kind, f.x, f.y, f.vY, f.scale, f.rotation, f.durDiv2, f.duration,
                     settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight());
@@ -327,7 +373,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                     sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
                     blendChanged = true;
                 }
-                sb.draw(gdx, p.x, p.y, p.originX, p.originY, p.width, p.height,
+                sb.draw(canonical, p.x, p.y, p.originX, p.originY, p.width, p.height,
                         p.scaleX, p.scaleY, p.rotation);
                 return true;
             } finally {
@@ -364,10 +410,67 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * True only when {@link #render} could actually draw this exact instance: the class maps to a
+     * kind, the required fields resolve, and the resolved region/texture is present. Mirrors
+     * {@code render}'s early-return conditions up to (but not including) the batch draw, so a
+     * {@code false} here means the native effect would also produce no pixels for this instance
+     * under this renderer. Never throws.
+     */
+    @Override
+    public boolean canDraw(Object effect) {
+        if (effect == null) return false;
+        try {
+            VfxDrawGeometry.Kind kind = VfxDrawGeometry.kindFor(effect.getClass().getName());
+            if (kind == null) return false;
+            if (kind == VfxDrawGeometry.Kind.CALM_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.ICE_SHATTER
+                    || kind == VfxDrawGeometry.Kind.WEB_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.ENTANGLE
+                    || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE) {
+                TextureFields f = readTextureFields(kind, effect);
+                if (f == null) return false;
+                return resolveTexture(kind, f) != null;
+            }
+            Fields f = readFields(kind, effect);
+            if (f == null) return false;
+            TextureAtlas.AtlasRegion gdx = f.img;
+            if (gdx == null || gdx.getTexture() == null) return false;
+            AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+            return neutral != null && neutral.valid();
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Resolves the native {@link Texture} the bare-{@code Texture} kinds draw (the static
+     * {@link ImageMaster} textures for Calm/Shield/Web/Entangle, the instance {@code img} for
+     * Debuff/IceShatter/Unknown/DarkOrb), or {@code null} when it is absent. Shared by
+     * {@link #renderTexture} and {@link #canDraw} so the two stay consistent.
+     */
+    private static Texture resolveTexture(VfxDrawGeometry.Kind kind, TextureFields f) {
+        if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
+            return ImageMaster.INTENT_DEFEND;
+        }
+        if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
+                || kind == VfxDrawGeometry.Kind.ENTANGLE) {
+            // WebParticleEffect and EntangleEffect share the static ImageMaster.WEB_VFX Texture.
+            return ImageMaster.WEB_VFX;
+        }
+        if (usesInstanceTexture(kind)) {
+            return f.img;
+        }
+        return ImageMaster.FROST_ACTIVATE_VFX_1;
+    }
+
+    /**
      * Bare-{@code Texture} branch: resolves the native texture the kind's {@code render} reads
      * ({@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm, {@link ImageMaster#INTENT_DEFEND} for
      * Shield, {@link ImageMaster#WEB_VFX} for Web and Entangle, the effect's own {@code img} for
-     * Debuff, IceShatter, and Unknown), replays the raw texture + source-rect draw with the
+     * Debuff, IceShatter, Unknown, and DarkOrb), replays the raw texture + source-rect draw with the
      * {@link VfxDrawGeometry#params}
      * geometry and the per-kind src rect, honors {@link VfxDrawGeometry#additiveBlend}, applies the
      * {@link VfxDrawGeometry#whiteAlphaOnly} color rule (Web and Entangle force the set color's RGB
@@ -378,18 +481,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             AbstractGameEffect effect) {
         TextureFields f = readTextureFields(kind, effect);
         if (f == null) return false;
-        Texture texture;
-        if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
-            texture = ImageMaster.INTENT_DEFEND;
-        } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
-                || kind == VfxDrawGeometry.Kind.ENTANGLE) {
-            // WebParticleEffect and EntangleEffect share the static ImageMaster.WEB_VFX Texture.
-            texture = ImageMaster.WEB_VFX;
-        } else if (usesInstanceTexture(kind)) {
-            texture = f.img;
-        } else {
-            texture = ImageMaster.FROST_ACTIVATE_VFX_1;
-        }
+        Texture texture = resolveTexture(kind, f);
         if (texture == null) return false;
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 kind, f.x, f.y, 0f, f.scale, f.rotation,
@@ -418,6 +510,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.UNKNOWN_SRC_Y;
             srcW = VfxDrawGeometry.UNKNOWN_SRC_W;
             srcH = VfxDrawGeometry.UNKNOWN_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE) {
+            // DarkOrbPassiveEffect passes the full 74x74 region as its src rect.
+            srcX = VfxDrawGeometry.DARK_ORB_SRC_X;
+            srcY = VfxDrawGeometry.DARK_ORB_SRC_Y;
+            srcW = VfxDrawGeometry.DARK_ORB_SRC_W;
+            srcH = VfxDrawGeometry.DARK_ORB_SRC_H;
         } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
             // WebParticleEffect and EntangleEffect share the static WEB_VFX src rect.

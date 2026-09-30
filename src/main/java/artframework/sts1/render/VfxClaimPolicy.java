@@ -109,10 +109,17 @@ import java.util.List;
  * an ambient member to the same geometry branch. The
  * two newest members are the {@code vfx-combat} {@code FlyingSpikeEffect} (additive center-packed,
  * no new rule) and the {@code vfx-misc-root} {@code ConeEffect} (ambient center-packed with the new
- * {@code originX = 0f} origin rule and a {@code scale * 1.1f} uniform scale); {@code
- * DamageHeartEffect} was screened but is NOT claimed (its native {@code render} is guarded by
- * {@code if (delayTimer < 0f)}, the same wait-phase guard that defers {@code FallingIceEffect}).
- * The
+ * {@code originX = 0f} origin rule and a {@code scale * 1.1f} uniform scale). The two newest
+ * members add the seam's first per-kind NATIVE DRAW GUARD (see
+ * {@link VfxDrawGeometry#nativeSkipsDrawByGuard} and {@link VfxDrawGeometry#guardFieldName}): the
+ * {@code vfx-combat} {@code FallingIceEffect} is a shape-C fixed-rect kind (instance
+ * {@code Texture img}, offset/origin 48, size 96&times;96, src {@code 0,0,96,96}, additive, consuming
+ * its {@code rotation} field) whose native {@code render} is guarded by
+ * {@code if (waitTimer < 0f)}, and the {@code vfx-misc-root} {@code DamageHeartEffect} is an ambient
+ * center-packed kind (its {@code img} is a public {@code AtlasRegion}) whose native {@code render} is
+ * guarded by {@code if (delayTimer < 0f)}. Both were previously screened out for that wait-phase
+ * guard; the guard rule now keeps a claimed instance in pixel parity by declining (drawing nothing)
+ * whenever the guard field is present and {@code >= 0f}, exactly like the native wait phase. The
  * additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
@@ -209,6 +216,10 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect";
     public static final String CONE_EFFECT =
             "com.megacrit.cardcrawl.vfx.ConeEffect";
+    public static final String FALLING_ICE =
+            "com.megacrit.cardcrawl.vfx.combat.FallingIceEffect";
+    public static final String DAMAGE_HEART =
+            "com.megacrit.cardcrawl.vfx.DamageHeartEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -223,7 +234,8 @@ public final class VfxClaimPolicy {
                     DARK_ORB_PASSIVE, WARNING_SIGN, STUN_STAR, FALLING_DUST,
                     LIGHTNING_EFFECT, FLAME_BALL, SHINE_LINES,
                     TORCH_PARTICLE_M, TORCH_PARTICLE_S, SCENE_DUST,
-                    LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT));
+                    LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT,
+                    FALLING_ICE, DAMAGE_HEART));
 
     private VfxClaimPolicy() {}
 
@@ -276,7 +288,9 @@ public final class VfxClaimPolicy {
                 || LIGHTNING_ORB_PASSIVE.equals(value)
                 || GLOWY_FIRE_EYES.equals(value)
                 || FLYING_SPIKE.equals(value)
-                || CONE_EFFECT.equals(value);
+                || CONE_EFFECT.equals(value)
+                || FALLING_ICE.equals(value)
+                || DAMAGE_HEART.equals(value);
     }
 
     /**
@@ -345,10 +359,16 @@ public final class VfxClaimPolicy {
      * The two newest members are the {@code vfx-combat} {@code FlyingSpikeEffect} (additive
      * center-packed, no new rule) and the {@code vfx-misc-root} {@code ConeEffect} (ambient
      * center-packed with a NEW origin rule — {@code originX = 0f} rather than {@code packedWidth/2f}
-     * — and a uniform scale of {@code scale * 1.1f}). {@code DamageHeartEffect} was screened but is
-     * NOT claimed: its native {@code render} is guarded by {@code if (delayTimer < 0f)}, the same
-     * wait-phase guard that defers {@code FallingIceEffect}, so a claimed instance would otherwise
-     * ART-draw during the native wait phase.
+     * — and a uniform scale of {@code scale * 1.1f}). The two newest members
+     * ({@code FallingIceEffect} in {@code vfx-combat} and {@code DamageHeartEffect} in
+     * {@code vfx-misc-root}) are appended last in that order and introduce the seam's first per-kind
+     * NATIVE DRAW GUARD: each native {@code render} wraps its draw in a wait-phase field check
+     * ({@code if (waitTimer < 0f)} and {@code if (delayTimer < 0f)} respectively), so the renderer
+     * declines (draws nothing) whenever that field is present and {@code >= 0f} — see
+     * {@link VfxDrawGeometry#nativeSkipsDrawByGuard} and {@link VfxDrawGeometry#guardFieldName}.
+     * {@code FallingIceEffect} is additive over a fixed {@code 96&times;96} shape-C rect consuming
+     * its {@code rotation} field, while {@code DamageHeartEffect} is ambient center-packed with a
+     * public {@code AtlasRegion img}.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

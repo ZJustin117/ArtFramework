@@ -121,6 +121,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.FLYING_SPIKE, VfxLabSpawn.classNameFor("flyingspike"));
         assertEquals(VfxClaimPolicy.FLYING_SPIKE, VfxLabSpawn.classNameFor("spike"));
         assertEquals(VfxClaimPolicy.CONE_EFFECT, VfxLabSpawn.classNameFor("cone"));
+        assertEquals(VfxClaimPolicy.FALLING_ICE, VfxLabSpawn.classNameFor("fallingice"));
+        assertEquals(VfxClaimPolicy.FALLING_ICE, VfxLabSpawn.classNameFor("icefall"));
+        assertEquals(VfxClaimPolicy.DAMAGE_HEART, VfxLabSpawn.classNameFor("damageheart"));
+        assertEquals(VfxClaimPolicy.DAMAGE_HEART, VfxLabSpawn.classNameFor("heart"));
     }
 
     @Test
@@ -531,6 +535,18 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("flyingspike", VfxClaimPolicy.FLYING_SPIKE);
         assertSpawnRequests("spike", VfxClaimPolicy.FLYING_SPIKE);
         assertSpawnRequests("cone", VfxClaimPolicy.CONE_EFFECT);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF21GuardMembersThroughTheFactorySeam() {
+        // The two newest claimable FQNs (the native wait-guard members); the capturing factory proves
+        // each alias requests exactly its FQN without touching the ImageMaster-backed constructors
+        // (FallingIceEffect's ctor selects static FROST_* textures; DamageHeartEffect's loadImage()
+        // picks its AtlasRegion from ImageMaster art — both may be null off-game).
+        assertSpawnRequests("fallingice", VfxClaimPolicy.FALLING_ICE);
+        assertSpawnRequests("icefall", VfxClaimPolicy.FALLING_ICE);
+        assertSpawnRequests("damageheart", VfxClaimPolicy.DAMAGE_HEART);
+        assertSpawnRequests("heart", VfxClaimPolicy.DAMAGE_HEART);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

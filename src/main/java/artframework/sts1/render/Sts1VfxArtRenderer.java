@@ -49,11 +49,18 @@ import java.lang.reflect.Field;
  * consuming its {@code rotation} field and its own {@code flipX}/{@code flipY} booleans) and
  * {@code GlowyFireEyesEffect} (additive, 128&times;128 fixed rect with a hardcoded zero rotation and
  * its own {@code flippedX} horizontal flip) — the first kinds on the shape-C path to pass
- * per-instance flip flags; and the two newest are the {@code vfx-combat} {@code FlyingSpikeEffect}
+ * per-instance flip flags; the two newest are the {@code vfx-combat} {@code FlyingSpikeEffect}
  * (additive center-packed, no new rule; its {@code vX}/{@code vY} are update-only) and the
  * {@code vfx-misc-root} {@code ConeEffect} (ambient center-packed with a NEW origin rule —
  * {@code originX = 0f} rather than {@code packedWidth/2f} — and a {@code scale * 1.1f} uniform
- * scale).
+ * scale); and the two newest are the {@code vfx-combat} {@code FallingIceEffect} (additive
+ * shape-C fixed rect, origin 48, size 96&times;96, src {@code 0,0,96,96}, x/y passthrough,
+ * consuming its
+ * {@code rotation} field and its own instance {@code Texture img}) and the {@code vfx-misc-root}
+ * {@code DamageHeartEffect} (ambient center-packed with a public {@code AtlasRegion img}) — the
+ * seam's first per-kind NATIVE DRAW GUARD kinds ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}),
+ * whose {@code render} declines (draws nothing) whenever the guard field is present and
+ * {@code >= 0f}.
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -70,7 +77,7 @@ import java.lang.reflect.Field;
  * {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
  * {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, {@code DamageImpactLineEffect},
  * {@code StunStarEffect}, {@code FallingDustEffect}, {@code ShineLinesEffect},
- * {@code DustEffect}, and {@code ConeEffect}.
+ * {@code DustEffect}, {@code ConeEffect}, and {@code DamageHeartEffect}.
  * {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload.
@@ -142,13 +149,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * / {@code ShieldParticleEffect} / {@code DebuffParticleEffect} / {@code IceShatterEffect} /
      * {@code WebParticleEffect} / {@code EntangleEffect} / {@code UnknownParticleEffect} /
      * {@code DarkOrbPassiveEffect} / {@code LightningOrbPassiveEffect} /
-     * {@code GlowyFireEyesEffect}).
+     * {@code GlowyFireEyesEffect} / {@code FallingIceEffect}).
      * {@code rotation} is required for the kinds whose formula consumes
-     * it (Calm, Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive) and optional (defaulting
+     * it (Calm, Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive, FallingIce) and optional
+     * (defaulting
      * to {@code 0}) for
      * Shield, Web,
      * Entangle, and GlowyFireEyes, which hardcode {@code 0f}; {@code img} is a {@link Texture} for
-     * Debuff, IceShatter, Unknown, DarkOrb, and the two flip kinds (LightningOrbPassive,
+     * Debuff, IceShatter, Unknown, DarkOrb, FallingIce, and the two flip kinds (LightningOrbPassive,
      * GlowyFireEyes) and {@code null} otherwise (Web/Entangle resolve the static
      * {@link ImageMaster#WEB_VFX}). {@code flipX}/{@code flipY} are the resolved per-instance flip
      * flags (both {@code false} for every kind that does not pass them natively).
@@ -293,14 +301,15 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * Snapshots the fields a bare-{@code Texture} draw needs. Required: {@code x}, {@code y},
      * {@code scale}, {@code color} ({@link Color}); {@code rotation} is additionally required for
      * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE}/{@code ICE_SHATTER}/{@code UNKNOWN_PARTICLE}/
-     * {@code DARK_ORB_PASSIVE}/{@code LIGHTNING_ORB_PASSIVE}
+     * {@code DARK_ORB_PASSIVE}/{@code LIGHTNING_ORB_PASSIVE}/{@code FALLING_ICE}
      * (whose formula consumes it)
      * and optional (defaulting to {@code 0}) for {@code SHIELD_PARTICLE}/{@code WEB_PARTICLE}/
      * {@code ENTANGLE}/{@code GLOWY_FIRE_EYES} (hardcoded rotation); {@code dur_div2}/{@code duration}
      * are optional and
      * default to {@code 0}.
      * For {@code DEBUFF_PARTICLE}, {@code ICE_SHATTER}, {@code UNKNOWN_PARTICLE},
-     * {@code DARK_ORB_PASSIVE}, {@code LIGHTNING_ORB_PASSIVE}, and {@code GLOWY_FIRE_EYES} the instance
+     * {@code DARK_ORB_PASSIVE}, {@code LIGHTNING_ORB_PASSIVE}, {@code FALLING_ICE}, and
+     * {@code GLOWY_FIRE_EYES} the instance
      * {@code img} must be a
      * {@link Texture} (CALM/SHIELD/WEB/ENTANGLE resolve a static {@code ImageMaster} texture
      * instead); a missing/mistyped {@code img} fails the snapshot. The per-instance flip flags are
@@ -317,7 +326,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.ICE_SHATTER
                 || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
                 || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
-                || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE;
+                || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
+                || kind == VfxDrawGeometry.Kind.FALLING_ICE;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
@@ -363,7 +373,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * True for the bare-{@code Texture} kinds that resolve their own instance {@code Texture img}
      * rather than a static {@code ImageMaster} texture ({@code DebuffParticleEffect},
      * {@code IceShatterEffect}, {@code UnknownParticleEffect}, {@code DarkOrbPassiveEffect},
-     * {@code LightningOrbPassiveEffect}, {@code GlowyFireEyesEffect}).
+     * {@code LightningOrbPassiveEffect}, {@code GlowyFireEyesEffect}, {@code FallingIceEffect}).
      * {@code CalmParticleEffect},
      * {@code ShieldParticleEffect}, {@code WebParticleEffect}, and {@code EntangleEffect} draw a
      * static {@code ImageMaster} texture instead.
@@ -374,7 +384,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
                 || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
-                || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES;
+                || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
+                || kind == VfxDrawGeometry.Kind.FALLING_ICE;
     }
 
     /**
@@ -423,6 +434,33 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * The seam's first per-kind NATIVE DRAW GUARD (NRO-04 F21): true unless the native render's
+     * wait-phase guard blocks the draw. For a guarded kind ({@link VfxDrawGeometry#nativeSkipsDrawByGuard})
+     * the guard field named by {@link VfxDrawGeometry#guardFieldName} is read reflectively; when it
+     * is present and {@code >= 0f} the native render would skip its draw entirely, so ART must also
+     * draw nothing (return {@code false}) to stay in pixel parity. An absent/unreadable/wrongly
+     * typed guard field is treated as SATISFIED (returns {@code true}) — the native render would
+     * then not be able to read a guard either. A cheap no-op for every non-guard kind. Never throws.
+     *
+     * <p>Package-private so the no-GL tests can exercise the absent/unreadable-guard path directly
+     * (the real mapping classes always declare their guard field).
+     */
+    static boolean guardSatisfied(VfxDrawGeometry.Kind kind, Object effect) {
+        if (kind == null || effect == null) return true;
+        if (!VfxDrawGeometry.nativeSkipsDrawByGuard(kind)) return true;
+        String field = VfxDrawGeometry.guardFieldName(kind);
+        if (field == null) return true;
+        Float value = null;
+        try {
+            value = readFloat(effect, field);
+        } catch (Throwable ignored) {
+            return true;
+        }
+        // The native guard is `if (<field> < 0f) { draw }`, so a present, >= 0f field blocks it.
+        return value == null || value.floatValue() < 0f;
+    }
+
+    /**
      * Draws the real ART sprite for a claimed transient effect, reproducing the native draw
      * including its per-kind blend behavior ({@link VfxDrawGeometry#additiveBlend} — the single
      * source of truth for the ambient set: additive for
@@ -454,14 +492,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * any atlas {@code rotate} baking) exactly as the native effect does.
      *
      * <p>The bare-{@code Texture} kinds (Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown,
-     * DarkOrb, LightningOrbPassive, GlowyFireEyes)
+     * DarkOrb, LightningOrbPassive, GlowyFireEyes, FallingIce)
      * have no packed
      * region: they draw a fixed source rect, so this branch resolves the native {@link Texture} the
      * render reads — {@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm,
      * {@link ImageMaster#INTENT_DEFEND} for Shield, {@link ImageMaster#WEB_VFX} for Web and Entangle,
      * and the
      * effect's own instance {@code img} for Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive,
-     * and GlowyFireEyes — and replays
+     * GlowyFireEyes, and FallingIce — and replays
      * the native
      * raw
      * texture + source-rect overload, now including the effect's own per-instance flip booleans for
@@ -480,17 +518,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             VfxDrawGeometry.Kind kind =
                     VfxDrawGeometry.kindFor(effect.getClass().getName());
             if (kind == null) return false;
-            if (kind == VfxDrawGeometry.Kind.CALM_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.ICE_SHATTER
-                    || kind == VfxDrawGeometry.Kind.WEB_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.ENTANGLE
-                    || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.WARNING_SIGN
-                    || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
-                    || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
-                    || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES) {
+            // Native draw guard (NRO-04 F21): a guarded kind whose wait-phase field is present and
+            // >= 0f draws nothing natively, so ART must draw nothing too (fail open: the patch calls
+            // native render, which also draws nothing). Cheap no-op for every non-guard kind.
+            if (!guardSatisfied(kind, effect)) return false;
+            if (isTextureDrawKind(kind)) {
                 return renderTexture(sb, kind, effect);
             }
             Fields f = readFields(kind, effect);
@@ -564,7 +596,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
 
     /**
      * True only when {@link #render} could actually draw this exact instance: the class maps to a
-     * kind, the required fields resolve, and the resolved region/texture is present. Mirrors
+     * kind, the native draw guard is satisfied (a guard-blocked kind cannotDraw — native draws
+     * nothing in that state either), the required fields resolve, and the resolved region/texture is
+     * present. Mirrors
      * {@code render}'s early-return conditions up to (but not including) the batch draw, so a
      * {@code false} here means the native effect would also produce no pixels for this instance
      * under this renderer. Never throws.
@@ -575,27 +609,87 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         try {
             VfxDrawGeometry.Kind kind = VfxDrawGeometry.kindFor(effect.getClass().getName());
             if (kind == null) return false;
-            if (kind == VfxDrawGeometry.Kind.CALM_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.ICE_SHATTER
-                    || kind == VfxDrawGeometry.Kind.WEB_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.ENTANGLE
-                    || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
-                    || kind == VfxDrawGeometry.Kind.WARNING_SIGN
-                    || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
-                    || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
-                    || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES) {
-                TextureFields f = readTextureFields(kind, effect);
-                if (f == null) return false;
-                return resolveTexture(kind, f) != null;
+            // Native draw guard (NRO-04 F21): the same check render performs. A guard-blocked
+            // instance cannotDraw, which lets the bridge classify the decline as a benign no-pixel
+            // decline (native draws nothing in that state either).
+            if (!guardSatisfied(kind, effect)) return false;
+            return imagePresent(kind, effect);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * True when this exact instance's own image source is present, using the SAME field/resource
+     * checks {@link #render} performs up to the batch draw: for the bare-{@code Texture} kinds the
+     * snapshot must resolve and its {@link Texture} (instance {@code img} or the resolved static
+     * {@code ImageMaster} texture) must be non-null; for the img kinds the snapshot's
+     * {@link TextureAtlas.AtlasRegion} must be present, texturable, and convert to a valid neutral
+     * region. Shared by {@link #canDraw} and {@link #declinedWithoutPixels} so the two stay
+     * consistent. Never throws.
+     */
+    private static boolean imagePresent(VfxDrawGeometry.Kind kind, Object effect) {
+        if (kind == null || effect == null) return false;
+        if (isTextureDrawKind(kind)) {
+            TextureFields f = readTextureFields(kind, effect);
+            return f != null && resolveTexture(kind, f) != null;
+        }
+        Fields f = readFields(kind, effect);
+        if (f == null) return false;
+        TextureAtlas.AtlasRegion gdx = f.img;
+        if (gdx == null || gdx.getTexture() == null) return false;
+        AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+        return neutral != null && neutral.valid();
+    }
+
+    /**
+     * True for the bare-{@code Texture} (fixed source-rect) kinds that {@link #render} serves through
+     * {@link #renderTexture} rather than the packed-region path. The single source of truth shared by
+     * {@link #render}, {@link #canDraw}, and {@link #imagePresent} so a kind cannot be routed one way
+     * by one and another way by another.
+     */
+    private static boolean isTextureDrawKind(VfxDrawGeometry.Kind kind) {
+        return kind == VfxDrawGeometry.Kind.CALM_PARTICLE
+                || kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE
+                || kind == VfxDrawGeometry.Kind.DEBUFF_PARTICLE
+                || kind == VfxDrawGeometry.Kind.ICE_SHATTER
+                || kind == VfxDrawGeometry.Kind.WEB_PARTICLE
+                || kind == VfxDrawGeometry.Kind.ENTANGLE
+                || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
+                || kind == VfxDrawGeometry.Kind.WARNING_SIGN
+                || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
+                || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
+                || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
+                || kind == VfxDrawGeometry.Kind.FALLING_ICE;
+    }
+
+    /**
+     * Instance-aware benign no-pixel probe (NRO-04 F21): true only when THIS exact instance would
+     * natively draw NOTHING, so an ART decline loses no pixels. That is exactly two cases: (a) a kind
+     * whose native render guards its draw on a present image
+     * ({@link VfxDrawGeometry#nativeSkipsDrawWithoutImage}) and whose instance has no drawable image,
+     * or (b) a wait-phase-guarded kind ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}) whose guard
+     * field is present and {@code >= 0f} (the guard blocks the native draw). Every other instance —
+     * including a guard-SATISFIED instance whose image snapshot fails — is {@code false}, so a
+     * genuine renderer failure is never masked as benign. Deliberately narrower than
+     * {@link #canDraw}, which also reports {@code false} for any other undrawable instance. Never
+     * throws.
+     */
+    @Override
+    public boolean declinedWithoutPixels(Object effect) {
+        if (effect == null) return false;
+        try {
+            VfxDrawGeometry.Kind kind = VfxDrawGeometry.kindFor(effect.getClass().getName());
+            if (kind == null) return false;
+            if (VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind)) {
+                // The native render draws only with a present image, so a missing image is benign.
+                return !imagePresent(kind, effect);
             }
-            Fields f = readFields(kind, effect);
-            if (f == null) return false;
-            TextureAtlas.AtlasRegion gdx = f.img;
-            if (gdx == null || gdx.getTexture() == null) return false;
-            AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
-            return neutral != null && neutral.valid();
+            if (VfxDrawGeometry.nativeSkipsDrawByGuard(kind)) {
+                // The native render draws only when the wait-phase guard is satisfied (< 0f).
+                return !guardSatisfied(kind, effect);
+            }
+            return false;
         } catch (Throwable ignored) {
             return false;
         }
@@ -604,7 +698,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * Resolves the native {@link Texture} the bare-{@code Texture} kinds draw (the static
      * {@link ImageMaster} textures for Calm/Shield/Web/Entangle, the instance {@code img} for
-     * Debuff/IceShatter/Unknown/DarkOrb and the two flip kinds LightningOrbPassive/GlowyFireEyes),
+     * Debuff/IceShatter/Unknown/DarkOrb/FallingIce and the two flip kinds
+     * LightningOrbPassive/GlowyFireEyes),
      * or {@code null} when it is absent. Shared by
      * {@link #renderTexture} and {@link #canDraw} so the two stay consistent.
      */
@@ -631,7 +726,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * Bare-{@code Texture} branch: resolves the native texture the kind's {@code render} reads
      * ({@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm, {@link ImageMaster#INTENT_DEFEND} for
      * Shield, {@link ImageMaster#WEB_VFX} for Web and Entangle, the effect's own {@code img} for
-     * Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive, and GlowyFireEyes), replays the raw
+     * Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive, GlowyFireEyes, and FallingIce),
+     * replays the raw
      * texture + source-rect draw with the
      * {@link VfxDrawGeometry#params}
      * geometry and the per-kind src rect, passes the per-instance flip booleans for the kinds whose
@@ -700,6 +796,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_Y;
             srcW = VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_W;
             srcH = VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.FALLING_ICE) {
+            // FallingIceEffect passes the full 96x96 rect as its src rect.
+            srcX = VfxDrawGeometry.FALLING_ICE_SRC_X;
+            srcY = VfxDrawGeometry.FALLING_ICE_SRC_Y;
+            srcW = VfxDrawGeometry.FALLING_ICE_SRC_W;
+            srcH = VfxDrawGeometry.FALLING_ICE_SRC_H;
         } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
             // WebParticleEffect and EntangleEffect share the static WEB_VFX src rect.

@@ -685,22 +685,24 @@ public final class NativeRenderBridge {
 
     /**
      * Records a declined claim for the given instance, distinguishing a benign no-pixel decline from
-     * a genuine renderer failure. When the kind natively draws nothing without an image
-     * ({@link VfxDrawGeometry#nativeSkipsDrawWithoutImage}) and the ART renderer could not draw the
-     * instance either ({@link VfxArtRenderer#canDraw}), the native effect would also have produced
-     * no pixels, so failing open loses nothing: the delegated lifecycle is completed without pixel
-     * evidence and counted as no-pixel isolation, NOT as a {@code dispositionMismatch} /
-     * {@code delegatedWithoutEvidence}. Every other declined claim keeps the existing fallback
-     * accounting. Always consumes the pending claim token and never throws.
+     * a genuine renderer failure. It is benign only when the adapter can determine that THIS exact
+     * instance would natively draw nothing
+     * ({@link VfxArtRenderer#declinedWithoutPixels}: a null-image kind guarded on a present image,
+     * or a wait-phase-guarded kind whose guard field blocks) and the ART renderer could not draw it
+     * either ({@link VfxArtRenderer#canDraw}); then failing open loses nothing: the delegated
+     * lifecycle is completed without pixel evidence and counted as no-pixel isolation, NOT as a
+     * {@code dispositionMismatch} / {@code delegatedWithoutEvidence}. Every other declined claim —
+     * including a guard-SATISFIED guard kind whose image snapshot failed — keeps the existing
+     * fallback accounting, so a genuine renderer failure is never masked. The cheaper,
+     * instance-scoping {@code declinedWithoutPixels} probe is evaluated first and short-circuits.
+     * Always consumes the pending claim token and never throws.
      */
     public static void recordEffectDeclined(
             long invocationId, com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
         synchronized (BRIDGE_LOCK) {
             try {
                 if (!isVfxClaimInvocation(invocationId)) return;
-                VfxDrawGeometry.Kind kind = VfxDrawGeometry.kindFor(
-                        effect == null ? null : effect.getClass().getName());
-                if (kind != null && VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind)
+                if (VfxArtRenderer.declinedWithoutPixels(effect)
                         && !VfxArtRenderer.canDraw(effect)) {
                     if (LEDGER.completeDelegatedWithoutEvidence(invocationId)) {
                         LEDGER.recordNoPixelIsolation();

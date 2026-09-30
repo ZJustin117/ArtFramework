@@ -194,6 +194,22 @@ public class Sts1VfxArtRendererTest {
         private float rotation;
     }
 
+    /** FALLING_ICE guard holder: a {@code waitTimer} field plus the shape-C draw fields. */
+    static class FallingIceGuardEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float waitTimer;
+        private Texture img;
+    }
+
+    /** DAMAGE_HEART guard holder: a {@code delayTimer} field plus the center-packed fields. */
+    static class DamageHeartGuardEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float delayTimer;
+        private TextureAtlas.AtlasRegion img;
+    }
+
     /**
      * WebParticleEffect layout: no {@code img} field at all (the texture is the static
      * {@code ImageMaster.WEB_VFX}) and no required rotation (hardcoded {@code 0f}).
@@ -1996,6 +2012,12 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.CONE_EFFECT));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.ConeEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.FALLING_ICE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.FallingIceEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.DAMAGE_HEART));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.DamageHeartEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2486,6 +2508,288 @@ public class Sts1VfxArtRendererTest {
             setField(target, owner, name, value);
         } catch (Exception failure) {
             throw new AssertionError("could not set " + owner + "." + name, failure);
+        }
+    }
+
+    @Test
+    public void guardSatisfiedReadsTheGuardFieldAndFailsOpenWhenAbsent() {
+        // No waitTimer field at all => treated as SATISFIED (the native render would not be able to
+        // read a guard either), so ART draws.
+        assertTrue("an absent guard field draws (treated unguarded)",
+                Sts1VfxArtRenderer.guardSatisfied(
+                        VfxDrawGeometry.Kind.FALLING_ICE, new IceShatterEffect()));
+
+        // A present waitTimer < 0f satisfies the guard (native draws).
+        FallingIceGuardEffect satisfied = new FallingIceGuardEffect();
+        satisfied.waitTimer = -0.5f;
+        assertTrue(Sts1VfxArtRenderer.guardSatisfied(
+                VfxDrawGeometry.Kind.FALLING_ICE, satisfied));
+
+        // A present waitTimer >= 0f blocks the guard (native draws nothing).
+        FallingIceGuardEffect blocked = new FallingIceGuardEffect();
+        blocked.waitTimer = 0f;
+        assertFalse(Sts1VfxArtRenderer.guardSatisfied(
+                VfxDrawGeometry.Kind.FALLING_ICE, blocked));
+
+        // A non-guard kind is never gated, even when a waitTimer field is present.
+        assertTrue(Sts1VfxArtRenderer.guardSatisfied(VfxDrawGeometry.Kind.ICE_SHATTER, blocked));
+
+        // DAMAGE_HEART reads delayTimer, so a holder with only waitTimer draws.
+        assertTrue(Sts1VfxArtRenderer.guardSatisfied(
+                VfxDrawGeometry.Kind.DAMAGE_HEART, blocked));
+        DamageHeartGuardEffect heartBlocked = new DamageHeartGuardEffect();
+        heartBlocked.delayTimer = 0.25f;
+        assertFalse(Sts1VfxArtRenderer.guardSatisfied(
+                VfxDrawGeometry.Kind.DAMAGE_HEART, heartBlocked));
+        DamageHeartGuardEffect heartOk = new DamageHeartGuardEffect();
+        heartOk.delayTimer = -1f;
+        assertTrue(Sts1VfxArtRenderer.guardSatisfied(
+                VfxDrawGeometry.Kind.DAMAGE_HEART, heartOk));
+
+        // Null inputs fail open (draw).
+        assertTrue(Sts1VfxArtRenderer.guardSatisfied(VfxDrawGeometry.Kind.FALLING_ICE, null));
+        assertTrue(Sts1VfxArtRenderer.guardSatisfied(null, blocked));
+    }
+
+    @Test
+    public void fallingIceRenderAndCanDrawFollowTheNativeWaitGuard() {
+        // Native FallingIceEffect: if (waitTimer < 0f) { ... sb.draw ... }. A guard-satisfied holder
+        // draws; a guard-blocked one draws nothing and cannotDraw (native also draws nothing).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        AbstractGameEffect satisfied = seededFallingIce(-0.5f);
+        assertTrue("a waitTimer < 0 FallingIceEffect draws", renderer.render(
+                newCountingBatch(), satisfied));
+        assertTrue("a waitTimer < 0 FallingIceEffect canDraw", renderer.canDraw(satisfied));
+
+        AbstractGameEffect blocked = seededFallingIce(0.25f);
+        assertFalse("a waitTimer >= 0 FallingIceEffect declines (native wait phase)",
+                renderer.render(newCountingBatch(), blocked));
+        assertFalse("a waitTimer >= 0 FallingIceEffect cannotDraw", renderer.canDraw(blocked));
+
+        AbstractGameEffect exactZero = seededFallingIce(0f);
+        assertFalse("waitTimer == 0f is still the native wait phase",
+                renderer.canDraw(exactZero));
+    }
+
+    @Test
+    public void damageHeartRenderAndCanDrawFollowTheNativeDelayGuard() {
+        // Native DamageHeartEffect: if (delayTimer < 0f) { setColor; sb.draw(img, x, y, pw/2f,
+        // ph/2f, pw, ph, scale, scale, rotation); }. The img path resolves the public AtlasRegion.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        AbstractGameEffect satisfied = seededDamageHeart(-1f, 64, 48);
+        assertTrue("a delayTimer < 0 DamageHeartEffect draws", renderer.render(
+                newCountingBatch(), satisfied));
+        assertTrue("a delayTimer < 0 DamageHeartEffect canDraw", renderer.canDraw(satisfied));
+
+        AbstractGameEffect blocked = seededDamageHeart(0f, 64, 48);
+        assertFalse("a delayTimer >= 0 DamageHeartEffect declines (native delay phase)",
+                renderer.render(newCountingBatch(), blocked));
+        assertFalse("a delayTimer >= 0 DamageHeartEffect cannotDraw", renderer.canDraw(blocked));
+    }
+
+    @Test
+    public void fallingIceShapeCRequiresInstanceTextureAndRotation() {
+        // FALLING_ICE uses the shape-C instance-Texture path: an instance Texture img is required
+        // (an AtlasRegion is rejected) and a rotation field is required.
+        Texture img = noGlTexture(96, 96);
+
+        IceShatterRotationEffect ok = new IceShatterRotationEffect();
+        ok.x = 1f;
+        ok.y = 2f;
+        ok.scale = 1f;
+        ok.rotation = 12f;
+        ok.color = Color.WHITE;
+        ok.img = img;
+        Sts1VfxArtRenderer.TextureFields resolved = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.FALLING_ICE, ok);
+        assertNotNull("an instance Texture img resolves for FALLING_ICE", resolved);
+        assertEquals(12f, resolved.rotation, EPS);
+        assertSame(img, resolved.img);
+
+        IceShatterAtlasImgEffect atlas = new IceShatterAtlasImgEffect();
+        atlas.x = 1f;
+        atlas.y = 2f;
+        atlas.scale = 1f;
+        atlas.rotation = 0f;
+        atlas.color = Color.WHITE;
+        atlas.img = fakeRegion();
+        assertNull("an AtlasRegion img fails the FALLING_ICE snapshot",
+                Sts1VfxArtRenderer.readTextureFields(VfxDrawGeometry.Kind.FALLING_ICE, atlas));
+
+        IceShatterNoRotationEffect noRotation = new IceShatterNoRotationEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = img;
+        assertNull("a FALLING_ICE holder without a rotation field fails open",
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.FALLING_ICE, noRotation));
+    }
+
+    @Test
+    public void fallingIceDrawUsesTheFixed96RectAndTheFieldRotationAdditively() {
+        // Native FallingIceEffect: setBlendFunction(770,1); setColor(color);
+        //   sb.draw(img, x, y, 48f, 48f, 96f, 96f, scale, scale, rotation, 0, 0, 96, 96,
+        //           false, false); setBlendFunction(770,771).
+        // A guard-satisfied holder draws the fixed 96x96 rect over its own instance Texture.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededFallingIce(-0.5f);
+        setFieldUnchecked(effect,
+                com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class, "x", Float.valueOf(5f));
+        setFieldUnchecked(effect,
+                com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class, "y", Float.valueOf(6f));
+        setFieldUnchecked(effect, AbstractGameEffect.class, "scale", Float.valueOf(0.6f));
+        setFieldUnchecked(effect, AbstractGameEffect.class, "rotation", Float.valueOf(45f));
+
+        assertTrue(renderer.render(batch, effect));
+
+        assertEquals("the additive FALLING_ICE draw installs and restores blend",
+                2, batch.setBlendCalls);
+        assertEquals("FALLING_ICE uses the raw-texture draw overload", 1, batch.drawCalls);
+        assertNotNull("the drawn texture was captured", batch.drawnTexture);
+
+        // draw(tex, x, y, 48, 48, 96, 96, scale, scale, rotation, 0, 0, 96, 96, false, false)
+        assertEquals(5f, floatAt(batch, 0), EPS);
+        assertEquals(6f, floatAt(batch, 1), EPS);
+        assertEquals(48f, floatAt(batch, 2), EPS);
+        assertEquals(48f, floatAt(batch, 3), EPS);
+        assertEquals(96f, floatAt(batch, 4), EPS);
+        assertEquals(96f, floatAt(batch, 5), EPS);
+        assertEquals(0.6f, floatAt(batch, 6), EPS);
+        assertEquals(0.6f, floatAt(batch, 7), EPS);
+        assertEquals("the rotation field is consumed", 45f, floatAt(batch, 8), EPS);
+        assertEquals(0f, floatAt(batch, 9), EPS);
+        assertEquals(0f, floatAt(batch, 10), EPS);
+        assertEquals(96f, floatAt(batch, 11), EPS);
+        assertEquals(96f, floatAt(batch, 12), EPS);
+        assertFalse("FALLING_ICE passes no per-instance flip X", batch.drawnFlipX);
+        assertFalse("FALLING_ICE passes no per-instance flip Y", batch.drawnFlipY);
+    }
+
+    @Test
+    public void declinedWithoutPixelsIsInstanceAwareForTheGuardKinds() {
+        // NRO-04 F21 benign predicate: true only when THIS instance would natively draw nothing —
+        // a guard kind whose guard actually BLOCKS, not merely a guard-satisfied-but-undrawable one.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        try {
+            VfxArtRenderer.install(renderer);
+            assertTrue("the static delegator mirrors the installed adapter",
+                    VfxArtRenderer.declinedWithoutPixels(seededFallingIce(0.5f)));
+            assertFalse("the static delegator means the same thing for a satisfied instance",
+                    VfxArtRenderer.declinedWithoutPixels(seededFallingIce(-0.5f)));
+        } finally {
+            VfxArtRenderer.uninstall();
+        }
+
+        // Guard BLOCKS (>= 0): benign, whether or not the image is present.
+        assertTrue("a blocked FallingIce instance is benign",
+                renderer.declinedWithoutPixels(seededFallingIce(0.5f)));
+        assertTrue("a blocked DamageHeart instance is benign",
+                renderer.declinedWithoutPixels(seededDamageHeart(0f, 64, 48)));
+
+        // Guard SATISFIED (< 0) with a present image: itself drawable, so not a no-pixel instance.
+        assertFalse("a drawable guard-satisfied FallingIce instance is not benign",
+                renderer.declinedWithoutPixels(seededFallingIce(-0.5f)));
+        assertFalse("a drawable guard-satisfied DamageHeart instance is not benign",
+                renderer.declinedWithoutPixels(seededDamageHeart(-1f, 64, 48)));
+
+        // Guard SATISFIED (< 0) but the image snapshot fails: NOT benign (native would draw), so a
+        // genuine renderer failure is never masked.
+        AbstractGameEffect satisfiedNoImg = seededFallingIce(-0.5f);
+        setFieldUnchecked(satisfiedNoImg,
+                com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class, "img", null);
+        assertFalse("a guard-satisfied FallingIce instance with no image is not benign",
+                renderer.declinedWithoutPixels(satisfiedNoImg));
+
+        // A non-guard kind is never benign.
+        assertFalse("a non-guard kind is never a benign guard decline",
+                renderer.declinedWithoutPixels(new IceShatterRotationEffect()));
+
+        // Degenerate inputs fail closed.
+        assertFalse(renderer.declinedWithoutPixels(null));
+        assertFalse(renderer.declinedWithoutPixels("not an effect"));
+    }
+
+    @Test
+    public void declinedWithoutPixelsDelegatorReturnsFalseWithoutAnAdapter() {
+        VfxArtRenderer.uninstall();
+        assertFalse("no adapter means no benign classification",
+                VfxArtRenderer.declinedWithoutPixels(seededFallingIce(0.5f)));
+    }
+
+    @Test
+    public void damageHeartResolvesItsPublicImgAndConsumesRotation() {
+        // DAMAGE_HEART is a center-packed img kind: the DECLARED-field walk resolves its public
+        // AtlasRegion img and its inherited rotation.
+        AbstractGameEffect heart = seededDamageHeart(-1f, 64, 48);
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.DAMAGE_HEART, heart);
+        assertNotNull("DamageHeart resolves its public img", f);
+        assertEquals(5f, f.x, EPS);
+        assertEquals(6f, f.y, EPS);
+        assertEquals(1f, f.scale, EPS);
+        assertNotNull("the public AtlasRegion img resolved", f.img);
+        assertTrue("DamageHeart canDraw when its guard is satisfied", new Sts1VfxArtRenderer()
+                .canDraw(heart));
+    }
+
+    /** Real {@code FallingIceEffect} with a seeded {@code waitTimer} and shape-C draw fields. */
+    private static AbstractGameEffect seededFallingIce(float waitTimer) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.FallingIceEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.FallingIceEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class, "x",
+                    Float.valueOf(5f));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class, "y",
+                    Float.valueOf(6f));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class, "img",
+                    noGlTexture(96, 96));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class, "waitTimer",
+                    Float.valueOf(waitTimer));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL FallingIceEffect", failure);
+        }
+    }
+
+    /** Real {@code DamageHeartEffect} with a seeded {@code delayTimer} and center-packed fields. */
+    private static AbstractGameEffect seededDamageHeart(float delayTimer, int pw, int ph) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.DamageHeartEffect effect =
+                    (com.megacrit.cardcrawl.vfx.DamageHeartEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.DamageHeartEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.DamageHeartEffect.class, "x",
+                    Float.valueOf(5f));
+            setField(effect, com.megacrit.cardcrawl.vfx.DamageHeartEffect.class, "y",
+                    Float.valueOf(6f));
+            setField(effect, com.megacrit.cardcrawl.vfx.DamageHeartEffect.class, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, pw, ph));
+            setField(effect, com.megacrit.cardcrawl.vfx.DamageHeartEffect.class, "delayTimer",
+                    Float.valueOf(delayTimer));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL DamageHeartEffect", failure);
         }
     }
 

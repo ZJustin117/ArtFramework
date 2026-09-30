@@ -1294,6 +1294,304 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void guardBlockedDeclineIsNoPixelIsolationNotAMismatch() {
+        // NRO-04 F21: a CLAIMED guard-kind instance whose native wait-phase field blocks the draw
+        // (>= 0f) produces no pixels either way, so the ART decline must be classified as a benign
+        // no-pixel decline rather than a delegated mismatch (which would flip nativeRenderStrict).
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(new Sts1VfxArtRenderer());
+
+        AbstractGameEffect blocked = blockedFallingIceEffect();
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(blocked, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertTrue(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+
+        NativeRenderBridge.recordEffectDeclined(disposition.invocationId, blocked);
+
+        assertFalse("a guard-blocked decline still consumes the pending claim token",
+                NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+        assertEquals("a guard-blocked decline is not a delegated mismatch",
+                Integer.valueOf(0), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+        assertEquals("a guard-blocked decline is not delegated-without-evidence",
+                Integer.valueOf(0),
+                NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals("a guard-blocked decline is recorded as no-pixel isolation",
+                Integer.valueOf(1),
+                NativeRenderBridge.probeSlice().get("noPixelIsolationCount"));
+        assertEquals("no delegated gap is left open",
+                Integer.valueOf(0), NativeRenderBridge.strictReport().get("openInvocation"));
+    }
+
+    @Test
+    public void guardBlockedDamageHeartDeclineIsAlsoBenign() {
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(new Sts1VfxArtRenderer());
+
+        AbstractGameEffect blocked = blockedDamageHeartEffect();
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(blocked, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+
+        NativeRenderBridge.recordEffectDeclined(disposition.invocationId, blocked);
+
+        assertEquals("a guard-blocked DamageHeart decline is not a delegated mismatch",
+                Integer.valueOf(0), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+        assertEquals(Integer.valueOf(1),
+                NativeRenderBridge.probeSlice().get("noPixelIsolationCount"));
+    }
+
+    @Test
+    public void nonGuardKindDeclineStillCountsAsAMismatch() {
+        // A decline of a kind with NO native guard must keep the genuine fallback accounting even
+        // though the guard branch was added to the classification.
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(new Sts1VfxArtRenderer());
+
+        // A center-packed non-guard kind whose region is absent: cannotDraw, but NOT guard-benign.
+        AbstractGameEffect fire = seededNullImg(
+                com.megacrit.cardcrawl.vfx.FireBurstParticleEffect.class);
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(fire, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+
+        NativeRenderBridge.recordEffectDeclined(disposition.invocationId, fire);
+
+        assertEquals("a non-guard decline still records a delegated mismatch",
+                Integer.valueOf(1), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+        assertEquals("a non-guard decline is still delegated-without-evidence",
+                Integer.valueOf(1),
+                NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals("no no-pixel isolation is recorded for a non-guard decline",
+                Integer.valueOf(0),
+                NativeRenderBridge.probeSlice().get("noPixelIsolationCount"));
+    }
+
+    @Test
+    public void guardSatisfiedButUndrawableGuardKindDeclineIsNotBenign() {
+        // NRO-04 F21 instance-aware fix: a guard-SATISFIED FallingIceEffect (waitTimer < 0f, so the
+        // native wait phase is over and native WOULD draw) that declines because its image snapshot
+        // failed must NOT be booked as benign no-pixel isolation — that would mask a genuine
+        // renderer failure. `declinedWithoutPixels` reports true only when the guard actually blocks.
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(new Sts1VfxArtRenderer());
+
+        AbstractGameEffect satisfiedButUndrawable = satisfiedFallingIceWithoutImg();
+        assertFalse("a guard-satisfied instance with no image is not a benign no-pixel decline",
+                VfxArtRenderer.declinedWithoutPixels(satisfiedButUndrawable));
+        assertFalse("the instance cannot draw", VfxArtRenderer.canDraw(satisfiedButUndrawable));
+
+        RenderDisposition disposition =
+                NativeRenderBridge.beginEffectRender(satisfiedButUndrawable, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+
+        NativeRenderBridge.recordEffectDeclined(
+                disposition.invocationId, satisfiedButUndrawable);
+
+        assertEquals("a guard-satisfied but undrawable decline is still a delegated mismatch",
+                Integer.valueOf(1), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+        assertEquals("a guard-satisfied but undrawable decline is still delegated-without-evidence",
+                Integer.valueOf(1),
+                NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
+        assertEquals("it must NOT be recorded as benign no-pixel isolation",
+                Integer.valueOf(0),
+                NativeRenderBridge.probeSlice().get("noPixelIsolationCount"));
+    }
+
+    @Test
+    public void guardSatisfiedButUndrawableDamageHeartDeclineIsNotBenign() {
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(new Sts1VfxArtRenderer());
+
+        AbstractGameEffect satisfiedButUndrawable = satisfiedDamageHeartWithoutImg();
+        assertFalse(VfxArtRenderer.declinedWithoutPixels(satisfiedButUndrawable));
+        assertFalse(VfxArtRenderer.canDraw(satisfiedButUndrawable));
+
+        RenderDisposition disposition =
+                NativeRenderBridge.beginEffectRender(satisfiedButUndrawable, "render");
+        NativeRenderBridge.recordEffectDeclined(
+                disposition.invocationId, satisfiedButUndrawable);
+
+        assertEquals("a guard-satisfied but undrawable DamageHeart decline is not benign",
+                Integer.valueOf(1), NativeRenderBridge.strictReport().get("dispositionMismatch"));
+        assertEquals(Integer.valueOf(0),
+                NativeRenderBridge.probeSlice().get("noPixelIsolationCount"));
+    }
+
+    /** Real {@code FallingIceEffect} whose guard is SATISFIED but whose image is absent. */
+    private static AbstractGameEffect satisfiedFallingIceWithoutImg() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class);
+            Class<?> type = com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class;
+            setField(effect, type, "x", Float.valueOf(5f));
+            setField(effect, type, "y", Float.valueOf(6f));
+            setField(effect, type, "img", null);
+            setField(effect, type, "waitTimer", Float.valueOf(-1f));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color",
+                    com.badlogic.gdx.graphics.Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError(
+                    "could not allocate a guard-satisfied FallingIceEffect", failure);
+        }
+    }
+
+    /** Real {@code DamageHeartEffect} whose guard is SATISFIED but whose image is absent. */
+    private static AbstractGameEffect satisfiedDamageHeartWithoutImg() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, com.megacrit.cardcrawl.vfx.DamageHeartEffect.class);
+            Class<?> type = com.megacrit.cardcrawl.vfx.DamageHeartEffect.class;
+            setField(effect, type, "x", Float.valueOf(5f));
+            setField(effect, type, "y", Float.valueOf(6f));
+            setField(effect, type, "img", null);
+            setField(effect, type, "delayTimer", Float.valueOf(-1f));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color",
+                    com.badlogic.gdx.graphics.Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError(
+                    "could not allocate a guard-satisfied DamageHeartEffect", failure);
+        }
+    }
+
+    /** A no-GL {@code AtlasRegion} double (allocated with Unsafe; captured by reference only). */
+    private static com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion fakeRegion() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            return (com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe,
+                            com.badlogic.gdx.graphics.g2d.TextureAtlas.AtlasRegion.class);
+        } catch (Exception failure) {
+            throw new AssertionError("could not allocate a no-GL AtlasRegion", failure);
+        }
+    }
+
+    /** Real {@code FallingIceEffect} whose {@code waitTimer} blocks the native draw ({@code >= 0f}). */
+    private static AbstractGameEffect blockedFallingIceEffect() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class);
+            Class<?> type = com.megacrit.cardcrawl.vfx.combat.FallingIceEffect.class;
+            setField(effect, type, "x", Float.valueOf(5f));
+            setField(effect, type, "y", Float.valueOf(6f));
+            setField(effect, type, "img", noGlTexture());
+            setField(effect, type, "waitTimer", Float.valueOf(0.5f));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color",
+                    com.badlogic.gdx.graphics.Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not allocate a guard-blocked FallingIceEffect",
+                    failure);
+        }
+    }
+
+    /** Real {@code DamageHeartEffect} whose {@code delayTimer} blocks the native draw. */
+    private static AbstractGameEffect blockedDamageHeartEffect() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, com.megacrit.cardcrawl.vfx.DamageHeartEffect.class);
+            Class<?> type = com.megacrit.cardcrawl.vfx.DamageHeartEffect.class;
+            setField(effect, type, "x", Float.valueOf(5f));
+            setField(effect, type, "y", Float.valueOf(6f));
+            setField(effect, type, "img", fakeRegion());
+            setField(effect, type, "delayTimer", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color",
+                    com.badlogic.gdx.graphics.Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not allocate a guard-blocked DamageHeartEffect",
+                    failure);
+        }
+    }
+
+    /** Center-packed effect of {@code type} with a null img (cannotDraw, but not guard-benign). */
+    private static AbstractGameEffect seededNullImg(Class<?> type) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.getClass()
+                    .getMethod("allocateInstance", Class.class).invoke(unsafe, type);
+            setField(effect, type, "x", Float.valueOf(5f));
+            setField(effect, type, "y", Float.valueOf(6f));
+            setField(effect, type, "img", null);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color",
+                    com.badlogic.gdx.graphics.Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not allocate " + type, failure);
+        }
+    }
+
+    private static com.badlogic.gdx.graphics.Texture noGlTexture() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            com.badlogic.gdx.graphics.Texture texture =
+                    (com.badlogic.gdx.graphics.Texture) unsafe.getClass()
+                            .getMethod("allocateInstance", Class.class)
+                            .invoke(unsafe, com.badlogic.gdx.graphics.Texture.class);
+            setField(texture, com.badlogic.gdx.graphics.Texture.class, "data",
+                    new com.badlogic.gdx.graphics.TextureData() {
+                        public com.badlogic.gdx.graphics.TextureData.TextureDataType getType() {
+                            return com.badlogic.gdx.graphics.TextureData.TextureDataType.Pixmap;
+                        }
+                        public boolean isPrepared() { return true; }
+                        public void prepare() {}
+                        public com.badlogic.gdx.graphics.Pixmap consumePixmap() { return null; }
+                        public boolean disposePixmap() { return false; }
+                        public void consumeCustomData(int target) {}
+                        public int getWidth() { return 256; }
+                        public int getHeight() { return 256; }
+                        public com.badlogic.gdx.graphics.Pixmap.Format getFormat() {
+                            return com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888;
+                        }
+                        public boolean useMipMaps() { return false; }
+                        public boolean isManaged() { return false; }
+                    });
+            return texture;
+        } catch (Exception failure) {
+            throw new AssertionError("could not allocate a no-GL Texture", failure);
+        }
+    }
+
+    @Test
     public void nonBlankDeclineStillCountsAsAMismatch() {
         // The genuine path is preserved: a claimed instance of a kind that DOES draw (a center-packed
         // effect) that fails open still increments the mismatch / delegated-without-evidence

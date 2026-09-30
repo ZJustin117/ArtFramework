@@ -240,6 +240,15 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.CONE_EFFECT));
         assertSame(VfxDrawGeometry.Kind.CONE,
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.ConeEffect"));
+        assertSame(VfxDrawGeometry.Kind.FALLING_ICE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FALLING_ICE));
+        assertSame(VfxDrawGeometry.Kind.FALLING_ICE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.FallingIceEffect"));
+        assertSame(VfxDrawGeometry.Kind.DAMAGE_HEART,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.DAMAGE_HEART));
+        assertSame(VfxDrawGeometry.Kind.DAMAGE_HEART,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.DamageHeartEffect"));
     }
 
     @Test
@@ -588,6 +597,24 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.combat.ConeEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.Cone")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FallingIceEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FallingIceEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("FallingIceEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.FallingIceEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FallingIce")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DamageHeartEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DamageHeartEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("DamageHeartEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.DamageHeartEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DamageHeart")); // near-miss (no Effect)
     }
 
     @Test
@@ -1960,6 +1987,11 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLYING_SPIKE));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CONE));
 
+        // The two newest guard kinds: FallingIceEffect is additive, DamageHeartEffect never calls
+        // setBlendFunction (ambient).
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FALLING_ICE));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_HEART));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -1977,7 +2009,8 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.FALLING_DUST
                     || kind == VfxDrawGeometry.Kind.SHINE_LINES
                     || kind == VfxDrawGeometry.Kind.SCENE_DUST
-                    || kind == VfxDrawGeometry.Kind.CONE) {
+                    || kind == VfxDrawGeometry.Kind.CONE
+                    || kind == VfxDrawGeometry.Kind.DAMAGE_HEART) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -2045,6 +2078,8 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.TORCH_PARTICLE_S,
                 VfxDrawGeometry.Kind.SCENE_DUST,
                 VfxDrawGeometry.Kind.FLYING_SPIKE,
+                VfxDrawGeometry.Kind.FALLING_ICE,
+                VfxDrawGeometry.Kind.DAMAGE_HEART,
                 VfxDrawGeometry.Kind.CONE }) {
             assertFalse("must not be a no-pixel-without-image kind: " + kind,
                     VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind));
@@ -2130,5 +2165,152 @@ public class VfxDrawGeometryTest {
         assertEquals(7.25f, p.height, EPS);
         assertEquals(-0.5f, p.scaleX, EPS);
         assertEquals(-0.5f, p.scaleY, EPS);
+    }
+
+    @Test
+    public void fallingIceUsesTheFixed96RectAndTheFieldRotationAdditively() {
+        // Native FallingIceEffect: if (waitTimer < 0f) { setBlendFunction(770,1); setColor(color);
+        //   sb.draw(img, x, y, 48f, 48f, 96f, 96f, scale, scale, rotation, 0, 0, 96, 96,
+        //           false, false); setBlendFunction(770,771); }.
+        // The fixed rect is (origin 48, size 96, src 0,0,96,96) with x/y passed through unchanged
+        // (the native draw passes x, y directly — there is NO position offset), the rotation comes
+        // from the field, and the packed region/vY/settings are all unused.
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.FALLING_ICE,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f, 64f, 48f,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 10f /* regionOffsetY ignored */,
+                0f, 0f);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(48f, p.originX, EPS);
+        assertEquals(48f, p.originY, EPS);
+        assertEquals(96f, p.width, EPS);
+        assertEquals(96f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("FALLING_ICE consumes the rotation field", rotation, p.rotation, EPS);
+
+        // The host-neutral constants match the native hardcoded rect.
+        assertEquals(48f, VfxDrawGeometry.FALLING_ICE_ORIGIN, EPS);
+        assertEquals(96f, VfxDrawGeometry.FALLING_ICE_SIZE, EPS);
+        assertEquals(0, VfxDrawGeometry.FALLING_ICE_SRC_X);
+        assertEquals(0, VfxDrawGeometry.FALLING_ICE_SRC_Y);
+        assertEquals(96, VfxDrawGeometry.FALLING_ICE_SRC_W);
+        assertEquals(96, VfxDrawGeometry.FALLING_ICE_SRC_H);
+
+        // A different vY/packed size produces byte-identical geometry.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.FALLING_ICE,
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
+        assertEquals(p, q);
+
+        assertTrue("FALLING_ICE installs additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FALLING_ICE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FALLING_ICE));
+    }
+
+    @Test
+    public void damageHeartMatchesTheStanceAuraCenterPackedGeometryAmbiently() {
+        // Native DamageHeartEffect: if (delayTimer < 0f) { setColor(color);
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation); } — NO
+        // setBlendFunction, so it is ambient and geometry-identical to STANCE_AURA.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 1234f, 0f, 0f, 0f, 0f);
+        VfxDrawGeometry.Params heart = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.DAMAGE_HEART,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f,
+                pw, ph, 1234f /* vX ignored */, 0f, 0f, 0f, 0f);
+
+        assertEquals("DAMAGE_HEART matches the STANCE_AURA center-packed geometry", aura, heart);
+        assertFalse("DAMAGE_HEART never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_HEART));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.DAMAGE_HEART));
+    }
+
+    @Test
+    public void nativeSkipsDrawByGuardIsTrueOnlyForTheTwoGuardKinds() {
+        // Independent truth table over a fixed sample of representative kinds (not a restatement of
+        // the implementation disjunction): only the two natively wait-guarded kinds are true.
+        assertTrue(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.FALLING_ICE));
+        assertTrue(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.DAMAGE_HEART));
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                VfxDrawGeometry.Kind.FLASH_ATK_IMG,
+                VfxDrawGeometry.Kind.FIRE_BURST,
+                VfxDrawGeometry.Kind.SMOKE_BLUR,
+                VfxDrawGeometry.Kind.SHIELD_PARTICLE,
+                VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
+                VfxDrawGeometry.Kind.ICE_SHATTER,
+                VfxDrawGeometry.Kind.WEB_PARTICLE,
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
+                VfxDrawGeometry.Kind.WARNING_SIGN,
+                VfxDrawGeometry.Kind.STUN_STAR,
+                VfxDrawGeometry.Kind.SHINE_LINES,
+                VfxDrawGeometry.Kind.SCENE_DUST,
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE,
+                VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
+                VfxDrawGeometry.Kind.FLYING_SPIKE,
+                VfxDrawGeometry.Kind.CONE }) {
+            assertFalse("only the wait-guarded kinds are true: " + kind,
+                    VfxDrawGeometry.nativeSkipsDrawByGuard(kind));
+        }
+    }
+
+    @Test
+    public void nativeSkipsDrawByGuardNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.nativeSkipsDrawByGuard(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void guardFieldNameIsTheHostNeutralNameOnlyForGuardKinds() {
+        assertEquals("waitTimer",
+                VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.FALLING_ICE));
+        assertEquals("delayTimer",
+                VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.DAMAGE_HEART));
+        assertEquals("waitTimer", VfxDrawGeometry.FALLING_ICE_GUARD_FIELD);
+        assertEquals("delayTimer", VfxDrawGeometry.DAMAGE_HEART_GUARD_FIELD);
+
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.FALLING_ICE) {
+                assertEquals("waitTimer", VfxDrawGeometry.guardFieldName(kind));
+                continue;
+            }
+            if (kind == VfxDrawGeometry.Kind.DAMAGE_HEART) {
+                assertEquals("delayTimer", VfxDrawGeometry.guardFieldName(kind));
+                continue;
+            }
+            assertNull("no guard field name for " + kind, VfxDrawGeometry.guardFieldName(kind));
+            assertFalse("no guard for " + kind, VfxDrawGeometry.nativeSkipsDrawByGuard(kind));
+        }
+    }
+
+    @Test
+    public void guardFieldNameNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.guardFieldName(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
     }
 }

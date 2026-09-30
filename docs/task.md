@@ -593,11 +593,66 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `art claim spawn flyingspike 4` / `art claim spawn cone 4` run in both `d1_aura_claim.yaml`
       phases. No new patch/bridge/console wiring; default-off gate + per-instance token semantics
       unchanged. Focused no-GL JUnit only.
-      DEFERRED: `com.megacrit.cardcrawl.vfx.DamageHeartEffect` was screened but is NOT claimed: its
+      DEFERRED (SUPERSEDED by F21): `com.megacrit.cardcrawl.vfx.DamageHeartEffect` was screened but is
+      NOT claimed: its
       native `render` is guarded by `if (delayTimer < 0f)`, the same wait-phase guard that defers
       `FallingIceEffect` (whose `render` is guarded by `if (waitTimer < 0f)`) — a claimed instance
       would otherwise ART-draw during the native wait phase, so a guard-rule would be needed to stay
-      in parity.
+      in parity. **F21 below adds that per-kind native draw guard and claims both FQNs**, so this
+      deferral no longer holds.
+
+- [x] NRO-04 F21 (per-kind NATIVE DRAW GUARD; two more members that need it):
+      the family-neutral seam gained a per-kind NATIVE DRAW GUARD capability, modeled purely by two
+      new `VfxDrawGeometry` predicates: `nativeSkipsDrawByGuard(Kind)` (`true` only for the guard
+      kinds; throws on null like `additiveBlend`) and `guardFieldName(Kind)` (the host-neutral field
+      name string only — `"waitTimer"` / `"delayTimer"` / `null`; throws on null). The guard is
+      SATISFIED when the field is `< 0f` (native draws); an absent/unreadable guard field is treated
+      as SATISFIED (draw), since native would then not be able to read a guard either.
+      `Sts1VfxArtRenderer` consults this BEFORE drawing (and in `canDraw`); when the guard field is
+      present and `>= 0f` the renderer returns
+      `false` and the patch fails open to the native render — which also draws nothing, so the
+      decline is pixel-identical and recorded as a benign no-pixel decline. The benign
+      classification is INSTANCE-AWARE (not kind-only): `VfxArtRenderer.Adapter` gained
+      `declinedWithoutPixels(Object effect)` (with a `public static` delegator that returns `false`
+      when no adapter is installed, mirroring `canDraw`), implemented by `Sts1VfxArtRenderer` reusing
+      `guardSatisfied(kind, effect)` and the same image-presence check `canDraw` uses. It is `true`
+      only when THIS instance would natively draw nothing — a `nativeSkipsDrawWithoutImage` kind whose
+      instance has no drawable image, OR a `nativeSkipsDrawByGuard` kind whose guard field is present
+      and `>= 0f`. `NativeRenderBridge.recordEffectDeclined` now keys its benign branch on
+      `VfxArtRenderer.declinedWithoutPixels(effect) && !VfxArtRenderer.canDraw(effect)` (the cheaper,
+      instance-scoping probe evaluated first, to short-circuit); a decline of any other instance —
+      **including a guard-SATISFIED guard kind whose image snapshot failed** — still counts as a
+      `dispositionMismatch`/`delegatedWithoutEvidence`, so a genuine renderer failure is never masked
+      as benign. The two newly claimed FQNs are
+      `com.megacrit.cardcrawl.vfx.combat.FallingIceEffect` — additive shape-C fixed rect (instance
+      `Texture img`, origin 48, size 96&times;96, src `0,0,96,96`, x/y passthrough, consuming its
+      `rotation`
+      field), native `render` guarded by `if (waitTimer < 0f)` — and
+      `com.megacrit.cardcrawl.vfx.DamageHeartEffect` — ambient center-packed exactly like
+      `StanceAuraEffect` (its `img` is a public `AtlasRegion`), native `render` guarded by
+      `if (delayTimer < 0f)`. `VfxDrawGeometry` gained `Kind.FALLING_ICE` (new fixed-rect branch +
+      constants; `FALLING_ICE_OFFSET` is deliberately NOT added — native passes x/y unchanged and only
+      the origin is 48) and `Kind.DAMAGE_HEART` (joins the shared center-packed STANCE_AURA case list);
+      `kindFor` maps the two exact FQNs (near-miss/nested fail open), `additiveBlend` is `true` for
+      `FALLING_ICE`/`false` for `DAMAGE_HEART`, and `whiteAlphaOnly`/`usesInstanceFlipX`/
+      `usesInstanceFlipY` are unchanged. `VfxClaimPolicy` `FALLING_ICE`/`DAMAGE_HEART` append LAST to
+      `supportedClasses()`/`supports(...)` in that order. `VfxLabSpawn.classNameFor` gains
+      `"fallingice"`/`"icefall"` (`new FallingIceEffect(0, false)`) and
+      `"damageheart"`/`"heart"` (`new DamageHeartEffect(960f, 540f, 0f, AttackEffect.BLUNT_HEAVY, 0)`)
+      — aliases checked against the existing set for collisions — behind the existing fail-open
+      guard, and `art claim spawn fallingice 4` / `art claim spawn damageheart 4` run in both
+      `d1_aura_claim.yaml` phases. NOTE on D1 evidence: a freshly constructed instance starts with its
+      guard UNSATISFIED (`waitTimer`/`delayTimer >= 0f`), so the spawn-frame evidence is the per-FQN
+      `active`/entity delta on spawn (observation), NOT a draw increase at spawn. The two kinds then
+      diverge: `FallingIceEffect.update()` decrements `waitTimer` unconditionally
+      (`waitTimer -= delta; if (waitTimer > 0) return;`), so its guard becomes SATISFIED once the wait
+      elapses and **ART can then draw it** (its `img` is non-null in a live game), so a draw increase
+      MAY also appear — whereas `DamageHeartEffect.delayTimer` is the ctor arg (`0f`) and is never
+      decremented past its `> 0` branch, so it STAYS guarded (no draw increase). The two earlier
+      "deferred wait-guarded" notes for these two FQNs (the F20 `DEFERRED:` paragraph and the
+      `VfxClaimPolicy` class Javadoc screening note) are now
+      **SUPERSEDED**. No new patch/console wiring; default-off gate + per-instance token semantics
+      unchanged. Focused no-GL JUnit only.
 
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,

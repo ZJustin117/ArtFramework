@@ -37,9 +37,30 @@ public final class VfxArtRenderer {
          * True when {@link #render} could actually produce a draw for this exact instance, i.e. the
          * same field/resource checks {@code render} performs up to the point of drawing all pass.
          * Used to distinguish a benign no-pixel decline (the native effect would draw nothing
-         * either) from a genuine renderer failure.
+         * either) from a genuine renderer failure. A real adapter's {@code canDraw} also reflects
+         * the per-kind native draw guard: a guard-blocked instance (the native render's wait phase
+         * would draw nothing) reports {@code false}, so its decline is classified as benign.
          */
         boolean canDraw(Object effect);
+
+        /**
+         * True only when the adapter can determine that THIS exact instance would natively draw
+         * NOTHING, i.e. it is a benign no-pixel decline rather than a genuine renderer failure: (a)
+         * a kind the native render guards on a present image
+         * ({@link VfxDrawGeometry#nativeSkipsDrawWithoutImage}) whose instance has no drawable
+         * image, or (b) a kind whose native draw is blocked by the wait-phase guard
+         * ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}) and whose guard field is present and
+         * {@code >= 0f}. Every other instance — including a guard-SATISFIED instance whose image
+         * snapshot fails — is {@code false}, so a genuine failure is never masked as benign.
+         * Unlike {@link #canDraw} this is deliberately narrow: it does NOT report {@code true}
+         * merely because the instance is undrawable.
+         *
+         * <p>Defaults to {@code false} so a draw-only fake adapter (which never declines) need not
+         * implement it.
+         */
+        default boolean declinedWithoutPixels(Object effect) {
+            return false;
+        }
     }
 
     private static volatile Adapter adapter;
@@ -96,6 +117,24 @@ public final class VfxArtRenderer {
         if (current == null) return false;
         try {
             return current.canDraw(effect);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * True only when the installed adapter can determine that THIS exact instance would natively
+     * draw NOTHING (a benign no-pixel decline): a null-image kind whose native draw is guarded on a
+     * present image, or a wait-phase-guarded kind whose guard field is present and {@code >= 0f}.
+     * Returns {@code false} when no adapter is installed, the adapter does not implement the probe,
+     * the probe throws, or the instance is not one of those two cases — so a genuine renderer
+     * failure is never masked as benign. Mirrors the {@link #canDraw} delegator style.
+     */
+    public static boolean declinedWithoutPixels(Object effect) {
+        Adapter current = adapter;
+        if (current == null) return false;
+        try {
+            return current.declinedWithoutPixels(effect);
         } catch (Throwable ignored) {
             return false;
         }

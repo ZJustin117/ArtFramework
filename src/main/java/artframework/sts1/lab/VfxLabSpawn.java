@@ -14,6 +14,7 @@ import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
+import com.megacrit.cardcrawl.vfx.DamageHeartEffect;
 import com.megacrit.cardcrawl.vfx.ShineLinesEffect;
 import com.megacrit.cardcrawl.vfx.WarningSignEffect;
 import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
@@ -21,6 +22,7 @@ import com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
+import com.megacrit.cardcrawl.vfx.combat.FallingIceEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
@@ -76,7 +78,9 @@ import java.util.function.Predicate;
  * flags — plus the two newest members {@code FlyingSpikeEffect} ({@code vfx-combat}; additive
  * center-packed with no new rule, its {@code vX}/{@code vY} update-only) and {@code ConeEffect}
  * (root; ambient center-packed with the {@code originX = 0f} + {@code scale * 1.1f} rule, NO-ARG
- * constructor) into
+ * constructor), plus the two newest members {@code FallingIceEffect} ({@code vfx-combat}; additive
+ * shape-C fixed rect guarded natively by {@code if (waitTimer < 0f)}) and {@code DamageHeartEffect}
+ * (root; ambient center-packed guarded natively by {@code if (delayTimer < 0f)}) into
  * the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
@@ -248,6 +252,12 @@ public final class VfxLabSpawn {
         }
         if ("cone".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.CONE_EFFECT;
+        }
+        if ("fallingice".equalsIgnoreCase(value) || "icefall".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FALLING_ICE;
+        }
+        if ("damageheart".equalsIgnoreCase(value) || "heart".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.DAMAGE_HEART;
         }
         return null;
     }
@@ -601,6 +611,25 @@ public final class VfxLabSpawn {
             // outside a live game, so any failure is caught by spawn's fail-open guard rather than
             // propagating.
             return new ConeEffect();
+        }
+        if (VfxClaimPolicy.FALLING_ICE.equals(fqn)) {
+            // Safe lab defaults: FallingIceEffect's ctor is (int frostCount, boolean damage) and
+            // seeds its own x/y (from AbstractDungeon player/random positions) plus waitTimer; img
+            // comes from the static ImageMaster FROST_* textures and may be null outside a live game.
+            // A freshly constructed instance has waitTimer >= 0, so its native render is in the wait
+            // phase and it legitimately declines-while-guarded; any failure is caught by spawn's
+            // fail-open guard rather than propagating.
+            return new FallingIceEffect(0, false);
+        }
+        if (VfxClaimPolicy.DAMAGE_HEART.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The ctor is (float x, float y,
+            // float delayTimer, AttackEffect, int damage) and loadImage() picks its public AtlasRegion
+            // img from ImageMaster art, which may be null outside a live game. A freshly constructed
+            // instance has delayTimer 0f (not < 0f), so its native render is in the delay phase and it
+            // legitimately declines-while-guarded; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new DamageHeartEffect(960f, 540f, 0f,
+                    com.megacrit.cardcrawl.actions.AbstractGameAction.AttackEffect.BLUNT_HEAVY, 0);
         }
         return null;
     }

@@ -30,7 +30,12 @@ package artframework.sts1.render;
  * {@code vfx-combat} {@code FlyingSpikeEffect} (additive center-packed, no new rule) and the
  * {@code vfx-misc-root} {@code ConeEffect} (ambient center-packed with a NEW origin rule —
  * {@code originX = 0f} rather than {@code packedWidth/2f} — and a {@code scale * 1.1f} uniform
- * scale).
+ * scale); the two newest are the {@code vfx-combat} {@code FallingIceEffect} (additive shape-C
+ * fixed rect, origin 48, size 96&times;96, src {@code 0,0,96,96}, x/y passthrough, consuming its
+ * {@code rotation} field) and the {@code vfx-misc-root} {@code DamageHeartEffect} (ambient
+ * center-packed, exactly {@code StanceAuraEffect}, with a public {@code AtlasRegion img}) — the
+ * first two kinds whose native {@code render} guards its draw on a wait-phase field, modeled by
+ * the new {@link #nativeSkipsDrawByGuard}/{@link #guardFieldName} capability.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -44,7 +49,8 @@ package artframework.sts1.render;
  * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
  * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
  * {@code DamageImpactLineEffect}, {@code StunStarEffect}, {@code FallingDustEffect},
- * {@code ShineLinesEffect}, {@code DustEffect}, and {@code ConeEffect}
+ * {@code ShineLinesEffect}, {@code DustEffect}, {@code ConeEffect}, and
+ * {@code DamageHeartEffect}
  * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
@@ -175,18 +181,25 @@ package artframework.sts1.render;
  *   ConeEffect.render (note: no setBlendFunction; ambient blend; the origin X is 0f, NOT pw/2f, and
  *                      the uniform scale is scale * 1.1f):
  *     sb.draw(img, x, y, 0f, ph/2f, pw, ph, scale*1.1f, scale*1.1f, rotation)
+ *   FallingIceEffect.render (note: guarded by if (waitTimer < 0f); additive blend; uses the rotation
+ *                             field and its own instance Texture img):
+ *     sb.draw(img, x, y, 48f, 48f, 96f, 96f, scale, scale, rotation, 0, 0, 96, 96, false, false)
+ *   DamageHeartEffect.render (note: guarded by if (delayTimer < 0f); no setBlendFunction; ambient
+ *                              blend; the geometry is exactly StanceAuraEffect center-packed):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
  * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown, WarningSign,
- * DarkOrb, LightningOrbPassive, and
- * GlowyFireEyes — draw a
+ * DarkOrb, LightningOrbPassive, GlowyFireEyes, and
+ * FallingIce — draw a
  * fixed source rect
  * rather than a packed region, so their native origin/size/source rect are host-neutral constants
  * and the packed region size is ignored; Shield, Web, Entangle, WarningSign, and GlowyFireEyes
  * hardcode rotation
  * {@code 0f},
- * Debuff, IceShatter, Unknown, DarkOrb, and LightningOrbPassive consume their {@code rotation}
+ * Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive, and FallingIce consume their
+ * {@code rotation}
  * field, and Calm keeps its
  * {@code scaleY} formula. WarningSign is the only kind whose uniform scale is a hardcoded
  * {@code settingsScale * 2f} rather than the effect's own {@code scale} field (it has none). Two of
@@ -248,6 +261,18 @@ package artframework.sts1.render;
  * additive shape-C fixed-rect formula — offset {@code (-37, -37)}, origin {@code (37, 37)}, size
  * {@code (74, 74)}, src {@code (0, 0, 74, 74)}, the full 74&times;74 region, consuming its
  * {@code rotation} field — over its own instance {@code Texture img}.
+ * The two newest members are the first kinds whose native {@code render} guards its draw on a
+ * wait-phase field: {@code FallingIceEffect} ({@link Kind#FALLING_ICE}) is a NEW additive
+ * shape-C fixed rect — origin {@code (48, 48)}, size {@code (96, 96)},
+ * src {@code (0, 0, 96, 96)}, with x/y passed through unchanged (no position offset) — over its
+ * own instance {@code Texture img} and consuming its
+ * {@code rotation} field, guarded by {@code if (waitTimer < 0f)}; {@code DamageHeartEffect}
+ * ({@link Kind#DAMAGE_HEART}) reuses the ambient center-packed {@link Kind#STANCE_AURA} geometry
+ * verbatim (its {@code img} is a public {@code AtlasRegion}) and is guarded by
+ * {@code if (delayTimer < 0f)}. The per-kind guard is modeled purely by
+ * {@link #nativeSkipsDrawByGuard} (which kinds have a guard) and {@link #guardFieldName} (the
+ * host-neutral field name); the renderer declines a draw whenever the guard field is present and
+ * {@code >= 0f}, matching the native wait phase pixel-for-pixel.
  */
 public final class VfxDrawGeometry {
 
@@ -297,7 +322,9 @@ public final class VfxDrawGeometry {
         LIGHTNING_ORB_PASSIVE,
         GLOWY_FIRE_EYES,
         FLYING_SPIKE,
-        CONE
+        CONE,
+        FALLING_ICE,
+        DAMAGE_HEART
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -510,6 +537,30 @@ public final class VfxDrawGeometry {
     /** Native ConeEffect uniform scale multiplier ({@code 1.1f}). */
     public static final float CONE_SCALE_MULTIPLIER = 1.1f;
 
+    // Native FallingIceEffect draw constants (see the class Javadoc): a fixed origin/size rect and
+    // the fixed source rect of its own instance Texture img. Native passes x/y through unchanged (no
+    // position offset); the rotation comes from the field.
+    /** Native FallingIce draw origin ({@code 48f}). */
+    public static final float FALLING_ICE_ORIGIN = 48f;
+    /** Native FallingIce draw width/height ({@code 96f}). */
+    public static final float FALLING_ICE_SIZE = 96f;
+    /** Native FallingIce draw source rect x ({@code 0}). */
+    public static final int FALLING_ICE_SRC_X = 0;
+    /** Native FallingIce draw source rect y ({@code 0}). */
+    public static final int FALLING_ICE_SRC_Y = 0;
+    /** Native FallingIce draw source rect width ({@code 96}). */
+    public static final int FALLING_ICE_SRC_W = 96;
+    /** Native FallingIce draw source rect height ({@code 96}). */
+    public static final int FALLING_ICE_SRC_H = 96;
+
+    // The per-kind native wait-phase guard field names (the seam's first draw guard): a claimed
+    // instance whose guard field is present and >= 0f is declined (draws nothing), exactly like the
+    // native render's `if (<guard> < 0f)` wait phase.
+    /** Native FallingIceEffect guard field name ({@code "waitTimer"}, satisfied when {@code < 0f}). */
+    public static final String FALLING_ICE_GUARD_FIELD = "waitTimer";
+    /** Native DamageHeartEffect guard field name ({@code "delayTimer"}, satisfied when {@code < 0f}). */
+    public static final String DAMAGE_HEART_GUARD_FIELD = "delayTimer";
+
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
         public final float x;
@@ -635,6 +686,8 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.GLOWY_FIRE_EYES.equals(value)) return Kind.GLOWY_FIRE_EYES;
         if (VfxClaimPolicy.FLYING_SPIKE.equals(value)) return Kind.FLYING_SPIKE;
         if (VfxClaimPolicy.CONE_EFFECT.equals(value)) return Kind.CONE;
+        if (VfxClaimPolicy.FALLING_ICE.equals(value)) return Kind.FALLING_ICE;
+        if (VfxClaimPolicy.DAMAGE_HEART.equals(value)) return Kind.DAMAGE_HEART;
         return null;
     }
 
@@ -650,7 +703,7 @@ public final class VfxDrawGeometry {
      * {@link Kind#BLOCK_IMPACT_LINE}, {@link Kind#EXHAUST_PILE}, {@link Kind#UNKNOWN_PARTICLE},
      * {@link Kind#DAMAGE_IMPACT_BLUR}, {@link Kind#DAMAGE_IMPACT_LINE}, {@link Kind#STUN_STAR},
      * {@link Kind#FALLING_DUST}, {@link Kind#SHINE_LINES}, {@link Kind#SCENE_DUST},
-     * {@link Kind#CONE})
+     * {@link Kind#CONE}, {@link Kind#DAMAGE_HEART})
      * never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
@@ -679,7 +732,10 @@ public final class VfxDrawGeometry {
      * {@link Kind#TORCH_PARTICLE_S}, and the two newest additive bare-{@code Texture} members
      * {@link Kind#LIGHTNING_ORB_PASSIVE}/{@link Kind#GLOWY_FIRE_EYES}, plus the newest additive
      * center-packed member {@link Kind#FLYING_SPIKE} — is additive. The newest ambient member is
-     * {@link Kind#CONE}.
+     * {@link Kind#CONE}; the two newest members add only the wait-phase guard capability
+     * ({@link #nativeSkipsDrawByGuard}/{@link #guardFieldName}) and reuse the existing shapes —
+     * {@link Kind#FALLING_ICE} is additive (shape-C fixed rect) and {@link Kind#DAMAGE_HEART} is
+     * ambient (center-packed).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -703,7 +759,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.FALLING_DUST
                 && kind != Kind.SHINE_LINES
                 && kind != Kind.SCENE_DUST
-                && kind != Kind.CONE;
+                && kind != Kind.CONE
+                && kind != Kind.DAMAGE_HEART;
     }
 
     /**
@@ -723,6 +780,47 @@ public final class VfxDrawGeometry {
             throw new IllegalArgumentException("kind must not be null");
         }
         return kind == Kind.FLASH_ATK_IMG;
+    }
+
+    /**
+     * Pure per-kind predicate for the seam's NATIVE DRAW GUARD capability: {@code true} only for the
+     * kinds whose native {@code render} wraps its draw in a wait-phase field check, so a claimed
+     * instance whose guard field is present and {@code >= 0f} would natively draw NOTHING. Today
+     * that is exactly {@link Kind#FALLING_ICE} ({@code FallingIceEffect}, guarded by
+     * {@code if (waitTimer < 0f)}) and {@link Kind#DAMAGE_HEART} ({@code DamageHeartEffect}, guarded
+     * by {@code if (delayTimer < 0f)}). Every other claimable kind draws unconditionally (or draws a
+     * fixed static texture), so it is {@code false}. Callers use this together with
+     * {@link #guardFieldName} to keep a claimed instance in pixel parity — the renderer declines
+     * (draws nothing) when the guard blocks, matching the native wait phase — and to classify that
+     * decline as a benign no-pixel decline rather than a {@code dispositionMismatch}.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean nativeSkipsDrawByGuard(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.FALLING_ICE || kind == Kind.DAMAGE_HEART;
+    }
+
+    /**
+     * The host-neutral name of the native wait-phase guard field for a guarded kind, or {@code null}
+     * for every kind {@link #nativeSkipsDrawByGuard} reports {@code false} for. The name is a plain
+     * {@link String} only — this class stays host-neutral and never touches the native class. The
+     * guard is SATISFIED (the native draw runs) when the field's value is {@code < 0f}; a guard kind
+     * whose field is absent or unreadable is treated as SATISFIED (it draws), since the native
+     * render would then not be able to read a guard either. Returns {@code "waitTimer"} for
+     * {@link Kind#FALLING_ICE} and {@code "delayTimer"} for {@link Kind#DAMAGE_HEART}.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static String guardFieldName(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        if (kind == Kind.FALLING_ICE) return FALLING_ICE_GUARD_FIELD;
+        if (kind == Kind.DAMAGE_HEART) return DAMAGE_HEART_GUARD_FIELD;
+        return null;
     }
 
     /**
@@ -794,7 +892,8 @@ public final class VfxDrawGeometry {
      * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR},
      * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE},
      * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE}, {@code STUN_STAR},
-     * {@code FALLING_DUST}, {@code SHINE_LINES}, {@code SCENE_DUST}, {@code CONE})
+     * {@code FALLING_DUST}, {@code SHINE_LINES}, {@code SCENE_DUST}, {@code CONE},
+     * {@code DAMAGE_HEART})
      * leave the ambient blend untouched and restore
      * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
      * {@code ENTANGLE}) that also rewrite their set color's
@@ -856,6 +955,7 @@ public final class VfxDrawGeometry {
             case TORCH_PARTICLE_M:
             case TORCH_PARTICLE_S:
             case FLYING_SPIKE:
+            case DAMAGE_HEART:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -875,6 +975,16 @@ public final class VfxDrawGeometry {
                 // rule; their vY is update-only).
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
+            case FALLING_ICE:
+                // Native FallingIceEffect ignores the (absent) region: a new additive shape-C fixed
+                // rect (origin 48, size 96, src 0,0,96,96; x/y passthrough) over its own instance
+                // Texture img, consuming the field rotation. Guarded natively by if (waitTimer < 0f);
+                // the guard is
+                // resolved by the renderer (see nativeSkipsDrawByGuard/guardFieldName), not here.
+                // packedWidth/packedHeight, vY, vX, the region offsets, dur_div2, duration, and
+                // Settings.scale are unused.
+                return new Params(x, y, FALLING_ICE_ORIGIN, FALLING_ICE_ORIGIN,
+                        FALLING_ICE_SIZE, FALLING_ICE_SIZE, scale, scale, rotation);
             case FLAME_BALL:
                 // Native FlameBallParticleEffect lifts only its origin Y by a settings-scaled amount:
                 // sb.draw(img, x, y, pw/2f, ph/2f + 20f * Settings.scale, pw, ph, scale, scale,

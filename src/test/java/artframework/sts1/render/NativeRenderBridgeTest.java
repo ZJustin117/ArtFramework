@@ -983,6 +983,185 @@ public class NativeRenderBridgeTest {
         assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
     }
 
+    /**
+     * Completion observation via the retained class-level {@code AbstractGameEffect#update()}
+     * Postfix (whose body is {@link NativeRenderBridge#observeEffectUpdate}) reclaims an active
+     * record for an effect that DOES call {@code super.update()}. This is the only completion
+     * path now that the container {@code AbstractDungeon.update} instrument has been removed; the
+     * real ModTheSpire Postfix wiring is proven on-device, so this test drives the Postfix body
+     * directly (the native {@code super.update()} body touches {@code Gdx.graphics} and cannot run
+     * off-device).
+     */
+    @Test
+    public void updatePostfixObservationReclaimsCompletedEffect() {
+        SuperCallingEffect effect = new SuperCallingEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        effect.isDone = true;
+        NativeRenderBridge.observeEffectUpdate(effect);
+
+        assertEquals("done=true observation must release the active record",
+                Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(1), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+    }
+
+    @Test
+    public void doubleObservedUpdateInOneFrameCompletesExactlyOnce() {
+        AbstractGameEffect effect = superlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        effect.isDone = true;
+
+        // The same instance can be observed more than once in a frame; observation is idempotent.
+        NativeRenderBridge.observeEffectUpdate(effect);
+        NativeRenderBridge.observeEffectUpdate(effect);
+
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals("a done=true observation after completion is a silent no-op",
+                Integer.valueOf(1), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("failOpen"));
+        assertEquals("benign re-observation of a terminal instance is not an unknown lifecycle",
+                Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+    }
+
+    @Test
+    public void notificationAfterCompletionNeverThrowsFromObservationPath() {
+        AbstractGameEffect effect = superlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        effect.isDone = true;
+        NativeRenderBridge.observeEffectUpdate(effect);
+
+        // Repeated observation of a terminal instance must not surface the ledger's
+        // "update after effect termination" invariant.
+        for (int frame = 0; frame < 3; frame++) {
+            NativeRenderBridge.observeEffectUpdate(effect);
+        }
+
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(1), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("failOpen"));
+        assertEquals("terminal re-observation must not inflate unknownLifecycle",
+                Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+    }
+
+    /**
+     * Direct regression for the D1 identity-reuse bug: a second, new instance of a class whose
+     * earlier instance already completed must be ADMITTED as a fresh live effect, never rejected
+     * as a terminal record.
+     */
+    @Test
+    public void newInstanceOfCompletedClassIsAdmittedInsteadOfRejectedAsTerminal() {
+        SuperlessEffect first = superlessEffect();
+        NativeRenderBridge.beginEffectRender(first, "render");
+        first.isDone = true;
+        NativeRenderBridge.observeEffectUpdate(first);
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+
+        int unknownAfterFirst = ((Number) transientEffects().get("unknownLifecycle")).intValue();
+        SuperlessEffect second = superlessEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(second, "render");
+
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, disposition.mode);
+        assertTrue("a new live instance must continue the native render",
+                disposition.nativeContinuation);
+        assertEquals("the new instance is admitted as active",
+                Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals("a fresh live instance is never an unknown lifecycle",
+                Integer.valueOf(unknownAfterFirst), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+
+        // Structural guard: the identity must NOT be derived from the reusable identity hash, so
+        // this regression is pinned even though both objects stay reachable here (their
+        // identityHashCode values could not actually collide, which is why the behavioral
+        // assertions alone would also pass under the old hash-based scheme).
+        String secondId = NativeRenderBridge.effectInstanceIdForTests(second);
+        String hashDerived = second.getClass().getName() + "@"
+                + Integer.toHexString(System.identityHashCode(second));
+        assertFalse("instanceId must not be the reusable identityHashCode form",
+                hashDerived.equals(secondId));
+        assertTrue("instanceId uses the monotonic '#' form",
+                secondId.startsWith(second.getClass().getName() + "#")
+                        && secondId.indexOf('@') < 0);
+    }
+
+    @Test
+    public void distinctLiveObjectsOfTheSameClassGetDistinctInstanceIds() {
+        SuperlessEffect first = superlessEffect();
+        SuperlessEffect second = superlessEffect();
+
+        String firstId = NativeRenderBridge.effectInstanceIdForTests(first);
+        String secondId = NativeRenderBridge.effectInstanceIdForTests(second);
+
+        assertNotNull(firstId);
+        assertNotNull(secondId);
+        assertFalse("two live objects must never share an instance id",
+                firstId.equals(secondId));
+        assertTrue("ids are class-scoped",
+                firstId.startsWith(first.getClass().getName() + "#")
+                        && secondId.startsWith(second.getClass().getName() + "#"));
+    }
+
+    /**
+     * Pins the fix deterministically: the id is no longer derived from
+     * {@code System.identityHashCode}, whose values are reused after an object dies.
+     */
+    @Test
+    public void instanceIdIsNotDerivedFromReusableIdentityHashCode() {
+        AbstractGameEffect effect = superlessEffect();
+        String id = NativeRenderBridge.effectInstanceIdForTests(effect);
+        String identityHashForm = effect.getClass().getName() + "@"
+                + Integer.toHexString(System.identityHashCode(effect));
+
+        assertFalse("id must not be the old reusable identityHashCode form",
+                identityHashForm.equals(id));
+        assertTrue("id is sequence-based", id.startsWith(effect.getClass().getName() + "#"));
+    }
+
+    @Test
+    public void instanceIdIsStableAcrossRepeatedObservationsOfTheSameObject() {
+        AbstractGameEffect effect = superlessEffect();
+        String first = NativeRenderBridge.effectInstanceIdForTests(effect);
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        NativeRenderBridge.observeEffectUpdate(effect);
+        String afterObservation = NativeRenderBridge.effectInstanceIdForTests(effect);
+
+        assertEquals("the same live object always resolves to the same id",
+                first, afterObservation);
+    }
+
+    /**
+     * The id map is bounded: many more objects than the cap are tracked, but the live count never
+     * exceeds {@link NativeRenderBridge#EFFECT_IDS_CAPACITY}; the oldest entries evict first.
+     */
+    @Test
+    public void effectIdTrackingStaysBoundedAcrossManyObjects() {
+        int cap = NativeRenderBridge.EFFECT_IDS_CAPACITY;
+        for (int index = 0; index < cap + 128; index++) {
+            NativeRenderBridge.effectInstanceIdForTests(superlessEffect());
+        }
+
+        assertEquals("the id map never grows past its cap",
+                Integer.valueOf(cap), Integer.valueOf(NativeRenderBridge.trackedEffectIdCount()));
+    }
+
+    @Test
+    public void completedObjectsDoNotBreakSubsequentAdmission() {
+        for (int index = 0; index < 64; index++) {
+            SuperlessEffect effect = superlessEffect();
+            NativeRenderBridge.beginEffectRender(effect, "render");
+            effect.isDone = true;
+            NativeRenderBridge.observeEffectUpdate(effect);
+        }
+
+        assertEquals("each completed instance is counted exactly once",
+                Integer.valueOf(64), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals("completion must not mass-trigger terminal rejections",
+                Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+    }
+
     @Test
     public void lateBeginEffectRenderAfterCompletionDoesNotRecreateActiveEffect() {
         AbstractGameEffect effect = effect();
@@ -1284,6 +1463,52 @@ public class NativeRenderBridgeTest {
             public void dispose() {
             }
         };
+    }
+
+    /**
+     * Mirrors the real leak condition: a native subclass that overrides {@code update()} without
+     * calling {@code super.update()} (9 of 10 claimable native classes do this), so the
+     * class-level {@code AbstractGameEffect.update()} Postfix never fires for it.
+     */
+    private static final class SuperlessEffect extends AbstractGameEffect {
+        int updates;
+
+        @Override
+        public void render(SpriteBatch sb) {
+        }
+
+        @Override
+        public void dispose() {
+        }
+
+        @Override
+        public void update() {
+            updates++;
+        }
+    }
+
+    private static SuperlessEffect superlessEffect() {
+        return new SuperlessEffect();
+    }
+
+    /**
+     * Mirrors a native subclass that DOES call {@code super.update()}, so the class-level
+     * {@code AbstractGameEffect.update()} Postfix fires for it. The Postfix body is
+     * {@code NativeRenderBridge.observeEffectUpdate}; the raw Postfix wiring is proven on-device.
+     */
+    private static final class SuperCallingEffect extends AbstractGameEffect {
+        @Override
+        public void render(SpriteBatch sb) {
+        }
+
+        @Override
+        public void dispose() {
+        }
+
+        @Override
+        public void update() {
+            super.update();
+        }
     }
 
     @Test

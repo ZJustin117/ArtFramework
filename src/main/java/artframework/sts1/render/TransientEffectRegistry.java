@@ -12,20 +12,33 @@ import java.util.Map;
  */
 public final class TransientEffectRegistry {
     public static final int DEFAULT_PENDING_CAPACITY = 256;
+    /**
+     * Defense-in-depth bound for the projected-entity index. {@link #cleanup} is the primary
+     * removal path; this cap guarantees the index cannot grow without limit even when a host
+     * path never reports completion.
+     */
+    public static final int DEFAULT_ENTITY_CAPACITY = 4096;
 
     private final Map<String, String> entities = new LinkedHashMap<String, String>();
     private final LinkedHashMap<String, PendingProjection> pending =
             new LinkedHashMap<String, PendingProjection>();
     private final int pendingCapacity;
+    private final int entityCapacity;
     private boolean clearAllPending;
 
     public TransientEffectRegistry() {
-        this(DEFAULT_PENDING_CAPACITY);
+        this(DEFAULT_PENDING_CAPACITY, DEFAULT_ENTITY_CAPACITY);
     }
 
     TransientEffectRegistry(int pendingCapacity) {
+        this(pendingCapacity, DEFAULT_ENTITY_CAPACITY);
+    }
+
+    TransientEffectRegistry(int pendingCapacity, int entityCapacity) {
         if (pendingCapacity < 1) throw new IllegalArgumentException("pending capacity required");
+        if (entityCapacity < 1) throw new IllegalArgumentException("entity capacity required");
         this.pendingCapacity = pendingCapacity;
+        this.entityCapacity = entityCapacity;
     }
 
     /** One deferred projection event; data-only value consumed by the projection system. */
@@ -74,6 +87,13 @@ public final class TransientEffectRegistry {
     public synchronized void recordProjected(String instanceId, String entityId) {
         if (instanceId == null || instanceId.isEmpty()) return;
         entities.put(instanceId, entityId);
+        // Bounded even if the host never reports completion: the oldest projected index entries
+        // leave first, and the presentation entity itself is removed by the projection system.
+        while (entities.size() > entityCapacity) {
+            String oldest = entities.keySet().iterator().next();
+            entities.remove(oldest);
+            enqueue(new PendingProjection(oldest, "effect:" + oldest, true, null));
+        }
     }
 
     public synchronized String entity(TransientEffectIdentity identity) {
@@ -94,6 +114,8 @@ public final class TransientEffectRegistry {
     }
 
     public synchronized int activeCount() { return entities.size(); }
+
+    public synchronized int entityCapacity() { return entityCapacity; }
 
     public synchronized Map<String, String> snapshot() {
         return Collections.unmodifiableMap(new LinkedHashMap<String, String>(entities));

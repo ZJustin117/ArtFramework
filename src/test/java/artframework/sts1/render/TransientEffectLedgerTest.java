@@ -100,6 +100,224 @@ public class TransientEffectLedgerTest {
     }
 
     @Test
+    public void hasActiveRecordTracksCreateAdmitUpdateAndCompletion() {
+        TransientEffectLedger ledger = new TransientEffectLedger();
+        TransientEffectIdentity created = identity("created");
+        TransientEffectIdentity admitted = identity("admitted");
+        TransientEffectIdentity unknown = identity("unknown");
+
+        assertFalse(ledger.hasActiveRecord(created));
+        assertFalse(ledger.hasActiveRecord(null));
+
+        ledger.create(created);
+        assertTrue(ledger.hasActiveRecord(created));
+
+        ledger.render(admitted);
+        assertTrue(ledger.hasActiveRecord(admitted));
+
+        assertFalse("unrelated identity is never active", ledger.hasActiveRecord(unknown));
+
+        ledger.update(created, true);
+        assertFalse("completion leaves no active record", ledger.hasActiveRecord(created));
+    }
+
+    @Test
+    public void activeRecordCreatedByCreateIsRemovedByDoneUpdateAndStaysTerminal() {
+        TransientEffectLedger ledger = new TransientEffectLedger();
+        TransientEffectIdentity effect = identity("effect");
+        ledger.create(effect);
+
+        ledger.update(effect, true);
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
+        assertFalse(ledger.hasActiveRecord(effect));
+
+        // The bridge observes a completed effect more than once per frame; a second done update
+        // must be a silent no-op rather than an "update after effect termination" throw.
+        ledger.update(effect, true);
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.totalCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.recentCount()));
+    }
+
+    @Test
+    public void activeRecordAdmittedByRenderIsRemovedByDoneUpdate() {
+        TransientEffectLedger ledger = new TransientEffectLedger();
+        TransientEffectIdentity effect = identity("render-only");
+        assertTrue(ledger.admitRender(effect));
+        assertTrue(ledger.hasActiveRecord(effect));
+
+        ledger.update(effect, true);
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
+        assertFalse(ledger.hasActiveRecord(effect));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.totalCount()));
+    }
+
+    @Test
+    public void activeCapacityEvictsOldestAndKeepsActiveSetBounded() {
+        int cap = 4;
+        TransientEffectLedger ledger = new TransientEffectLedger(2, cap);
+        for (int i = 0; i < cap + 8; i++) {
+            ledger.create(identity("active-" + i));
+        }
+
+        assertEquals("records can never exceed the active capacity",
+                Integer.valueOf(cap), Integer.valueOf(ledger.activeCount()));
+        assertEquals("each active-window cap eviction is counted once",
+                Integer.valueOf(8), Integer.valueOf(ledger.activeEvictedCount()));
+        assertEquals("active-cap eviction must not populate the terminal recent window",
+                Integer.valueOf(0), Integer.valueOf(ledger.recentCount()));
+        assertEquals("active-cap eviction must not advance the recent-window counter",
+                Integer.valueOf(0), Integer.valueOf(ledger.evictedCount()));
+        assertTrue("the newest identities are retained",
+                ledger.hasActiveRecord(identity("active-" + (cap + 7))));
+        assertFalse("the oldest identities were evicted",
+                ledger.hasActiveRecord(identity("active-0")));
+        assertEquals(Integer.valueOf(cap), ledger.probeSlice().get("active"));
+        assertEquals(Integer.valueOf(cap), ledger.probeSlice().get("activeCap"));
+        assertEquals(Integer.valueOf(8), ledger.probeSlice().get("activeEvicted"));
+    }
+
+    @Test
+    public void capEvictedLiveInstanceIsReAdmittedInsteadOfRejectedAsTerminal() {
+        // activeCapacity=1: creating a second record cap-evicts the first (still-live) instance.
+        TransientEffectLedger ledger = new TransientEffectLedger(4, 1);
+        TransientEffectIdentity evicted = identity("live-evicted");
+        ledger.create(evicted);
+        ledger.create(identity("other"));
+
+        assertFalse(ledger.hasActiveRecord(evicted));
+        assertEquals("the evicted instance is untracked, not terminal",
+                Integer.valueOf(0), Integer.valueOf(ledger.recentCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.evictedCount()));
+
+        // The live instance is re-admitted normally; it is NOT rejected as a dead terminal record.
+        assertTrue("cap eviction must not poison terminal lookups",
+                ledger.admitRender(evicted));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.unknownLifecycleCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(
+                ledger.rejectedTerminalObservationCount()));
+        assertEquals("the active window stays within its cap", Integer.valueOf(1),
+                Integer.valueOf(ledger.activeCount()));
+
+        // ...and it completes normally (it was never terminal).
+        ledger.update(evicted, true);
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.totalCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.recentCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.evictedCount()));
+    }
+
+    @Test
+    public void activeCapacityAlsoBoundsRenderAdmittedRecords() {
+        int cap = 3;
+        TransientEffectLedger ledger = new TransientEffectLedger(1, cap);
+        for (int i = 0; i < cap + 5; i++) {
+            ledger.admitRender(identity("render-" + i));
+        }
+
+        assertEquals(Integer.valueOf(cap), Integer.valueOf(ledger.activeCount()));
+        assertEquals(Integer.valueOf(5), Integer.valueOf(ledger.activeEvictedCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.recentCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.evictedCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.unknownLifecycleCount()));
+    }
+
+    @Test
+    public void activeAndRecentEvictionCountersAreDistinct() {
+        // activeCapacity=1, recentCapacity=1: active overflow DROPS (activeEvicted), while genuine
+        // terminal completions that overflow the recent window advance evictedCount.
+        TransientEffectLedger ledger = new TransientEffectLedger(1, 1);
+        ledger.create(identity("a"));
+        ledger.create(identity("b")); // cap-evicts a
+
+        assertEquals("active overflow is counted as an active eviction",
+                Integer.valueOf(1), Integer.valueOf(ledger.activeEvictedCount()));
+        assertEquals("active overflow never touches the recent-window counter",
+                Integer.valueOf(0), Integer.valueOf(ledger.evictedCount()));
+
+        ledger.complete(identity("b")); // recent={b}, total=1
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.evictedCount()));
+
+        ledger.create(identity("c"));
+        ledger.create(identity("d")); // cap-evicts c: activeEvicted=2
+        ledger.complete(identity("d")); // recent overflow evicts b: evicted=1, total=2
+
+        assertEquals(Integer.valueOf(2), Integer.valueOf(ledger.activeEvictedCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.evictedCount()));
+        assertEquals(Integer.valueOf(2), ledger.probeSlice().get("activeEvicted"));
+        assertEquals(Integer.valueOf(1), ledger.probeSlice().get("evicted"));
+    }
+
+    @Test
+    public void updateIfActiveIsAtomicAndIdempotentForTerminalInstances() {
+        TransientEffectLedger ledger = new TransientEffectLedger();
+        TransientEffectIdentity effect = identity("if-active");
+        ledger.create(effect);
+
+        assertTrue("the first observation runs and reports the update",
+                ledger.updateIfActive(effect, false));
+        assertEquals(TransientEffectLedger.State.UPDATED, ledger.records().get(0).state);
+
+        assertTrue(ledger.updateIfActive(effect, true));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.totalCount()));
+
+        assertFalse("a repeated observation of a terminal instance is a silent no-op",
+                ledger.updateIfActive(effect, true));
+        assertFalse("an absent instance is never updated",
+                ledger.updateIfActive(identity("never-created"), true));
+        assertFalse(ledger.updateIfActive(null, true));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.totalCount()));
+    }
+
+    @Test
+    public void evictedActiveRecordLateCompletionIsCoherentInsteadOfThrowing() {
+        TransientEffectLedger ledger = new TransientEffectLedger(2, 1);
+        TransientEffectIdentity evicted = identity("evicted");
+        ledger.create(evicted);
+        ledger.create(identity("newer"));
+
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.activeCount()));
+        assertFalse(ledger.hasActiveRecord(evicted));
+
+        // A late completion reaches the retained terminal record rather than a live one, so it
+        // cannot throw and cannot double-count an already-evicted instance.
+        ledger.update(evicted, true);
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.activeCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.totalCount()));
+    }
+
+    @Test
+    public void rejectedTerminalCounterSeparatesGenuineLateObservationsFromIdReuse() {
+        TransientEffectLedger ledger = new TransientEffectLedger(4);
+        TransientEffectIdentity dead = identity("dead");
+        ledger.create(dead);
+        ledger.complete(dead);
+
+        // Genuine late re-observation of the SAME object: counted as a terminal rejection.
+        assertFalse(ledger.admitRender(dead));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(
+                ledger.rejectedTerminalObservationCount()));
+        assertEquals(Integer.valueOf(1), ledger.probeSlice().get("rejectedTerminal"));
+        assertEquals(Integer.valueOf(1), ledger.probeSlice().get("unknownLifecycle"));
+
+        // A distinct live object presenting the SAME id and diagnostic fields (the identity-reuse
+        // shape) is also rejected and counted, which is exactly why the bridge no longer generates
+        // reusable ids.
+        TransientEffectIdentity reused = new TransientEffectIdentity(
+                "dead", "native.Effect", 1, 1L);
+        assertFalse(ledger.admitRender(reused));
+        assertEquals(Integer.valueOf(2), Integer.valueOf(
+                ledger.rejectedTerminalObservationCount()));
+
+        // A distinct id is still admitted, so rejection cannot mass-trigger once ids are unique.
+        assertTrue(ledger.admitRender(identity("live")));
+        assertEquals(Integer.valueOf(2), Integer.valueOf(
+                ledger.rejectedTerminalObservationCount()));
+    }
+
+    @Test
     public void resetClearsActiveRecentAndCumulativeDiagnostics() {
         TransientEffectLedger ledger = new TransientEffectLedger(1);
         ledger.create(identity("effect"));

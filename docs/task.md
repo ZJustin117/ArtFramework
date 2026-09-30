@@ -187,6 +187,87 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       scene-world + combat. Default-off gate, fail-open, and per-instance token semantics unchanged;
       no new patch, bridge, or console wiring. Focused no-GL JUnit only.
 
+- [x] NRO-04 F9 (three more `vfx-scene-world` members): `LightFlareMEffect`, `LightFlareLEffect`,
+      and `TorchParticleLEffect` (`vfx-scene-world`) join the claim seam reusing the additive
+      center-packed geometry — `VfxClaimPolicy.SCENE_LIGHT_FLARE_M`/`SCENE_LIGHT_FLARE_L`/
+      `SCENE_TORCH_PARTICLE_L` are appended last to `supportedClasses()`, and
+      `VfxDrawGeometry.Kind.LIGHT_FLARE_M`/`LIGHT_FLARE_L`/`TORCH_PARTICLE_L` share the existing
+      `STANCE_AURA` branch (x/y passthrough, center origin, packed size, uniform scale, additive
+      blend). The native `render(SpriteBatch)` bodies are byte-shape identical to
+      `StanceAuraEffect`/`LightFlareSEffect`; the flare pair picks `img` from its static `imgs[]` at
+      construction time (constructor-time randomness only) and `TorchParticleLEffect` obtains `img`
+      via a private `getImg()`, so the render-time draw is deterministic. `TorchParticleLEffect` has
+      a `vY` field but its native `render` never reads it (used only by `update()`), so the
+      optional-`vY` reader path covers it;
+      `VfxLabSpawn.classNameFor("flareM"/"flareL"/"torch")` (aliases `"lightflareM"`/`"lightflareL"`/
+      `"torchparticle"`) construct `new LightFlareMEffect(960f, 540f)`/`new LightFlareLEffect(960f,
+      540f)`/`new TorchParticleLEffect(960f, 540f)` behind the existing fail-open guard, and
+      `art claim spawn flareM|flareL|torch 4` runs in both `d1_aura_claim.yaml` phases. No new
+      formula, patch, bridge, or console wiring; default-off gate and per-instance token semantics
+      unchanged. Focused no-GL JUnit only.
+
+- [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
+      non-abstract and most concrete native effects override it without calling `super.update()`,
+      so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.
+      Torch-lit rooms emit particles continuously, so the per-instance records in
+      `TransientEffectLedger.records` and `TransientEffectRegistry.entities` grew for the process
+      lifetime and ended in `OutOfMemoryError: Java heap space` on D1. **The fix is the capacity
+      bounds, not the abandoned update instrument:** `TransientEffectLedger` gained an active-record
+      capacity (default 4096, constructor-overridable; `DEFAULT_ACTIVE_CAPACITY`) that DROPS the
+      oldest active record from tracking once the cap is exceeded — it does NOT enter `recent` or
+      `staleIdentities`, which stay terminal-only, so a still-live cap-evicted instance is simply
+      re-admitted as active on its next observation instead of being rejected as terminal; the
+      `recent`/`staleIdentities` windows remain bounded (default 256). `TransientEffectRegistry`
+      gained an equivalent entity cap (`DEFAULT_ENTITY_CAPACITY`, 4096) that evicts the oldest
+      projected ids and queues their presentation-entity removal. Active cap evictions and
+      recent-window evictions are counted separately: `evicted` still means the recent window, while
+      `activeEvicted` counts active-cap evictions. Observation via the retained `update()` Postfix is
+      atomic and idempotent: `TransientEffectLedger.updateIfActive(identity, done)` checks and
+      updates under a single lock, so a repeated `done=true` after `COMPLETED` or `DISPOSED` is a
+      silent no-op and the `"update after effect termination"` invariant still throws for a direct
+      `update(..., false)`. The probe only adds keys
+      (`transientEffects.activeCap`, `transientEffects.activeEvicted`,
+      `transientEffectEntityCap`); existing `active`/`recent`/`total`/`evicted`/`leaked` keys keep
+      their meaning, and no claim/draw/geometry/policy/render behavior changed.
+
+      A container `AbstractDungeon.update()` instrument (`TransientEffectContainerPatches
+      .observeThenUpdate`) was implemented to force completion observation for effects that skip
+      `super.update()`, but D1 showed it was **worse than the memory it bounded and was REMOVED**:
+      live effects were rejected as terminal every frame — `rejectedTerminal` (== `unknownLifecycle`)
+      grew ~1 per observed render (~5k/s), `rendered`/`total` froze, and `nativeRenderStrict.accepted`
+      stayed `false` (strict requires `transientEffectUNKNOWN == 0`). `TransientEffectContainerPatches`
+      is back to the render-only instrument, and completion observation remains the class-level
+      `AbstractGameEffect.update()` Postfix in `TransientEffectRenderPatches` (unchanged). No on-device
+      completion-observation improvement is claimed.
+
+- [x] NRM-13 Transient-effect identity (P0 follow-up, STS1): the original `instanceId` was
+      `class@Integer.toHexString(System.identityHashCode(effect))`, and `identityHashCode` values are
+      reused once an object dies; after completion observation began, `TransientEffectLedger.recent`/
+      `staleIdentities` filled with ids of dead effects, so a NEW live effect that reused a freed
+      identity hash produced the SAME `instanceId` and was rejected as terminal by `admitRender`.
+      `NativeRenderBridge` now assigns each live effect a stable, non-reusable id
+      `class#<monotonic-hex-seq>` from a `private static IdentityHashMap<AbstractGameEffect,
+      EffectIdState>` with an insertion-order `TreeMap` companion (`EFFECT_IDS_CAPACITY` 8192,
+      oldest-eviction). `TransientEffectLedger.sameIdentity` now compares exactly `instanceId` +
+      `nativeClass` + `generation`; because `instanceId` is a non-reusable per-object id, an equal
+      `instanceId` already implies the same object, so the diagnostic `nativeIdentityHash` is no
+      longer compared. Ids are deliberately sticky rather than released on completion (the map is
+      bounded by cap eviction); `resetForTests` clears the map. The ledger adds an additive
+      `rejectedTerminal` probe counter distinguishing genuine terminal re-observations from any
+      future id-reuse regression. The identity change is a strict improvement independent of the
+      removed container instrument.
+
+- [ ] NRM-14 Probe payload / logging allocation under heavy transient-effect load: the
+      transient-effect capacity bounds (NRM-12/13) keep the ledgers bounded (D1 soak: 220 spawn
+      rounds held the Java heap flat at ~11.5 MB, `active` plateau 1114 ≪ cap 4096), but under a
+      sustained heavy claim-spawn soak plus frequent large `art probe` reads the D1 JVM still hit
+      `java.lang.OutOfMemoryError: Java heap space` (512 MB heap) and froze the render loop. The
+      single `ART_PROBE` line scales with active entities (up to ~815 KB in the soak;
+      `render.targets`/`targetsById` proportional to active effects), and `latest.log` grew to
+      ~40 MB. Next: bound/summarize the probe's per-entity target arrays (e.g. cap the enumerated
+      targets or emit counts + a bounded sample), and/or make probe publication
+      allocation-friendly, then re-run the heavy soak to confirm no OOM.
+
 - [x] NRO-04 crash fix (retire-by-flag instead of structural removal): `art claim clear`
       (legacy alias `art aura clear`) could crash the game with a render-thread
       `ConcurrentModificationException` because the lab helper structurally removed matched effects

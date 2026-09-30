@@ -9,6 +9,12 @@ import java.util.Map;
 /** Lifecycle evidence for native transient effect instances. */
 public final class TransientEffectLedger {
     public static final int DEFAULT_RECENT_CAPACITY = 256;
+    /**
+     * Defense-in-depth bound for the active-record window. Completion observation is the
+     * primary reclamation path; this cap guarantees the active set cannot grow without limit
+     * even when a host path never reports completion.
+     */
+    public static final int DEFAULT_ACTIVE_CAPACITY = 4096;
     public enum State { CREATED, UPDATED, RENDERED, COMPLETED, DISPOSED }
 
     public static final class Record {
@@ -45,19 +51,29 @@ public final class TransientEffectLedger {
     private final Map<String, TransientEffectIdentity> staleIdentities =
             new LinkedHashMap<String, TransientEffectIdentity>();
     private final int recentCapacity;
+    private final int activeCapacity;
     private int unknownLifecycleCount;
     private int leakedCount;
     private int failOpenCount;
     private int totalCount;
     private int evictedCount;
+    private int activeEvictedCount;
+    /** Observations rejected because they matched a genuine terminal record for the same object. */
+    private int rejectedTerminalObservationCount;
 
     public TransientEffectLedger() {
-        this(DEFAULT_RECENT_CAPACITY);
+        this(DEFAULT_RECENT_CAPACITY, DEFAULT_ACTIVE_CAPACITY);
     }
 
     public TransientEffectLedger(int recentCapacity) {
+        this(recentCapacity, DEFAULT_ACTIVE_CAPACITY);
+    }
+
+    public TransientEffectLedger(int recentCapacity, int activeCapacity) {
         if (recentCapacity < 1) throw new IllegalArgumentException("recent capacity required");
+        if (activeCapacity < 1) throw new IllegalArgumentException("active capacity required");
         this.recentCapacity = recentCapacity;
+        this.activeCapacity = activeCapacity;
     }
 
     public synchronized void create(TransientEffectIdentity identity) {
@@ -67,13 +83,18 @@ public final class TransientEffectLedger {
         MutableRecord terminal = recent.get(identity.instanceId);
         if (terminal != null) recent.remove(identity.instanceId);
         staleIdentities.remove(identity.instanceId);
-        records.put(identity.instanceId, new MutableRecord(identity));
+        insertActive(identity.instanceId, new MutableRecord(identity));
     }
 
     public synchronized void update(TransientEffectIdentity identity, boolean done) {
         MutableRecord record = record(identity);
         if (record == null) return;
         if (record.state == State.COMPLETED || record.state == State.DISPOSED) {
+            // A repeated done==true after COMPLETED or DISPOSED is a deliberate silent no-op: the
+            // container instrument and the class-level super.update() Postfix can both observe the
+            // same completed instance. A done==false post-termination update still throws
+            // "update after effect termination" for direct ledger misuse.
+            if (done) return;
             throw new IllegalStateException("update after effect termination: " + identity.instanceId);
         }
         record.updateCount++;
@@ -83,6 +104,20 @@ public final class TransientEffectLedger {
         } else {
             record.state = State.UPDATED;
         }
+    }
+
+    /**
+     * Atomic idempotent observation entry: performs the update only when the identity still owns
+     * an active record, all under one lock. Returns {@code true} when the update ran and
+     * {@code false} when the instance is absent or already terminal, so a benign re-observation
+     * of a completed instance never throws out of an observation path. A repeated
+     * {@code done == true} after {@link State#COMPLETED} or {@link State#DISPOSED} is a
+     * deliberate silent no-op; a {@code done == false} update after termination still throws.
+     */
+    public synchronized boolean updateIfActive(TransientEffectIdentity identity, boolean done) {
+        if (!hasActiveRecord(identity)) return false;
+        update(identity, done);
+        return true;
     }
 
     public synchronized void render(TransientEffectIdentity identity) {
@@ -107,11 +142,13 @@ public final class TransientEffectLedger {
         }
         MutableRecord terminal = recent.get(identity.instanceId);
         if (terminal != null && sameIdentity(terminal.identity, identity)) {
+            rejectedTerminalObservationCount++;
             unknownLifecycleCount++;
             return false;
         }
         TransientEffectIdentity stale = staleIdentities.get(identity.instanceId);
         if (stale != null && sameIdentity(stale, identity)) {
+            rejectedTerminalObservationCount++;
             unknownLifecycleCount++;
             return false;
         }
@@ -122,8 +159,16 @@ public final class TransientEffectLedger {
         MutableRecord created = new MutableRecord(identity);
         created.renderCount++;
         created.state = State.RENDERED;
-        records.put(identity.instanceId, created);
+        insertActive(identity.instanceId, created);
         return true;
+    }
+
+    /** True iff {@code identity} currently owns an active (non-terminal) record. */
+
+    public synchronized boolean hasActiveRecord(TransientEffectIdentity identity) {
+        if (identity == null) return false;
+        MutableRecord active = records.get(identity.instanceId);
+        return active != null && sameIdentity(active.identity, identity);
     }
 
     public synchronized void complete(TransientEffectIdentity identity) {
@@ -134,7 +179,7 @@ public final class TransientEffectLedger {
         }
         record.doneObserved = true;
         record.state = State.COMPLETED;
-        if (records.remove(identity.instanceId) != null) {
+        if (removeActive(record)) {
             totalCount++;
             retainRecent(record);
         }
@@ -147,7 +192,7 @@ public final class TransientEffectLedger {
             throw new IllegalStateException("duplicate effect dispose: " + identity.instanceId);
         }
         record.state = State.DISPOSED;
-        if (records.remove(identity.instanceId) != null) {
+        if (removeActive(record)) {
             totalCount++;
             retainRecent(record);
         }
@@ -171,8 +216,19 @@ public final class TransientEffectLedger {
         return records.size();
     }
     public synchronized int recentCount() { return recent.size(); }
+    public synchronized int activeCapacity() { return activeCapacity; }
     public synchronized int totalCount() { return totalCount; }
+    /** Recent-window (terminal diagnostics) evictions. */
     public synchronized int evictedCount() { return evictedCount; }
+    /** Active-window cap evictions; distinct from {@link #evictedCount()}. */
+    public synchronized int activeEvictedCount() { return activeEvictedCount; }
+    /**
+     * Genuine late observations of an already-terminal instance (same object re-observed).
+     * Stays ~0 once instance ids are non-reusable; a rising value indicates id reuse.
+     */
+    public synchronized int rejectedTerminalObservationCount() {
+        return rejectedTerminalObservationCount;
+    }
     public synchronized int staleIdentityCount() { return staleIdentities.size(); }
     public synchronized int unknownLifecycleCount() { return unknownLifecycleCount; }
     public synchronized int leakedCount() { return leakedCount; }
@@ -207,9 +263,11 @@ public final class TransientEffectLedger {
         }
         Map<String, Object> out = new LinkedHashMap<String, Object>();
         out.put("active", Integer.valueOf(activeCount()));
+        out.put("activeCap", Integer.valueOf(activeCapacity));
         out.put("recent", Integer.valueOf(recent.size()));
         out.put("total", Integer.valueOf(totalCount));
         out.put("evicted", Integer.valueOf(evictedCount));
+        out.put("activeEvicted", Integer.valueOf(activeEvictedCount));
         out.put("staleIdentity", Integer.valueOf(staleIdentities.size()));
         out.put("created", Integer.valueOf(created));
         out.put("updated", Integer.valueOf(updated));
@@ -217,6 +275,7 @@ public final class TransientEffectLedger {
         out.put("completed", Integer.valueOf(completed));
         out.put("disposed", Integer.valueOf(disposed));
         out.put("unknownLifecycle", Integer.valueOf(unknownLifecycleCount));
+        out.put("rejectedTerminal", Integer.valueOf(rejectedTerminalObservationCount));
         out.put("leaked", Integer.valueOf(leakedCount));
         out.put("failOpen", Integer.valueOf(failOpenCount));
         return out;
@@ -231,6 +290,8 @@ public final class TransientEffectLedger {
         failOpenCount = 0;
         totalCount = 0;
         evictedCount = 0;
+        activeEvictedCount = 0;
+        rejectedTerminalObservationCount = 0;
     }
 
     private MutableRecord record(TransientEffectIdentity identity) {
@@ -257,6 +318,30 @@ public final class TransientEffectLedger {
         }
     }
 
+    /**
+     * Inserts one active record and enforces {@link #activeCapacity}. On cap overflow the oldest
+     * active record is simply DROPPED from tracking: it is NOT routed into the terminal
+     * {@code recent}/{@code staleIdentities} windows and the recent-window {@code evictedCount} is
+     * NOT advanced. {@code recent}/{@code staleIdentities} therefore remain a genuine record of
+     * dead effects only; a still-live instance whose active record was cap-evicted is re-admitted
+     * by {@code admitRender} as a normal active record (it is alive), and it completes normally.
+     * Each active-window eviction is counted once in {@link #activeEvictedCount}, kept distinct
+     * from the recent-window {@code evictedCount}.
+     */
+    private void insertActive(String instanceId, MutableRecord record) {
+        records.put(instanceId, record);
+        while (records.size() > activeCapacity) {
+            String oldest = records.keySet().iterator().next();
+            records.remove(oldest);
+            activeEvictedCount++;
+        }
+    }
+
+    /** Removes an active record; returns true only when it was actually present. */
+    private boolean removeActive(MutableRecord record) {
+        return records.remove(record.identity.instanceId) != null;
+    }
+
     private void markStale(Iterable<MutableRecord> source) {
         for (MutableRecord record : source) staleIdentities.put(record.identity.instanceId, record.identity);
         trimStaleIdentities();
@@ -268,11 +353,16 @@ public final class TransientEffectLedger {
         }
     }
 
+    /**
+     * Identity equality for ledger records. {@code instanceId} is a non-reusable per-object id
+     * assigned by the bridge, so an equal {@code instanceId} already implies the same live object;
+     * {@code nativeIdentityHash} is diagnostic only and deliberately does not participate (its
+     * values are reused after an object dies).
+     */
     private static boolean sameIdentity(TransientEffectIdentity first,
             TransientEffectIdentity second) {
         return first.instanceId.equals(second.instanceId)
                 && first.nativeClass.equals(second.nativeClass)
-                && first.nativeIdentityHash == second.nativeIdentityHash
                 && first.generation == second.generation;
     }
 

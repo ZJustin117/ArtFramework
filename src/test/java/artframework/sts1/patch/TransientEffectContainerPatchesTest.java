@@ -9,10 +9,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
- * Pure logic for the container-driven observation helper. The ExprEditor call-site
+ * Pure logic for the container-driven render observation helper. The ExprEditor call-site
  * replacement itself can only be proven on-device (ModTheSpire instrumentation).
  */
 public class TransientEffectContainerPatchesTest {

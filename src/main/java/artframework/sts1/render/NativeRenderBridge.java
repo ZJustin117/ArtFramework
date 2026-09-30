@@ -39,6 +39,32 @@ public final class NativeRenderBridge {
             new HashMap<String, ArrayDeque<Long>>();
     private static final Map<String, Long> NATIVE_CONTINUATION_FRAMES =
             new HashMap<String, Long>();
+    /**
+     * Stable per-live-object effect ids. {@code System.identityHashCode} is not unique across
+     * time, so an id derived from it can be reused by a later live object; a monotonic sequence
+     * assigned per object can never collide. Bounded with oldest-eviction as defense in depth.
+     */
+    private static final java.util.IdentityHashMap<
+            com.megacrit.cardcrawl.vfx.AbstractGameEffect, EffectIdState> EFFECT_IDS =
+            new java.util.IdentityHashMap<
+                    com.megacrit.cardcrawl.vfx.AbstractGameEffect, EffectIdState>();
+    /** Insertion order companion so the oldest effect ids can be evicted in O(log n). */
+    private static final TreeMap<Long, com.megacrit.cardcrawl.vfx.AbstractGameEffect>
+            EFFECT_ID_ORDER = new TreeMap<Long, com.megacrit.cardcrawl.vfx.AbstractGameEffect>();
+    private static final Object EFFECT_IDS_LOCK = new Object();
+    static final int EFFECT_IDS_CAPACITY = 8192;
+    private static long nextEffectSeq;
+
+    /** Identity plus its monotonic sequence, used to release the order entry in O(log n). */
+    private static final class EffectIdState {
+        final String id;
+        final long seq;
+
+        EffectIdState(String id, long seq) {
+            this.id = id;
+            this.seq = seq;
+        }
+    }
 
     private NativeRenderBridge() {}
 
@@ -657,7 +683,16 @@ public final class NativeRenderBridge {
         if (PresentSafety.isPanic()) return;
         TransientEffectIdentity identity = effectIdentity(effect);
         if (identity == null) return;
-        EFFECT_LIFECYCLE.update(identity, effect.isDone);
+        // Reached from the class-level AbstractGameEffect.update() Postfix in
+        // TransientEffectRenderPatches (the container AbstractDungeon.update instrument was
+        // removed). updateIfActive performs the check and the update under one lock, so a
+        // no-longer-active instance never surfaces "update after effect termination" from an
+        // observation path. The projected entity is reclaimed once, on the observation that
+        // actually terminates the instance, and the projection tail always runs so a pending
+        // projection is never stranded.
+        if (EFFECT_LEDGER.updateIfActive(identity, effect.isDone) && effect.isDone) {
+            EFFECT_REGISTRY.cleanup(identity);
+        }
         projectPendingEffectsOncePerFrame();
     }
 
@@ -714,6 +749,7 @@ public final class NativeRenderBridge {
         out.put("pendingSkeletonInvocationCount", Integer.valueOf(pendingSkeletonInvocationCount()));
         out.put("transientEffects", EFFECT_LEDGER.probeSlice());
         out.put("transientEffectEntities", Integer.valueOf(EFFECT_REGISTRY.activeCount()));
+        out.put("transientEffectEntityCap", Integer.valueOf(EFFECT_REGISTRY.entityCapacity()));
         out.put("filterScopes", FILTER_SCOPE.probeSlice());
         out.put("isolate", POLICY.probeSlice());
         out.put("backgroundOnly", BackgroundOnlyGate.probeSlice());
@@ -820,6 +856,7 @@ public final class NativeRenderBridge {
         synchronized (SKELETON_INVOCATIONS) { SKELETON_INVOCATIONS.clear(); }
         synchronized (STANCE_INVOCATIONS) { STANCE_INVOCATIONS.clear(); }
         synchronized (EFFECT_INVOCATIONS) { EFFECT_INVOCATIONS.clear(); }
+        clearEffectIds();
         synchronized (BRIDGE_LOCK) { NATIVE_CONTINUATION_FRAMES.clear(); }
         beforeTokenPublicationForTests = null;
         Sts1NativePresentationAdapter.clear();
@@ -838,8 +875,57 @@ public final class NativeRenderBridge {
             com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
         if (effect == null) return null;
         String nativeClass = effect.getClass().getName();
+        // nativeIdentityHash stays diagnostic-only: it must never participate in identity
+        // equality (TransientEffectLedger.sameIdentity compares instanceId/nativeClass/generation
+        // only), because identityHashCode values are reused after an object dies and would then
+        // let a dead terminal record reject a new live instance.
         int hash = System.identityHashCode(effect);
-        return new TransientEffectIdentity(nativeClass + "@" + Integer.toHexString(hash),
-                nativeClass, hash, 0L);
+        return new TransientEffectIdentity(effectId(effect, nativeClass), nativeClass, hash, 0L);
+    }
+
+    /** Returns the stable, non-reusable id for one live effect, assigning it on first sight. */
+    private static String effectId(com.megacrit.cardcrawl.vfx.AbstractGameEffect effect,
+            String nativeClass) {
+        synchronized (EFFECT_IDS_LOCK) {
+            EffectIdState existing = EFFECT_IDS.get(effect);
+            if (existing != null) return existing.id;
+            long seq = ++nextEffectSeq;
+            String id = nativeClass + "#" + Long.toHexString(seq);
+            EFFECT_IDS.put(effect, new EffectIdState(id, seq));
+            EFFECT_ID_ORDER.put(Long.valueOf(seq), effect);
+            while (EFFECT_IDS.size() > EFFECT_IDS_CAPACITY) {
+                Map.Entry<Long, com.megacrit.cardcrawl.vfx.AbstractGameEffect> oldest =
+                        EFFECT_ID_ORDER.pollFirstEntry();
+                if (oldest == null) break;
+                EFFECT_IDS.remove(oldest.getValue());
+            }
+            return id;
+        }
+    }
+
+    /**
+     * Drops every tracked id. Only the test/reset path calls this: recovery deliberately keeps the
+     * ids so that a post-recovery re-observation of a pre-recovery object still matches its
+     * terminal ledger record instead of being re-admitted as a fresh instance.
+     */
+    private static void clearEffectIds() {
+        synchronized (EFFECT_IDS_LOCK) {
+            EFFECT_IDS.clear();
+            EFFECT_ID_ORDER.clear();
+        }
+    }
+
+    /** Package-visible for tests: number of live effects currently holding a tracked id. */
+    static int trackedEffectIdCount() {
+        synchronized (EFFECT_IDS_LOCK) {
+            return EFFECT_IDS.size();
+        }
+    }
+
+    /** Package-visible for tests: the stable non-reusable id assigned to one effect. */
+    static String effectInstanceIdForTests(
+            com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
+        TransientEffectIdentity identity = effectIdentity(effect);
+        return identity == null ? null : identity.instanceId;
     }
 }

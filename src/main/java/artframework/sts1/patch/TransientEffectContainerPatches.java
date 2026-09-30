@@ -19,6 +19,15 @@ import javassist.expr.MethodCall;
  * Prefix to a bodyless method — so each call site is replaced with an observe-then-render
  * helper. Native rendering follows the bridge disposition; observation failures fail open and
  * never interrupt drawing.
+ *
+ * <p>Effect completion observation is intentionally NOT instrumented here. An earlier
+ * {@code AbstractDungeon.update()} instrument for {@code AbstractGameEffect#update()} was removed
+ * because on D1 it caused live effects to be rejected as terminal every frame
+ * ({@code rejectedTerminal}/{@code unknownLifecycle} grew ~1 per observed render, freezing
+ * {@code rendered}/{@code total} and permanently failing strict acceptance); it was also worse
+ * than the memory it bounded. Completion observation remains the class-level
+ * {@code AbstractGameEffect#update} Postfix in {@link TransientEffectRenderPatches}, and native
+ * memory is bounded by the ledger/registry capacities instead.
  */
 public final class TransientEffectContainerPatches {
 

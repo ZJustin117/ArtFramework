@@ -180,6 +180,22 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect"));
+        // the three newest members, via constants and literal FQNs
+        assertSame(VfxDrawGeometry.Kind.WARNING_SIGN,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.WARNING_SIGN));
+        assertSame(VfxDrawGeometry.Kind.WARNING_SIGN,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.WarningSignEffect"));
+        assertSame(VfxDrawGeometry.Kind.STUN_STAR,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.STUN_STAR));
+        assertSame(VfxDrawGeometry.Kind.STUN_STAR,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.StunStarEffect"));
+        assertSame(VfxDrawGeometry.Kind.FALLING_DUST,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FALLING_DUST));
+        assertSame(VfxDrawGeometry.Kind.FALLING_DUST,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.FallingDustEffect"));
     }
 
     @Test
@@ -411,6 +427,33 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.DarkOrbPassiveEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassive")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.WarningSignEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.WarningSignEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("WarningSignEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.WarningSignEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.WarningSign")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.StunStarEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.StunStarEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("StunStarEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.StunStarEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.StunStar")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.FallingDustEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.FallingDustEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("FallingDustEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.FallingDustEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.FallingDust")); // near-miss (no Effect)
     }
 
     @Test
@@ -426,7 +469,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.STANCE_AURA,
                 x, y, 999f /* vY ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                pw, ph);
+                pw, ph, 0f, 0f, 0f);
 
         assertEquals(pw / 2f, p.originX, EPS);
         assertEquals(ph / 2f, p.originY, EPS);
@@ -452,7 +495,7 @@ public class VfxDrawGeometryTest {
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.DIVINITY_PARTICLE,
                 x, y, vY, scale, rotation,
-                1f, 2f, 3f, pw, ph);
+                1f, 2f, 3f, pw, ph, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y + vY, p.y, EPS);
@@ -483,7 +526,7 @@ public class VfxDrawGeometryTest {
 
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.WRATH_PARTICLE,
-                x, y, vY, scale, rotation, durDiv2, duration, settingsScale, pw, ph);
+                x, y, vY, scale, rotation, durDiv2, duration, settingsScale, pw, ph, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y + vY, p.y, EPS);
@@ -505,7 +548,7 @@ public class VfxDrawGeometryTest {
 
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.WRATH_PARTICLE,
-                0f, 0f, 0f, scale, 0f, durDiv2, duration, settingsScale, 10f, 10f);
+                0f, 0f, 0f, scale, 0f, durDiv2, duration, settingsScale, 10f, 10f, 0f, 0f, 0f);
 
         assertEquals(0.1f * settingsScale, p.scaleY, EPS);
         assertEquals(scale * 0.8f, p.scaleX, EPS);
@@ -528,7 +571,7 @@ public class VfxDrawGeometryTest {
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.CALM_PARTICLE,
                 x, y, 999f /* vY ignored */, scale, rotation, durDiv2, duration, settingsScale,
-                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y, p.y, EPS);
@@ -556,7 +599,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.CALM_PARTICLE,
                 1f, 2f, 12345f, 0.5f, 9f,
                 1f, 0.4f, 3f,
-                -100f, 777f);
+                -100f, 777f, 0f, 0f, 0f);
 
         assertEquals(1f, p.x, EPS);
         assertEquals(2f, p.y, EPS); // vY not added
@@ -568,7 +611,7 @@ public class VfxDrawGeometryTest {
         // A different packed size produces byte-identical geometry for Calm.
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.CALM_PARTICLE,
-                1f, 2f, 0f, 0.5f, 9f, 1f, 0.4f, 3f, 0f, 0f);
+                1f, 2f, 0f, 0.5f, 9f, 1f, 0.4f, 3f, 0f, 0f, 0f, 0f, 0f);
         assertEquals(p, q);
     }
 
@@ -587,7 +630,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.DIVINITY_STANCE_CHANGE,
                 x, y, 999f /* no vY field; ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                pw, ph);
+                pw, ph, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y, p.y, EPS);
@@ -601,7 +644,7 @@ public class VfxDrawGeometryTest {
 
         // Byte-identical to the STANCE_AURA result for the same inputs.
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
         assertEquals(p, q);
     }
 
@@ -620,7 +663,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.LIGHT_FLARE,
                 x, y, 999f /* no vY field; ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                pw, ph);
+                pw, ph, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y, p.y, EPS);
@@ -634,14 +677,14 @@ public class VfxDrawGeometryTest {
 
         // Byte-identical to the STANCE_AURA result for the same inputs.
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
         assertEquals(p, q);
     }
 
     @Test
     public void nullKindThrowsIllegalArgument() {
         try {
-            VfxDrawGeometry.params(null, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 1f);
+            VfxDrawGeometry.params(null, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 1f, 1f, 0f, 0f, 0f);
             fail("expected IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
             // expected
@@ -663,7 +706,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.FLASH_ATK_IMG,
                 x, y, 999f /* no vY field; ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                pw, ph);
+                pw, ph, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y, p.y, EPS);
@@ -677,7 +720,7 @@ public class VfxDrawGeometryTest {
 
         // Byte-identical to the STANCE_AURA result for the same inputs.
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
         assertEquals(p, q);
     }
 
@@ -694,14 +737,14 @@ public class VfxDrawGeometryTest {
         float rotation = 45f;
 
         VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.LIGHT_FLARE_M,
                 VfxDrawGeometry.Kind.LIGHT_FLARE_L,
                 VfxDrawGeometry.Kind.TORCH_PARTICLE_L }) {
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
-                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph);
+                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
             assertEquals("x passthrough for " + kind, x, p.x, EPS);
             assertEquals("y passthrough for " + kind, y, p.y, EPS);
@@ -733,7 +776,7 @@ public class VfxDrawGeometryTest {
         float rotation = 45f;
 
         VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.FIRE_BURST,
@@ -743,7 +786,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.NEMESIS_FIRE }) {
             // vY=999f is ignored by every one of these formulas (vY is update-only).
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
-                    kind, x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                    kind, x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
             assertEquals("x passthrough for " + kind, x, p.x, EPS);
             assertEquals("y passthrough for " + kind, y, p.y, EPS);
@@ -778,7 +821,7 @@ public class VfxDrawGeometryTest {
         float rotation = 45f;
 
         VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.TORCH_PARTICLE_XL,
@@ -787,7 +830,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.EXHAUST_BLUR }) {
             // vY=999f is ignored by every one of these formulas (vY is update-only).
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
-                    kind, x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                    kind, x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
             assertEquals("x passthrough for " + kind, x, p.x, EPS);
             assertEquals("y passthrough for " + kind, y, p.y, EPS);
@@ -803,7 +846,7 @@ public class VfxDrawGeometryTest {
 
             // A different vY produces byte-identical geometry (vY is ignored).
             VfxDrawGeometry.Params q = VfxDrawGeometry.params(
-                    kind, x, y, -12345f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                    kind, x, y, -12345f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
             assertEquals("vY must be ignored for " + kind, p, q);
 
             boolean additive = kind == VfxDrawGeometry.Kind.TORCH_PARTICLE_XL
@@ -825,7 +868,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.SHIELD_PARTICLE,
                 x, y, 999f /* vY ignored */, scale, 45f /* rotation forced to 0 */,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */, 0f, 0f, 0f);
 
         assertEquals(x - 32f, p.x, EPS);
         assertEquals(y - 32f, p.y, EPS);
@@ -840,7 +883,7 @@ public class VfxDrawGeometryTest {
         // A totally different rotation input produces byte-identical geometry (rotation ignored).
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.SHIELD_PARTICLE,
-                x, y, 0f, scale, -123f, 0f, 0f, 1f, 0f, 0f);
+                x, y, 0f, scale, -123f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f);
         assertEquals(p, q);
 
         // The host-neutral constants match the native hardcoded rect.
@@ -867,7 +910,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
                 x, y, 999f /* vY ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */, 0f, 0f, 0f);
 
         assertEquals(x - 16f, p.x, EPS);
         assertEquals(y - 16f, p.y, EPS);
@@ -882,7 +925,7 @@ public class VfxDrawGeometryTest {
         // Different packed sizes produce byte-identical geometry (the region is ignored).
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.DEBUFF_PARTICLE,
-                x, y, 0f, scale, rotation, 0f, 0f, 1f, 0f, 0f);
+                x, y, 0f, scale, rotation, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f);
         assertEquals(p, q);
 
         // The host-neutral constants match the native hardcoded rect.
@@ -909,7 +952,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.ICE_SHATTER,
                 x, y, 999f /* vY ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y, p.y, EPS);
@@ -924,7 +967,7 @@ public class VfxDrawGeometryTest {
         // A different vY and packed size produce byte-identical geometry.
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.ICE_SHATTER,
-                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f);
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f);
         assertEquals(p, q);
 
         // The host-neutral constants match the native hardcoded rect.
@@ -950,7 +993,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.WEB_PARTICLE,
                 x, y, 999f /* vY ignored */, scale, 45f /* rotation forced to 0 */,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y, p.y, EPS);
@@ -965,7 +1008,7 @@ public class VfxDrawGeometryTest {
         // A totally different rotation input produces byte-identical geometry (rotation ignored).
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.WEB_PARTICLE,
-                x, y, -12345f, scale, -123f, 0f, 0f, 1f, 0f, 0f);
+                x, y, -12345f, scale, -123f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f);
         assertEquals(p, q);
 
         // The host-neutral constants match the native hardcoded rect.
@@ -991,7 +1034,7 @@ public class VfxDrawGeometryTest {
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.ENTANGLE,
                 x, y, 999f /* vY ignored */, scale, 45f /* rotation ignored */,
-                7f, 5f, 2f, 48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+                7f, 5f, 2f, 48f /* packedWidth ignored */, 96f /* packedHeight ignored */, 0f, 0f, 0f);
 
         assertEquals(x, p.x, EPS);
         assertEquals(y, p.y, EPS);
@@ -1006,7 +1049,7 @@ public class VfxDrawGeometryTest {
         // Byte-identical to the WEB_PARTICLE result for the same inputs.
         VfxDrawGeometry.Params web = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.WEB_PARTICLE,
-                x, y, 999f, scale, 45f, 7f, 5f, 2f, 48f, 96f);
+                x, y, 999f, scale, 45f, 7f, 5f, 2f, 48f, 96f, 0f, 0f, 0f);
         assertEquals("ENTANGLE must reuse the WEB_PARTICLE configuration", web, p);
 
         assertTrue("ENTANGLE is additive", VfxDrawGeometry.additiveBlend(
@@ -1028,13 +1071,13 @@ public class VfxDrawGeometryTest {
         float rotation = 45f;
 
         VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.BLOCK_IMPACT_LINE,
                 VfxDrawGeometry.Kind.EXHAUST_PILE }) {
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
-                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph);
+                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
             assertEquals("x passthrough for " + kind, x, p.x, EPS);
             assertEquals("y passthrough for " + kind, y, p.y, EPS);
@@ -1064,7 +1107,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
                 x, y, 999f /* vY ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */, 0f, 0f, 0f);
 
         assertEquals(x - 64f, p.x, EPS);
         assertEquals(y - 64f, p.y, EPS);
@@ -1079,7 +1122,7 @@ public class VfxDrawGeometryTest {
         // A different vY and packed size produce byte-identical geometry.
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
-                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f);
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f);
         assertEquals(p, q);
 
         // The host-neutral constants match the native hardcoded rect.
@@ -1109,7 +1152,7 @@ public class VfxDrawGeometryTest {
         float rotation = 45f;
 
         VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
-                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph);
+                VfxDrawGeometry.Kind.STANCE_AURA, x, y, 0f, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.FLAME_PARTICLE,
@@ -1117,7 +1160,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
                 VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE }) {
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
-                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph);
+                    kind, x, y, 999f /* ignored */, scale, rotation, 7f, 5f, 2f, pw, ph, 0f, 0f, 0f);
 
             assertEquals("x passthrough for " + kind, x, p.x, EPS);
             assertEquals("y passthrough for " + kind, y, p.y, EPS);
@@ -1145,7 +1188,7 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
                 x, y, 999f /* vY ignored */, scale, rotation,
                 7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
-                48f /* packedWidth ignored */, 96f /* packedHeight ignored */);
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */, 0f, 0f, 0f);
 
         assertEquals(x - 37f, p.x, EPS);
         assertEquals(y - 37f, p.y, EPS);
@@ -1160,7 +1203,7 @@ public class VfxDrawGeometryTest {
         // A different vY and packed size produce byte-identical geometry.
         VfxDrawGeometry.Params q = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
-                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f);
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f);
         assertEquals(p, q);
 
         assertEquals(37f, VfxDrawGeometry.DARK_ORB_OFFSET, EPS);
@@ -1173,6 +1216,126 @@ public class VfxDrawGeometryTest {
 
         assertTrue("DARK_ORB_PASSIVE is additive",
                 VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE));
+    }
+
+    @Test
+    public void warningSignUsesTheFixedStaticRectAndTheHardcodedDoubleSettingsScale() {
+        // Native: setBlendFunction(770,1); sb.draw(ImageMaster.WARNING_ICON_VFX, x - 32f, y - 32f,
+        //            32f, 32f, 64f, 64f, Settings.scale*2f, Settings.scale*2f, 0f, 0, 0, 64, 64,
+        //            false, false). WarningSignEffect has NO scale and NO rotation field, so both
+        //            effect-side inputs are ignored in favour of the hardcoded settingsScale * 2f
+        //            uniform scale and the hardcoded zero rotation.
+        float x = -7.5f;
+        float y = 21.25f;
+        float settingsScale = 1.5f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WARNING_SIGN,
+                x, y, 999f /* vY ignored */, 0.25f /* no scale field; ignored */,
+                137f /* no rotation field; ignored */,
+                7f, 5f, settingsScale,
+                48f /* packedWidth ignored */, 96f /* packedHeight ignored */,
+                1234f /* no vX field; ignored */, 17f, 19f /* no region origin; ignored */);
+
+        assertEquals(x - 32f, p.x, EPS);
+        assertEquals(y - 32f, p.y, EPS);
+        assertEquals(32f, p.originX, EPS);
+        assertEquals(32f, p.originY, EPS);
+        assertEquals(64f, p.width, EPS);
+        assertEquals(64f, p.height, EPS);
+        assertEquals("the uniform scale is settingsScale * 2f",
+                settingsScale * 2f, p.scaleX, EPS);
+        assertEquals(settingsScale * 2f, p.scaleY, EPS);
+        assertEquals("rotation is hardcoded to 0f", 0f, p.rotation, EPS);
+
+        // Different scale/rotation/region inputs produce byte-identical geometry.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WARNING_SIGN,
+                x, y, 0f, -123f, -45f, 0f, 0f, settingsScale, 0f, 0f, 0f, 0f, 0f);
+        assertEquals(p, q);
+
+        assertEquals(32f, VfxDrawGeometry.WARNING_ORIGIN_X, EPS);
+        assertEquals(32f, VfxDrawGeometry.WARNING_ORIGIN_Y, EPS);
+        assertEquals(64f, VfxDrawGeometry.WARNING_WIDTH, EPS);
+        assertEquals(64f, VfxDrawGeometry.WARNING_HEIGHT, EPS);
+        assertEquals(2f, VfxDrawGeometry.WARNING_SCALE_FACTOR, EPS);
+        assertEquals(0, VfxDrawGeometry.WARNING_SRC_X);
+        assertEquals(0, VfxDrawGeometry.WARNING_SRC_Y);
+        assertEquals(64, VfxDrawGeometry.WARNING_SRC_W);
+        assertEquals(64, VfxDrawGeometry.WARNING_SRC_H);
+
+        assertTrue("WARNING_SIGN installs additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.WARNING_SIGN));
+        assertFalse("WARNING_SIGN passes its color through unchanged",
+                VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.WARNING_SIGN));
+    }
+
+    @Test
+    public void stunStarShiftsThePositionByItsScaledVXVYAndStaysAmbient() {
+        // Native: sb.draw(img, x - vX*30f*Settings.scale, y - vY*5f*Settings.scale,
+        //            pw/2f, ph/2f, pw, ph, scale, scale, rotation) with no setBlendFunction.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float vX = 2.5f;
+        float vY = -1.5f;
+        float scale = 0.6f;
+        float rotation = 45f;
+        float settingsScale = 1.25f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STUN_STAR,
+                x, y, vY, scale, rotation, 7f, 5f, settingsScale, pw, ph,
+                vX, 0f, 0f);
+
+        assertEquals(x - vX * 30f * settingsScale, p.x, EPS);
+        assertEquals(y - vY * 5f * settingsScale, p.y, EPS);
+        assertEquals(pw / 2f, p.originX, EPS);
+        assertEquals(ph / 2f, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        assertEquals(30f, VfxDrawGeometry.STUN_STAR_VX_FACTOR, EPS);
+        assertEquals(5f, VfxDrawGeometry.STUN_STAR_VY_FACTOR, EPS);
+
+        assertFalse("STUN_STAR never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.STUN_STAR));
+    }
+
+    @Test
+    public void fallingDustUsesTheRegionOffsetsAsItsOriginAndStaysAmbient() {
+        // Native: sb.draw(img, x, y, img.offsetX, img.offsetY, pw, ph, scale, scale, rotation) with
+        //         no setBlendFunction — the ORIGIN is the region's own trim offset, not packed/2.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+        float regionOffsetX = 6f;
+        float regionOffsetY = 10f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.FALLING_DUST,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f, pw, ph,
+                1234f /* vX ignored */, regionOffsetX, regionOffsetY);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals("the origin is the region offsetX", regionOffsetX, p.originX, EPS);
+        assertEquals("the origin is the region offsetY", regionOffsetY, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        assertFalse("FALLING_DUST never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FALLING_DUST));
     }
 
     @Test
@@ -1218,6 +1381,12 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE));
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE));
 
+        // The three newest members: WarningSignEffect is additive, while StunStarEffect and
+        // FallingDustEffect never call setBlendFunction (ambient).
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.WARNING_SIGN));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.STUN_STAR));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FALLING_DUST));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -1230,7 +1399,9 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.EXHAUST_PILE
                     || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
                     || kind == VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR
-                    || kind == VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE) {
+                    || kind == VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE
+                    || kind == VfxDrawGeometry.Kind.STUN_STAR
+                    || kind == VfxDrawGeometry.Kind.FALLING_DUST) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -1287,7 +1458,10 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.LIGHTNING_ORB_ACTIVATE,
                 VfxDrawGeometry.Kind.DAMAGE_IMPACT_BLUR,
                 VfxDrawGeometry.Kind.DAMAGE_IMPACT_LINE,
-                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE }) {
+                VfxDrawGeometry.Kind.DARK_ORB_PASSIVE,
+                VfxDrawGeometry.Kind.WARNING_SIGN,
+                VfxDrawGeometry.Kind.STUN_STAR,
+                VfxDrawGeometry.Kind.FALLING_DUST }) {
             assertFalse("must not be a no-pixel-without-image kind: " + kind,
                     VfxDrawGeometry.nativeSkipsDrawWithoutImage(kind));
         }
@@ -1327,6 +1501,9 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.UNKNOWN_PARTICLE));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.DARK_ORB_PASSIVE));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FLAME_PARTICLE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.WARNING_SIGN));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.STUN_STAR));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FALLING_DUST));
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
@@ -1353,7 +1530,7 @@ public class VfxDrawGeometryTest {
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 VfxDrawGeometry.Kind.STANCE_AURA,
                 -1.5f, -2.25f, 0f, -0.5f, -30f, 0f, 0f, 1f,
-                -16.5f, 7.25f);
+                -16.5f, 7.25f, 0f, 0f, 0f);
 
         assertEquals(-16.5f / 2f, p.originX, EPS);
         assertEquals(7.25f / 2f, p.originY, EPS);

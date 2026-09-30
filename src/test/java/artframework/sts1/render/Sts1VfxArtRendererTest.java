@@ -347,6 +347,67 @@ public class Sts1VfxArtRendererTest {
         private float rotation;
     }
 
+    /**
+     * {@code WarningSignEffect} layout: {@code x}/{@code y} declared on the class plus the inherited
+     * {@code scale}/{@code rotation}/{@code color} from {@code AbstractGameEffect} — no {@code img}
+     * field (the static {@code ImageMaster.WARNING_ICON_VFX} is resolved by the renderer) and no
+     * consumed {@code scale}/{@code rotation} (the geometry hardcodes {@code settingsScale * 2f} and
+     * a zero rotation).
+     */
+    static class WarningSignEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+    }
+
+    /** {@code StunStarEffect} layout: instance {@code AtlasRegion img} plus {@code vX}/{@code vY}. */
+    static class StunStarEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code StunStarEffect} layout missing {@code img}. */
+    static class StunStarNoImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+    }
+
+    /**
+     * {@code StunStarEffect} layout WITHOUT a {@code vY} field (it still carries {@code vX} and a
+     * valid instance {@code AtlasRegion img}), proving {@code vY} is genuinely required for
+     * STUN_STAR rather than merely failing because {@code img} was absent.
+     */
+    static class StunStarNoVYEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /**
+     * {@code FallingDustEffect} layout: instance {@code AtlasRegion img} plus {@code vX}/{@code vY}
+     * (both unused by the draw formula, which uses the region offsets instead).
+     */
+    static class FallingDustEffectHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code FallingDustEffect} layout missing {@code img}. */
+    static class FallingDustNoImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+    }
+
     @Test
     public void readTextureFieldsResolvesIceShatterFromItsInstanceTexture() {
         IceShatterEffect effect = new IceShatterEffect();
@@ -1150,6 +1211,183 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
+    public void readTextureFieldsResolvesWarningSignWithoutScaleRotationOrImg() {
+        // WarningSignEffect has x/y ONLY (no scale, no rotation, no img): the static
+        // ImageMaster.WARNING_ICON_VFX is resolved by the renderer and the uniform scale is the
+        // hardcoded Settings.scale * 2f, so the snapshot needs neither scale/rotation nor an img.
+        WarningSignEffectHolder effect = new WarningSignEffectHolder();
+        effect.x = -4.5f;
+        effect.y = 2.25f;
+        effect.color = new Color(0.1f, 0.2f, 0.3f, 0.4f);
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.WARNING_SIGN, effect);
+
+        assertNotNull("WarningSign needs no scale/rotation/img field", f);
+        assertEquals(-4.5f, f.x, EPS);
+        assertEquals(2.25f, f.y, EPS);
+        assertEquals(0f, f.scale, EPS);
+        assertEquals(0f, f.rotation, EPS);
+        assertSame(effect.color, f.color);
+        assertNull("WarningSign resolves the static ImageMaster.WARNING_ICON_VFX", f.img);
+    }
+
+    @Test
+    public void readTextureFieldsFailsOpenForWarningSignMissingXYOrColor() {
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.WARNING_SIGN, null));
+
+        // A holder with the required x/y/color but no scale/rotation is the native layout and
+        // resolves; a holder missing x/y/color must still fail open.
+        WarningSignEffectHolder noColor = new WarningSignEffectHolder();
+        noColor.x = 1f;
+        noColor.y = 2f;
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.WARNING_SIGN, noColor));
+    }
+
+    @Test
+    public void readFieldsResolvesStunStarWithItsVXVYAndInstanceRegion() {
+        StunStarEffectHolder effect = new StunStarEffectHolder();
+        effect.x = 4.5f;
+        effect.y = -1.5f;
+        effect.vX = 2.5f;
+        effect.vY = -0.75f;
+        effect.scale = 0.9f;
+        effect.rotation = 30f;
+        effect.color = Color.WHITE;
+        effect.img = fakeRegion();
+
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.STUN_STAR, effect);
+
+        assertNotNull(f);
+        assertEquals(4.5f, f.x, EPS);
+        assertEquals(-1.5f, f.y, EPS);
+        assertEquals("StunStar consumes its vX", 2.5f, f.vX, EPS);
+        assertEquals("StunStar consumes its vY", -0.75f, f.vY, EPS);
+        assertEquals(0.9f, f.scale, EPS);
+        assertEquals(30f, f.rotation, EPS);
+        assertSame(effect.img, f.img);
+
+        StunStarNoImgEffect none = new StunStarNoImgEffect();
+        none.x = 1f;
+        none.y = 2f;
+        none.vX = 3f;
+        none.vY = 4f;
+        none.scale = 1f;
+        none.rotation = 0f;
+        none.color = Color.WHITE;
+        assertNull("a StunStar holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.STUN_STAR, none));
+    }
+
+    @Test
+    public void readFieldsRequiresVYForStunStarBecauseItsOffsetConsumesIt() {
+        // StunStarEffect's geometry consumes vY in its position offset
+        // (y - vY*5f*Settings.scale), so a holder WITHOUT a vY field must fail open rather than
+        // silently draw at an un-shifted y. The same holder WITH a vY field must resolve.
+        StunStarNoVYEffect noVY = new StunStarNoVYEffect();
+        noVY.x = 4.5f;
+        noVY.y = -1.5f;
+        noVY.vX = 2.5f;
+        noVY.scale = 0.9f;
+        noVY.rotation = 30f;
+        noVY.color = Color.WHITE;
+        noVY.img = fakeRegion();
+
+        assertNull("a STUN_STAR holder with img but no vY field must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.STUN_STAR, noVY));
+        assertFalse("canDraw must also fail closed for the vY-less StunStar holder",
+                new Sts1VfxArtRenderer().canDraw(noVY));
+
+        StunStarEffectHolder withVY = new StunStarEffectHolder();
+        withVY.x = 4.5f;
+        withVY.y = -1.5f;
+        withVY.vX = 2.5f;
+        withVY.vY = -0.75f;
+        withVY.scale = 0.9f;
+        withVY.rotation = 30f;
+        withVY.color = Color.WHITE;
+        withVY.img = fakeRegion();
+
+        Sts1VfxArtRenderer.Fields resolved = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.STUN_STAR, withVY);
+        assertNotNull("the same STUN_STAR layout with a vY field must resolve", resolved);
+        assertEquals(-0.75f, resolved.vY, EPS);
+        assertEquals(2.5f, resolved.vX, EPS);
+
+        // The vY-consuming set is exactly WRATH_PARTICLE, DIVINITY_PARTICLE, and STUN_STAR: the
+        // no-vY STUN_STAR holder must still resolve for a kind that ignores vY (FALLING_DUST).
+        assertNotNull("vY stays optional for a kind that ignores it",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.FALLING_DUST, noVY));
+    }
+
+    @Test
+    public void readFieldsResolvesFallingDustAndCapturesTheRegionOffsets() {
+        FallingDustEffectHolder effect = new FallingDustEffectHolder();
+        effect.x = 5.5f;
+        effect.y = -2.25f;
+        effect.vX = 1.25f;
+        effect.vY = 3.5f;
+        effect.scale = 1.1f;
+        effect.rotation = 18f;
+        effect.color = Color.WHITE;
+        TextureAtlas.AtlasRegion region = fakeRegion();
+        region.offsetX = 6f;
+        region.offsetY = 10f;
+        effect.img = region;
+
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.FALLING_DUST, effect);
+
+        assertNotNull(f);
+        assertEquals(5.5f, f.x, EPS);
+        assertEquals(-2.25f, f.y, EPS);
+        assertEquals("the region offsetX is captured for the FALLING_DUST origin",
+                6f, f.regionOffsetX, EPS);
+        assertEquals("the region offsetY is captured for the FALLING_DUST origin",
+                10f, f.regionOffsetY, EPS);
+        assertEquals(1.1f, f.scale, EPS);
+        assertEquals(18f, f.rotation, EPS);
+
+        // A flipped shared region reports the flipped offsetX/offsetY; the reader normalizes them
+        // back to the unflipped trim origin (the exact inverse of AtlasRegion.flip's transform).
+        TextureAtlas.AtlasRegion flipped = new TextureAtlas.AtlasRegion(noGlTexture(32, 32), 0, 0, 12, 8);
+        flipped.originalWidth = 32;
+        flipped.originalHeight = 32;
+        flipped.offsetX = 6f;
+        flipped.offsetY = 10f;
+        flipped.flip(true, true);
+        assertTrue("the fixture really is natively flipped", flipped.isFlipX());
+        assertTrue(flipped.isFlipY());
+        FallingDustEffectHolder flippedEffect = new FallingDustEffectHolder();
+        flippedEffect.x = 1f;
+        flippedEffect.y = 2f;
+        flippedEffect.scale = 1f;
+        flippedEffect.rotation = 0f;
+        flippedEffect.color = Color.WHITE;
+        flippedEffect.img = flipped;
+
+        Sts1VfxArtRenderer.Fields ff = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.FALLING_DUST, flippedEffect);
+        assertNotNull(ff);
+        assertEquals("a flipped region must report the unflipped offsetX",
+                6f, ff.regionOffsetX, EPS);
+        assertEquals("a flipped region must report the unflipped offsetY",
+                10f, ff.regionOffsetY, EPS);
+
+        FallingDustNoImgEffect none = new FallingDustNoImgEffect();
+        none.x = 1f;
+        none.y = 2f;
+        none.scale = 1f;
+        none.rotation = 0f;
+        none.color = Color.WHITE;
+        assertNull("a FallingDust holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.FALLING_DUST, none));
+    }
+
+    @Test
     public void isReadyIsTrueForTheSupportedFqnsAndFalseOtherwise() {
         Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
 
@@ -1243,6 +1481,15 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.WARNING_SIGN));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.WarningSignEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.STUN_STAR));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.StunStarEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.FALLING_DUST));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.FallingDustEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -1284,10 +1531,225 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_LINE + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.WARNING_SIGN + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.WARNING_SIGN + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.STUN_STAR + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.STUN_STAR + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FALLING_DUST + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FALLING_DUST + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect2"));
+    }
+
+    @Test
+    public void warningSignDrawUsesTheStaticIconAndTheDoubleSettingsScale() {
+        // WarningSignEffect is additive and draws the static ImageMaster.WARNING_ICON_VFX Texture
+        // over a fixed 64x64 rect with a hardcoded Settings.scale * 2f uniform scale; it has no
+        // scale/rotation/img field at all. The real effect is reflectively seeded (no GL) and the
+        // static texture is injected via reflection.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Texture previous = ImageMaster.WARNING_ICON_VFX;
+        Texture injected = noGlTexture(64, 64);
+        float settingsScale = com.megacrit.cardcrawl.core.Settings.scale;
+        try {
+            setStaticField(ImageMaster.class, "WARNING_ICON_VFX", injected);
+            assertSame(injected, ImageMaster.WARNING_ICON_VFX);
+
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededWarningSign(
+                    new Color(0.7f, 0.8f, 0.9f, 0.6f), 12.5f, -3.25f);
+
+            assertTrue(renderer.render(batch, effect));
+
+            assertEquals("the additive WARNING draw installs and restores blend",
+                    2, batch.setBlendCalls);
+            assertEquals("the warning sign uses the raw-texture draw overload",
+                    1, batch.drawCalls);
+            assertSame("WarningSign draws the static WARNING_ICON_VFX texture",
+                    injected, batch.drawnTexture);
+
+            // draw(tex, x-32, y-32, 32, 32, 64, 64, ss*2, ss*2, 0, 0, 0, 64, 64, false, false)
+            assertEquals(12.5f - 32f, floatAt(batch, 0), EPS);
+            assertEquals(-3.25f - 32f, floatAt(batch, 1), EPS);
+            assertEquals(32f, floatAt(batch, 2), EPS);
+            assertEquals(32f, floatAt(batch, 3), EPS);
+            assertEquals(64f, floatAt(batch, 4), EPS);
+            assertEquals(64f, floatAt(batch, 5), EPS);
+            assertEquals("the uniform scale is Settings.scale * 2f",
+                    settingsScale * 2f, floatAt(batch, 6), EPS);
+            assertEquals(settingsScale * 2f, floatAt(batch, 7), EPS);
+            assertEquals("rotation is hardcoded to 0f", 0f, floatAt(batch, 8), EPS);
+            assertEquals(0f, floatAt(batch, 9), EPS);
+            assertEquals(0f, floatAt(batch, 10), EPS);
+            assertEquals(64f, floatAt(batch, 11), EPS);
+            assertEquals(64f, floatAt(batch, 12), EPS);
+
+            // The effect color passes through unchanged (WarningSign has no white-alpha rule).
+            assertNotNull(batch.firstSetColor);
+            assertEquals(0.7f, batch.firstSetColor.r, EPS);
+            assertEquals(0.6f, batch.firstSetColor.a, EPS);
+
+            assertTrue("WarningSign is drawable with the static texture present",
+                    renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "WARNING_ICON_VFX", previous);
+        }
+    }
+
+    @Test
+    public void stunStarAndFallingDustDrawTheirInstanceRegionsAmbiently() {
+        // StunStarEffect and FallingDustEffect are ambient center-packed img kinds: neither calls
+        // setBlendFunction, both draw their own instance AtlasRegion, and each applies only its own
+        // new rule (StunStar a scaled vX/vY position offset, FallingDust the region's own offsets as
+        // the origin).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        CountingBatch stunBatch = newCountingBatch();
+        AbstractGameEffect stun = seededStunStar(100f, 200f, 2f, -3f, 0.5f, 30f);
+        float settingsScale = com.megacrit.cardcrawl.core.Settings.scale;
+
+        assertTrue(renderer.render(stunBatch, stun));
+        assertEquals("StunStar never calls setBlendFunction", 0, stunBatch.setBlendCalls);
+        assertEquals("StunStar uses the TextureRegion draw overload",
+                1, stunBatch.textureRegionDrawCalls);
+        assertEquals(0, stunBatch.drawCalls);
+        assertNotNull("the drawn region must have been captured", stunBatch.drawnRegion);
+        assertNotNull("the draw arguments must have been captured", stunBatch.drawnRegionArgs);
+        assertEquals("the draw position is offset by -(vX * 30f * Settings.scale)",
+                100f - 2f * 30f * settingsScale, stunBatch.drawnRegionArgs[0], EPS);
+        assertEquals("the draw position is offset by -(vY * 5f * Settings.scale)",
+                200f - (-3f) * 5f * settingsScale, stunBatch.drawnRegionArgs[1], EPS);
+
+        CountingBatch dustBatch = newCountingBatch();
+        AbstractGameEffect dust = seededFallingDust(11f, 22f, 6f, 10f);
+
+        assertTrue(renderer.render(dustBatch, dust));
+        assertEquals("FallingDust never calls setBlendFunction", 0, dustBatch.setBlendCalls);
+        assertEquals("FallingDust uses the TextureRegion draw overload",
+                1, dustBatch.textureRegionDrawCalls);
+        assertEquals(0, dustBatch.drawCalls);
+        assertNotNull(dustBatch.drawnRegionArgs);
+        assertEquals("FallingDust draws at x", 11f, dustBatch.drawnRegionArgs[0], EPS);
+        assertEquals("FallingDust draws at y", 22f, dustBatch.drawnRegionArgs[1], EPS);
+        assertEquals("the origin is the region offsetX", 6f, dustBatch.drawnRegionArgs[2], EPS);
+        assertEquals("the origin is the region offsetY", 10f, dustBatch.drawnRegionArgs[3], EPS);
+
+        // canDraw mirrors the same resolution for both newest img kinds.
+        assertTrue(renderer.canDraw(stun));
+        assertTrue(renderer.canDraw(dust));
+    }
+
+    @Test
+    public void canDrawFailsOpenWithoutAValidRegionForTheNewestKinds() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        // StunStar with an absent img cannot draw; the same for FallingDust.
+        AbstractGameEffect stunNoImg = seededStunStar(1f, 2f, 3f, 4f, 1f, 0f);
+        setFieldUnchecked(stunNoImg,
+                com.megacrit.cardcrawl.vfx.combat.StunStarEffect.class, "img", null);
+        assertFalse("a StunStar instance without its region cannot draw",
+                renderer.canDraw(stunNoImg));
+
+        AbstractGameEffect dustNoImg = seededFallingDust(1f, 2f, 6f, 10f);
+        setFieldUnchecked(dustNoImg,
+                com.megacrit.cardcrawl.vfx.FallingDustEffect.class, "img", null);
+        assertFalse("a FallingDust instance without its region cannot draw",
+                renderer.canDraw(dustNoImg));
+    }
+
+    private static void setFieldUnchecked(Object target, Class<?> owner, String name,
+            Object value) {
+        try {
+            setField(target, owner, name, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set " + owner + "." + name, failure);
+        }
+    }
+
+    /** Real {@code WarningSignEffect} with reflectively seeded x/y and color (no GL). */
+    private static AbstractGameEffect seededWarningSign(Color color, float x, float y) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.WarningSignEffect effect =
+                    (com.megacrit.cardcrawl.vfx.WarningSignEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.WarningSignEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.WarningSignEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.WarningSignEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL WarningSignEffect", failure);
+        }
+    }
+
+    /** Real {@code StunStarEffect} with reflectively seeded draw fields (no GL). */
+    private static AbstractGameEffect seededStunStar(float x, float y, float vX, float vY,
+            float scale, float rotation) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.StunStarEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.StunStarEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.StunStarEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.StunStarEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.StunStarEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.StunStarEffect.class, "vX",
+                    Float.valueOf(vX));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.StunStarEffect.class, "vY",
+                    Float.valueOf(vY));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.StunStarEffect.class, "scale",
+                    Float.valueOf(scale));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.StunStarEffect.class, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL StunStarEffect", failure);
+        }
+    }
+
+    /** Real {@code FallingDustEffect} with reflectively seeded draw fields (no GL). */
+    private static AbstractGameEffect seededFallingDust(float x, float y, float offsetX,
+            float offsetY) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.FallingDustEffect effect =
+                    (com.megacrit.cardcrawl.vfx.FallingDustEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.FallingDustEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.FallingDustEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.FallingDustEffect.class, "y",
+                    Float.valueOf(y));
+            TextureAtlas.AtlasRegion region =
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+            region.offsetX = offsetX;
+            region.offsetY = offsetY;
+            setField(effect, com.megacrit.cardcrawl.vfx.FallingDustEffect.class, "img", region);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL FallingDustEffect", failure);
+        }
     }
 
     @Test
@@ -1611,6 +2073,8 @@ public class Sts1VfxArtRendererTest {
         int textureRegionDrawCalls;
         /** The first {@link TextureRegion} passed to the packed-region draw overload. */
         TextureRegion drawnRegion;
+        /** The first packed-region draw's arguments. */
+        float[] drawnRegionArgs;
         /** First {@link Color} passed to {@link #setColor(Color)} (the applied draw tint). */
         Color firstSetColor;
         /** The first raw-texture + source-rect draw's arguments (the ICE/WEB/Calm/Shield shape). */
@@ -1647,6 +2111,8 @@ public class Sts1VfxArtRendererTest {
             // Record the call only; skipping super avoids the real (absent) GL texture bind path.
             if (textureRegionDrawCalls++ == 0) {
                 drawnRegion = region;
+                drawnRegionArgs = new float[] {x, y, originX, originY, width, height,
+                        scaleX, scaleY, rotation};
             }
         }
 

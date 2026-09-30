@@ -78,7 +78,18 @@ import java.util.List;
  * {@code DarkOrbPassiveEffect} introduces one new additive shape-C fixed rect
  * ({@code sb.draw(img, x - 37f, y - 37f, 37f, 37f, 74f, 74f, scale, scale, rotation, 0, 0, 74, 74,
  * false, false)}) over its own instance {@code Texture img} and consuming its {@code rotation}
- * field (the src rect is the full 74&times;74 region). The additive
+ * field (the src rect is the full 74&times;74 region). The three newest members add one new pure
+ * rule each and reuse two existing shapes: the {@code vfx-misc-root} {@code WarningSignEffect} is a
+ * bare {@code Texture} fixed-rect kind (the static {@code ImageMaster.WARNING_ICON_VFX}
+ * {@code Texture}) whose own uniform scale is the hardcoded {@code settingsScale * 2f} (it has NO
+ * {@code scale} field, so the effect scale is ignored) with a hardcoded zero rotation and additive
+ * blend; the {@code vfx-combat} {@code StunStarEffect} reuses the ambient center-packed
+ * {@code AtlasRegion} geometry with a NEW position offset
+ * ({@code -(vX * 30f * settingsScale)}, {@code -(vY * 5f * settingsScale)}), so it consumes both its
+ * {@code vX} and {@code vY} fields; and the {@code vfx-misc-root} {@code FallingDustEffect} reuses
+ * that ambient center-packed geometry with a NEW origin taken from the region's own
+ * {@code offsetX}/{@code offsetY} (rather than {@code packedWidth/2}, {@code packedHeight/2}). The
+ * additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
  */
@@ -148,6 +159,12 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect";
     public static final String DARK_ORB_PASSIVE =
             "com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect";
+    public static final String WARNING_SIGN =
+            "com.megacrit.cardcrawl.vfx.WarningSignEffect";
+    public static final String STUN_STAR =
+            "com.megacrit.cardcrawl.vfx.combat.StunStarEffect";
+    public static final String FALLING_DUST =
+            "com.megacrit.cardcrawl.vfx.FallingDustEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -159,7 +176,7 @@ public final class VfxClaimPolicy {
                     ICE_SHATTER, WEB_PARTICLE, ENTANGLE_EFFECT, BLOCK_IMPACT_LINE,
                     EXHAUST_PILE_PARTICLE, UNKNOWN_PARTICLE, FLAME_PARTICLE,
                     LIGHTNING_ORB_ACTIVATE, DAMAGE_IMPACT_BLUR, DAMAGE_IMPACT_LINE,
-                    DARK_ORB_PASSIVE));
+                    DARK_ORB_PASSIVE, WARNING_SIGN, STUN_STAR, FALLING_DUST));
 
     private VfxClaimPolicy() {}
 
@@ -199,7 +216,10 @@ public final class VfxClaimPolicy {
                 || LIGHTNING_ORB_ACTIVATE.equals(value)
                 || DAMAGE_IMPACT_BLUR.equals(value)
                 || DAMAGE_IMPACT_LINE.equals(value)
-                || DARK_ORB_PASSIVE.equals(value);
+                || DARK_ORB_PASSIVE.equals(value)
+                || WARNING_SIGN.equals(value)
+                || STUN_STAR.equals(value)
+                || FALLING_DUST.equals(value);
     }
 
     /**
@@ -235,6 +255,13 @@ public final class VfxClaimPolicy {
      * two reuse the additive center-packed geometry, the next two reuse it ambiently (no
      * {@code setBlendFunction}), and {@code DarkOrbPassiveEffect} is the first additive
      * bare-{@code Texture} member of a new {@code 74}-rect whose {@code rotation} field IS consumed.
+     * The three newest members ({@code WarningSignEffect}, {@code StunStarEffect},
+     * {@code FallingDustEffect}) are appended after the dark orb passive in that order;
+     * {@code WarningSignEffect} is a bare-{@code Texture} fixed-rect member with a hardcoded
+     * {@code settingsScale * 2f} uniform scale (it has no {@code scale} field at all),
+     * {@code StunStarEffect} is an ambient center-packed {@code AtlasRegion} member whose position is
+     * offset by its {@code vX}/{@code vY}, and {@code FallingDustEffect} is an ambient center-packed
+     * {@code AtlasRegion} member whose origin is the region's own {@code offsetX}/{@code offsetY}.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

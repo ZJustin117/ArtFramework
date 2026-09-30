@@ -63,6 +63,9 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_BLUR));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_LINE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.WARNING_SIGN));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.STUN_STAR));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.FALLING_DUST));
 
         // A near-miss stays not-ready.
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
@@ -101,6 +104,12 @@ public class Sts1VfxRendererBindingTest {
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_LINE + "2"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE + "$Sub"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WARNING_SIGN + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WARNING_SIGN + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STUN_STAR + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STUN_STAR + "2"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.FALLING_DUST + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.FALLING_DUST + "2"));
     }
 
     @Test
@@ -133,19 +142,26 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_BLUR));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DAMAGE_IMPACT_LINE));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DARK_ORB_PASSIVE));
-        assertEquals("the five newest FQNs are appended last, in order",
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.WARNING_SIGN));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.STUN_STAR));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.FALLING_DUST));
+        assertEquals("the three newest FQNs are appended last, in order",
+                java.util.Arrays.asList(VfxClaimPolicy.WARNING_SIGN, VfxClaimPolicy.STUN_STAR,
+                        VfxClaimPolicy.FALLING_DUST),
+                supported.subList(supported.size() - 3, supported.size()));
+        assertEquals("the five newest FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FLAME_PARTICLE,
                         VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE, VfxClaimPolicy.DAMAGE_IMPACT_BLUR,
                         VfxClaimPolicy.DAMAGE_IMPACT_LINE, VfxClaimPolicy.DARK_ORB_PASSIVE),
-                supported.subList(supported.size() - 5, supported.size()));
+                supported.subList(supported.size() - 8, supported.size() - 3));
         assertEquals("the four newest FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ENTANGLE_EFFECT,
                         VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
                         VfxClaimPolicy.UNKNOWN_PARTICLE),
-                supported.subList(supported.size() - 9, supported.size() - 5));
+                supported.subList(supported.size() - 12, supported.size() - 8));
         assertEquals("the two next-newest FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ICE_SHATTER, VfxClaimPolicy.WEB_PARTICLE),
-                supported.subList(supported.size() - 11, supported.size() - 9));
+                supported.subList(supported.size() - 14, supported.size() - 12));
         assertEquals("the thirteen newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
@@ -154,7 +170,7 @@ public class Sts1VfxRendererBindingTest {
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
-                supported.subList(supported.size() - 22, supported.size() - 9));
+                supported.subList(supported.size() - 25, supported.size() - 12));
     }
 
     @Test

@@ -6,10 +6,12 @@ import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
+import com.megacrit.cardcrawl.vfx.FallingDustEffect;
 import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
+import com.megacrit.cardcrawl.vfx.WarningSignEffect;
 import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect;
@@ -20,6 +22,7 @@ import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect;
 import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
+import com.megacrit.cardcrawl.vfx.combat.StunStarEffect;
 import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
@@ -51,7 +54,9 @@ import java.util.function.Predicate;
  * members {@code EntangleEffect}/{@code BlockImpactLineEffect}/{@code UnknownParticleEffect}
  * ({@code vfx-combat}) and {@code ExhaustPileParticle} (root), and the five newest
  * {@code vfx-combat} members {@code FlameParticleEffect}/{@code LightningOrbActivateEffect}/
- * {@code DamageImpactBlurEffect}/{@code DamageImpactLineEffect}/{@code DarkOrbPassiveEffect}) into
+ * {@code DamageImpactBlurEffect}/{@code DamageImpactLineEffect}/{@code DarkOrbPassiveEffect}, and the
+ * three newest members {@code WarningSignEffect}/{@code FallingDustEffect} (root) and
+ * {@code StunStarEffect} ({@code vfx-combat})} into
  * the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
@@ -184,6 +189,15 @@ public final class VfxLabSpawn {
         }
         if ("darkorb".equalsIgnoreCase(value) || "darkorbpassive".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.DARK_ORB_PASSIVE;
+        }
+        if ("warning".equalsIgnoreCase(value) || "warningsign".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.WARNING_SIGN;
+        }
+        if ("stunstar".equalsIgnoreCase(value) || "stun".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.STUN_STAR;
+        }
+        if ("fallingdust".equalsIgnoreCase(value) || "fdust".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FALLING_DUST;
         }
         return null;
     }
@@ -456,6 +470,24 @@ public final class VfxLabSpawn {
             // and may be null outside a live game; any failure is caught by spawn's fail-open guard
             // rather than propagating.
             return new DarkOrbPassiveEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.WARNING_SIGN.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The static ImageMaster.WARNING_ICON_VFX
+            // texture is resolved at draw time and may be null outside a live game; any failure is
+            // caught by spawn's fail-open guard rather than propagating.
+            return new WarningSignEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.STUN_STAR.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is the static ImageMaster.TINY_STAR
+            // region and may be null outside a live game; any failure is caught by spawn's fail-open
+            // guard rather than propagating.
+            return new StunStarEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.FALLING_DUST.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is picked at random at construction
+            // from the static ImageMaster.DUST_* regions and may be null outside a live game; any
+            // failure is caught by spawn's fail-open guard rather than propagating.
+            return new FallingDustEffect(960f, 540f);
         }
         return null;
     }

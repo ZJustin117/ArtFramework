@@ -32,7 +32,11 @@ import java.lang.reflect.Field;
  * {@code FlameParticleEffect}/{@code LightningOrbActivateEffect} (additive center-packed),
  * {@code DamageImpactBlurEffect}/{@code DamageImpactLineEffect} (ambient center-packed), and
  * {@code DarkOrbPassiveEffect} (a new additive fixed rect over its own instance
- * {@code Texture})).
+ * {@code Texture})), and the three newest members {@code WarningSignEffect} (a bare-{@code Texture}
+ * fixed rect over the static {@code ImageMaster.WARNING_ICON_VFX} with a hardcoded
+ * {@code Settings.scale * 2f} uniform scale), {@code StunStarEffect} (ambient center-packed with its
+ * position shifted by its own {@code vX}/{@code vY}), and {@code FallingDustEffect} (ambient
+ * center-packed with the region's own {@code offsetX}/{@code offsetY} as its origin).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -41,13 +45,14 @@ import java.lang.reflect.Field;
  * host-neutral {@link AtlasRegion} (via {@link Sts1GdxAtlasRegions#fromGdx}), resolves the native
  * draw arguments through {@link VfxDrawGeometry#params}, and replays the native
  * {@code SpriteBatch.draw} with color save-restore and a per-kind blend policy
- * ({@link VfxDrawGeometry#additiveBlend}): additive for most kinds, but ambient — no
- * {@code setBlendFunction} call at all — for exactly the kinds whose
- * {@code VfxDrawGeometry.additiveBlend(kind)} is {@code false}: {@code FlashAtkImgEffect},
- * {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect}, {@code NemesisFireParticle},
- * {@code DebuffParticleEffect}, {@code GenericSmokeEffect}, {@code ExhaustBlurEffect},
- * {@code BlockImpactLineEffect}, {@code ExhaustPileParticle}, {@code UnknownParticleEffect},
- * {@code DamageImpactBlurEffect}, and {@code DamageImpactLineEffect}).
+ * ({@link VfxDrawGeometry#additiveBlend} — the single source of truth for the ambient set):
+ * additive for most kinds, but ambient — no {@code setBlendFunction} call at all — for exactly the
+ * kinds whose {@code VfxDrawGeometry.additiveBlend(kind)} is {@code false}, today
+ * {@code FlashAtkImgEffect}, {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect},
+ * {@code NemesisFireParticle}, {@code DebuffParticleEffect}, {@code GenericSmokeEffect},
+ * {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
+ * {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, {@code DamageImpactLineEffect},
+ * {@code StunStarEffect}, and {@code FallingDustEffect}.
  * {@code CalmParticleEffect} has no
  * {@code img} and draws the bare {@link ImageMaster#FROST_ACTIVATE_VFX_1} {@link Texture}, so its
  * own branch resolves that texture and uses the raw texture + source-rect draw overload.
@@ -76,6 +81,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         final float x;
         final float y;
         final float vY;
+        final float vX;
+        final float regionOffsetX;
+        final float regionOffsetY;
         final float scale;
         final float rotation;
         final float durDiv2;
@@ -83,11 +91,15 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         final Color color;
         final TextureAtlas.AtlasRegion img;
 
-        Fields(float x, float y, float vY, float scale, float rotation, float durDiv2,
+        Fields(float x, float y, float vY, float vX, float regionOffsetX, float regionOffsetY,
+                float scale, float rotation, float durDiv2,
                 float duration, Color color, TextureAtlas.AtlasRegion img) {
             this.x = x;
             this.y = y;
             this.vY = vY;
+            this.vX = vX;
+            this.regionOffsetX = regionOffsetX;
+            this.regionOffsetY = regionOffsetY;
             this.scale = scale;
             this.rotation = rotation;
             this.durDiv2 = durDiv2;
@@ -152,7 +164,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * rotation} are read as any {@link Number} (primitive {@code float} boxes). {@code dur_div2} and
      * {@code duration} are always optional and default to {@code 0}. {@code vY} is required only for
      * the kinds whose {@link VfxDrawGeometry#params} formula consumes it ({@code WRATH_PARTICLE},
-     * {@code DIVINITY_PARTICLE}); for the kinds that ignore it ({@code STANCE_AURA},
+     * {@code DIVINITY_PARTICLE}, {@code STUN_STAR}); for the kinds that ignore it
+     * ({@code STANCE_AURA},
      * {@code DIVINITY_STANCE_CHANGE}, {@code LIGHT_FLARE}, {@code LIGHT_FLARE_M},
      * {@code LIGHT_FLARE_L}, {@code TORCH_PARTICLE_L}, {@code FLASH_ATK_IMG}, and the nine newest
      * members {@code FIRE_BURST}, {@code RED_FIRE_BURST}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
@@ -162,19 +175,33 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code LightFlareSEffect}, {@code FlashAtkImgEffect}, and {@code LightFlareMEffect}/
      * {@code LightFlareLEffect} have no {@code vY} field — and {@code TorchParticleLEffect} and all
      * nine newer members have one
-     * but never read it in {@code render} (it is update-only). Returns {@code null}
+     * but never read it in {@code render} (it is update-only). {@code vX} is likewise optional
+     * (defaulting to {@code 0}) for every kind: {@code StunStarEffect} consumes it in its position
+     * offset, and every other kind ignores it.
+     *
+     * <p>The two region-offset scalars are taken from the effect's own live
+     * {@link TextureAtlas.AtlasRegion} ({@code offsetX}/{@code offsetY}), not from an effect field;
+     * they are the draw origin only for {@code FALLING_DUST}. Because {@code AtlasRegion.flip(...)}
+     * mutates {@code offsetX}/{@code offsetY} in place on a shared static region, the values are
+     * normalized back to the unflipped orientation (the exact inverse of
+     * {@code AtlasRegion.flip}'s offset transform) when {@code isFlipX()}/{@code isFlipY()} reports a
+     * native flip, matching the flip-invariant canonical draw (F15d).
+     *
+     * <p>Returns {@code null}
      * when the effect is null or any required field is absent, unreadable, or of the wrong type;
      * never throws.
      */
     static Fields readFields(VfxDrawGeometry.Kind kind, Object effect) {
         if (effect == null) return null;
-        // vY is only meaningful for the formulas that add it to y; requiring it elsewhere would
-        // wrongly reject DivinityStanceChangeParticle/LightFlareSEffect and LightFlareMEffect/
-        // LightFlareLEffect (no vY field) and TorchParticleLEffect plus the nine newest members
-        // (their vY is update-only), and omitting it where it is consumed would silently draw at an
-        // un-shifted y instead of failing open to the native draw.
+        // vY is only meaningful for the formulas that add it to y or use it in the position offset;
+        // requiring it elsewhere would wrongly reject DivinityStanceChangeParticle/LightFlareSEffect
+        // and LightFlareMEffect/LightFlareLEffect (no vY field) and TorchParticleLEffect plus the
+        // nine newest members (their vY is update-only), and omitting it where it is consumed would
+        // silently draw at an un-shifted y/position instead of failing open to the native draw.
+        // StunStarEffect consumes vY in its position offset (y - vY*5f*Settings.scale).
         boolean requireVY = kind == VfxDrawGeometry.Kind.WRATH_PARTICLE
-                || kind == VfxDrawGeometry.Kind.DIVINITY_PARTICLE;
+                || kind == VfxDrawGeometry.Kind.DIVINITY_PARTICLE
+                || kind == VfxDrawGeometry.Kind.STUN_STAR;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
@@ -191,12 +218,39 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             Object img = readRaw(effect, "img");
             if (!(color instanceof Color)) return null;
             if (!(img instanceof TextureAtlas.AtlasRegion)) return null;
-            return new Fields(x, y, vY != null ? vY : 0f, scale, rotation,
+            TextureAtlas.AtlasRegion region = (TextureAtlas.AtlasRegion) img;
+            return new Fields(x, y, vY != null ? vY : 0f, optionalFloat(effect, "vX"),
+                    unflippedOffsetX(region), unflippedOffsetY(region),
+                    scale, rotation,
                     optionalFloat(effect, "dur_div2"), optionalFloat(effect, "duration"),
-                    (Color) color, (TextureAtlas.AtlasRegion) img);
+                    (Color) color, region);
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    /**
+     * The region's unflipped horizontal trim origin: {@code AtlasRegion.flip(true, *)} rewrites
+     * {@code offsetX = originalWidth - offsetX - rotatedPackedWidth} in place, so this exact inverse
+     * recovers the trim origin the atlas declared (a no-op for an unflipped region). Mirrors the
+     * F15d flip-invariant canonical draw.
+     */
+    private static float unflippedOffsetX(TextureAtlas.AtlasRegion region) {
+        if (region.isFlipX()) {
+            return region.originalWidth - region.offsetX - region.getRotatedPackedWidth();
+        }
+        return region.offsetX;
+    }
+
+    /**
+     * The region's unflipped vertical trim origin (see {@link #unflippedOffsetX}); the same inverse
+     * of {@code AtlasRegion.flip(*, true)}'s {@code offsetY} transform.
+     */
+    private static float unflippedOffsetY(TextureAtlas.AtlasRegion region) {
+        if (region.isFlipY()) {
+            return region.originalHeight - region.offsetY - region.getRotatedPackedHeight();
+        }
+        return region.offsetY;
     }
 
     /**
@@ -287,22 +341,27 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
 
     /**
      * Draws the real ART sprite for a claimed transient effect, reproducing the native draw
-     * including its per-kind blend behavior ({@link VfxDrawGeometry#additiveBlend}: additive for
+     * including its per-kind blend behavior ({@link VfxDrawGeometry#additiveBlend} — the single
+     * source of truth for the ambient set: additive for
      * most kinds, ambient — no {@code setBlendFunction} call — for the ambient kinds
      * {@code FlashAtkImgEffect}, {@code SmokeBlurEffect}, {@code CeilingDustCloudEffect},
-     * {@code NemesisFireParticle}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
-     * {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, and
-     * {@code DamageImpactLineEffect}).
+     * {@code NemesisFireParticle}, {@code DebuffParticleEffect}, {@code GenericSmokeEffect},
+     * {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect}, {@code ExhaustPileParticle},
+     * {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, {@code DamageImpactLineEffect},
+     * {@code StunStarEffect}, and {@code FallingDustEffect}).
      *
      * <p>For the img-based kinds: the region comes from the effect's own live
      * {@code img} through {@link Sts1GdxAtlasRegions#fromGdx}, geometry from
      * {@link VfxDrawGeometry#params}, color from the effect's own {@link Color} (or white). The
-     * per-kind blend policy is {@link VfxDrawGeometry#additiveBlend}: additive kinds install
+     * per-kind blend policy is {@link VfxDrawGeometry#additiveBlend} (the single source of truth for
+     * the ambient set): additive kinds install
      * {@code (SRC_ALPHA, ONE)} and restore {@code (SRC_ALPHA, ONE_MINUS_SRC_ALPHA)};
      * the ambient kinds ({@code FlashAtkImgEffect}, {@code SmokeBlurEffect},
-     * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code BlockImpactLineEffect},
+     * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code DebuffParticleEffect},
+     * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
      * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
-     * and {@code DamageImpactLineEffect}) never call
+     * {@code DamageImpactLineEffect}, {@code StunStarEffect}, and {@code FallingDustEffect})
+     * never call
      * {@code setBlendFunction} natively, so their path draws
      * under the ambient blend and restores only the previous color. Every branch restores the
      * previous color. That draw uses the {@code SpriteBatch#draw(TextureRegion, ...)} overload with
@@ -339,6 +398,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                     || kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                     || kind == VfxDrawGeometry.Kind.ENTANGLE
                     || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.WARNING_SIGN
                     || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE) {
                 return renderTexture(sb, kind, effect);
             }
@@ -358,10 +418,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             // equal the canonical region's width/height even when the shared region was flipped.
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                     kind, f.x, f.y, f.vY, f.scale, f.rotation, f.durDiv2, f.duration,
-                    settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight());
+                    settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight(),
+                    f.vX, f.regionOffsetX, f.regionOffsetY);
             // Per-kind blend policy: most kinds install additive blend and restore it, but the
-            // ambient kinds (FlashAtkImgEffect, SmokeBlurEffect, CeilingDustCloudEffect,
-            // NemesisFireParticle, BlockImpactLineEffect, ExhaustPileParticle, UnknownParticleEffect)
+            // ambient kinds (VfxDrawGeometry.additiveBlend(kind) == false — see that method for the
+            // authoritative list, which includes the newest StunStarEffect and FallingDustEffect)
             // never call setBlendFunction natively, so they must draw under
             // the ambient blend and restore only color.
             boolean additive = VfxDrawGeometry.additiveBlend(kind);
@@ -429,6 +490,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                     || kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                     || kind == VfxDrawGeometry.Kind.ENTANGLE
                     || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
+                    || kind == VfxDrawGeometry.Kind.WARNING_SIGN
                     || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE) {
                 TextureFields f = readTextureFields(kind, effect);
                 if (f == null) return false;
@@ -452,6 +514,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@link #renderTexture} and {@link #canDraw} so the two stay consistent.
      */
     private static Texture resolveTexture(VfxDrawGeometry.Kind kind, TextureFields f) {
+        if (kind == VfxDrawGeometry.Kind.WARNING_SIGN) {
+            // WarningSignEffect draws the static ImageMaster.WARNING_ICON_VFX Texture.
+            return ImageMaster.WARNING_ICON_VFX;
+        }
         if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
             return ImageMaster.INTENT_DEFEND;
         }
@@ -485,12 +551,19 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (texture == null) return false;
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 kind, f.x, f.y, 0f, f.scale, f.rotation,
-                f.durDiv2, f.duration, Settings.scale, 0f, 0f);
+                f.durDiv2, f.duration, Settings.scale, 0f, 0f, 0f, 0f, 0f);
         int srcX;
         int srcY;
         int srcW;
         int srcH;
-        if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
+        if (kind == VfxDrawGeometry.Kind.WARNING_SIGN) {
+            // WarningSignEffect draws the static ImageMaster.WARNING_ICON_VFX Texture's full rect;
+            // the geometry already carries the hardcoded Settings.scale * 2f uniform scale.
+            srcX = VfxDrawGeometry.WARNING_SRC_X;
+            srcY = VfxDrawGeometry.WARNING_SRC_Y;
+            srcW = VfxDrawGeometry.WARNING_SRC_W;
+            srcH = VfxDrawGeometry.WARNING_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
             srcX = VfxDrawGeometry.SHIELD_SRC_X;
             srcY = VfxDrawGeometry.SHIELD_SRC_Y;
             srcW = VfxDrawGeometry.SHIELD_SRC_W;
@@ -530,7 +603,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcH = VfxDrawGeometry.CALM_SRC_H;
         }
         // Per-kind blend policy: additive kinds install and restore blend, the ambient kinds
-        // (the bare-Texture kinds DebuffParticleEffect and UnknownParticleEffect are both ambient)
+        // (VfxDrawGeometry.additiveBlend(kind) == false — the bare-Texture kinds DebuffParticleEffect
+        // and UnknownParticleEffect are both ambient, and WarningSignEffect is additive)
         // never call setBlendFunction natively and restore only color.
         boolean additive = VfxDrawGeometry.additiveBlend(kind);
         Color previous = new Color(sb.getColor());

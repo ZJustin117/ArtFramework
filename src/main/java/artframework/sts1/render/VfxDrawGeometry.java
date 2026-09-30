@@ -16,7 +16,9 @@ package artframework.sts1.render;
  * {@code ExhaustPileParticle}),
  * mirroring the native render formula exactly; the five newest members are the {@code vfx-combat}
  * {@code FlameParticleEffect}/{@code LightningOrbActivateEffect}/{@code DamageImpactBlurEffect}/
- * {@code DamageImpactLineEffect}/{@code DarkOrbPassiveEffect}.
+ * {@code DamageImpactLineEffect}/{@code DarkOrbPassiveEffect}, and the three newest are the
+ * {@code vfx-misc-root} {@code WarningSignEffect}, the {@code vfx-combat} {@code StunStarEffect}, and
+ * the {@code vfx-misc-root} {@code FallingDustEffect} (in that order).
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -28,8 +30,8 @@ package artframework.sts1.render;
  * {@code FlashAtkImgEffect} (the first), plus the {@code SmokeBlurEffect},
  * {@code CeilingDustCloudEffect}, {@code NemesisFireParticle}, {@code DebuffParticleEffect},
  * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
- * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect}, and
- * {@code DamageImpactLineEffect}
+ * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
+ * {@code DamageImpactLineEffect}, {@code StunStarEffect}, and {@code FallingDustEffect}
  * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
@@ -118,16 +120,32 @@ package artframework.sts1.render;
  *                                 Texture img; src 0,0,74,74 is the full region):
  *     sb.draw(img, x - 37f, y - 37f, 37f, 37f, 74f, 74f, scale, scale, rotation,
  *             0, 0, 74, 74, false, false)
+ *   WarningSignEffect.render (note: additive blend; rotation hardcoded to 0f; the uniform scale is
+ *                              the hardcoded Settings.scale * 2f, NOT an effect scale field, which
+ *                              the class does not have):
+ *     sb.draw(ImageMaster.WARNING_ICON_VFX, x - 32f, y - 32f, 32f, 32f, 64f, 64f,
+ *             Settings.scale*2f, Settings.scale*2f, 0f, 0, 0, 64, 64, false, false)
+ *   StunStarEffect.render (note: no setBlendFunction; ambient blend; the draw POSITION is offset by
+ *                          the effect's own vX/vY, both scaled by Settings.scale):
+ *     sb.draw(img, x - vX*30f*Settings.scale, y - vY*5f*Settings.scale,
+ *             pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   FallingDustEffect.render (note: no setBlendFunction; ambient blend; the ORIGIN is the region's
+ *                             own offsetX/offsetY, NOT packed/2):
+ *     sb.draw(img, x, y, img.offsetX, img.offsetY, pw, ph, scale, scale, rotation)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
- * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown, and
+ * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown, WarningSign,
+ * and
  * DarkOrb — draw a
  * fixed source rect
  * rather than a packed region, so their native origin/size/source rect are host-neutral constants
- * and the packed region size is ignored; Shield, Web, and Entangle hardcode rotation {@code 0f},
+ * and the packed region size is ignored; Shield, Web, Entangle, and WarningSign hardcode rotation
+ * {@code 0f},
  * Debuff, IceShatter, Unknown, and DarkOrb consume their {@code rotation} field, and Calm keeps its
- * {@code scaleY} formula. Web and Entangle
+ * {@code scaleY} formula. WarningSign is the only kind whose uniform scale is a hardcoded
+ * {@code settingsScale * 2f} rather than the effect's own {@code scale} field (it has none). Web and
+ * Entangle
  * are the only kinds whose native {@code render} rewrites the set color, forcing RGB to white
  * and taking alpha from the effect's color (see {@link #whiteAlphaOnly}). {@code DivinityStanceChangeParticle}, the
  * cross-family {@code LightFlareSEffect}/{@code LightFlareMEffect}/{@code LightFlareLEffect}/
@@ -216,7 +234,10 @@ public final class VfxDrawGeometry {
         LIGHTNING_ORB_ACTIVATE,
         DAMAGE_IMPACT_BLUR,
         DAMAGE_IMPACT_LINE,
-        DARK_ORB_PASSIVE
+        DARK_ORB_PASSIVE,
+        WARNING_SIGN,
+        STUN_STAR,
+        FALLING_DUST
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -349,6 +370,36 @@ public final class VfxDrawGeometry {
     /** Native DarkOrb draw source rect height ({@code 74}, the full region). */
     public static final int DARK_ORB_SRC_H = 74;
 
+    // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
+    // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
+    // hardcoded to 0 and the uniform scale is the hardcoded Settings.scale * 2f (the effect has no
+    // scale field).
+    /** Native WarningSign draw origin x ({@code 32f}). */
+    public static final float WARNING_ORIGIN_X = 32f;
+    /** Native WarningSign draw origin y ({@code 32f}). */
+    public static final float WARNING_ORIGIN_Y = 32f;
+    /** Native WarningSign draw width ({@code 64f}). */
+    public static final float WARNING_WIDTH = 64f;
+    /** Native WarningSign draw height ({@code 64f}). */
+    public static final float WARNING_HEIGHT = 64f;
+    /** Native WarningSign uniform scale multiplier ({@code 2f}, applied to {@code Settings.scale}). */
+    public static final float WARNING_SCALE_FACTOR = 2f;
+    /** Native WarningSign draw source rect x ({@code 0}). */
+    public static final int WARNING_SRC_X = 0;
+    /** Native WarningSign draw source rect y ({@code 0}). */
+    public static final int WARNING_SRC_Y = 0;
+    /** Native WarningSign draw source rect width ({@code 64}). */
+    public static final int WARNING_SRC_W = 64;
+    /** Native WarningSign draw source rect height ({@code 64}). */
+    public static final int WARNING_SRC_H = 64;
+
+    // Native StunStarEffect position-offset multipliers (see the class Javadoc): the draw position
+    // is x - vX * 30f * Settings.scale, y - vY * 5f * Settings.scale.
+    /** StunStar vX position-offset multiplier ({@code 30f}). */
+    public static final float STUN_STAR_VX_FACTOR = 30f;
+    /** StunStar vY position-offset multiplier ({@code 5f}). */
+    public static final float STUN_STAR_VY_FACTOR = 5f;
+
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
         public final float x;
@@ -461,6 +512,9 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.DAMAGE_IMPACT_BLUR.equals(value)) return Kind.DAMAGE_IMPACT_BLUR;
         if (VfxClaimPolicy.DAMAGE_IMPACT_LINE.equals(value)) return Kind.DAMAGE_IMPACT_LINE;
         if (VfxClaimPolicy.DARK_ORB_PASSIVE.equals(value)) return Kind.DARK_ORB_PASSIVE;
+        if (VfxClaimPolicy.WARNING_SIGN.equals(value)) return Kind.WARNING_SIGN;
+        if (VfxClaimPolicy.STUN_STAR.equals(value)) return Kind.STUN_STAR;
+        if (VfxClaimPolicy.FALLING_DUST.equals(value)) return Kind.FALLING_DUST;
         return null;
     }
 
@@ -474,24 +528,28 @@ public final class VfxDrawGeometry {
      * {@link Kind#SMOKE_BLUR}, {@link Kind#CEILING_DUST}, {@link Kind#NEMESIS_FIRE},
      * {@link Kind#DEBUFF_PARTICLE}, {@link Kind#GENERIC_SMOKE}, {@link Kind#EXHAUST_BLUR},
      * {@link Kind#BLOCK_IMPACT_LINE}, {@link Kind#EXHAUST_PILE}, {@link Kind#UNKNOWN_PARTICLE},
-     * {@link Kind#DAMAGE_IMPACT_BLUR}, {@link Kind#DAMAGE_IMPACT_LINE})
+     * {@link Kind#DAMAGE_IMPACT_BLUR}, {@link Kind#DAMAGE_IMPACT_LINE}, {@link Kind#STUN_STAR},
+     * {@link Kind#FALLING_DUST})
      * never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
      * nemesis fire are the first ambient members beyond it, {@link Kind#DEBUFF_PARTICLE} is the
      * first ambient bare-{@code Texture} member, {@link Kind#GENERIC_SMOKE}/{@link
-     * Kind#EXHAUST_BLUR} are the newest ambient packed-region members, the newest ambient
-     * members are {@link Kind#BLOCK_IMPACT_LINE}/{@link Kind#EXHAUST_PILE} (ambient center-packed)
+     * Kind#EXHAUST_BLUR} are earlier ambient packed-region members, the earlier ambient
+     * members {@link Kind#BLOCK_IMPACT_LINE}/{@link Kind#EXHAUST_PILE} (ambient center-packed)
      * plus {@link Kind#UNKNOWN_PARTICLE} (the first ambient bare-{@code Texture} member of the new
-     * 128-rect), and {@link Kind#DAMAGE_IMPACT_BLUR}/{@link Kind#DAMAGE_IMPACT_LINE} are the newest
-     * ambient center-packed members. Every other kind — including
+     * 128-rect) and {@link Kind#DAMAGE_IMPACT_BLUR}/{@link Kind#DAMAGE_IMPACT_LINE} (ambient
+     * center-packed) are not the newest any more; the two newest ambient members are
+     * {@link Kind#STUN_STAR}/{@link Kind#FALLING_DUST} (ambient center-packed, adding only a position
+     * offset and a region-offset origin respectively). Every other kind — including
      * the two fire
      * bursts ({@link Kind#FIRE_BURST}, {@link Kind#RED_FIRE_BURST}), the additive bare-texture
      * {@link Kind#SHIELD_PARTICLE}, the additive {@link Kind#TORCH_PARTICLE_XL}/{@link
      * Kind#GHOSTLY_WEAK_FIRE}, the two additive bare-texture members
-     * {@link Kind#ICE_SHATTER}/{@link Kind#WEB_PARTICLE}, {@link Kind#ENTANGLE}, the two newest
-     * additive center-packed members {@link Kind#FLAME_PARTICLE}/{@link Kind#LIGHTNING_ORB_ACTIVATE},
-     * and the newest additive bare-texture member {@link Kind#DARK_ORB_PASSIVE} — is additive.
+     * {@link Kind#ICE_SHATTER}/{@link Kind#WEB_PARTICLE}, {@link Kind#ENTANGLE}, the additive
+     * center-packed members {@link Kind#FLAME_PARTICLE}/{@link Kind#LIGHTNING_ORB_ACTIVATE},
+     * the additive bare-texture members {@link Kind#DARK_ORB_PASSIVE} and the newest additive
+     * member {@link Kind#WARNING_SIGN} — is additive.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -510,7 +568,9 @@ public final class VfxDrawGeometry {
                 && kind != Kind.EXHAUST_PILE
                 && kind != Kind.UNKNOWN_PARTICLE
                 && kind != Kind.DAMAGE_IMPACT_BLUR
-                && kind != Kind.DAMAGE_IMPACT_LINE;
+                && kind != Kind.DAMAGE_IMPACT_LINE
+                && kind != Kind.STUN_STAR
+                && kind != Kind.FALLING_DUST;
     }
 
     /**
@@ -540,7 +600,8 @@ public final class VfxDrawGeometry {
      * only the alpha from the effect's color ({@code EntangleEffect} is byte-identical to
      * {@code WebParticleEffect}). Every other kind (including the other bare-{@code Texture} members
      * {@link Kind#CALM_PARTICLE}, {@link Kind#SHIELD_PARTICLE}, {@link Kind#DEBUFF_PARTICLE},
-     * {@link Kind#ICE_SHATTER}, {@link Kind#UNKNOWN_PARTICLE}, and {@link Kind#DARK_ORB_PASSIVE})
+     * {@link Kind#ICE_SHATTER}, {@link Kind#UNKNOWN_PARTICLE}, {@link Kind#WARNING_SIGN}, and
+     * {@link Kind#DARK_ORB_PASSIVE})
      * sets the effect's {@code color}
      * unchanged, so the host draw must not rewrite its RGB.
      *
@@ -560,17 +621,25 @@ public final class VfxDrawGeometry {
      * while the ambient kinds ({@code FLASH_ATK_IMG}, {@code SMOKE_BLUR}, {@code CEILING_DUST},
      * {@code NEMESIS_FIRE}, {@code DEBUFF_PARTICLE}, {@code GENERIC_SMOKE}, {@code EXHAUST_BLUR},
      * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE},
-     * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE})
+     * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE}, {@code STUN_STAR},
+     * {@code FALLING_DUST})
      * leave the ambient blend untouched and restore
      * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
      * {@code ENTANGLE}) that also rewrite their set color's
      * RGB to white).
      *
+     * <p>The three trailing scalars were added for the two newest kinds and default to {@code 0} for
+     * every other caller: {@code vX} is the effect's own horizontal velocity used only by
+     * {@code STUN_STAR} (whose draw position is shifted by it), while {@code regionOffsetX}/
+     * {@code regionOffsetY} are the region's own trim offsets used as the draw origin only by
+     * {@code FALLING_DUST} (whose origin is NOT {@code packedWidth/2}, {@code packedHeight/2}).
+     *
      * @throws IllegalArgumentException when {@code kind} is null
      */
     public static Params params(Kind kind, float x, float y, float vY, float scale, float rotation,
             float durDiv2, float duration, float settingsScale,
-            float packedWidth, float packedHeight) {
+            float packedWidth, float packedHeight,
+            float vX, float regionOffsetX, float regionOffsetY) {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
@@ -677,6 +746,30 @@ public final class VfxDrawGeometry {
                 // the full 74x74 region the effect passes natively.
                 return new Params(x - DARK_ORB_OFFSET, y - DARK_ORB_OFFSET,
                         DARK_ORB_ORIGIN, DARK_ORB_ORIGIN, DARK_ORB_SIZE, DARK_ORB_SIZE,
+                        scale, scale, rotation);
+            case WARNING_SIGN:
+                // Native WarningSignEffect ignores the (absent) region and has no scale/rotation
+                // field either: a fixed 64x64 rect and a hardcoded additive uniform scale of
+                // Settings.scale * 2f (with a hardcoded zero rotation). packedWidth/packedHeight,
+                // vY, vX, the region offsets, dur_div2, duration, and the effect scale/rotation
+                // inputs are all unused.
+                return new Params(x - WARNING_ORIGIN_X, y - WARNING_ORIGIN_Y,
+                        WARNING_ORIGIN_X, WARNING_ORIGIN_Y, WARNING_WIDTH, WARNING_HEIGHT,
+                        settingsScale * WARNING_SCALE_FACTOR, settingsScale * WARNING_SCALE_FACTOR,
+                        0f);
+            case STUN_STAR:
+                // Native StunStarEffect reuses the ambient center-packed geometry but shifts the
+                // draw POSITION by -(vX * 30f * Settings.scale), -(vY * 5f * Settings.scale); origin
+                // packed/2, size packed, uniform scale, and the field rotation are as usual.
+                return new Params(
+                        x - vX * STUN_STAR_VX_FACTOR * settingsScale,
+                        y - vY * STUN_STAR_VY_FACTOR * settingsScale,
+                        originX, originY, packedWidth, packedHeight, scale, scale, rotation);
+            case FALLING_DUST:
+                // Native FallingDustEffect reuses the ambient center-packed geometry except that its
+                // ORIGIN is the region's own offsetX/offsetY (NOT packedWidth/2, packedHeight/2);
+                // size packed, uniform scale, and the field rotation are as usual.
+                return new Params(x, y, regionOffsetX, regionOffsetY, packedWidth, packedHeight,
                         scale, scale, rotation);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);

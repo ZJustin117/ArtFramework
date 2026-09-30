@@ -363,11 +363,14 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       Known limitations / deferred: (a) `FlameParticleEffect` sets `img.flip(!flipX, false)`
       immediately before its draw (`flipX` is a per-instance mirror), which the claimed draw does not
       reproduce — the claimed pixels are therefore un-mirrored relative to native for that member;
-      (b) `com.megacrit.cardcrawl.vfx.FallingDustEffect` was screened but DEFERRED because its native
-      origin uses the region's `offsetX`/`offsetY` (it would need a region-offset-origin rule rather
-      than an existing draw shape), and `com.megacrit.cardcrawl.vfx.combat.StunStarEffect` DEFERRED
-      because its origin is `x - vX*30f*Settings.scale`, `y - vY*5f*Settings.scale` (it would need a
-      settings-scaled-offset rule keyed on the effect's own `vX`/`vY`).
+      (b) `com.megacrit.cardcrawl.vfx.FallingDustEffect` and
+      `com.megacrit.cardcrawl.vfx.combat.StunStarEffect` were screened here and DEFERRED — FallingDust
+      because its native origin uses the region's `offsetX`/`offsetY` (it needed a region-offset-origin
+      rule rather than an existing draw shape) and StunStar because its position is
+      `x - vX*30f*Settings.scale`, `y - vY*5f*Settings.scale` (it needed a settings-scaled-offset rule
+      keyed on the effect's own `vX`/`vY`). Both deferrals are now SUPERSEDED by the completed F16
+      slice below, which claims FallingDust (region-offset origin) and StunStar (scaled `vX`/`vY`
+      position offset).
 
 - [x] NRO-04 F15b (benign no-pixel decline classification): a claimed instance whose native draw
       legitimately produces no pixels is no longer counted as a `dispositionMismatch` /
@@ -436,9 +439,43 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       canonical orientation is drawn, not the per-instance mirror). No ledger-counter, F15b/F15c,
       gate/token, scenario-YAML, or non-img geometry change. Focused no-GL JUnit only.
 
-- [ ] NRO-04 screening note: `com.megacrit.cardcrawl.vfx.combat.WarningSignEffect` was screened and
-      DEFERRED — its `scale` is hardcoded `Settings.scale * 2f` (there is no `scale` field), so
-      claiming it would need a new scale-rule capability rather than an existing draw shape.
+- [x] NRO-04 screening note (SUPERSEDED by F16 below): `com.megacrit.cardcrawl.vfx.combat.WarningSignEffect`
+      was screened here and DEFERRED — its `scale` is hardcoded `Settings.scale * 2f` (there is no
+      `scale` field), so claiming it needed a new scale-rule capability rather than an existing draw
+      shape. F16 below supplies that capability and claims WarningSignEffect.
+
+- [x] NRO-04 F16 (three more members: two new pure rules + one static-texture fixed rect):
+      `com.megacrit.cardcrawl.vfx.WarningSignEffect` is a bare-`Texture` fixed-rect kind over the
+      static `ImageMaster.WARNING_ICON_VFX` with a NEW pure rule — the uniform scale is the
+      hardcoded `Settings.scale * 2f` (the class has no `scale` field, so the effect scale is
+      ignored) with a hardcoded zero rotation, new host-neutral constants
+      (`WARNING_ORIGIN_X/Y`, `WARNING_WIDTH/HEIGHT`, `WARNING_SCALE_FACTOR`, `WARNING_SRC_*`) and
+      additive blend; `com.megacrit.cardcrawl.vfx.combat.StunStarEffect` reuses the ambient
+      center-packed `AtlasRegion` geometry with a NEW pure rule — the draw POSITION is offset by
+      `-(vX * 30f * Settings.scale)`, `-(vY * 5f * Settings.scale)` (`STUN_STAR_VX_FACTOR`/
+      `STUN_STAR_VY_FACTOR`), so it consumes its own `vX` AND `vY` (and, like the other
+      `vY`-consuming kinds `WRATH_PARTICLE`/`DIVINITY_PARTICLE`, `Kind.STUN_STAR` is now in
+      `Sts1VfxArtRenderer.requireVY`, so a StunStar instance with a missing/unreadable `vY` fails
+      open instead of drawing at a wrong position); and
+      `com.megacrit.cardcrawl.vfx.FallingDustEffect` reuses that ambient center-packed geometry with a
+      NEW pure rule — the ORIGIN is the region's own `offsetX`/`offsetY` (NOT
+      `packedWidth/2f`/`packedHeight/2f`). `VfxDrawGeometry.params(...)` gained three tail scalars
+      (`float vX, float regionOffsetX, float regionOffsetY`) after `packedHeight` so the pure API
+      stays host-neutral (numbers only) and every existing caller passes `0f` for them;
+      `Kind.WARNING_SIGN`/`Kind.STUN_STAR`/`Kind.FALLING_DUST` were added and
+      `additiveBlend` is `true` only for `WARNING_SIGN`. `Sts1VfxArtRenderer.Fields` additionally
+      snapshots `vX` (optional, default 0) and the region's `offsetX`/`offsetY`, normalized back to
+      the UNFLIPPED trim origin (the exact inverse of `AtlasRegion.flip`'s offset transform) when
+      `isFlipX()`/`isFlipY()` reports a native flip — so the F15d flip-invariance carries to the
+      `FALLING_DUST` origin with no residual. `VfxClaimPolicy.WARNING_SIGN`/`STUN_STAR`/`FALLING_DUST`
+      append last to `supportedClasses()`/`supports(...)` in that order;
+      `VfxLabSpawn.classNameFor` gains `"warning"`/`"warningsign"` (`new WarningSignEffect(960f,
+      540f)`), `"stunstar"`/`"stun"` (`new StunStarEffect(960f, 540f)`), and
+      `"fallingdust"`/`"fdust"` (`new FallingDustEffect(960f, 540f)`) — aliases checked against the
+      existing set for collisions — behind the existing fail-open guard, and
+      `art claim spawn warning|stunstar|fallingdust 4` runs in both `d1_aura_claim.yaml` phases. No
+      new patch/bridge/console wiring; default-off gate + per-instance token semantics unchanged.
+      Focused no-GL JUnit only.
 
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,

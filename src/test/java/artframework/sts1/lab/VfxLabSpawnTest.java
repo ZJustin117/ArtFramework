@@ -98,6 +98,12 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.DARK_ORB_PASSIVE, VfxLabSpawn.classNameFor("darkorb"));
         assertEquals(VfxClaimPolicy.DARK_ORB_PASSIVE,
                 VfxLabSpawn.classNameFor("darkorbpassive"));
+        assertEquals(VfxClaimPolicy.WARNING_SIGN, VfxLabSpawn.classNameFor("warning"));
+        assertEquals(VfxClaimPolicy.WARNING_SIGN, VfxLabSpawn.classNameFor("warningsign"));
+        assertEquals(VfxClaimPolicy.STUN_STAR, VfxLabSpawn.classNameFor("stunstar"));
+        assertEquals(VfxClaimPolicy.STUN_STAR, VfxLabSpawn.classNameFor("stun"));
+        assertEquals(VfxClaimPolicy.FALLING_DUST, VfxLabSpawn.classNameFor("fallingdust"));
+        assertEquals(VfxClaimPolicy.FALLING_DUST, VfxLabSpawn.classNameFor("fdust"));
     }
 
     @Test
@@ -172,6 +178,12 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.DARK_ORB_PASSIVE, VfxLabSpawn.classNameFor("  DaRkOrB "));
         assertEquals(VfxClaimPolicy.DARK_ORB_PASSIVE,
                 VfxLabSpawn.classNameFor("DARKORBPASSIVE"));
+        assertEquals(VfxClaimPolicy.WARNING_SIGN, VfxLabSpawn.classNameFor("  WaRnInG "));
+        assertEquals(VfxClaimPolicy.WARNING_SIGN, VfxLabSpawn.classNameFor("WARNINGSIGN"));
+        assertEquals(VfxClaimPolicy.STUN_STAR, VfxLabSpawn.classNameFor("  StUnStAr "));
+        assertEquals(VfxClaimPolicy.STUN_STAR, VfxLabSpawn.classNameFor("STUN"));
+        assertEquals(VfxClaimPolicy.FALLING_DUST, VfxLabSpawn.classNameFor("  FaLlInGdUsT "));
+        assertEquals(VfxClaimPolicy.FALLING_DUST, VfxLabSpawn.classNameFor("FDUST"));
     }
 
     @Test
@@ -438,6 +450,18 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("dmgline", VfxClaimPolicy.DAMAGE_IMPACT_LINE);
         assertSpawnRequests("darkorb", VfxClaimPolicy.DARK_ORB_PASSIVE);
         assertSpawnRequests("darkorbpassive", VfxClaimPolicy.DARK_ORB_PASSIVE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF16MembersThroughTheFactorySeam() {
+        // The three newest claimable FQNs; the capturing factory proves each alias requests exactly
+        // its FQN without touching the ImageMaster-backed constructors.
+        assertSpawnRequests("warning", VfxClaimPolicy.WARNING_SIGN);
+        assertSpawnRequests("warningsign", VfxClaimPolicy.WARNING_SIGN);
+        assertSpawnRequests("stunstar", VfxClaimPolicy.STUN_STAR);
+        assertSpawnRequests("stun", VfxClaimPolicy.STUN_STAR);
+        assertSpawnRequests("fallingdust", VfxClaimPolicy.FALLING_DUST);
+        assertSpawnRequests("fdust", VfxClaimPolicy.FALLING_DUST);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

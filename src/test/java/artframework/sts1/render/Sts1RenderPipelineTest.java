@@ -450,6 +450,60 @@ public class Sts1RenderPipelineTest {
     }
 
     @Test
+    public void planCacheCountersProveReuseAvoidsRebuildsOnConstantKey() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+
+        // Paired allocation-comparison evidence: hold frameId/policy/executor/scene/flags constant
+        // and call plan() N times. Exactly ONE rebuild (buildFromSnapshot) must occur and every
+        // other call must return the retained plan. Without the cache this workload would perform
+        // N rebuilds (N SurfaceDrawPlan/entry allocations); with it, 1.
+        final int n = 200;
+        SurfaceDrawPlan first = Sts1RenderPipeline.plan();
+        for (int i = 1; i < n; i++) {
+            assertTrue("call " + i + " must return the retained plan", first == Sts1RenderPipeline.plan());
+        }
+        assertEquals(1L, Sts1RenderPipeline.planCacheMisses());
+        assertEquals((long) (n - 1), Sts1RenderPipeline.planCacheHits());
+
+        // A discriminator change (new frameId) forces exactly one more rebuild and a fresh plan.
+        ArtFramework.publishFrame(ContextFrame.of(2L, 1L, "combat",
+                java.util.Collections.<CardView>emptyList(), ControlsView.empty(), MapView.empty(), null));
+        SurfaceDrawPlan rebuilt = Sts1RenderPipeline.plan();
+        assertFalse(first == rebuilt);
+        assertEquals(2L, Sts1RenderPipeline.planCacheMisses());
+        assertEquals((long) (n - 1), Sts1RenderPipeline.planCacheHits());
+
+        // Probe keys expose the same additive diagnostics. probeSlice() itself calls plan() (a hit),
+        // so compare the map against the post-probe accessor values (misses stay 2).
+        Map<String, Object> m = Sts1RenderPipeline.probeSlice();
+        assertEquals(Long.valueOf(Sts1RenderPipeline.planCacheMisses()), m.get("planCacheMisses"));
+        assertEquals(Long.valueOf(Sts1RenderPipeline.planCacheHits()), m.get("planCacheHits"));
+        assertEquals(Long.valueOf(2L), m.get("planCacheMisses"));
+    }
+
+    @Test
+    public void planCacheCountersTreatFrameIdAsPartOfKey() {
+        combatFrameMounted();
+        FullPresentMode.setCombatHandLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+
+        Sts1RenderPipeline.plan();
+        assertEquals(1L, Sts1RenderPipeline.planCacheMisses());
+        assertEquals(0L, Sts1RenderPipeline.planCacheHits());
+
+        // Read the real PlanKey.matches contract: frameId IS a discriminator (see PlanKey.matches),
+        // so an otherwise-identical frame with a new frameId is a MISS and rebuilds the plan. The
+        // cache is intentionally same-FRAME, not "same discriminators across frames".
+        ArtFramework.publishFrame(ContextFrame.of(2L, 1L, "combat",
+                java.util.Collections.<CardView>emptyList(), ControlsView.empty(), MapView.empty(), null));
+        Sts1RenderPipeline.plan();
+        assertEquals(2L, Sts1RenderPipeline.planCacheMisses());
+        assertEquals(0L, Sts1RenderPipeline.planCacheHits());
+    }
+
+    @Test
     public void planIsReusedOnlyForSameFrameAndInputs() {
         combatFrameMounted();
         SurfaceDrawPlan first = Sts1RenderPipeline.plan();

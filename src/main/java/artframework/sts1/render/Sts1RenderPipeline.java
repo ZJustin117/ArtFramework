@@ -18,6 +18,11 @@ public final class Sts1RenderPipeline {
     private static boolean overlayObserve;
     private static SurfaceDrawPlan lastPlan = SurfaceDrawPlan.build("", false, false, false, false, false, false);
     private static PlanKey lastKey;
+    // NRM-07 diagnostic counters. Additive and behavior-neutral: they only observe whether the
+    // same-frame cache returned the retained plan (`planCacheHits`) or rebuilt it
+    // (`planCacheMisses`). They never influence the cache decision.
+    private static long planCacheHits;
+    private static long planCacheMisses;
 
     private Sts1RenderPipeline() {}
 
@@ -31,6 +36,16 @@ public final class Sts1RenderPipeline {
 
     public static SurfaceDrawPlan lastPlan() {
         return lastPlan;
+    }
+
+    // NRM-07 read-only diagnostics accessors. Unlike probeSlice(), these do NOT call plan(), so a
+    // test can read the exact hit/miss tallies without perturbing them.
+    static long planCacheHits() {
+        return planCacheHits;
+    }
+
+    static long planCacheMisses() {
+        return planCacheMisses;
     }
 
     public static SurfaceDrawPlan plan() {
@@ -77,8 +92,10 @@ public final class Sts1RenderPipeline {
                 | (overlayObserve ? 1L << 17 : 0L)
                 | readinessAndPanic;
         if (lastKey != null && lastKey.matches(frameId, policyRevision, executorRevision, scene, flags)) {
+            planCacheHits++;
             return lastPlan;
         }
+        planCacheMisses++;
         lastPlan =
                 SurfaceDrawPlan.buildFromSnapshot(
                         scene,
@@ -101,6 +118,8 @@ public final class Sts1RenderPipeline {
     public static Map<String, Object> probeSlice() {
         Map<String, Object> m = plan().toMap();
         m.put("overlayObserve", Boolean.valueOf(overlayObserve));
+        m.put("planCacheHits", Long.valueOf(planCacheHits));
+        m.put("planCacheMisses", Long.valueOf(planCacheMisses));
         m.put("nativeRender", NativeRenderBridge.probeSlice());
         m.put("nativeRenderStrict", NativeRenderBridge.strictReport());
         m.put("cardsPilesSoul", Sts1PileSoulDrawPath.probeSlice());
@@ -117,6 +136,8 @@ public final class Sts1RenderPipeline {
         HandRenderMetrics.resetForTests();
         lastPlan = SurfaceDrawPlan.build("", false, false, false, false, false, false);
         lastKey = null;
+        planCacheHits = 0L;
+        planCacheMisses = 0L;
         NativeRenderBridge.resetForTests();
     }
 

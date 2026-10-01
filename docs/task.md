@@ -1069,9 +1069,22 @@ Persistent recursive review, before/after evidence, findings, and verification p
 
 ### Native render memory lifecycle
 
-- [ ] NRM-07 Derived frame plan cache: bounded same-frame plan/draw-order reuse is implemented and
-      covered by focused/default JUnit and D1 FULL combat; allocation comparison evidence remains
-      pending.
+- [x] NRM-07 Derived frame plan cache: bounded same-frame plan/draw-order reuse is implemented and
+      covered by focused/default JUnit and D1 FULL combat. Allocation-comparison evidence: the
+      derived same-frame cache in `Sts1RenderPipeline.plan()` is now instrumented with additive,
+      behavior-neutral diagnostics `planCacheHits` (incremented exactly when the `PlanKey.matches`
+      branch returns the retained `lastPlan`) and `planCacheMisses` (incremented exactly when a
+      `SurfaceDrawPlan.buildFromSnapshot(...)` rebuild occurs); both are exposed additively in
+      `probeSlice()` under `planCacheHits`/`planCacheMisses` and cleared by `resetForTests()`. A
+      paired pure-JUnit test (`planCacheCountersProveReuseAvoidsRebuildsOnConstantKey`) proves a
+      constant-key workload of N=200 `plan()` calls performs EXACTLY ONE rebuild and 199 cache
+      returns (vs N rebuilds without the cache), and that a discriminator change forces exactly one
+      additional rebuild. A companion test
+      (`planCacheCountersTreatFrameIdAsPartOfKey`) confirms `frameId` is a real discriminator (see
+      `PlanKey.matches`), so an otherwise-identical new frame is a MISS/rebuild; the cache contract
+      is same-FRAME, not same-discriminators-across-frames. This is `plan()`-level allocation-
+      avoidance evidence (counting avoided `SurfaceDrawPlan` rebuilds) and is explicitly NOT a
+      JVM heap-allocation measurement; no byte-level allocation reduction is claimed.
 - [x] NRM-08 Differential projection/ECS/render-target updates: identical surface/full-frame ECS
   writes preserve component identity, and the unified generic RenderPlan reconcile algorithm retains equal
   target/binding identities, synchronizes mutable state, removes stale plan ownership, preserves

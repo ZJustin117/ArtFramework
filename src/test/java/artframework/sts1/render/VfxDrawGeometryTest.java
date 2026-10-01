@@ -299,6 +299,17 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.BUFF_PARTICLE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect"));
+        // The two newest F28 members, via constants and literal FQNs.
+        assertSame(VfxDrawGeometry.Kind.BOTTOM_FOG,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.BOTTOM_FOG));
+        assertSame(VfxDrawGeometry.Kind.BOTTOM_FOG,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.BottomFogEffect"));
+        assertSame(VfxDrawGeometry.Kind.GIANT_FIRE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.GIANT_FIRE));
+        assertSame(VfxDrawGeometry.Kind.GIANT_FIRE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect"));
     }
 
     @Test
@@ -756,6 +767,26 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.BuffParticleEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.combat.BuffEffect")); // near-miss
+
+        // The two newest F28 kinds: near-miss / nested / simple-name / wrong-package fail open.
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.BottomFogEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.BottomFogEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("BottomFogEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.BottomFogEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.BottomFog")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("GiantFireEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.GiantFireEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.GiantFire")); // near-miss (no Effect)
     }
 
     @Test
@@ -2155,6 +2186,13 @@ public class VfxDrawGeometryTest {
         assertTrue("BUFF_PARTICLE installs the additive blend",
                 VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.BUFF_PARTICLE));
 
+        // The newest F28 members: BottomFogEffect never calls setBlendFunction (ambient), while
+        // GiantFireEffect installs/restores the additive blend.
+        assertFalse("BOTTOM_FOG never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertTrue("GIANT_FIRE installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.GIANT_FIRE));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -2179,7 +2217,8 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.SPOOKIER_CHEST
                     || kind == VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER
                     || kind == VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY
-                    || kind == VfxDrawGeometry.Kind.WATER_SPLASH) {
+                    || kind == VfxDrawGeometry.Kind.WATER_SPLASH
+                    || kind == VfxDrawGeometry.Kind.BOTTOM_FOG) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -2457,6 +2496,9 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.SPOOKIER_CHEST));
         assertTrue(VfxDrawGeometry.usesInstanceMirrorX(
                 VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER));
+        // The newest F28 members: BottomFog carries flipX+flipY, GiantFire carries flipX only.
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.GIANT_FIRE));
         assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.FLAME_PARTICLE));
         assertTrue(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.SPOOKY_CHEST));
         assertFalse(VfxDrawGeometry.usesInstanceMirrorY(
@@ -2464,6 +2506,9 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.SPOOKIER_CHEST));
         assertTrue(VfxDrawGeometry.usesInstanceMirrorY(
                 VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertFalse("GIANT_FIRE has no flipY field, so it is not a vertical mirror kind",
+                VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.GIANT_FIRE));
         assertFalse("DEATH_SCREEN_FLOATY has no flip flags, so it is not a mirror kind",
                 VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY));
         assertFalse("DEATH_SCREEN_FLOATY has no flip flags, so it is not a mirror kind",
@@ -2496,11 +2541,14 @@ public class VfxDrawGeometryTest {
                         VfxDrawGeometry.Kind.SPOOKY_CHEST,
                         VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME,
                         VfxDrawGeometry.Kind.SPOOKIER_CHEST,
-                        VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER);
+                        VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER,
+                        VfxDrawGeometry.Kind.BOTTOM_FOG,
+                        VfxDrawGeometry.Kind.GIANT_FIRE);
         java.util.EnumSet<VfxDrawGeometry.Kind> expectedMirrorY =
                 java.util.EnumSet.of(VfxDrawGeometry.Kind.SPOOKY_CHEST,
                         VfxDrawGeometry.Kind.SPOOKIER_CHEST,
-                        VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER);
+                        VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER,
+                        VfxDrawGeometry.Kind.BOTTOM_FOG);
         java.util.EnumSet<VfxDrawGeometry.Kind> actualMirrorX =
                 java.util.EnumSet.noneOf(VfxDrawGeometry.Kind.class);
         java.util.EnumSet<VfxDrawGeometry.Kind> actualMirrorY =
@@ -2513,9 +2561,9 @@ public class VfxDrawGeometryTest {
                 actualMirrorY.add(kind);
             }
         }
-        assertEquals("the X mirror kind set is exactly the expected five",
+        assertEquals("the X mirror kind set is exactly the expected seven",
                 expectedMirrorX, actualMirrorX);
-        assertEquals("the Y mirror kind set is exactly the expected three",
+        assertEquals("the Y mirror kind set is exactly the expected four",
                 expectedMirrorY, actualMirrorY);
     }
 
@@ -3002,5 +3050,146 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.FLYING_SPIKE,
                 x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 1234f, 0f, 0f, 0f, 0f, 1f);
         assertEquals("a reused center-packed kind is unchanged at the 1f default", p, wrath);
+    }
+
+    @Test
+    public void bottomFogMatchesTheStanceAuraCenterPackedGeometryAmbiently() {
+        // Native BottomFogEffect: setColor(color); [in-place flipX/flipY mirror];
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation);  -- NO
+        // setBlendFunction, so it is ambient center-packed and geometry-identical to STANCE_AURA
+        // (the per-instance mirror is resolved by the renderer as a UV swap). NO new formula.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 1234f, 0f, 0f, 0f, 0f, 1f);
+        VfxDrawGeometry.Params fog = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.BOTTOM_FOG,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f,
+                pw, ph, 1234f /* vX ignored */, 0f, 0f, 0f, 0f, 1f);
+
+        assertEquals("BOTTOM_FOG matches the STANCE_AURA center-packed geometry", aura, fog);
+        assertFalse("BOTTOM_FOG never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.BOTTOM_FOG));
+        assertEquals(1f, VfxDrawGeometry.uniformScaleMultiplier(
+                VfxDrawGeometry.Kind.BOTTOM_FOG, 1.333f), EPS);
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.BOTTOM_FOG).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.BOTTOM_FOG).isEmpty());
+    }
+
+    @Test
+    public void giantFireUsesTheUniformSettingsScaleOnBothAxesAdditively() {
+        // Native GiantFireEffect: setColor(color); setBlendFunction(770, 1); [flipX mirror];
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale * Settings.scale, scale * Settings.scale,
+        //           rotation); setBlendFunction(770, 771).
+        // ADDITIVE center-packed with a per-instance horizontal flipX mirror (no flipY) and a NEW
+        // pure uniform-scale rule: BOTH axes are scale * settingsScale. A non-1.0 settingsScale is
+        // used to guard the rule.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.7f;
+        float rotation = 51f;
+        float settingsScale = 1.333f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.GIANT_FIRE,
+                x, y, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, settingsScale,
+                pw, ph, 1234f /* vX ignored */, 6f /* regionOffsetX ignored */,
+                10f /* regionOffsetY ignored */, 0f, 0f, 1f);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(pw / 2f, p.originX, EPS);
+        assertEquals(ph / 2f, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals("scaleX is scale * settingsScale", scale * settingsScale, p.scaleX, EPS);
+        assertEquals("scaleY is scale * settingsScale too", scale * settingsScale, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        assertTrue("GIANT_FIRE installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.GIANT_FIRE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.GIANT_FIRE));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.GIANT_FIRE));
+        assertFalse("GIANT_FIRE has no flipY field, so it is not a vertical mirror kind",
+                VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.GIANT_FIRE));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.GIANT_FIRE));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.GIANT_FIRE));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.GIANT_FIRE));
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.GIANT_FIRE).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.GIANT_FIRE).isEmpty());
+    }
+
+    @Test
+    public void uniformScaleMultiplierIsTheSettingsScaleOnlyForGiantFire() {
+        assertEquals("GIANT_FIRE uses the supplied settings scale",
+                1.333f, VfxDrawGeometry.uniformScaleMultiplier(
+                        VfxDrawGeometry.Kind.GIANT_FIRE, 1.333f), EPS);
+        assertEquals("GIANT_FIRE uses the supplied settings scale",
+                0.5f, VfxDrawGeometry.uniformScaleMultiplier(
+                        VfxDrawGeometry.Kind.GIANT_FIRE, 0.5f), EPS);
+
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.GIANT_FIRE) continue;
+            assertEquals("the uniform multiplier is 1f for " + kind,
+                    1f, VfxDrawGeometry.uniformScaleMultiplier(kind, 1.333f), EPS);
+            assertEquals("the uniform multiplier is 1f for " + kind,
+                    1f, VfxDrawGeometry.uniformScaleMultiplier(kind, 0.5f), EPS);
+        }
+    }
+
+    @Test
+    public void uniformScaleMultiplierNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.uniformScaleMultiplier(null, 1f);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void preexistingCenterPackedAndWaterSplashAreUnchangedByTheUniformMultiplier() {
+        // REGRESSION: uniformScaleMultiplier returns 1f for every kind except GIANT_FIRE, so a
+        // pre-existing center-packed kind (and WATER_SPLASH's anisotropic 0.54f scaleY tail) is
+        // byte-identical to before the uniform rule existed.
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+        float settingsScale = 1.333f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                x, y, 999f, scale, rotation, 7f, 5f, settingsScale, pw, ph, 0f, 0f, 0f, 0f, 0f, 1f);
+        assertEquals("scaleX stays scale for a pre-existing center-packed kind",
+                scale, aura.scaleX, EPS);
+        assertEquals("scaleY stays scale for a pre-existing center-packed kind",
+                scale, aura.scaleY, EPS);
+        assertEquals(1f, VfxDrawGeometry.uniformScaleMultiplier(
+                VfxDrawGeometry.Kind.STANCE_AURA, settingsScale), EPS);
+
+        VfxDrawGeometry.Params splash = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WATER_SPLASH,
+                x, y, 999f, scale, rotation, 7f, 5f, settingsScale, pw, ph, 0f, 0f, 0f, 0f, 0f,
+                VfxDrawGeometry.WATER_SPLASH_SCALE_Y_MULTIPLIER);
+        assertEquals("WATER_SPLASH scaleX is still scale", scale, splash.scaleX, EPS);
+        assertEquals("WATER_SPLASH scaleY is still scale * 0.54f",
+                scale * VfxDrawGeometry.WATER_SPLASH_SCALE_Y_MULTIPLIER, splash.scaleY, EPS);
     }
 }

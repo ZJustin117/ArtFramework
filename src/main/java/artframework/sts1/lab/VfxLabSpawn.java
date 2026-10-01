@@ -27,6 +27,7 @@ import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FallingIceEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect;
+import com.megacrit.cardcrawl.vfx.combat.GiantFireEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect;
@@ -38,6 +39,7 @@ import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
+import com.megacrit.cardcrawl.vfx.scene.BottomFogEffect;
 import com.megacrit.cardcrawl.vfx.scene.DustEffect;
 import com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect;
 import com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect;
@@ -107,7 +109,11 @@ import java.util.function.Predicate;
  * {@code WaterSplashParticleEffect} (root; ambient center-packed with a new anisotropic
  * {@code scaleY = scale * 0.54f} rule; ctor {@code (float, float)}) and {@code BuffParticleEffect}
  * (root; additive with a new position/origin rule — position offset by half the packed footprint,
- * origin from the region's own offsets; ctor {@code (float, float)}) into the
+ * origin from the region's own offsets; ctor {@code (float, float)}), plus the two newest members
+ * {@code BottomFogEffect} ({@code vfx-scene-world}; ambient center-packed reusing the F22 mirror with
+ * flipX+flipY, boolean ctor) and {@code GiantFireEffect} ({@code vfx-combat}; additive center-packed
+ * with a new uniform-scale
+ * {@code *Settings.scale} rule and a flipX-only mirror, NO-ARG ctor) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -313,6 +319,12 @@ public final class VfxLabSpawn {
         }
         if ("buffparticle".equalsIgnoreCase(value) || "buffp".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.BUFF_PARTICLE;
+        }
+        if ("bottomfog".equalsIgnoreCase(value) || "bfog".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.BOTTOM_FOG;
+        }
+        if ("giantfire".equalsIgnoreCase(value) || "gfire".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.GIANT_FIRE;
         }
         return null;
     }
@@ -742,6 +754,20 @@ public final class VfxLabSpawn {
             // null outside a live game; any failure is caught by spawn's fail-open guard rather
             // than propagating.
             return new BuffParticleEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.BOTTOM_FOG.equals(fqn)) {
+            // Safe lab defaults: BottomFogEffect's ctor is (boolean renderBehind); passing false draws
+            // the fog behind the effect layer. Its per-instance flipX/flipY are randomized in the ctor
+            // (MathUtils.randomBoolean()), and only its img (ImageMaster.SMOKE_1/2/3) is
+            // ImageMaster-backed and may be null off-game. Any failure is caught by spawn's
+            // fail-open guard rather than propagating.
+            return new BottomFogEffect(false);
+        }
+        if (VfxClaimPolicy.GIANT_FIRE.equals(fqn)) {
+            // Safe lab defaults: GiantFireEffect has a NO-ARG constructor that selects its own img
+            // from ImageMaster static art and randomizes x/y; img may be null outside a live game, so
+            // any failure is caught by spawn's fail-open guard rather than propagating.
+            return new GiantFireEffect();
         }
         return null;
     }

@@ -245,6 +245,10 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect";
     public static final String BUFF_PARTICLE =
             "com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect";
+    public static final String BOTTOM_FOG =
+            "com.megacrit.cardcrawl.vfx.scene.BottomFogEffect";
+    public static final String GIANT_FIRE =
+            "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -262,7 +266,8 @@ public final class VfxClaimPolicy {
                     LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT,
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
-                    WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE));
+                    WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
+                    BOTTOM_FOG, GIANT_FIRE));
 
     private VfxClaimPolicy() {}
 
@@ -326,7 +331,9 @@ public final class VfxClaimPolicy {
                 || WRATH_STANCE_CHANGE.equals(value)
                 || STANCE_CHANGE_ABSORPTION.equals(value)
                 || WATER_SPLASH.equals(value)
-                || BUFF_PARTICLE.equals(value);
+                || BUFF_PARTICLE.equals(value)
+                || BOTTOM_FOG.equals(value)
+                || GIANT_FIRE.equals(value);
     }
 
     /**
@@ -456,6 +463,22 @@ public final class VfxClaimPolicy {
      * {@code packed/2}). Both consume their inherited {@code rotation} field and are appended LAST in
      * that order. No new patch/bridge/console wiring; the default-off gate and per-instance token
      * semantics are unchanged.
+     * The two newest (F28) members are the {@code vfx-scene-world} {@code BottomFogEffect} (boolean
+     * constructor) and the {@code vfx-combat} {@code GiantFireEffect} (NO-ARG constructor), appended
+     * LAST in that order. {@code BottomFogEffect} is an AMBIENT center-packed {@code AtlasRegion}
+     * member that reuses the F22 per-instance MIRROR with NO new rule — identical in shape to
+     * {@code SpookierChestEffect}/{@code CampfireSleepScreenCoverEffect}, carrying its own
+     * {@code flipX} and {@code flipY} (so {@link VfxDrawGeometry#usesInstanceMirrorX} AND
+     * {@link VfxDrawGeometry#usesInstanceMirrorY} include it). {@code GiantFireEffect} is an ADDITIVE
+     * center-packed {@code AtlasRegion} member with a per-instance horizontal {@code flipX} mirror
+     * (only {@link VfxDrawGeometry#usesInstanceMirrorX}, NOT the vertical one) and introduces ONE new
+     * pure rule — its uniform draw scale is {@code scale * Settings.scale} on BOTH axes, modeled by
+     * {@link VfxDrawGeometry#uniformScaleMultiplier} (which returns the supplied settings scale for
+     * {@code GIANT_FIRE} and {@code 1f} for every other kind) and composed with the F27
+     * {@code scaleYMultiplier} in the shared center-packed {@code params} branch. Its {@code delayTimer}
+     * is used only by {@code update()}, NOT by {@code render} (no render guard). No new
+     * patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+     * unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

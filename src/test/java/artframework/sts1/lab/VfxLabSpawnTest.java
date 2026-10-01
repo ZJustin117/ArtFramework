@@ -154,6 +154,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.WATER_SPLASH, VfxLabSpawn.classNameFor("splash"));
         assertEquals(VfxClaimPolicy.BUFF_PARTICLE, VfxLabSpawn.classNameFor("buffparticle"));
         assertEquals(VfxClaimPolicy.BUFF_PARTICLE, VfxLabSpawn.classNameFor("buffp"));
+        assertEquals(VfxClaimPolicy.BOTTOM_FOG, VfxLabSpawn.classNameFor("bottomfog"));
+        assertEquals(VfxClaimPolicy.BOTTOM_FOG, VfxLabSpawn.classNameFor("bfog"));
+        assertEquals(VfxClaimPolicy.GIANT_FIRE, VfxLabSpawn.classNameFor("giantfire"));
+        assertEquals(VfxClaimPolicy.GIANT_FIRE, VfxLabSpawn.classNameFor("gfire"));
     }
 
     @Test
@@ -245,6 +249,10 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.FLYING_SPIKE, VfxLabSpawn.classNameFor("  FlYiNgSpIkE "));
         assertEquals(VfxClaimPolicy.FLYING_SPIKE, VfxLabSpawn.classNameFor("SPIKE"));
         assertEquals(VfxClaimPolicy.CONE_EFFECT, VfxLabSpawn.classNameFor("  CoNe "));
+        assertEquals(VfxClaimPolicy.BOTTOM_FOG, VfxLabSpawn.classNameFor("  BoTtOmFoG "));
+        assertEquals(VfxClaimPolicy.BOTTOM_FOG, VfxLabSpawn.classNameFor("BFOG"));
+        assertEquals(VfxClaimPolicy.GIANT_FIRE, VfxLabSpawn.classNameFor("  GiAnTfIrE "));
+        assertEquals(VfxClaimPolicy.GIANT_FIRE, VfxLabSpawn.classNameFor("GFIRE"));
     }
 
     @Test
@@ -631,6 +639,18 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("splash", VfxClaimPolicy.WATER_SPLASH);
         assertSpawnRequests("buffparticle", VfxClaimPolicy.BUFF_PARTICLE);
         assertSpawnRequests("buffp", VfxClaimPolicy.BUFF_PARTICLE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF28MembersThroughTheFactorySeam() {
+        // The two newest (F28) claimable FQNs; the capturing factory proves each alias requests
+        // exactly its FQN without running the ImageMaster-backed constructors (BottomFogEffect's
+        // boolean ctor, GiantFireEffect's NO-ARG ctor; both imgs may be null off-game).
+        // "bottomfog"/"bfog" and "giantfire"/"gfire" do not collide with any existing alias.
+        assertSpawnRequests("bottomfog", VfxClaimPolicy.BOTTOM_FOG);
+        assertSpawnRequests("bfog", VfxClaimPolicy.BOTTOM_FOG);
+        assertSpawnRequests("giantfire", VfxClaimPolicy.GIANT_FIRE);
+        assertSpawnRequests("gfire", VfxClaimPolicy.GIANT_FIRE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

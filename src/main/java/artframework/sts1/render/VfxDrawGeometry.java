@@ -73,7 +73,8 @@ package artframework.sts1.render;
  * {@code IroncladVictoryFlameEffect}
  * members, plus the three newest ambient center-packed members {@code SpookierChestEffect},
  * {@code CampfireSleepScreenCoverEffect}, and {@code DeathScreenFloatyEffect}, plus the newest (F27)
- * ambient center-packed member {@code WaterSplashParticleEffect}. The native
+ * ambient center-packed member {@code WaterSplashParticleEffect} and the newest (F28) ambient
+ * center-packed member {@code BottomFogEffect}. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
  * mapping only resolves the positional/scale/rotation arguments the batch receives, with the native
@@ -369,6 +370,19 @@ package artframework.sts1.render;
  * {@link #params} branch. Both consume their inherited {@code rotation} field and are appended LAST
  * in that order. No new patch/bridge/console wiring; the default-off gate and per-instance token
  * semantics are unchanged.
+ *
+ * <p>The two newest (F28) members reuse the existing center-packed img branch. {@code BottomFogEffect}
+ * ({@link Kind#BOTTOM_FOG}, {@code vfx-scene-world}) is an AMBIENT center-packed {@code AtlasRegion}
+ * member with NO new rule that reuses the F22 per-instance mirror — identical in shape to
+ * {@code SpookierChestEffect}/{@code CampfireSleepScreenCoverEffect}, carrying its own
+ * {@code flipX}+{@code flipY} (so {@link #usesInstanceMirrorX} AND {@link #usesInstanceMirrorY} now
+ * include it). {@code GiantFireEffect} ({@link Kind#GIANT_FIRE}, {@code vfx-combat}) is an ADDITIVE
+ * center-packed {@code AtlasRegion} member with a per-instance HORIZONTAL {@code flipX} mirror only
+ * ({@link #usesInstanceMirrorX}; NOT {@link #usesInstanceMirrorY}) and introduces ONE new pure rule —
+ * its native uniform draw scale is {@code scale * Settings.scale} on BOTH axes, modeled by
+ * {@link #uniformScaleMultiplier} (settings scale for {@code GIANT_FIRE}, {@code 1f} otherwise) and
+ * composed with the F27 {@code scaleYMultiplier} in the shared center-packed {@link #params} branch.
+ * Its {@code delayTimer} is used only by {@code update()}, NOT by {@code render} (no render guard).
  */
 public final class VfxDrawGeometry {
 
@@ -429,7 +443,9 @@ public final class VfxDrawGeometry {
         WRATH_STANCE_CHANGE,
         STANCE_CHANGE_ABSORPTION,
         WATER_SPLASH,
-        BUFF_PARTICLE
+        BUFF_PARTICLE,
+        BOTTOM_FOG,
+        GIANT_FIRE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -896,6 +912,8 @@ public final class VfxDrawGeometry {
         }
         if (VfxClaimPolicy.WATER_SPLASH.equals(value)) return Kind.WATER_SPLASH;
         if (VfxClaimPolicy.BUFF_PARTICLE.equals(value)) return Kind.BUFF_PARTICLE;
+        if (VfxClaimPolicy.BOTTOM_FOG.equals(value)) return Kind.BOTTOM_FOG;
+        if (VfxClaimPolicy.GIANT_FIRE.equals(value)) return Kind.GIANT_FIRE;
         return null;
     }
 
@@ -955,7 +973,10 @@ public final class VfxDrawGeometry {
      * blend natively), so {@code additiveBlend} reports {@code true} for it. The newest (F27) member
      * {@link Kind#WATER_SPLASH} is AMBIENT center-packed (it never calls {@code setBlendFunction}),
      * so {@code additiveBlend} reports {@code false} for it, while the newest {@link Kind#BUFF_PARTICLE}
-     * installs/restores the additive blend natively and is therefore ADDITIVE.
+     * installs/restores the additive blend natively and is therefore ADDITIVE. The newest (F28) member
+     * {@link Kind#BOTTOM_FOG} is likewise AMBIENT center-packed (it never calls {@code setBlendFunction})
+     * so {@code false} is reported for it, while the newest {@link Kind#GIANT_FIRE} installs/restores the
+     * additive blend natively and is ADDITIVE.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -986,7 +1007,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.SPOOKIER_CHEST
                 && kind != Kind.CAMPFIRE_SLEEP_COVER
                 && kind != Kind.DEATH_SCREEN_FLOATY
-                && kind != Kind.WATER_SPLASH;
+                && kind != Kind.WATER_SPLASH
+                && kind != Kind.BOTTOM_FOG;
     }
 
     /**
@@ -1241,7 +1263,9 @@ public final class VfxDrawGeometry {
      * region flip). Today that is exactly {@link Kind#FLAME_PARTICLE} (its {@code flipX} field),
      * {@link Kind#SPOOKY_CHEST} (its {@code flipX} field),
      * {@link Kind#IRONCLAD_VICTORY_FLAME} (its {@code flipX} field), {@link Kind#SPOOKIER_CHEST}
-     * (its {@code flipX} field), and {@link Kind#CAMPFIRE_SLEEP_COVER} (its {@code flipX} field).
+     * (its {@code flipX} field), {@link Kind#CAMPFIRE_SLEEP_COVER} (its {@code flipX} field),
+     * {@link Kind#BOTTOM_FOG} (its {@code flipX} field), and {@link Kind#GIANT_FIRE} (its
+     * {@code flipX} field).
      * Every other img-path kind — and every bare-{@code Texture} kind
      * — hardcodes no such mirror, so the host draw must not read a mirror field for it. These flags
      * are distinct from the shape-C {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY} flags.
@@ -1256,7 +1280,9 @@ public final class VfxDrawGeometry {
                 || kind == Kind.SPOOKY_CHEST
                 || kind == Kind.IRONCLAD_VICTORY_FLAME
                 || kind == Kind.SPOOKIER_CHEST
-                || kind == Kind.CAMPFIRE_SLEEP_COVER;
+                || kind == Kind.CAMPFIRE_SLEEP_COVER
+                || kind == Kind.BOTTOM_FOG
+                || kind == Kind.GIANT_FIRE;
     }
 
     /**
@@ -1266,8 +1292,10 @@ public final class VfxDrawGeometry {
      * in place around its draw; the claim suppresses that draw, so the host draw instead swaps the
      * canonical region's {@code v}/{@code v2}. Today that is exactly {@link Kind#SPOOKY_CHEST} (its
      * {@code flipY} field), {@link Kind#SPOOKIER_CHEST} (its {@code flipY} field), and
-     * {@link Kind#CAMPFIRE_SLEEP_COVER} (its {@code flipY} field); {@link Kind#FLAME_PARTICLE},
-     * {@link Kind#IRONCLAD_VICTORY_FLAME}, and {@link Kind#DEATH_SCREEN_FLOATY} declare no
+     * {@link Kind#CAMPFIRE_SLEEP_COVER} (its {@code flipY} field), and the newest (F28)
+     * {@link Kind#BOTTOM_FOG} (its {@code flipY} field); {@link Kind#FLAME_PARTICLE},
+     * {@link Kind#IRONCLAD_VICTORY_FLAME}, {@link Kind#GIANT_FIRE}, and
+     * {@link Kind#DEATH_SCREEN_FLOATY} declare no
      * {@code flipY} field, so they are {@code false} here. Every other kind is {@code false}.
      *
      * @throws IllegalArgumentException when {@code kind} is null
@@ -1278,7 +1306,27 @@ public final class VfxDrawGeometry {
         }
         return kind == Kind.SPOOKY_CHEST
                 || kind == Kind.SPOOKIER_CHEST
-                || kind == Kind.CAMPFIRE_SLEEP_COVER;
+                || kind == Kind.CAMPFIRE_SLEEP_COVER
+                || kind == Kind.BOTTOM_FOG;
+    }
+
+    /**
+     * Pure per-kind uniform-scale multiplier for the shared center-packed branch: the factor the
+     * renderer passes as the F28 uniform-scale tail (composed with the F27 {@code scaleYMultiplier}).
+     * Returns the caller-supplied {@code settingsScale} for {@link Kind#GIANT_FIRE}, whose native
+     * {@code render} scales BOTH axes by {@code Settings.scale} ({@code sb.draw(img, x, y, pw/2f,
+     * ph/2f, pw, ph, scale * Settings.scale, scale * Settings.scale, rotation)}), and {@code 1f} for
+     * every other kind (so their results are byte-identical to before this rule existed). The
+     * {@code settingsScale} value is supplied by the caller, so this class stays host-neutral and
+     * never reads {@code Settings}.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static float uniformScaleMultiplier(Kind kind, float settingsScale) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.GIANT_FIRE ? settingsScale : 1f;
     }
 
     /**
@@ -1291,7 +1339,8 @@ public final class VfxDrawGeometry {
      * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE}, {@code STUN_STAR},
      * {@code FALLING_DUST}, {@code SHINE_LINES}, {@code SCENE_DUST}, {@code CONE},
      * {@code DAMAGE_HEART}, {@code SPOOKY_CHEST}, {@code IRONCLAD_VICTORY_FLAME},
-     * {@code SPOOKIER_CHEST}, {@code CAMPFIRE_SLEEP_COVER}, {@code DEATH_SCREEN_FLOATY})
+     * {@code SPOOKIER_CHEST}, {@code CAMPFIRE_SLEEP_COVER}, {@code DEATH_SCREEN_FLOATY},
+     * {@code WATER_SPLASH}, {@code BOTTOM_FOG})
      * leave the ambient blend untouched and restore
      * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
      * {@code ENTANGLE}) that also rewrite their set color's
@@ -1318,7 +1367,12 @@ public final class VfxDrawGeometry {
      * scale}. Every pre-existing kind passes {@code 1f} (so its results are byte-identical to before
      * the parameter existed) and only {@code WATER_SPLASH} passes
      * {@link #WATER_SPLASH_SCALE_Y_MULTIPLIER} ({@code 0.54f}); {@code BUFF_PARTICLE} has its own
-     * branch and ignores it.
+     * branch and ignores it. The newest (F28) pure rule composes a UNIFORM multiplier into that same
+     * branch: both axes are multiplied by {@link #uniformScaleMultiplier}{@code (kind, settingsScale)}
+     * ({@code settingsScale} for {@code GIANT_FIRE} — whose native draw scales both axes by
+     * {@code Settings.scale} — and {@code 1f} for every other kind, so all pre-existing results stay
+     * byte-identical), with {@code scaleX = scale * uniform} and
+     * {@code scaleY = scale * uniform * scaleYMultiplier}.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -1368,6 +1422,8 @@ public final class VfxDrawGeometry {
             case DEATH_SCREEN_FLOATY:
             case WRATH_STANCE_CHANGE:
             case WATER_SPLASH:
+            case BOTTOM_FOG:
+            case GIANT_FIRE:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -1392,9 +1448,18 @@ public final class VfxDrawGeometry {
                 // center-packed (no setBlendFunction) with an ANISOTROPIC scale — its native draw
                 // scaleY is scale * 0.54f while scaleX is scale, supplied by the caller through the
                 // scaleYMultiplier tail scalar (the renderer passes 0.54f for WATER_SPLASH and 1f for
-                // every other kind, so their results are unchanged).
-                return new Params(x, y, originX, originY, packedWidth, packedHeight,
-                        scale, scale * scaleYMultiplier, rotation);
+                // every other kind, so their results are unchanged). BottomFogEffect (F28) reuses this
+                // branch UNCHANGED (ambient center-packed, NO new rule; the F22 mirror flags are
+                // resolved by the renderer). GiantFireEffect (F28) also joins this branch: it is
+                // ADDITIVE center-packed with a NEW pure uniform-scale rule — BOTH axes are
+                // scale * Settings.scale — expressed through uniformScaleMultiplier(kind, settingsScale)
+                // (settingsScale for GIANT_FIRE, 1f for every other kind), which is composed with the
+                // scaleYMultiplier tail (1f for GIANT_FIRE, so both axes are scale*settingsScale).
+                {
+                    float uniform = uniformScaleMultiplier(kind, settingsScale);
+                    return new Params(x, y, originX, originY, packedWidth, packedHeight,
+                            scale * uniform, scale * uniform * scaleYMultiplier, rotation);
+                }
             case FALLING_ICE:
                 // Native FallingIceEffect ignores the (absent) region: a new additive shape-C fixed
                 // rect (origin 48, size 96, src 0,0,96,96; x/y passthrough) over its own instance

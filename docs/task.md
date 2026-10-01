@@ -845,6 +845,47 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
       token semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F28 (two more native transient effects on the family-neutral default-off per-instance
+      claim seam; one reuses an existing shape with NO new rule, one adds ONE small pure rule):
+      `com.megacrit.cardcrawl.vfx.scene.BottomFogEffect` (`vfx-scene-world`; fields `AtlasRegion img`,
+      `float x, y, vX, aV` + `boolean flipX`, `boolean flipY`; inherited `scale`/`rotation`/`color`;
+      ctor `(boolean)`) and `com.megacrit.cardcrawl.vfx.combat.GiantFireEffect` (`vfx-combat`; fields
+      `AtlasRegion img`, `float x, y, vX, vY, brightness, startingDuration, delayTimer` + `boolean
+      flipX`; inherited `rotation`/`color`; ctor `()`). `BottomFogEffect.render` is
+      `setColor(color); [in-place flipX/flipY mirror]; sb.draw(img, x, y, packedWidth/2f,
+      packedHeight/2f, packedWidth, packedHeight, scale, scale, rotation)` with NO `setBlendFunction` —
+      i.e. AMBIENT center-packed with per-instance horizontal+vertical mirror, IDENTICAL in shape to
+      `SpookierChestEffect`/`CampfireSleepScreenCoverEffect`, so it adds NO new rule (it reuses the
+      F22 mirror). `GiantFireEffect.render` is `setColor(color); setBlendFunction(770, 1); [in-place
+      flipX mirror]; sb.draw(img, x, y, packedWidth/2f, packedHeight/2f, packedWidth, packedHeight,
+      scale * Settings.scale, scale * Settings.scale, rotation); setBlendFunction(770, 771)` — i.e.
+      ADDITIVE center-packed with per-instance horizontal flipX mirror (no flipY) and ONE new pure
+      rule: a UNIFORM scale multiplier of `Settings.scale` on BOTH axes (`delayTimer` is used only by
+      `update()`, NOT by `render`, so there is no render guard). Implementation:
+      `VfxClaimPolicy.BOTTOM_FOG`/`GIANT_FIRE` append LAST to `supportedClasses()`/`supports(...)` in
+      that order. `VfxDrawGeometry` gained `Kind.BOTTOM_FOG`/`Kind.GIANT_FIRE`; `BOTTOM_FOG` joins the
+      shared ambient center-packed branch (same params shape as `STANCE_AURA`, `additiveBlend` false),
+      and `GIANT_FIRE` joins that branch additively with the new pure
+      `uniformScaleMultiplier(Kind, float settingsScale)` returning `settingsScale` for `GIANT_FIRE`
+      and `1f` for every other kind (throws on null kind). The center-packed `params(...)` now computes
+      `scaleX = scale * uniformScaleMultiplier(kind, settingsScale)` and
+      `scaleY = scale * uniformScaleMultiplier(kind, settingsScale) * scaleYMultiplier`, so
+      `GIANT_FIRE` gets `scale * Settings.scale` on both axes (its `scaleYMultiplier` tail is `1f`)
+      while `WATER_SPLASH` keeps its F27 `* 0.54f` (its uniform multiplier is `1f`) and every
+      pre-existing kind is byte-identical. `usesInstanceMirrorX` now also includes `BOTTOM_FOG` and
+      `GIANT_FIRE`, and `usesInstanceMirrorY` now also includes `BOTTOM_FOG` (NOT `GIANT_FIRE`).
+      `kindFor` maps the exact FQNs (near-miss/nested fail open); `whiteAlphaOnly`/`randomRanges`/
+      `drawPassRandomRanges`/`playerHitboxRelativeX`/guard predicates unchanged. `Sts1VfxArtRenderer`
+      routes both through the existing img (`AtlasRegion`) path, both requiring `rotation`; the
+      center-packed draw passes `uniformScaleMultiplier(kind, Settings.scale)` alongside the existing
+      `scaleYMultiplier(kind)`, and the mirror is applied via the existing `canonicalRegion` UV swap —
+      no new draw branch, fail-open/no-throw preserved. `VfxLabSpawn.classNameFor` gains `"bottomfog"`/
+      `"bfog"` → `new BottomFogEffect(false)` (boolean ctor, picks `false`; NO alias collision) and
+      `"giantfire"`/`"gfire"` → `new GiantFireEffect()` (NO-ARG) behind the existing fail-open guard,
+      and `art claim spawn bottomfog 4` / `art claim spawn giantfire 4` run in both
+      `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
+      token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

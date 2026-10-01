@@ -103,6 +103,20 @@ import java.lang.reflect.Field;
  * {@link VfxDrawGeometry#params} branch; the renderer already captures {@code regionOffsetX/Y} for
  * {@code FALLING_DUST}/{@code SCENE_DUST}, so no new capture path is needed. No new draw branch.
  *
+ * <p>The two newest (F28) members, the {@code vfx-scene-world} {@code BottomFogEffect} (boolean
+ * constructor; {@code flipX}+{@code flipY}) and the {@code vfx-combat} {@code GiantFireEffect}
+ * (NO-ARG constructor; {@code flipX} only), also ride the existing img ({@link TextureAtlas.AtlasRegion})
+ * path and both require the inherited {@code rotation} field. {@code BottomFogEffect} is AMBIENT
+ * center-packed with NO new rule, reproducing its per-instance mirror as the F22 UV swap on the
+ * canonical region (both {@link VfxDrawGeometry#usesInstanceMirrorX} and
+ * {@link VfxDrawGeometry#usesInstanceMirrorY} report it). {@code GiantFireEffect} is ADDITIVE
+ * center-packed with a per-instance horizontal mirror only and a NEW pure uniform-scale rule: the
+ * center-packed {@link VfxDrawGeometry#params} branch composes
+ * {@link VfxDrawGeometry#uniformScaleMultiplier}{@code (kind, Settings.scale)} ({@code Settings.scale}
+ * for {@code GIANT_FIRE}, {@code 1f} otherwise) with the F27
+ * {@link VfxDrawGeometry#params scaleYMultiplier} tail, so both axes are {@code scale * Settings.scale}
+ * for {@code GIANT_FIRE} while every pre-existing kind is unchanged. No new draw branch.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2

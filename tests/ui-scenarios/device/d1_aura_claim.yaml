@@ -39,6 +39,9 @@
 # MathUtils.random values in order (two per pass), replayed by the seam to keep the global RNG stream
 # identical (snapshot taken once, restored on any post-consumption fail-open). With it, both
 # vfx-stance-aura non-deterministic paths (Wrath + Absorption) are claimed.
+# The two newest are BottomFogEffect (vfx-scene-world; ambient center-packed reusing the F22 mirror
+# with flipX+flipY and NO new rule) and GiantFireEffect (vfx-combat; additive center-packed with a
+# per-instance flipX mirror and a NEW pure uniform-scale rule: both axes are scale * Settings.scale).
 # NOTE: a freshly lab-spawned FallingIceEffect/DamageHeartEffect starts with its guard UNSATISFIED
 # (waitTimer/delayTimer >= 0f), so the spawn-frame evidence for these two is the per-FQN
 # active/entity delta on spawn (observation), NOT a draw increase at spawn. The kinds then diverge:
@@ -158,6 +161,8 @@ steps:
   - console: "art claim spawn absorption 4"
   - console: "art claim spawn watersplash 4"
   - console: "art claim spawn buffparticle 4"
+  - console: "art claim spawn bottomfog 4"
+  - console: "art claim spawn giantfire 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -245,6 +250,8 @@ steps:
   - console: "art claim spawn absorption 4"
   - console: "art claim spawn watersplash 4"
   - console: "art claim spawn buffparticle 4"
+  - console: "art claim spawn bottomfog 4"
+  - console: "art claim spawn giantfire 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

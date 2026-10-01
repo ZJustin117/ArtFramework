@@ -2047,6 +2047,12 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.BUFF_PARTICLE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.BOTTOM_FOG));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.BottomFogEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.GIANT_FIRE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2139,6 +2145,12 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.BUFF_PARTICLE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.BUFF_PARTICLE + "2"));
         assertFalse(renderer.isReady("BuffParticleEffect"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.BOTTOM_FOG + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.BOTTOM_FOG + "2"));
+        assertFalse(renderer.isReady("BottomFogEffect"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.GIANT_FIRE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.GIANT_FIRE + "2"));
+        assertFalse(renderer.isReady("GiantFireEffect"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.WrathStanceChangeParticle"));
         assertFalse(renderer.isReady(
@@ -4990,6 +5002,204 @@ public class Sts1VfxArtRendererTest {
             return effect;
         } catch (Exception failure) {
             throw new AssertionError("could not build no-GL BuffParticleEffect", failure);
+        }
+    }
+
+    @Test
+    public void bottomFogResolvesAndMirrorsOnBothAxesAmbiently() {
+        // Native BottomFogEffect: setColor(color); [in-place flipX/flipY mirror];
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation);  NO setBlendFunction.
+        // AMBIENT center-packed reusing the F22 mirror with NO new rule; the mirror is a UV swap.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        assertTrue(renderer.isReady(VfxClaimPolicy.BOTTOM_FOG));
+        assertTrue(renderer.isReady("com.megacrit.cardcrawl.vfx.scene.BottomFogEffect"));
+
+        // No flip: the canonical rect and no blend call.
+        CountingBatch plainBatch = newCountingBatch();
+        AbstractGameEffect plain = seededBottomFog(new TextureAtlas.AtlasRegion(
+                noGlTexture(256, 256), 10, 20, 64, 48), false, false);
+        assertTrue(renderer.render(plainBatch, plain));
+        assertEquals("BottomFog never calls setBlendFunction (ambient)", 0, plainBatch.setBlendCalls);
+        assertEquals("the img path uses the TextureRegion draw overload",
+                1, plainBatch.textureRegionDrawCalls);
+        TextureRegion canonical = plainBatch.drawnRegion;
+        assertNotNull(canonical);
+        assertEquals(10f / 256f, canonical.getU(), 1e-5f);
+        assertEquals(74f / 256f, canonical.getU2(), 1e-5f);
+        assertEquals(20f / 256f, canonical.getV(), 1e-5f);
+        assertEquals(68f / 256f, canonical.getV2(), 1e-5f);
+        assertNotNull(plainBatch.drawnRegionArgs);
+        assertEquals("the uniform scale is the effect scale (no settings multiplier)",
+                1f, plainBatch.drawnRegionArgs[6], EPS);
+        assertEquals(1f, plainBatch.drawnRegionArgs[7], EPS);
+        assertTrue("a drawable BottomFog instance canDraw", renderer.canDraw(plain));
+
+        // Both flips: u/u2 AND v/v2 swapped relative to the canonical rect.
+        CountingBatch bothBatch = newCountingBatch();
+        assertTrue(renderer.render(bothBatch, seededBottomFog(new TextureAtlas.AtlasRegion(
+                noGlTexture(256, 256), 10, 20, 64, 48), true, true)));
+        TextureRegion both = bothBatch.drawnRegion;
+        assertNotNull(both);
+        assertEquals("the mirrored view swaps u/u2", 74f / 256f, both.getU(), 1e-5f);
+        assertEquals(10f / 256f, both.getU2(), 1e-5f);
+        assertEquals("the mirrored view swaps v/v2", 68f / 256f, both.getV(), 1e-5f);
+        assertEquals(20f / 256f, both.getV2(), 1e-5f);
+        assertEquals("BottomFog is ambient", 0, bothBatch.setBlendCalls);
+
+        // Fail-open on a holder with a valid img but no rotation field / no img.
+        NoRotationImgEffect noRotation = new NoRotationImgEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        assertNull("a BOTTOM_FOG holder with img but no rotation must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.BOTTOM_FOG, noRotation));
+
+        NoImgEffect noImg = new NoImgEffect();
+        noImg.x = 1f;
+        noImg.y = 2f;
+        noImg.scale = 1f;
+        noImg.rotation = 0f;
+        noImg.color = Color.WHITE;
+        assertNull("a BOTTOM_FOG holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.BOTTOM_FOG, noImg));
+    }
+
+    @Test
+    public void giantFireDrawsWithUniformSettingsScaleAndMirrorsXOnly() {
+        // Native GiantFireEffect: setColor(color); setBlendFunction(770, 1); [flipX mirror];
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale * Settings.scale, scale * Settings.scale,
+        //           rotation); setBlendFunction(770, 771).
+        // ADDITIVE center-packed with a per-instance horizontal mirror only and the NEW pure
+        // uniform-scale rule. Settings.scale is pinned to a non-1.0 value to guard it end-to-end.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        assertTrue(renderer.isReady(VfxClaimPolicy.GIANT_FIRE));
+        assertTrue(renderer.isReady("com.megacrit.cardcrawl.vfx.combat.GiantFireEffect"));
+
+        float previousSettingsScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float settingsScale = 1.333f;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale",
+                    Float.valueOf(settingsScale));
+            assertEquals(settingsScale, com.megacrit.cardcrawl.core.Settings.scale, EPS);
+
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededGiantFire(12.5f, -3.25f, 0.7f, 37f,
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                    false);
+            assertTrue(renderer.render(batch, effect));
+            assertEquals("GiantFire installs and restores the additive blend",
+                    2, batch.setBlendCalls);
+            assertEquals("the img path uses the TextureRegion draw overload",
+                    1, batch.textureRegionDrawCalls);
+            assertNotNull(batch.drawnRegionArgs);
+            assertEquals(12.5f, batch.drawnRegionArgs[0], EPS);
+            assertEquals(-3.25f, batch.drawnRegionArgs[1], EPS);
+            assertEquals("originX is packedWidth/2f", 32f, batch.drawnRegionArgs[2], EPS);
+            assertEquals("originY is packedHeight/2f", 24f, batch.drawnRegionArgs[3], EPS);
+            assertEquals(64f, batch.drawnRegionArgs[4], EPS);
+            assertEquals(48f, batch.drawnRegionArgs[5], EPS);
+            assertEquals("scaleX is scale * Settings.scale",
+                    0.7f * settingsScale, batch.drawnRegionArgs[6], EPS);
+            assertEquals("scaleY is scale * Settings.scale",
+                    0.7f * settingsScale, batch.drawnRegionArgs[7], EPS);
+            assertEquals("GiantFire consumes the rotation field", 37f,
+                    batch.drawnRegionArgs[8], EPS);
+            assertTrue("a drawable GiantFire instance canDraw", renderer.canDraw(effect));
+
+            // The per-instance flipX mirror is honoured (X only; GIANT_FIRE has no flipY field).
+            CountingBatch mirrorBatch = newCountingBatch();
+            assertTrue(renderer.render(mirrorBatch, seededGiantFire(12.5f, -3.25f, 0.7f, 37f,
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48), true)));
+            TextureRegion mirrored = mirrorBatch.drawnRegion;
+            assertNotNull(mirrored);
+            assertEquals("the mirrored view swaps u/u2", 74f / 256f, mirrored.getU(), 1e-5f);
+            assertEquals(10f / 256f, mirrored.getU2(), 1e-5f);
+            assertEquals("the vertical extent stays canonical", 20f / 256f, mirrored.getV(), 1e-5f);
+            assertEquals(68f / 256f, mirrored.getV2(), 1e-5f);
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale",
+                    Float.valueOf(previousSettingsScale));
+        }
+
+        // Fail-open on a holder with a valid img but no rotation field / no img.
+        NoRotationImgEffect noRotation = new NoRotationImgEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        assertNull("a GIANT_FIRE holder with img but no rotation must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.GIANT_FIRE, noRotation));
+
+        NoImgEffect noImg = new NoImgEffect();
+        noImg.x = 1f;
+        noImg.y = 2f;
+        noImg.scale = 1f;
+        noImg.rotation = 0f;
+        noImg.color = Color.WHITE;
+        assertNull("a GIANT_FIRE holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.GIANT_FIRE, noImg));
+    }
+
+    /** Real {@code BottomFogEffect} with reflectively seeded draw fields + flip flags (no GL). */
+    private static AbstractGameEffect seededBottomFog(TextureAtlas.AtlasRegion region,
+            boolean flipX, boolean flipY) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.scene.BottomFogEffect effect =
+                    (com.megacrit.cardcrawl.vfx.scene.BottomFogEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.scene.BottomFogEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.BottomFogEffect.class, "x",
+                    Float.valueOf(5f));
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.BottomFogEffect.class, "y",
+                    Float.valueOf(6f));
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.BottomFogEffect.class, "img",
+                    region);
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.BottomFogEffect.class, "flipX",
+                    Boolean.valueOf(flipX));
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.BottomFogEffect.class, "flipY",
+                    Boolean.valueOf(flipY));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL BottomFogEffect", failure);
+        }
+    }
+
+    /** Real {@code GiantFireEffect} with reflectively seeded draw fields + flipX (no GL). */
+    private static AbstractGameEffect seededGiantFire(float x, float y, float scale,
+            float rotation, TextureAtlas.AtlasRegion region, boolean flipX) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.GiantFireEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.GiantFireEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.GiantFireEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.GiantFireEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.GiantFireEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.GiantFireEffect.class, "img",
+                    region);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.GiantFireEffect.class, "flipX",
+                    Boolean.valueOf(flipX));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL GiantFireEffect", failure);
         }
     }
 

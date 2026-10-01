@@ -249,6 +249,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.scene.BottomFogEffect";
     public static final String GIANT_FIRE =
             "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect";
+    public static final String TORCH_HEAD_FIRE =
+            "com.megacrit.cardcrawl.vfx.TorchHeadFireEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -267,7 +269,7 @@ public final class VfxClaimPolicy {
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
-                    BOTTOM_FOG, GIANT_FIRE));
+                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE));
 
     private VfxClaimPolicy() {}
 
@@ -333,7 +335,8 @@ public final class VfxClaimPolicy {
                 || WATER_SPLASH.equals(value)
                 || BUFF_PARTICLE.equals(value)
                 || BOTTOM_FOG.equals(value)
-                || GIANT_FIRE.equals(value);
+                || GIANT_FIRE.equals(value)
+                || TORCH_HEAD_FIRE.equals(value);
     }
 
     /**
@@ -479,6 +482,17 @@ public final class VfxClaimPolicy {
      * is used only by {@code update()}, NOT by {@code render} (no render guard). No new
      * patch/bridge/console wiring; the default-off gate and per-instance token semantics are
      * unchanged.
+     * The newest (F29) member is the {@code vfx-misc-root} {@code TorchHeadFireEffect} (fields
+     * {@code Texture img}, {@code float x, y, vX, vY} plus {@code boolean flippedX}; inherited
+     * {@code scale}/{@code color}; ctor {@code (float, float)}). Its native {@code render} is
+     * {@code setBlendFunction(770, 1); setColor(color); sb.draw(img, x - 64f, y - 64f, 64f, 64f,
+     * 128f, 128f, scale * 1.2f, scale, 0f, 0, 0, 128, 128, flippedX, false);
+     * setBlendFunction(770, 771)} — i.e. shape-C fixed rect, ADDITIVE, reusing the
+     * {@code GlowyFireEyesEffect} rect (offset/origin 64, size 128, src 0,0,128,128) with a hardcoded
+     * rotation {@code 0f} and the effect's own {@code flippedX} horizontal flip (vertical always
+     * {@code false}), but with ONE new pure rule: an ASYMMETRIC X scale ({@code scaleX = scale *
+     * 1.2f}, {@code scaleY = scale}). It is appended LAST and adds no new patch/bridge/console wiring;
+     * the default-off gate and per-instance token semantics are unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

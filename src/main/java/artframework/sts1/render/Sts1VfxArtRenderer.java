@@ -117,6 +117,16 @@ import java.lang.reflect.Field;
  * {@link VfxDrawGeometry#params scaleYMultiplier} tail, so both axes are {@code scale * Settings.scale}
  * for {@code GIANT_FIRE} while every pre-existing kind is unchanged. No new draw branch.
  *
+ * <p>The newest (F29) member, the {@code vfx-misc-root} {@code TorchHeadFireEffect} (ctor
+ * {@code (float, float)}), also rides the existing {@code Texture} shape-C path. It reuses the
+ * {@code GlowyFireEyesEffect} fixed rect exactly (offset/origin {@code 64}, size {@code 128&times;128},
+ * src {@code 0,0,128,128}, hardcoded {@code 0f} rotation), is ADDITIVE, resolves its own instance
+ * {@code Texture img}, requires NO {@code rotation} field, and passes its own {@code flippedX}
+ * horizontal flip (vertical always {@code false}) — the flip field name is resolved by the
+ * generalized {@link VfxDrawGeometry#usesTexturedFlipX}. Its ONE new pure rule is the ASYMMETRIC X
+ * scale {@code scaleX = scale * 1.2f} with {@code scaleY = scale}, resolved in its own
+ * {@link VfxDrawGeometry#params} branch. No new draw branch, fail-open/no-throw preserved.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -209,15 +219,16 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * / {@code ShieldParticleEffect} / {@code DebuffParticleEffect} / {@code IceShatterEffect} /
      * {@code WebParticleEffect} / {@code EntangleEffect} / {@code UnknownParticleEffect} /
      * {@code DarkOrbPassiveEffect} / {@code LightningOrbPassiveEffect} /
-     * {@code GlowyFireEyesEffect} / {@code FallingIceEffect}).
+     * {@code GlowyFireEyesEffect} / {@code TorchHeadFireEffect} / {@code FallingIceEffect}).
      * {@code rotation} is required for the kinds whose formula consumes
      * it (Calm, Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive, FallingIce) and optional
      * (defaulting
      * to {@code 0}) for
      * Shield, Web,
-     * Entangle, and GlowyFireEyes, which hardcode {@code 0f}; {@code img} is a {@link Texture} for
-     * Debuff, IceShatter, Unknown, DarkOrb, FallingIce, and the two flip kinds (LightningOrbPassive,
-     * GlowyFireEyes) and {@code null} otherwise (Web/Entangle resolve the static
+     * Entangle, GlowyFireEyes, and TorchHeadFire, which hardcode {@code 0f}; {@code img} is a
+     * {@link Texture} for
+     * Debuff, IceShatter, Unknown, DarkOrb, FallingIce, and the flip kinds (LightningOrbPassive,
+     * GlowyFireEyes, TorchHeadFire) and {@code null} otherwise (Web/Entangle resolve the static
      * {@link ImageMaster#WEB_VFX}). {@code flipX}/{@code flipY} are the resolved per-instance flip
      * flags (both {@code false} for every kind that does not pass them natively).
      */
@@ -378,13 +389,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * are optional and
      * default to {@code 0}.
      * For {@code DEBUFF_PARTICLE}, {@code ICE_SHATTER}, {@code UNKNOWN_PARTICLE},
-     * {@code DARK_ORB_PASSIVE}, {@code LIGHTNING_ORB_PASSIVE}, {@code FALLING_ICE}, and
-     * {@code GLOWY_FIRE_EYES} the instance
+     * {@code DARK_ORB_PASSIVE}, {@code LIGHTNING_ORB_PASSIVE}, {@code FALLING_ICE},
+     * {@code GLOWY_FIRE_EYES}, and the newest {@code TORCH_HEAD_FIRE} the instance
      * {@code img} must be a
      * {@link Texture} (CALM/SHIELD/WEB/ENTANGLE resolve a static {@code ImageMaster} texture
      * instead); a missing/mistyped {@code img} fails the snapshot. The per-instance flip flags are
      * resolved only for the kinds whose native render passes them
-     * ({@link VfxDrawGeometry#usesInstanceFlipX}/{@link VfxDrawGeometry#usesInstanceFlipY});
+     * ({@link VfxDrawGeometry#usesInstanceFlipX}/{@link VfxDrawGeometry#usesInstanceFlipY}, plus the
+     * {@code flippedX}-field kinds reported by {@link VfxDrawGeometry#usesTexturedFlipX});
      * a missing/unreadable flag defaults to {@code false} (flip is optional decoration, so it does
      * NOT fail the snapshot). Returns {@code null} when the
      * effect is null or any required field is absent, unreadable, or of the wrong type; never throws.
@@ -418,16 +430,18 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 if (!(raw instanceof Texture)) return null;
                 img = (Texture) raw;
             }
-            // Per-instance flip flags (NRO-04 F19): resolved only for the kinds whose native render
-            // passes them (LightningOrbPassiveEffect's flipX/flipY; GlowyFireEyesEffect's flippedX
-            // with a hardcoded false Y). Flip is OPTIONAL decoration, so an absent/unreadable flag
+            // Per-instance flip flags (NRO-04 F19/F29): resolved only for the kinds whose native
+            // render passes them (LightningOrbPassiveEffect's flipX/flipY; GlowyFireEyesEffect's and
+            // TorchHeadFireEffect's flippedX with a hardcoded false Y). Flip is OPTIONAL decoration,
+            // so an absent/unreadable flag
             // defaults to false rather than failing the whole snapshot (the rest of the snapshot
             // still fails open on its required fields).
             boolean flipX = false;
             boolean flipY = false;
-            if (VfxDrawGeometry.usesInstanceFlipX(kind)) {
+            if (VfxDrawGeometry.usesInstanceFlipX(kind)
+                    || VfxDrawGeometry.usesTexturedFlipX(kind)) {
                 flipX = optionalBoolean(effect,
-                        kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES ? "flippedX" : "flipX");
+                        VfxDrawGeometry.usesTexturedFlipX(kind) ? "flippedX" : "flipX");
             }
             if (VfxDrawGeometry.usesInstanceFlipY(kind)) {
                 flipY = optionalBoolean(effect, "flipY");
@@ -444,7 +458,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * True for the bare-{@code Texture} kinds that resolve their own instance {@code Texture img}
      * rather than a static {@code ImageMaster} texture ({@code DebuffParticleEffect},
      * {@code IceShatterEffect}, {@code UnknownParticleEffect}, {@code DarkOrbPassiveEffect},
-     * {@code LightningOrbPassiveEffect}, {@code GlowyFireEyesEffect}, {@code FallingIceEffect}).
+     * {@code LightningOrbPassiveEffect}, {@code GlowyFireEyesEffect}, {@code TorchHeadFireEffect},
+     * {@code FallingIceEffect}).
      * {@code CalmParticleEffect},
      * {@code ShieldParticleEffect}, {@code WebParticleEffect}, and {@code EntangleEffect} draw a
      * static {@code ImageMaster} texture instead.
@@ -456,6 +471,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
+                || kind == VfxDrawGeometry.Kind.TORCH_HEAD_FIRE
                 || kind == VfxDrawGeometry.Kind.FALLING_ICE;
     }
 
@@ -677,19 +693,20 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * any atlas {@code rotate} baking) exactly as the native effect does.
      *
      * <p>The bare-{@code Texture} kinds (Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown,
-     * DarkOrb, LightningOrbPassive, GlowyFireEyes, FallingIce)
+     * DarkOrb, LightningOrbPassive, GlowyFireEyes, TorchHeadFire, FallingIce)
      * have no packed
      * region: they draw a fixed source rect, so this branch resolves the native {@link Texture} the
      * render reads — {@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm,
      * {@link ImageMaster#INTENT_DEFEND} for Shield, {@link ImageMaster#WEB_VFX} for Web and Entangle,
      * and the
      * effect's own instance {@code img} for Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive,
-     * GlowyFireEyes, and FallingIce — and replays
+     * GlowyFireEyes, TorchHeadFire, and FallingIce — and replays
      * the native
      * raw
      * texture + source-rect overload, now including the effect's own per-instance flip booleans for
      * the kinds that pass them (LightningOrbPassive's {@code flipX}/{@code flipY} and
-     * GlowyFireEyes's {@code flippedX} with a hardcoded {@code false} Y; every other kind keeps
+     * GlowyFireEyes's/TorchHeadFire's {@code flippedX} with a hardcoded {@code false} Y; every other
+     * kind keeps
      * {@code false, false}).
      *
      * <p>Never throws. Returns {@code true} only after a real draw; any null input, unmapped class,
@@ -890,6 +907,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
+                || kind == VfxDrawGeometry.Kind.TORCH_HEAD_FIRE
                 || kind == VfxDrawGeometry.Kind.FALLING_ICE
                 || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION;
     }
@@ -930,8 +948,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * Resolves the native {@link Texture} the bare-{@code Texture} kinds draw (the static
      * {@link ImageMaster} textures for Calm/Shield/Web/Entangle, the instance {@code img} for
-     * Debuff/IceShatter/Unknown/DarkOrb/FallingIce and the two flip kinds
-     * LightningOrbPassive/GlowyFireEyes),
+     * Debuff/IceShatter/Unknown/DarkOrb/FallingIce and the flip kinds
+     * LightningOrbPassive/GlowyFireEyes/TorchHeadFire),
      * or {@code null} when it is absent. Shared by
      * {@link #renderTexture} and {@link #canDraw} so the two stay consistent.
      */
@@ -963,13 +981,15 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * Bare-{@code Texture} branch: resolves the native texture the kind's {@code render} reads
      * ({@link ImageMaster#FROST_ACTIVATE_VFX_1} for Calm, {@link ImageMaster#INTENT_DEFEND} for
      * Shield, {@link ImageMaster#WEB_VFX} for Web and Entangle, the effect's own {@code img} for
-     * Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive, GlowyFireEyes, and FallingIce),
+     * Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive, GlowyFireEyes, TorchHeadFire, and
+     * FallingIce),
      * replays the raw
      * texture + source-rect draw with the
      * {@link VfxDrawGeometry#params}
      * geometry and the per-kind src rect, passes the per-instance flip booleans for the kinds whose
      * native render supplies them ({@link VfxDrawGeometry#usesInstanceFlipX}/
-     * {@link VfxDrawGeometry#usesInstanceFlipY}; {@code false, false} for every other kind), honors
+     * {@link VfxDrawGeometry#usesInstanceFlipY} plus the {@code flippedX} kinds
+     * {@link VfxDrawGeometry#usesTexturedFlipX}; {@code false, false} for every other kind), honors
      * {@link VfxDrawGeometry#additiveBlend}, applies the
      * {@link VfxDrawGeometry#whiteAlphaOnly} color rule (Web and Entangle force the set color's RGB
      * to white),
@@ -1036,8 +1056,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.LIGHTNING_ORB_PASSIVE_SRC_Y;
             srcW = VfxDrawGeometry.LIGHTNING_ORB_PASSIVE_SRC_W;
             srcH = VfxDrawGeometry.LIGHTNING_ORB_PASSIVE_SRC_H;
-        } else if (kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES) {
-            // GlowyFireEyesEffect passes the full 128x128 rect as its src rect.
+        } else if (kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
+                || kind == VfxDrawGeometry.Kind.TORCH_HEAD_FIRE) {
+            // GlowyFireEyesEffect and TorchHeadFireEffect share the full 128x128 src rect.
             srcX = VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_X;
             srcY = VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_Y;
             srcW = VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_W;

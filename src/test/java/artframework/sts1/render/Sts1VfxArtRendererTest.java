@@ -434,6 +434,35 @@ public class Sts1VfxArtRendererTest {
     }
 
     /**
+     * {@code TorchHeadFireEffect} layout: own instance {@code Texture img}, its own {@code vX}/
+     * {@code vY} (update-only), the per-instance {@code flippedX} boolean, and NO {@code rotation}
+     * field (the native draw hardcodes {@code 0f}).
+     */
+    static class TorchHeadFireBase {
+        protected float scale;
+        protected Color color;
+    }
+
+    static class TorchHeadFireHolder extends TorchHeadFireBase {
+        private float x;
+        private float y;
+        private float vX;
+        private float vY;
+        private Texture img;
+        private boolean flippedX;
+    }
+
+    /**
+     * {@code TorchHeadFireEffect} layout with the {@code flippedX} field absent (the missing-flip
+     * case: the snapshot must still resolve and draw with {@code false, false}).
+     */
+    static class TorchHeadFireNoFlipHolder extends TorchHeadFireBase {
+        private float x;
+        private float y;
+        private Texture img;
+    }
+
+    /**
      * {@code WarningSignEffect} layout: {@code x}/{@code y} declared on the class plus the inherited
      * {@code scale}/{@code rotation}/{@code color} from {@code AbstractGameEffect} — no {@code img}
      * field (the static {@code ImageMaster.WARNING_ICON_VFX} is resolved by the renderer) and no
@@ -3812,6 +3841,122 @@ public class Sts1VfxArtRendererTest {
         assertTrue(batch.drawnFlipsCaptured);
         assertFalse("a pre-existing shape-C kind must draw with flipX false", batch.drawnFlipX);
         assertFalse("a pre-existing shape-C kind must draw with flipY false", batch.drawnFlipY);
+    }
+
+    @Test
+    public void torchHeadFireDrawsItsInstanceTextureWithTheAsymmetricXScaleAndOnlyTheHorizontalFlip() {
+        // TorchHeadFire is additive, draws its OWN instance Texture img over the GlowyFireEyes
+        // 128x128 fixed rect with a hardcoded zero rotation (it has NO rotation field), passes only
+        // its own flippedX horizontal flip (the vertical flip is always false), and applies the new
+        // pure asymmetric scale scaleX = scale * 1.2f / scaleY = scale.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        Color color = new Color(0.2f, 0.3f, 0.4f, 0.5f);
+        AbstractGameEffect thf = seededTorchHeadFire(color, 12.5f, -3.25f, 1.25f, true);
+
+        assertTrue(renderer.render(batch, thf));
+
+        assertEquals("the additive THF draw installs and restores blend", 2, batch.setBlendCalls);
+        assertEquals("the kind must emit exactly one draw", 1, batch.drawCalls);
+        assertSame("THF must draw its own instance Texture img",
+                readField(thf, "img"), batch.drawnTexture);
+        assertEquals(12.5f - 64f, floatAt(batch, 0), EPS);
+        assertEquals(-3.25f - 64f, floatAt(batch, 1), EPS);
+        assertEquals(64f, floatAt(batch, 2), EPS);
+        assertEquals(64f, floatAt(batch, 3), EPS);
+        assertEquals(128f, floatAt(batch, 4), EPS);
+        assertEquals(128f, floatAt(batch, 5), EPS);
+        assertEquals("scaleX is scale * 1.2f", 1.25f * 1.2f, floatAt(batch, 6), EPS);
+        assertEquals("scaleY stays scale", 1.25f, floatAt(batch, 7), EPS);
+        assertEquals("THF hardcodes rotation 0f", 0f, floatAt(batch, 8), EPS);
+        assertEquals(0f, floatAt(batch, 9), EPS);
+        assertEquals(0f, floatAt(batch, 10), EPS);
+        assertEquals(128f, floatAt(batch, 11), EPS);
+        assertEquals(128f, floatAt(batch, 12), EPS);
+        assertTrue(batch.drawnFlipsCaptured);
+        assertTrue("THF's flippedX must reach the draw", batch.drawnFlipX);
+        assertFalse("THF's vertical flip is always false", batch.drawnFlipY);
+        assertEquals(0.2f, batch.firstSetColor.r, EPS);
+    }
+
+    @Test
+    public void torchHeadFireHonoursTheFlipFlagPerInstance() {
+        // The flip boolean is per-instance: the same kind reads flippedX=false from a different
+        // effect whose own field holds that value.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect thf = seededTorchHeadFire(Color.WHITE, 1f, 2f, 1f, false);
+
+        assertTrue(renderer.render(batch, thf));
+        assertTrue(batch.drawnFlipsCaptured);
+        assertFalse("THF's flipX must follow the effect field", batch.drawnFlipX);
+        assertFalse("THF's vertical flip is always false", batch.drawnFlipY);
+    }
+
+    @Test
+    public void readTextureFieldsResolvesTorchHeadFireWithoutARotationField() {
+        // THF is shape-C: instance Texture img + its own flippedX resolve WITHOUT a rotation field
+        // (it has none). Its update-only vX/vY are irrelevant.
+        TorchHeadFireHolder thf = new TorchHeadFireHolder();
+        thf.x = 3.5f;
+        thf.y = -1.25f;
+        thf.scale = 0.75f;
+        thf.color = Color.WHITE;
+        thf.img = noGlTexture(128, 128);
+        thf.vX = 7f;
+        thf.vY = -9f;
+        thf.flippedX = true;
+        Sts1VfxArtRenderer.TextureFields fields = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.TORCH_HEAD_FIRE, thf);
+        assertNotNull("THF must resolve without a rotation field", fields);
+        assertSame(thf.img, fields.img);
+        assertEquals(0f, fields.rotation, EPS);
+        assertTrue(fields.flipX);
+        assertFalse("THF's vertical flip is always false", fields.flipY);
+
+        // With the optional flippedX absent it still resolves, defaulting both flips to false.
+        TorchHeadFireNoFlipHolder noFlip = new TorchHeadFireNoFlipHolder();
+        noFlip.x = 1f;
+        noFlip.y = 2f;
+        noFlip.scale = 1f;
+        noFlip.color = Color.WHITE;
+        noFlip.img = noGlTexture(128, 128);
+        Sts1VfxArtRenderer.TextureFields noFlipFields = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.TORCH_HEAD_FIRE, noFlip);
+        assertNotNull(noFlipFields);
+        assertFalse(noFlipFields.flipX);
+        assertFalse(noFlipFields.flipY);
+
+        // isReady routes the appended-last FQN through the shape-C path.
+        assertTrue(new Sts1VfxArtRenderer().isReady(VfxClaimPolicy.TORCH_HEAD_FIRE));
+    }
+
+    /** Real {@code TorchHeadFireEffect} with seeded draw fields and its {@code flippedX} boolean. */
+    private static AbstractGameEffect seededTorchHeadFire(Color color, float x, float y,
+            float scale, boolean flippedX) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.TorchHeadFireEffect effect =
+                    (com.megacrit.cardcrawl.vfx.TorchHeadFireEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.TorchHeadFireEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.TorchHeadFireEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.TorchHeadFireEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.TorchHeadFireEffect.class, "img",
+                    noGlTexture(128, 128));
+            setField(effect, com.megacrit.cardcrawl.vfx.TorchHeadFireEffect.class, "flippedX",
+                    Boolean.valueOf(flippedX));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL TorchHeadFireEffect", failure);
+        }
     }
 
     /** Real {@code LightningOrbPassiveEffect} with seeded draw fields and the two flip booleans. */

@@ -886,6 +886,36 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
       token semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F29 (one more native transient effect on the family-neutral default-off per-instance
+      claim seam; reuses an existing shape with ONE small pure rule):
+      `com.megacrit.cardcrawl.vfx.TorchHeadFireEffect` (`vfx-misc-root`; fields `Texture img`,
+      `float x, y, vX, vY` + `boolean flippedX`; inherited `scale`/`color`; ctor `(float, float)`).
+      Its native `render` is `setBlendFunction(770, 1); setColor(color); sb.draw(img, x - 64f,
+      y - 64f, 64f, 64f, 128f, 128f, scale * 1.2f, scale, 0f, 0, 0, 128, 128, flippedX, false);
+      setBlendFunction(770, 771)` — i.e. **shape-C** (instance `Texture` + fixed rect: offset 64,
+      origin 64, size 128&times;128, src `0,0,128,128`; rotation HARDCODED `0f`, no rotation field;
+      ADDITIVE) reusing the `GlowyFireEyesEffect` rect EXACTLY, with the effect's own `flippedX`
+      horizontal flip (vertical always `false`) and ONE new pure rule: an ASYMMETRIC X scale
+      (`scaleX = scale * 1.2f`, `scaleY = scale`). Implementation: `VfxClaimPolicy.TORCH_HEAD_FIRE`
+      appends LAST to `supportedClasses()`/`supports(...)`. `VfxDrawGeometry` gained
+      `Kind.TORCH_HEAD_FIRE` with its OWN shape-C `params` branch reusing the shared
+      `GLOWY_FIRE_EYES` rect constants and the new
+      `TORCH_HEAD_FIRE_SCALE_X_MULTIPLIER = 1.2f`, plus a NEW pure predicate
+      `usesTexturedFlipX(Kind)` (true for `GLOWY_FIRE_EYES` AND `TORCH_HEAD_FIRE`, false otherwise,
+      throws on null) generalizing the renderer's previous `GLOWY_FIRE_EYES`-only `flippedX`
+      special-case. `kindFor` maps the exact FQN (near-miss/nested fail open); `additiveBlend` is
+      `true` for `TORCH_HEAD_FIRE`; `whiteAlphaOnly`/`uniformScaleMultiplier`/`scaleYMultiplier`/
+      guard/`randomRanges`/`drawPassRandomRanges`/`playerHitboxRelativeX`/mirror predicates are
+      unchanged (it is NOT an img-mirror kind — it is shape-C). `Sts1VfxArtRenderer` routes it through
+      the existing `renderTexture` shape-C path, resolves its instance `Texture img`, does NOT require
+      `rotation` (excluded from `requireRotation`, like `GLOWY_FIRE_EYES`), and resolves the flip field
+      `flippedX` via `usesTexturedFlipX` — no new draw branch, fail-open/no-throw preserved.
+      `VfxLabSpawn.classNameFor` gains `"torchheadfire"`/`"torchhead"` →
+      `new TorchHeadFireEffect(960f, 540f)` (no alias collision with `torch`/`torchxl`/`torchm`/
+      `torchs`) behind the existing fail-open guard, and `art claim spawn torchheadfire 4` runs in both
+      `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
+      token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

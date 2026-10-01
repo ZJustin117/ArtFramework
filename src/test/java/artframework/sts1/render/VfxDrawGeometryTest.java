@@ -310,6 +310,22 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.GIANT_FIRE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect"));
+        // The newest F29 member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.TORCH_HEAD_FIRE));
+        assertSame(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.TorchHeadFireEffect"));
+    }
+
+    @Test
+    public void torchHeadFireKindForFailsOpenForNearMisses() {
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.TorchHeadFireEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.TorchHeadFireEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("TorchHeadFireEffect"));
+        // `TorchParticle*Effect` names must not be matched by the TorchHeadFire FQN.
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.TorchHeadFire"));
     }
 
     @Test
@@ -3191,5 +3207,96 @@ public class VfxDrawGeometryTest {
         assertEquals("WATER_SPLASH scaleX is still scale", scale, splash.scaleX, EPS);
         assertEquals("WATER_SPLASH scaleY is still scale * 0.54f",
                 scale * VfxDrawGeometry.WATER_SPLASH_SCALE_Y_MULTIPLIER, splash.scaleY, EPS);
+    }
+
+    @Test
+    public void torchHeadFireReusesTheGlowyFireEyesRectWithTheAsymmetricXScale() {
+        // Native TorchHeadFireEffect: setBlendFunction(770,1); setColor(color);
+        //   sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale * 1.2f, scale, 0f,
+        //           0, 0, 128, 128, flippedX, false); setBlendFunction(770,771).
+        // Shape-C fixed rect reusing the GlowyFireEyesEffect constants exactly, ADDITIVE, with a
+        // hardcoded zero rotation; the ONE new pure rule is the asymmetric X scale.
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.TORCH_HEAD_FIRE,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f, 64f, 48f,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 10f /* regionOffsetY ignored */,
+                0f, 0f, 1f);
+
+        assertEquals(x - 64f, p.x, EPS);
+        assertEquals(y - 64f, p.y, EPS);
+        assertEquals(64f, p.originX, EPS);
+        assertEquals(64f, p.originY, EPS);
+        assertEquals(128f, p.width, EPS);
+        assertEquals(128f, p.height, EPS);
+        assertEquals("scaleX is scale * 1.2f", scale * 1.2f, p.scaleX, EPS);
+        assertEquals("scaleY stays scale (asymmetric)", scale, p.scaleY, EPS);
+        assertEquals("TorchHeadFire hardcodes rotation 0f", 0f, p.rotation, EPS);
+
+        // The rect constants are literally shared with GLOWY_FIRE_EYES.
+        assertEquals(64f, VfxDrawGeometry.GLOWY_FIRE_EYES_OFFSET, EPS);
+        assertEquals(64f, VfxDrawGeometry.GLOWY_FIRE_EYES_ORIGIN, EPS);
+        assertEquals(128f, VfxDrawGeometry.GLOWY_FIRE_EYES_SIZE, EPS);
+        assertEquals(128, VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_W);
+        assertEquals(128, VfxDrawGeometry.GLOWY_FIRE_EYES_SRC_H);
+        assertEquals(1.2f, VfxDrawGeometry.TORCH_HEAD_FIRE_SCALE_X_MULTIPLIER, EPS);
+
+        assertTrue("TORCH_HEAD_FIRE installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertTrue("the flippedX field drives the horizontal flip",
+                VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(
+                VfxDrawGeometry.Kind.TORCH_HEAD_FIRE).isEmpty());
+
+        // A different vY/packed size still produces the same asymmetric rect.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.TORCH_HEAD_FIRE,
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1f);
+        assertEquals(p, q);
+
+        // The X scale is exactly 1.2x the GlowyFireEyes uniform scale, and Y matches it.
+        VfxDrawGeometry.Params gfe = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
+                x, y, 999f, scale, rotation, 7f, 5f, 2f, 64f, 48f, 1234f, 0f, 0f, 0f, 0f, 1f);
+        assertEquals(gfe.scaleX * 1.2f, p.scaleX, EPS);
+        assertEquals(gfe.scaleY, p.scaleY, EPS);
+    }
+
+    @Test
+    public void usesTexturedFlipXIsTrueOnlyForTheFlippedXFieldKinds() {
+        assertTrue(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.GLOWY_FIRE_EYES));
+        assertTrue(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE));
+
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
+                    || kind == VfxDrawGeometry.Kind.TORCH_HEAD_FIRE) {
+                continue;
+            }
+            assertFalse("no flippedX field for " + kind,
+                    VfxDrawGeometry.usesTexturedFlipX(kind));
+        }
+    }
+
+    @Test
+    public void usesTexturedFlipXNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.usesTexturedFlipX(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
     }
 }

@@ -199,6 +199,12 @@ package artframework.sts1.render;
  *                                vertical flip is always false):
  *     sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale, scale, 0f,
  *             0, 0, 128, 128, flippedX, false)
+ *   TorchHeadFireEffect.render (note: additive blend; rotation hardcoded to 0f; the class has no
+ *                                rotation field; only the horizontal flip is per-instance and the
+ *                                vertical flip is always false; the X draw scale is scale * 1.2f
+ *                                while the Y draw scale stays scale):
+ *     sb.draw(img, x - 64f, y - 64f, 64f, 64f, 128f, 128f, scale * 1.2f, scale, 0f,
+ *             0, 0, 128, 128, flippedX, false)
  *   FlyingSpikeEffect.render (note: additive blend; vX/vY are update-only):
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  *   ConeEffect.render (note: no setBlendFunction; ambient blend; the origin X is 0f, NOT pw/2f, and
@@ -260,11 +266,12 @@ package artframework.sts1.render;
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
  * bare-{@code Texture} kinds — Calm, Shield, Debuff, IceShatter, Web, Entangle, Unknown, WarningSign,
- * DarkOrb, LightningOrbPassive, GlowyFireEyes, and
+ * DarkOrb, LightningOrbPassive, GlowyFireEyes, TorchHeadFire, and
  * FallingIce — draw a
  * fixed source rect
  * rather than a packed region, so their native origin/size/source rect are host-neutral constants
- * and the packed region size is ignored; Shield, Web, Entangle, WarningSign, and GlowyFireEyes
+ * and the packed region size is ignored; Shield, Web, Entangle, WarningSign, GlowyFireEyes, and
+ * TorchHeadFire
  * hardcode rotation
  * {@code 0f},
  * Debuff, IceShatter, Unknown, DarkOrb, LightningOrbPassive, and FallingIce consume their
@@ -275,7 +282,9 @@ package artframework.sts1.render;
  * the bare-{@code Texture} kinds are the first to carry per-instance FLIP booleans: the native
  * {@code LightningOrbPassiveEffect} passes its own {@code flipX} and {@code flipY} fields, and
  * {@code GlowyFireEyesEffect} passes its own {@code flippedX} with a hardcoded {@code false} vertical
- * flip, so {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY} report them; every other kind keeps
+ * flip, so {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY} report them; the newest (F29)
+ * {@code TorchHeadFireEffect} likewise passes its own {@code flippedX} (see
+ * {@link #usesTexturedFlipX}); every other kind keeps
  * {@code false, false}. Web and
  * Entangle
  * are the only kinds whose native {@code render} rewrites the set color, forcing RGB to white
@@ -383,6 +392,16 @@ package artframework.sts1.render;
  * {@link #uniformScaleMultiplier} (settings scale for {@code GIANT_FIRE}, {@code 1f} otherwise) and
  * composed with the F27 {@code scaleYMultiplier} in the shared center-packed {@link #params} branch.
  * Its {@code delayTimer} is used only by {@code update()}, NOT by {@code render} (no render guard).
+ *
+ * <p>The newest (F29) member is the {@code vfx-misc-root} {@code TorchHeadFireEffect}
+ * ({@link Kind#TORCH_HEAD_FIRE}): shape-C, reusing the {@code GlowyFireEyesEffect} fixed rect exactly
+ * (offset/origin {@code 64}, size {@code 128&times;128}, src {@code 0,0,128,128}, hardcoded rotation
+ * {@code 0f}) over its own instance {@code Texture img}, ADDITIVE, with the effect's own
+ * {@code flippedX} horizontal flip (vertical always {@code false}) — resolved by the generalized
+ * {@link #usesTexturedFlipX}. It adds ONE new pure rule: an ASYMMETRIC X scale
+ * {@code scaleX = scale * }{@link #TORCH_HEAD_FIRE_SCALE_X_MULTIPLIER} ({@code 1.2f}) with
+ * {@code scaleY = scale}. No new patch/bridge/console wiring; the default-off gate and per-instance
+ * token semantics are unchanged.
  */
 public final class VfxDrawGeometry {
 
@@ -445,7 +464,8 @@ public final class VfxDrawGeometry {
         WATER_SPLASH,
         BUFF_PARTICLE,
         BOTTOM_FOG,
-        GIANT_FIRE
+        GIANT_FIRE,
+        TORCH_HEAD_FIRE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -615,6 +635,13 @@ public final class VfxDrawGeometry {
     public static final int GLOWY_FIRE_EYES_SRC_W = 128;
     /** Native GlowyFireEyes draw source rect height ({@code 128}, the full rect). */
     public static final int GLOWY_FIRE_EYES_SRC_H = 128;
+
+    // Native TorchHeadFireEffect draw multiplier (see the class Javadoc): it reuses the
+    // GlowyFireEyes fixed shape-C rect (offset/origin 64, size 128, src 0,0,128,128, rotation 0f)
+    // over its own instance Texture img, but its native draw scale is ASYMMETRIC —
+    // scaleX = scale * 1.2f while scaleY = scale. It is the only kind with this X multiplier.
+    /** Native TorchHeadFire X-axis scale multiplier ({@code 1.2f}). */
+    public static final float TORCH_HEAD_FIRE_SCALE_X_MULTIPLIER = 1.2f;
 
     // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
     // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
@@ -914,6 +941,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.BUFF_PARTICLE.equals(value)) return Kind.BUFF_PARTICLE;
         if (VfxClaimPolicy.BOTTOM_FOG.equals(value)) return Kind.BOTTOM_FOG;
         if (VfxClaimPolicy.GIANT_FIRE.equals(value)) return Kind.GIANT_FIRE;
+        if (VfxClaimPolicy.TORCH_HEAD_FIRE.equals(value)) return Kind.TORCH_HEAD_FIRE;
         return null;
     }
 
@@ -976,7 +1004,8 @@ public final class VfxDrawGeometry {
      * installs/restores the additive blend natively and is therefore ADDITIVE. The newest (F28) member
      * {@link Kind#BOTTOM_FOG} is likewise AMBIENT center-packed (it never calls {@code setBlendFunction})
      * so {@code false} is reported for it, while the newest {@link Kind#GIANT_FIRE} installs/restores the
-     * additive blend natively and is ADDITIVE.
+     * additive blend natively and is ADDITIVE. The newest (F29) member
+     * {@link Kind#TORCH_HEAD_FIRE} also installs/restores the additive blend natively and is ADDITIVE.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -1252,6 +1281,24 @@ public final class VfxDrawGeometry {
             throw new IllegalArgumentException("kind must not be null");
         }
         return kind == Kind.LIGHTNING_ORB_PASSIVE;
+    }
+
+    /**
+     * Pure per-kind predicate for the shape-C kinds whose per-instance horizontal flip comes from a
+     * {@code flippedX} field rather than the boolean {@code flipX}/{@code flipY} pair passed to the
+     * raw-texture draw overload: {@code true} only for {@link Kind#GLOWY_FIRE_EYES} and the newest
+     * (F29) {@link Kind#TORCH_HEAD_FIRE}. Both kinds pass their own {@code flippedX} field with a
+     * hardcoded {@code false} vertical flip, so the renderer resolves the horizontal flip from that
+     * field name (generalizing the previous {@code GLOWY_FIRE_EYES}-only special case). Every other
+     * kind is {@code false} here.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean usesTexturedFlipX(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.GLOWY_FIRE_EYES || kind == Kind.TORCH_HEAD_FIRE;
     }
 
     /**
@@ -1599,6 +1646,17 @@ public final class VfxDrawGeometry {
                 return new Params(x - GLOWY_FIRE_EYES_OFFSET, y - GLOWY_FIRE_EYES_OFFSET,
                         GLOWY_FIRE_EYES_ORIGIN, GLOWY_FIRE_EYES_ORIGIN,
                         GLOWY_FIRE_EYES_SIZE, GLOWY_FIRE_EYES_SIZE, scale, scale, 0f);
+            case TORCH_HEAD_FIRE:
+                // Native TorchHeadFireEffect reuses the GlowyFireEyesEffect shape-C rect exactly
+                // (offset/origin 64, size 128, src 0,0,128,128, hardcoded rotation 0f) over its own
+                // instance Texture img, and passes the effect's own flippedX horizontal flip with a
+                // hardcoded false vertical flip. It adds ONE new pure rule: its native draw scale is
+                // ASYMMETRIC — scaleX = scale * 1.2f while scaleY = scale. packedWidth/packedHeight,
+                // vY, vX, the region offsets, dur_div2, duration, and Settings.scale are unused.
+                return new Params(x - GLOWY_FIRE_EYES_OFFSET, y - GLOWY_FIRE_EYES_OFFSET,
+                        GLOWY_FIRE_EYES_ORIGIN, GLOWY_FIRE_EYES_ORIGIN,
+                        GLOWY_FIRE_EYES_SIZE, GLOWY_FIRE_EYES_SIZE,
+                        scale * TORCH_HEAD_FIRE_SCALE_X_MULTIPLIER, scale, 0f);
             case STANCE_CHANGE_ABSORPTION:
                 // Native StanceChangeAbsorptionParticle ignores the (absent) region and draws the
                 // static ImageMaster.WOBBLY_ORB_VFX Texture TWICE with a fixed shape-C rect: offset

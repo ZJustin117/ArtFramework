@@ -17,6 +17,7 @@ import com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
 import com.megacrit.cardcrawl.vfx.DamageHeartEffect;
 import com.megacrit.cardcrawl.vfx.ShineLinesEffect;
+import com.megacrit.cardcrawl.vfx.TorchHeadFireEffect;
 import com.megacrit.cardcrawl.vfx.WarningSignEffect;
 import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect;
@@ -113,7 +114,10 @@ import java.util.function.Predicate;
  * {@code BottomFogEffect} ({@code vfx-scene-world}; ambient center-packed reusing the F22 mirror with
  * flipX+flipY, boolean ctor) and {@code GiantFireEffect} ({@code vfx-combat}; additive center-packed
  * with a new uniform-scale
- * {@code *Settings.scale} rule and a flipX-only mirror, NO-ARG ctor) into the
+ * {@code *Settings.scale} rule and a flipX-only mirror, NO-ARG ctor), plus the newest (F29) member
+ * {@code TorchHeadFireEffect} (root; additive shape-C reusing the {@code GlowyFireEyesEffect} rect
+ * with a new asymmetric {@code scaleX = scale * 1.2f} rule and a {@code flippedX} flip; ctor
+ * {@code (float, float)}) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -325,6 +329,9 @@ public final class VfxLabSpawn {
         }
         if ("giantfire".equalsIgnoreCase(value) || "gfire".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.GIANT_FIRE;
+        }
+        if ("torchheadfire".equalsIgnoreCase(value) || "torchhead".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.TORCH_HEAD_FIRE;
         }
         return null;
     }
@@ -768,6 +775,12 @@ public final class VfxLabSpawn {
             // from ImageMaster static art and randomizes x/y; img may be null outside a live game, so
             // any failure is caught by spawn's fail-open guard rather than propagating.
             return new GiantFireEffect();
+        }
+        if (VfxClaimPolicy.TORCH_HEAD_FIRE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. The instance img is ImageMaster-backed
+            // and may be null outside a live game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new TorchHeadFireEffect(960f, 540f);
         }
         return null;
     }

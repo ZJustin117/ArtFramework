@@ -158,6 +158,9 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.BOTTOM_FOG, VfxLabSpawn.classNameFor("bfog"));
         assertEquals(VfxClaimPolicy.GIANT_FIRE, VfxLabSpawn.classNameFor("giantfire"));
         assertEquals(VfxClaimPolicy.GIANT_FIRE, VfxLabSpawn.classNameFor("gfire"));
+        assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE,
+                VfxLabSpawn.classNameFor("torchheadfire"));
+        assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE, VfxLabSpawn.classNameFor("torchhead"));
     }
 
     @Test
@@ -253,6 +256,9 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.BOTTOM_FOG, VfxLabSpawn.classNameFor("BFOG"));
         assertEquals(VfxClaimPolicy.GIANT_FIRE, VfxLabSpawn.classNameFor("  GiAnTfIrE "));
         assertEquals(VfxClaimPolicy.GIANT_FIRE, VfxLabSpawn.classNameFor("GFIRE"));
+        assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE,
+                VfxLabSpawn.classNameFor("  ToRcHhEaDfIrE "));
+        assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE, VfxLabSpawn.classNameFor("TORCHHEAD"));
     }
 
     @Test
@@ -651,6 +657,16 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("bfog", VfxClaimPolicy.BOTTOM_FOG);
         assertSpawnRequests("giantfire", VfxClaimPolicy.GIANT_FIRE);
         assertSpawnRequests("gfire", VfxClaimPolicy.GIANT_FIRE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF29TorchHeadFireThroughTheFactorySeam() {
+        // The newest (F29) claimable FQN; the capturing factory proves both aliases request exactly
+        // that FQN without running the ImageMaster-backed constructor (img may be null off-game).
+        // "torchheadfire"/"torchhead" do not collide with the existing "torch"/"torchxl"/"torchm"/
+        // "torchs" aliases.
+        assertSpawnRequests("torchheadfire", VfxClaimPolicy.TORCH_HEAD_FIRE);
+        assertSpawnRequests("torchhead", VfxClaimPolicy.TORCH_HEAD_FIRE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

@@ -242,6 +242,18 @@ package artframework.sts1.render;
  *                             MathUtils.random(0.95f, 1.05f) for scaleY IN THAT ORDER; no vY):
  *     sb.draw(img, AbstractDungeon.player.hb.cX + x, y, pw/2f, ph/2f, pw, ph,
  *             scale*MathUtils.random(2.9f,3.1f), scale*MathUtils.random(0.95f,1.05f), rotation)
+ *   StanceChangeAbsorptionParticle.render (note: the seam's FIRST MULTI-DRAW kind; additive blend;
+ *                             draws the static ImageMaster.WOBBLY_ORB_VFX Texture TWICE with the SAME
+ *                             fixed shape-C rect — offset 16, origin 16, size 32, src 0,0,32,32,
+ *                             rotation offset -200f; pass 0 draws scaleX/scaleY with scale *
+ *                             MathUtils.random(0.5f,2.0f), pass 1 with scale * MathUtils.random(
+ *                             0.6f,2.5f) — four RNG calls in order; see drawPassRandomRanges; no vY):
+ *     sb.draw(ImageMaster.WOBBLY_ORB_VFX, x - 16f, y - 16f, 16f, 16f, 32f, 32f,
+ *             scale*MathUtils.random(0.5f,2.0f), scale*MathUtils.random(0.5f,2.0f), rotation - 200f,
+ *             0, 0, 32, 32, false, false)
+ *     sb.draw(ImageMaster.WOBBLY_ORB_VFX, x - 16f, y - 16f, 16f, 16f, 32f, 32f,
+ *             scale*MathUtils.random(0.6f,2.5f), scale*MathUtils.random(0.6f,2.5f), rotation - 200f,
+ *             0, 0, 32, 32, false, false)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -330,6 +342,17 @@ package artframework.sts1.render;
  * kind's condition, which lives in the pure {@link #guardBlocks} predicate (the source of truth — it
  * differs per kind: {@code > 0f} for {@code WRATH_STANCE_CHANGE}, {@code !(value < 0f)} for
  * {@code FALLING_ICE}/{@code DAMAGE_HEART}), matching the native wait phase pixel-for-pixel.
+ *
+ * <p>The newest member is the {@code vfx-stance-aura} {@code StanceChangeAbsorptionParticle}
+ * ({@link Kind#STANCE_CHANGE_ABSORPTION}) — the seam's SECOND non-deterministic kind and its FIRST
+ * MULTI-DRAW kind: additive, it draws the static {@code ImageMaster.WOBBLY_ORB_VFX} {@code Texture}
+ * TWICE with the SAME shape-C fixed rect (offset {@code 16f}, origin {@code 16f}, size
+ * {@code 32f&times;32f}, src {@code 0,0,32,32}, rotation offset {@code -200f}), consuming FOUR
+ * {@code MathUtils.random(...)} values in order — two per pass ({@code [0.5f, 2.0f]} held additively
+ * in pass 0 and {@code [0.6f, 2.5f]} in pass 1, applied to the pass's scaleX then scaleY). The
+ * capability is the pure {@link #drawPassRandomRanges} (an ordered list of per-pass range lists; an
+ * empty outer list for every other kind), and {@link #params} returns only the shared base
+ * {@code (scale, scale)} because the per-pass scales are applied by the renderer.
  */
 public final class VfxDrawGeometry {
 
@@ -387,7 +410,8 @@ public final class VfxDrawGeometry {
         SPOOKIER_CHEST,
         CAMPFIRE_SLEEP_COVER,
         DEATH_SCREEN_FLOATY,
-        WRATH_STANCE_CHANGE
+        WRATH_STANCE_CHANGE,
+        STANCE_CHANGE_ABSORPTION
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -616,6 +640,28 @@ public final class VfxDrawGeometry {
     /** Native FallingIce draw source rect height ({@code 96}). */
     public static final int FALLING_ICE_SRC_H = 96;
 
+    // Native StanceChangeAbsorptionParticle draw constants (see the class Javadoc): a fixed shape-C
+    // rect drawn TWICE over the static ImageMaster.WOBBLY_ORB_VFX Texture. Each pass shares the
+    // offset (16f), origin (16f), size (32f) and src rect (0, 0, 32, 32); the rotation field is
+    // offset by -200f. The per-pass scaleX/scaleY are RNG-derived and applied by the renderer, so
+    // params returns the base (scale, scale) — see drawPassRandomRanges.
+    /** Native StanceChangeAbsorption draw offset/origin ({@code 16f}). */
+    public static final float STANCE_CHANGE_ABSORPTION_OFFSET = 16f;
+    /** Native StanceChangeAbsorption draw origin ({@code 16f}). */
+    public static final float STANCE_CHANGE_ABSORPTION_ORIGIN = 16f;
+    /** Native StanceChangeAbsorption draw width/height ({@code 32f}). */
+    public static final float STANCE_CHANGE_ABSORPTION_SIZE = 32f;
+    /** Native StanceChangeAbsorption rotation offset ({@code -200f}). */
+    public static final float STANCE_CHANGE_ABSORPTION_ROTATION_OFFSET = -200f;
+    /** Native StanceChangeAbsorption draw source rect x ({@code 0}). */
+    public static final int STANCE_CHANGE_ABSORPTION_SRC_X = 0;
+    /** Native StanceChangeAbsorption draw source rect y ({@code 0}). */
+    public static final int STANCE_CHANGE_ABSORPTION_SRC_Y = 0;
+    /** Native StanceChangeAbsorption draw source rect width ({@code 32}). */
+    public static final int STANCE_CHANGE_ABSORPTION_SRC_W = 32;
+    /** Native StanceChangeAbsorption draw source rect height ({@code 32}). */
+    public static final int STANCE_CHANGE_ABSORPTION_SRC_H = 32;
+
     // The per-kind native wait-phase guard field names (the seam's first draw guard): a claimed
     // instance whose guard field value blocks per that kind's condition is declined (draws nothing),
     // exactly like the native render's wait phase. The block condition is per-kind and lives in the
@@ -652,6 +698,39 @@ public final class VfxDrawGeometry {
                             WRATH_STANCE_CHANGE_SCALE_X_MIN, WRATH_STANCE_CHANGE_SCALE_X_MAX },
                     new float[] {
                             WRATH_STANCE_CHANGE_SCALE_Y_MIN, WRATH_STANCE_CHANGE_SCALE_Y_MAX }));
+
+    // The ordered per-PASS native MathUtils.random(min, max) ranges a MULTI-DRAW kind consumes (see
+    // drawPassRandomRanges). StanceChangeAbsorptionParticle draws TWICE over the same static
+    // ImageMaster.WOBBLY_ORB_VFX Texture; pass 0 draws scaleX/scaleY with scale * random(0.5f, 2.0f)
+    // each, pass 1 with scale * random(0.6f, 2.5f) each, in that exact pass/range order.
+    /** Native StanceChangeAbsorption pass 0 scaleX/scaleY RNG range min ({@code 0.5f}). */
+    public static final float STANCE_CHANGE_ABSORPTION_PASS0_MIN = 0.5f;
+    /** Native StanceChangeAbsorption pass 0 scaleX/scaleY RNG range max ({@code 2.0f}). */
+    public static final float STANCE_CHANGE_ABSORPTION_PASS0_MAX = 2.0f;
+    /** Native StanceChangeAbsorption pass 1 scaleX/scaleY RNG range min ({@code 0.6f}). */
+    public static final float STANCE_CHANGE_ABSORPTION_PASS1_MIN = 0.6f;
+    /** Native StanceChangeAbsorption pass 1 scaleX/scaleY RNG range max ({@code 2.5f}). */
+    public static final float STANCE_CHANGE_ABSORPTION_PASS1_MAX = 2.5f;
+
+    /**
+     * The ordered per-pass native RNG ranges for {@link Kind#STANCE_CHANGE_ABSORPTION} (see
+     * {@link #drawPassRandomRanges}): pass 0 is scaleX {@code (0.5f, 2.0f)} then scaleY
+     * {@code (0.5f, 2.0f)}, and pass 1 is scaleX {@code (0.6f, 2.5f)} then scaleY
+     * {@code (0.6f, 2.5f)}, in native call order. Immutable.
+     */
+    private static final java.util.List<java.util.List<float[]>>
+            STANCE_CHANGE_ABSORPTION_DRAW_PASS_RANDOM_RANGES =
+            java.util.Collections.unmodifiableList(java.util.Arrays.asList(
+                    java.util.Collections.unmodifiableList(java.util.Arrays.asList(
+                            new float[] {STANCE_CHANGE_ABSORPTION_PASS0_MIN,
+                                    STANCE_CHANGE_ABSORPTION_PASS0_MAX },
+                            new float[] {STANCE_CHANGE_ABSORPTION_PASS0_MIN,
+                                    STANCE_CHANGE_ABSORPTION_PASS0_MAX })),
+                    java.util.Collections.unmodifiableList(java.util.Arrays.asList(
+                            new float[] {STANCE_CHANGE_ABSORPTION_PASS1_MIN,
+                                    STANCE_CHANGE_ABSORPTION_PASS1_MAX },
+                            new float[] {STANCE_CHANGE_ABSORPTION_PASS1_MIN,
+                                    STANCE_CHANGE_ABSORPTION_PASS1_MAX }))));
 
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
@@ -788,6 +867,9 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.CAMPFIRE_SLEEP_COVER.equals(value)) return Kind.CAMPFIRE_SLEEP_COVER;
         if (VfxClaimPolicy.DEATH_SCREEN_FLOATY.equals(value)) return Kind.DEATH_SCREEN_FLOATY;
         if (VfxClaimPolicy.WRATH_STANCE_CHANGE.equals(value)) return Kind.WRATH_STANCE_CHANGE;
+        if (VfxClaimPolicy.STANCE_CHANGE_ABSORPTION.equals(value)) {
+            return Kind.STANCE_CHANGE_ABSORPTION;
+        }
         return null;
     }
 
@@ -977,6 +1059,41 @@ public final class VfxDrawGeometry {
         }
         if (kind == Kind.WRATH_STANCE_CHANGE) {
             return WRATH_STANCE_CHANGE_RANDOM_RANGES;
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * The ordered per-PASS native RNG ranges for a MULTI-DRAW kind, or an empty outer list for every
+     * kind whose native {@code render} issues a single (or zero) draw. Each element is one draw pass;
+     * each inner list is that pass's ordered {@code float[]{min, max}} scale ranges. The renderer
+     * MUST, per pass IN ORDER, call {@code MathUtils.random(min, max)} once for each inner range IN
+     * ORDER and multiply the returned value into the pass's scaleX (first inner range) then scaleY
+     * (second inner range), then replay the pass's draw with those scales and the {@code params}
+     * position/origin/size/rotation/src — so the global RNG stream and the pixels stay identical to
+     * the native render. A kind with an empty outer list keeps the single-draw path (and, if it is
+     * {@link Kind#WRATH_STANCE_CHANGE}, the existing single-draw {@link #randomRanges}).
+     *
+     * <p>Today only {@link Kind#STANCE_CHANGE_ABSORPTION} is a multi-draw kind: its native
+     * {@code render} draws the static {@code ImageMaster.WOBBLY_ORB_VFX} {@code Texture} twice, pass 0
+     * with {@code scale * MathUtils.random(0.5f, 2.0f)} for scaleX then {@code scale *
+     * MathUtils.random(0.5f, 2.0f)} for scaleY, and pass 1 with {@code scale *
+     * MathUtils.random(0.6f, 2.5f)} for each, so this returns
+     * {@code [[(0.5f,2.0f),(0.5f,2.0f)], [(0.6f,2.5f),(0.6f,2.5f)]]}. Every other claimable kind's
+     * native {@code update}/{@code render} issues at most one RNG-consuming draw during the render, so
+     * it returns an empty outer list (and uses {@link #randomRanges} when it is WRATH). The returned
+     * list (and each inner list) is immutable.
+     *
+     * <p>{@code float[]} is host-neutral primitives, so this class stays GL/host-free.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static java.util.List<java.util.List<float[]>> drawPassRandomRanges(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        if (kind == Kind.STANCE_CHANGE_ABSORPTION) {
+            return STANCE_CHANGE_ABSORPTION_DRAW_PASS_RANDOM_RANGES;
         }
         return java.util.Collections.emptyList();
     }
@@ -1374,6 +1491,20 @@ public final class VfxDrawGeometry {
                 return new Params(x - GLOWY_FIRE_EYES_OFFSET, y - GLOWY_FIRE_EYES_OFFSET,
                         GLOWY_FIRE_EYES_ORIGIN, GLOWY_FIRE_EYES_ORIGIN,
                         GLOWY_FIRE_EYES_SIZE, GLOWY_FIRE_EYES_SIZE, scale, scale, 0f);
+            case STANCE_CHANGE_ABSORPTION:
+                // Native StanceChangeAbsorptionParticle ignores the (absent) region and draws the
+                // static ImageMaster.WOBBLY_ORB_VFX Texture TWICE with a fixed shape-C rect: offset
+                // 16, origin 16, size 32, src (0, 0, 32, 32), rotation offset -200f. Its two draws
+                // share this exact rect; the per-pass RNG-derived scaleX/scaleY are applied by the
+                // renderer (see drawPassRandomRanges), so this returns the base (scale, scale).
+                // Additive (setBlendFunction 770/1 before and 770/771 after). packedWidth/
+                // packedHeight, vY, vX, the region offsets, dur_div2, duration, and Settings.scale are
+                // unused.
+                return new Params(x - STANCE_CHANGE_ABSORPTION_OFFSET,
+                        y - STANCE_CHANGE_ABSORPTION_OFFSET,
+                        STANCE_CHANGE_ABSORPTION_ORIGIN, STANCE_CHANGE_ABSORPTION_ORIGIN,
+                        STANCE_CHANGE_ABSORPTION_SIZE, STANCE_CHANGE_ABSORPTION_SIZE,
+                        scale, scale, rotation + STANCE_CHANGE_ABSORPTION_ROTATION_OFFSET);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

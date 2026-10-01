@@ -762,12 +762,51 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       phases. `WrathStanceChangeParticle`'s constructor IGNORES its float argument and sets
       `delayTimer = MathUtils.random(0f, 0.5f)` (construction-time RNG, NOT replayed by the seam), so
       the lab entry `new WrathStanceChangeParticle(0f)` yields a random 0–0.5 s wait, after which the
-      guard may clear and ART may draw. `StanceChangeAbsorptionParticle` remains **DEFERRED** (two
+      guard may clear and ART may draw. `StanceChangeAbsorptionParticle` was **DEFERRED** at F24 (two
       draws + four RNG calls, so it
-      needs a multi-draw capability). D1 evidence boundary (honest): the read-only probe cannot observe
+      needed a multi-draw capability); that deferral is now **SUPERSEDED by F25 below**, which claims
+      it. D1 evidence boundary (honest): the read-only probe cannot observe
       the RNG-derived scale, so D1 covers claim/draw/gate behavior while the exact RNG call order and
       ranges are covered by unit tests (a mirror-RNG assertion). No new patch/bridge/console wiring;
       default-off gate + per-instance token semantics unchanged. Focused no-GL JUnit only.
+
+- [x] NRO-04 F25 (MULTI-DRAW shape-C RNG-replay capability; `StanceChangeAbsorptionParticle`, the
+      last `vfx-stance-aura` non-deterministic effect):
+      `com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle` (`vfx-stance-aura`; private
+      `oX, oY, x, y, aV, distOffset, scaleOffset` plus the inherited `scale`/`rotation`/`color`; ctor
+      `(Color, float, float)`; `render(sb)` draws the SAME static `ImageMaster.WOBBLY_ORB_VFX`
+      `Texture` TWICE, additive, both with offset `x-16f, y-16f`, origin `16f,16f`, size `32f,32f`,
+      src `0,0,32,32` and rotation `rotation - 200f`; `update()` consumes NO RNG). The seam gained a
+      MULTI-DRAW capability in `VfxDrawGeometry` (pure/host-neutral, throw on null):
+      `drawPassRandomRanges(Kind)` returns the ordered per-pass RNG ranges — for
+      `STANCE_CHANGE_ABSORPTION` `[[(0.5f,2.0f),(0.5f,2.0f)],[(0.6f,2.5f),(0.6f,2.5f)]]`, an EMPTY
+      outer list for every other kind — documented so the renderer must, per pass IN ORDER, call
+      `MathUtils.random(min,max)` once per inner range IN ORDER (multiplying scaleX then scaleY), so
+      replaying the exact native call sequence keeps the global RNG stream identical and pixel
+      equivalence is an IDENTITY. `Kind.STANCE_CHANGE_ABSORPTION` gets its OWN `params` branch —
+      `Params(x - 16f, y - 16f, 16f, 16f, 32f, 32f, scale, scale, rotation - 200f)` with named
+      constants (ADDITIVE, NOT center-packed, NOT a region-offset kind); the RNG-derived per-pass
+      scales are applied by the RENDERER, so `params` returns the base `scale, scale`. The existing
+      single-draw `randomRanges(Kind)` (WRATH) is unchanged; `whiteAlphaOnly`/`usesInstanceFlipX/Y`/
+      `usesInstanceMirrorX/Y`/`nativeSkipsDrawByGuard`/`guardBlocks`/`playerHitboxRelativeX` are
+      unchanged, and `kindFor` maps the exact FQN (near-miss/nested fail open).
+      `Sts1VfxArtRenderer` routes `STANCE_CHANGE_ABSORPTION` through the shape-C (`renderTexture`)
+      path, resolving the STATIC `ImageMaster.WOBBLY_ORB_VFX` `Texture` (no instance `img`), requiring
+      the `rotation` field, using its own src rect `0,0,32,32` and fixed origin/size (guard/flip/mirror
+      predicates do not apply). `renderTexture` snapshots the shared RNG state ONCE before ANY pass,
+      then per pass pulls the ranges in order and draws the texture with those scales; on ANY throw
+      during ANY pass it RESTORES the snapshot before returning `false` (a fail-open leaves the stream
+      untouched and native re-consumes), and the success path does not restore. Single-draw kinds
+      (empty outer list) keep the existing behavior (no RNG unless WRATH on the img path).
+      `VfxClaimPolicy.STANCE_CHANGE_ABSORPTION` appends LAST to `supportedClasses()`/`supports(...)`.
+      `VfxLabSpawn.classNameFor` gains `"absorption"`/`"absorb"` (no collision with the existing
+      aliases) → `new StanceChangeAbsorptionParticle(Color.WHITE, 960f, 540f)` behind the existing
+      fail-open guard, and `art claim spawn absorption 4` runs in both `d1_aura_claim.yaml` phases.
+      D1 evidence boundary stays as in F24 (the read-only probe cannot observe the RNG-derived scales;
+      unit tests pin the exact four-call order/ranges and the post-consumption RNG restore). With F24
+      (Wrath) + F25 (Absorption), the `vfx-stance-aura` family's deterministic AND non-deterministic
+      paths are BOTH covered. No new patch/bridge/console wiring; default-off gate + per-instance token
+      semantics unchanged. Focused no-GL JUnit only.
 
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,

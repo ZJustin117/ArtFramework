@@ -83,6 +83,14 @@ import java.lang.reflect.Field;
  * ({@link VfxDrawGeometry#randomRanges}, pulled only once committed to the draw and never on a
  * fail-open), and guards its draw with {@code if (delayTimer > 0f) return}
  * ({@link VfxDrawGeometry#guardBlocks}, the generalized guard threshold).
+ * The newest (F25) member is the {@code vfx-stance-aura} {@code StanceChangeAbsorptionParticle} —
+ * the seam's FIRST MULTI-DRAW kind: additive, it draws the static {@code ImageMaster.WOBBLY_ORB_VFX}
+ * {@code Texture} TWICE with the SAME shape-C fixed rect (offset/origin {@code 16f}, size
+ * {@code 32f&times;32f}, src {@code 0,0,32,32}, rotation offset {@code -200f}) and consumes four
+ * {@code MathUtils.random(...)} values in order, replayed via
+ * {@link VfxDrawGeometry#drawPassRandomRanges} (the shared RNG is snapshotted once and restored on
+ * any post-consumption fail-open). With it, both {@code vfx-stance-aura} non-deterministic paths are
+ * claimed.
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -364,7 +372,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.UNKNOWN_PARTICLE
                 || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
-                || kind == VfxDrawGeometry.Kind.FALLING_ICE;
+                || kind == VfxDrawGeometry.Kind.FALLING_ICE
+                || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
@@ -561,8 +570,13 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * Snapshot of the shared global RNG state for the current {@code MathUtils.random} instance, or
      * {@code null} when it is not a libGDX {@link com.badlogic.gdx.math.RandomXS128} (whose two seed
      * longs fully determine the next draw). Taken BEFORE any RNG value is pulled so that a
-     * post-consumption fail-open can restore the stream exactly, keeping the seam's contract that the
-     * global RNG is advanced exactly once per successful draw and never on a fail-open. Never throws.
+     * post-consumption fail-open can restore the stream exactly, keeping the seam's contract that a
+     * fail-open never advances the global RNG and a successful draw advances it exactly as often as
+     * the kind's native render does — the renderer snapshots here and restores on any
+     * post-consumption fail-open, while the number of advances per successful draw is the kind's
+     * {@link VfxDrawGeometry#randomRanges} plus {@link VfxDrawGeometry#drawPassRandomRanges} RNG-call
+     * count ({@code 0} for the deterministic kinds, {@code 2} for {@code WRATH_STANCE_CHANGE}, and
+     * {@code 4} for the multi-draw {@code STANCE_CHANGE_ABSORPTION}). Never throws.
      */
     private static long[] rngSnapshot() {
         try {
@@ -836,7 +850,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
-                || kind == VfxDrawGeometry.Kind.FALLING_ICE;
+                || kind == VfxDrawGeometry.Kind.FALLING_ICE
+                || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION;
     }
 
     /**
@@ -885,6 +900,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             // WarningSignEffect draws the static ImageMaster.WARNING_ICON_VFX Texture.
             return ImageMaster.WARNING_ICON_VFX;
         }
+        if (kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION) {
+            // StanceChangeAbsorptionParticle draws the static ImageMaster.WOBBLY_ORB_VFX Texture
+            // (it has no instance Texture img).
+            return ImageMaster.WOBBLY_ORB_VFX;
+        }
         if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
             return ImageMaster.INTENT_DEFEND;
         }
@@ -914,6 +934,15 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@link VfxDrawGeometry#whiteAlphaOnly} color rule (Web and Entangle force the set color's RGB
      * to white),
      * and restores blend/color. Fails open ({@code false}, no side effects) on any missing input.
+     *
+     * <p>MULTI-DRAW (NRO-04 F25): a kind whose {@link VfxDrawGeometry#drawPassRandomRanges} is
+     * non-empty (today only {@code STANCE_CHANGE_ABSORPTION}) issues several RNG-consuming draws. The
+     * shared RNG state is snapshotted ONCE before any pass; then for each pass in order, each inner
+     * range in order pulls one {@code MathUtils.random(min, max)} and multiplies into scaleX (first)
+     * then scaleY (second), and the pass's draw is replayed with those scales. A throw during any
+     * pass restores the snapshot (so a fail-open leaves the global stream untouched and native
+     * re-consumes it); the success path does not restore. Every other kind keeps the single-draw path
+     * (no RNG unless it is {@code WRATH_STANCE_CHANGE} on the img path).
      */
     private boolean renderTexture(SpriteBatch sb, VfxDrawGeometry.Kind kind,
             AbstractGameEffect effect) {
@@ -979,6 +1008,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.FALLING_ICE_SRC_Y;
             srcW = VfxDrawGeometry.FALLING_ICE_SRC_W;
             srcH = VfxDrawGeometry.FALLING_ICE_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION) {
+            // StanceChangeAbsorptionParticle passes the full 32x32 rect as its src rect.
+            srcX = VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_X;
+            srcY = VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_Y;
+            srcW = VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_W;
+            srcH = VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_H;
         } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
             // WebParticleEffect and EntangleEffect share the static WEB_VFX src rect.
@@ -999,16 +1034,53 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         boolean additive = VfxDrawGeometry.additiveBlend(kind);
         Color previous = new Color(sb.getColor());
         boolean blendChanged = false;
+        // F25 MULTI-DRAW: kinds whose native render issues several RNG-consuming draws (today
+        // StanceChangeAbsorptionParticle) expose an ordered per-pass range list; every other kind
+        // returns an empty outer list and keeps the single-draw path (no RNG). The shared RNG state
+        // is snapshotted ONCE BEFORE any pass so a post-consumption throw can restore it exactly.
+        java.util.List<java.util.List<float[]>> drawPasses =
+                VfxDrawGeometry.drawPassRandomRanges(kind);
+        long[] rngSnapshot = drawPasses.isEmpty() ? null : rngSnapshot();
         try {
             sb.setColor(resolveColor(kind, f.color));
             if (additive) {
                 sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
                 blendChanged = true;
             }
-            sb.draw(texture, p.x, p.y, p.originX, p.originY, p.width, p.height,
-                    p.scaleX, p.scaleY, p.rotation, srcX, srcY, srcW, srcH,
-                    f.flipX, f.flipY);
+            if (drawPasses.isEmpty()) {
+                sb.draw(texture, p.x, p.y, p.originX, p.originY, p.width, p.height,
+                        p.scaleX, p.scaleY, p.rotation, srcX, srcY, srcW, srcH,
+                        f.flipX, f.flipY);
+            } else {
+                for (int passIndex = 0; passIndex < drawPasses.size(); passIndex++) {
+                    java.util.List<float[]> ranges = drawPasses.get(passIndex);
+                    // Per pass: pull one MathUtils.random(min,max) per inner range IN ORDER and
+                    // multiply into scaleX (first) then scaleY (second), matching the native call
+                    // sequence exactly so the global stream and the pixels stay identical.
+                    float scaleX = p.scaleX;
+                    float scaleY = p.scaleY;
+                    for (int i = 0; i < ranges.size(); i++) {
+                        float[] range = ranges.get(i);
+                        float factor =
+                                com.badlogic.gdx.math.MathUtils.random(range[0], range[1]);
+                        if (i == 0) {
+                            scaleX = p.scaleX * factor;
+                        } else if (i == 1) {
+                            scaleY = p.scaleY * factor;
+                        }
+                    }
+                    sb.draw(texture, p.x, p.y, p.originX, p.originY, p.width, p.height,
+                            scaleX, scaleY, p.rotation, srcX, srcY, srcW, srcH,
+                            f.flipX, f.flipY);
+                }
+            }
             return true;
+        } catch (Throwable ignored) {
+            // A throw after the per-pass RNG values were pulled must not leak RNG consumption:
+            // restore the single snapshot (taken before ANY pass) so the native fallback consumes
+            // exactly the values it expects.
+            restoreRng(rngSnapshot);
+            return false;
         } finally {
             try {
                 if (blendChanged) {

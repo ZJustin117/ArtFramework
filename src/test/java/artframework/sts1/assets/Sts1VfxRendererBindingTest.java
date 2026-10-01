@@ -86,6 +86,9 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE));
         assertTrue(VfxArtRenderer.isReady(
                 "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle"));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION));
+        assertTrue(VfxArtRenderer.isReady(
+                "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle"));
 
         // A near-miss stays not-ready.
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_AURA_EFFECT + "$Sub"));
@@ -163,6 +166,9 @@ public class Sts1VfxRendererBindingTest {
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE + "$Sub"));
         assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE + "2"));
         assertFalse(VfxArtRenderer.isReady("WrathStanceChangeParticle"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION + "$Sub"));
+        assertFalse(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION + "2"));
+        assertFalse(VfxArtRenderer.isReady("StanceChangeAbsorptionParticle"));
     }
 
     @Test
@@ -216,53 +222,56 @@ public class Sts1VfxRendererBindingTest {
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.CAMPFIRE_SLEEP_COVER));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.DEATH_SCREEN_FLOATY));
         assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE));
-        assertEquals("the newest F24 FQN is appended last",
-                VfxClaimPolicy.WRATH_STANCE_CHANGE, supported.get(supported.size() - 1));
+        assertTrue(VfxArtRenderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION));
+        assertEquals("the newest F25 FQN is appended last",
+                VfxClaimPolicy.STANCE_CHANGE_ABSORPTION, supported.get(supported.size() - 1));
+        assertEquals("the F24 FQN is appended before it, in order",
+                VfxClaimPolicy.WRATH_STANCE_CHANGE, supported.get(supported.size() - 2));
         assertEquals("the three F23 FQNs are appended before it, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.SPOOKIER_CHEST,
                         VfxClaimPolicy.CAMPFIRE_SLEEP_COVER, VfxClaimPolicy.DEATH_SCREEN_FLOATY),
-                supported.subList(supported.size() - 4, supported.size() - 1));
+                supported.subList(supported.size() - 5, supported.size() - 2));
         assertEquals("the F22 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.SPOOKY_CHEST,
                         VfxClaimPolicy.IRONCLAD_VICTORY_FLAME),
-                supported.subList(supported.size() - 6, supported.size() - 4));
+                supported.subList(supported.size() - 7, supported.size() - 5));
         assertEquals("the F21 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FALLING_ICE,
                         VfxClaimPolicy.DAMAGE_HEART),
-                supported.subList(supported.size() - 8, supported.size() - 6));
+                supported.subList(supported.size() - 9, supported.size() - 7));
         assertEquals("the F20 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FLYING_SPIKE,
                         VfxClaimPolicy.CONE_EFFECT),
-                supported.subList(supported.size() - 10, supported.size() - 8));
+                supported.subList(supported.size() - 11, supported.size() - 9));
         assertEquals("the F19 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.LIGHTNING_ORB_PASSIVE,
                         VfxClaimPolicy.GLOWY_FIRE_EYES),
-                supported.subList(supported.size() - 12, supported.size() - 10));
+                supported.subList(supported.size() - 13, supported.size() - 11));
         assertEquals("the F18 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.TORCH_PARTICLE_M,
                         VfxClaimPolicy.TORCH_PARTICLE_S, VfxClaimPolicy.SCENE_DUST),
-                supported.subList(supported.size() - 15, supported.size() - 12));
+                supported.subList(supported.size() - 16, supported.size() - 13));
         assertEquals("the F17 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.LIGHTNING_EFFECT, VfxClaimPolicy.FLAME_BALL,
                         VfxClaimPolicy.SHINE_LINES),
-                supported.subList(supported.size() - 18, supported.size() - 15));
+                supported.subList(supported.size() - 19, supported.size() - 16));
         assertEquals("the F16 FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.WARNING_SIGN, VfxClaimPolicy.STUN_STAR,
                         VfxClaimPolicy.FALLING_DUST),
-                supported.subList(supported.size() - 21, supported.size() - 18));
+                supported.subList(supported.size() - 22, supported.size() - 19));
         assertEquals("the five newest FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FLAME_PARTICLE,
                         VfxClaimPolicy.LIGHTNING_ORB_ACTIVATE, VfxClaimPolicy.DAMAGE_IMPACT_BLUR,
                         VfxClaimPolicy.DAMAGE_IMPACT_LINE, VfxClaimPolicy.DARK_ORB_PASSIVE),
-                supported.subList(supported.size() - 26, supported.size() - 21));
+                supported.subList(supported.size() - 27, supported.size() - 22));
         assertEquals("the four newest FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ENTANGLE_EFFECT,
                         VfxClaimPolicy.BLOCK_IMPACT_LINE, VfxClaimPolicy.EXHAUST_PILE_PARTICLE,
                         VfxClaimPolicy.UNKNOWN_PARTICLE),
-                supported.subList(supported.size() - 30, supported.size() - 26));
+                supported.subList(supported.size() - 31, supported.size() - 27));
         assertEquals("the two next-newest FQNs are appended before them, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.ICE_SHATTER, VfxClaimPolicy.WEB_PARTICLE),
-                supported.subList(supported.size() - 32, supported.size() - 30));
+                supported.subList(supported.size() - 33, supported.size() - 31));
         assertEquals("the thirteen newest FQNs are appended last, in order",
                 java.util.Arrays.asList(VfxClaimPolicy.FIRE_BURST, VfxClaimPolicy.RED_FIRE_BURST,
                         VfxClaimPolicy.SMOKE_BLUR, VfxClaimPolicy.CEILING_DUST,
@@ -271,7 +280,7 @@ public class Sts1VfxRendererBindingTest {
                         VfxClaimPolicy.GHOSTLY_WEAK_FIRE, VfxClaimPolicy.GENERIC_SMOKE,
                         VfxClaimPolicy.EXHAUST_BLUR, VfxClaimPolicy.ICE_SHATTER,
                         VfxClaimPolicy.WEB_PARTICLE),
-                supported.subList(supported.size() - 43, supported.size() - 30));
+                supported.subList(supported.size() - 44, supported.size() - 31));
     }
 
     @Test

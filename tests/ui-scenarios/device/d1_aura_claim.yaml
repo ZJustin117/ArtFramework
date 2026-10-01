@@ -33,6 +33,12 @@
 # x, consumes two ordered MathUtils.random values for scaleX/scaleY (replayed by the seam to keep the
 # global RNG stream identical), and is guarded by `if (delayTimer > 0f) return` (the generalized guard
 # threshold; a spawned lab instance uses delayTimer 0f so the guard is satisfied and ART may draw).
+# The newest is StanceChangeAbsorptionParticle (vfx-stance-aura) — the seam's FIRST MULTI-DRAW kind:
+# additive, it draws the static ImageMaster.WOBBLY_ORB_VFX Texture TWICE with the same shape-C fixed
+# rect (offset/origin 16f, size 32x32, src 0,0,32,32, rotation offset -200f) and consumes FOUR
+# MathUtils.random values in order (two per pass), replayed by the seam to keep the global RNG stream
+# identical (snapshot taken once, restored on any post-consumption fail-open). With it, both
+# vfx-stance-aura non-deterministic paths (Wrath + Absorption) are claimed.
 # NOTE: a freshly lab-spawned FallingIceEffect/DamageHeartEffect starts with its guard UNSATISFIED
 # (waitTimer/delayTimer >= 0f), so the spawn-frame evidence for these two is the per-FQN
 # active/entity delta on spawn (observation), NOT a draw increase at spawn. The kinds then diverge:
@@ -149,6 +155,7 @@ steps:
   - console: "art claim spawn campfiresleepcover 4"
   - console: "art claim spawn deathfloaty 4"
   - console: "art claim spawn wrathchange 4"
+  - console: "art claim spawn absorption 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -233,6 +240,7 @@ steps:
   - console: "art claim spawn campfiresleepcover 4"
   - console: "art claim spawn deathfloaty 4"
   - console: "art claim spawn wrathchange 4"
+  - console: "art claim spawn absorption 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

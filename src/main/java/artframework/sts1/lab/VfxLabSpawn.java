@@ -52,6 +52,7 @@ import com.megacrit.cardcrawl.vfx.stance.CalmParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
+import com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle;
 import com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle;
 
@@ -97,7 +98,10 @@ import java.util.function.Predicate;
  * {@code DeathScreenFloatyEffect} (root; ambient center-packed without flip flags, NO-ARG
  * constructor), plus the newest member {@code WrathStanceChangeParticle} (root; additive
  * center-packed, player-hitbox-relative x, two {@code MathUtils.random} draws, guard
- * {@code delayTimer <= 0f}; ctor {@code (float)}) into the
+ * {@code delayTimer <= 0f}; ctor {@code (float)}), plus the newest member
+ * {@code StanceChangeAbsorptionParticle} (root; additive, the seam's FIRST MULTI-DRAW kind — two
+ * draws of the static {@code ImageMaster.WOBBLY_ORB_VFX} Texture with four {@code MathUtils.random}
+ * draws in order; ctor {@code (Color, float, float)}) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -294,6 +298,9 @@ public final class VfxLabSpawn {
         }
         if ("wrathchange".equalsIgnoreCase(value) || "wrathstance".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.WRATH_STANCE_CHANGE;
+        }
+        if ("absorption".equalsIgnoreCase(value) || "absorb".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.STANCE_CHANGE_ABSORPTION;
         }
         return null;
     }
@@ -704,6 +711,13 @@ public final class VfxLabSpawn {
             // any failure is caught by spawn's fail-open guard rather than propagating. delayTimer 0f
             // means the guard `if (delayTimer > 0f) return` is satisfied (native draws).
             return new WrathStanceChangeParticle(0f);
+        }
+        if (VfxClaimPolicy.STANCE_CHANGE_ABSORPTION.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. StanceChangeAbsorptionParticle's ctor is
+            // (Color, float, float) and draws the static ImageMaster.WOBBLY_ORB_VFX Texture (resolved
+            // at draw time), which may be null off-game; any failure is caught by spawn's fail-open
+            // guard rather than propagating.
+            return new StanceChangeAbsorptionParticle(Color.WHITE, 960f, 540f);
         }
         return null;
     }

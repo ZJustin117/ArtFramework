@@ -239,6 +239,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect";
     public static final String WRATH_STANCE_CHANGE =
             "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle";
+    public static final String STANCE_CHANGE_ABSORPTION =
+            "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -256,7 +258,7 @@ public final class VfxClaimPolicy {
                     LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT,
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
-                    WRATH_STANCE_CHANGE));
+                    WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION));
 
     private VfxClaimPolicy() {}
 
@@ -317,7 +319,8 @@ public final class VfxClaimPolicy {
                 || SPOOKIER_CHEST.equals(value)
                 || CAMPFIRE_SLEEP_COVER.equals(value)
                 || DEATH_SCREEN_FLOATY.equals(value)
-                || WRATH_STANCE_CHANGE.equals(value);
+                || WRATH_STANCE_CHANGE.equals(value)
+                || STANCE_CHANGE_ABSORPTION.equals(value);
     }
 
     /**
@@ -423,6 +426,19 @@ public final class VfxClaimPolicy {
      * unlike the {@code >= 0f} FALLING_ICE/DAMAGE_HEART guards), and a player-hitbox-relative x rule
      * ({@link VfxDrawGeometry#playerHitboxRelativeX}). It is additive center-packed and is appended
      * LAST after the death screen floaty effect.
+     * The newest (F25) member is the {@code vfx-stance-aura} {@code StanceChangeAbsorptionParticle} —
+     * the seam's SECOND non-deterministic native effect and its first MULTI-DRAW kind: its native
+     * {@code render} draws the SAME static {@code ImageMaster.WOBBLY_ORB_VFX} {@code Texture} TWICE
+     * (two additive shape-C fixed-rect draws sharing offset {@code x - 16f, y - 16f}, origin
+     * {@code 16f, 16f}, size {@code 32f, 32f}, src {@code 0, 0, 32, 32} and rotation
+     * {@code rotation - 200f}), consuming FOUR {@code MathUtils.random(...)} values in order — two
+     * per pass, each multiplying the pass's scaleX then scaleY ({@code [0.5f, 2.0f]} for pass 0 and
+     * {@code [0.6f, 2.5f]} for pass 1). The seam gained a MULTI-DRAW RNG-REPLAY capability
+     * ({@link VfxDrawGeometry#drawPassRandomRanges}), whose ordered per-pass ranges the renderer
+     * replays exactly (snapshotting the shared RNG once and restoring it on any post-consumption
+     * fail-open). Its {@code update()} consumes no RNG. It is appended LAST after
+     * {@code WrathStanceChangeParticle}; both {@code vfx-stance-aura} non-deterministic paths are now
+     * claimed.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

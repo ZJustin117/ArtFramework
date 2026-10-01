@@ -282,6 +282,12 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle"));
+        // The newest F25 member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION));
+        assertSame(VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle"));
     }
 
     @Test
@@ -707,6 +713,18 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.stance.WrathStanceChange")); // near-miss (no Particle)
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.stance.WrathStanceAuraParticle")); // near-miss
+        // The newest F25 member: exact FQN only, near-misses fail open.
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("StanceChangeAbsorptionParticle")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.StanceChangeAbsorptionParticle")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorption")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.AbsorptionParticle")); // near-miss
     }
 
     @Test
@@ -2093,6 +2111,12 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY));
 
+        // The newest F25 member is additive (it installs/restores the additive blend natively).
+        assertTrue("STANCE_CHANGE_ABSORPTION installs the additive blend",
+                VfxDrawGeometry.additiveBlend(
+                        VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -2693,6 +2717,114 @@ public class VfxDrawGeometryTest {
     public void guardFieldNameNullKindThrowsIllegalArgument() {
         try {
             VfxDrawGeometry.guardFieldName(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void stanceChangeAbsorptionUsesTheFixedShapeCRectAndRotationOffset() {
+        // Native StanceChangeAbsorptionParticle:
+        //   sb.draw(ImageMaster.WOBBLY_ORB_VFX, x - 16f, y - 16f, 16f, 16f, 32f, 32f, <scales>,
+        //           rotation - 200f, 0, 0, 32, 32, false, false) TWICE.
+        // params returns the shared fixed rect with the BASE (scale, scale); the per-pass RNG scales
+        // are applied by the renderer (drawPassRandomRanges).
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.7f;
+        float rotation = 210f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f /* durDiv2 ignored */,
+                5f /* duration ignored */, 2f /* settingsScale ignored */,
+                64f /* packedWidth ignored */, 48f /* packedHeight ignored */,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 10f /* regionOffsetY ignored */,
+                0f, 0f);
+
+        assertEquals(x - 16f, p.x, EPS);
+        assertEquals(y - 16f, p.y, EPS);
+        assertEquals(16f, p.originX, EPS);
+        assertEquals(16f, p.originY, EPS);
+        assertEquals(32f, p.width, EPS);
+        assertEquals(32f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("the rotation is offset by -200f", rotation - 200f, p.rotation, EPS);
+
+        // A different packed size / vY / region offsets produce byte-identical geometry.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION,
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
+        assertEquals(p, q);
+
+        // Host-neutral constants match the native hardcoded rect.
+        assertEquals(16f, VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_OFFSET, EPS);
+        assertEquals(16f, VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_ORIGIN, EPS);
+        assertEquals(32f, VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SIZE, EPS);
+        assertEquals(-200f, VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_ROTATION_OFFSET, EPS);
+        assertEquals(0, VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_X);
+        assertEquals(0, VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_Y);
+        assertEquals(32, VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_W);
+        assertEquals(32, VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_H);
+
+        assertTrue("STANCE_CHANGE_ABSORPTION installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        // It is a MULTI-DRAW kind, so the single-draw randomRanges list stays empty.
+        assertTrue(VfxDrawGeometry.randomRanges(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION).isEmpty());
+    }
+
+    @Test
+    public void drawPassRandomRangesIsTheOrderedTwoPassSequenceForAbsorption() {
+        java.util.List<java.util.List<float[]>> passes = VfxDrawGeometry.drawPassRandomRanges(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION);
+
+        assertEquals("Absorption draws in exactly two passes", 2, passes.size());
+        // Pass 0: scaleX then scaleY, both (0.5f, 2.0f).
+        assertEquals(2, passes.get(0).size());
+        assertEquals(0.5f, passes.get(0).get(0)[0], EPS);
+        assertEquals(2.0f, passes.get(0).get(0)[1], EPS);
+        assertEquals(0.5f, passes.get(0).get(1)[0], EPS);
+        assertEquals(2.0f, passes.get(0).get(1)[1], EPS);
+        // Pass 1: scaleX then scaleY, both (0.6f, 2.5f).
+        assertEquals(2, passes.get(1).size());
+        assertEquals(0.6f, passes.get(1).get(0)[0], EPS);
+        assertEquals(2.5f, passes.get(1).get(0)[1], EPS);
+        assertEquals(0.6f, passes.get(1).get(1)[0], EPS);
+        assertEquals(2.5f, passes.get(1).get(1)[1], EPS);
+
+        // Every other kind has an EMPTY outer list (WRATH keeps its single-draw randomRanges).
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION) continue;
+            assertTrue("no multi-pass RNG for " + kind,
+                    VfxDrawGeometry.drawPassRandomRanges(kind).isEmpty());
+        }
+        assertTrue("Wrath has no multi-pass ranges (single-draw randomRanges)",
+                VfxDrawGeometry.drawPassRandomRanges(
+                        VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE).isEmpty());
+    }
+
+    @Test
+    public void drawPassRandomRangesNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.drawPassRandomRanges(null);
             fail("expected IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
             // expected

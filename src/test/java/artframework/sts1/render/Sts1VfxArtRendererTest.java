@@ -2038,6 +2038,9 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2122,6 +2125,8 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.DEATH_SCREEN_FLOATY + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.WrathStanceChangeParticle"));
         assertFalse(renderer.isReady(
@@ -2965,6 +2970,188 @@ public class Sts1VfxArtRendererTest {
         }
     }
 
+    // --- F25 StanceChangeAbsorptionParticle: multi-draw RNG replay ---
+
+    /** Real {@code StanceChangeAbsorptionParticle} with the static WOBBLY_ORB_VFX texture injected. */
+    private static AbstractGameEffect seededStanceChangeAbsorption(float x, float y, float scale,
+            float rotation) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle effect =
+                    (com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.stance
+                                            .StanceChangeAbsorptionParticle.class);
+            setField(effect,
+                    com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle.class,
+                    "x", Float.valueOf(x));
+            setField(effect,
+                    com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle.class,
+                    "y", Float.valueOf(y));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL StanceChangeAbsorptionParticle", failure);
+        }
+    }
+
+    @Test
+    public void stanceChangeAbsorptionDrawsTwoPassesWithExactlyFourOrderedRngDraws() {
+        // Native StanceChangeAbsorptionParticle.render draws ImageMaster.WOBBLY_ORB_VFX TWICE:
+        //   setColor(color); setBlendFunction(770, 1);
+        //   sb.draw(t, x - 16f, y - 16f, 16f, 16f, 32f, 32f,
+        //           scale * MathUtils.random(0.5f, 2.0f), scale * MathUtils.random(0.5f, 2.0f),
+        //           rotation - 200f, 0, 0, 32, 32, false, false);
+        //   sb.draw(t, x - 16f, y - 16f, 16f, 16f, 32f, 32f,
+        //           scale * MathUtils.random(0.6f, 2.5f), scale * MathUtils.random(0.6f, 2.5f),
+        //           rotation - 200f, 0, 0, 32, 32, false, false);
+        //   setBlendFunction(770, 771);
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Texture previous = ImageMaster.WOBBLY_ORB_VFX;
+        Texture injected = noGlTexture(32, 32);
+        java.util.Random savedRandom = MathUtils.random;
+        java.util.Random live = new java.util.Random(13572468L);
+        java.util.Random mirror = new java.util.Random(13572468L);
+        MathUtils.random = live;
+        try {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", injected);
+            assertSame(injected, ImageMaster.WOBBLY_ORB_VFX);
+
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect =
+                    seededStanceChangeAbsorption(7.5f, -3.25f, 0.6f, 210f);
+
+            assertTrue("a StanceChangeAbsorptionParticle draws", renderer.render(batch, effect));
+            assertEquals("the multi-draw kind installs and restores the additive blend",
+                    2, batch.setBlendCalls);
+            assertEquals("the multi-draw kind issues exactly TWO draws", 2, batch.drawCalls);
+            assertNotNull(batch.allTextureDrawArgs);
+            assertEquals(2, batch.allTextureDrawArgs.size());
+
+            // Pass 0 (index 0): offset x-16/y-16, origin 16, size 32x32, rotation-200.
+            float[] pass0 = batch.allTextureDrawArgs.get(0);
+            assertEquals(7.5f - 16f, pass0[0], EPS);
+            assertEquals(-3.25f - 16f, pass0[1], EPS);
+            assertEquals(16f, pass0[2], EPS);
+            assertEquals(16f, pass0[3], EPS);
+            assertEquals(32f, pass0[4], EPS);
+            assertEquals(32f, pass0[5], EPS);
+            assertEquals("the rotation is offset by -200f", 210f - 200f, pass0[8], EPS);
+
+            // Pass 1 (index 1): same rect/rotation.
+            float[] pass1 = batch.allTextureDrawArgs.get(1);
+            assertEquals(7.5f - 16f, pass1[0], EPS);
+            assertEquals(-3.25f - 16f, pass1[1], EPS);
+            assertEquals(16f, pass1[2], EPS);
+            assertEquals(16f, pass1[3], EPS);
+            assertEquals(32f, pass1[4], EPS);
+            assertEquals(32f, pass1[5], EPS);
+            assertEquals("the rotation is offset by -200f", 210f - 200f, pass1[8], EPS);
+
+            // The four RNG values are pulled in the EXACT native order/ranges, two per pass.
+            float r0 = 0.5f + mirror.nextFloat() * (2.0f - 0.5f);
+            float r1 = 0.5f + mirror.nextFloat() * (2.0f - 0.5f);
+            float r2 = 0.6f + mirror.nextFloat() * (2.5f - 0.6f);
+            float r3 = 0.6f + mirror.nextFloat() * (2.5f - 0.6f);
+            assertEquals("pass 0 scaleX is scale * the (0.5,2.0) first RNG draw",
+                    0.6f * r0, pass0[6], EPS);
+            assertEquals("pass 0 scaleY is scale * the (0.5,2.0) second RNG draw",
+                    0.6f * r1, pass0[7], EPS);
+            assertEquals("pass 1 scaleX is scale * the (0.6,2.5) third RNG draw",
+                    0.6f * r2, pass1[6], EPS);
+            assertEquals("pass 1 scaleY is scale * the (0.6,2.5) fourth RNG draw",
+                    0.6f * r3, pass1[7], EPS);
+
+            // Exactly four RNG draws in order: the live stream now matches the mirror's 5th draw.
+            assertEquals("the multi-draw consumed exactly four RNG values in order",
+                    mirror.nextFloat(), live.nextFloat(), 0f);
+
+            assertTrue("a drawable Absorption instance canDraw", renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", previous);
+            MathUtils.random = savedRandom;
+        }
+    }
+
+    @Test
+    public void stanceChangeAbsorptionRestoresRngOnAPostConsumptionFailOpen() {
+        // The multi-draw snapshot is taken ONCE before ANY pass: if pass 1's draw throws AFTER all
+        // four RNG values were pulled, the renderer must restore the stream so the native fallback
+        // consumes exactly the four values it expects and the global stream does not drift.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Texture previous = ImageMaster.WOBBLY_ORB_VFX;
+        Texture injected = noGlTexture(32, 32);
+        java.util.Random savedRandom = MathUtils.random;
+        com.badlogic.gdx.math.RandomXS128 rng = new com.badlogic.gdx.math.RandomXS128(777777L);
+        MathUtils.random = rng;
+        try {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", injected);
+            AbstractGameEffect effect =
+                    seededStanceChangeAbsorption(7.5f, -3.25f, 0.6f, 210f);
+            long before0 = rng.getState(0);
+            long before1 = rng.getState(1);
+
+            CountingBatch batch = newCountingBatch();
+            batch.throwOnTextureDrawIndex = 1; // pass 1's draw
+            assertFalse("a pass-1 throw must fail open", renderer.render(batch, effect));
+
+            assertEquals("RNG seed0 is restored after a post-consumption fail-open",
+                    before0, rng.getState(0));
+            assertEquals("RNG seed1 is restored after a post-consumption fail-open",
+                    before1, rng.getState(1));
+
+            // A retry reproduces the FIRST four values of the stream, proving none were lost.
+            com.badlogic.gdx.math.RandomXS128 mirrorValueRng =
+                    new com.badlogic.gdx.math.RandomXS128(777777L);
+            float e0 = mirrorValueRng.nextFloat();
+            float e1 = mirrorValueRng.nextFloat();
+            float e2 = mirrorValueRng.nextFloat();
+            float e3 = mirrorValueRng.nextFloat();
+            CountingBatch okBatch = newCountingBatch();
+            assertTrue("the retry draws", renderer.render(okBatch, effect));
+            assertEquals(2, okBatch.drawCalls);
+            assertEquals(0.6f * (0.5f + e0 * 1.5f), okBatch.allTextureDrawArgs.get(0)[6], EPS);
+            assertEquals(0.6f * (0.5f + e1 * 1.5f), okBatch.allTextureDrawArgs.get(0)[7], EPS);
+            assertEquals(0.6f * (0.6f + e2 * 1.9f), okBatch.allTextureDrawArgs.get(1)[6], EPS);
+            assertEquals(0.6f * (0.6f + e3 * 1.9f), okBatch.allTextureDrawArgs.get(1)[7], EPS);
+        } finally {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", previous);
+            MathUtils.random = savedRandom;
+        }
+    }
+
+    @Test
+    public void stanceChangeAbsorptionIsReadyAndDrawsTheStaticWobblyOrbTexture() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        assertTrue(renderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle"));
+
+        Texture previous = ImageMaster.WOBBLY_ORB_VFX;
+        Texture injected = noGlTexture(32, 32);
+        try {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", injected);
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect =
+                    seededStanceChangeAbsorption(1f, 2f, 1f, 0f);
+            assertTrue(renderer.render(batch, effect));
+            assertSame("the static ImageMaster.WOBBLY_ORB_VFX texture is drawn",
+                    injected, batch.drawnTexture);
+            // A missing static texture fails the instance open.
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", null);
+            assertFalse("a null WOBBLY_ORB_VFX fails open",
+                    renderer.render(newCountingBatch(), effect));
+            assertFalse(renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", previous);
+        }
+    }
+
     @Test
     public void declinedWithoutPixelsIsInstanceAwareForTheGuardKinds() {
         // NRO-04 F21 benign predicate: true only when THIS instance would natively draw nothing —
@@ -3732,6 +3919,13 @@ public class Sts1VfxArtRendererTest {
         int drawCalls;
         /** When true the packed-region draw overload throws (post-RNG fail-open test). */
         boolean throwOnRegionDraw;
+        /**
+         * When {@code >= 0} the raw-texture draw overload throws on the 0-based texture draw of that
+         * index (the multi-pass post-consumption fail-open test uses index 1, i.e. pass 1).
+         */
+        int throwOnTextureDrawIndex = -1;
+        /** Every raw-texture (shape-C) draw's arguments, in call order. Lazily allocated. */
+        java.util.List<float[]> allTextureDrawArgs;
         /** Count of {@code draw(TextureRegion, ...)} (the packed-region shape) calls. */
         int textureRegionDrawCalls;
         /** The first {@link TextureRegion} passed to the packed-region draw overload. */
@@ -3792,7 +3986,16 @@ public class Sts1VfxArtRendererTest {
                 int srcX, int srcY, int srcWidth, int srcHeight, boolean flipX, boolean flipY) {
             // Record the draw arguments (the render restores state afterwards). Skipping super is
             // deliberate: the real 16-arg overload would touch the (absent) GL texture bind path.
-            if (drawCalls++ == 0) {
+            int index = drawCalls++;
+            if (allTextureDrawArgs == null) {
+                allTextureDrawArgs = new java.util.ArrayList<float[]>();
+            }
+            allTextureDrawArgs.add(new float[] {x, y, originX, originY, width, height,
+                    scaleX, scaleY, rotation, srcX, srcY, srcWidth, srcHeight});
+            if (index == throwOnTextureDrawIndex) {
+                throw new IllegalStateException("post-RNG texture draw boom");
+            }
+            if (index == 0) {
                 drawnTexture = texture;
                 drawnArgs = new float[] {x, y, originX, originY, width, height,
                         scaleX, scaleY, rotation, srcX, srcY, srcWidth, srcHeight};
@@ -3810,6 +4013,8 @@ public class Sts1VfxArtRendererTest {
             unsafeField.setAccessible(true);
             sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
             CountingBatch sb = (CountingBatch) unsafe.allocateInstance(CountingBatch.class);
+            // Unsafe.allocateInstance does not run field initializers, so set the sentinel explicitly.
+            sb.throwOnTextureDrawIndex = -1;
             setField(sb, SpriteBatch.class, "vertices", new float[20 * 4096]);
             setField(sb, SpriteBatch.class, "idx", Integer.valueOf(0));
             setField(sb, SpriteBatch.class, "drawing", Boolean.TRUE);

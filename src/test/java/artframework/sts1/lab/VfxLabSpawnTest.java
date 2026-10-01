@@ -146,6 +146,10 @@ public class VfxLabSpawnTest {
                 VfxLabSpawn.classNameFor("wrathchange"));
         assertEquals(VfxClaimPolicy.WRATH_STANCE_CHANGE,
                 VfxLabSpawn.classNameFor("wrathstance"));
+        assertEquals(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION,
+                VfxLabSpawn.classNameFor("absorption"));
+        assertEquals(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION,
+                VfxLabSpawn.classNameFor("absorb"));
     }
 
     @Test
@@ -601,6 +605,16 @@ public class VfxLabSpawnTest {
         // off-game). "wrathchange"/"wrathstance" do not collide with the existing "wrath" alias.
         assertSpawnRequests("wrathchange", VfxClaimPolicy.WRATH_STANCE_CHANGE);
         assertSpawnRequests("wrathstance", VfxClaimPolicy.WRATH_STANCE_CHANGE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF25AbsorptionThroughTheFactorySeam() {
+        // The newest (F25) claimable FQN; the capturing factory proves both aliases request exactly
+        // that FQN without running the ImageMaster-backed constructor (WOBBLY_ORB_VFX is resolved at
+        // draw time and may be null off-game). "absorption"/"absorb" do not collide with any existing
+        // alias.
+        assertSpawnRequests("absorption", VfxClaimPolicy.STANCE_CHANGE_ABSORPTION);
+        assertSpawnRequests("absorb", VfxClaimPolicy.STANCE_CHANGE_ABSORPTION);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

@@ -260,6 +260,22 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect"));
+        // The three newest F23 members, via constants and literal FQNs.
+        assertSame(VfxDrawGeometry.Kind.SPOOKIER_CHEST,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SPOOKIER_CHEST));
+        assertSame(VfxDrawGeometry.Kind.SPOOKIER_CHEST,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.SpookierChestEffect"));
+        assertSame(VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.CAMPFIRE_SLEEP_COVER));
+        assertSame(VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect"));
+        assertSame(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.DEATH_SCREEN_FLOATY));
+        assertSame(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect"));
     }
 
     @Test
@@ -645,6 +661,34 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.IroncladVictoryFlameEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlame")); // near-miss (no Effect)
+        // The three newest F23 members: exact FQN only, near-misses fail open.
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.SpookierChestEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.SpookierChestEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("SpookierChestEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.SpookierChestEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.SpookierChest")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("CampfireSleepScreenCoverEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.CampfireSleepScreenCoverEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCover")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("DeathScreenFloatyEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.DeathScreenFloatyEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.DeathScreenFloaty")); // near-miss (no Effect)
     }
 
     @Test
@@ -2026,6 +2070,11 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SPOOKY_CHEST));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME));
 
+        // The three newest F23 members are all ambient center-packed (no setBlendFunction).
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SPOOKIER_CHEST));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -2046,7 +2095,10 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.CONE
                     || kind == VfxDrawGeometry.Kind.DAMAGE_HEART
                     || kind == VfxDrawGeometry.Kind.SPOOKY_CHEST
-                    || kind == VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME) {
+                    || kind == VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME
+                    || kind == VfxDrawGeometry.Kind.SPOOKIER_CHEST
+                    || kind == VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER
+                    || kind == VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -2297,7 +2349,10 @@ public class VfxDrawGeometryTest {
 
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.SPOOKY_CHEST,
-                VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME }) {
+                VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME,
+                VfxDrawGeometry.Kind.SPOOKIER_CHEST,
+                VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER,
+                VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY }) {
             VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                     kind, x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f,
                     pw, ph, 1234f /* vX ignored */, 0f, 0f, 0f, 0f);
@@ -2318,10 +2373,20 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.SPOOKY_CHEST));
         assertTrue(VfxDrawGeometry.usesInstanceMirrorX(
                 VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.SPOOKIER_CHEST));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(
+                VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER));
         assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.FLAME_PARTICLE));
         assertTrue(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.SPOOKY_CHEST));
         assertFalse(VfxDrawGeometry.usesInstanceMirrorY(
                 VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.SPOOKIER_CHEST));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorY(
+                VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER));
+        assertFalse("DEATH_SCREEN_FLOATY has no flip flags, so it is not a mirror kind",
+                VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY));
+        assertFalse("DEATH_SCREEN_FLOATY has no flip flags, so it is not a mirror kind",
+                VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY));
 
         // A sample of pre-existing kinds (including the shape-C flip kinds, which are DISTINCT).
         VfxDrawGeometry.Kind[] none = {
@@ -2333,7 +2398,8 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE,
                 VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
                 VfxDrawGeometry.Kind.FALLING_ICE,
-                VfxDrawGeometry.Kind.DAMAGE_HEART };
+                VfxDrawGeometry.Kind.DAMAGE_HEART,
+                VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY };
         for (VfxDrawGeometry.Kind kind : none) {
             assertFalse("no img-path X mirror for " + kind,
                     VfxDrawGeometry.usesInstanceMirrorX(kind));
@@ -2341,17 +2407,35 @@ public class VfxDrawGeometryTest {
                     VfxDrawGeometry.usesInstanceMirrorY(kind));
         }
 
-        // The truth table is exhaustive over the enum.
+        // Independent exhaustive check: enumerate the expected true kinds as fixed data and compare
+        // against the actual true set over every enum constant (rather than restating the production
+        // per-kind disjunction inline).
+        java.util.EnumSet<VfxDrawGeometry.Kind> expectedMirrorX =
+                java.util.EnumSet.of(VfxDrawGeometry.Kind.FLAME_PARTICLE,
+                        VfxDrawGeometry.Kind.SPOOKY_CHEST,
+                        VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME,
+                        VfxDrawGeometry.Kind.SPOOKIER_CHEST,
+                        VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER);
+        java.util.EnumSet<VfxDrawGeometry.Kind> expectedMirrorY =
+                java.util.EnumSet.of(VfxDrawGeometry.Kind.SPOOKY_CHEST,
+                        VfxDrawGeometry.Kind.SPOOKIER_CHEST,
+                        VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER);
+        java.util.EnumSet<VfxDrawGeometry.Kind> actualMirrorX =
+                java.util.EnumSet.noneOf(VfxDrawGeometry.Kind.class);
+        java.util.EnumSet<VfxDrawGeometry.Kind> actualMirrorY =
+                java.util.EnumSet.noneOf(VfxDrawGeometry.Kind.class);
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
-            assertEquals("X mirror truth table for " + kind,
-                    kind == VfxDrawGeometry.Kind.FLAME_PARTICLE
-                            || kind == VfxDrawGeometry.Kind.SPOOKY_CHEST
-                            || kind == VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME,
-                    VfxDrawGeometry.usesInstanceMirrorX(kind));
-            assertEquals("Y mirror truth table for " + kind,
-                    kind == VfxDrawGeometry.Kind.SPOOKY_CHEST,
-                    VfxDrawGeometry.usesInstanceMirrorY(kind));
+            if (VfxDrawGeometry.usesInstanceMirrorX(kind)) {
+                actualMirrorX.add(kind);
+            }
+            if (VfxDrawGeometry.usesInstanceMirrorY(kind)) {
+                actualMirrorY.add(kind);
+            }
         }
+        assertEquals("the X mirror kind set is exactly the expected five",
+                expectedMirrorX, actualMirrorX);
+        assertEquals("the Y mirror kind set is exactly the expected three",
+                expectedMirrorY, actualMirrorY);
     }
 
     @Test

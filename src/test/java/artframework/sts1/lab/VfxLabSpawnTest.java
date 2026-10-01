@@ -131,6 +131,17 @@ public class VfxLabSpawnTest {
                 VfxLabSpawn.classNameFor("victoryflame"));
         assertEquals(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME,
                 VfxLabSpawn.classNameFor("ironcladvictory"));
+        assertEquals(VfxClaimPolicy.SPOOKIER_CHEST,
+                VfxLabSpawn.classNameFor("spookierchest"));
+        assertEquals(VfxClaimPolicy.SPOOKIER_CHEST, VfxLabSpawn.classNameFor("spookier"));
+        assertEquals(VfxClaimPolicy.CAMPFIRE_SLEEP_COVER,
+                VfxLabSpawn.classNameFor("campfiresleepcover"));
+        assertEquals(VfxClaimPolicy.CAMPFIRE_SLEEP_COVER,
+                VfxLabSpawn.classNameFor("sleepcover"));
+        assertEquals(VfxClaimPolicy.DEATH_SCREEN_FLOATY,
+                VfxLabSpawn.classNameFor("deathfloaty"));
+        assertEquals(VfxClaimPolicy.DEATH_SCREEN_FLOATY,
+                VfxLabSpawn.classNameFor("deathscreen"));
     }
 
     @Test
@@ -564,6 +575,19 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("spooky", VfxClaimPolicy.SPOOKY_CHEST);
         assertSpawnRequests("victoryflame", VfxClaimPolicy.IRONCLAD_VICTORY_FLAME);
         assertSpawnRequests("ironcladvictory", VfxClaimPolicy.IRONCLAD_VICTORY_FLAME);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF23MembersThroughTheFactorySeam() {
+        // The three newest claimable FQNs; the capturing factory proves each alias requests exactly
+        // its FQN without running the NO-ARG constructors (whose img comes from static ImageMaster
+        // art and may be null off-game).
+        assertSpawnRequests("spookierchest", VfxClaimPolicy.SPOOKIER_CHEST);
+        assertSpawnRequests("spookier", VfxClaimPolicy.SPOOKIER_CHEST);
+        assertSpawnRequests("campfiresleepcover", VfxClaimPolicy.CAMPFIRE_SLEEP_COVER);
+        assertSpawnRequests("sleepcover", VfxClaimPolicy.CAMPFIRE_SLEEP_COVER);
+        assertSpawnRequests("deathfloaty", VfxClaimPolicy.DEATH_SCREEN_FLOATY);
+        assertSpawnRequests("deathscreen", VfxClaimPolicy.DEATH_SCREEN_FLOATY);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

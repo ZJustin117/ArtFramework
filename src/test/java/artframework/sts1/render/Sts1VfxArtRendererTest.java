@@ -2024,6 +2024,15 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SPOOKIER_CHEST));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.SpookierChestEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.CAMPFIRE_SLEEP_COVER));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.DEATH_SCREEN_FLOATY));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2100,6 +2109,12 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.SPOOKY_CHEST + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SPOOKIER_CHEST + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SPOOKIER_CHEST + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.CAMPFIRE_SLEEP_COVER + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.CAMPFIRE_SLEEP_COVER + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DEATH_SCREEN_FLOATY + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DEATH_SCREEN_FLOATY + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -3999,6 +4014,122 @@ public class Sts1VfxArtRendererTest {
         assertEquals("the vertical extent stays canonical", 20f / 256f, drawn.getV(), 1e-5f);
         assertEquals(68f / 256f, drawn.getV2(), 1e-5f);
         assertEquals("IroncladVictoryFlame is ambient", 0, batch.setBlendCalls);
+    }
+
+    @Test
+    public void spookierChestAndCampfireSleepCoverMirrorTheCanonicalRegionWhenFlipFlagsAreSet() {
+        // NRO-04 F23: both are the same shape as SpookyChestEffect — ambient center-packed with
+        // per-instance flipX+flipY mirror booleans; the claim reproduces the mirror as a UV swap.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Class<? extends AbstractGameEffect>[] types = new Class[] {
+                com.megacrit.cardcrawl.vfx.scene.SpookierChestEffect.class,
+                com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect.class };
+        for (Class<? extends AbstractGameEffect> type : types) {
+            CountingBatch plainBatch = newCountingBatch();
+            assertTrue(renderer.render(plainBatch, seededMirrorEffect(
+                    type, new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                    false, false)));
+            TextureRegion plain = plainBatch.drawnRegion;
+            assertNotNull(plain);
+            assertTrue("flipX false draws the canonical rect for " + type.getSimpleName(),
+                    plain.getU() < plain.getU2());
+            assertTrue("flipY false keeps v canonical for " + type.getSimpleName(),
+                    plain.getV() < plain.getV2());
+
+            CountingBatch bothBatch = newCountingBatch();
+            assertTrue(renderer.render(bothBatch, seededMirrorEffect(
+                    type, new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                    true, true)));
+            TextureRegion both = bothBatch.drawnRegion;
+            assertNotNull(both);
+            assertEquals("the mirrored view swaps u/u2 for " + type.getSimpleName(),
+                    74f / 256f, both.getU(), 1e-5f);
+            assertEquals(10f / 256f, both.getU2(), 1e-5f);
+            assertEquals("the mirrored view swaps v/v2 for " + type.getSimpleName(),
+                    68f / 256f, both.getV(), 1e-5f);
+            assertEquals(20f / 256f, both.getV2(), 1e-5f);
+            assertEquals(type.getSimpleName() + " is ambient", 0, bothBatch.setBlendCalls);
+        }
+    }
+
+    @Test
+    public void deathScreenFloatyResolvesWithNoMirrorFieldsAndDrawsTheCanonicalRegion() {
+        // Danger: DeathScreenFloatyEffect declares NO flip fields, so it must never be treated as a
+        // mirror kind — the canonical region is drawn unchanged and it stays ambient.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        assertTrue(renderer.render(batch, seededDeathFloatyEffect(
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48))));
+        assertEquals("the img path uses the TextureRegion draw overload",
+                1, batch.textureRegionDrawCalls);
+        TextureRegion drawn = batch.drawnRegion;
+        assertNotNull(drawn);
+        assertEquals(10f / 256f, drawn.getU(), 1e-5f);
+        assertEquals(74f / 256f, drawn.getU2(), 1e-5f);
+        assertEquals(20f / 256f, drawn.getV(), 1e-5f);
+        assertEquals(68f / 256f, drawn.getV2(), 1e-5f);
+        assertTrue("an unmirrored draw keeps u < u2", drawn.getU() < drawn.getU2());
+        assertTrue("an unmirrored draw keeps v < v2", drawn.getV() < drawn.getV2());
+        assertEquals("DeathScreenFloaty is ambient", 0, batch.setBlendCalls);
+    }
+
+    @Test
+    public void f23KindsFailOpenOnMissingImgOrRotation() {
+        // These three img kinds consume the rotation field and require the img region, so a holder
+        // with a valid img but no rotation field, or no img at all, fails open.
+        NoRotationImgEffect noRotation = new NoRotationImgEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        assertNull("a SPOOKIER_CHEST holder with img but no rotation field must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.SPOOKIER_CHEST, noRotation));
+        assertNull("a CAMPFIRE_SLEEP_COVER holder with img but no rotation field must fail open",
+                Sts1VfxArtRenderer.readFields(
+                        VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER, noRotation));
+        assertNull("a DEATH_SCREEN_FLOATY holder with img but no rotation field must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY, noRotation));
+
+        NoImgEffect noImg = new NoImgEffect();
+        noImg.x = 1f;
+        noImg.y = 2f;
+        noImg.scale = 1f;
+        noImg.rotation = 0f;
+        noImg.color = Color.WHITE;
+        assertNull("a SPOOKIER_CHEST holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.SPOOKIER_CHEST, noImg));
+        assertNull("a CAMPFIRE_SLEEP_COVER holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER, noImg));
+        assertNull("a DEATH_SCREEN_FLOATY holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY, noImg));
+    }
+
+    /**
+     * Real {@code DeathScreenFloatyEffect} (no flip fields) with reflectively seeded draw fields
+     * (no GL).
+     */
+    private static AbstractGameEffect seededDeathFloatyEffect(TextureAtlas.AtlasRegion region) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.allocateInstance(
+                    com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect.class, "x",
+                    Float.valueOf(5f));
+            setField(effect, com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect.class, "y",
+                    Float.valueOf(6f));
+            setField(effect, com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect.class, "img",
+                    region);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL DeathScreenFloatyEffect", failure);
+        }
     }
 
     @Test

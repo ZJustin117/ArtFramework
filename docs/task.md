@@ -688,6 +688,34 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       console wiring; default-off gate + per-instance token semantics unchanged. Focused no-GL JUnit
       only.
 
+- [x] NRO-04 F23 (three more native transient effects on the family-neutral default-off per-instance
+      claim seam; NO new formula/capability):
+      `SpookierChestEffect` (`vfx-scene-world`), `CampfireSleepScreenCoverEffect`
+      (`vfx-campfire-rest`), and `DeathScreenFloatyEffect` (`vfx-misc-root`) — all NO-ARG constructors
+      verified via `javap -c -p` — reuse the existing AMBIENT center-packed img branch
+      (`sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)`, NO `setBlendFunction`) with
+      no new formula; `VfxDrawGeometry` gains `Kind.SPOOKIER_CHEST`, `Kind.CAMPFIRE_SLEEP_COVER`, and
+      `Kind.DEATH_SCREEN_FLOATY`, all joining the existing center-packed `params` branch
+      byte-identically to `STANCE_AURA`, and `additiveBlend` is `false` for all three. `SpookierChestEffect`
+      and `CampfireSleepScreenCoverEffect` reuse the F22 per-instance MIRROR (`usesInstanceMirrorX` and
+      `usesInstanceMirrorY` now also report them, resolved as a UV swap on the canonical F15d region);
+      `DeathScreenFloatyEffect` has no flip fields and is NOT a mirror kind. `kindFor` maps the three
+      exact FQNs (near-miss/nested fail open), and
+      `whiteAlphaOnly`/`usesInstanceFlipX`/`usesInstanceFlipY`/`nativeSkipsDrawByGuard` are unchanged.
+      `CampfireSleepScreenCoverEffect` is the FIRST `vfx-campfire-rest` member claimed and is a
+      per-instance ambient center-packed sprite with a NO-ARG constructor. The
+      renderer Javadoc/kind-list is extended only (no new draw branch; the mirror is already applied via
+      `usesInstanceMirrorX/Y` + `canonicalRegion`; all three require `rotation`, fail-open/no-throw
+      preserved). `VfxClaimPolicy` `SPOOKIER_CHEST`/`CAMPFIRE_SLEEP_COVER`/`DEATH_SCREEN_FLOATY` append
+      LAST to `supportedClasses()`/`supports(...)` in that order. `VfxLabSpawn.classNameFor` gains
+      `"spookierchest"`/`"spookier"` (`new SpookierChestEffect()`), `"campfiresleepcover"`/`"sleepcover"`
+      (`new CampfireSleepScreenCoverEffect()`), and `"deathfloaty"`/`"deathscreen"`
+      (`new DeathScreenFloatyEffect()`) — aliases checked against the existing set for collisions —
+      behind the existing fail-open guard, and `art claim spawn spookierchest 4` /
+      `art claim spawn campfiresleepcover 4` / `art claim spawn deathfloaty 4` run in both
+      `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
+      token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

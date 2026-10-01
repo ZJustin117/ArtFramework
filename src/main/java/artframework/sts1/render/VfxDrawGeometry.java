@@ -43,7 +43,12 @@ package artframework.sts1.render;
  * {@link #usesInstanceMirrorX}/{@link #usesInstanceMirrorY} predicates, with
  * {@code SpookyChestEffect} declaring both {@code flipX} and {@code flipY} and
  * {@code IroncladVictoryFlameEffect} only {@code flipX}; {@code FlameParticleEffect} also uses the
- * mirror, resolving the F15 {@code flipX} limitation.
+ * mirror, resolving the F15 {@code flipX} limitation. The three newest members reuse the ambient
+ * center-packed img branch with NO new formula: {@code SpookierChestEffect} ({@code vfx-scene-world})
+ * and {@code CampfireSleepScreenCoverEffect} ({@code vfx-campfire-rest}; the first claimed member of
+ * that family, a per-instance ambient center-packed sprite with a NO-ARG constructor) each carry
+ * {@code flipX}+{@code flipY} and reuse the F22 mirror, while {@code DeathScreenFloatyEffect}
+ * ({@code vfx-misc-root}) carries no flip flags and draws the canonical region.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -60,7 +65,8 @@ package artframework.sts1.render;
  * {@code ShineLinesEffect}, {@code DustEffect}, {@code ConeEffect},
  * {@code DamageHeartEffect}, {@code SpookyChestEffect}, and
  * {@code IroncladVictoryFlameEffect}
- * members. The native
+ * members, plus the three newest ambient center-packed members {@code SpookierChestEffect},
+ * {@code CampfireSleepScreenCoverEffect}, and {@code DeathScreenFloatyEffect}. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
  * mapping only resolves the positional/scale/rotation arguments the batch receives, with the native
@@ -209,6 +215,20 @@ package artframework.sts1.render;
  *                             StanceAuraEffect center-packed; the mirror is resolved by the host draw
  *                             as a UV swap):
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   SpookierChestEffect.render (note: no setBlendFunction; ambient blend; identical shape to
+ *                             SpookyChestEffect — the shared region is flipped in place to the
+ *                             instance's own flipX/flipY and left flipped; the geometry is exactly
+ *                             StanceAuraEffect center-packed; the mirror is resolved by the host draw
+ *                             as a UV swap):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   CampfireSleepScreenCoverEffect.render (note: no setBlendFunction; ambient blend; the first
+ *                             claimed vfx-campfire-rest member, a per-instance ambient
+ *                             center-packed sprite with a NO-ARG constructor: same shape as
+ *                             SpookyChestEffect with per-instance flipX/flipY mirror):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   DeathScreenFloatyEffect.render (note: no setBlendFunction; ambient blend; no flip flags; the
+ *                             geometry is exactly StanceAuraEffect center-packed):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -348,7 +368,10 @@ public final class VfxDrawGeometry {
         FALLING_ICE,
         DAMAGE_HEART,
         SPOOKY_CHEST,
-        IRONCLAD_VICTORY_FLAME
+        IRONCLAD_VICTORY_FLAME,
+        SPOOKIER_CHEST,
+        CAMPFIRE_SLEEP_COVER,
+        DEATH_SCREEN_FLOATY
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -716,6 +739,9 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.IRONCLAD_VICTORY_FLAME.equals(value)) {
             return Kind.IRONCLAD_VICTORY_FLAME;
         }
+        if (VfxClaimPolicy.SPOOKIER_CHEST.equals(value)) return Kind.SPOOKIER_CHEST;
+        if (VfxClaimPolicy.CAMPFIRE_SLEEP_COVER.equals(value)) return Kind.CAMPFIRE_SLEEP_COVER;
+        if (VfxClaimPolicy.DEATH_SCREEN_FLOATY.equals(value)) return Kind.DEATH_SCREEN_FLOATY;
         return null;
     }
 
@@ -732,7 +758,8 @@ public final class VfxDrawGeometry {
      * {@link Kind#DAMAGE_IMPACT_BLUR}, {@link Kind#DAMAGE_IMPACT_LINE}, {@link Kind#STUN_STAR},
      * {@link Kind#FALLING_DUST}, {@link Kind#SHINE_LINES}, {@link Kind#SCENE_DUST},
      * {@link Kind#CONE}, {@link Kind#DAMAGE_HEART}, {@link Kind#SPOOKY_CHEST},
-     * {@link Kind#IRONCLAD_VICTORY_FLAME})
+     * {@link Kind#IRONCLAD_VICTORY_FLAME}, {@link Kind#SPOOKIER_CHEST},
+     * {@link Kind#CAMPFIRE_SLEEP_COVER}, {@link Kind#DEATH_SCREEN_FLOATY})
      * never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
@@ -767,6 +794,9 @@ public final class VfxDrawGeometry {
      * ambient (center-packed). The two newest members {@link Kind#SPOOKY_CHEST} and
      * {@link Kind#IRONCLAD_VICTORY_FLAME} are both ambient center-packed and add only the img-path
      * per-instance MIRROR capability ({@link #usesInstanceMirrorX}/{@link #usesInstanceMirrorY}).
+     * The three newest members {@link Kind#SPOOKIER_CHEST}, {@link Kind#CAMPFIRE_SLEEP_COVER}, and
+     * {@link Kind#DEATH_SCREEN_FLOATY} are likewise ambient center-packed with NO new formula
+     * (the first two reuse the mirror, the third does not).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -793,7 +823,10 @@ public final class VfxDrawGeometry {
                 && kind != Kind.CONE
                 && kind != Kind.DAMAGE_HEART
                 && kind != Kind.SPOOKY_CHEST
-                && kind != Kind.IRONCLAD_VICTORY_FLAME;
+                && kind != Kind.IRONCLAD_VICTORY_FLAME
+                && kind != Kind.SPOOKIER_CHEST
+                && kind != Kind.CAMPFIRE_SLEEP_COVER
+                && kind != Kind.DEATH_SCREEN_FLOATY;
     }
 
     /**
@@ -924,8 +957,10 @@ public final class VfxDrawGeometry {
      * place around its draw; the claim suppresses that draw, so the host draw instead swaps the
      * canonical region's {@code u}/{@code u2} (a UV swap is visually identical to a center-origin
      * region flip). Today that is exactly {@link Kind#FLAME_PARTICLE} (its {@code flipX} field),
-     * {@link Kind#SPOOKY_CHEST} (its {@code flipX} field), and {@link Kind#IRONCLAD_VICTORY_FLAME}
-     * (its {@code flipX} field). Every other img-path kind — and every bare-{@code Texture} kind
+     * {@link Kind#SPOOKY_CHEST} (its {@code flipX} field),
+     * {@link Kind#IRONCLAD_VICTORY_FLAME} (its {@code flipX} field), {@link Kind#SPOOKIER_CHEST}
+     * (its {@code flipX} field), and {@link Kind#CAMPFIRE_SLEEP_COVER} (its {@code flipX} field).
+     * Every other img-path kind — and every bare-{@code Texture} kind
      * — hardcodes no such mirror, so the host draw must not read a mirror field for it. These flags
      * are distinct from the shape-C {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY} flags.
      *
@@ -937,7 +972,9 @@ public final class VfxDrawGeometry {
         }
         return kind == Kind.FLAME_PARTICLE
                 || kind == Kind.SPOOKY_CHEST
-                || kind == Kind.IRONCLAD_VICTORY_FLAME;
+                || kind == Kind.IRONCLAD_VICTORY_FLAME
+                || kind == Kind.SPOOKIER_CHEST
+                || kind == Kind.CAMPFIRE_SLEEP_COVER;
     }
 
     /**
@@ -946,9 +983,10 @@ public final class VfxDrawGeometry {
      * effect's own {@code flipY} field is set. Native does this by calling {@code img.flip(true, ...)}
      * in place around its draw; the claim suppresses that draw, so the host draw instead swaps the
      * canonical region's {@code v}/{@code v2}. Today that is exactly {@link Kind#SPOOKY_CHEST} (its
-     * {@code flipY} field); {@link Kind#FLAME_PARTICLE} and {@link Kind#IRONCLAD_VICTORY_FLAME} each
-     * declare only a horizontal {@code flipX} field, so they are {@code false} here. Every other kind
-     * is {@code false}.
+     * {@code flipY} field), {@link Kind#SPOOKIER_CHEST} (its {@code flipY} field), and
+     * {@link Kind#CAMPFIRE_SLEEP_COVER} (its {@code flipY} field); {@link Kind#FLAME_PARTICLE},
+     * {@link Kind#IRONCLAD_VICTORY_FLAME}, and {@link Kind#DEATH_SCREEN_FLOATY} declare no
+     * {@code flipY} field, so they are {@code false} here. Every other kind is {@code false}.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -956,7 +994,9 @@ public final class VfxDrawGeometry {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
-        return kind == Kind.SPOOKY_CHEST;
+        return kind == Kind.SPOOKY_CHEST
+                || kind == Kind.SPOOKIER_CHEST
+                || kind == Kind.CAMPFIRE_SLEEP_COVER;
     }
 
     /**
@@ -968,7 +1008,8 @@ public final class VfxDrawGeometry {
      * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE},
      * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE}, {@code STUN_STAR},
      * {@code FALLING_DUST}, {@code SHINE_LINES}, {@code SCENE_DUST}, {@code CONE},
-     * {@code DAMAGE_HEART}, {@code SPOOKY_CHEST}, {@code IRONCLAD_VICTORY_FLAME})
+     * {@code DAMAGE_HEART}, {@code SPOOKY_CHEST}, {@code IRONCLAD_VICTORY_FLAME},
+     * {@code SPOOKIER_CHEST}, {@code CAMPFIRE_SLEEP_COVER}, {@code DEATH_SCREEN_FLOATY})
      * leave the ambient blend untouched and restore
      * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
      * {@code ENTANGLE}) that also rewrite their set color's
@@ -1033,6 +1074,9 @@ public final class VfxDrawGeometry {
             case DAMAGE_HEART:
             case SPOOKY_CHEST:
             case IRONCLAD_VICTORY_FLAME:
+            case SPOOKIER_CHEST:
+            case CAMPFIRE_SLEEP_COVER:
+            case DEATH_SCREEN_FLOATY:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,

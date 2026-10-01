@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.ConeEffect;
+import com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
 import com.megacrit.cardcrawl.vfx.FallingDustEffect;
@@ -36,11 +37,13 @@ import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
 import com.megacrit.cardcrawl.vfx.scene.DustEffect;
+import com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect;
 import com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect;
 import com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect;
+import com.megacrit.cardcrawl.vfx.scene.SpookierChestEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect;
@@ -85,8 +88,13 @@ import java.util.function.Predicate;
  * (root; ambient center-packed guarded natively by {@code if (delayTimer < 0f)}), plus the two newest
  * members {@code SpookyChestEffect} (root; ambient center-packed with per-instance {@code flipX} and
  * {@code flipY} mirror booleans, NO-ARG constructor) and {@code IroncladVictoryFlameEffect} (root;
- * ambient center-packed with a per-instance {@code flipX} mirror boolean, NO-ARG constructor) into
- * the
+ * ambient center-packed with a per-instance {@code flipX} mirror boolean, NO-ARG constructor), plus
+ * the three newest members {@code SpookierChestEffect} (root; ambient center-packed with
+ * {@code flipX}+{@code flipY} mirror booleans, NO-ARG constructor),
+ * {@code CampfireSleepScreenCoverEffect} ({@code vfx-campfire-rest}; ambient center-packed with
+ * {@code flipX}+{@code flipY} mirror booleans, NO-ARG constructor), and
+ * {@code DeathScreenFloatyEffect} (root; ambient center-packed without flip flags, NO-ARG
+ * constructor) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -270,6 +278,16 @@ public final class VfxLabSpawn {
         if ("victoryflame".equalsIgnoreCase(value)
                 || "ironcladvictory".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.IRONCLAD_VICTORY_FLAME;
+        }
+        if ("spookierchest".equalsIgnoreCase(value) || "spookier".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SPOOKIER_CHEST;
+        }
+        if ("campfiresleepcover".equalsIgnoreCase(value)
+                || "sleepcover".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.CAMPFIRE_SLEEP_COVER;
+        }
+        if ("deathfloaty".equalsIgnoreCase(value) || "deathscreen".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.DEATH_SCREEN_FLOATY;
         }
         return null;
     }
@@ -655,6 +673,24 @@ public final class VfxLabSpawn {
             // a live game, so any failure is caught by spawn's fail-open guard rather than
             // propagating.
             return new IroncladVictoryFlameEffect();
+        }
+        if (VfxClaimPolicy.SPOOKIER_CHEST.equals(fqn)) {
+            // Safe lab defaults: SpookierChestEffect has a NO-ARG constructor that selects its own
+            // img and randomizes x/y; img may be null outside a live game, so any failure is caught
+            // by spawn's fail-open guard rather than propagating.
+            return new SpookierChestEffect();
+        }
+        if (VfxClaimPolicy.CAMPFIRE_SLEEP_COVER.equals(fqn)) {
+            // Safe lab defaults: CampfireSleepScreenCoverEffect has a NO-ARG constructor that selects
+            // its own img from ImageMaster static art and randomizes x/y; img may be null outside a
+            // live game, so any failure is caught by spawn's fail-open guard rather than propagating.
+            return new CampfireSleepScreenCoverEffect();
+        }
+        if (VfxClaimPolicy.DEATH_SCREEN_FLOATY.equals(fqn)) {
+            // Safe lab defaults: DeathScreenFloatyEffect has a NO-ARG constructor that selects its
+            // own img from ImageMaster static art and sets x/y; img may be null outside a live game,
+            // so any failure is caught by spawn's fail-open guard rather than propagating.
+            return new DeathScreenFloatyEffect();
         }
         return null;
     }

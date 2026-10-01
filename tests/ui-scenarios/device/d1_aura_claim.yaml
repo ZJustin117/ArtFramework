@@ -23,6 +23,11 @@
 # mirror booleans) and IroncladVictoryFlameEffect (root, ambient center-packed with a per-instance
 # flipX mirror boolean) — the img path's first per-instance MIRROR kinds, whose mirror is reproduced
 # as a UV swap on the canonical F15d region (FlameParticleEffect also uses the mirror).
+# The three newest are SpookierChestEffect (root, ambient center-packed with per-instance flipX+flipY
+# mirror booleans), CampfireSleepScreenCoverEffect (vfx-campfire-rest; the first claimed member of
+# that family, a per-instance ambient center-packed sprite with a NO-ARG constructor, also
+# ambient center-packed with flipX+flipY mirror booleans), and DeathScreenFloatyEffect (root, ambient
+# center-packed with no flip flags), all reusing the existing img branch with no new formula.
 # NOTE: a freshly lab-spawned FallingIceEffect/DamageHeartEffect starts with its guard UNSATISFIED
 # (waitTimer/delayTimer >= 0f), so the spawn-frame evidence for these two is the per-FQN
 # active/entity delta on spawn (observation), NOT a draw increase at spawn. The kinds then diverge:
@@ -135,6 +140,9 @@ steps:
   - console: "art claim spawn damageheart 4"
   - console: "art claim spawn spookychest 4"
   - console: "art claim spawn victoryflame 4"
+  - console: "art claim spawn spookierchest 4"
+  - console: "art claim spawn campfiresleepcover 4"
+  - console: "art claim spawn deathfloaty 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -215,6 +223,9 @@ steps:
   - console: "art claim spawn damageheart 4"
   - console: "art claim spawn spookychest 4"
   - console: "art claim spawn victoryflame 4"
+  - console: "art claim spawn spookierchest 4"
+  - console: "art claim spawn campfiresleepcover 4"
+  - console: "art claim spawn deathfloaty 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

@@ -66,7 +66,13 @@ import java.lang.reflect.Field;
  * mirror boolean) — the img path's first per-instance MIRROR kinds
  * ({@link VfxDrawGeometry#usesInstanceMirrorX}/{@link VfxDrawGeometry#usesInstanceMirrorY}), whose
  * mirror is reproduced as a UV swap on the canonical F15d region; {@code FlameParticleEffect} also
- * uses the mirror, resolving its F15 limitation.
+ * uses the mirror, resolving its F15 limitation. The three newest members reuse that same img path
+ * with no new branch: {@code SpookierChestEffect} ({@code vfx-scene-world}) and
+ * {@code CampfireSleepScreenCoverEffect} ({@code vfx-campfire-rest}; the first claimed member of
+ * that family, a per-instance ambient center-packed sprite with a NO-ARG constructor) each
+ * carry {@code flipX}+{@code flipY} and mirror the canonical region, while
+ * {@code DeathScreenFloatyEffect} ({@code vfx-misc-root}) carries no flip fields and draws the
+ * canonical region. All three require {@code rotation} and are ambient center-packed.
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective

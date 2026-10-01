@@ -231,6 +231,12 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect";
     public static final String IRONCLAD_VICTORY_FLAME =
             "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect";
+    public static final String SPOOKIER_CHEST =
+            "com.megacrit.cardcrawl.vfx.scene.SpookierChestEffect";
+    public static final String CAMPFIRE_SLEEP_COVER =
+            "com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect";
+    public static final String DEATH_SCREEN_FLOATY =
+            "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -246,7 +252,8 @@ public final class VfxClaimPolicy {
                     LIGHTNING_EFFECT, FLAME_BALL, SHINE_LINES,
                     TORCH_PARTICLE_M, TORCH_PARTICLE_S, SCENE_DUST,
                     LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT,
-                    FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME));
+                    FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
+                    SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY));
 
     private VfxClaimPolicy() {}
 
@@ -303,7 +310,10 @@ public final class VfxClaimPolicy {
                 || FALLING_ICE.equals(value)
                 || DAMAGE_HEART.equals(value)
                 || SPOOKY_CHEST.equals(value)
-                || IRONCLAD_VICTORY_FLAME.equals(value);
+                || IRONCLAD_VICTORY_FLAME.equals(value)
+                || SPOOKIER_CHEST.equals(value)
+                || CAMPFIRE_SLEEP_COVER.equals(value)
+                || DEATH_SCREEN_FLOATY.equals(value);
     }
 
     /**
@@ -389,7 +399,16 @@ public final class VfxClaimPolicy {
      * {@code flipY} while {@code IroncladVictoryFlameEffect} declares only {@code flipX}; see
      * {@link VfxDrawGeometry#usesInstanceMirrorX}/{@link VfxDrawGeometry#usesInstanceMirrorY}.
      * {@code FlameParticleEffect} was already a member and also uses the mirror, so the claimed img
-     * draw reproduces its {@code flipX} mirror (resolving the F15 limitation).
+     * draw reproduces its {@code flipX} mirror (resolving the F15 limitation). The three newest
+     * members reuse the existing ambient center-packed img branch with NO new formula:
+     * {@code SpookierChestEffect} ({@code vfx-scene-world}) and
+     * {@code CampfireSleepScreenCoverEffect} ({@code vfx-campfire-rest}; the first claimed member of
+     * that family, a per-instance ambient center-packed sprite with a NO-ARG constructor) each
+     * declare {@code flipX}+{@code flipY} and thus reuse the F22
+     * per-instance mirror ({@link VfxDrawGeometry#usesInstanceMirrorX}/{@link
+     * VfxDrawGeometry#usesInstanceMirrorY}); {@code DeathScreenFloatyEffect} ({@code vfx-misc-root})
+     * declares no flip flags and does not mirror. All three have NO-ARG constructors and call no
+     * {@code setBlendFunction} (ambient blend).
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

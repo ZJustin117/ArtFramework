@@ -91,6 +91,17 @@ import java.lang.reflect.Field;
  * {@link VfxDrawGeometry#drawPassRandomRanges} (the shared RNG is snapshotted once and restored on
  * any post-consumption fail-open). With it, both {@code vfx-stance-aura} non-deterministic paths are
  * claimed.
+ * The two newest (F27) members are the {@code vfx-combat} {@code WaterSplashParticleEffect} and
+ * {@code BuffParticleEffect}, both on the img ({@link TextureAtlas.AtlasRegion}) path and both
+ * requiring the inherited {@code rotation} field. {@code WaterSplashParticleEffect} is AMBIENT
+ * center-packed with an ANISOTROPIC draw scale ({@code scaleY = scale * 0.54f}, {@code scaleX =
+ * scale}); the renderer passes {@code 1f} for the new {@link VfxDrawGeometry#params
+ * scaleYMultiplier} tail parameter for every kind EXCEPT {@code WATER_SPLASH} (which passes
+ * {@code 0.54f}), so every pre-existing kind's result is unchanged. {@code BuffParticleEffect} is
+ * ADDITIVE with a new pure position/origin rule ({@code (x - packedWidth/2f, y - packedHeight/2f)}
+ * with the region's own {@code (offsetX, offsetY)} as origin) resolved by its own
+ * {@link VfxDrawGeometry#params} branch; the renderer already captures {@code regionOffsetX/Y} for
+ * {@code FALLING_DUST}/{@code SCENE_DUST}, so no new capture path is needed. No new draw branch.
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -497,6 +508,21 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * The per-kind anisotropic scaleY multiplier for the img center-packed branch
+     * ({@link VfxDrawGeometry#params}). Every pre-existing kind passes {@code 1f} (so its results are
+     * unchanged from before the parameter existed); the newest F27 {@code WATER_SPLASH} passes
+     * {@link VfxDrawGeometry#WATER_SPLASH_SCALE_Y_MULTIPLIER} ({@code 0.54f}) so its draw scaleY is
+     * {@code scale * 0.54f} while scaleX stays {@code scale}, exactly like the native
+     * {@code WaterSplashParticleEffect.render}.
+     */
+    private static float scaleYMultiplier(VfxDrawGeometry.Kind kind) {
+        if (kind == VfxDrawGeometry.Kind.WATER_SPLASH) {
+            return VfxDrawGeometry.WATER_SPLASH_SCALE_Y_MULTIPLIER;
+        }
+        return 1f;
+    }
+
+    /**
      * The seam's per-kind NATIVE DRAW GUARD (NRO-04 F21, generalized in F24): true unless the native
      * render's wait-phase guard blocks the draw. For a guarded kind
      * ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}) the guard field named by
@@ -691,7 +717,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                     kind, f.x, f.y, f.vY, f.scale, f.rotation, f.durDiv2, f.duration,
                     settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight(),
                     f.vX, f.regionOffsetX, f.regionOffsetY,
-                    originOffsetX(kind), originOffsetY(kind, gdx));
+                    originOffsetX(kind), originOffsetY(kind, gdx), scaleYMultiplier(kind));
             // F24 PLAYER-HITBOX-RELATIVE X: WrathStanceChangeParticle draws at the player's hitbox
             // center X plus the effect's own x, not at x. Resolved here (a fail-open-capable read) so
             // that a missing player/hitbox declines BEFORE any RNG is pulled; native then draws.
@@ -952,7 +978,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (texture == null) return false;
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 kind, f.x, f.y, 0f, f.scale, f.rotation,
-                f.durDiv2, f.duration, Settings.scale, 0f, 0f, 0f, 0f, 0f, 0f, 0f);
+                f.durDiv2, f.duration, Settings.scale, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1f);
         int srcX;
         int srcY;
         int srcW;

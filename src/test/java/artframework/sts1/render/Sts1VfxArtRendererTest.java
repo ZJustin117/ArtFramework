@@ -2041,6 +2041,12 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.WATER_SPLASH));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.BUFF_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2127,6 +2133,12 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.WATER_SPLASH + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.WATER_SPLASH + "2"));
+        assertFalse(renderer.isReady("WaterSplashParticleEffect"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.BUFF_PARTICLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.BUFF_PARTICLE + "2"));
+        assertFalse(renderer.isReady("BuffParticleEffect"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.WrathStanceChangeParticle"));
         assertFalse(renderer.isReady(
@@ -4812,6 +4824,172 @@ public class Sts1VfxArtRendererTest {
             return effect;
         } catch (Exception failure) {
             throw new AssertionError("could not build a no-GL IceShatterEffect", failure);
+        }
+    }
+
+    @Test
+    public void waterSplashResolvesFromAnInstanceRegionAndDrawsAnisotropicallyAmbient() {
+        // Native WaterSplashParticleEffect: setColor(color); sb.draw(img, x, y, pw/2f, ph/2f, pw, ph,
+        // scale, scale * 0.54f, rotation) with NO setBlendFunction. The claim must reproduce the
+        // AMBIENT center-packed draw with the exact anisotropic scaleY factor.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        assertTrue(renderer.isReady(VfxClaimPolicy.WATER_SPLASH));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect"));
+
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededWaterSplash(12.5f, -3.25f, 0.8f, 37f,
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+        assertTrue(renderer.render(batch, effect));
+
+        assertEquals("WaterSplash never calls setBlendFunction (ambient)", 0, batch.setBlendCalls);
+        assertEquals("the img path uses the TextureRegion draw overload",
+                1, batch.textureRegionDrawCalls);
+        assertNotNull(batch.drawnRegionArgs);
+        assertEquals(12.5f, batch.drawnRegionArgs[0], EPS);
+        assertEquals(-3.25f, batch.drawnRegionArgs[1], EPS);
+        assertEquals("originX is packedWidth/2f", 32f, batch.drawnRegionArgs[2], EPS);
+        assertEquals("originY is packedHeight/2f", 24f, batch.drawnRegionArgs[3], EPS);
+        assertEquals(64f, batch.drawnRegionArgs[4], EPS);
+        assertEquals(48f, batch.drawnRegionArgs[5], EPS);
+        assertEquals("scaleX is scale", 0.8f, batch.drawnRegionArgs[6], EPS);
+        assertEquals("scaleY is scale * 0.54f", 0.8f * 0.54f, batch.drawnRegionArgs[7], EPS);
+        assertEquals("WaterSplash consumes the rotation field", 37f, batch.drawnRegionArgs[8], EPS);
+        assertTrue("a drawable WaterSplash instance canDraw", renderer.canDraw(effect));
+
+        // Fail-open on a holder with a valid img but no rotation field / no img.
+        NoRotationImgEffect noRotation = new NoRotationImgEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        assertNull("a WATER_SPLASH holder with img but no rotation must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.WATER_SPLASH, noRotation));
+
+        NoImgEffect noImg = new NoImgEffect();
+        noImg.x = 1f;
+        noImg.y = 2f;
+        noImg.scale = 1f;
+        noImg.rotation = 0f;
+        noImg.color = Color.WHITE;
+        assertNull("a WATER_SPLASH holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.WATER_SPLASH, noImg));
+    }
+
+    @Test
+    public void buffParticleDrawsHalfPackedPositionWithRegionOffsetOriginAdditively() {
+        // Native BuffParticleEffect: setBlendFunction(770,1); setColor(color);
+        //   sb.draw(img, x - pw/2f, y - ph/2f, img.offsetX, img.offsetY, pw, ph, scale, scale,
+        //           rotation); setBlendFunction(770,771).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        assertTrue(renderer.isReady(VfxClaimPolicy.BUFF_PARTICLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect"));
+
+        TextureAtlas.AtlasRegion region =
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        region.offsetX = 6f;
+        region.offsetY = 10f;
+
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededBuffParticle(12.5f, -3.25f, 0.8f, 37f, region);
+        assertTrue(renderer.render(batch, effect));
+
+        assertEquals("BuffParticle installs and restores the additive blend",
+                2, batch.setBlendCalls);
+        assertEquals("the img path uses the TextureRegion draw overload",
+                1, batch.textureRegionDrawCalls);
+        assertNotNull(batch.drawnRegionArgs);
+        assertEquals("the position is offset by half the packed width",
+                12.5f - 32f, batch.drawnRegionArgs[0], EPS);
+        assertEquals("the position is offset by half the packed height",
+                -3.25f - 24f, batch.drawnRegionArgs[1], EPS);
+        assertEquals("the origin X is the region's own offsetX", 6f, batch.drawnRegionArgs[2], EPS);
+        assertEquals("the origin Y is the region's own offsetY", 10f, batch.drawnRegionArgs[3], EPS);
+        assertEquals(64f, batch.drawnRegionArgs[4], EPS);
+        assertEquals(48f, batch.drawnRegionArgs[5], EPS);
+        assertEquals("BuffParticle is uniform-scaled", 0.8f, batch.drawnRegionArgs[6], EPS);
+        assertEquals(0.8f, batch.drawnRegionArgs[7], EPS);
+        assertEquals("BuffParticle consumes the rotation field", 37f, batch.drawnRegionArgs[8], EPS);
+        assertTrue("a drawable BuffParticle instance canDraw", renderer.canDraw(effect));
+
+        // Fail-open on a holder with a valid img but no rotation field / no img.
+        NoRotationImgEffect noRotation = new NoRotationImgEffect();
+        noRotation.x = 1f;
+        noRotation.y = 2f;
+        noRotation.scale = 1f;
+        noRotation.color = Color.WHITE;
+        noRotation.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        assertNull("a BUFF_PARTICLE holder with img but no rotation must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.BUFF_PARTICLE, noRotation));
+
+        NoImgEffect noImg = new NoImgEffect();
+        noImg.x = 1f;
+        noImg.y = 2f;
+        noImg.scale = 1f;
+        noImg.rotation = 0f;
+        noImg.color = Color.WHITE;
+        assertNull("a BUFF_PARTICLE holder without an img must fail open",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.BUFF_PARTICLE, noImg));
+    }
+
+    /** Real {@code WaterSplashParticleEffect} with reflectively seeded draw fields (no GL). */
+    private static AbstractGameEffect seededWaterSplash(float x, float y, float scale,
+            float rotation, TextureAtlas.AtlasRegion region) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect.class,
+                    "x", Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect.class,
+                    "y", Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect.class,
+                    "img", region);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL WaterSplashParticleEffect", failure);
+        }
+    }
+
+    /**
+     * Real {@code BuffParticleEffect} with reflectively seeded draw fields (no GL). It declares its
+     * OWN {@code scale} field (shadowing the inherited one), so that field is seeded on the concrete
+     * class; {@code rotation}/{@code color} come from {@code AbstractGameEffect}.
+     */
+    private static AbstractGameEffect seededBuffParticle(float x, float y, float scale,
+            float rotation, TextureAtlas.AtlasRegion region) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect.class,
+                    "x", Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect.class,
+                    "y", Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect.class,
+                    "img", region);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect.class,
+                    "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL BuffParticleEffect", failure);
         }
     }
 

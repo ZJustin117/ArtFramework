@@ -156,6 +156,8 @@ steps:
   - console: "art claim spawn deathfloaty 4"
   - console: "art claim spawn wrathchange 4"
   - console: "art claim spawn absorption 4"
+  - console: "art claim spawn watersplash 4"
+  - console: "art claim spawn buffparticle 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -241,6 +243,8 @@ steps:
   - console: "art claim spawn deathfloaty 4"
   - console: "art claim spawn wrathchange 4"
   - console: "art claim spawn absorption 4"
+  - console: "art claim spawn watersplash 4"
+  - console: "art claim spawn buffparticle 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

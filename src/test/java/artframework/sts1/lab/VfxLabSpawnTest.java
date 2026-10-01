@@ -150,6 +150,10 @@ public class VfxLabSpawnTest {
                 VfxLabSpawn.classNameFor("absorption"));
         assertEquals(VfxClaimPolicy.STANCE_CHANGE_ABSORPTION,
                 VfxLabSpawn.classNameFor("absorb"));
+        assertEquals(VfxClaimPolicy.WATER_SPLASH, VfxLabSpawn.classNameFor("watersplash"));
+        assertEquals(VfxClaimPolicy.WATER_SPLASH, VfxLabSpawn.classNameFor("splash"));
+        assertEquals(VfxClaimPolicy.BUFF_PARTICLE, VfxLabSpawn.classNameFor("buffparticle"));
+        assertEquals(VfxClaimPolicy.BUFF_PARTICLE, VfxLabSpawn.classNameFor("buffp"));
     }
 
     @Test
@@ -615,6 +619,18 @@ public class VfxLabSpawnTest {
         // alias.
         assertSpawnRequests("absorption", VfxClaimPolicy.STANCE_CHANGE_ABSORPTION);
         assertSpawnRequests("absorb", VfxClaimPolicy.STANCE_CHANGE_ABSORPTION);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF27MembersThroughTheFactorySeam() {
+        // The two newest (F27) claimable FQNs; the capturing factory proves each alias requests
+        // exactly its FQN without running the ImageMaster-backed constructors (img may be null
+        // off-game). "watersplash"/"splash" and "buffparticle"/"buffp" do not collide with any
+        // existing alias.
+        assertSpawnRequests("watersplash", VfxClaimPolicy.WATER_SPLASH);
+        assertSpawnRequests("splash", VfxClaimPolicy.WATER_SPLASH);
+        assertSpawnRequests("buffparticle", VfxClaimPolicy.BUFF_PARTICLE);
+        assertSpawnRequests("buffp", VfxClaimPolicy.BUFF_PARTICLE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

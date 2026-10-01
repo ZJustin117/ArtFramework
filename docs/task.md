@@ -808,6 +808,43 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       paths are BOTH covered. No new patch/bridge/console wiring; default-off gate + per-instance token
       semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F27 (two more native transient effects on the family-neutral default-off per-instance
+      claim seam; each adds ONE small pure rule with no new renderer branch):
+      `com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect` (`vfx-combat`; private `img`
+      (`AtlasRegion`), `x`, `y`, `vX`, `vY`, `floor`, inherited `scale`/`rotation`/`color`; ctor
+      `(float, float)`) and `com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect` (`vfx-combat`;
+      private `img` (`AtlasRegion`), `x`, `y`, `vY`, its OWN `scale` field, inherited
+      `rotation`/`color`; ctor `(float, float)`). `WaterSplashParticleEffect.render` is
+      `setColor(color); sb.draw(img, x, y, packedWidth/2f, packedHeight/2f, packedWidth,
+      packedHeight, scale, scale * 0.54f, rotation)` with NO `setBlendFunction` — i.e. AMBIENT
+      center-packed with a NEW pure ANISOTROPIC-scale rule (`scaleY = scale * 0.54f`, `scaleX =
+      scale`). `BuffParticleEffect.render` is `setBlendFunction(770, 1); setColor(color);
+      sb.draw(img, x - packedWidth/2f, y - packedHeight/2f, img.offsetX, img.offsetY, packedWidth,
+      packedHeight, scale, scale, rotation); setBlendFunction(770, 771)` — i.e. ADDITIVE with a NEW
+      pure POSITION/ORIGIN rule (the draw position is offset by half the packed footprint, and the
+      ORIGIN is the region's own `(offsetX, offsetY)` rather than `packed/2`). Both consume their
+      inherited `rotation` field. Implementation: `VfxClaimPolicy.WATER_SPLASH`/`BUFF_PARTICLE`
+      append LAST to `supportedClasses()`/`supports(...)`. `VfxDrawGeometry` gained
+      `Kind.WATER_SPLASH`/`Kind.BUFF_PARTICLE`; `params(...)` gained a trailing
+      `scaleYMultiplier` scalar (defaults `1f` for every pre-existing kind — the renderer passes
+      `1f` for all kinds except `WATER_SPLASH`, which passes the named constant
+      `WATER_SPLASH_SCALE_Y_MULTIPLIER = 0.54f` — so pre-existing results are byte-identical), the
+      shared center-packed branch now computes `scaleY = scale * scaleYMultiplier` (`scaleX` stays
+      `scale`), and `BUFF_PARTICLE` gets its OWN `Params(x - packedWidth/2f, y - packedHeight/2f,
+      regionOffsetX, regionOffsetY, packedWidth, packedHeight, scale, scale, rotation)` branch.
+      `kindFor` maps the exact FQNs (near-miss/nested fail open); `additiveBlend` is `false` for
+      `WATER_SPLASH` and `true` for `BUFF_PARTICLE`; `whiteAlphaOnly`/flip/mirror/guard/`randomRanges`/
+      `drawPassRandomRanges`/`playerHitboxRelativeX` are unchanged. `Sts1VfxArtRenderer` routes both
+      through the existing img (`AtlasRegion`) path, requiring `rotation` and passing the new
+      `scaleYMultiplier` (`0.54f` only for `WATER_SPLASH`; `BUFF_PARTICLE` reuses the already-captured
+      region offsets, like `FALLING_DUST`/`SCENE_DUST`) — no new draw branch, fail-open/no-throw
+      preserved. `VfxLabSpawn.classNameFor` gains `"watersplash"`/`"splash"` →
+      `new WaterSplashParticleEffect(960f, 540f)` and `"buffparticle"`/`"buffp"` →
+      `new BuffParticleEffect(960f, 540f)` (no alias collision) behind the existing fail-open guard,
+      and `art claim spawn watersplash 4` / `art claim spawn buffparticle 4` run in both
+      `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
+      token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

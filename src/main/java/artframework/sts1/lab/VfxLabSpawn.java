@@ -19,6 +19,7 @@ import com.megacrit.cardcrawl.vfx.DamageHeartEffect;
 import com.megacrit.cardcrawl.vfx.ShineLinesEffect;
 import com.megacrit.cardcrawl.vfx.WarningSignEffect;
 import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
+import com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
@@ -34,6 +35,7 @@ import com.megacrit.cardcrawl.vfx.combat.RedFireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.StunStarEffect;
 import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
+import com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
 import com.megacrit.cardcrawl.vfx.scene.DustEffect;
@@ -101,7 +103,11 @@ import java.util.function.Predicate;
  * {@code delayTimer <= 0f}; ctor {@code (float)}), plus the newest member
  * {@code StanceChangeAbsorptionParticle} (root; additive, the seam's FIRST MULTI-DRAW kind — two
  * draws of the static {@code ImageMaster.WOBBLY_ORB_VFX} Texture with four {@code MathUtils.random}
- * draws in order; ctor {@code (Color, float, float)}) into the
+ * draws in order; ctor {@code (Color, float, float)}) and the two newest members
+ * {@code WaterSplashParticleEffect} (root; ambient center-packed with a new anisotropic
+ * {@code scaleY = scale * 0.54f} rule; ctor {@code (float, float)}) and {@code BuffParticleEffect}
+ * (root; additive with a new position/origin rule — position offset by half the packed footprint,
+ * origin from the region's own offsets; ctor {@code (float, float)}) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -301,6 +307,12 @@ public final class VfxLabSpawn {
         }
         if ("absorption".equalsIgnoreCase(value) || "absorb".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.STANCE_CHANGE_ABSORPTION;
+        }
+        if ("watersplash".equalsIgnoreCase(value) || "splash".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.WATER_SPLASH;
+        }
+        if ("buffparticle".equalsIgnoreCase(value) || "buffp".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.BUFF_PARTICLE;
         }
         return null;
     }
@@ -718,6 +730,18 @@ public final class VfxLabSpawn {
             // at draw time), which may be null off-game; any failure is caught by spawn's fail-open
             // guard rather than propagating.
             return new StanceChangeAbsorptionParticle(Color.WHITE, 960f, 540f);
+        }
+        if (VfxClaimPolicy.WATER_SPLASH.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is ImageMaster-backed and may be
+            // null outside a live game; any failure is caught by spawn's fail-open guard rather
+            // than propagating.
+            return new WaterSplashParticleEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.BUFF_PARTICLE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. img is ImageMaster-backed and may be
+            // null outside a live game; any failure is caught by spawn's fail-open guard rather
+            // than propagating.
+            return new BuffParticleEffect(960f, 540f);
         }
         return null;
     }

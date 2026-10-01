@@ -241,6 +241,10 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle";
     public static final String STANCE_CHANGE_ABSORPTION =
             "com.megacrit.cardcrawl.vfx.stance.StanceChangeAbsorptionParticle";
+    public static final String WATER_SPLASH =
+            "com.megacrit.cardcrawl.vfx.combat.WaterSplashParticleEffect";
+    public static final String BUFF_PARTICLE =
+            "com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -258,7 +262,7 @@ public final class VfxClaimPolicy {
                     LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT,
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
-                    WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION));
+                    WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE));
 
     private VfxClaimPolicy() {}
 
@@ -320,7 +324,9 @@ public final class VfxClaimPolicy {
                 || CAMPFIRE_SLEEP_COVER.equals(value)
                 || DEATH_SCREEN_FLOATY.equals(value)
                 || WRATH_STANCE_CHANGE.equals(value)
-                || STANCE_CHANGE_ABSORPTION.equals(value);
+                || STANCE_CHANGE_ABSORPTION.equals(value)
+                || WATER_SPLASH.equals(value)
+                || BUFF_PARTICLE.equals(value);
     }
 
     /**
@@ -439,6 +445,17 @@ public final class VfxClaimPolicy {
      * fail-open). Its {@code update()} consumes no RNG. It is appended LAST after
      * {@code WrathStanceChangeParticle}; both {@code vfx-stance-aura} non-deterministic paths are now
      * claimed.
+     * The two newest (F27) members are the {@code vfx-combat} {@code WaterSplashParticleEffect} and
+     * {@code BuffParticleEffect}. {@code WaterSplashParticleEffect} is an AMBIENT center-packed
+     * {@code AtlasRegion} member that introduces ONE new pure rule — its native draw scale is
+     * anisotropic: {@code scaleY = scale * 0.54f} while {@code scaleX = scale} — so
+     * {@link VfxDrawGeometry#params} gained a trailing {@code scaleYMultiplier} scalar (defaulting
+     * {@code 1f} for every pre-existing kind). {@code BuffParticleEffect} is an ADDITIVE member with a
+     * new pure POSITION/ORIGIN rule: its draw position is {@code (x - packedWidth/2f,
+     * y - packedHeight/2f)} and its origin is the region's own {@code (offsetX, offsetY)} (NOT
+     * {@code packed/2}). Both consume their inherited {@code rotation} field and are appended LAST in
+     * that order. No new patch/bridge/console wiring; the default-off gate and per-instance token
+     * semantics are unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

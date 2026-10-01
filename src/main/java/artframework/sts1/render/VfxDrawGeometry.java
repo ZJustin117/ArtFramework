@@ -72,7 +72,8 @@ package artframework.sts1.render;
  * {@code DamageHeartEffect}, {@code SpookyChestEffect}, and
  * {@code IroncladVictoryFlameEffect}
  * members, plus the three newest ambient center-packed members {@code SpookierChestEffect},
- * {@code CampfireSleepScreenCoverEffect}, and {@code DeathScreenFloatyEffect}. The native
+ * {@code CampfireSleepScreenCoverEffect}, and {@code DeathScreenFloatyEffect}, plus the newest (F27)
+ * ambient center-packed member {@code WaterSplashParticleEffect}. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
  * mapping only resolves the positional/scale/rotation arguments the batch receives, with the native
@@ -353,6 +354,21 @@ package artframework.sts1.render;
  * capability is the pure {@link #drawPassRandomRanges} (an ordered list of per-pass range lists; an
  * empty outer list for every other kind), and {@link #params} returns only the shared base
  * {@code (scale, scale)} because the per-pass scales are applied by the renderer.
+ *
+ * <p>The two newest (F27) members are the {@code vfx-combat} {@code WaterSplashParticleEffect}
+ * ({@link Kind#WATER_SPLASH}) and {@code BuffParticleEffect} ({@link Kind#BUFF_PARTICLE}). Neither
+ * adds a new draw branch: {@code WaterSplashParticleEffect} is an AMBIENT center-packed
+ * {@code AtlasRegion} member that consumes its {@code rotation} field and introduces ONE new pure
+ * rule — its native draw scale is ANISOTROPIC ({@code scaleY = scale * 0.54f}, {@code scaleX =
+ * scale}) — so {@link #params} gained a trailing {@code scaleYMultiplier} scalar (defaulting
+ * {@code 1f} for every pre-existing kind so their results are unchanged, {@link
+ * #WATER_SPLASH_SCALE_Y_MULTIPLIER} for {@code WATER_SPLASH}); {@code BuffParticleEffect} is an
+ * ADDITIVE member with a new pure POSITION/ORIGIN rule — its draw position is
+ * {@code (x - packedWidth/2f, y - packedHeight/2f)} and its origin is the region's OWN
+ * {@code (offsetX, offsetY)} rather than the shared {@code packed/2} center — resolved by its own
+ * {@link #params} branch. Both consume their inherited {@code rotation} field and are appended LAST
+ * in that order. No new patch/bridge/console wiring; the default-off gate and per-instance token
+ * semantics are unchanged.
  */
 public final class VfxDrawGeometry {
 
@@ -411,7 +427,9 @@ public final class VfxDrawGeometry {
         CAMPFIRE_SLEEP_COVER,
         DEATH_SCREEN_FLOATY,
         WRATH_STANCE_CHANGE,
-        STANCE_CHANGE_ABSORPTION
+        STANCE_CHANGE_ABSORPTION,
+        WATER_SPLASH,
+        BUFF_PARTICLE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -662,6 +680,12 @@ public final class VfxDrawGeometry {
     /** Native StanceChangeAbsorption draw source rect height ({@code 32}). */
     public static final int STANCE_CHANGE_ABSORPTION_SRC_H = 32;
 
+    // Native WaterSplashParticleEffect draw multiplier (see the class Javadoc): unlike every
+    // pre-existing center-packed kind, its draw scale is ANISOTROPIC — scaleY = scale * 0.54f while
+    // scaleX = scale. It is the only kind {@link #params} passes a non-1f scaleYMultiplier for.
+    /** Native WaterSplash scaleY multiplier ({@code 0.54f}). */
+    public static final float WATER_SPLASH_SCALE_Y_MULTIPLIER = 0.54f;
+
     // The per-kind native wait-phase guard field names (the seam's first draw guard): a claimed
     // instance whose guard field value blocks per that kind's condition is declined (draws nothing),
     // exactly like the native render's wait phase. The block condition is per-kind and lives in the
@@ -870,6 +894,8 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.STANCE_CHANGE_ABSORPTION.equals(value)) {
             return Kind.STANCE_CHANGE_ABSORPTION;
         }
+        if (VfxClaimPolicy.WATER_SPLASH.equals(value)) return Kind.WATER_SPLASH;
+        if (VfxClaimPolicy.BUFF_PARTICLE.equals(value)) return Kind.BUFF_PARTICLE;
         return null;
     }
 
@@ -926,7 +952,10 @@ public final class VfxDrawGeometry {
      * {@link Kind#DEATH_SCREEN_FLOATY} are likewise ambient center-packed with NO new formula
      * (the first two reuse the mirror, the third does not). The newest member
      * {@link Kind#WRATH_STANCE_CHANGE} is ADDITIVE center-packed (it installs/restores the additive
-     * blend natively), so {@code additiveBlend} reports {@code true} for it.
+     * blend natively), so {@code additiveBlend} reports {@code true} for it. The newest (F27) member
+     * {@link Kind#WATER_SPLASH} is AMBIENT center-packed (it never calls {@code setBlendFunction}),
+     * so {@code additiveBlend} reports {@code false} for it, while the newest {@link Kind#BUFF_PARTICLE}
+     * installs/restores the additive blend natively and is therefore ADDITIVE.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -956,7 +985,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.IRONCLAD_VICTORY_FLAME
                 && kind != Kind.SPOOKIER_CHEST
                 && kind != Kind.CAMPFIRE_SLEEP_COVER
-                && kind != Kind.DEATH_SCREEN_FLOATY;
+                && kind != Kind.DEATH_SCREEN_FLOATY
+                && kind != Kind.WATER_SPLASH;
     }
 
     /**
@@ -1283,13 +1313,20 @@ public final class VfxDrawGeometry {
      * {@code packedHeight/2f + 20f * settingsScale}, so it has its own pure branch that consumes the
      * {@code settingsScale} argument the caller already supplies (keeping this class host-neutral).
      *
+     * <p>The newest tail scalar {@code scaleYMultiplier} is the anisotropic scale factor of the
+     * center-packed branch: {@code scaleY = scale * scaleYMultiplier} while {@code scaleX stays
+     * scale}. Every pre-existing kind passes {@code 1f} (so its results are byte-identical to before
+     * the parameter existed) and only {@code WATER_SPLASH} passes
+     * {@link #WATER_SPLASH_SCALE_Y_MULTIPLIER} ({@code 0.54f}); {@code BUFF_PARTICLE} has its own
+     * branch and ignores it.
+     *
      * @throws IllegalArgumentException when {@code kind} is null
      */
     public static Params params(Kind kind, float x, float y, float vY, float scale, float rotation,
             float durDiv2, float duration, float settingsScale,
             float packedWidth, float packedHeight,
             float vX, float regionOffsetX, float regionOffsetY,
-            float originOffsetX, float originOffsetY) {
+            float originOffsetX, float originOffsetY, float scaleYMultiplier) {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
@@ -1330,6 +1367,7 @@ public final class VfxDrawGeometry {
             case CAMPFIRE_SLEEP_COVER:
             case DEATH_SCREEN_FLOATY:
             case WRATH_STANCE_CHANGE:
+            case WATER_SPLASH:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -1350,8 +1388,13 @@ public final class VfxDrawGeometry {
                 // branch: it is additive center-packed but draws at player hitbox center X + x and
                 // multiplies scaleX/scaleY by two MathUtils.random draws; those two extra rules are
                 // resolved by the renderer (see playerHitboxRelativeX/randomRanges), not here.
+                // WaterSplashParticleEffect (F27) also joins this branch: it is AMBIENT
+                // center-packed (no setBlendFunction) with an ANISOTROPIC scale — its native draw
+                // scaleY is scale * 0.54f while scaleX is scale, supplied by the caller through the
+                // scaleYMultiplier tail scalar (the renderer passes 0.54f for WATER_SPLASH and 1f for
+                // every other kind, so their results are unchanged).
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
-                        scale, scale, rotation);
+                        scale, scale * scaleYMultiplier, rotation);
             case FALLING_ICE:
                 // Native FallingIceEffect ignores the (absent) region: a new additive shape-C fixed
                 // rect (origin 48, size 96, src 0,0,96,96; x/y passthrough) over its own instance
@@ -1505,6 +1548,20 @@ public final class VfxDrawGeometry {
                         STANCE_CHANGE_ABSORPTION_ORIGIN, STANCE_CHANGE_ABSORPTION_ORIGIN,
                         STANCE_CHANGE_ABSORPTION_SIZE, STANCE_CHANGE_ABSORPTION_SIZE,
                         scale, scale, rotation + STANCE_CHANGE_ABSORPTION_ROTATION_OFFSET);
+            case BUFF_PARTICLE:
+                // Native BuffParticleEffect: setBlendFunction(770, 1); setColor(color);
+                //   sb.draw(img, x - packedWidth/2f, y - packedHeight/2f, img.offsetX, img.offsetY,
+                //           packedWidth, packedHeight, scale, scale, rotation);
+                //   setBlendFunction(770, 771).
+                // It is its OWN branch (NOT the shared center-packed branch): the draw POSITION is
+                // offset by half the packed footprint, and the ORIGIN is the region's OWN
+                // (offsetX, offsetY) rather than packed/2. Additive. Its vY is update-only (never
+                // consumed); the region offsets are already captured by the renderer for the
+                // FALLING_DUST/SCENE_DUST kind, so no new capture path is needed. The
+                // scaleYMultiplier tail scalar is unused (scaleX == scaleY == scale).
+                return new Params(x - packedWidth / 2f, y - packedHeight / 2f,
+                        regionOffsetX, regionOffsetY, packedWidth, packedHeight,
+                        scale, scale, rotation);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

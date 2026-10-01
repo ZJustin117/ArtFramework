@@ -260,6 +260,24 @@ public class Sts1VfxArtRendererTest {
         private static TextureAtlas.AtlasRegion img;
     }
 
+    /**
+     * {@code CardTrailEffect} layout: {@code img} is a {@code private static AtlasRegion} declared on
+     * the class (the class declares no rotation field), plus the instance {@code x}/{@code y}/
+     * {@code scale} and the inherited {@code rotation}/{@code color}.
+     */
+    static class CardTrailHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private static TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code CardTrailEffect} layout with the static {@code img} null. */
+    static class CardTrailNullImgHolder extends BaseEffect {
+        private float x;
+        private float y;
+        private static TextureAtlas.AtlasRegion img;
+    }
+
     /** {@code BlockImpactLineEffect} layout: own instance {@code img} plus inherited fields. */
     static class BlockImpactLineEffectHolder extends BaseEffect {
         private float x;
@@ -832,6 +850,42 @@ public class Sts1VfxArtRendererTest {
         none.color = Color.WHITE;
         assertNull(Sts1VfxArtRenderer.readFields(
                 VfxDrawGeometry.Kind.EXHAUST_PILE, none));
+    }
+
+    @Test
+    public void readFieldsResolvesCardTrailFromItsStaticImgField() {
+        // CardTrailEffect.img is a private STATIC AtlasRegion declared on the class; the
+        // superclass-walking reader must resolve it via getDeclaredField + field.get(effect). The
+        // class does NOT redeclare a rotation field but inherits AbstractGameEffect.rotation, so the
+        // reader always resolves a rotation value; the DRAW's hardcoded-0f semantics are asserted in
+        // cardTrailDrawForcesRotationZeroDespiteTheInheritedField.
+        TextureAtlas.AtlasRegion region = fakeRegion();
+        CardTrailHolder.img = region;
+        CardTrailHolder effect = new CardTrailHolder();
+        effect.x = 5.5f;
+        effect.y = -2.25f;
+        effect.scale = 1.1f;
+        effect.rotation = 137f;
+        effect.color = Color.WHITE;
+
+        Sts1VfxArtRenderer.Fields f = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.CARD_TRAIL, effect);
+
+        assertNotNull("a static img field must resolve for the card trail", f);
+        assertEquals(5.5f, f.x, EPS);
+        assertEquals(-2.25f, f.y, EPS);
+        assertEquals(1.1f, f.scale, EPS);
+        assertSame(region, f.img);
+
+        // A null static img fails the snapshot (fail open to native).
+        CardTrailNullImgHolder.img = null;
+        CardTrailNullImgHolder none = new CardTrailNullImgHolder();
+        none.x = 1f;
+        none.y = 2f;
+        none.scale = 1f;
+        none.color = Color.WHITE;
+        assertNull(Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.CARD_TRAIL, none));
     }
 
     @Test
@@ -3931,6 +3985,81 @@ public class Sts1VfxArtRendererTest {
         assertTrue(new Sts1VfxArtRenderer().isReady(VfxClaimPolicy.TORCH_HEAD_FIRE));
     }
 
+    @Test
+    public void cardTrailDrawsTheStaticRegionWithTheFixedOriginAndSizeAdditively() {
+        // CardTrailEffect draws on the img (AtlasRegion) path with a fixed ORIGIN (6f, 6f) and fixed
+        // SIZE (12f, 12f) regardless of the region's packed size, a hardcoded rotation 0f (the class
+        // inherits AbstractGameEffect.rotation but its draw ignores it), and installs/restores the
+        // additive blend. Its img is a STATIC field.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        Color color = new Color(0.2f, 0.3f, 0.4f, 0.5f);
+        AbstractGameEffect trail = seededCardTrail(color, 12.5f, -3.25f, 1.25f);
+
+        assertTrue(renderer.render(batch, trail));
+
+        assertEquals("the additive CardTrail draw installs and restores blend",
+                2, batch.setBlendCalls);
+        assertEquals("the packed-region (img) draw overload is used",
+                1, batch.textureRegionDrawCalls);
+        assertEquals("the raw-texture overload is not used", 0, batch.drawCalls);
+        assertNotNull("the draw arguments must have been captured", batch.drawnRegionArgs);
+        assertEquals(12.5f, batch.drawnRegionArgs[0], EPS);
+        assertEquals(-3.25f, batch.drawnRegionArgs[1], EPS);
+        assertEquals("the origin is the fixed 6f", 6f, batch.drawnRegionArgs[2], EPS);
+        assertEquals("the origin is the fixed 6f", 6f, batch.drawnRegionArgs[3], EPS);
+        assertEquals("the size is the fixed 12f regardless of packed size",
+                12f, batch.drawnRegionArgs[4], EPS);
+        assertEquals(12f, batch.drawnRegionArgs[5], EPS);
+        assertEquals(1.25f, batch.drawnRegionArgs[6], EPS);
+        assertEquals(1.25f, batch.drawnRegionArgs[7], EPS);
+        assertEquals("CardTrail hardcodes rotation 0f", 0f, batch.drawnRegionArgs[8], EPS);
+        assertEquals(0.2f, batch.firstSetColor.r, EPS);
+    }
+
+    @Test
+    public void cardTrailDrawForcesRotationZeroDespiteTheInheritedField() {
+        // CardTrailEffect inherits AbstractGameEffect.rotation; its native render ignores that field
+        // and hardcodes rotation 0f. A NON-ZERO inherited rotation must therefore still draw at 0f.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect trail =
+                seededCardTrailWithRotation(new Color(0.3f, 0.4f, 0.5f, 0.6f), 9f, 8f, 1f, 137f);
+
+        assertTrue(renderer.render(batch, trail));
+        assertEquals("the additive CardTrail draw installs and restores blend",
+                2, batch.setBlendCalls);
+        assertEquals("the packed-region (img) draw overload is used",
+                1, batch.textureRegionDrawCalls);
+        assertNotNull(batch.drawnRegionArgs);
+        assertEquals(9f, batch.drawnRegionArgs[0], EPS);
+        assertEquals(8f, batch.drawnRegionArgs[1], EPS);
+        assertEquals(6f, batch.drawnRegionArgs[2], EPS);
+        assertEquals(6f, batch.drawnRegionArgs[3], EPS);
+        assertEquals(12f, batch.drawnRegionArgs[4], EPS);
+        assertEquals(12f, batch.drawnRegionArgs[5], EPS);
+        assertEquals("CardTrail uniform scaleX", 1f, batch.drawnRegionArgs[6], EPS);
+        assertEquals("CardTrail uniform scaleY", 1f, batch.drawnRegionArgs[7], EPS);
+        assertEquals("CardTrail hardcodes the draw rotation 0f despite the 137f field",
+                0f, batch.drawnRegionArgs[8], EPS);
+    }
+
+    @Test
+    public void cardTrailIsReadyAndFailsOpenOnAMissingImage() {
+        // The static img is present: isReady must route the appended-last FQN.
+        assertTrue(new Sts1VfxArtRenderer().isReady(VfxClaimPolicy.CARD_TRAIL));
+
+        // A null static img fails the snapshot (fail open: render returns false, no draw).
+        AbstractGameEffect none = seededCardTrailNullImg(Color.WHITE, 1f, 2f, 1f);
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        assertFalse("a missing img must fail open",
+                renderer.render(batch, none));
+        assertEquals(0, batch.setBlendCalls);
+        assertEquals(0, batch.textureRegionDrawCalls);
+        assertEquals(0, batch.drawCalls);
+    }
+
     /** Real {@code TorchHeadFireEffect} with seeded draw fields and its {@code flippedX} boolean. */
     private static AbstractGameEffect seededTorchHeadFire(Color color, float x, float y,
             float scale, boolean flippedX) {
@@ -4372,6 +4501,69 @@ public class Sts1VfxArtRendererTest {
             return effect;
         } catch (Exception failure) {
             throw new AssertionError("could not build no-GL ExhaustPileParticle", failure);
+        }
+    }
+
+    /**
+     * Real {@code CardTrailEffect} with reflectively seeded {@code x}/{@code y} and a seeded
+     * {@code private static AtlasRegion img} (no game/GL context). The class does not redeclare a
+     * rotation field but inherits {@code AbstractGameEffect.rotation}; the inherited
+     * {@code scale}/{@code color} are seeded.
+     */
+    private static AbstractGameEffect seededCardTrail(Color color, float x, float y, float scale) {
+        return seededCardTrailWithRotation(color, x, y, scale, 0f);
+    }
+
+    /**
+     * Real {@code CardTrailEffect} seeded like {@link #seededCardTrail} but with an explicit
+     * NON-ZERO inherited {@code rotation} value, to prove the claimed draw still forces rotation 0f.
+     */
+    private static AbstractGameEffect seededCardTrailWithRotation(Color color, float x, float y,
+            float scale, float rotation) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            setStaticField(com.megacrit.cardcrawl.vfx.CardTrailEffect.class, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+            com.megacrit.cardcrawl.vfx.CardTrailEffect effect =
+                    (com.megacrit.cardcrawl.vfx.CardTrailEffect)
+                            unsafe.allocateInstance(com.megacrit.cardcrawl.vfx.CardTrailEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.CardTrailEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.CardTrailEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL CardTrailEffect", failure);
+        }
+    }
+
+    /** Real {@code CardTrailEffect} with a NULL static {@code img} (the fail-open case). */
+    private static AbstractGameEffect seededCardTrailNullImg(Color color, float x, float y,
+            float scale) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            setStaticField(com.megacrit.cardcrawl.vfx.CardTrailEffect.class, "img", null);
+            com.megacrit.cardcrawl.vfx.CardTrailEffect effect =
+                    (com.megacrit.cardcrawl.vfx.CardTrailEffect)
+                            unsafe.allocateInstance(com.megacrit.cardcrawl.vfx.CardTrailEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.CardTrailEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.CardTrailEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL CardTrailEffect (null img)", failure);
         }
     }
 

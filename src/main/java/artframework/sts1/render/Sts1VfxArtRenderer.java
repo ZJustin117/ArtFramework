@@ -127,6 +127,21 @@ import java.lang.reflect.Field;
  * scale {@code scaleX = scale * 1.2f} with {@code scaleY = scale}, resolved in its own
  * {@link VfxDrawGeometry#params} branch. No new draw branch, fail-open/no-throw preserved.
  *
+ * <p>The newest (F30) member, the {@code vfx-misc-root} {@code CardTrailEffect} (NO-ARG
+ * constructor), also rides the existing img ({@link TextureAtlas.AtlasRegion}) path with no new draw
+ * branch. It is ADDITIVE and resolves a {@code private static AtlasRegion img} (via the same
+ * superclass-walking reader as {@code ExhaustPileParticle}); it does NOT redeclare a {@code rotation}
+ * field, but inherits {@code AbstractGameEffect.rotation}, so the img-path reader always resolves a
+ * value for it — its native draw nevertheless hardcodes rotation {@code 0f}, so the claimed draw
+ * forces {@code 0f} regardless of that (ignored) field. Its
+ * ONE new pure rule lives in its own {@link VfxDrawGeometry#params} branch: a fixed ORIGIN
+ * ({@code 6f, 6f}) and fixed SIZE ({@code 12f, 12f}) INDEPENDENT of the region's packed size. It
+ * draws the region's own source UVs (the 9-arg {@code TextureRegion} overload), which the canonical
+ * region view already reproduces, so it is NOT a shape-C (bare {@code Texture}) kind; it is kept out
+ * of {@link #readFields}' {@code rotation} requirement only DEFENSIVELY (the exemption is
+ * behaviorally inert because the field is always present via inheritance). Fail-open/no-throw
+ * preserved.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -322,7 +337,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             Float y = readFloat(effect, "y");
             Float scale = readFloat(effect, "scale");
             Float rotation = readFloat(effect, "rotation");
-            if (x == null || y == null || scale == null || rotation == null) {
+            // CardTrailEffect's native render hardcodes rotation 0f and ignores its inherited rotation
+            // field, so it does NOT require one (mirroring its hardcoded-0f shape-C cousins). Every
+            // other img kind consumes its rotation field, so it stays required.
+            boolean requireRotation = kind != VfxDrawGeometry.Kind.CARD_TRAIL;
+            if (x == null || y == null || scale == null || (requireRotation && rotation == null)) {
                 return null;
             }
             Float vY = readFloat(effect, "vY");

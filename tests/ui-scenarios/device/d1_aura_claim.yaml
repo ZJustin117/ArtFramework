@@ -46,6 +46,9 @@
 # rect — offset/origin 64, size 128x128, src 0,0,128,128, rotation hardcoded 0f — with the effect's
 # own flippedX horizontal flip and ONE new pure rule: an ASYMMETRIC X scale scaleX = scale * 1.2f,
 # scaleY = scale).
+# The newest (F30) is CardTrailEffect (root; additive img/AtlasRegion path with a new fixed-origin/
+# size rule — origin 6,6 and size 12x12 INDEPENDENT of the region's packed size, rotation hardcoded
+# 0f; static img, NO-ARG ctor).
 # NOTE: a freshly lab-spawned FallingIceEffect/DamageHeartEffect starts with its guard UNSATISFIED
 # (waitTimer/delayTimer >= 0f), so the spawn-frame evidence for these two is the per-FQN
 # active/entity delta on spawn (observation), NOT a draw increase at spawn. The kinds then diverge:
@@ -168,6 +171,7 @@ steps:
   - console: "art claim spawn bottomfog 4"
   - console: "art claim spawn giantfire 4"
   - console: "art claim spawn torchheadfire 4"
+  - console: "art claim spawn cardtrail 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -258,6 +262,7 @@ steps:
   - console: "art claim spawn bottomfog 4"
   - console: "art claim spawn giantfire 4"
   - console: "art claim spawn torchheadfire 4"
+  - console: "art claim spawn cardtrail 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

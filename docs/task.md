@@ -916,6 +916,44 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
       token semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F30 (one more native transient effect on the family-neutral default-off per-instance
+      claim seam; the img path with ONE small pure rule):
+      `com.megacrit.cardcrawl.vfx.CardTrailEffect` (`vfx-misc-root`; fields a STATIC shared
+      `private static TextureAtlas.AtlasRegion img` assigned in the ctor from
+      `ImageMaster.vfxAtlas.findRegion(...)`, `float x, y, scale`; inherited `color`; it does NOT
+      redeclare a `rotation` field but inherits `AbstractGameEffect.rotation`; NO-ARG ctor). Its
+      native `render` is `setBlendFunction(770, 1); setColor(color);
+      sb.draw(img, x, y, 6f, 6f, 12f, 12f, scale, scale, 0f); setBlendFunction(770, 771)` — the img
+      (`AtlasRegion`) path with ONE new pure rule: a fixed ORIGIN `(6f, 6f)` and a fixed SIZE
+      `(12f, 12f)` INDEPENDENT of the region's packed size, with rotation hardcoded `0f` (the class's
+      native draw ignores the inherited `rotation` field and forces `0f`); ADDITIVE. Implementation:
+      `VfxClaimPolicy.CARD_TRAIL` appends LAST to
+      `supportedClasses()`/`supports(...)`. `VfxDrawGeometry` gained `Kind.CARD_TRAIL` with its OWN
+      `params` branch returning `Params(x, y, 6f, 6f, 12f, 12f, scale, scale, 0f)` via the named
+      constants `CARD_TRAIL_ORIGIN = 6f`/`CARD_TRAIL_SIZE = 12f`; `additiveBlend` is `true` for it;
+      `kindFor` maps the exact FQN (near-miss/nested fail open); every other predicate is unchanged
+      (it uses none of them). `Sts1VfxArtRenderer` routes it through the existing img (`AtlasRegion`)
+      path, resolves its STATIC `img` (like `ExhaustPileParticle`), and does NOT require a `rotation`
+      field (kept out of the img reader's rotation requirement only DEFENSIVELY — the exemption is
+      behaviorally inert because the inherited field is always present — while the claimed draw forces
+      rotation `0`) — no new
+      draw branch; fail-open/no-throw preserved. `VfxLabSpawn.classNameFor` gains
+      `"cardtrail"`/`"trail"` → `new CardTrailEffect()` (NO-ARG; no alias collision) behind the
+      existing fail-open guard, and `art claim spawn cardtrail 4` runs in both `d1_aura_claim.yaml`
+      phases. No new patch/bridge/console wiring; default-off gate + per-instance token semantics
+      unchanged. Focused no-GL JUnit only.
+
+      F30b (lab-path defect caught by D1, NOT a renderer defect): `CardTrailEffect` is a pooled
+      `Pool.Poolable` whose `color`/`x`/`y`/`scale`/`duration` are set by `init(x, y)` (which reads
+      `AbstractDungeon.player.getCardTrailColor()` and applies the fixed `-6f` offsets), not by its
+      no-arg constructor, so a lab spawn that only constructed the effect left the inherited `color`
+      null → `Sts1VfxArtRenderer.readFields` declined (`color` required) and native also NPE'd on
+      `setColor(null)`, breaking the D1 scenario (`nativeRenderStrict.accepted=false`, `dewe=4`).
+      `VfxLabSpawn` now calls `effect.init(960f, 540f)` after construction (inside the existing
+      fail-open `try/catch(Throwable)` guard, since `init` may read a null player off-game). The
+      renderer/geometry/policy/F30 kind are unchanged; a focused no-GL test proves the lab
+      `construct` path invokes `init`.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

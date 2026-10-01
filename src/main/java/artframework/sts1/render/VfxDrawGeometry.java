@@ -262,6 +262,11 @@ package artframework.sts1.render;
  *     sb.draw(ImageMaster.WOBBLY_ORB_VFX, x - 16f, y - 16f, 16f, 16f, 32f, 32f,
  *             scale*MathUtils.random(0.6f,2.5f), scale*MathUtils.random(0.6f,2.5f), rotation - 200f,
  *             0, 0, 32, 32, false, false)
+ *   CardTrailEffect.render (note: ADDITIVE; fixed ORIGIN 6,6 and fixed SIZE 12x12 INDEPENDENT of the
+ *                           region's packed size; rotation hardcoded 0f — the class inherits
+ *                           AbstractGameEffect.rotation but the draw ignores it; the img is a private
+ *                           STATIC AtlasRegion):
+ *     sb.draw(img, x, y, 6f, 6f, 12f, 12f, scale, scale, 0f)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -402,6 +407,18 @@ package artframework.sts1.render;
  * {@code scaleX = scale * }{@link #TORCH_HEAD_FIRE_SCALE_X_MULTIPLIER} ({@code 1.2f}) with
  * {@code scaleY = scale}. No new patch/bridge/console wiring; the default-off gate and per-instance
  * token semantics are unchanged.
+ *
+ * <p>The newest (F30) member is the {@code vfx-misc-root} {@code CardTrailEffect}
+ * ({@link Kind#CARD_TRAIL}): the img ({@code AtlasRegion}) path with ONE new pure rule — the native
+ * {@code render} passes a fixed ORIGIN {@code (6f, 6f)} and a fixed SIZE {@code (12f, 12f)}
+ * regardless of the region's packed size, with rotation hardcoded {@code 0f}. The class does not
+ * redeclare a {@code rotation} field but inherits {@code AbstractGameEffect.rotation}, and its native
+ * draw ignores that inherited field, so the claimed draw forces {@code 0f}. It is ADDITIVE and draws
+ * the region's own source UVs (the 9-arg
+ * {@code TextureRegion} overload), which the canonical region view already reproduces. It resolves a
+ * {@code private static} {@code AtlasRegion img} (like {@code ExhaustPileParticle}) and has a NO-ARG
+ * constructor. No new patch/bridge/console wiring; the default-off gate and per-instance token
+ * semantics are unchanged.
  */
 public final class VfxDrawGeometry {
 
@@ -465,7 +482,8 @@ public final class VfxDrawGeometry {
         BUFF_PARTICLE,
         BOTTOM_FOG,
         GIANT_FIRE,
-        TORCH_HEAD_FIRE
+        TORCH_HEAD_FIRE,
+        CARD_TRAIL
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -642,6 +660,15 @@ public final class VfxDrawGeometry {
     // scaleX = scale * 1.2f while scaleY = scale. It is the only kind with this X multiplier.
     /** Native TorchHeadFire X-axis scale multiplier ({@code 1.2f}). */
     public static final float TORCH_HEAD_FIRE_SCALE_X_MULTIPLIER = 1.2f;
+
+    // Native CardTrailEffect draw constants (see the class Javadoc): a fixed ORIGIN and fixed SIZE
+    // on the img (packed-region) path, INDEPENDENT of the region's packed size. Its rotation is
+    // hardcoded to 0f (the class inherits AbstractGameEffect.rotation but its draw ignores it) and it
+    // draws additively.
+    /** Native CardTrail draw origin ({@code 6f}). */
+    public static final float CARD_TRAIL_ORIGIN = 6f;
+    /** Native CardTrail draw width/height ({@code 12f}). */
+    public static final float CARD_TRAIL_SIZE = 12f;
 
     // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
     // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
@@ -942,6 +969,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.BOTTOM_FOG.equals(value)) return Kind.BOTTOM_FOG;
         if (VfxClaimPolicy.GIANT_FIRE.equals(value)) return Kind.GIANT_FIRE;
         if (VfxClaimPolicy.TORCH_HEAD_FIRE.equals(value)) return Kind.TORCH_HEAD_FIRE;
+        if (VfxClaimPolicy.CARD_TRAIL.equals(value)) return Kind.CARD_TRAIL;
         return null;
     }
 
@@ -1006,6 +1034,8 @@ public final class VfxDrawGeometry {
      * so {@code false} is reported for it, while the newest {@link Kind#GIANT_FIRE} installs/restores the
      * additive blend natively and is ADDITIVE. The newest (F29) member
      * {@link Kind#TORCH_HEAD_FIRE} also installs/restores the additive blend natively and is ADDITIVE.
+     * The newest (F30) member {@link Kind#CARD_TRAIL} likewise installs/restores the additive blend
+     * natively and is ADDITIVE, so it is not in the ambient set.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -1685,6 +1715,15 @@ public final class VfxDrawGeometry {
                 return new Params(x - packedWidth / 2f, y - packedHeight / 2f,
                         regionOffsetX, regionOffsetY, packedWidth, packedHeight,
                         scale, scale, rotation);
+            case CARD_TRAIL:
+                // Native CardTrailEffect.draws on the img (TextureAtlas.AtlasRegion) path with a fixed
+                // ORIGIN (6f, 6f) and fixed SIZE (12f, 12f), INDEPENDENT of the region's packed size,
+                // and a hardcoded rotation 0f (the class inherits AbstractGameEffect.rotation but its
+                // draw ignores the field). ADDITIVE, x/y
+                // passthrough, uniform scale. packedWidth/packedHeight, vY, vX, the region offsets,
+                // dur_div2, duration, and Settings.scale are unused.
+                return new Params(x, y, CARD_TRAIL_ORIGIN, CARD_TRAIL_ORIGIN,
+                        CARD_TRAIL_SIZE, CARD_TRAIL_SIZE, scale, scale, 0f);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

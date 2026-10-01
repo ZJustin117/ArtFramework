@@ -5,6 +5,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.ConeEffect;
+import com.megacrit.cardcrawl.vfx.CardTrailEffect;
 import com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
@@ -117,7 +118,9 @@ import java.util.function.Predicate;
  * {@code *Settings.scale} rule and a flipX-only mirror, NO-ARG ctor), plus the newest (F29) member
  * {@code TorchHeadFireEffect} (root; additive shape-C reusing the {@code GlowyFireEyesEffect} rect
  * with a new asymmetric {@code scaleX = scale * 1.2f} rule and a {@code flippedX} flip; ctor
- * {@code (float, float)}) into the
+ * {@code (float, float)}), plus the newest (F30) member {@code CardTrailEffect} (root; additive img
+ * path with a new fixed-origin/size rule {@code 6,6}/{@code 12,12} independent of the packed region;
+ * static {@code img}; NO-ARG ctor) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -332,6 +335,9 @@ public final class VfxLabSpawn {
         }
         if ("torchheadfire".equalsIgnoreCase(value) || "torchhead".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.TORCH_HEAD_FIRE;
+        }
+        if ("cardtrail".equalsIgnoreCase(value) || "trail".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.CARD_TRAIL;
         }
         return null;
     }
@@ -781,6 +787,18 @@ public final class VfxLabSpawn {
             // and may be null outside a live game; any failure is caught by spawn's fail-open guard
             // rather than propagating.
             return new TorchHeadFireEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.CARD_TRAIL.equals(fqn)) {
+            // CardTrailEffect is a pooled Pool.Poolable effect: its no-arg constructor only selects
+            // the static img, leaving the inherited color/x/y/scale unset. In production it is always
+            // obtained then init(x, y) is called, which sets duration/startingDuration/x/y/color
+            // (from AbstractDungeon.player.getCardTrailColor())/scale and isDone=false. The lab must
+            // init too so color is non-null (the renderer requires a Color) and x/y match the lab
+            // point. init reads AbstractDungeon.player, which may be null off-game, so any failure is
+            // caught by spawn's fail-open guard rather than propagating.
+            CardTrailEffect effect = new CardTrailEffect();
+            effect.init(960f, 540f);
+            return effect;
         }
         return null;
     }

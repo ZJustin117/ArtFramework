@@ -1,18 +1,23 @@
 package artframework.sts1.lab;
 
 import artframework.sts1.render.VfxClaimPolicy;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
+import com.megacrit.cardcrawl.vfx.CardTrailEffect;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect;
 import org.junit.After;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -161,6 +166,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE,
                 VfxLabSpawn.classNameFor("torchheadfire"));
         assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE, VfxLabSpawn.classNameFor("torchhead"));
+        assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("cardtrail"));
+        assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("trail"));
     }
 
     @Test
@@ -259,6 +266,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE,
                 VfxLabSpawn.classNameFor("  ToRcHhEaDfIrE "));
         assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE, VfxLabSpawn.classNameFor("TORCHHEAD"));
+        assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("  CaRdTrAiL "));
+        assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("TRAIL"));
     }
 
     @Test
@@ -669,6 +678,63 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("torchhead", VfxClaimPolicy.TORCH_HEAD_FIRE);
     }
 
+    @Test
+    public void spawnHappyPathQueuesTheF30CardTrailThroughTheFactorySeam() {
+        // The newest (F30) claimable FQN; the capturing factory proves both aliases request exactly
+        // that FQN without running the ImageMaster-backed NO-ARG constructor (its static img may be
+        // null off-game). "cardtrail"/"trail" do not collide with any existing alias.
+        assertSpawnRequests("cardtrail", VfxClaimPolicy.CARD_TRAIL);
+        assertSpawnRequests("trail", VfxClaimPolicy.CARD_TRAIL);
+    }
+
+    @Test
+    public void cardTrailLabConstructInitializesTheEffect() throws Exception {
+        // CardTrailEffect is a pooled Pool.Poolable effect: its no-arg ctor only selects the static
+        // img, while color/x/y/scale/duration come from init(x, y). VfxLabSpawn.construct must
+        // therefore call init (F30b). Exercise the private construct directly (the real lab path,
+        // not the capturing factory), presetting the static img so the ctor is GL-free. Off a live
+        // game init reads AbstractDungeon.player and aborts, so we assert the init invocation via the
+        // reached call frame; if a live-ish context happens to let init complete we assert the full
+        // initialized contract. Never touches GL.
+        Field imgField = CardTrailEffect.class.getDeclaredField("img");
+        imgField.setAccessible(true);
+        Object previousImg = imgField.get(null);
+        imgField.set(null, dummyAtlasRegion());
+        try {
+            Method construct = VfxLabSpawn.class.getDeclaredMethod("construct", String.class);
+            construct.setAccessible(true);
+            Object result = null;
+            Throwable failure = null;
+            try {
+                result = construct.invoke(null, VfxClaimPolicy.CARD_TRAIL);
+            } catch (java.lang.reflect.InvocationTargetException wrapped) {
+                failure = wrapped.getCause();
+            }
+
+            if (result != null) {
+                // A live-ish context let init run to completion: the inherited color is set and x/y
+                // are the lab point (960f, 540f) shifted by init's fixed -6f.
+                assertTrue("the lab construct returns a CardTrailEffect",
+                        result instanceof CardTrailEffect);
+                assertEquals("init sets x to the lab x minus 6f", 954f,
+                        ((Number) readInstanceField(result, "x")).floatValue(), 0f);
+                assertEquals("init sets y to the lab y minus 6f", 534f,
+                        ((Number) readInstanceField(result, "y")).floatValue(), 0f);
+                assertNotNull("init sets the inherited color (the renderer requires a Color)",
+                        readInstanceField(result, "color"));
+            } else {
+                // Off-game init aborts on the AbstractDungeon.player read; the reached frame proves
+                // the lab CARD_TRAIL path invoked init (the fix). The ctor itself is GL-free here
+                // because the static img is preset, so the failure can only come from init.
+                assertNotNull("construct must fail only after reaching init", failure);
+                assertTrue("the lab CARD_TRAIL path must invoke CardTrailEffect.init(...)",
+                        stackMentions(failure, CardTrailEffect.class.getName(), "init"));
+            }
+        } finally {
+            imgField.set(null, previousImg);
+        }
+    }
+
     private static void assertSpawnRequests(String alias, String expectedFqn) {
         RecordingQueue queue = new RecordingQueue();
         CapturingFactory factory = new CapturingFactory();
@@ -735,6 +801,48 @@ public class VfxLabSpawnTest {
         } catch (Exception failure) {
             throw new AssertionError("could not allocate claimable effect " + type, failure);
         }
+    }
+
+    /**
+     * Reads one field walking the superclass chain (so the inherited {@code color}/{@code x} on a
+     * real {@code CardTrailEffect} resolve). Returns {@code null} when absent.
+     */
+    private static Object readInstanceField(Object target, String name) {
+        Class<?> c = target.getClass();
+        while (c != null && c != Object.class) {
+            try {
+                Field f = c.getDeclaredField(name);
+                f.setAccessible(true);
+                return f.get(target);
+            } catch (NoSuchFieldException e) {
+                c = c.getSuperclass();
+            } catch (Exception failure) {
+                throw new AssertionError("could not read field " + name, failure);
+            }
+        }
+        return null;
+    }
+
+    /** True when the throwable's stack contains a frame for {@code owner.name}. */
+    private static boolean stackMentions(Throwable failure, String owner, String name) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            for (StackTraceElement frame : t.getStackTrace()) {
+                if (owner.equals(frame.getClassName()) && name.equals(frame.getMethodName())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** A GL-free {@code TextureAtlas.AtlasRegion} so the CardTrailEffect ctor can run headless. */
+    private static Object dummyAtlasRegion() throws Exception {
+        java.lang.reflect.Field unsafeField =
+                sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        Object unsafe = unsafeField.get(null);
+        return unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, TextureAtlas.AtlasRegion.class);
     }
 
     /**

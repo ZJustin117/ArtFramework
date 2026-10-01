@@ -315,6 +315,11 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.TORCH_HEAD_FIRE));
         assertSame(VfxDrawGeometry.Kind.TORCH_HEAD_FIRE,
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.TorchHeadFireEffect"));
+        // The newest F30 member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.CARD_TRAIL,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.CARD_TRAIL));
+        assertSame(VfxDrawGeometry.Kind.CARD_TRAIL,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.CardTrailEffect"));
     }
 
     @Test
@@ -3298,5 +3303,71 @@ public class VfxDrawGeometryTest {
         } catch (IllegalArgumentException expected) {
             // expected
         }
+    }
+
+    @Test
+    public void cardTrailUsesAFixedOriginAndSizeIndependentOfThePackedRegion() {
+        // Native CardTrailEffect: setBlendFunction(770,1); setColor(color);
+        //   sb.draw(img, x, y, 6f, 6f, 12f, 12f, scale, scale, 0f);
+        //   setBlendFunction(770,771).
+        // The img (AtlasRegion) path with ONE new pure rule: a fixed ORIGIN (6f, 6f) and fixed SIZE
+        // (12f, 12f) INDEPENDENT of the region's packed size; rotation hardcoded 0f; ADDITIVE.
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.CARD_TRAIL,
+                x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f, 1f, 1f,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 10f /* regionOffsetY ignored */,
+                0f, 0f, 1f);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(6f, p.originX, EPS);
+        assertEquals(6f, p.originY, EPS);
+        assertEquals(12f, p.width, EPS);
+        assertEquals(12f, p.height, EPS);
+        assertEquals(scale, p.scaleX, EPS);
+        assertEquals(scale, p.scaleY, EPS);
+        assertEquals("CardTrail hardcodes rotation 0f", 0f, p.rotation, EPS);
+        assertEquals(6f, VfxDrawGeometry.CARD_TRAIL_ORIGIN, EPS);
+        assertEquals(12f, VfxDrawGeometry.CARD_TRAIL_SIZE, EPS);
+
+        // The fixed rect is INDEPENDENT of the region's packed size: a large packed region must not
+        // change the origin/size (unlike the center-packed kinds).
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.CARD_TRAIL,
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 512f, 384f,
+                0f, 0f, 0f, 0f, 0f, 1f);
+        assertEquals(p, q);
+
+        assertTrue("CARD_TRAIL installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.CARD_TRAIL));
+        assertEquals(1f, VfxDrawGeometry.uniformScaleMultiplier(
+                VfxDrawGeometry.Kind.CARD_TRAIL, 2f), EPS);
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.CARD_TRAIL).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(
+                VfxDrawGeometry.Kind.CARD_TRAIL).isEmpty());
+    }
+
+    @Test
+    public void cardTrailKindForFailsOpenForNearMisses() {
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.CardTrailEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.CardTrailEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("CardTrailEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.CardTrail"));
     }
 }

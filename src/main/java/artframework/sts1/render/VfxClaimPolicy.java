@@ -251,6 +251,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect";
     public static final String TORCH_HEAD_FIRE =
             "com.megacrit.cardcrawl.vfx.TorchHeadFireEffect";
+    public static final String CARD_TRAIL =
+            "com.megacrit.cardcrawl.vfx.CardTrailEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -269,7 +271,7 @@ public final class VfxClaimPolicy {
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
-                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE));
+                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL));
 
     private VfxClaimPolicy() {}
 
@@ -336,7 +338,8 @@ public final class VfxClaimPolicy {
                 || BUFF_PARTICLE.equals(value)
                 || BOTTOM_FOG.equals(value)
                 || GIANT_FIRE.equals(value)
-                || TORCH_HEAD_FIRE.equals(value);
+                || TORCH_HEAD_FIRE.equals(value)
+                || CARD_TRAIL.equals(value);
     }
 
     /**
@@ -493,6 +496,17 @@ public final class VfxClaimPolicy {
      * {@code false}), but with ONE new pure rule: an ASYMMETRIC X scale ({@code scaleX = scale *
      * 1.2f}, {@code scaleY = scale}). It is appended LAST and adds no new patch/bridge/console wiring;
      * the default-off gate and per-instance token semantics are unchanged.
+     * The newest (F30) member is the {@code vfx-misc-root} {@code CardTrailEffect}. Its native
+     * {@code render} is {@code setBlendFunction(770, 1); setColor(color); sb.draw(img, x, y, 6f, 6f,
+     * 12f, 12f, scale, scale, 0f); setBlendFunction(770, 771)} — the img
+     * ({@code TextureAtlas.AtlasRegion}) path with ONE new pure rule: a fixed ORIGIN {@code (6f, 6f)}
+     * and fixed SIZE {@code (12f, 12f)} regardless of the region's packed size, with rotation
+     * hardcoded {@code 0f} (it does not redeclare {@code rotation} — it inherits
+     * {@code AbstractGameEffect.rotation} — but its native draw ignores the field). It is ADDITIVE, its
+     * {@code img} is a
+     * {@code private static} field (resolved like {@code ExhaustPileParticle}), and it has a NO-ARG
+     * constructor. Appended LAST; no new patch/bridge/console wiring; the default-off gate and
+     * per-instance token semantics are unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

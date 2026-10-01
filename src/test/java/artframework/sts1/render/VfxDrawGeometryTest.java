@@ -249,6 +249,17 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.DAMAGE_HEART));
         assertSame(VfxDrawGeometry.Kind.DAMAGE_HEART,
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.DamageHeartEffect"));
+        // The two newest mirror members, via constants and literal FQNs.
+        assertSame(VfxDrawGeometry.Kind.SPOOKY_CHEST,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SPOOKY_CHEST));
+        assertSame(VfxDrawGeometry.Kind.SPOOKY_CHEST,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect"));
+        assertSame(VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME));
+        assertSame(VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect"));
     }
 
     @Test
@@ -615,6 +626,25 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.combat.DamageHeartEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.DamageHeart")); // near-miss (no Effect)
+        // The two newest mirror members: exact FQN only, near-misses fail open.
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("SpookyChestEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.SpookyChestEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.SpookyChest")); // near-miss (no Effect)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("IroncladVictoryFlameEffect")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.IroncladVictoryFlameEffect")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlame")); // near-miss (no Effect)
     }
 
     @Test
@@ -1992,6 +2022,10 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FALLING_ICE));
         assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_HEART));
 
+        // The two newest mirror members are both ambient center-packed (no setBlendFunction).
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SPOOKY_CHEST));
+        assertFalse(VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME));
+
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FLASH_ATK_IMG
                     || kind == VfxDrawGeometry.Kind.SMOKE_BLUR
@@ -2010,7 +2044,9 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.SHINE_LINES
                     || kind == VfxDrawGeometry.Kind.SCENE_DUST
                     || kind == VfxDrawGeometry.Kind.CONE
-                    || kind == VfxDrawGeometry.Kind.DAMAGE_HEART) {
+                    || kind == VfxDrawGeometry.Kind.DAMAGE_HEART
+                    || kind == VfxDrawGeometry.Kind.SPOOKY_CHEST
+                    || kind == VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -2239,6 +2275,99 @@ public class VfxDrawGeometryTest {
         assertFalse("DAMAGE_HEART never calls setBlendFunction (ambient)",
                 VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.DAMAGE_HEART));
         assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.DAMAGE_HEART));
+    }
+
+    @Test
+    public void spookyChestAndIroncladVictoryFlameReuseTheStanceAuraCenterPackedGeometryAmbiently() {
+        // Native SpookyChestEffect / IroncladVictoryFlameEffect: setColor(color);
+        //   if (flipX != img.isFlipX()) img.flip(true, false);   (SpookyChest also flips Y)
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation);   -- NO
+        //   setBlendFunction, so both are ambient center-packed and geometry-identical to
+        // StanceAuraEffect (the per-instance mirror is resolved by the renderer as a UV swap).
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.6f;
+        float rotation = 45f;
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                x, y, 999f, scale, rotation, 7f, 5f, 2f, pw, ph, 1234f, 0f, 0f, 0f, 0f);
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.SPOOKY_CHEST,
+                VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME }) {
+            VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                    kind, x, y, 999f /* vY ignored */, scale, rotation, 7f, 5f, 2f,
+                    pw, ph, 1234f /* vX ignored */, 0f, 0f, 0f, 0f);
+            assertEquals("geometry must equal the STANCE_AURA center-packed geometry for " + kind,
+                    aura, p);
+            assertFalse("no setBlendFunction (ambient) for " + kind,
+                    VfxDrawGeometry.additiveBlend(kind));
+            assertFalse(VfxDrawGeometry.whiteAlphaOnly(kind));
+        }
+    }
+
+    @Test
+    public void instanceMirrorPredicatesAreTrueOnlyForTheThreeMirrorKinds() {
+        // Native FlameParticleEffect, SpookyChestEffect, and IroncladVictoryFlameEffect mirror the
+        // drawn sprite horizontally when their own flipX is set; only SpookyChestEffect also mirrors
+        // vertically (FlameParticle/IroncladVictoryFlame declare no flipY field).
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.FLAME_PARTICLE));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.SPOOKY_CHEST));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorX(
+                VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.FLAME_PARTICLE));
+        assertTrue(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.SPOOKY_CHEST));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(
+                VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME));
+
+        // A sample of pre-existing kinds (including the shape-C flip kinds, which are DISTINCT).
+        VfxDrawGeometry.Kind[] none = {
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                VfxDrawGeometry.Kind.CALM_PARTICLE,
+                VfxDrawGeometry.Kind.WEB_PARTICLE,
+                VfxDrawGeometry.Kind.UNKNOWN_PARTICLE,
+                VfxDrawGeometry.Kind.SCENE_DUST,
+                VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE,
+                VfxDrawGeometry.Kind.GLOWY_FIRE_EYES,
+                VfxDrawGeometry.Kind.FALLING_ICE,
+                VfxDrawGeometry.Kind.DAMAGE_HEART };
+        for (VfxDrawGeometry.Kind kind : none) {
+            assertFalse("no img-path X mirror for " + kind,
+                    VfxDrawGeometry.usesInstanceMirrorX(kind));
+            assertFalse("no img-path Y mirror for " + kind,
+                    VfxDrawGeometry.usesInstanceMirrorY(kind));
+        }
+
+        // The truth table is exhaustive over the enum.
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            assertEquals("X mirror truth table for " + kind,
+                    kind == VfxDrawGeometry.Kind.FLAME_PARTICLE
+                            || kind == VfxDrawGeometry.Kind.SPOOKY_CHEST
+                            || kind == VfxDrawGeometry.Kind.IRONCLAD_VICTORY_FLAME,
+                    VfxDrawGeometry.usesInstanceMirrorX(kind));
+            assertEquals("Y mirror truth table for " + kind,
+                    kind == VfxDrawGeometry.Kind.SPOOKY_CHEST,
+                    VfxDrawGeometry.usesInstanceMirrorY(kind));
+        }
+    }
+
+    @Test
+    public void instanceMirrorPredicatesNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.usesInstanceMirrorX(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+        try {
+            VfxDrawGeometry.usesInstanceMirrorY(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
     }
 
     @Test

@@ -35,7 +35,15 @@ package artframework.sts1.render;
  * {@code rotation} field) and the {@code vfx-misc-root} {@code DamageHeartEffect} (ambient
  * center-packed, exactly {@code StanceAuraEffect}, with a public {@code AtlasRegion img}) — the
  * first two kinds whose native {@code render} guards its draw on a wait-phase field, modeled by
- * the new {@link #nativeSkipsDrawByGuard}/{@link #guardFieldName} capability.
+ * the new {@link #nativeSkipsDrawByGuard}/{@link #guardFieldName} capability; the two newest are
+ * the {@code vfx-scene-world} {@code SpookyChestEffect} and {@code IroncladVictoryFlameEffect}
+ * (both NO-ARG constructors), ambient center-packed {@code AtlasRegion} members that additionally
+ * introduce the img-path per-instance MIRROR capability (the native render flips the shared region in
+ * place around its draw) — modeled purely by the new
+ * {@link #usesInstanceMirrorX}/{@link #usesInstanceMirrorY} predicates, with
+ * {@code SpookyChestEffect} declaring both {@code flipX} and {@code flipY} and
+ * {@code IroncladVictoryFlameEffect} only {@code flipX}; {@code FlameParticleEffect} also uses the
+ * mirror, resolving the F15 {@code flipX} limitation.
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -49,8 +57,9 @@ package artframework.sts1.render;
  * {@code GenericSmokeEffect}, {@code ExhaustBlurEffect}, {@code BlockImpactLineEffect},
  * {@code ExhaustPileParticle}, {@code UnknownParticleEffect}, {@code DamageImpactBlurEffect},
  * {@code DamageImpactLineEffect}, {@code StunStarEffect}, {@code FallingDustEffect},
- * {@code ShineLinesEffect}, {@code DustEffect}, {@code ConeEffect}, and
- * {@code DamageHeartEffect}
+ * {@code ShineLinesEffect}, {@code DustEffect}, {@code ConeEffect},
+ * {@code DamageHeartEffect}, {@code SpookyChestEffect}, and
+ * {@code IroncladVictoryFlameEffect}
  * members. The native
  * {@code LightFlareSEffect} orders blend-before-color, but only the restored end state is shared
  * with the aura classes. The host draw owns that color/blend/UV (and the region's UV rect); this
@@ -186,6 +195,19 @@ package artframework.sts1.render;
  *     sb.draw(img, x, y, 48f, 48f, 96f, 96f, scale, scale, rotation, 0, 0, 96, 96, false, false)
  *   DamageHeartEffect.render (note: guarded by if (delayTimer < 0f); no setBlendFunction; ambient
  *                              blend; the geometry is exactly StanceAuraEffect center-packed):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   SpookyChestEffect.render (note: no setBlendFunction; ambient blend; the shared region is
+ *                             flipped in place to the instance's orientation and left flipped:
+ *                             if (flipX != img.isFlipX()) img.flip(true, false);
+ *                             if (flipY != img.isFlipY()) img.flip(false, true); the geometry is
+ *                             exactly StanceAuraEffect center-packed; the mirror is resolved by the
+ *                             host draw as a UV swap — see usesInstanceMirrorX/usesInstanceMirrorY):
+ *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   IroncladVictoryFlameEffect.render (note: no setBlendFunction; ambient blend; the shared region
+ *                             is flipped in place to the instance's orientation on X and left
+ *                             flipped (the class has no flipY field); the geometry is exactly
+ *                             StanceAuraEffect center-packed; the mirror is resolved by the host draw
+ *                             as a UV swap):
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
  * </pre>
  *
@@ -324,7 +346,9 @@ public final class VfxDrawGeometry {
         FLYING_SPIKE,
         CONE,
         FALLING_ICE,
-        DAMAGE_HEART
+        DAMAGE_HEART,
+        SPOOKY_CHEST,
+        IRONCLAD_VICTORY_FLAME
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -688,6 +712,10 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.CONE_EFFECT.equals(value)) return Kind.CONE;
         if (VfxClaimPolicy.FALLING_ICE.equals(value)) return Kind.FALLING_ICE;
         if (VfxClaimPolicy.DAMAGE_HEART.equals(value)) return Kind.DAMAGE_HEART;
+        if (VfxClaimPolicy.SPOOKY_CHEST.equals(value)) return Kind.SPOOKY_CHEST;
+        if (VfxClaimPolicy.IRONCLAD_VICTORY_FLAME.equals(value)) {
+            return Kind.IRONCLAD_VICTORY_FLAME;
+        }
         return null;
     }
 
@@ -703,7 +731,8 @@ public final class VfxDrawGeometry {
      * {@link Kind#BLOCK_IMPACT_LINE}, {@link Kind#EXHAUST_PILE}, {@link Kind#UNKNOWN_PARTICLE},
      * {@link Kind#DAMAGE_IMPACT_BLUR}, {@link Kind#DAMAGE_IMPACT_LINE}, {@link Kind#STUN_STAR},
      * {@link Kind#FALLING_DUST}, {@link Kind#SHINE_LINES}, {@link Kind#SCENE_DUST},
-     * {@link Kind#CONE}, {@link Kind#DAMAGE_HEART})
+     * {@link Kind#CONE}, {@link Kind#DAMAGE_HEART}, {@link Kind#SPOOKY_CHEST},
+     * {@link Kind#IRONCLAD_VICTORY_FLAME})
      * never call
      * {@code setBlendFunction} at all, so the host draw must not install or restore a blend function
      * for them. {@link Kind#FLASH_ATK_IMG} was the first such kind; the smoke blur, ceiling dust, and
@@ -735,7 +764,9 @@ public final class VfxDrawGeometry {
      * {@link Kind#CONE}; the two newest members add only the wait-phase guard capability
      * ({@link #nativeSkipsDrawByGuard}/{@link #guardFieldName}) and reuse the existing shapes —
      * {@link Kind#FALLING_ICE} is additive (shape-C fixed rect) and {@link Kind#DAMAGE_HEART} is
-     * ambient (center-packed).
+     * ambient (center-packed). The two newest members {@link Kind#SPOOKY_CHEST} and
+     * {@link Kind#IRONCLAD_VICTORY_FLAME} are both ambient center-packed and add only the img-path
+     * per-instance MIRROR capability ({@link #usesInstanceMirrorX}/{@link #usesInstanceMirrorY}).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -760,7 +791,9 @@ public final class VfxDrawGeometry {
                 && kind != Kind.SHINE_LINES
                 && kind != Kind.SCENE_DUST
                 && kind != Kind.CONE
-                && kind != Kind.DAMAGE_HEART;
+                && kind != Kind.DAMAGE_HEART
+                && kind != Kind.SPOOKY_CHEST
+                && kind != Kind.IRONCLAD_VICTORY_FLAME;
     }
 
     /**
@@ -885,6 +918,48 @@ public final class VfxDrawGeometry {
     }
 
     /**
+     * Pure per-kind predicate for the img-path per-instance HORIZONTAL MIRROR capability: {@code true}
+     * only for the kinds whose native {@code render} mirrors the drawn sprite horizontally when the
+     * effect's own {@code flipX} field is set. Native does this by calling {@code img.flip(...)} in
+     * place around its draw; the claim suppresses that draw, so the host draw instead swaps the
+     * canonical region's {@code u}/{@code u2} (a UV swap is visually identical to a center-origin
+     * region flip). Today that is exactly {@link Kind#FLAME_PARTICLE} (its {@code flipX} field),
+     * {@link Kind#SPOOKY_CHEST} (its {@code flipX} field), and {@link Kind#IRONCLAD_VICTORY_FLAME}
+     * (its {@code flipX} field). Every other img-path kind — and every bare-{@code Texture} kind
+     * — hardcodes no such mirror, so the host draw must not read a mirror field for it. These flags
+     * are distinct from the shape-C {@link #usesInstanceFlipX}/{@link #usesInstanceFlipY} flags.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean usesInstanceMirrorX(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.FLAME_PARTICLE
+                || kind == Kind.SPOOKY_CHEST
+                || kind == Kind.IRONCLAD_VICTORY_FLAME;
+    }
+
+    /**
+     * Pure per-kind predicate for the img-path per-instance VERTICAL MIRROR capability: {@code true}
+     * only for the kinds whose native {@code render} mirrors the drawn sprite vertically when the
+     * effect's own {@code flipY} field is set. Native does this by calling {@code img.flip(true, ...)}
+     * in place around its draw; the claim suppresses that draw, so the host draw instead swaps the
+     * canonical region's {@code v}/{@code v2}. Today that is exactly {@link Kind#SPOOKY_CHEST} (its
+     * {@code flipY} field); {@link Kind#FLAME_PARTICLE} and {@link Kind#IRONCLAD_VICTORY_FLAME} each
+     * declare only a horizontal {@code flipX} field, so they are {@code false} here. Every other kind
+     * is {@code false}.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean usesInstanceMirrorY(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.SPOOKY_CHEST;
+    }
+
+    /**
      * Pure geometry for one claim. The caller supplies the effect field floats and the packed
      * region size; the per-kind color/blend state is applied by the host draw (see
      * {@link #additiveBlend}: additive kinds install/restore {@code 770/1}-&rarr;{@code 770/771},
@@ -893,7 +968,7 @@ public final class VfxDrawGeometry {
      * {@code BLOCK_IMPACT_LINE}, {@code EXHAUST_PILE}, {@code UNKNOWN_PARTICLE},
      * {@code DAMAGE_IMPACT_BLUR}, {@code DAMAGE_IMPACT_LINE}, {@code STUN_STAR},
      * {@code FALLING_DUST}, {@code SHINE_LINES}, {@code SCENE_DUST}, {@code CONE},
-     * {@code DAMAGE_HEART})
+     * {@code DAMAGE_HEART}, {@code SPOOKY_CHEST}, {@code IRONCLAD_VICTORY_FLAME})
      * leave the ambient blend untouched and restore
      * only color; see {@link #whiteAlphaOnly} for the two kinds ({@code WEB_PARTICLE} and
      * {@code ENTANGLE}) that also rewrite their set color's
@@ -956,6 +1031,8 @@ public final class VfxDrawGeometry {
             case TORCH_PARTICLE_S:
             case FLYING_SPIKE:
             case DAMAGE_HEART:
+            case SPOOKY_CHEST:
+            case IRONCLAD_VICTORY_FLAME:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,

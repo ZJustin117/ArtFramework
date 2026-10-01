@@ -36,9 +36,11 @@ import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
 import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
 import com.megacrit.cardcrawl.vfx.scene.DustEffect;
+import com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect;
+import com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleLEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleMEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleSEffect;
@@ -80,7 +82,10 @@ import java.util.function.Predicate;
  * (root; ambient center-packed with the {@code originX = 0f} + {@code scale * 1.1f} rule, NO-ARG
  * constructor), plus the two newest members {@code FallingIceEffect} ({@code vfx-combat}; additive
  * shape-C fixed rect guarded natively by {@code if (waitTimer < 0f)}) and {@code DamageHeartEffect}
- * (root; ambient center-packed guarded natively by {@code if (delayTimer < 0f)}) into
+ * (root; ambient center-packed guarded natively by {@code if (delayTimer < 0f)}), plus the two newest
+ * members {@code SpookyChestEffect} (root; ambient center-packed with per-instance {@code flipX} and
+ * {@code flipY} mirror booleans, NO-ARG constructor) and {@code IroncladVictoryFlameEffect} (root;
+ * ambient center-packed with a per-instance {@code flipX} mirror boolean, NO-ARG constructor) into
  * the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
@@ -258,6 +263,13 @@ public final class VfxLabSpawn {
         }
         if ("damageheart".equalsIgnoreCase(value) || "heart".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.DAMAGE_HEART;
+        }
+        if ("spookychest".equalsIgnoreCase(value) || "spooky".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SPOOKY_CHEST;
+        }
+        if ("victoryflame".equalsIgnoreCase(value)
+                || "ironcladvictory".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.IRONCLAD_VICTORY_FLAME;
         }
         return null;
     }
@@ -630,6 +642,19 @@ public final class VfxLabSpawn {
             // rather than propagating.
             return new DamageHeartEffect(960f, 540f, 0f,
                     com.megacrit.cardcrawl.actions.AbstractGameAction.AttackEffect.BLUNT_HEAVY, 0);
+        }
+        if (VfxClaimPolicy.SPOOKY_CHEST.equals(fqn)) {
+            // Safe lab defaults: SpookyChestEffect has a NO-ARG constructor that selects its own img
+            // from ImageMaster static art (SMOKE_1/2/3) and randomizes x/y; img may be null outside a
+            // live game, so any failure is caught by spawn's fail-open guard rather than propagating.
+            return new SpookyChestEffect();
+        }
+        if (VfxClaimPolicy.IRONCLAD_VICTORY_FLAME.equals(fqn)) {
+            // Safe lab defaults: IroncladVictoryFlameEffect has a NO-ARG constructor that selects its
+            // own img from ImageMaster static art (FLAME_1/2/3) and sets x/y; img may be null outside
+            // a live game, so any failure is caught by spawn's fail-open guard rather than
+            // propagating.
+            return new IroncladVictoryFlameEffect();
         }
         return null;
     }

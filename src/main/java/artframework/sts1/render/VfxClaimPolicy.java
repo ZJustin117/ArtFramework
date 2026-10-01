@@ -120,6 +120,13 @@ import java.util.List;
  * guarded by {@code if (delayTimer < 0f)}. Both were previously screened out for that wait-phase
  * guard; the guard rule now keeps a claimed instance in pixel parity by declining (drawing nothing)
  * whenever the guard field is present and {@code >= 0f}, exactly like the native wait phase. The
+ * two newest members are the {@code vfx-scene-world} {@code SpookyChestEffect} and
+ * {@code IroncladVictoryFlameEffect} (both NO-ARG constructors) — ambient center-packed
+ * {@code AtlasRegion} members that introduce the seam's per-instance MIRROR capability on the img
+ * path ({@link VfxDrawGeometry#usesInstanceMirrorX}/{@link VfxDrawGeometry#usesInstanceMirrorY}),
+ * {@code SpookyChestEffect} with {@code flipX}+{@code flipY} and
+ * {@code IroncladVictoryFlameEffect} with {@code flipX} only; {@code FlameParticleEffect} also uses
+ * the mirror, so the F15 mirror limitation is resolved. The
  * additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
@@ -220,6 +227,10 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.FallingIceEffect";
     public static final String DAMAGE_HEART =
             "com.megacrit.cardcrawl.vfx.DamageHeartEffect";
+    public static final String SPOOKY_CHEST =
+            "com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect";
+    public static final String IRONCLAD_VICTORY_FLAME =
+            "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -235,7 +246,7 @@ public final class VfxClaimPolicy {
                     LIGHTNING_EFFECT, FLAME_BALL, SHINE_LINES,
                     TORCH_PARTICLE_M, TORCH_PARTICLE_S, SCENE_DUST,
                     LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT,
-                    FALLING_ICE, DAMAGE_HEART));
+                    FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME));
 
     private VfxClaimPolicy() {}
 
@@ -290,7 +301,9 @@ public final class VfxClaimPolicy {
                 || FLYING_SPIKE.equals(value)
                 || CONE_EFFECT.equals(value)
                 || FALLING_ICE.equals(value)
-                || DAMAGE_HEART.equals(value);
+                || DAMAGE_HEART.equals(value)
+                || SPOOKY_CHEST.equals(value)
+                || IRONCLAD_VICTORY_FLAME.equals(value);
     }
 
     /**
@@ -368,7 +381,15 @@ public final class VfxClaimPolicy {
      * {@link VfxDrawGeometry#nativeSkipsDrawByGuard} and {@link VfxDrawGeometry#guardFieldName}.
      * {@code FallingIceEffect} is additive over a fixed {@code 96&times;96} shape-C rect consuming
      * its {@code rotation} field, while {@code DamageHeartEffect} is ambient center-packed with a
-     * public {@code AtlasRegion img}.
+     * public {@code AtlasRegion img}. The two newest members are the {@code vfx-scene-world}
+     * {@code SpookyChestEffect} and {@code IroncladVictoryFlameEffect} (both NO-ARG constructors):
+     * ambient center-packed {@code AtlasRegion} members (neither calls {@code setBlendFunction}) that
+     * reuse the {@code StanceAuraEffect} geometry but are the first img-path kinds to carry
+     * per-instance MIRROR booleans — {@code SpookyChestEffect} declares both {@code flipX} and
+     * {@code flipY} while {@code IroncladVictoryFlameEffect} declares only {@code flipX}; see
+     * {@link VfxDrawGeometry#usesInstanceMirrorX}/{@link VfxDrawGeometry#usesInstanceMirrorY}.
+     * {@code FlameParticleEffect} was already a member and also uses the mirror, so the claimed img
+     * draw reproduces its {@code flipX} mirror (resolving the F15 limitation).
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

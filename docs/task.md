@@ -361,9 +361,11 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       per-instance token semantics unchanged. Focused no-GL JUnit only.
 
       Known limitations / deferred: (a) `FlameParticleEffect` sets `img.flip(!flipX, false)`
-      immediately before its draw (`flipX` is a per-instance mirror), which the claimed draw does not
-      reproduce — the claimed pixels are therefore un-mirrored relative to native for that member;
-      (b) `com.megacrit.cardcrawl.vfx.FallingDustEffect` and
+      immediately before its draw (`flipX` is a per-instance mirror), which this claimed draw did not
+      reproduce — the claimed pixels were therefore un-mirrored relative to native for that member.
+      **SUPERSEDED by F22 below**, which adds per-instance mirror support to the img path so
+      `FlameParticleEffect` (and the new `SpookyChestEffect`/`IroncladVictoryFlameEffect`) now draw
+      the mirrored rect; (b) `com.megacrit.cardcrawl.vfx.FallingDustEffect` and
       `com.megacrit.cardcrawl.vfx.combat.StunStarEffect` were screened here and DEFERRED — FallingDust
       because its native origin uses the region's `offsetX`/`offsetY` (it needed a region-offset-origin
       rule rather than an existing draw shape) and StunStar because its position is
@@ -435,8 +437,9 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       unchanged, and the null-region / invalid-neutral fail-open is preserved. This removes the false
       `FlameParticleEffect`/`RedFireBurstParticleEffect` fail-opens (both draw the shared `FLAME_*`
       regions); `RedFireBurstParticleEffect` never flips so parity is exact, while
-      `FlameParticleEffect`'s per-instance `flipX` mirror remains the documented F15 limitation (the
-      canonical orientation is drawn, not the per-instance mirror). No ledger-counter, F15b/F15c,
+      `FlameParticleEffect`'s per-instance `flipX` mirror remained the documented F15 limitation (the
+      canonical orientation was drawn, not the per-instance mirror) — **now RESOLVED by F22 below,
+      which adds per-instance mirror support to the img path**. No ledger-counter, F15b/F15c,
       gate/token, scenario-YAML, or non-img geometry change. Focused no-GL JUnit only.
 
 - [x] NRO-04 screening note (SUPERSEDED by F16 below): `com.megacrit.cardcrawl.vfx.combat.WarningSignEffect`
@@ -653,6 +656,37 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `VfxClaimPolicy` class Javadoc screening note) are now
       **SUPERSEDED**. No new patch/console wiring; default-off gate + per-instance token semantics
       unchanged. Focused no-GL JUnit only.
+
+- [x] NRO-04 F22 (per-instance MIRROR on the img draw path; two more members + resolution of the F15
+      `FlameParticleEffect` mirror limitation):
+      the family-neutral seam's img (`AtlasRegion`) draw path now supports per-instance MIRROR
+      booleans, resolved as a UV swap on the canonical F15d region (never a negative scale): when the
+      effect mirrors X the drawn `TextureRegion`'s `u`/`u2` are swapped and when it mirrors Y the
+      `v`/`v2` are swapped — visually identical to native's in-place `region.flip(...)` for a
+      center-origin quad. `VfxDrawGeometry` gains `Kind.SPOOKY_CHEST`
+      (`SpookyChestEffect`, AMBIENT center-packed: `additiveBlend` false) and
+      `Kind.IRONCLAD_VICTORY_FLAME` (`IroncladVictoryFlameEffect`, AMBIENT center-packed), both
+      joining the existing center-packed `params` branch byte-identically to `STANCE_AURA`, plus two
+      new pure predicates `usesInstanceMirrorX` (`true` only for `FLAME_PARTICLE`, `SPOOKY_CHEST`,
+      `IRONCLAD_VICTORY_FLAME`; throws on null) and `usesInstanceMirrorY` (`true` only for
+      `SPOOKY_CHEST`; throws on null); `kindFor` maps the two exact FQNs (near-miss/nested fail open),
+      and `whiteAlphaOnly`/`usesInstanceFlipX`/`usesInstanceFlipY`/`nativeSkipsDrawByGuard` are
+      unchanged. `Sts1VfxArtRenderer` snapshots the mirror booleans reflectively BY KIND from
+      `flipX`/`flipY` inside `readFields` (these are DISTINCT from the shape-C F19 flip flags); an
+      absent/wrong-type mirror field defaults to `false` (no fail-open), and the canonical-region
+      builder now takes the two flags and swaps the corresponding UV pair. Pre-existing kinds pass
+      `false, false` and draw byte-identically; the shape-C (`renderTexture`) path, blend policy,
+      guard logic, and params are untouched; fail-open/no-throw preserved. `VfxClaimPolicy`
+      `SPOOKY_CHEST`/`IRONCLAD_VICTORY_FLAME` append LAST to `supportedClasses()`/`supports(...)` in
+      that order. `VfxLabSpawn.classNameFor` gains `"spookychest"`/`"spooky"`
+      (`new SpookyChestEffect()`, NO-ARG) and `"victoryflame"`/`"ironcladvictory"`
+      (`new IroncladVictoryFlameEffect()`, NO-ARG) — aliases checked against the existing set for
+      collisions — behind the existing fail-open guard, and `art claim spawn spookychest 4` /
+      `art claim spawn victoryflame 4` run in both `d1_aura_claim.yaml` phases. The F15
+      `FlameParticleEffect` `flipX` known-limitation is now **RESOLVED / SUPERSEDED** (FLAME_PARTICLE
+      also uses the mirror, so its claimed pixels are mirrored like native). No new patch/bridge/
+      console wiring; default-off gate + per-instance token semantics unchanged. Focused no-GL JUnit
+      only.
 
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,

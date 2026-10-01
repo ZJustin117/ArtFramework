@@ -125,6 +125,12 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.FALLING_ICE, VfxLabSpawn.classNameFor("icefall"));
         assertEquals(VfxClaimPolicy.DAMAGE_HEART, VfxLabSpawn.classNameFor("damageheart"));
         assertEquals(VfxClaimPolicy.DAMAGE_HEART, VfxLabSpawn.classNameFor("heart"));
+        assertEquals(VfxClaimPolicy.SPOOKY_CHEST, VfxLabSpawn.classNameFor("spookychest"));
+        assertEquals(VfxClaimPolicy.SPOOKY_CHEST, VfxLabSpawn.classNameFor("spooky"));
+        assertEquals(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME,
+                VfxLabSpawn.classNameFor("victoryflame"));
+        assertEquals(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME,
+                VfxLabSpawn.classNameFor("ironcladvictory"));
     }
 
     @Test
@@ -547,6 +553,17 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("icefall", VfxClaimPolicy.FALLING_ICE);
         assertSpawnRequests("damageheart", VfxClaimPolicy.DAMAGE_HEART);
         assertSpawnRequests("heart", VfxClaimPolicy.DAMAGE_HEART);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF22MirrorMembersThroughTheFactorySeam() {
+        // The two newest claimable FQNs (the img-path per-instance mirror members); the capturing
+        // factory proves each alias requests exactly its FQN without running the NO-ARG constructors
+        // (whose img comes from static ImageMaster art and may be null off-game).
+        assertSpawnRequests("spookychest", VfxClaimPolicy.SPOOKY_CHEST);
+        assertSpawnRequests("spooky", VfxClaimPolicy.SPOOKY_CHEST);
+        assertSpawnRequests("victoryflame", VfxClaimPolicy.IRONCLAD_VICTORY_FLAME);
+        assertSpawnRequests("ironcladvictory", VfxClaimPolicy.IRONCLAD_VICTORY_FLAME);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

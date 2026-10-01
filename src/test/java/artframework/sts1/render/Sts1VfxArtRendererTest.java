@@ -2018,6 +2018,12 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.DAMAGE_HEART));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.DamageHeartEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SPOOKY_CHEST));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2086,6 +2092,14 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.TORCH_PARTICLE_S + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_DUST + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.SCENE_DUST + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FALLING_ICE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.FALLING_ICE + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DAMAGE_HEART + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.DAMAGE_HEART + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SPOOKY_CHEST + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SPOOKY_CHEST + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.IRONCLAD_VICTORY_FLAME + "2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -3873,6 +3887,236 @@ public class Sts1VfxArtRendererTest {
         // The shared region itself is left untouched (the renderer never mutates it).
         assertTrue("the renderer must not mutate the shared region back",
                 shared.getU() > shared.getU2());
+    }
+
+    /**
+     * Real {@code SpookyChestEffect} (flipX + flipY), {@code IroncladVictoryFlameEffect} (flipX), or
+     * {@code FlameParticleEffect} (flipX) with reflectively seeded draw fields and the per-instance
+     * mirror booleans (no GL).
+     */
+    private static AbstractGameEffect seededMirrorEffect(
+            Class<? extends AbstractGameEffect> type, TextureAtlas.AtlasRegion region,
+            boolean flipX, boolean flipY) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            AbstractGameEffect effect = (AbstractGameEffect) unsafe.allocateInstance(type);
+            setField(effect, type, "x", Float.valueOf(5f));
+            setField(effect, type, "y", Float.valueOf(6f));
+            setField(effect, type, "img", region);
+            setField(effect, type, "flipX", Boolean.valueOf(flipX));
+            try {
+                setField(effect, type, "flipY", Boolean.valueOf(flipY));
+            } catch (NoSuchFieldException noFlipY) {
+                // IroncladVictoryFlameEffect / FlameParticleEffect declare only flipX.
+            }
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL " + type.getSimpleName(), failure);
+        }
+    }
+
+    @Test
+    public void spookyChestMirrorsTheCanonicalRegionWhenFlipFlagsAreSet() {
+        // NRO-04 F22: the native render flips the shared region in place around its draw; the claim
+        // suppresses that draw, so ART reproduces the mirror as a UV swap on the canonical F15d view.
+        // SpookyChestEffect declares BOTH flipX and flipY, so a set flag swaps u/u2 and/or v/v2.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Class<? extends AbstractGameEffect> type =
+                com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect.class;
+
+        // No mirror: the canonical rect (u < u2, v < v2).
+        CountingBatch plainBatch = newCountingBatch();
+        assertTrue(renderer.render(plainBatch, seededMirrorEffect(
+                type, new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                false, false)));
+        assertEquals("the img path uses the TextureRegion draw overload",
+                1, plainBatch.textureRegionDrawCalls);
+        TextureRegion plain = plainBatch.drawnRegion;
+        assertNotNull(plain);
+        assertEquals(10f / 256f, plain.getU(), 1e-5f);
+        assertEquals(74f / 256f, plain.getU2(), 1e-5f);
+        assertEquals(20f / 256f, plain.getV(), 1e-5f);
+        assertEquals(68f / 256f, plain.getV2(), 1e-5f);
+
+        // Mirror X only: u/u2 swapped relative to the canonical rect, v/v2 unchanged.
+        CountingBatch mirrorXBatch = newCountingBatch();
+        assertTrue(renderer.render(mirrorXBatch, seededMirrorEffect(
+                type, new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                true, false)));
+        TextureRegion mirrorX = mirrorXBatch.drawnRegion;
+        assertNotNull(mirrorX);
+        assertEquals("the mirrored view swaps u/u2", 74f / 256f, mirrorX.getU(), 1e-5f);
+        assertEquals(10f / 256f, mirrorX.getU2(), 1e-5f);
+        assertEquals("the vertical extent stays canonical", 20f / 256f, mirrorX.getV(), 1e-5f);
+        assertEquals(68f / 256f, mirrorX.getV2(), 1e-5f);
+
+        // Mirror Y only: v/v2 swapped, u/u2 canonical.
+        CountingBatch mirrorYBatch = newCountingBatch();
+        assertTrue(renderer.render(mirrorYBatch, seededMirrorEffect(
+                type, new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                false, true)));
+        TextureRegion mirrorY = mirrorYBatch.drawnRegion;
+        assertNotNull(mirrorY);
+        assertEquals(10f / 256f, mirrorY.getU(), 1e-5f);
+        assertEquals(74f / 256f, mirrorY.getU2(), 1e-5f);
+        assertEquals("the mirrored view swaps v/v2", 68f / 256f, mirrorY.getV(), 1e-5f);
+        assertEquals(20f / 256f, mirrorY.getV2(), 1e-5f);
+
+        // Mirror X and Y: both axes swapped.
+        CountingBatch bothBatch = newCountingBatch();
+        assertTrue(renderer.render(bothBatch, seededMirrorEffect(
+                type, new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                true, true)));
+        TextureRegion both = bothBatch.drawnRegion;
+        assertNotNull(both);
+        assertEquals(74f / 256f, both.getU(), 1e-5f);
+        assertEquals(10f / 256f, both.getU2(), 1e-5f);
+        assertEquals(68f / 256f, both.getV(), 1e-5f);
+        assertEquals(20f / 256f, both.getV2(), 1e-5f);
+        assertEquals("SpookyChest is ambient", 0, bothBatch.setBlendCalls);
+    }
+
+    @Test
+    public void ironcladVictoryFlameMirrorsOnlyHorizontally() {
+        // IroncladVictoryFlameEffect declares only flipX (no flipY field), so only the horizontal
+        // mirror is honoured; the vertical extent stays canonical.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        assertTrue(renderer.render(batch, seededMirrorEffect(
+                com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect.class,
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                true, false)));
+        TextureRegion drawn = batch.drawnRegion;
+        assertNotNull(drawn);
+        assertEquals("the mirrored view swaps u/u2", 74f / 256f, drawn.getU(), 1e-5f);
+        assertEquals(10f / 256f, drawn.getU2(), 1e-5f);
+        assertEquals("the vertical extent stays canonical", 20f / 256f, drawn.getV(), 1e-5f);
+        assertEquals(68f / 256f, drawn.getV2(), 1e-5f);
+        assertEquals("IroncladVictoryFlame is ambient", 0, batch.setBlendCalls);
+    }
+
+    @Test
+    public void flameParticleNowMirrorsHorizontallyResolvingTheF15Limitation() {
+        // F15 known limitation RESOLVED: FlameParticleEffect's per-instance flipX mirror is now
+        // reproduced (as a UV swap on the canonical region) instead of always drawing canonical.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Class<? extends AbstractGameEffect> type =
+                com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect.class;
+
+        CountingBatch plainBatch = newCountingBatch();
+        assertTrue(renderer.render(plainBatch, seededMirrorEffect(
+                type, new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                false, false)));
+        TextureRegion plain = plainBatch.drawnRegion;
+        assertNotNull(plain);
+        assertTrue("flipX false draws the canonical rect", plain.getU() < plain.getU2());
+
+        CountingBatch mirroredBatch = newCountingBatch();
+        assertTrue(renderer.render(mirroredBatch, seededMirrorEffect(
+                type, new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48),
+                true, false)));
+        TextureRegion mirrored = mirroredBatch.drawnRegion;
+        assertNotNull(mirrored);
+        assertTrue("flipX true now draws the mirrored rect", mirrored.getU() > mirrored.getU2());
+        assertEquals(74f / 256f, mirrored.getU(), 1e-5f);
+        assertEquals(10f / 256f, mirrored.getU2(), 1e-5f);
+        assertEquals("FlameParticle is additive", 2, mirroredBatch.setBlendCalls);
+    }
+
+    @Test
+    public void missingMirrorFieldDefaultsToFalseAndStillDraws() {
+        // Mirror is optional decoration: a kind whose instance lacks the mirror field (absent or
+        // unreadable) still draws the canonical rect instead of failing open.
+        NoMirrorImgEffect holder = new NoMirrorImgEffect();
+        holder.x = 5f;
+        holder.y = 6f;
+        holder.scale = 1f;
+        holder.rotation = 0f;
+        holder.color = Color.WHITE;
+        holder.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48);
+        Sts1VfxArtRenderer.Fields resolved = Sts1VfxArtRenderer.readFields(
+                VfxDrawGeometry.Kind.SPOOKY_CHEST, holder);
+        assertNotNull("a missing mirror field must not fail the snapshot", resolved);
+        assertFalse(resolved.mirrorX);
+        assertFalse(resolved.mirrorY);
+
+        // render routes on the effect's own class name, so the synthetic absent-field holder cannot
+        // be drawn; the end-to-end equivalent is a REAL SpookyChestEffect whose mirror fields are
+        // left untouched (default false) — the same absent-flags observable path through readFields.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        assertTrue("a holder without mirror flags must still draw", renderer.render(
+                batch, seededSpookyChestWithoutMirrorFields()));
+        TextureRegion drawn = batch.drawnRegion;
+        assertNotNull("the draw must have been captured", drawn);
+        assertEquals("the canonical u is drawn", 10f / 256f, drawn.getU(), 1e-5f);
+        assertEquals("the canonical u2 is drawn", 74f / 256f, drawn.getU2(), 1e-5f);
+        assertEquals("the canonical v is drawn", 20f / 256f, drawn.getV(), 1e-5f);
+        assertEquals("the canonical v2 is drawn", 68f / 256f, drawn.getV2(), 1e-5f);
+        assertTrue("an unmirrored draw keeps u < u2", drawn.getU() < drawn.getU2());
+        assertTrue("an unmirrored draw keeps v < v2", drawn.getV() < drawn.getV2());
+    }
+
+    /**
+     * Real {@code SpookyChestEffect} with x/y/img/scale/rotation/color seeded but the mirror
+     * {@code flipX}/{@code flipY} fields deliberately left untouched (default {@code false}), so the
+     * end-to-end draw exercises the same absent-flag path as a holder without those fields.
+     */
+    private static AbstractGameEffect seededSpookyChestWithoutMirrorFields() {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect effect =
+                    (com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect.class, "x",
+                    Float.valueOf(5f));
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect.class, "y",
+                    Float.valueOf(6f));
+            setField(effect, com.megacrit.cardcrawl.vfx.scene.SpookyChestEffect.class, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 10, 20, 64, 48));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(1f));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(0f));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL SpookyChestEffect", failure);
+        }
+    }
+
+    @Test
+    public void preexistingNonMirrorKindStillDrawsTheCanonicalRegion() {
+        // Regression: the mirror is false for every pre-existing img-path kind, so its canonical UV
+        // rect is unchanged.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect heart = seededDamageHeart(-1f, 64, 48);
+
+        assertTrue(renderer.render(batch, heart));
+        TextureRegion drawn = batch.drawnRegion;
+        assertNotNull(drawn);
+        assertTrue("a non-mirror kind keeps u < u2", drawn.getU() < drawn.getU2());
+        assertTrue("a non-mirror kind keeps v < v2", drawn.getV() < drawn.getV2());
+        assertEquals(0f, drawn.getU(), 1e-5f);
+        assertEquals(64f / 256f, drawn.getU2(), 1e-5f);
+        assertEquals(0f, drawn.getV(), 1e-5f);
+        assertEquals(48f / 256f, drawn.getV2(), 1e-5f);
+    }
+
+    /** Center-packed img holder without a mirror field (so the optional mirror defaults to false). */
+    static class NoMirrorImgEffect extends BaseEffect {
+        private float x;
+        private float y;
+        private TextureAtlas.AtlasRegion img;
     }
 
     /** Real {@code FlashAtkImgEffect} bound to the given region; inherited fields seeded. */

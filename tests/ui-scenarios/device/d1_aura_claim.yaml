@@ -19,6 +19,10 @@
 # originX=0f + scale*1.1f rule), plus the two newest guard members FallingIceEffect (vfx-combat,
 # additive shape-C 96x96 fixed rect) and DamageHeartEffect (root, ambient center-packed) — the seam's
 # first per-kind NATIVE DRAW GUARD kinds (their native render is guarded on waitTimer/delayTimer).
+# The two newest are SpookyChestEffect (root, ambient center-packed with per-instance flipX+flipY
+# mirror booleans) and IroncladVictoryFlameEffect (root, ambient center-packed with a per-instance
+# flipX mirror boolean) — the img path's first per-instance MIRROR kinds, whose mirror is reproduced
+# as a UV swap on the canonical F15d region (FlameParticleEffect also uses the mirror).
 # NOTE: a freshly lab-spawned FallingIceEffect/DamageHeartEffect starts with its guard UNSATISFIED
 # (waitTimer/delayTimer >= 0f), so the spawn-frame evidence for these two is the per-FQN
 # active/entity delta on spawn (observation), NOT a draw increase at spawn. The kinds then diverge:
@@ -129,6 +133,8 @@ steps:
   - console: "art claim spawn cone 4"
   - console: "art claim spawn fallingice 4"
   - console: "art claim spawn damageheart 4"
+  - console: "art claim spawn spookychest 4"
+  - console: "art claim spawn victoryflame 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -207,6 +213,8 @@ steps:
   - console: "art claim spawn cone 4"
   - console: "art claim spawn fallingice 4"
   - console: "art claim spawn damageheart 4"
+  - console: "art claim spawn spookychest 4"
+  - console: "art claim spawn victoryflame 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

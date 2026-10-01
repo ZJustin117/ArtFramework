@@ -60,7 +60,13 @@ import java.lang.reflect.Field;
  * {@code DamageHeartEffect} (ambient center-packed with a public {@code AtlasRegion img}) — the
  * seam's first per-kind NATIVE DRAW GUARD kinds ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}),
  * whose {@code render} declines (draws nothing) whenever the guard field is present and
- * {@code >= 0f}.
+ * {@code >= 0f}. The two newest members are the {@code vfx-scene-world} {@code SpookyChestEffect}
+ * (ambient center-packed, NO-ARG constructor, {@code flipX}+{@code flipY} mirror booleans) and
+ * {@code IroncladVictoryFlameEffect} (ambient center-packed, NO-ARG constructor, {@code flipX}
+ * mirror boolean) — the img path's first per-instance MIRROR kinds
+ * ({@link VfxDrawGeometry#usesInstanceMirrorX}/{@link VfxDrawGeometry#usesInstanceMirrorY}), whose
+ * mirror is reproduced as a UV swap on the canonical F15d region; {@code FlameParticleEffect} also
+ * uses the mirror, resolving its F15 limitation.
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -115,10 +121,13 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         final float duration;
         final Color color;
         final TextureAtlas.AtlasRegion img;
+        final boolean mirrorX;
+        final boolean mirrorY;
 
         Fields(float x, float y, float vY, float vX, float regionOffsetX, float regionOffsetY,
                 float scale, float rotation, float durDiv2,
-                float duration, Color color, TextureAtlas.AtlasRegion img) {
+                float duration, Color color, TextureAtlas.AtlasRegion img,
+                boolean mirrorX, boolean mirrorY) {
             this.x = x;
             this.y = y;
             this.vY = vY;
@@ -131,6 +140,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             this.duration = duration;
             this.color = color;
             this.img = img;
+            this.mirrorX = mirrorX;
+            this.mirrorY = mirrorY;
         }
     }
 
@@ -263,11 +274,21 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             if (!(color instanceof Color)) return null;
             if (!(img instanceof TextureAtlas.AtlasRegion)) return null;
             TextureAtlas.AtlasRegion region = (TextureAtlas.AtlasRegion) img;
+            // Per-instance MIRROR flags (NRO-04 F22): these are DISTINCT from the shape-C F19
+            // flip flags. Native mirrors the drawn sprite by flipping the shared region in place
+            // around its draw; the claim suppresses that draw, so the host draw reproduces the
+            // mirror as a UV swap on the canonical region. Resolved only for the kinds whose native
+            // render reads them; an absent/unreadable flag defaults to false (mirror is optional
+            // decoration, so it does NOT fail the snapshot open).
+            boolean mirrorX = VfxDrawGeometry.usesInstanceMirrorX(kind)
+                    && optionalBoolean(effect, "flipX");
+            boolean mirrorY = VfxDrawGeometry.usesInstanceMirrorY(kind)
+                    && optionalBoolean(effect, "flipY");
             return new Fields(x, y, vY != null ? vY : 0f, optionalFloat(effect, "vX"),
                     unflippedOffsetX(region), unflippedOffsetY(region),
                     scale, rotation,
                     optionalFloat(effect, "dur_div2"), optionalFloat(effect, "duration"),
-                    (Color) color, region);
+                    (Color) color, region, mirrorX, mirrorY);
         } catch (Throwable ignored) {
             return null;
         }
@@ -397,8 +418,15 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * suppresses that native draw, so ART must emit the canonical rect rather than whatever a native
      * sibling last left behind. Returns {@code null} when the region or its texture is null. Never
      * mutates the input region.
+     *
+     * <p>When {@code mirrorX}/{@code mirrorY} are set the returned view additionally mirrors the
+     * canonical rect (swapping {@code u}/{@code u2} and/or {@code v}/{@code v2}), reproducing the
+     * native per-instance mirror WITHOUT a negative scale. A UV swap is visually identical to
+     * native's in-place region flip for a center-origin quad; the pre-existing kinds pass
+     * {@code false, false} and get the unchanged canonical rect.
      */
-    private static TextureRegion canonicalRegion(TextureAtlas.AtlasRegion region) {
+    private static TextureRegion canonicalRegion(TextureAtlas.AtlasRegion region,
+            boolean mirrorX, boolean mirrorY) {
         if (region == null) return null;
         Texture texture = region.getTexture();
         if (texture == null) return null;
@@ -406,6 +434,16 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         float u2 = Math.max(region.getU(), region.getU2());
         float v = Math.min(region.getV(), region.getV2());
         float v2 = Math.max(region.getV(), region.getV2());
+        if (mirrorX) {
+            float swap = u;
+            u = u2;
+            u2 = swap;
+        }
+        if (mirrorY) {
+            float swap = v;
+            v = v2;
+            v2 = swap;
+        }
         return new TextureRegion(texture, u, v, u2, v2);
     }
 
@@ -533,8 +571,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             if (neutral == null || !neutral.valid()) return false;
             // The claim suppresses native rendering, so draw a CANONICAL (pollution-immune) view
             // rather than the possibly-natively-flipped shared region: a native sibling may have
-            // called region.flip(...) in place on this same static AtlasRegion.
-            TextureRegion canonical = canonicalRegion(gdx);
+            // called region.flip(...) in place on this same static AtlasRegion. A per-instance
+            // MIRROR (NRO-04 F22) is applied to that canonical view as a UV swap, never a negative
+            // scale.
+            TextureRegion canonical = canonicalRegion(gdx, f.mirrorX, f.mirrorY);
             if (canonical == null) return false;
             float settingsScale = Settings.scale;
             // getRegionWidth()/getRegionHeight() are the flip-invariant packed footprint, so they

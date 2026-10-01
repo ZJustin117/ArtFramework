@@ -7,6 +7,8 @@ import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.MathUtils;
+import com.megacrit.cardcrawl.helpers.Hitbox;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
@@ -2033,6 +2035,9 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.DEATH_SCREEN_FLOATY));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2115,6 +2120,10 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.CAMPFIRE_SLEEP_COVER + "2"));
         assertFalse(renderer.isReady(VfxClaimPolicy.DEATH_SCREEN_FLOATY + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.DEATH_SCREEN_FLOATY + "2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.WRATH_STANCE_CHANGE + "2"));
+        assertFalse(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.scene.WrathStanceChangeParticle"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
@@ -2575,6 +2584,35 @@ public class Sts1VfxArtRendererTest {
         assertTrue(Sts1VfxArtRenderer.guardSatisfied(
                 VfxDrawGeometry.Kind.DAMAGE_HEART, heartOk));
 
+        // F24: WRATH reads the same delayTimer field but with a DIFFERENT threshold — it blocks only
+        // when > 0f, so delayTimer == 0f is SATISFIED (draws) while DAMAGE_HEART is blocked.
+        DamageHeartGuardEffect atZero = new DamageHeartGuardEffect();
+        atZero.delayTimer = 0f;
+        assertFalse("DAMAGE_HEART blocks at delayTimer == 0f",
+                Sts1VfxArtRenderer.guardSatisfied(VfxDrawGeometry.Kind.DAMAGE_HEART, atZero));
+        assertTrue("WRATH draws at delayTimer == 0f",
+                Sts1VfxArtRenderer.guardSatisfied(
+                        VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, atZero));
+        DamageHeartGuardEffect positive = new DamageHeartGuardEffect();
+        positive.delayTimer = 0.25f;
+        assertFalse("WRATH blocks at delayTimer > 0f",
+                Sts1VfxArtRenderer.guardSatisfied(
+                        VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, positive));
+
+        // NaN parity: FALLING_ICE/DAMAGE_HEART draw iff field < 0f (NaN blocks), while WRATH returns
+        // iff delayTimer > 0f (NaN draws).
+        DamageHeartGuardEffect nan = new DamageHeartGuardEffect();
+        nan.delayTimer = Float.NaN;
+        assertFalse("NaN blocks DAMAGE_HEART (native NaN < 0f is false)",
+                Sts1VfxArtRenderer.guardSatisfied(VfxDrawGeometry.Kind.DAMAGE_HEART, nan));
+        assertTrue("NaN does not block WRATH (native NaN > 0f is false)",
+                Sts1VfxArtRenderer.guardSatisfied(
+                        VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, nan));
+        FallingIceGuardEffect nanIce = new FallingIceGuardEffect();
+        nanIce.waitTimer = Float.NaN;
+        assertFalse("NaN blocks FALLING_ICE (native NaN < 0f is false)",
+                Sts1VfxArtRenderer.guardSatisfied(VfxDrawGeometry.Kind.FALLING_ICE, nanIce));
+
         // Null inputs fail open (draw).
         assertTrue(Sts1VfxArtRenderer.guardSatisfied(VfxDrawGeometry.Kind.FALLING_ICE, null));
         assertTrue(Sts1VfxArtRenderer.guardSatisfied(null, blocked));
@@ -2697,6 +2735,234 @@ public class Sts1VfxArtRendererTest {
         assertEquals(96f, floatAt(batch, 12), EPS);
         assertFalse("FALLING_ICE passes no per-instance flip X", batch.drawnFlipX);
         assertFalse("FALLING_ICE passes no per-instance flip Y", batch.drawnFlipY);
+    }
+
+    // --- F24 WrathStanceChangeParticle: RNG replay + player-hitbox-relative x ---
+
+    /** Real {@code WrathStanceChangeParticle} with seeded draw fields (no GL/game context). */
+    private static AbstractGameEffect seededWrathStanceChange(float delayTimer, float x, float y,
+            float scale, float rotation) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle effect =
+                    (com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle.class,
+                    "x", Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle.class,
+                    "y", Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle.class,
+                    "img", new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+            setField(effect, com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle.class,
+                    "delayTimer", Float.valueOf(delayTimer));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL WrathStanceChangeParticle", failure);
+        }
+    }
+
+    @Test
+    public void wrathStanceChangeRestoresRngOnAPostConsumptionFailOpen() {
+        // Native-call-sequence contract: the global RNG must advance EXACTLY ONCE per successful
+        // draw and never on a fail-open. If the batch draw throws AFTER the two random values were
+        // pulled, the renderer must restore the RNG snapshot so the patch's native fallback then
+        // consumes exactly the values it expects and the stream does not drift.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Hitbox hb = new Hitbox(0f, 0f, 100f, 30f);
+        hb.cX = 400f;
+        PlayerHitboxStub player = new PlayerHitboxStub();
+        player.hb = hb;
+        Sts1VfxArtRenderer.setPlayerForTests(player);
+        java.util.Random savedRandom = MathUtils.random;
+        com.badlogic.gdx.math.RandomXS128 rng = new com.badlogic.gdx.math.RandomXS128(424242L);
+        MathUtils.random = rng;
+        try {
+            AbstractGameEffect effect = seededWrathStanceChange(0f, 7.5f, -3.25f, 0.6f, 24f);
+            long before0 = rng.getState(0);
+            long before1 = rng.getState(1);
+
+            CountingBatch batch = newCountingBatch();
+            batch.throwOnRegionDraw = true;
+            assertFalse("a post-consumption throw must fail open",
+                    renderer.render(batch, effect));
+
+            // The RNG stream is exactly where it was before the call, so native can consume the two
+            // values it needs without any drift.
+            assertEquals("RNG seed0 is restored after a post-consumption fail-open",
+                    before0, rng.getState(0));
+            assertEquals("RNG seed1 is restored after a post-consumption fail-open",
+                    before1, rng.getState(1));
+
+            // A subsequent successful draw then reproduces the FIRST two values of the stream (the
+            // same values the failed draw would have used), proving no values were lost.
+            com.badlogic.gdx.math.RandomXS128 mirror =
+                    new com.badlogic.gdx.math.RandomXS128(424242L);
+            float expected0 = mirror.nextFloat();
+            float expected1 = mirror.nextFloat();
+            CountingBatch okBatch = newCountingBatch();
+            assertTrue("the retry draws", renderer.render(okBatch, effect));
+            assertNotNull(okBatch.drawnRegionArgs);
+            assertEquals(0.6f * (2.9f + expected0 * (3.1f - 2.9f)),
+                    okBatch.drawnRegionArgs[6], EPS);
+            assertEquals(0.6f * (0.95f + expected1 * (1.05f - 0.95f)),
+                    okBatch.drawnRegionArgs[7], EPS);
+        } finally {
+            MathUtils.random = savedRandom;
+            Sts1VfxArtRenderer.resetPlayerForTests();
+        }
+    }
+
+    /** Counts the exact number of {@code nextFloat()} draws the renderer pulls from the RNG. */
+    static final class CountingRandom extends java.util.Random {
+        int floatCalls;
+
+        @Override
+        public float nextFloat() {
+            floatCalls++;
+            return super.nextFloat();
+        }
+    }
+
+    /** Player stub carrying a {@link Hitbox} for the player-hitbox-relative draw (no STS class). */
+    static class PlayerHitboxStub {
+        Hitbox hb;
+    }
+
+    /** Player stub WITHOUT an {@code hb} field (the unreadable-hitbox fail-open case). */
+    static class PlayerNoHitboxStub {
+    }
+
+    @Test
+    public void wrathStanceChangeDrawsPlayerRelativeWithExactlyTwoOrderedRngDraws() {
+        // Native WrathStanceChangeParticle.render:
+        //   if (delayTimer > 0f) return;
+        //   setColor(color); setBlendFunction(770, 1);
+        //   sb.draw(img, AbstractDungeon.player.hb.cX + x, y, pw/2f, ph/2f, pw, ph,
+        //           scale * MathUtils.random(2.9f, 3.1f), scale * MathUtils.random(0.95f, 1.05f),
+        //           rotation);
+        //   setBlendFunction(770, 771);
+        // The player is supplied through the renderer's test seam so no live AbstractDungeon (whose
+        // static init needs GL) is touched.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Hitbox hb = new Hitbox(0f, 0f, 100f, 30f);
+        hb.cX = 400f;
+        PlayerHitboxStub player = new PlayerHitboxStub();
+        player.hb = hb;
+        Sts1VfxArtRenderer.setPlayerForTests(player);
+        java.util.Random savedRandom = MathUtils.random;
+        // Two identically seeded generators: one drives MathUtils, the mirror predicts the expected
+        // values so the EXACT ranges and ORDER (scaleX then scaleY) are asserted, and the third draw
+        // match proves the renderer consumed exactly two.
+        java.util.Random live = new java.util.Random(987654321L);
+        java.util.Random mirror = new java.util.Random(987654321L);
+        MathUtils.random = live;
+        try {
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededWrathStanceChange(0f, 7.5f, -3.25f, 0.6f, 24f);
+
+            assertTrue("a delayTimer <= 0 Wrath draws", renderer.render(batch, effect));
+            assertEquals("Wrath installs and restores the additive blend", 2, batch.setBlendCalls);
+            assertEquals("Wrath uses the TextureRegion draw overload",
+                    1, batch.textureRegionDrawCalls);
+            assertNotNull(batch.drawnRegionArgs);
+            assertEquals("x is the player hitbox center X plus the effect x",
+                    400f + 7.5f, batch.drawnRegionArgs[0], EPS);
+            assertEquals(-3.25f, batch.drawnRegionArgs[1], EPS);
+            assertEquals("originX is packedWidth/2f", 32f, batch.drawnRegionArgs[2], EPS);
+            assertEquals("originY is packedHeight/2f", 24f, batch.drawnRegionArgs[3], EPS);
+
+            float r0 = 2.9f + mirror.nextFloat() * (3.1f - 2.9f);
+            float r1 = 0.95f + mirror.nextFloat() * (1.05f - 0.95f);
+            assertEquals("scaleX is scale * the first (2.9,3.1) RNG draw",
+                    0.6f * r0, batch.drawnRegionArgs[6], EPS);
+            assertEquals("scaleY is scale * the second (0.95,1.05) RNG draw",
+                    0.6f * r1, batch.drawnRegionArgs[7], EPS);
+            assertEquals("the draw consumed exactly two RNG values in order",
+                    mirror.nextFloat(), live.nextFloat(), 0f);
+            assertEquals(24f, batch.drawnRegionArgs[8], EPS);
+            assertTrue("a drawable Wrath instance canDraw", renderer.canDraw(effect));
+        } finally {
+            MathUtils.random = savedRandom;
+            Sts1VfxArtRenderer.resetPlayerForTests();
+        }
+    }
+
+    @Test
+    public void wrathStanceChangeGuardedOutDeclinesWithoutConsumingRng() {
+        // delayTimer > 0f is the native wait phase (if (delayTimer > 0f) return): ART must draw
+        // nothing AND must leave the global RNG stream untouched so native consumes it instead.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Hitbox hb = new Hitbox(0f, 0f, 100f, 30f);
+        hb.cX = 400f;
+        PlayerHitboxStub player = new PlayerHitboxStub();
+        player.hb = hb;
+        Sts1VfxArtRenderer.setPlayerForTests(player);
+        java.util.Random savedRandom = MathUtils.random;
+        CountingRandom counting = new CountingRandom();
+        MathUtils.random = counting;
+        try {
+            AbstractGameEffect blocked = seededWrathStanceChange(0.25f, 7.5f, -3.25f, 0.6f, 24f);
+            assertFalse("delayTimer > 0 declines (native wait phase)",
+                    renderer.render(newCountingBatch(), blocked));
+            assertEquals("a guarded-out Wrath consumes NO RNG", 0, counting.floatCalls);
+            assertFalse("a guarded-out Wrath cannotDraw", renderer.canDraw(blocked));
+            assertTrue("a guarded-out Wrath is a benign no-pixel decline",
+                    renderer.declinedWithoutPixels(blocked));
+        } finally {
+            MathUtils.random = savedRandom;
+            Sts1VfxArtRenderer.resetPlayerForTests();
+        }
+    }
+
+    @Test
+    public void wrathStanceChangeFailsOpenWithoutAConsumedRngWhenThePlayerIsAbsent() {
+        // The player-relative x needs a readable player hitbox center; when it is absent ART must
+        // fail open to the native draw rather than draw at a wrong position, and must NOT have pulled
+        // RNG (all fail-open-capable checks precede the RNG).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        // A player object with NO hb field: the hitbox is unreadable, so fail open.
+        Sts1VfxArtRenderer.setPlayerForTests(new PlayerNoHitboxStub());
+        java.util.Random savedRandom = MathUtils.random;
+        CountingRandom counting = new CountingRandom();
+        MathUtils.random = counting;
+        try {
+            AbstractGameEffect effect = seededWrathStanceChange(0f, 7.5f, -3.25f, 0.6f, 24f);
+            assertFalse("no player hitbox means fail open",
+                    renderer.render(newCountingBatch(), effect));
+            assertEquals("a player-absent fail-open consumes NO RNG", 0, counting.floatCalls);
+            assertFalse("no player hitbox means cannotDraw", renderer.canDraw(effect));
+        } finally {
+            MathUtils.random = savedRandom;
+            Sts1VfxArtRenderer.resetPlayerForTests();
+        }
+    }
+
+    @Test
+    public void preExistingNonRngKindStillDrawsUnchangedAndConsumesNoRng() {
+        // A pre-existing kind (STANCE_AURA) keeps scaleX == scaleY == scale and pulls no RNG.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        java.util.Random savedRandom = MathUtils.random;
+        CountingRandom counting = new CountingRandom();
+        MathUtils.random = counting;
+        try {
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededEffect(StanceAuraEffect.class);
+            setFieldUnchecked(effect, AbstractGameEffect.class, "scale", Float.valueOf(0.9f));
+            assertTrue(renderer.render(batch, effect));
+            assertNotNull(batch.drawnRegionArgs);
+            assertEquals("a non-RNG kind keeps scaleX == scale", 0.9f, batch.drawnRegionArgs[6], EPS);
+            assertEquals("a non-RNG kind keeps scaleY == scale", 0.9f, batch.drawnRegionArgs[7], EPS);
+            assertEquals("a non-RNG kind consumes no RNG", 0, counting.floatCalls);
+        } finally {
+            MathUtils.random = savedRandom;
+        }
     }
 
     @Test
@@ -3464,6 +3730,8 @@ public class Sts1VfxArtRendererTest {
     static class CountingBatch extends SpriteBatch {
         int setBlendCalls;
         int drawCalls;
+        /** When true the packed-region draw overload throws (post-RNG fail-open test). */
+        boolean throwOnRegionDraw;
         /** Count of {@code draw(TextureRegion, ...)} (the packed-region shape) calls. */
         int textureRegionDrawCalls;
         /** The first {@link TextureRegion} passed to the packed-region draw overload. */
@@ -3508,6 +3776,9 @@ public class Sts1VfxArtRendererTest {
         public void draw(TextureRegion region, float x, float y, float originX, float originY,
                 float width, float height, float scaleX, float scaleY, float rotation) {
             // Record the call only; skipping super avoids the real (absent) GL texture bind path.
+            if (throwOnRegionDraw) {
+                throw new IllegalStateException("post-RNG draw boom");
+            }
             if (textureRegionDrawCalls++ == 0) {
                 drawnRegion = region;
                 drawnRegionArgs = new float[] {x, y, originX, originY, width, height,

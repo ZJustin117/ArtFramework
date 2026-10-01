@@ -716,6 +716,59 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `d1_aura_claim.yaml` phases. No new patch/bridge/console wiring; default-off gate + per-instance
       token semantics unchanged. Focused no-GL JUnit only.
 
+- [x] NRO-04 F24 (RNG-REPLAY + guard-threshold generalization + player-hitbox-relative x; the FIRST
+      non-deterministic native effect):
+      `com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle` (`vfx-stance-aura`) is the first
+      claimed native effect whose `render` consumes the global RNG — the design principle is to
+      REPLAY the EXACT native `MathUtils.random(...)` call sequence (same arguments, same order) so
+      the global RNG stream stays identical and pixel equivalence is an IDENTITY, not a probabilistic
+      match. Its native `render` is `if (delayTimer > 0f) return; setColor(color);
+      setBlendFunction(770, 1); sb.draw(img, AbstractDungeon.player.hb.cX + x, y, pw/2f, ph/2f, pw,
+      ph, scale * MathUtils.random(2.9f, 3.1f), scale * MathUtils.random(0.95f, 1.05f), rotation);
+      setBlendFunction(770, 771);` — additive center-packed, guarded on `delayTimer`, drawing at the
+      PLAYER HITBOX CENTER X plus the effect's own `x`. The seam gained three capabilities in
+      `VfxDrawGeometry` (all pure/host-neutral, throw on null):
+      (a) RNG-REPLAY `randomRanges(Kind)` returning an immutable ordered `List<float[]>` of
+      `{min,max}` pairs in native call order — `[(2.9f,3.1f),(0.95f,1.05f)]` for `WRATH_STANCE_CHANGE`,
+      empty for every other kind — documented so the renderer must call `MathUtils.random(min,max)`
+      for each range IN ORDER during the draw;
+      (b) guard-threshold generalization `guardBlocks(Kind, float)` encoding each guard kind's BLOCK
+      condition — `FALLING_ICE`/`DAMAGE_HEART` block at `!(value < 0f)` (i.e. for NaN, `+0f`, positive,
+      and `+Inf`; unblocked only for negative finite values and `-Inf`, matching native
+      `if (field < 0f) draw` and the F21 behavior) while
+      `WRATH_STANCE_CHANGE` blocks at `value > 0f` (NaN and `0f` do NOT block, matching native
+      `if (delayTimer > 0f) return`) — with `nativeSkipsDrawByGuard`/`guardFieldName`
+      extended (`guardFieldName` → `"delayTimer"` for WRATH);
+      (c) player-hitbox-relative x `playerHitboxRelativeX(Kind)` true only for `WRATH_STANCE_CHANGE`.
+      `Sts1VfxArtRenderer.guardSatisfied` now reads the field and delegates to `guardBlocks` (absent/
+      unreadable ⇒ NOT blocked), preserving the existing FALLING_ICE/DAMAGE_HEART behavior exactly;
+      the img draw path resolves the player hitbox center X (`playerHitboxCenterX`, reflective) and
+      FAILS OPEN when the player/hitbox is absent (never draws at a wrong position, `canDraw`/
+      `declinedWithoutPixels` agree), and pulls the RNG values only AFTER all fail-open-capable checks
+      and ONLY when committed to a real draw — so the RNG is consumed EXACTLY ONCE per successful
+      draw and NEVER on a fail-open return (the native fallback then consumes it). Additionally the
+      renderer SNAPSHOTS the shared `MathUtils.random` (`RandomXS128`) state before pulling the values
+      and RESTORES it if any host call throws after consumption, so a post-consumption fail-open also
+      leaves the global stream untouched (the native fallback then consumes exactly the values it
+      needs). For kinds with an
+      empty range list scaleX/scaleY stay `scale, scale` (unchanged). `kindFor` maps the exact FQN
+      (near-miss/nested fail open), `additiveBlend` is true, and `whiteAlphaOnly`/`usesInstanceFlipX`/
+      `usesInstanceFlipY`/`usesInstanceMirrorX`/`usesInstanceMirrorY`/`nativeSkipsDrawWithoutImage`
+      are unchanged. `VfxClaimPolicy.WRATH_STANCE_CHANGE` appends LAST to `supportedClasses()`/
+      `supports(...)`. `VfxLabSpawn.classNameFor` gains `"wrathchange"`/`"wrathstance"` (no collision
+      with the pre-existing `"wrath"` alias; `"wrathstance"` itself is NEW) →
+      `new WrathStanceChangeParticle(0f)` behind the
+      existing fail-open guard, and `art claim spawn wrathchange 4` runs in both `d1_aura_claim.yaml`
+      phases. `WrathStanceChangeParticle`'s constructor IGNORES its float argument and sets
+      `delayTimer = MathUtils.random(0f, 0.5f)` (construction-time RNG, NOT replayed by the seam), so
+      the lab entry `new WrathStanceChangeParticle(0f)` yields a random 0–0.5 s wait, after which the
+      guard may clear and ART may draw. `StanceChangeAbsorptionParticle` remains **DEFERRED** (two
+      draws + four RNG calls, so it
+      needs a multi-draw capability). D1 evidence boundary (honest): the read-only probe cannot observe
+      the RNG-derived scale, so D1 covers claim/draw/gate behavior while the exact RNG call order and
+      ranges are covered by unit tests (a mirror-RNG assertion). No new patch/bridge/console wiring;
+      default-off gate + per-instance token semantics unchanged. Focused no-GL JUnit only.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

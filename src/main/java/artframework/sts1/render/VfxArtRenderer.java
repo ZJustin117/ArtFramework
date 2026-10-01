@@ -49,9 +49,11 @@ public final class VfxArtRenderer {
          * a kind the native render guards on a present image
          * ({@link VfxDrawGeometry#nativeSkipsDrawWithoutImage}) whose instance has no drawable
          * image, or (b) a kind whose native draw is blocked by the wait-phase guard
-         * ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}) and whose guard field is present and
-         * {@code >= 0f}. Every other instance — including a guard-SATISFIED instance whose image
-         * snapshot fails — is {@code false}, so a genuine failure is never masked as benign.
+         * ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}) per that kind's threshold — see
+         * {@link VfxDrawGeometry#guardBlocks}, the single source of truth (e.g. {@code NaN}/positive
+         * block for some kinds while others draw). Every other instance — including a guard-SATISFIED
+         * instance whose image snapshot fails — is {@code false}, so a genuine failure is never
+         * masked as benign.
          * Unlike {@link #canDraw} this is deliberately narrow: it does NOT report {@code true}
          * merely because the instance is undrawable.
          *
@@ -125,7 +127,9 @@ public final class VfxArtRenderer {
     /**
      * True only when the installed adapter can determine that THIS exact instance would natively
      * draw NOTHING (a benign no-pixel decline): a null-image kind whose native draw is guarded on a
-     * present image, or a wait-phase-guarded kind whose guard field is present and {@code >= 0f}.
+     * present image, or a wait-phase-guarded kind whose guard field value blocks per that kind's
+     * condition — see {@link VfxDrawGeometry#guardBlocks}, the source of truth for the per-kind block
+     * condition.
      * Returns {@code false} when no adapter is installed, the adapter does not implement the probe,
      * the probe throws, or the instance is not one of those two cases — so a genuine renderer
      * failure is never masked as benign. Mirrors the {@link #canDraw} delegator style.

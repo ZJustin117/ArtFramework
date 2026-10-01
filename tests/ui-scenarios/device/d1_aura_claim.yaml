@@ -28,6 +28,11 @@
 # that family, a per-instance ambient center-packed sprite with a NO-ARG constructor, also
 # ambient center-packed with flipX+flipY mirror booleans), and DeathScreenFloatyEffect (root, ambient
 # center-packed with no flip flags), all reusing the existing img branch with no new formula.
+# The newest is WrathStanceChangeParticle (vfx-stance-aura) — the FIRST non-deterministic native
+# effect claimed: additive center-packed, but its native render draws at the PLAYER HITBOX CENTER X +
+# x, consumes two ordered MathUtils.random values for scaleX/scaleY (replayed by the seam to keep the
+# global RNG stream identical), and is guarded by `if (delayTimer > 0f) return` (the generalized guard
+# threshold; a spawned lab instance uses delayTimer 0f so the guard is satisfied and ART may draw).
 # NOTE: a freshly lab-spawned FallingIceEffect/DamageHeartEffect starts with its guard UNSATISFIED
 # (waitTimer/delayTimer >= 0f), so the spawn-frame evidence for these two is the per-FQN
 # active/entity delta on spawn (observation), NOT a draw increase at spawn. The kinds then diverge:
@@ -143,6 +148,7 @@ steps:
   - console: "art claim spawn spookierchest 4"
   - console: "art claim spawn campfiresleepcover 4"
   - console: "art claim spawn deathfloaty 4"
+  - console: "art claim spawn wrathchange 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -226,6 +232,7 @@ steps:
   - console: "art claim spawn spookierchest 4"
   - console: "art claim spawn campfiresleepcover 4"
   - console: "art claim spawn deathfloaty 4"
+  - console: "art claim spawn wrathchange 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

@@ -142,6 +142,10 @@ public class VfxLabSpawnTest {
                 VfxLabSpawn.classNameFor("deathfloaty"));
         assertEquals(VfxClaimPolicy.DEATH_SCREEN_FLOATY,
                 VfxLabSpawn.classNameFor("deathscreen"));
+        assertEquals(VfxClaimPolicy.WRATH_STANCE_CHANGE,
+                VfxLabSpawn.classNameFor("wrathchange"));
+        assertEquals(VfxClaimPolicy.WRATH_STANCE_CHANGE,
+                VfxLabSpawn.classNameFor("wrathstance"));
     }
 
     @Test
@@ -588,6 +592,15 @@ public class VfxLabSpawnTest {
         assertSpawnRequests("sleepcover", VfxClaimPolicy.CAMPFIRE_SLEEP_COVER);
         assertSpawnRequests("deathfloaty", VfxClaimPolicy.DEATH_SCREEN_FLOATY);
         assertSpawnRequests("deathscreen", VfxClaimPolicy.DEATH_SCREEN_FLOATY);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheF24WrathStanceChangeThroughTheFactorySeam() {
+        // The newest (F24) claimable FQN; the capturing factory proves both aliases request exactly
+        // that FQN without running the GL/ImageMaster-backed constructor (STRIKE_LINE may be null
+        // off-game). "wrathchange"/"wrathstance" do not collide with the existing "wrath" alias.
+        assertSpawnRequests("wrathchange", VfxClaimPolicy.WRATH_STANCE_CHANGE);
+        assertSpawnRequests("wrathstance", VfxClaimPolicy.WRATH_STANCE_CHANGE);
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

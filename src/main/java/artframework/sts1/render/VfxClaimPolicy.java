@@ -237,6 +237,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect";
     public static final String DEATH_SCREEN_FLOATY =
             "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect";
+    public static final String WRATH_STANCE_CHANGE =
+            "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -253,7 +255,8 @@ public final class VfxClaimPolicy {
                     TORCH_PARTICLE_M, TORCH_PARTICLE_S, SCENE_DUST,
                     LIGHTNING_ORB_PASSIVE, GLOWY_FIRE_EYES, FLYING_SPIKE, CONE_EFFECT,
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
-                    SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY));
+                    SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
+                    WRATH_STANCE_CHANGE));
 
     private VfxClaimPolicy() {}
 
@@ -313,7 +316,8 @@ public final class VfxClaimPolicy {
                 || IRONCLAD_VICTORY_FLAME.equals(value)
                 || SPOOKIER_CHEST.equals(value)
                 || CAMPFIRE_SLEEP_COVER.equals(value)
-                || DEATH_SCREEN_FLOATY.equals(value);
+                || DEATH_SCREEN_FLOATY.equals(value)
+                || WRATH_STANCE_CHANGE.equals(value);
     }
 
     /**
@@ -409,6 +413,16 @@ public final class VfxClaimPolicy {
      * VfxDrawGeometry#usesInstanceMirrorY}); {@code DeathScreenFloatyEffect} ({@code vfx-misc-root})
      * declares no flip flags and does not mirror. All three have NO-ARG constructors and call no
      * {@code setBlendFunction} (ambient blend).
+     * The newest (F24) member is the {@code vfx-stance-aura} {@code WrathStanceChangeParticle} — the
+     * FIRST non-deterministic native effect claimed by the seam: its native {@code render} consumes
+     * two {@code MathUtils.random(...)} values (scaleX in {@code [2.9f, 3.1f]}, scaleY in
+     * {@code [0.95f, 1.05f]}) and draws at the PLAYER HITBOX CENTER X ({@code
+     * AbstractDungeon.player.hb.cX + x}) instead of the effect's own {@code x}. The seam gained an
+     * RNG-REPLAY capability ({@link VfxDrawGeometry#randomRanges}), a guard-threshold generalization
+     * ({@link VfxDrawGeometry#guardBlocks}, whose WRATH guard blocks when {@code delayTimer > 0f} —
+     * unlike the {@code >= 0f} FALLING_ICE/DAMAGE_HEART guards), and a player-hitbox-relative x rule
+     * ({@link VfxDrawGeometry#playerHitboxRelativeX}). It is additive center-packed and is appended
+     * LAST after the death screen floaty effect.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

@@ -48,7 +48,13 @@ package artframework.sts1.render;
  * and {@code CampfireSleepScreenCoverEffect} ({@code vfx-campfire-rest}; the first claimed member of
  * that family, a per-instance ambient center-packed sprite with a NO-ARG constructor) each carry
  * {@code flipX}+{@code flipY} and reuse the F22 mirror, while {@code DeathScreenFloatyEffect}
- * ({@code vfx-misc-root}) carries no flip flags and draws the canonical region.
+ * ({@code vfx-misc-root}) carries no flip flags and draws the canonical region. The newest member is
+ * the {@code vfx-stance-aura} {@code WrathStanceChangeParticle} ({@link Kind#WRATH_STANCE_CHANGE}),
+ * the seam's FIRST non-deterministic native effect: additive center-packed geometry, but its native
+ * {@code render} draws at the PLAYER HITBOX CENTER X plus the effect's {@code x}
+ * ({@link #playerHitboxRelativeX}), consumes two ordered {@code MathUtils.random(...)} values for
+ * scaleX/scaleY ({@link #randomRanges}), and guards its draw with {@code if (delayTimer > 0f) return}
+ * ({@link #nativeSkipsDrawByGuard}/{@link #guardFieldName}/{@link #guardBlocks}).
  *
  * <p>This class is host-neutral data: it performs no GL work, holds no host handles, and applies no
  * color/blend/UV state. The per-kind blend policy is pure and lives in {@link #additiveBlend}: most
@@ -229,6 +235,13 @@ package artframework.sts1.render;
  *   DeathScreenFloatyEffect.render (note: no setBlendFunction; ambient blend; no flip flags; the
  *                             geometry is exactly StanceAuraEffect center-packed):
  *     sb.draw(img, x, y, pw/2f, ph/2f, pw, ph, scale, scale, rotation)
+ *   WrathStanceChangeParticle.render (note: FIRST non-deterministic kind; guarded by
+ *                             if (delayTimer > 0f) return; additive blend; draws at the PLAYER
+ *                             HITBOX CENTER X + x, NOT the effect's own x; consumes one
+ *                             MathUtils.random(2.9f, 3.1f) for scaleX and one
+ *                             MathUtils.random(0.95f, 1.05f) for scaleY IN THAT ORDER; no vY):
+ *     sb.draw(img, AbstractDungeon.player.hb.cX + x, y, pw/2f, ph/2f, pw, ph,
+ *             scale*MathUtils.random(2.9f,3.1f), scale*MathUtils.random(0.95f,1.05f), rotation)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -313,8 +326,10 @@ package artframework.sts1.render;
  * verbatim (its {@code img} is a public {@code AtlasRegion}) and is guarded by
  * {@code if (delayTimer < 0f)}. The per-kind guard is modeled purely by
  * {@link #nativeSkipsDrawByGuard} (which kinds have a guard) and {@link #guardFieldName} (the
- * host-neutral field name); the renderer declines a draw whenever the guard field is present and
- * {@code >= 0f}, matching the native wait phase pixel-for-pixel.
+ * host-neutral field name); the renderer declines a draw when the guard field value blocks per that
+ * kind's condition, which lives in the pure {@link #guardBlocks} predicate (the source of truth — it
+ * differs per kind: {@code > 0f} for {@code WRATH_STANCE_CHANGE}, {@code !(value < 0f)} for
+ * {@code FALLING_ICE}/{@code DAMAGE_HEART}), matching the native wait phase pixel-for-pixel.
  */
 public final class VfxDrawGeometry {
 
@@ -371,7 +386,8 @@ public final class VfxDrawGeometry {
         IRONCLAD_VICTORY_FLAME,
         SPOOKIER_CHEST,
         CAMPFIRE_SLEEP_COVER,
-        DEATH_SCREEN_FLOATY
+        DEATH_SCREEN_FLOATY,
+        WRATH_STANCE_CHANGE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -601,12 +617,41 @@ public final class VfxDrawGeometry {
     public static final int FALLING_ICE_SRC_H = 96;
 
     // The per-kind native wait-phase guard field names (the seam's first draw guard): a claimed
-    // instance whose guard field is present and >= 0f is declined (draws nothing), exactly like the
-    // native render's `if (<guard> < 0f)` wait phase.
+    // instance whose guard field value blocks per that kind's condition is declined (draws nothing),
+    // exactly like the native render's wait phase. The block condition is per-kind and lives in the
+    // pure guardBlocks(kind, value) predicate (the source of truth), not in this field-name mapping.
     /** Native FallingIceEffect guard field name ({@code "waitTimer"}, satisfied when {@code < 0f}). */
     public static final String FALLING_ICE_GUARD_FIELD = "waitTimer";
     /** Native DamageHeartEffect guard field name ({@code "delayTimer"}, satisfied when {@code < 0f}). */
     public static final String DAMAGE_HEART_GUARD_FIELD = "delayTimer";
+    /**
+     * Native WrathStanceChangeParticle guard field name ({@code "delayTimer"}); this kind's guard
+     * BLOCKS when {@code > 0f} (draws when {@code <= 0f}) — see {@link #guardBlocks}.
+     */
+    public static final String WRATH_STANCE_CHANGE_GUARD_FIELD = "delayTimer";
+
+    // The ordered native MathUtils.random(min, max) ranges one claimed draw of a kind consumes (see
+    // randomRanges). WrathStanceChangeParticle draws with scaleX = scale * random(2.9f, 3.1f) and
+    // scaleY = scale * random(0.95f, 1.05f), in that exact call order.
+    /** Native WrathStanceChangeParticle scaleX RNG range min ({@code 2.9f}). */
+    public static final float WRATH_STANCE_CHANGE_SCALE_X_MIN = 2.9f;
+    /** Native WrathStanceChangeParticle scaleX RNG range max ({@code 3.1f}). */
+    public static final float WRATH_STANCE_CHANGE_SCALE_X_MAX = 3.1f;
+    /** Native WrathStanceChangeParticle scaleY RNG range min ({@code 0.95f}). */
+    public static final float WRATH_STANCE_CHANGE_SCALE_Y_MIN = 0.95f;
+    /** Native WrathStanceChangeParticle scaleY RNG range max ({@code 1.05f}). */
+    public static final float WRATH_STANCE_CHANGE_SCALE_Y_MAX = 1.05f;
+
+    /**
+     * The ordered native RNG ranges for {@link Kind#WRATH_STANCE_CHANGE} (see {@link #randomRanges}):
+     * scaleX {@code (2.9f, 3.1f)} then scaleY {@code (0.95f, 1.05f)}, in native call order. Immutable.
+     */
+    private static final java.util.List<float[]> WRATH_STANCE_CHANGE_RANDOM_RANGES =
+            java.util.Collections.unmodifiableList(java.util.Arrays.asList(
+                    new float[] {
+                            WRATH_STANCE_CHANGE_SCALE_X_MIN, WRATH_STANCE_CHANGE_SCALE_X_MAX },
+                    new float[] {
+                            WRATH_STANCE_CHANGE_SCALE_Y_MIN, WRATH_STANCE_CHANGE_SCALE_Y_MAX }));
 
     /** Resolved draw arguments; all finite, origin is the native center origin. */
     public static final class Params {
@@ -742,6 +787,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.SPOOKIER_CHEST.equals(value)) return Kind.SPOOKIER_CHEST;
         if (VfxClaimPolicy.CAMPFIRE_SLEEP_COVER.equals(value)) return Kind.CAMPFIRE_SLEEP_COVER;
         if (VfxClaimPolicy.DEATH_SCREEN_FLOATY.equals(value)) return Kind.DEATH_SCREEN_FLOATY;
+        if (VfxClaimPolicy.WRATH_STANCE_CHANGE.equals(value)) return Kind.WRATH_STANCE_CHANGE;
         return null;
     }
 
@@ -796,7 +842,9 @@ public final class VfxDrawGeometry {
      * per-instance MIRROR capability ({@link #usesInstanceMirrorX}/{@link #usesInstanceMirrorY}).
      * The three newest members {@link Kind#SPOOKIER_CHEST}, {@link Kind#CAMPFIRE_SLEEP_COVER}, and
      * {@link Kind#DEATH_SCREEN_FLOATY} are likewise ambient center-packed with NO new formula
-     * (the first two reuse the mirror, the third does not).
+     * (the first two reuse the mirror, the third does not). The newest member
+     * {@link Kind#WRATH_STANCE_CHANGE} is ADDITIVE center-packed (it installs/restores the additive
+     * blend natively), so {@code additiveBlend} reports {@code true} for it.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -851,14 +899,16 @@ public final class VfxDrawGeometry {
     /**
      * Pure per-kind predicate for the seam's NATIVE DRAW GUARD capability: {@code true} only for the
      * kinds whose native {@code render} wraps its draw in a wait-phase field check, so a claimed
-     * instance whose guard field is present and {@code >= 0f} would natively draw NOTHING. Today
-     * that is exactly {@link Kind#FALLING_ICE} ({@code FallingIceEffect}, guarded by
-     * {@code if (waitTimer < 0f)}) and {@link Kind#DAMAGE_HEART} ({@code DamageHeartEffect}, guarded
-     * by {@code if (delayTimer < 0f)}). Every other claimable kind draws unconditionally (or draws a
-     * fixed static texture), so it is {@code false}. Callers use this together with
-     * {@link #guardFieldName} to keep a claimed instance in pixel parity — the renderer declines
-     * (draws nothing) when the guard blocks, matching the native wait phase — and to classify that
-     * decline as a benign no-pixel decline rather than a {@code dispositionMismatch}.
+     * instance whose guard blocks would natively draw NOTHING. Today that is exactly
+     * {@link Kind#FALLING_ICE} ({@code FallingIceEffect}, guarded by {@code if (waitTimer < 0f)}),
+     * {@link Kind#DAMAGE_HEART} ({@code DamageHeartEffect}, guarded by {@code if (delayTimer < 0f)}),
+     * and {@link Kind#WRATH_STANCE_CHANGE} ({@code WrathStanceChangeParticle}, guarded by
+     * {@code if (delayTimer > 0f) return} — i.e. it draws only when {@code delayTimer <= 0f}). Every
+     * other claimable kind draws unconditionally (or draws a fixed static texture), so it is
+     * {@code false}. Callers use this together with {@link #guardFieldName} and the per-kind
+     * {@link #guardBlocks} threshold to keep a claimed instance in pixel parity — the renderer
+     * declines (draws nothing) when the guard blocks, matching the native wait phase — and to
+     * classify that decline as a benign no-pixel decline rather than a {@code dispositionMismatch}.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -866,17 +916,101 @@ public final class VfxDrawGeometry {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
-        return kind == Kind.FALLING_ICE || kind == Kind.DAMAGE_HEART;
+        return kind == Kind.FALLING_ICE || kind == Kind.DAMAGE_HEART
+                || kind == Kind.WRATH_STANCE_CHANGE;
+    }
+
+    /**
+     * Pure per-kind guard THRESHOLD: {@code true} when a present guard field value blocks the native
+     * draw for {@code kind}, {@code false} otherwise. This is the seam's generalization of the F21
+     * "blocked iff field {@code >= 0f}" rule so kinds with different wait-phase tests share one
+     * code path:
+     *
+     * <ul>
+     *   <li>{@link Kind#FALLING_ICE} ({@code if (waitTimer < 0f)}) and {@link Kind#DAMAGE_HEART}
+     *       ({@code if (delayTimer < 0f)}) block whenever {@code value < 0f} is false — i.e. for
+     *       {@code +0f}, positive values, {@code +Inf}, AND {@code NaN}; unblocked only for negative
+     *       finite values and {@code -Inf} (matching native, where {@code NaN < 0f} is false so the
+     *       draw is skipped);</li>
+     *   <li>{@link Kind#WRATH_STANCE_CHANGE} ({@code if (delayTimer > 0f) return}) blocks when
+     *       {@code value > 0f} — i.e. it draws at {@code 0f} and at {@code NaN} (native
+     *       {@code NaN > 0f} is false too), matching the native non-return path;</li>
+     *   <li>every other kind has no guard and is always {@code false}.</li>
+     * </ul>
+     *
+     * The renderer resolves the guard field reflectively (an absent/unreadable field is NOT blocked)
+     * and delegates the threshold decision here, so this class stays host-neutral and never touches
+     * the native class.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean guardBlocks(Kind kind, float value) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        if (kind == Kind.WRATH_STANCE_CHANGE) return value > 0f;
+        if (kind == Kind.FALLING_ICE || kind == Kind.DAMAGE_HEART) return !(value < 0f);
+        return false;
+    }
+
+    /**
+     * The ordered RNG ranges a claimed draw of {@code kind} must consume from the global
+     * {@code MathUtils.random(min, max)} stream so the native RNG sequence stays identical. Each
+     * element is a {@code float[]{min, max}} pair, in native call order; the renderer MUST call
+     * {@code MathUtils.random(min, max)} once for each range IN ORDER during the draw (matching the
+     * native call sequence exactly) and multiply the params' corresponding scale component by the
+     * returned value, so pixel equivalence is an identity rather than a probabilistic match.
+     *
+     * <p>Today only {@link Kind#WRATH_STANCE_CHANGE} consumes RNG: its native {@code render} computes
+     * {@code scale * MathUtils.random(2.9f, 3.1f)} for scaleX then {@code scale * MathUtils.random(
+     * 0.95f, 1.05f)} for scaleY, so this returns {@code [(2.9f, 3.1f), (0.95f, 1.05f)]} in that
+     * order. Every other claimable kind's native {@code update}/{@code render} consumes no RNG during
+     * the draw, so it returns an empty list. The returned list is immutable.
+     *
+     * <p>{@code float[]} is host-neutral primitives, so this class stays GL/host-free.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static java.util.List<float[]> randomRanges(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        if (kind == Kind.WRATH_STANCE_CHANGE) {
+            return WRATH_STANCE_CHANGE_RANDOM_RANGES;
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * Pure per-kind predicate for the seam's PLAYER-HITBOX-RELATIVE X rule: {@code true} only for the
+     * kinds whose native {@code render} draws at the player's hitbox center X plus the effect's own
+     * {@code x} (rather than the effect's {@code x} alone). Today that is exactly
+     * {@link Kind#WRATH_STANCE_CHANGE}, whose native draw x argument is
+     * {@code AbstractDungeon.player.hb.cX + this.x}. Every other kind draws at its own {@code x}, so
+     * it is {@code false}. When {@code true} the renderer resolves the player hitbox center X and
+     * adds the effect's {@code x}; if the player or its hitbox is absent/unreadable the renderer FAILS
+     * OPEN (draws nothing, so the native render produces the pixels) rather than drawing at a wrong
+     * position.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean playerHitboxRelativeX(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.WRATH_STANCE_CHANGE;
     }
 
     /**
      * The host-neutral name of the native wait-phase guard field for a guarded kind, or {@code null}
      * for every kind {@link #nativeSkipsDrawByGuard} reports {@code false} for. The name is a plain
      * {@link String} only — this class stays host-neutral and never touches the native class. The
-     * guard is SATISFIED (the native draw runs) when the field's value is {@code < 0f}; a guard kind
+     * guard is SATISFIED (the native draw runs) when the field's value passes the per-kind
+     * {@link #guardBlocks} threshold; a guard kind
      * whose field is absent or unreadable is treated as SATISFIED (it draws), since the native
      * render would then not be able to read a guard either. Returns {@code "waitTimer"} for
-     * {@link Kind#FALLING_ICE} and {@code "delayTimer"} for {@link Kind#DAMAGE_HEART}.
+     * {@link Kind#FALLING_ICE}, {@code "delayTimer"} for {@link Kind#DAMAGE_HEART}, and
+     * {@code "delayTimer"} for {@link Kind#WRATH_STANCE_CHANGE}.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -886,6 +1020,7 @@ public final class VfxDrawGeometry {
         }
         if (kind == Kind.FALLING_ICE) return FALLING_ICE_GUARD_FIELD;
         if (kind == Kind.DAMAGE_HEART) return DAMAGE_HEART_GUARD_FIELD;
+        if (kind == Kind.WRATH_STANCE_CHANGE) return WRATH_STANCE_CHANGE_GUARD_FIELD;
         return null;
     }
 
@@ -1077,6 +1212,7 @@ public final class VfxDrawGeometry {
             case SPOOKIER_CHEST:
             case CAMPFIRE_SLEEP_COVER:
             case DEATH_SCREEN_FLOATY:
+            case WRATH_STANCE_CHANGE:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -1093,7 +1229,10 @@ public final class VfxDrawGeometry {
                 // is additive and ShineLinesEffect is ambient center-packed (offset 0/0, like
                 // StanceAuraEffect). The two newest scene-world members TorchParticleMEffect and
                 // TorchParticleSEffect reuse this branch UNCHANGED (additive, origin packed/2, no new
-                // rule; their vY is update-only).
+                // rule; their vY is update-only). WrathStanceChangeParticle (F24) also joins this
+                // branch: it is additive center-packed but draws at player hitbox center X + x and
+                // multiplies scaleX/scaleY by two MathUtils.random draws; those two extra rules are
+                // resolved by the renderer (see playerHitboxRelativeX/randomRanges), not here.
                 return new Params(x, y, originX, originY, packedWidth, packedHeight,
                         scale, scale, rotation);
             case FALLING_ICE:

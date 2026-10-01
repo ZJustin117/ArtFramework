@@ -59,8 +59,10 @@ import java.lang.reflect.Field;
  * {@code rotation} field and its own instance {@code Texture img}) and the {@code vfx-misc-root}
  * {@code DamageHeartEffect} (ambient center-packed with a public {@code AtlasRegion img}) — the
  * seam's first per-kind NATIVE DRAW GUARD kinds ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}),
- * whose {@code render} declines (draws nothing) whenever the guard field is present and
- * {@code >= 0f}. The two newest members are the {@code vfx-scene-world} {@code SpookyChestEffect}
+ * whose {@code render} declines (draws nothing) whenever the guard field value blocks per that kind's
+ * threshold ({@link VfxDrawGeometry#guardBlocks} — the source of truth: {@code NaN}/{@code +0f}/
+ * positive block while negative finite values draw). The two newest members are the
+ * {@code vfx-scene-world} {@code SpookyChestEffect}
  * (ambient center-packed, NO-ARG constructor, {@code flipX}+{@code flipY} mirror booleans) and
  * {@code IroncladVictoryFlameEffect} (ambient center-packed, NO-ARG constructor, {@code flipX}
  * mirror boolean) — the img path's first per-instance MIRROR kinds
@@ -72,7 +74,15 @@ import java.lang.reflect.Field;
  * that family, a per-instance ambient center-packed sprite with a NO-ARG constructor) each
  * carry {@code flipX}+{@code flipY} and mirror the canonical region, while
  * {@code DeathScreenFloatyEffect} ({@code vfx-misc-root}) carries no flip fields and draws the
- * canonical region. All three require {@code rotation} and are ambient center-packed.
+ * canonical region. All three require {@code rotation} and are ambient center-packed. The newest
+ * (F24) member is the {@code vfx-stance-aura} {@code WrathStanceChangeParticle} — the seam's FIRST
+ * non-deterministic native effect and its first PLAYER-HITBOX-RELATIVE and RNG-REPLAY kind: it is
+ * additive center-packed, draws at {@code AbstractDungeon.player.hb.cX + x}
+ * ({@link VfxDrawGeometry#playerHitboxRelativeX}; a missing player/hitbox fails open), consumes two
+ * ordered {@code MathUtils.random(...)} values for scaleX/scaleY
+ * ({@link VfxDrawGeometry#randomRanges}, pulled only once committed to the draw and never on a
+ * fail-open), and guards its draw with {@code if (delayTimer > 0f) return}
+ * ({@link VfxDrawGeometry#guardBlocks}, the generalized guard threshold).
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -478,13 +488,18 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
-     * The seam's first per-kind NATIVE DRAW GUARD (NRO-04 F21): true unless the native render's
-     * wait-phase guard blocks the draw. For a guarded kind ({@link VfxDrawGeometry#nativeSkipsDrawByGuard})
-     * the guard field named by {@link VfxDrawGeometry#guardFieldName} is read reflectively; when it
-     * is present and {@code >= 0f} the native render would skip its draw entirely, so ART must also
-     * draw nothing (return {@code false}) to stay in pixel parity. An absent/unreadable/wrongly
-     * typed guard field is treated as SATISFIED (returns {@code true}) — the native render would
-     * then not be able to read a guard either. A cheap no-op for every non-guard kind. Never throws.
+     * The seam's per-kind NATIVE DRAW GUARD (NRO-04 F21, generalized in F24): true unless the native
+     * render's wait-phase guard blocks the draw. For a guarded kind
+     * ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}) the guard field named by
+     * {@link VfxDrawGeometry#guardFieldName} is read reflectively; when it is present and
+     * {@link VfxDrawGeometry#guardBlocks} reports the value blocks the draw, the native render would
+     * skip its draw entirely, so ART must also draw nothing (return {@code false}) to stay in pixel
+     * parity. An absent/unreadable/wrongly typed guard field is treated as SATISFIED (returns
+     * {@code true}) — the native render would then not be able to read a guard either. A cheap no-op
+     * for every non-guard kind. Never throws.
+     *
+     * <p>The block THRESHOLD is per-kind and lives in {@link VfxDrawGeometry#guardBlocks}, the single
+     * source of truth (it differs per kind and handles {@code NaN} like the native comparison does).
      *
      * <p>Package-private so the no-GL tests can exercise the absent/unreadable-guard path directly
      * (the real mapping classes always declare their guard field).
@@ -494,14 +509,86 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (!VfxDrawGeometry.nativeSkipsDrawByGuard(kind)) return true;
         String field = VfxDrawGeometry.guardFieldName(kind);
         if (field == null) return true;
-        Float value = null;
+        Float value;
         try {
             value = readFloat(effect, field);
         } catch (Throwable ignored) {
             return true;
         }
-        // The native guard is `if (<field> < 0f) { draw }`, so a present, >= 0f field blocks it.
-        return value == null || value.floatValue() < 0f;
+        // An absent/unreadable guard field is treated as not blocking; otherwise encode the kind's
+        // native wait-phase test via the pure per-kind threshold predicate.
+        return value == null || !VfxDrawGeometry.guardBlocks(kind, value.floatValue());
+    }
+
+    /**
+     * Test seam: when set, the player object used to resolve the player-hitbox-relative x instead of
+     * the live {@code AbstractDungeon.player}. Package-private and null by default so production
+     * always reads the live player. Mirrors the {@code ...ForTests} conventions elsewhere.
+     */
+    private static volatile Object playerForTests;
+
+    static void setPlayerForTests(Object player) {
+        playerForTests = player;
+    }
+
+    static void resetPlayerForTests() {
+        playerForTests = null;
+    }
+
+    /**
+     * The player's hitbox center X ({@code AbstractDungeon.player.hb.cX}) for the
+     * player-hitbox-relative kinds ({@link VfxDrawGeometry#playerHitboxRelativeX}), or {@code null}
+     * when the player or its hitbox is absent/unreadable. Read reflectively so this stays fail-open
+     * and never couples to the native field visibility; the caller turns a {@code null} into a
+     * fail-open decline (native draws instead) rather than drawing at a wrong position. Never throws.
+     */
+    private static Float playerHitboxCenterX() {
+        try {
+            Object player = playerForTests;
+            if (player == null) {
+                player = com.megacrit.cardcrawl.dungeons.AbstractDungeon.player;
+            }
+            if (player == null) return null;
+            Object hb = readRaw(player, "hb");
+            if (!(hb instanceof com.megacrit.cardcrawl.helpers.Hitbox)) return null;
+            return readFloat(hb, "cX");
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Snapshot of the shared global RNG state for the current {@code MathUtils.random} instance, or
+     * {@code null} when it is not a libGDX {@link com.badlogic.gdx.math.RandomXS128} (whose two seed
+     * longs fully determine the next draw). Taken BEFORE any RNG value is pulled so that a
+     * post-consumption fail-open can restore the stream exactly, keeping the seam's contract that the
+     * global RNG is advanced exactly once per successful draw and never on a fail-open. Never throws.
+     */
+    private static long[] rngSnapshot() {
+        try {
+            Object rng = com.badlogic.gdx.math.MathUtils.random;
+            if (!(rng instanceof com.badlogic.gdx.math.RandomXS128)) return null;
+            com.badlogic.gdx.math.RandomXS128 xs = (com.badlogic.gdx.math.RandomXS128) rng;
+            return new long[] {xs.getState(0), xs.getState(1)};
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Restores the state captured by {@link #rngSnapshot}; a no-op for a {@code null} snapshot (an
+     * unsupported RNG type) or when the live RNG is no longer an {@link
+     * com.badlogic.gdx.math.RandomXS128}. Never throws.
+     */
+    private static void restoreRng(long[] snapshot) {
+        if (snapshot == null) return;
+        try {
+            Object rng = com.badlogic.gdx.math.MathUtils.random;
+            if (rng instanceof com.badlogic.gdx.math.RandomXS128) {
+                ((com.badlogic.gdx.math.RandomXS128) rng).setState(snapshot[0], snapshot[1]);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     /**
@@ -562,9 +649,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             VfxDrawGeometry.Kind kind =
                     VfxDrawGeometry.kindFor(effect.getClass().getName());
             if (kind == null) return false;
-            // Native draw guard (NRO-04 F21): a guarded kind whose wait-phase field is present and
-            // >= 0f draws nothing natively, so ART must draw nothing too (fail open: the patch calls
-            // native render, which also draws nothing). Cheap no-op for every non-guard kind.
+            // Native draw guard (NRO-04 F21): a guarded kind whose wait-phase field blocks per that
+            // kind's threshold (VfxDrawGeometry.guardBlocks — the source of truth) draws nothing
+            // natively, so ART must draw nothing too (fail open: the patch calls native render, which
+            // also draws nothing). Cheap no-op for every non-guard kind.
             if (!guardSatisfied(kind, effect)) return false;
             if (isTextureDrawKind(kind)) {
                 return renderTexture(sb, kind, effect);
@@ -590,6 +678,25 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                     settingsScale, gdx.getRegionWidth(), gdx.getRegionHeight(),
                     f.vX, f.regionOffsetX, f.regionOffsetY,
                     originOffsetX(kind), originOffsetY(kind, gdx));
+            // F24 PLAYER-HITBOX-RELATIVE X: WrathStanceChangeParticle draws at the player's hitbox
+            // center X plus the effect's own x, not at x. Resolved here (a fail-open-capable read) so
+            // that a missing player/hitbox declines BEFORE any RNG is pulled; native then draws.
+            float drawX = p.x;
+            if (VfxDrawGeometry.playerHitboxRelativeX(kind)) {
+                Float centerX = playerHitboxCenterX();
+                if (centerX == null) return false;
+                drawX = centerX.floatValue() + f.x;
+            }
+            // F24 RNG-REPLAY: every fallible check above is complete, so we are now committed to the
+            // draw. Snapshot the shared global RNG state BEFORE pulling any value so a
+            // post-consumption failure can restore the stream exactly (the native fallback then
+            // consumes the values it needs, and the global stream does not drift). For a kind whose
+            // native render consumes MathUtils.random(...) values, pull them IN ORDER from the
+            // global stream (matching the native call sequence exactly) and apply them to the
+            // corresponding scale component; a kind with no ranges keeps scale, scale and never
+            // touches the RNG or the snapshot.
+            java.util.List<float[]> ranges = VfxDrawGeometry.randomRanges(kind);
+            long[] rngSnapshot = ranges.isEmpty() ? null : rngSnapshot();
             // Per-kind blend policy: most kinds install additive blend and restore it, but the
             // ambient kinds (VfxDrawGeometry.additiveBlend(kind) == false — see that method for the
             // authoritative list, which includes the newest DustEffect)
@@ -599,14 +706,30 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             Color previous = new Color(sb.getColor());
             boolean blendChanged = false;
             try {
+                float scaleX = p.scaleX;
+                float scaleY = p.scaleY;
+                for (int i = 0; i < ranges.size(); i++) {
+                    float[] range = ranges.get(i);
+                    float factor = com.badlogic.gdx.math.MathUtils.random(range[0], range[1]);
+                    if (i == 0) {
+                        scaleX = p.scaleX * factor;
+                    } else if (i == 1) {
+                        scaleY = p.scaleY * factor;
+                    }
+                }
                 sb.setColor(f.color != null ? f.color : Color.WHITE);
                 if (additive) {
                     sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
                     blendChanged = true;
                 }
-                sb.draw(canonical, p.x, p.y, p.originX, p.originY, p.width, p.height,
-                        p.scaleX, p.scaleY, p.rotation);
+                sb.draw(canonical, drawX, p.y, p.originX, p.originY, p.width, p.height,
+                        scaleX, scaleY, p.rotation);
                 return true;
+            } catch (Throwable ignored) {
+                // A throw after the RNG values were pulled must not leak RNG consumption: restore the
+                // snapshot so the native fallback consumes exactly the values it expects.
+                restoreRng(rngSnapshot);
+                return false;
             } finally {
                 try {
                     if (blendChanged) {
@@ -643,8 +766,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * True only when {@link #render} could actually draw this exact instance: the class maps to a
      * kind, the native draw guard is satisfied (a guard-blocked kind cannotDraw — native draws
-     * nothing in that state either), the required fields resolve, and the resolved region/texture is
-     * present. Mirrors
+     * nothing in that state either), the required fields resolve, the resolved region/texture is
+     * present, and — for a player-hitbox-relative kind (F24) — the player hitbox center X resolves.
+     * Mirrors
      * {@code render}'s early-return conditions up to (but not including) the batch draw, so a
      * {@code false} here means the native effect would also produce no pixels for this instance
      * under this renderer. Never throws.
@@ -676,6 +800,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      */
     private static boolean imagePresent(VfxDrawGeometry.Kind kind, Object effect) {
         if (kind == null || effect == null) return false;
+        // F24 PLAYER-HITBOX-RELATIVE X: a kind that draws relative to the player's hitbox cannot draw
+        // without that center, so a missing player/hitbox makes the instance undrawable (native draws
+        // it instead). Resolved here so canDraw/declinedWithoutPixels agree with render.
+        if (VfxDrawGeometry.playerHitboxRelativeX(kind) && playerHitboxCenterX() == null) {
+            return false;
+        }
         if (isTextureDrawKind(kind)) {
             TextureFields f = readTextureFields(kind, effect);
             return f != null && resolveTexture(kind, f) != null;
@@ -715,7 +845,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * whose native render guards its draw on a present image
      * ({@link VfxDrawGeometry#nativeSkipsDrawWithoutImage}) and whose instance has no drawable image,
      * or (b) a wait-phase-guarded kind ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}) whose guard
-     * field is present and {@code >= 0f} (the guard blocks the native draw). Every other instance —
+     * field value blocks the native draw per that kind's threshold
+     * ({@link VfxDrawGeometry#guardBlocks} — the source of truth). Every other instance —
      * including a guard-SATISFIED instance whose image snapshot fails — is {@code false}, so a
      * genuine renderer failure is never masked as benign. Deliberately narrower than
      * {@link #canDraw}, which also reports {@code false} for any other undrawable instance. Never
@@ -732,7 +863,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 return !imagePresent(kind, effect);
             }
             if (VfxDrawGeometry.nativeSkipsDrawByGuard(kind)) {
-                // The native render draws only when the wait-phase guard is satisfied (< 0f).
+                // The native render draws only when the guard does not block (per-kind threshold).
                 return !guardSatisfied(kind, effect);
             }
             return false;

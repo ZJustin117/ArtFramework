@@ -53,6 +53,7 @@ import com.megacrit.cardcrawl.vfx.stance.DivinityParticleEffect;
 import com.megacrit.cardcrawl.vfx.stance.DivinityStanceChangeParticle;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import com.megacrit.cardcrawl.vfx.stance.WrathParticleEffect;
+import com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -94,7 +95,9 @@ import java.util.function.Predicate;
  * {@code CampfireSleepScreenCoverEffect} ({@code vfx-campfire-rest}; ambient center-packed with
  * {@code flipX}+{@code flipY} mirror booleans, NO-ARG constructor), and
  * {@code DeathScreenFloatyEffect} (root; ambient center-packed without flip flags, NO-ARG
- * constructor) into the
+ * constructor), plus the newest member {@code WrathStanceChangeParticle} (root; additive
+ * center-packed, player-hitbox-relative x, two {@code MathUtils.random} draws, guard
+ * {@code delayTimer <= 0f}; ctor {@code (float)}) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -288,6 +291,9 @@ public final class VfxLabSpawn {
         }
         if ("deathfloaty".equalsIgnoreCase(value) || "deathscreen".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.DEATH_SCREEN_FLOATY;
+        }
+        if ("wrathchange".equalsIgnoreCase(value) || "wrathstance".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.WRATH_STANCE_CHANGE;
         }
         return null;
     }
@@ -691,6 +697,13 @@ public final class VfxLabSpawn {
             // own img from ImageMaster static art and sets x/y; img may be null outside a live game,
             // so any failure is caught by spawn's fail-open guard rather than propagating.
             return new DeathScreenFloatyEffect();
+        }
+        if (VfxClaimPolicy.WRATH_STANCE_CHANGE.equals(fqn)) {
+            // Safe lab defaults: WrathStanceChangeParticle's ctor is (float delayTimer) and sets
+            // img = ImageMaster.STRIKE_LINE; that static region may be null outside a live game, so
+            // any failure is caught by spawn's fail-open guard rather than propagating. delayTimer 0f
+            // means the guard `if (delayTimer > 0f) return` is satisfied (native draws).
+            return new WrathStanceChangeParticle(0f);
         }
         return null;
     }

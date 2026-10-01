@@ -276,6 +276,12 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect"));
+        // The newest F24 member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.WRATH_STANCE_CHANGE));
+        assertSame(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle"));
     }
 
     @Test
@@ -689,6 +695,18 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.scene.DeathScreenFloatyEffect")); // wrong package
         assertNull(VfxDrawGeometry.kindFor(
                 "com.megacrit.cardcrawl.vfx.DeathScreenFloaty")); // near-miss (no Effect)
+        // The newest F24 member: exact FQN only, near-misses fail open.
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle2")); // near-miss
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.WrathStanceChangeParticle$Sub")); // nested
+        assertNull(VfxDrawGeometry.kindFor("WrathStanceChangeParticle")); // simple name only
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.WrathStanceChangeParticle")); // wrong package
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.WrathStanceChange")); // near-miss (no Particle)
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.stance.WrathStanceAuraParticle")); // near-miss
     }
 
     @Test
@@ -2455,11 +2473,13 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
-    public void nativeSkipsDrawByGuardIsTrueOnlyForTheTwoGuardKinds() {
+    public void nativeSkipsDrawByGuardIsTrueOnlyForTheGuardKinds() {
         // Independent truth table over a fixed sample of representative kinds (not a restatement of
-        // the implementation disjunction): only the two natively wait-guarded kinds are true.
+        // the implementation disjunction): only the natively wait-guarded kinds are true.
         assertTrue(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.FALLING_ICE));
         assertTrue(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.DAMAGE_HEART));
+        assertTrue(VfxDrawGeometry.nativeSkipsDrawByGuard(
+                VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
 
         for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
                 VfxDrawGeometry.Kind.STANCE_AURA,
@@ -2500,8 +2520,11 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.FALLING_ICE));
         assertEquals("delayTimer",
                 VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.DAMAGE_HEART));
+        assertEquals("delayTimer",
+                VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
         assertEquals("waitTimer", VfxDrawGeometry.FALLING_ICE_GUARD_FIELD);
         assertEquals("delayTimer", VfxDrawGeometry.DAMAGE_HEART_GUARD_FIELD);
+        assertEquals("delayTimer", VfxDrawGeometry.WRATH_STANCE_CHANGE_GUARD_FIELD);
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FALLING_ICE) {
@@ -2512,9 +2535,158 @@ public class VfxDrawGeometryTest {
                 assertEquals("delayTimer", VfxDrawGeometry.guardFieldName(kind));
                 continue;
             }
+            if (kind == VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE) {
+                assertEquals("delayTimer", VfxDrawGeometry.guardFieldName(kind));
+                continue;
+            }
             assertNull("no guard field name for " + kind, VfxDrawGeometry.guardFieldName(kind));
             assertFalse("no guard for " + kind, VfxDrawGeometry.nativeSkipsDrawByGuard(kind));
         }
+    }
+
+    @Test
+    public void guardBlocksEncodesThePerKindThresholdDifference() {
+        // WRATH blocks ONLY when the field is strictly positive (native: if (delayTimer > 0f) return),
+        // so 0f does NOT block; FALLING_ICE/DAMAGE_HEART block at >= 0f (native: if (field < 0f)).
+        assertFalse("Wrath draws at delayTimer == 0f",
+                VfxDrawGeometry.guardBlocks(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, 0f));
+        assertFalse("Wrath draws at a negative delayTimer",
+                VfxDrawGeometry.guardBlocks(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, -0.5f));
+        assertTrue("Wrath blocks at delayTimer > 0f",
+                VfxDrawGeometry.guardBlocks(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, 0.01f));
+        assertTrue(VfxDrawGeometry.guardBlocks(
+                VfxDrawGeometry.Kind.FALLING_ICE, 0f));
+        assertTrue(VfxDrawGeometry.guardBlocks(
+                VfxDrawGeometry.Kind.DAMAGE_HEART, 0f));
+        assertFalse(VfxDrawGeometry.guardBlocks(
+                VfxDrawGeometry.Kind.FALLING_ICE, -0.01f));
+        assertTrue(VfxDrawGeometry.guardBlocks(
+                VfxDrawGeometry.Kind.FALLING_ICE, 0.01f));
+
+        // NaN parity with the native comparisons:
+        //  - native FALLING_ICE/DAMAGE_HEART draw iff `field < 0f`, and `NaN < 0f` is false, so NaN
+        //    BLOCKS (ART must not draw where native draws nothing);
+        //  - native WRATH returns iff `delayTimer > 0f`, and `NaN > 0f` is false, so NaN does NOT
+        //    block (native draws).
+        assertTrue("NaN blocks FALLING_ICE (native NaN < 0f is false)",
+                VfxDrawGeometry.guardBlocks(VfxDrawGeometry.Kind.FALLING_ICE, Float.NaN));
+        assertTrue("NaN blocks DAMAGE_HEART (native NaN < 0f is false)",
+                VfxDrawGeometry.guardBlocks(VfxDrawGeometry.Kind.DAMAGE_HEART, Float.NaN));
+        assertFalse("NaN does not block WRATH (native NaN > 0f is false)",
+                VfxDrawGeometry.guardBlocks(
+                        VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, Float.NaN));
+        assertTrue("+Inf blocks FALLING_ICE", VfxDrawGeometry.guardBlocks(
+                VfxDrawGeometry.Kind.FALLING_ICE, Float.POSITIVE_INFINITY));
+        assertFalse("-Inf does not block FALLING_ICE", VfxDrawGeometry.guardBlocks(
+                VfxDrawGeometry.Kind.FALLING_ICE, Float.NEGATIVE_INFINITY));
+        assertTrue("+Inf blocks WRATH", VfxDrawGeometry.guardBlocks(
+                VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, Float.POSITIVE_INFINITY));
+        assertFalse("-Inf does not block WRATH", VfxDrawGeometry.guardBlocks(
+                VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE, Float.NEGATIVE_INFINITY));
+
+        // Every non-guard kind is never blocked regardless of the value.
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (VfxDrawGeometry.nativeSkipsDrawByGuard(kind)) continue;
+            assertFalse("no value blocks a non-guard kind: " + kind,
+                    VfxDrawGeometry.guardBlocks(kind, 0f));
+            assertFalse("no value blocks a non-guard kind: " + kind,
+                    VfxDrawGeometry.guardBlocks(kind, 123.4f));
+            assertFalse("no value blocks a non-guard kind: " + kind,
+                    VfxDrawGeometry.guardBlocks(kind, -123.4f));
+        }
+    }
+
+    @Test
+    public void randomRangesIsOrderedForWrathAndEmptyForOtherKinds() {
+        java.util.List<float[]> wrath =
+                VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE);
+        assertEquals("Wrath consumes exactly two RNG draws in order", 2, wrath.size());
+        assertEquals(2.9f, wrath.get(0)[0], EPS);
+        assertEquals(3.1f, wrath.get(0)[1], EPS);
+        assertEquals(0.95f, wrath.get(1)[0], EPS);
+        assertEquals(1.05f, wrath.get(1)[1], EPS);
+
+        for (VfxDrawGeometry.Kind kind : new VfxDrawGeometry.Kind[] {
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                VfxDrawGeometry.Kind.CALM_PARTICLE,
+                VfxDrawGeometry.Kind.FLASH_ATK_IMG,
+                VfxDrawGeometry.Kind.ICE_SHATTER,
+                VfxDrawGeometry.Kind.FALLING_ICE,
+                VfxDrawGeometry.Kind.DAMAGE_HEART,
+                VfxDrawGeometry.Kind.SPOOKY_CHEST }) {
+            assertTrue("no RNG is consumed for " + kind,
+                    VfxDrawGeometry.randomRanges(kind).isEmpty());
+        }
+    }
+
+    @Test
+    public void playerHitboxRelativeXIsTrueOnlyForWrath() {
+        assertTrue(VfxDrawGeometry.playerHitboxRelativeX(
+                VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE) continue;
+            assertFalse("only Wrath is player-hitbox-relative: " + kind,
+                    VfxDrawGeometry.playerHitboxRelativeX(kind));
+        }
+    }
+
+    @Test
+    public void wrathStanceChangeNewPredicatesThrowOnNullKind() {
+        try {
+            VfxDrawGeometry.guardBlocks(null, 0f);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+        try {
+            VfxDrawGeometry.randomRanges(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+        try {
+            VfxDrawGeometry.playerHitboxRelativeX(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void wrathStanceChangeUsesStanceAuraGeometryAndIsAdditive() {
+        // The native geometry is exactly StanceAuraEffect center-packed; the RNG scale factors and
+        // player-relative x are applied by the renderer, so params here is the shared center-packed
+        // shape (scale, scale).
+        float pw = 64f;
+        float ph = 48f;
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE,
+                3.5f, -2.5f, 999f /* vY ignored */, 0.7f, 33f,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                pw, ph, 0f, 0f, 0f, 0f, 0f);
+        assertEquals(3.5f, p.x, EPS);
+        assertEquals(-2.5f, p.y, EPS);
+        assertEquals(pw / 2f, p.originX, EPS);
+        assertEquals(ph / 2f, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals(0.7f, p.scaleX, EPS);
+        assertEquals(0.7f, p.scaleY, EPS);
+        assertEquals(33f, p.rotation, EPS);
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                3.5f, -2.5f, 0f, 0.7f, 33f, 0f, 0f, 1f, pw, ph, 0f, 0f, 0f, 0f, 0f);
+        assertEquals("Wrath geometry equals the StanceAura shape", aura, p);
+
+        assertTrue("Wrath installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(
+                VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
     }
 
     @Test

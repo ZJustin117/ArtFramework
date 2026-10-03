@@ -1073,6 +1073,33 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `VfxClaimPolicy.supports(...)` predicate, the retired count, the `spawn` behavior/aliases, and
       the clearable FQN set are all unchanged; `clear()` still never throws.
 
+- [x] NRO-04 A02 (parameterized single-class VFX claim isolation device scenario): new
+      `tests/ui-scenarios/device/d1_vfx_claim_isolation.yaml` verifies the VFX claim seam for ONE
+      reusable target kind per run instead of relying only on family-wide draw counters. A leading
+      `set: {target_kind, unsupported_kind}` parameterizes the scenario; retarget by editing
+      `target_kind` (e.g. `cardtrail` → `torchheadfire`/`absorption`) — all `${...}` references
+      resolve from those vars. The scenario asserts three legs: (1) GATE-OFF control — a supported
+      target spawned with the seam OFF adds ZERO ART `aura.draws` (`eq_var` baseline) and `gate` stays
+      false; (2) GATE-ON target isolation — the same target grows ART draws (`gt_var` baseline, the
+      real drawing proof) while `declinedTotal`, `dispositionMismatch`, and `orphanArtOutput` stay
+      flat (`eq_var` captured baselines, proving the target is claimed, not declined/leaked) and
+      `nativeRenderStrict.accepted` stays true; (3) UNSUPPORTED-kind usage no-op control (gate still
+      ON) — an unknown alias maps to no FQN at the command layer (`ArtCommand.parseClaim` →
+      `ClaimRequest.invalid()`), so nothing is spawned and no `ART_COMMAND` result is emitted, yet
+      `art claim spawn <kind>` SUCCEEDS (a command-layer usage no-op, not a renderer fail-open path);
+      the declined/mismatch/orphan ledgers stay flat (`eq_var` baselines). Draw and
+      `transientEffectEntities` deltas are deliberately NOT asserted for the unsupported leg because
+      `aura.draws` grows continuously in live combat (and ambient entities fluctuate); the leg is
+      verified by the flat ledger counters only; (4) FINISH — clear then gate off.
+      Supporting runner changes (Python only, backward compatible): a pure
+      `interpolate(value, vars_map)` helper doing `${name}` substitution (a missing token raises a
+      `ValueError` naming the var; non-strings, and strings without a well-formed token, are
+      unchanged) applied to `console:`/`op:` command values and `assert:`/`capture:`/
+      `wait_probe.assert` `path` values. New offline tests in
+      `tools/art-verify/tests/test_interpolate.py`. (An earlier `expect_error: true` co-key was
+      REMOVED: the real unknown-kind path is a command-layer usage no-op that returns success, so it
+      can never satisfy an expected-error step.)
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

@@ -30,6 +30,36 @@ def _default_out_dir() -> Path:
 
 
 _ENV_PATH_REFERENCE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+_VAR_TOKEN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def interpolate(value: Any, vars_map: Optional[Dict[str, Any]]) -> Any:
+    """Substitute ``${name}`` tokens in a string from ``vars_map``.
+
+    Only string values are touched; non-strings are returned unchanged. Every token must
+    resolve to a variable set by a prior ``set:``/``capture:`` step, otherwise a ``ValueError``
+    naming the missing variable is raised (the step fails without sending a partial command).
+    """
+    if not isinstance(value, str):
+        return value
+    variables = vars_map or {}
+
+    def _replace(match: "re.Match[str]") -> str:
+        key = match.group(1)
+        if key not in variables:
+            raise ValueError(f"interpolation variable is unset: {key}")
+        return str(variables[key])
+
+    return _VAR_TOKEN.sub(_replace, value)
+
+
+def _interpolate_path(spec: Any, vars_map: Optional[Dict[str, Any]]) -> Any:
+    """Return a shallow copy of an assert/capture spec with its ``path`` interpolated."""
+    if not isinstance(spec, dict) or "path" not in spec:
+        return spec
+    resolved = dict(spec)
+    resolved["path"] = interpolate(spec["path"], vars_map)
+    return resolved
 
 
 def _resolve_compare_path(path_value: str, base: Path, field: str) -> Path:
@@ -441,7 +471,7 @@ def _run_step(
         return rec
 
     if "assert" in step:
-        run_assert(last_probe, step["assert"], vars=vars_map)
+        run_assert(last_probe, _interpolate_path(step["assert"], vars_map), vars=vars_map)
         return rec
 
     if "capture" in step:
@@ -451,7 +481,7 @@ def _run_step(
         unknown = set(spec) - {"path", "var"}
         if unknown:
             raise ValueError("capture has unknown keys: " + ", ".join(sorted(unknown)))
-        path = spec.get("path")
+        path = interpolate(spec.get("path"), vars_map)
         key = spec.get("var")
         if not isinstance(path, str) or not path.strip():
             raise ValueError("capture requires path: non-empty string")
@@ -468,6 +498,7 @@ def _run_step(
         spec = step["wait_probe"]
         if not isinstance(spec, dict) or not isinstance(spec.get("assert"), dict):
             raise ValueError("wait_probe requires assert: mapping")
+        wait_assert = _interpolate_path(spec["assert"], vars_map)
         timeout_ms = int(spec.get("timeout_ms", 30000))
         interval_ms = int(spec.get("interval_ms", 500))
         deadline = time.monotonic() + timeout_ms / 1000.0
@@ -493,7 +524,7 @@ def _run_step(
                         time.sleep(max(0, interval_ms) / 1000.0)
                     continue
             try:
-                run_assert(probe, spec["assert"], vars=vars_map)
+                run_assert(probe, wait_assert, vars=vars_map)
                 rec["probe"] = probe
                 rec["attempts"] = attempts
                 return rec
@@ -525,10 +556,14 @@ def _run_step(
         from device_console import console_exec, console_exec_once, scrape_command_log, wait_for_command_log
 
         if "console" in step:
-            cmd = str(step["console"])
+            cmd = str(interpolate(step["console"], vars_map))
         else:
             # op: short form → art op …
             op = step["op"]
+            if isinstance(op, str):
+                op = interpolate(op, vars_map)
+            elif isinstance(op, list):
+                op = [interpolate(x, vars_map) for x in op]
             if isinstance(op, str):
                 cmd = "art op " + op
             elif isinstance(op, list):

@@ -1,0 +1,139 @@
+# D1 acceptance: PARAMETERIZED single-class VFX claim ISOLATION. This scenario proves, for ONE
+# reusable target kind, the claim-verification legs in a single run instead of relying only on
+# family-wide draw counters.
+#
+# RETARGET: edit the leading `set:` step's `target_kind` (e.g. `cardtrail`, `torchheadfire`,
+# `absorption`) and, if desired, `unsupported_kind`; every `${...}` reference below resolves from
+# those variables. Change nothing else to retarget. Invariants that MUST hold:
+#   * gate-OFF must add ZERO ART draws (native stays authoritative),
+#   * gate-ON proof is the `gt_var` draw GROWTH over the captured baseline, with FLAT
+#     declinedTotal / dispositionMismatch / orphanArtOutput ledgers,
+#   * the unsupported kind resolves to no FQN, so `art claim spawn <unsupported>` is a FAIL-OPEN
+#     no-op: the command SUCCEEDS and the claim ledgers stay FLAT. Draw/entity deltas are NOT
+#     asserted for that leg because live combat is noisy (continuous ambient draws/entities).
+name: d1_vfx_claim_isolation
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - set:
+      target_kind: cardtrail
+      unsupported_kind: totallyBogusKind
+  # --- Standard run preamble (shape copied from d1_aura_claim.yaml). ---
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: lab.inCombat
+        eq: true
+  # --- GATE-OFF zero-draw control: native is authoritative; the target spawn adds ZERO ART draws. ---
+  - console: "art claim off"
+  - probe: all
+  - capture:
+      path: backend.renderPlan.aura.draws
+      var: off_draws
+  - console: "art claim spawn ${target_kind} 20"
+  - wait_ms: 1000
+  - probe: all
+  - assert:
+      path: backend.renderPlan.aura.draws
+      eq_var: off_draws
+  - assert:
+      path: backend.renderPlan.aura.gate
+      eq: false
+  - console: "art claim clear"
+  # --- GATE-ON target isolation: the target is claimed; draw growth is the proof, ledgers stay flat. ---
+  - console: "art claim on"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.ready
+        gte: 1
+  - probe: all
+  - capture:
+      path: backend.renderPlan.aura.draws
+      var: on_draws
+  - capture:
+      path: backend.renderPlan.nativeRender.declinedTotal
+      var: on_declines
+  - capture:
+      path: backend.renderPlan.nativeRender.dispositionMismatch
+      var: on_mismatch
+  - capture:
+      path: backend.renderPlan.nativeRender.orphanArtOutput
+      var: on_orphans
+  - console: "art claim spawn ${target_kind} 20"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.draws
+        gt_var: on_draws
+  - probe: all
+  - assert:
+      path: backend.renderPlan.nativeRender.declinedTotal
+      eq_var: on_declines
+  - assert:
+      path: backend.renderPlan.nativeRender.dispositionMismatch
+      eq_var: on_mismatch
+  - assert:
+      path: backend.renderPlan.nativeRender.orphanArtOutput
+      eq_var: on_orphans
+  - assert:
+      path: backend.renderPlan.nativeRenderStrict.accepted
+      eq: true
+  - screenshot: true
+  # --- UNSUPPORTED fail-open control (gate still ON): no FQN matches, so the spawn is a no-op
+  #     that SUCCEEDS; the claim ledgers must stay flat. ---
+  - probe: all
+  - capture:
+      path: backend.renderPlan.nativeRender.declinedTotal
+      var: bogus_declines
+  - capture:
+      path: backend.renderPlan.nativeRender.dispositionMismatch
+      var: bogus_mismatch
+  - capture:
+      path: backend.renderPlan.nativeRender.orphanArtOutput
+      var: bogus_orphans
+  - console: "art claim spawn ${unsupported_kind} 20"
+  - wait_ms: 800
+  - probe: all
+  - assert:
+      path: backend.renderPlan.nativeRender.declinedTotal
+      eq_var: bogus_declines
+  - assert:
+      path: backend.renderPlan.nativeRender.dispositionMismatch
+      eq_var: bogus_mismatch
+  - assert:
+      path: backend.renderPlan.nativeRender.orphanArtOutput
+      eq_var: bogus_orphans
+  # --- FINISH: drop queued effects and return native pixels to authoritative. ---
+  - console: "art claim clear"
+  - console: "art claim off"

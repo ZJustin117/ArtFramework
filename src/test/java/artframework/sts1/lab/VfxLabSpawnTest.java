@@ -276,6 +276,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("TRAIL"));
         assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("  FlIcKcOiN "));
         assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("COIN"));
+        assertEquals(VfxClaimPolicy.HEAL_PANEL, VfxLabSpawn.classNameFor("  HeAlPaNeL "));
+        assertEquals(VfxClaimPolicy.HEAL_PANEL, VfxLabSpawn.classNameFor("HEAL"));
     }
 
     @Test
@@ -711,6 +713,16 @@ public class VfxLabSpawnTest {
         // and may be null off-game). "flickcoin"/"coin" do not collide with any existing alias.
         assertSpawnRequests("flickcoin", VfxClaimPolicy.FLICK_COIN);
         assertSpawnRequests("coin", VfxClaimPolicy.FLICK_COIN);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheB03HealPanelThroughTheFactorySeam() {
+        // The newest (NRO-04 B03) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the ctor (whose static img is loaded via
+        // ImageMaster.loadImage(...) and which reads Settings.scale, both unavailable off-game).
+        // "healpanel"/"heal" do not collide with any existing alias.
+        assertSpawnRequests("healpanel", VfxClaimPolicy.HEAL_PANEL);
+        assertSpawnRequests("heal", VfxClaimPolicy.HEAL_PANEL);
     }
 
     @Test

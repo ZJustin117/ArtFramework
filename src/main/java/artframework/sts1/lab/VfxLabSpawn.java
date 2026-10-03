@@ -34,6 +34,7 @@ import com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect;
 import com.megacrit.cardcrawl.vfx.combat.GiantFireEffect;
+import com.megacrit.cardcrawl.vfx.combat.HealPanelEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningEffect;
 import com.megacrit.cardcrawl.vfx.combat.LightningOrbActivateEffect;
@@ -138,6 +139,10 @@ import java.util.function.Predicate;
  * dedicated {@code cX}/{@code cY}/{@code yOffset} position reader, an integer-half position offset,
  * a float-half origin, and an anisotropic scale 0.7f/0.4f; ctor {@code (float, float, float, float)};
  * its static {@code img} comes from {@code ImageMaster.vfxAtlas} and may be null off-game).
+ * The newest (NRO-04 B03) member is the {@code vfx-combat} {@code HealPanelEffect} (a bare-{@code
+ * Texture} fixed-rect kind whose STATIC {@code img} is loaded in the ctor via
+ * {@code ImageMaster.loadImage(...)} and whose panel-space position depends on {@code Settings.HEIGHT}
+ * and {@code Settings.scale}; ctor {@code (float x)}).
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -361,6 +366,12 @@ public final class VfxLabSpawn {
         // off-game; the construct path is behind the existing fail-open guard.
         if ("flickcoin".equalsIgnoreCase(value) || "coin".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.FLICK_COIN;
+        }
+        // NRO-04 B03: HealPanelEffect's static img is loaded in the ctor from ImageMaster and may be
+        // null off-game, and its ctor reads Settings.scale; the construct path is behind the existing
+        // fail-open guard.
+        if ("healpanel".equalsIgnoreCase(value) || "heal".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.HEAL_PANEL;
         }
         return null;
     }
@@ -853,6 +864,13 @@ public final class VfxLabSpawn {
             // outside a live game; any failure is caught by spawn's fail-open guard rather than
             // propagating.
             return new FlickCoinEffect(960f, 540f, 960f, 540f);
+        }
+        if (VfxClaimPolicy.HEAL_PANEL.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish x (e.g. 960f). The ctor loads the static
+            // ImageMaster Texture via ImageMaster.loadImage(...) and reads Settings.scale, either of
+            // which may be unavailable off-game; any failure is caught by spawn's fail-open guard
+            // rather than propagating.
+            return new HealPanelEffect(960f);
         }
         return null;
     }

@@ -168,6 +168,19 @@ import java.lang.reflect.Field;
  * is present. No new patch/bridge/console wiring; the default-off gate and per-instance token
  * semantics are unchanged.
  *
+ * <p>The newest (NRO-04 B03) member is the {@code vfx-combat} {@code HealPanelEffect} (ctor
+ * {@code (float)}), a bare-{@code Texture} fixed-source-rect kind that rides the existing
+ * {@link #renderTexture} path (like Calm/Shield/Debuff): its image is a STATIC {@code Texture img}
+ * (loaded in the ctor, NO instance {@code img} field), resolved via the same instance-texture reader
+ * as {@code FallingIceEffect}, with a fixed src rect {@code (0,0,64,64)}, a fixed origin
+ * {@code (32,32)} and a fixed {@code 64&times;64} size, the effect's uniform {@code scale}, its own
+ * {@code rotation} field, its own {@code color} (NOT the white-alpha rule) and the additive blend.
+ * Its ONE new pure rule is the PANEL-SPACE position (see its {@link VfxDrawGeometry#params} branch),
+ * which depends on {@code Settings.HEIGHT} as well as {@code Settings.scale}; the renderer supplies
+ * {@code Settings.HEIGHT} through the trailing {@code settingsHeight} argument of the
+ * {@link VfxDrawGeometry#params} overload, so every other kind's result is unchanged. No new
+ * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -425,7 +438,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
 
     /**
      * Snapshots the fields a bare-{@code Texture} draw needs. Required: {@code x}, {@code y},
-     * {@code scale}, {@code color} ({@link Color}); {@code rotation} is additionally required for
+     * {@code scale}, {@code color} ({@link Color}); {@code y} is optional (defaulting to {@code 0})
+     * only for {@code HEAL_PANEL}, whose native draw y is panel-space from {@code Settings.HEIGHT}
+     * rather than the effect's own field (the class has no {@code y}); {@code rotation} is additionally
+     * required for
      * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE}/{@code ICE_SHATTER}/{@code UNKNOWN_PARTICLE}/
      * {@code DARK_ORB_PASSIVE}/{@code LIGHTNING_ORB_PASSIVE}/{@code FALLING_ICE}
      * (whose formula consumes it)
@@ -455,12 +471,16 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.DARK_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.FALLING_ICE
-                || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION;
+                || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION
+                || kind == VfxDrawGeometry.Kind.HEAL_PANEL;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
             Float scale = readFloat(effect, "scale");
-            if (x == null || y == null || scale == null) {
+            // HEAL_PANEL has NO y field: its native draw y is panel-space from Settings.HEIGHT, so
+            // the reader defaults y to 0 (the params branch ignores it).
+            if (x == null || scale == null
+                    || (y == null && kind != VfxDrawGeometry.Kind.HEAL_PANEL)) {
                 return null;
             }
             Float rotation = readFloat(effect, "rotation");
@@ -491,7 +511,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             if (VfxDrawGeometry.usesInstanceFlipY(kind)) {
                 flipY = optionalBoolean(effect, "flipY");
             }
-            return new TextureFields(x, y, scale, rotation != null ? rotation : 0f,
+            return new TextureFields(x, y != null ? y : 0f, scale,
+                    rotation != null ? rotation : 0f,
                     optionalFloat(effect, "dur_div2"), optionalFloat(effect, "duration"),
                     (Color) color, img, flipX, flipY);
         } catch (Throwable ignored) {
@@ -517,7 +538,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
                 || kind == VfxDrawGeometry.Kind.TORCH_HEAD_FIRE
-                || kind == VfxDrawGeometry.Kind.FALLING_ICE;
+                || kind == VfxDrawGeometry.Kind.FALLING_ICE
+                || kind == VfxDrawGeometry.Kind.HEAL_PANEL;
     }
 
     /**
@@ -1256,7 +1278,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.GLOWY_FIRE_EYES
                 || kind == VfxDrawGeometry.Kind.TORCH_HEAD_FIRE
                 || kind == VfxDrawGeometry.Kind.FALLING_ICE
-                || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION;
+                || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION
+                || kind == VfxDrawGeometry.Kind.HEAL_PANEL;
     }
 
     /**
@@ -1373,7 +1396,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (texture == null) return false;
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 kind, f.x, f.y, 0f, f.scale, f.rotation,
-                f.durDiv2, f.duration, Settings.scale, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1f);
+                f.durDiv2, f.duration, Settings.scale, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1f,
+                Settings.HEIGHT);
         int srcX;
         int srcY;
         int srcW;
@@ -1436,6 +1460,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_Y;
             srcW = VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_W;
             srcH = VfxDrawGeometry.STANCE_CHANGE_ABSORPTION_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.HEAL_PANEL) {
+            // HealPanelEffect draws the fixed 64x64 src rect of its static Texture.
+            srcX = VfxDrawGeometry.HEAL_PANEL_SRC_X;
+            srcY = VfxDrawGeometry.HEAL_PANEL_SRC_Y;
+            srcW = VfxDrawGeometry.HEAL_PANEL_SRC_W;
+            srcH = VfxDrawGeometry.HEAL_PANEL_SRC_H;
         } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
             // WebParticleEffect and EntangleEffect share the static WEB_VFX src rect.

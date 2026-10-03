@@ -257,6 +257,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect";
     public static final String FLICK_COIN =
             "com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect";
+    public static final String HEAL_PANEL =
+            "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -275,7 +277,8 @@ public final class VfxClaimPolicy {
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
-                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN));
+                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN,
+                    HEAL_PANEL));
 
     private VfxClaimPolicy() {}
 
@@ -345,7 +348,8 @@ public final class VfxClaimPolicy {
                 || TORCH_HEAD_FIRE.equals(value)
                 || CARD_TRAIL.equals(value)
                 || FLYING_ORB.equals(value)
-                || FLICK_COIN.equals(value);
+                || FLICK_COIN.equals(value)
+                || HEAL_PANEL.equals(value);
     }
 
     /**
@@ -545,6 +549,19 @@ public final class VfxClaimPolicy {
      * {@code isDone} guard. Appended LAST after {@code FlyingOrbEffect};
      * no new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
      * unchanged.
+     * The newest (NRO-04 B03) member is the {@code vfx-combat} {@code HealPanelEffect} (fields
+     * {@code float x}, a STATIC {@code Texture img} loaded in the ctor from
+     * {@code ImageMaster.loadImage("images/ui/topPanel/panel_heart_white.png")}, plus the inherited
+     * {@code color}/{@code scale}/{@code rotation}; ctor {@code (float x)}). Its native {@code render}
+     * is {@code setColor(color); setBlendFunction(770, 1); sb.draw(img, x - 32f + 32f *
+     * Settings.scale, Settings.HEIGHT - 32f * Settings.scale - 32f, 32f, 32f, 64f, 64f, scale, scale,
+     * rotation, 0, 0, 64, 64, false, false); setBlendFunction(770, 771)} — a bare-{@code Texture}
+     * fixed-rect kind whose position depends on {@code Settings.HEIGHT} (panel space) and
+     * {@code Settings.scale}, with a fixed {@code (0,0,64,64)} source rect, a fixed {@code (32,32)}
+     * origin and a fixed {@code 64&times;64} size, a uniform {@code scale}, the field
+     * {@code rotation}, and the effect's own {@code color} (CHARTREUSE with animated alpha). It is
+     * ADDITIVE. Appended LAST after {@code FlickCoinEffect}; no new patch/bridge/console wiring; the
+     * default-off gate and per-instance token semantics are unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

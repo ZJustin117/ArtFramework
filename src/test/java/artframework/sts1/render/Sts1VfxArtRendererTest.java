@@ -701,6 +701,142 @@ public class Sts1VfxArtRendererTest {
         private float yOffset;
     }
 
+    /**
+     * {@code HealPanelEffect} layout: a STATIC {@code Texture img} declared on the class (the native
+     * effect has no instance img field), the instance {@code x}, and the inherited
+     * {@code scale}/{@code rotation}/{@code color} from {@link BaseEffect}.
+     */
+    static class HealPanelHolder extends BaseEffect {
+        private float x;
+        private static Texture img;
+    }
+
+    /** {@code HealPanelEffect} layout missing the static {@code img} field entirely. */
+    static class HealPanelNoImgHolder extends BaseEffect {
+        private float x;
+    }
+
+    /**
+     * Real {@code HealPanelEffect} with reflectively seeded {@code x} and inherited
+     * {@code scale}/{@code rotation}/{@code color}, plus its class-level static {@code img}
+     * (no game/GL context).
+     */
+    private static AbstractGameEffect seededHealPanel(float x, float scale, float rotation,
+            Color color, Texture img) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.HealPanelEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.HealPanelEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.HealPanelEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.HealPanelEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.HealPanelEffect.class, "img", img);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL HealPanelEffect", failure);
+        }
+    }
+
+    @Test
+    public void healPanelDrawsOnceWithTheFixedRectPanelSpacePositionAndOwnColor() {
+        // Native HealPanelEffect.render (verified bytecode):
+        //   setColor(color); setBlendFunction(770, 1);
+        //   sb.draw(img, x - 32f + 32f*Settings.scale,
+        //           Settings.HEIGHT - 32f*Settings.scale - 32f,
+        //           32f, 32f, 64f, 64f, scale, scale, rotation, 0, 0, 64, 64, false, false);
+        //   setBlendFunction(770, 771);
+        // The image is the STATIC Texture img (no instance field).
+        float x = 321.5f;
+        float scale = 0.9f;
+        float rotation = 53f;
+        float settingsScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float settingsHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        Color color = new Color(0.4f, 0.7f, 0.2f, 0.65f);
+
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededHealPanel(x, scale, rotation, color, noGlTexture(64, 64));
+
+        assertTrue("a HealPanelEffect instance with a static img draws",
+                renderer.render(batch, effect));
+        assertEquals("exactly ONE raw-texture draw", 1, batch.drawCalls);
+        assertEquals(1, batch.successfulTextureDraws);
+        assertEquals("the additive blend is installed and restored", 2, batch.setBlendCalls);
+        assertNotNull("the applied tint was captured", batch.firstSetColor);
+        assertEquals("color is the effect's own color (NOT white-forced)",
+                color.r, batch.firstSetColor.r, EPS);
+        assertEquals(color.g, batch.firstSetColor.g, EPS);
+        assertEquals(color.b, batch.firstSetColor.b, EPS);
+        assertEquals(color.a, batch.firstSetColor.a, EPS);
+
+        float[] d = batch.drawnArgs;
+        assertEquals("position x uses the Settings.scale term",
+                x - 32f + 32f * settingsScale, d[0], EPS);
+        assertEquals("position y is anchored to Settings.HEIGHT",
+                settingsHeight - 32f * settingsScale - 32f, d[1], EPS);
+        assertEquals("origin is the fixed 32", 32f, d[2], EPS);
+        assertEquals("origin is the fixed 32", 32f, d[3], EPS);
+        assertEquals("size is the fixed 64", 64f, d[4], EPS);
+        assertEquals("size is the fixed 64", 64f, d[5], EPS);
+        assertEquals("uniform scale on X", scale, d[6], EPS);
+        assertEquals("uniform scale on Y", scale, d[7], EPS);
+        assertEquals("rotation comes from the field", rotation, d[8], EPS);
+        assertEquals("fixed src x", 0f, d[9], EPS);
+        assertEquals("fixed src y", 0f, d[10], EPS);
+        assertEquals("fixed src w", 64f, d[11], EPS);
+        assertEquals("fixed src h", 64f, d[12], EPS);
+        assertFalse("no per-instance flip X", batch.drawnFlipX);
+        assertFalse("no per-instance flip Y", batch.drawnFlipY);
+    }
+
+    @Test
+    public void healPanelMissingStaticImageFailsOpenAndCannotDraw() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        AbstractGameEffect effect = seededHealPanel(5f, 1f, 0f, Color.WHITE, null);
+
+        CountingBatch batch = newCountingBatch();
+        assertFalse("a HealPanelEffect instance without an img fails open",
+                renderer.render(batch, effect));
+        assertEquals("no draw", 0, batch.drawCalls);
+        assertFalse("a HealPanelEffect instance without an img cannotDraw",
+                renderer.canDraw(effect));
+        assertFalse("a missing image alone is not a benign no-pixel decline",
+                renderer.declinedWithoutPixels(effect));
+    }
+
+    @Test
+    public void readTextureFieldsResolvesHealPanelStaticTexture() {
+        Texture img = noGlTexture(64, 64);
+        setStaticField(HealPanelHolder.class, "img", img);
+
+        HealPanelHolder effect = new HealPanelHolder();
+        effect.x = 11f;
+        effect.scale = 0.5f;
+        effect.rotation = 44f;
+        effect.color = Color.WHITE;
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.HEAL_PANEL, effect);
+        assertNotNull("a fully seeded HealPanel holder resolves", f);
+        assertEquals(11f, f.x, EPS);
+        assertEquals(0.5f, f.scale, EPS);
+        assertEquals(44f, f.rotation, EPS);
+        assertSame(img, f.img);
+
+        assertNull("a HEAL_PANEL holder with no img field fails open",
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.HEAL_PANEL, new HealPanelNoImgHolder()));
+        assertNull(Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.HEAL_PANEL, null));
+    }
+
     @Test
     public void readTextureFieldsResolvesIceShatterFromItsInstanceTexture() {
         IceShatterEffect effect = new IceShatterEffect();

@@ -267,6 +267,14 @@ package artframework.sts1.render;
  *                           AbstractGameEffect.rotation but the draw ignores it; the img is a private
  *                           STATIC AtlasRegion):
  *     sb.draw(img, x, y, 6f, 6f, 12f, 12f, scale, scale, 0f)
+ *   HealPanelEffect.render (note: ADDITIVE; the img is a STATIC Texture (no instance img field); a
+ *                           fixed shape-C rect — src 0,0,64,64, origin 32,32, size 64,64 — with a
+ *                           PANEL-SPACE position: x = x - 32f + 32f * Settings.scale and
+ *                           y = Settings.HEIGHT - 32f * Settings.scale - 32f; consumes the field
+ *                           rotation and the effect's own color):
+ *     sb.draw(img, x - 32f + 32f * Settings.scale,
+ *             Settings.HEIGHT - 32f * Settings.scale - 32f,
+ *             32f, 32f, 64f, 64f, scale, scale, rotation, 0, 0, 64, 64, false, false)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -463,6 +471,21 @@ package artframework.sts1.render;
  * flip/mirror/RNG capability ({@link #flickCoinUsesAnisotropicScale} is its only new pure predicate).
  * No new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
  * unchanged.
+ *
+ * <p>The newest (NRO-04 B03) member is the {@code vfx-combat} {@code HealPanelEffect}
+ * ({@link Kind#HEAL_PANEL}): a bare-{@code Texture} fixed-source-rect kind over a STATIC
+ * {@code Texture img} (loaded in the ctor via {@code ImageMaster.loadImage(...)}; there is NO
+ * instance {@code img} field), reusing the shape-C path with a fixed src rect {@code (0, 0, 64, 64)},
+ * a fixed origin {@code (32f, 32f)} and a fixed size {@code 64&times;64}, the effect's uniform
+ * {@code scale}, its own {@code rotation} field and its own {@code color}, ADDITIVE. It adds ONE new
+ * pure rule: its draw POSITION is PANEL-SPACE, depending on {@code Settings.HEIGHT} as well as
+ * {@code Settings.scale} — {@code x = x - }{@link #HEAL_PANEL_X_OFFSET}{@code  + }
+ * {@link #HEAL_PANEL_X_OFFSET}{@code  * Settings.scale} and
+ * {@code y = Settings.HEIGHT - }{@link #HEAL_PANEL_Y_OFFSET}{@code  * Settings.scale - }
+ * {@link #HEAL_PANEL_Y_OFFSET}. Because this class stays host-neutral it never reads
+ * {@code Settings}: the renderer supplies the settings height through the trailing
+ * {@link #params} overload ({@code settingsHeight}), which every other kind ignores. No new
+ * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
  */
 public final class VfxDrawGeometry {
 
@@ -529,7 +552,8 @@ public final class VfxDrawGeometry {
         TORCH_HEAD_FIRE,
         CARD_TRAIL,
         FLYING_ORB,
-        FLICK_COIN
+        FLICK_COIN,
+        HEAL_PANEL
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -746,6 +770,32 @@ public final class VfxDrawGeometry {
     public static final float FLICK_COIN_SCALE_X = 0.7f;
     /** Native FlickCoin Y-axis scale multiplier ({@code 0.4f}). */
     public static final float FLICK_COIN_SCALE_Y = 0.4f;
+
+    // Native HealPanelEffect draw constants (see the class Javadoc): a bare-Texture fixed-rect kind
+    // over the STATIC Texture img (loaded in the ctor from
+    // ImageMaster.loadImage("images/ui/topPanel/panel_heart_white.png"); there is NO instance img
+    // field). The geometry is fixed: src (0, 0, 64, 64), origin (32f, 32f), size 64f x 64f. The draw
+    // POSITION is panel-space: x = x - HEAL_PANEL_X_OFFSET + HEAL_PANEL_X_OFFSET * Settings.scale and
+    // y = Settings.HEIGHT - HEAL_PANEL_Y_OFFSET * Settings.scale - HEAL_PANEL_Y_OFFSET, so it depends
+    // on the caller-supplied settings scale AND on the caller-supplied settings height (this class
+    // stays host-neutral and never reads Settings itself). The scale is the effect's own uniform
+    // scale and the rotation comes from the field. It is ADDITIVE and uses the effect's own color.
+    /** Native HealPanel draw source rect x ({@code 0}). */
+    public static final int HEAL_PANEL_SRC_X = 0;
+    /** Native HealPanel draw source rect y ({@code 0}). */
+    public static final int HEAL_PANEL_SRC_Y = 0;
+    /** Native HealPanel draw source rect width ({@code 64}). */
+    public static final int HEAL_PANEL_SRC_W = 64;
+    /** Native HealPanel draw source rect height ({@code 64}). */
+    public static final int HEAL_PANEL_SRC_H = 64;
+    /** Native HealPanel draw origin ({@code 32f}). */
+    public static final float HEAL_PANEL_ORIGIN = 32f;
+    /** Native HealPanel draw width/height ({@code 64f}). */
+    public static final float HEAL_PANEL_SIZE = 64f;
+    /** Native HealPanel X-axis fixed offset and settings-scale coefficient ({@code 32f}). */
+    public static final float HEAL_PANEL_X_OFFSET = 32f;
+    /** Native HealPanel Y-axis fixed offset and settings-scale coefficient ({@code 32f}). */
+    public static final float HEAL_PANEL_Y_OFFSET = 32f;
 
     // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
     // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
@@ -1049,6 +1099,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.CARD_TRAIL.equals(value)) return Kind.CARD_TRAIL;
         if (VfxClaimPolicy.FLYING_ORB.equals(value)) return Kind.FLYING_ORB;
         if (VfxClaimPolicy.FLICK_COIN.equals(value)) return Kind.FLICK_COIN;
+        if (VfxClaimPolicy.HEAL_PANEL.equals(value)) return Kind.HEAL_PANEL;
         return null;
     }
 
@@ -1114,7 +1165,8 @@ public final class VfxDrawGeometry {
      * additive blend natively and is ADDITIVE. The newest (F29) member
      * {@link Kind#TORCH_HEAD_FIRE} also installs/restores the additive blend natively and is ADDITIVE.
      * The newest (F30) member {@link Kind#CARD_TRAIL} likewise installs/restores the additive blend
-     * natively and is ADDITIVE, so it is not in the ambient set.
+     * natively and is ADDITIVE, so it is not in the ambient set. The newest (NRO-04 B03) member
+     * {@link Kind#HEAL_PANEL} also installs/restores the additive blend natively and is ADDITIVE.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -1660,6 +1712,26 @@ public final class VfxDrawGeometry {
             float packedWidth, float packedHeight,
             float vX, float regionOffsetX, float regionOffsetY,
             float originOffsetX, float originOffsetY, float scaleYMultiplier) {
+        return params(kind, x, y, vY, scale, rotation, durDiv2, duration, settingsScale,
+                packedWidth, packedHeight, vX, regionOffsetX, regionOffsetY,
+                originOffsetX, originOffsetY, scaleYMultiplier, 0f);
+    }
+
+    /**
+     * Full geometry overload carrying the caller-supplied {@code settingsHeight} as well as the
+     * scale. Only {@link Kind#HEAL_PANEL} consumes the settings height (its native draw Y is
+     * {@code Settings.HEIGHT - ...}); every other kind ignores it, so the overload with the trailing
+     * {@code 0f} is byte-identical to it for them. This class stays host-neutral and never reads
+     * {@code Settings} itself.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static Params params(Kind kind, float x, float y, float vY, float scale, float rotation,
+            float durDiv2, float duration, float settingsScale,
+            float packedWidth, float packedHeight,
+            float vX, float regionOffsetX, float regionOffsetY,
+            float originOffsetX, float originOffsetY, float scaleYMultiplier,
+            float settingsHeight) {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
@@ -1944,6 +2016,25 @@ public final class VfxDrawGeometry {
                         packedWidth / 2f, packedHeight / 2f,
                         packedWidth, packedHeight,
                         scale * FLICK_COIN_SCALE_X, scale * FLICK_COIN_SCALE_Y, rotation);
+            case HEAL_PANEL:
+                // Native HealPanelEffect (verified bytecode): setColor(color); setBlendFunction(770, 1);
+                //   sb.draw(img, x - 32f + 32f * Settings.scale,
+                //           Settings.HEIGHT - 32f * Settings.scale - 32f,
+                //           32f, 32f, 64f, 64f, scale, scale, rotation,
+                //           0, 0, 64, 64, false, false);
+                //   setBlendFunction(770, 771).
+                // A bare-Texture fixed-rect kind (the STATIC Texture img, no instance img field) with a
+                // fixed src rect (0, 0, 64, 64), fixed origin (32f, 32f) and fixed size 64f x 64f. The
+                // draw POSITION is PANEL-SPACE: x uses the effect's own x with a settings-scaled 32f
+                // term, and y is anchored to Settings.HEIGHT with a settings-scaled 32f term minus the
+                // fixed 32f — so it consumes the caller-supplied settings height (the overload's
+                // settingsHeight) as well as the settings scale. packWidth/packHeight, vY, vX, the
+                // region offsets, durDiv2, and duration are unused.
+                return new Params(
+                        x - HEAL_PANEL_X_OFFSET + HEAL_PANEL_X_OFFSET * settingsScale,
+                        settingsHeight - HEAL_PANEL_Y_OFFSET * settingsScale - HEAL_PANEL_Y_OFFSET,
+                        HEAL_PANEL_ORIGIN, HEAL_PANEL_ORIGIN, HEAL_PANEL_SIZE, HEAL_PANEL_SIZE,
+                        scale, scale, rotation);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

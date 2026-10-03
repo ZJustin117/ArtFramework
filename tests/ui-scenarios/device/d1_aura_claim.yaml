@@ -183,6 +183,7 @@ steps:
   - console: "art claim spawn cardtrail 4"
   - console: "art claim spawn flyingorb 4"
   - console: "art claim spawn flickcoin 4"
+  - console: "art claim spawn healpanel 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -276,6 +277,7 @@ steps:
   - console: "art claim spawn cardtrail 4"
   - console: "art claim spawn flyingorb 4"
   - console: "art claim spawn flickcoin 4"
+  - console: "art claim spawn healpanel 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

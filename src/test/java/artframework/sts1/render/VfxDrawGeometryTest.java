@@ -332,6 +332,12 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.FLICK_COIN,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect"));
+        // The newest (NRO-04 B03) member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.HEAL_PANEL,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.HEAL_PANEL));
+        assertSame(VfxDrawGeometry.Kind.HEAL_PANEL,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect"));
     }
 
     @Test
@@ -3575,5 +3581,93 @@ public class VfxDrawGeometryTest {
         } catch (IllegalArgumentException expected) {
             // expected
         }
+    }
+
+    // --- NRO-04 B03 HealPanelEffect: bare static Texture + fixed 64x64 rect, panel-space position ---
+
+    @Test
+    public void healPanelKindForFailsOpenForNearMisses() {
+        assertSame(VfxDrawGeometry.Kind.HEAL_PANEL,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.HEAL_PANEL));
+        assertSame(VfxDrawGeometry.Kind.HEAL_PANEL,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("HealPanelEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.HealPanelEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.combat.HealPanel"));
+    }
+
+    @Test
+    public void healPanelUsesTheFixedRectAndPanelSpacePosition() {
+        // Native HealPanelEffect (verified bytecode): ADDITIVE; the STATIC Texture img (no instance
+        // img field); a fixed shape-C rect (src 0,0,64,64, origin 32,32, size 64,64); a PANEL-SPACE
+        // position x = x - 32f + 32f*Settings.scale and y = Settings.HEIGHT - 32f*Settings.scale - 32f;
+        // uniform scale; the field rotation.
+        float x = 100f;
+        float scale = 0.8f;
+        float rotation = 37f;
+        float settingsScale = 1.5f;
+        float settingsHeight = 1080f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.HEAL_PANEL,
+                x, 222f /* y ignored (panel-space) */, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, settingsScale,
+                10f /* packedWidth ignored */, 20f /* packedHeight ignored */,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 7f /* regionOffsetY ignored */,
+                0f, 0f, 1f, settingsHeight);
+
+        assertEquals("x uses the Settings.scale term",
+                x - VfxDrawGeometry.HEAL_PANEL_X_OFFSET
+                        + VfxDrawGeometry.HEAL_PANEL_X_OFFSET * settingsScale,
+                p.x, EPS);
+        assertEquals("y is anchored to Settings.HEIGHT with the Settings.scale term and fixed offset",
+                settingsHeight - VfxDrawGeometry.HEAL_PANEL_Y_OFFSET * settingsScale
+                        - VfxDrawGeometry.HEAL_PANEL_Y_OFFSET,
+                p.y, EPS);
+        assertEquals("origin is the fixed 32", 32f, p.originX, EPS);
+        assertEquals("origin is the fixed 32", 32f, p.originY, EPS);
+        assertEquals("size is the fixed 64", 64f, p.width, EPS);
+        assertEquals("size is the fixed 64", 64f, p.height, EPS);
+        assertEquals("uniform scale on X", scale, p.scaleX, EPS);
+        assertEquals("uniform scale on Y", scale, p.scaleY, EPS);
+        assertEquals("HealPanel consumes the rotation field", rotation, p.rotation, EPS);
+
+        // The named constants mirror the native bytecode.
+        assertEquals(0, VfxDrawGeometry.HEAL_PANEL_SRC_X);
+        assertEquals(0, VfxDrawGeometry.HEAL_PANEL_SRC_Y);
+        assertEquals(64, VfxDrawGeometry.HEAL_PANEL_SRC_W);
+        assertEquals(64, VfxDrawGeometry.HEAL_PANEL_SRC_H);
+        assertEquals(32f, VfxDrawGeometry.HEAL_PANEL_ORIGIN, EPS);
+        assertEquals(64f, VfxDrawGeometry.HEAL_PANEL_SIZE, EPS);
+        assertEquals(32f, VfxDrawGeometry.HEAL_PANEL_X_OFFSET, EPS);
+        assertEquals(32f, VfxDrawGeometry.HEAL_PANEL_Y_OFFSET, EPS);
+
+        assertTrue("HEAL_PANEL installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse("HEAL_PANEL uses its own color, not the white-alpha rule",
+                VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.HEAL_PANEL));
+        // It joins NO guard / flip / mirror / RNG / variable-length capability.
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(
+                VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(
+                VfxDrawGeometry.Kind.HEAL_PANEL));
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.HEAL_PANEL).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(
+                VfxDrawGeometry.Kind.HEAL_PANEL).isEmpty());
     }
 }

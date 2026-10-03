@@ -1325,6 +1325,39 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
        FQN + capturing factory). No new patch/bridge/console wiring; the default-off gate is
        unchanged.
 
+- [x] NRO-04 B03 (`HealPanelEffect` joins the default-off per-instance claim seam):
+       `com.megacrit.cardcrawl.vfx.combat.HealPanelEffect` is appended LAST to
+       `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` and mapped by `kindFor`. It is a bare
+       static `Texture` + fixed 64x64 source-rect kind: the image is the STATIC `Texture img`
+       (loaded in the ctor via `ImageMaster.loadImage("images/ui/topPanel/panel_heart_white.png")`;
+       there is NO instance img field), the src rect is `(0,0,64,64)`, the origin is the fixed
+       `(32f, 32f)` and the size is the fixed `64f x 64f` (NOT the texture's dimensions). Its
+       native draw position is PANEL-SPACE, depending on `Settings.HEIGHT` as well as
+       `Settings.scale`: `x = x - 32f + 32f * Settings.scale` and
+       `y = Settings.HEIGHT - 32f * Settings.scale - 32f`; the scale is the effect's own uniform
+       `scale` and the rotation comes from the field. It is ADDITIVE (setBlendFunction 770/1 before
+       and 770/771 after, with `setColor(color)` BEFORE the blend) and uses the effect's own color;
+       it joins NO guard/flip/mirror/RNG/variable-length capability. `VfxDrawGeometry.Kind.HEAL_PANEL`
+       adds the named constants `HEAL_PANEL_SRC_X/SRC_Y/SRC_W/SRC_H = 0/0/64/64`,
+       `HEAL_PANEL_ORIGIN = 32f`, `HEAL_PANEL_SIZE = 64f`, `HEAL_PANEL_X_OFFSET = 32f`,
+       `HEAL_PANEL_Y_OFFSET = 32f` and a dedicated `params` branch (a `settingsHeight` overload; every
+       other kind ignores it so their results are byte-identical). `Sts1VfxArtRenderer` routes
+       `HEAL_PANEL` through the existing bare-`Texture` `renderTexture` path (added to
+       `isTextureDrawKind`), resolving the STATIC `img` `Texture` (via the instance-texture reader,
+       like FallingIce), the fixed `HEAL_PANEL_SRC_*` src rect and the effect's own color (NOT the
+       white-alpha rule), with `readTextureFields`/`imagePresent`/`canDraw` handling the static img
+       and no guard/playerHitbox. The lab gains aliases `"healpanel"`/`"heal"` ->
+       `new HealPanelEffect(960f)` behind the existing fail-open guard (the ctor loads a static
+       Texture and reads `Settings.scale`). The D1 scenario `d1_aura_claim.yaml` adds
+       `art claim spawn healpanel 4` to both gate phases. Tests: `VfxDrawGeometryTest` (kindFor +
+       near-miss, exact panel-space params with the `Settings.HEIGHT`/`Settings.scale` terms,
+       additive, not guard/flip/mirror/RNG/variable-length), `Sts1VfxArtRendererTest` (one draw with
+       the fixed src/origin/size, panel-space position, uniform scale, field rotation, additive
+       installed/restored, effect's own color not white-forced, missing/null static `img` fails open),
+       `VfxDelegationSeamTest`/`Sts1VfxRendererBindingTest` (readiness + appended-last order),
+       `VfxLabSpawnTest` (alias -> FQN + capturing factory). No new patch/bridge/console wiring; the
+       default-off gate is unchanged.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

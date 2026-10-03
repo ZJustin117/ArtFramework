@@ -1391,6 +1391,66 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         order), `VfxLabSpawnTest` (alias -> FQN + capturing factory). No new patch/bridge/console
         wiring; the default-off gate is unchanged.
 
+- [x] NRO-04 B05 (`RewardGlowEffect` joins the default-off per-instance claim seam):
+        `com.megacrit.cardcrawl.vfx.RewardGlowEffect` is appended LAST to
+        `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` and mapped by `kindFor` (after
+        `PingHpEffect`). Its SINGLE-ARG `render(SpriteBatch)` — the overload the effect container
+        calls and the only one the container claim seam reaches — is a bare STATIC
+        `ImageMaster.REWARD_SCREEN_ITEM` `Texture` kind (there is NO instance `img` field) with a
+        fixed `464x98` source rect (`0,0,464,98`), a fixed `(232f, 49f)` origin and a fixed `464f x
+        98f` size; its position is `(x - 232f, y - 49f)` (no settings term). The draw scale is
+        ANISOTROPIC: `scaleX = Settings.xScale` (INDEPENDENT of the effect's own `scale`) and
+        `scaleY = scale + Settings.scale * 0.05f`; the rotation is hardcoded `0f` (the effect's own
+        `angle` field is NOT used by this overload); the color is the effect's own. It is ADDITIVE
+        and joins NO guard/flip/mirror/RNG/variable-length/flickCoin-anisotropic capability.
+        `VfxDrawGeometry.Kind.REWARD_GLOW` adds the named constants
+        `REWARD_GLOW_SRC_X/SRC_Y/SRC_W/SRC_H = 0/0/464/98`, `REWARD_GLOW_ORIGIN_X = 232f`,
+        `REWARD_GLOW_ORIGIN_Y = 49f`, `REWARD_GLOW_SIZE_W = 464f`, `REWARD_GLOW_SIZE_H = 98f`,
+        `REWARD_GLOW_SCALE_Y_SETTINGS_MULT = 0.05f` and a dedicated `params` branch reusing the
+        trailing `settingsHeight` slot to carry `Settings.xScale` (host-neutral; every other kind is
+        byte-identical). `Sts1VfxArtRenderer` routes `REWARD_GLOW` through the existing bare-`Texture`
+        `renderTexture` path (added to `isTextureDrawKind`, NOT `usesInstanceTexture`), resolves the
+        STATIC `ImageMaster.REWARD_SCREEN_ITEM` (a static `resolveTexture` case), the fixed
+        `REWARD_GLOW_SRC_*` src rect, the additive blend, and the effect's own color (NOT
+        white-alpha), with `readTextureFields` treating `rotation` as optional (like `CARD_TRAIL`;
+        native hardcodes `0f`) and `x`/`y` as required. The lab gains aliases `"rewardglow"`/
+        `"reward"` -> `new RewardGlowEffect(960f, 540f)` behind the existing fail-open guard. The D1
+        scenario `d1_aura_claim.yaml` adds `art claim spawn rewardglow 4` to both gate phases. Tests:
+        `VfxDrawGeometryTest` (kindFor + near-miss, exact params with `Settings.xScale` independent of
+        the effect scale and `scaleY = scale + Settings.scale*0.05`, rotation 0, additive, not
+        guard/flip/mirror/RNG/variable-length/flickCoin), `Sts1VfxArtRendererTest` (one draw with the
+        fixed src/origin/size, position, anisotropic scale, rotation 0, additive installed/restored,
+        own color, no `rotation` field required, missing/null static texture fails open),
+        `VfxDelegationSeamTest`/`Sts1VfxRendererBindingTest` (readiness + appended-last order),
+        `VfxLabSpawnTest` (alias -> FQN + capturing factory). The class's OTHER
+        `render(SpriteBatch, Color)` overload is a DIFFERENT draw (the static
+        `ImageMaster.WHITE_SQUARE_IMG`, `x-32,y-32`, origin/size 32/64, rotation `angle`, scale
+        `scale*Settings.scale/2f`) that the container seam does not reach, so it is deliberately NOT
+        claimed and stays native. No new patch/bridge/console wiring; the default-off gate is
+        unchanged.
+        PRODUCTION REACH (B05 boundary): the claim seam's only effect observer instruments
+        `AbstractDungeon.render`'s direct `AbstractGameEffect.render` call sites
+        (`TransientEffectContainerPatches`). `RewardGlowEffect` is constructed only in
+        `com.megacrit.cardcrawl.rewards.RewardItem`, whose `render(SpriteBatch)` iterates its own
+        private `effects` list calling `AbstractGameEffect.render(SpriteBatch)` (reached via
+        `CombatRewardScreen.render`), which the seam does NOT instrument. Real reward-screen
+        `RewardGlow` instances are therefore NOT yet observed/claimed; B05 is reachable on-device only
+        via the lab spawn into the `AbstractDungeon` effect queues, and its parity/claim path is
+        unit-verified. Claiming a real reward-screen instance requires instrumenting
+        `RewardItem.render`'s `AbstractGameEffect.render` call site (tracked as B05b below); until then
+        the seam fails open to native there.
+
+- [ ] **B05b reward-screen effect-loop observation boundary**: instrument
+        `com.megacrit.cardcrawl.rewards.RewardItem#render(SpriteBatch)`'s
+        `AbstractGameEffect.render(SpriteBatch)` call site with the same observe-then-render pattern
+        used by `TransientEffectContainerPatches` (with NRCC ownership-manifest coverage), so
+        reward-screen effects — starting with `RewardGlowEffect` (B05) — are actually observed and
+        claimable in production (today the seam's only observer is `AbstractDungeon.render`, so the
+        reward-screen `RewardItem.effects` loop is unseen). D1 verification requires a REAL
+        `CombatRewardScreen`; the current lab has NO reward-screen command/entry, so a headless or
+        lab-only check cannot exercise this path — that limitation must be noted in the slice's
+        evidence. Do NOT implement B05b as part of B05.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

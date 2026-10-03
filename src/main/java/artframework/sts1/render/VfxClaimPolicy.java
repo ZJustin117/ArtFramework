@@ -261,6 +261,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect";
     public static final String PING_HP =
             "com.megacrit.cardcrawl.vfx.combat.PingHpEffect";
+    public static final String REWARD_GLOW =
+            "com.megacrit.cardcrawl.vfx.RewardGlowEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -280,7 +282,7 @@ public final class VfxClaimPolicy {
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
                     BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN,
-                    HEAL_PANEL, PING_HP));
+                    HEAL_PANEL, PING_HP, REWARD_GLOW));
 
     private VfxClaimPolicy() {}
 
@@ -352,7 +354,8 @@ public final class VfxClaimPolicy {
                 || FLYING_ORB.equals(value)
                 || FLICK_COIN.equals(value)
                 || HEAL_PANEL.equals(value)
-                || PING_HP.equals(value);
+                || PING_HP.equals(value)
+                || REWARD_GLOW.equals(value);
     }
 
     /**
@@ -580,6 +583,37 @@ public final class VfxClaimPolicy {
      * {@code scale * Settings.scale} (HealPanel used plain {@code scale}). It is ADDITIVE. Appended
      * LAST after {@code HealPanelEffect}; no new patch/bridge/console wiring; the default-off gate and
      * per-instance token semantics are unchanged.
+     * The newest (NRO-04 B05) member is the {@code vfx-misc-root} {@code RewardGlowEffect} (fields
+     * {@code float scale, x, y, angle} plus the inherited {@code color}; no instance {@code img}).
+     * Its SINGLE-ARG {@code render(SpriteBatch)} — the overload the container claim seam TARGETS and
+     * the only one it could reach — is
+     * {@code setColor(color); setBlendFunction(770, 1); sb.draw(ImageMaster.REWARD_SCREEN_ITEM,
+     * x - 232f, y - 49f, 232f, 49f, 464f, 98f, Settings.xScale, scale + Settings.scale * 0.05f, 0f,
+     * 0, 0, 464, 98, false, false); setBlendFunction(770, 771)} — a bare STATIC {@code Texture}
+     * reward-panel kind with a FIXED {@code (0,0,464,98)} source rect, a FIXED {@code (232f,49f)}
+     * origin and a FIXED {@code 464&times;98} size, an ANISOTROPIC scale
+     * ({@code scaleX = Settings.xScale}, INDEPENDENT of the effect's own {@code scale}, and
+     * {@code scaleY = scale + Settings.scale * 0.05f}), a hardcoded rotation {@code 0f} (the
+     * {@code angle} field is NOT used by this overload), and the effect's own {@code color}. It is
+     * ADDITIVE. The class's OTHER overload {@code render(SpriteBatch, Color)} is a DIFFERENT draw
+     * (the static {@code ImageMaster.WHITE_SQUARE_IMG}, {@code x-32,y-32}, origin/size 32/64,
+     * rotation {@code angle}, scale {@code scale*Settings.scale/2f}); it is NOT reachable through the
+     * container claim seam (the seam patches only the single-arg {@code render(SpriteBatch)} and the
+     * {@code (sb,float,float)} overload), so it is deliberately NOT claimed and stays native.
+     *
+     * <p><b>Production reach (B05 boundary).</b> The claim seam's only effect observer instruments
+     * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
+     * ({@code TransientEffectContainerPatches}). {@code RewardGlowEffect} is constructed only in
+     * {@code com.megacrit.cardcrawl.rewards.RewardItem}, whose {@code render(SpriteBatch)} iterates
+     * its own private {@code effects} list calling {@code AbstractGameEffect.render(SpriteBatch)} —
+     * reached via {@code CombatRewardScreen.render}, NOT through {@code AbstractDungeon.render}. So
+     * the real reward-screen {@code RewardGlow} instances are NOT yet observed or claimed; on-device
+     * B05 is reachable only via the lab spawn into the {@code AbstractDungeon} effect queues, and the
+     * parity/claim path is unit-verified. A real reward-screen claim requires instrumenting
+     * {@code RewardItem.render}'s {@code AbstractGameEffect.render} call site (a separate boundary
+     * slice tracked as B05b), and until then the seam fails open to native there.
+     * Appended LAST after {@code PingHpEffect}; no new patch/bridge/console wiring; the default-off
+     * gate and per-instance token semantics are unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

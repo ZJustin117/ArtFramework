@@ -3783,4 +3783,100 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.PING_HP).isEmpty());
         assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.PING_HP).isEmpty());
     }
+
+    // --- NRO-04 B05 RewardGlowEffect: bare static ImageMaster.REWARD_SCREEN_ITEM Texture with a
+    // fixed 464x98 REWARD-PANEL rect, position (x-232, y-49), anisotropic scale
+    // scaleX = Settings.xScale / scaleY = scale + Settings.scale*0.05, hardcoded rotation 0 ---
+
+    @Test
+    public void rewardGlowKindForMapsTheExactFqnAndFailsOpenForNearMisses() {
+        assertSame(VfxDrawGeometry.Kind.REWARD_GLOW,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.REWARD_GLOW));
+        assertSame(VfxDrawGeometry.Kind.REWARD_GLOW,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.RewardGlowEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.RewardGlowEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.RewardGlowEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("RewardGlowEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.RewardGlowEffect"));
+    }
+
+    @Test
+    public void rewardGlowUsesTheFixedRewardPanelRectAndAnisotropicSettingsScale() {
+        // Native RewardGlowEffect.render(SpriteBatch) (verified bytecode): ADDITIVE; the STATIC
+        // ImageMaster.REWARD_SCREEN_ITEM Texture resolved at draw time (no instance img field); a
+        // fixed REWARD-PANEL rect (src 0,0,464,98, origin 232,49, size 464x98) with position
+        // (x - 232f, y - 49f) (NO settings term); the scale is ANISOTROPIC — scaleX is
+        // Settings.xScale (INDEPENDENT of the effect's own scale) and scaleY is
+        // scale + Settings.scale * 0.05f; the rotation is hardcoded 0f.
+        float x = 500f;
+        float y = 300f;
+        float scale = 0.8f;
+        float rotation = 37f; // must be IGNORED by this kind
+        float settingsScale = 1.5f;
+        float settingsXScale = 0.9f; // carried in the settingsHeight slot for this kind
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.REWARD_GLOW,
+                x, y, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, settingsScale,
+                10f /* packedWidth ignored */, 20f /* packedHeight ignored */,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 7f /* regionOffsetY ignored */,
+                0f, 0f, 1f, settingsXScale);
+
+        assertEquals("position x is x - 232f", x - 232f, p.x, EPS);
+        assertEquals("position y is y - 49f", y - 49f, p.y, EPS);
+        assertEquals("origin x is the fixed 232f", 232f, p.originX, EPS);
+        assertEquals("origin y is the fixed 49f", 49f, p.originY, EPS);
+        assertEquals("size w is the fixed 464f", 464f, p.width, EPS);
+        assertEquals("size h is the fixed 98f", 98f, p.height, EPS);
+        assertEquals("scaleX is Settings.xScale, independent of the effect scale",
+                settingsXScale, p.scaleX, EPS);
+        assertEquals("scaleY is scale + Settings.scale * 0.05f",
+                scale + settingsScale * VfxDrawGeometry.REWARD_GLOW_SCALE_Y_SETTINGS_MULT,
+                p.scaleY, EPS);
+        assertEquals("rotation is hardcoded 0f (the angle field is unused)", 0f, p.rotation, EPS);
+
+        // A different effect scale changes only scaleY, never scaleX.
+        VfxDrawGeometry.Params p2 = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.REWARD_GLOW,
+                x, y, 0f, 2.5f, 0f, 0f, 0f, settingsScale, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1f,
+                settingsXScale);
+        assertEquals("scaleX ignores the effect scale", settingsXScale, p2.scaleX, EPS);
+        assertTrue("scaleY tracks the effect scale", p2.scaleY > p.scaleY);
+
+        // The named constants mirror the native bytecode.
+        assertEquals(0, VfxDrawGeometry.REWARD_GLOW_SRC_X);
+        assertEquals(0, VfxDrawGeometry.REWARD_GLOW_SRC_Y);
+        assertEquals(464, VfxDrawGeometry.REWARD_GLOW_SRC_W);
+        assertEquals(98, VfxDrawGeometry.REWARD_GLOW_SRC_H);
+        assertEquals(232f, VfxDrawGeometry.REWARD_GLOW_ORIGIN_X, EPS);
+        assertEquals(49f, VfxDrawGeometry.REWARD_GLOW_ORIGIN_Y, EPS);
+        assertEquals(464f, VfxDrawGeometry.REWARD_GLOW_SIZE_W, EPS);
+        assertEquals(98f, VfxDrawGeometry.REWARD_GLOW_SIZE_H, EPS);
+        assertEquals(0.05f, VfxDrawGeometry.REWARD_GLOW_SCALE_Y_SETTINGS_MULT, EPS);
+
+        assertTrue("REWARD_GLOW installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse("REWARD_GLOW uses its own color, not the white-alpha rule",
+                VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.REWARD_GLOW));
+        // It joins NO guard / flip / mirror / RNG / variable-length / flickCoin-anisotropic capability.
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(VfxDrawGeometry.Kind.REWARD_GLOW));
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.REWARD_GLOW).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.REWARD_GLOW).isEmpty());
+    }
 }

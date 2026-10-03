@@ -192,6 +192,22 @@ import java.lang.reflect.Field;
  * {@code scale * Settings.scale}. No new patch/bridge/console wiring; the default-off gate and
  * per-instance token semantics are unchanged.
  *
+ * <p>The newest (NRO-04 B05) member is the {@code vfx-misc-root} {@code RewardGlowEffect} (ctor
+ * {@code (float, float)}), a bare static-{@code Texture} REWARD-PANEL kind routed through the same
+ * {@link #renderTexture} path: its image is the STATIC {@code ImageMaster.REWARD_SCREEN_ITEM}
+ * {@code Texture} resolved at draw time (NO instance {@code img} field), with a FIXED src rect
+ * {@code (0,0,464,98)}, a FIXED origin {@code (232,49)} and a FIXED {@code 464&times;98} size, its
+ * own {@code color} (NOT the white-alpha rule) and the additive blend. Its rotation is HARDCODED
+ * {@code 0f} ({@code readTextureFields} does not require the inherited {@code rotation} field for it,
+ * like {@code CARD_TRAIL}; the effect's own {@code angle} field is unused by the claimed overload),
+ * and its draw scale is ANISOTROPIC: {@code scaleX = Settings.xScale} (INDEPENDENT of the effect's
+ * own {@code scale}) and {@code scaleY = scale + Settings.scale * 0.05f}. The renderer supplies
+ * {@code Settings.xScale} through the same trailing {@code settingsHeight} argument
+ * ({@link #textureDrawSettingsSlot}); every other kind's result is unchanged. The class's OTHER
+ * overload {@code render(SpriteBatch, Color)} is NOT reachable through this seam and stays native.
+ * No new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+ * unchanged.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -461,6 +477,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * {@code ENTANGLE}/{@code GLOWY_FIRE_EYES} (hardcoded rotation); {@code dur_div2}/{@code duration}
      * are optional and
      * default to {@code 0}.
+     * The newest (NRO-04 B05) {@code REWARD_GLOW} likewise treats {@code rotation} as optional: its
+     * native single-arg {@code render(SpriteBatch)} hardcodes {@code 0f} and its {@code angle} field
+     * is unused (like {@code CARD_TRAIL}), so a missing/unreadable rotation defaults to {@code 0}
+     * rather than failing the snapshot; its {@code x}/{@code y} stay required.
      * For {@code DEBUFF_PARTICLE}, {@code ICE_SHATTER}, {@code UNKNOWN_PARTICLE},
      * {@code DARK_ORB_PASSIVE}, {@code LIGHTNING_ORB_PASSIVE}, {@code FALLING_ICE},
      * {@code GLOWY_FIRE_EYES}, and the newest {@code TORCH_HEAD_FIRE} the instance
@@ -1294,7 +1314,24 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.FALLING_ICE
                 || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION
                 || kind == VfxDrawGeometry.Kind.HEAL_PANEL
-                || kind == VfxDrawGeometry.Kind.PING_HP;
+                || kind == VfxDrawGeometry.Kind.PING_HP
+                || kind == VfxDrawGeometry.Kind.REWARD_GLOW;
+    }
+
+    /**
+     * The value the bare-{@code Texture} branch passes into the trailing {@code settingsHeight}
+     * {@link VfxDrawGeometry#params} slot. For {@link VfxDrawGeometry.Kind#HEAL_PANEL} and
+     * {@link VfxDrawGeometry.Kind#PING_HP} that slot is the native {@code Settings.HEIGHT}
+     * (panel-space Y); the newest (NRO-04 B05) {@link VfxDrawGeometry.Kind#REWARD_GLOW} reuses the
+     * same slot to carry the native {@code Settings.xScale} (its draw X scale is
+     * {@code Settings.xScale}, independent of the effect's own {@code scale}). Every other kind
+     * ignores the slot; passing {@code Settings.HEIGHT} for them keeps their results byte-identical.
+     */
+    private static float textureDrawSettingsSlot(VfxDrawGeometry.Kind kind) {
+        if (kind == VfxDrawGeometry.Kind.REWARD_GLOW) {
+            return Settings.xScale;
+        }
+        return Settings.HEIGHT;
     }
 
     /**
@@ -1354,6 +1391,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (kind == VfxDrawGeometry.Kind.PING_HP) {
             // PingHpEffect draws the STATIC ImageMaster.TP_HP Texture (it has no instance Texture img).
             return ImageMaster.TP_HP;
+        }
+        if (kind == VfxDrawGeometry.Kind.REWARD_GLOW) {
+            // RewardGlowEffect.render(SpriteBatch) draws the STATIC ImageMaster.REWARD_SCREEN_ITEM
+            // Texture (the class has NO instance Texture img).
+            return ImageMaster.REWARD_SCREEN_ITEM;
         }
         if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
@@ -1416,7 +1458,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         VfxDrawGeometry.Params p = VfxDrawGeometry.params(
                 kind, f.x, f.y, 0f, f.scale, f.rotation,
                 f.durDiv2, f.duration, Settings.scale, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1f,
-                Settings.HEIGHT);
+                textureDrawSettingsSlot(kind));
         int srcX;
         int srcY;
         int srcW;
@@ -1491,6 +1533,13 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.PING_HP_SRC_Y;
             srcW = VfxDrawGeometry.PING_HP_SRC_W;
             srcH = VfxDrawGeometry.PING_HP_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.REWARD_GLOW) {
+            // RewardGlowEffect.render(SpriteBatch) draws the FIXED 464x98 src rect of the static
+            // ImageMaster.REWARD_SCREEN_ITEM Texture.
+            srcX = VfxDrawGeometry.REWARD_GLOW_SRC_X;
+            srcY = VfxDrawGeometry.REWARD_GLOW_SRC_Y;
+            srcW = VfxDrawGeometry.REWARD_GLOW_SRC_W;
+            srcH = VfxDrawGeometry.REWARD_GLOW_SRC_H;
         } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
             // WebParticleEffect and EntangleEffect share the static WEB_VFX src rect.

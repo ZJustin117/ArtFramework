@@ -736,6 +736,16 @@ public class VfxLabSpawnTest {
     }
 
     @Test
+    public void spawnHappyPathQueuesTheB05RewardGlowThroughTheFactorySeam() {
+        // The newest (NRO-04 B05) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the ctor (which reads Settings.scale and whose static
+        // ImageMaster.REWARD_SCREEN_ITEM texture may be null off-game). "rewardglow"/"reward" do not
+        // collide with any existing alias.
+        assertSpawnRequests("rewardglow", VfxClaimPolicy.REWARD_GLOW);
+        assertSpawnRequests("reward", VfxClaimPolicy.REWARD_GLOW);
+    }
+
+    @Test
     public void cardTrailLabConstructInitializesTheEffect() throws Exception {
         // CardTrailEffect is a pooled Pool.Poolable effect: its no-arg ctor only selects the static
         // img, while color/x/y/scale/duration come from init(x, y). VfxLabSpawn.construct must

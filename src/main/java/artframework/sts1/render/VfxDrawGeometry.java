@@ -285,6 +285,17 @@ package artframework.sts1.render;
  *             Settings.HEIGHT - 32f * Settings.scale - 32f,
  *             32f, 32f, 64f, 64f, scale * Settings.scale, scale * Settings.scale, rotation,
  *             0, 0, 64, 64, false, false)
+ *   RewardGlowEffect.render(SpriteBatch) (note: ADDITIVE; the img is the STATIC
+ *                           ImageMaster.REWARD_SCREEN_ITEM Texture (no instance img field); a
+ *                           REWARD-PANEL geometry with a fixed src 0,0,464,98, origin 232,49 and
+ *                           size 464x98; the position is (x - 232f, y - 49f) with NO settings term;
+ *                           rotation is hardcoded 0f — the effect's own angle field is unused by this
+ *                           overload — and the draw scale is ANISOTROPIC: scaleX = Settings.xScale
+ *                           (INDEPENDENT of the effect's own scale) while
+ *                           scaleY = scale + Settings.scale * 0.05f; the effect's own color):
+ *     sb.draw(ImageMaster.REWARD_SCREEN_ITEM, x - 232f, y - 49f,
+ *             232f, 49f, 464f, 98f, Settings.xScale, scale + Settings.scale * 0.05f, 0f,
+ *             0, 0, 464, 98, false, false)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -509,6 +520,35 @@ package artframework.sts1.render;
  * host-neutral the renderer supplies both the settings scale and the settings height through the
  * {@link #params} {@code settingsHeight} overload. No new patch/bridge/console wiring; the
  * default-off gate and per-instance token semantics are unchanged.
+ *
+ * <p>The newest (NRO-04 B05) member is the {@code vfx-misc-root} {@code RewardGlowEffect}
+ * ({@link Kind#REWARD_GLOW}): a bare static-{@code Texture} REWARD-PANEL kind over the STATIC
+ * {@code ImageMaster.REWARD_SCREEN_ITEM} {@code Texture} (there is NO instance {@code img} field),
+ * with a FIXED source rect {@code (0, 0, 464, 98)}, a FIXED origin {@code (232f, 49f)} and a FIXED
+ * {@code 464&times;98} size, an ANISOTROPIC scale ({@code scaleX = Settings.xScale}, INDEPENDENT of
+ * the effect's own {@code scale}; {@code scaleY = scale + Settings.scale * 0.05f}), a hardcoded
+ * rotation {@code 0f} (the effect's {@code angle} field is NOT used by the claimed single-arg
+ * {@code render(SpriteBatch)}), and the effect's own {@code color} (NOT the white-alpha rule). It is
+ * ADDITIVE and joins NO guard/flip/mirror/RNG/variable-length/flickCoin-anisotropic capability. Like
+ * {@code HEAL_PANEL}/{@code PING_HP}, because this class stays host-neutral it never reads
+ * {@code Settings}: the renderer supplies {@code Settings.xScale} through the same trailing
+ * {@code settingsHeight} {@link #params} slot this kind reuses as its X scale. The class's OTHER
+ * overload {@code render(SpriteBatch, Color)} is a DIFFERENT draw (the static
+ * {@code ImageMaster.WHITE_SQUARE_IMG}, {@code x-32,y-32}, origin/size 32/64, rotation {@code angle},
+ * scale {@code scale*Settings.scale/2f}) that the container claim seam does not reach, so it is
+ * deliberately NOT claimed and stays native. No new patch/bridge/console wiring; the default-off
+ * gate and per-instance token semantics are unchanged.
+ *
+ * <p><b>B05 production reach.</b> The container claim seam's only effect observer instruments
+ * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
+ * (see {@code TransientEffectContainerPatches}). {@code RewardGlowEffect} is constructed only in
+ * {@code com.megacrit.cardcrawl.rewards.RewardItem}, whose {@code render(SpriteBatch)} iterates its
+ * own private {@code effects} list calling {@code AbstractGameEffect.render(SpriteBatch)} (reached
+ * via {@code CombatRewardScreen.render}), which the seam does NOT instrument. Real reward-screen
+ * {@code RewardGlow} instances are therefore not yet observed/claimed; B05 is reachable on-device
+ * only via the lab spawn and its parity/claim path is unit-verified. Claiming a real reward-screen
+ * instance requires instrumenting {@code RewardItem.render}'s {@code AbstractGameEffect.render} call
+ * site (tracked as B05b); until then the seam fails open to native there.
  */
 public final class VfxDrawGeometry {
 
@@ -577,7 +617,8 @@ public final class VfxDrawGeometry {
         FLYING_ORB,
         FLICK_COIN,
         HEAL_PANEL,
-        PING_HP
+        PING_HP,
+        REWARD_GLOW
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -845,6 +886,32 @@ public final class VfxDrawGeometry {
     public static final float PING_HP_X_OFFSET = 32f;
     /** Native PingHp Y-axis fixed offset and settings-scale coefficient ({@code 32f}). */
     public static final float PING_HP_Y_OFFSET = 32f;
+
+    // Native RewardGlowEffect.render(SpriteBatch) draw constants (see the class Javadoc): a bare
+    // STATIC ImageMaster.REWARD_SCREEN_ITEM Texture reward-panel kind with a FIXED source rect
+    // (0, 0, 464, 98), a FIXED origin (232f, 49f) and a FIXED 464f x 98f size. Its draw position is
+    // (x - 232f, y - 49f) (no settings term), its rotation is hardcoded 0f (the effect's own angle
+    // field is NOT used by this overload), and its scale is ANISOTROPIC: scaleX is Settings.xScale
+    // (INDEPENDENT of the effect's own scale) and scaleY is scale + Settings.scale * 0.05f. It is
+    // ADDITIVE and uses the effect's own color. The class has NO instance img field.
+    /** Native RewardGlow draw source rect x ({@code 0}). */
+    public static final int REWARD_GLOW_SRC_X = 0;
+    /** Native RewardGlow draw source rect y ({@code 0}). */
+    public static final int REWARD_GLOW_SRC_Y = 0;
+    /** Native RewardGlow draw source rect width ({@code 464}). */
+    public static final int REWARD_GLOW_SRC_W = 464;
+    /** Native RewardGlow draw source rect height ({@code 98}). */
+    public static final int REWARD_GLOW_SRC_H = 98;
+    /** Native RewardGlow draw origin x ({@code 232f}). */
+    public static final float REWARD_GLOW_ORIGIN_X = 232f;
+    /** Native RewardGlow draw origin y ({@code 49f}). */
+    public static final float REWARD_GLOW_ORIGIN_Y = 49f;
+    /** Native RewardGlow draw width ({@code 464f}). */
+    public static final float REWARD_GLOW_SIZE_W = 464f;
+    /** Native RewardGlow draw height ({@code 98f}). */
+    public static final float REWARD_GLOW_SIZE_H = 98f;
+    /** Native RewardGlow scaleY settings multiplier ({@code 0.05f}, applied to {@code Settings.scale}). */
+    public static final float REWARD_GLOW_SCALE_Y_SETTINGS_MULT = 0.05f;
 
     // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
     // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
@@ -1150,6 +1217,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.FLICK_COIN.equals(value)) return Kind.FLICK_COIN;
         if (VfxClaimPolicy.HEAL_PANEL.equals(value)) return Kind.HEAL_PANEL;
         if (VfxClaimPolicy.PING_HP.equals(value)) return Kind.PING_HP;
+        if (VfxClaimPolicy.REWARD_GLOW.equals(value)) return Kind.REWARD_GLOW;
         return null;
     }
 
@@ -1772,9 +1840,11 @@ public final class VfxDrawGeometry {
     /**
      * Full geometry overload carrying the caller-supplied {@code settingsHeight} as well as the
      * scale. {@link Kind#HEAL_PANEL} and the newest (NRO-04 B04) {@link Kind#PING_HP} consume the
-     * settings height (their native draw Y is {@code Settings.HEIGHT - ...}); every other kind ignores
-     * it, so the overload with the trailing {@code 0f} is byte-identical to it for them. This class
-     * stays host-neutral and never reads {@code Settings} itself.
+     * settings height (their native draw Y is {@code Settings.HEIGHT - ...}); the newest (NRO-04 B05)
+     * {@link Kind#REWARD_GLOW} reuses this same trailing slot to carry {@code Settings.xScale} (its
+     * native draw X scale is {@code Settings.xScale}). Every other kind ignores it, so the overload
+     * with the trailing {@code 0f} is byte-identical to it for them. This class stays host-neutral
+     * and never reads {@code Settings} itself.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -2108,6 +2178,28 @@ public final class VfxDrawGeometry {
                         settingsHeight - PING_HP_Y_OFFSET * settingsScale - PING_HP_Y_OFFSET,
                         PING_HP_ORIGIN, PING_HP_ORIGIN, PING_HP_SIZE, PING_HP_SIZE,
                         scale * settingsScale, scale * settingsScale, rotation);
+            case REWARD_GLOW:
+                // Native RewardGlowEffect.render(SpriteBatch) (verified bytecode): ADDITIVE;
+                //   setColor(color); setBlendFunction(770, 1);
+                //   sb.draw(ImageMaster.REWARD_SCREEN_ITEM, x - 232f, y - 49f,
+                //           232f, 49f, 464f, 98f, Settings.xScale, scale + Settings.scale * 0.05f,
+                //           0f, 0, 0, 464, 98, false, false);
+                //   setBlendFunction(770, 771);
+                // A bare STATIC Texture reward-panel kind (no instance img field) with a FIXED src
+                // rect (0, 0, 464, 98), a FIXED origin (232f, 49f) and a FIXED 464f x 98f size. Its
+                // draw position is (x - 232f, y - 49f) with NO settings term; the rotation is
+                // hardcoded 0f (the effect's own angle field is NOT used by this overload). Its
+                // scale is ANISOTROPIC: scaleX is Settings.xScale (INDEPENDENT of the effect's own
+                // scale) and scaleY is scale + Settings.scale * 0.05f. This class stays host-neutral,
+                // so — exactly as HEAL_PANEL/PING_HP carry Settings.HEIGHT through the settingsHeight
+                // slot — REWARD_GLOW reuses that same trailing slot to carry Settings.xScale (the
+                // renderer passes Settings.xScale for this kind). packedWidth/packedHeight, vY, vX,
+                // the region offsets, durDiv2, and duration are unused.
+                return new Params(
+                        x - REWARD_GLOW_ORIGIN_X, y - REWARD_GLOW_ORIGIN_Y,
+                        REWARD_GLOW_ORIGIN_X, REWARD_GLOW_ORIGIN_Y,
+                        REWARD_GLOW_SIZE_W, REWARD_GLOW_SIZE_H,
+                        settingsHeight, scale + settingsScale * REWARD_GLOW_SCALE_Y_SETTINGS_MULT, 0f);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

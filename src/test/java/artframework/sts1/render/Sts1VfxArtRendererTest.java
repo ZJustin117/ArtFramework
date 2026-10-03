@@ -25,6 +25,7 @@ import com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
+import com.megacrit.cardcrawl.vfx.RewardGlowEffect;
 import com.megacrit.cardcrawl.vfx.scene.TorchParticleXLEffect;
 import com.megacrit.cardcrawl.vfx.stance.StanceAuraEffect;
 import com.megacrit.cardcrawl.helpers.ImageMaster;
@@ -852,6 +853,193 @@ public class Sts1VfxArtRendererTest {
 
         assertNull(VfxDrawGeometry.Kind.PING_HP + " null effect fails open",
                 Sts1VfxArtRenderer.readTextureFields(VfxDrawGeometry.Kind.PING_HP, null));
+    }
+
+    /**
+     * {@code RewardGlowEffect} layout: the instance {@code x}/{@code y} plus the inherited
+     * {@code scale}/{@code color} from {@link NoRotationBase} (which deliberately declares NO
+     * {@code rotation} field, so the native single-arg render's hardcoded {@code 0f} and the
+     * renderer's {@code rotation == null -> 0f} default are genuinely exercised). Its texture is the
+     * STATIC {@code ImageMaster.REWARD_SCREEN_ITEM} resolved at draw time, so the holder has NO
+     * {@code img} field.
+     */
+    static class RewardGlowHolder extends NoRotationBase {
+        private float x;
+        private float y;
+    }
+
+    /**
+     * Real {@code RewardGlowEffect} with reflectively seeded {@code x}/{@code y} and inherited
+     * {@code scale}/{@code color} (no game/GL context). It has no {@code rotation} field and no
+     * instance {@code img}; the texture is the static {@code ImageMaster.REWARD_SCREEN_ITEM}, seeded
+     * separately by the test.
+     */
+    private static AbstractGameEffect seededRewardGlow(float x, float y, float scale, Color color) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            RewardGlowEffect effect = (RewardGlowEffect)
+                    unsafe.allocateInstance(RewardGlowEffect.class);
+            setField(effect, RewardGlowEffect.class, "x", Float.valueOf(x));
+            setField(effect, RewardGlowEffect.class, "y", Float.valueOf(y));
+            // RewardGlowEffect declares its OWN private float scale (shadowing the inherited field),
+            // and the native render reads that class field, so seed it there.
+            setField(effect, RewardGlowEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL RewardGlowEffect", failure);
+        }
+    }
+
+    @Test
+    public void rewardGlowDrawsOnceWithTheFixedRectAnisotropicScaleAndHardcodedZeroRotation() {
+        // Native RewardGlowEffect.render(SpriteBatch) (verified bytecode):
+        //   setColor(color); setBlendFunction(770, 1);
+        //   sb.draw(ImageMaster.REWARD_SCREEN_ITEM, x - 232f, y - 49f,
+        //           232f, 49f, 464f, 98f, Settings.xScale, scale + Settings.scale * 0.05f,
+        //           0f, 0, 0, 464, 98, false, false);
+        //   setBlendFunction(770, 771);
+        // The image is the STATIC ImageMaster.REWARD_SCREEN_ITEM (no instance field), the position is
+        // (x-232, y-49) with NO settings term, the rotation is hardcoded 0f, and the scale is
+        // ANISOTROPIC: scaleX = Settings.xScale, scaleY = scale + Settings.scale*0.05f.
+        float x = 480.5f;
+        float y = 271.25f;
+        float scale = 0.85f;
+        float settingsScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float settingsXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        Color color = new Color(0.9f, 0.85f, 0.4f, 0.55f);
+
+        Object previous = ImageMaster.REWARD_SCREEN_ITEM;
+        setStaticField(ImageMaster.class, "REWARD_SCREEN_ITEM", noGlTexture(464, 98));
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededRewardGlow(x, y, scale, color);
+
+            assertTrue("a RewardGlowEffect instance with the static texture draws",
+                    renderer.render(batch, effect));
+            assertEquals("exactly ONE raw-texture draw", 1, batch.drawCalls);
+            assertEquals(1, batch.successfulTextureDraws);
+            assertEquals("the additive blend is installed and restored", 2, batch.setBlendCalls);
+            assertNotNull("the applied tint was captured", batch.firstSetColor);
+            assertEquals("color is the effect's own color (NOT white-forced)",
+                    color.r, batch.firstSetColor.r, EPS);
+            assertEquals(color.g, batch.firstSetColor.g, EPS);
+            assertEquals(color.b, batch.firstSetColor.b, EPS);
+            assertEquals(color.a, batch.firstSetColor.a, EPS);
+
+            float[] d = batch.drawnArgs;
+            assertEquals("position x is x - 232f", x - 232f, d[0], EPS);
+            assertEquals("position y is y - 49f", y - 49f, d[1], EPS);
+            assertEquals("origin x is the fixed 232f", 232f, d[2], EPS);
+            assertEquals("origin y is the fixed 49f", 49f, d[3], EPS);
+            assertEquals("size w is the fixed 464f", 464f, d[4], EPS);
+            assertEquals("size h is the fixed 98f", 98f, d[5], EPS);
+            assertEquals("scaleX is Settings.xScale, independent of the effect scale",
+                    settingsXScale, d[6], EPS);
+            assertEquals("scaleY is scale + Settings.scale * 0.05f",
+                    scale + settingsScale * 0.05f, d[7], EPS);
+            assertEquals("rotation is hardcoded 0f (no rotation field on the effect)", 0f, d[8], EPS);
+            assertEquals("fixed src x", 0f, d[9], EPS);
+            assertEquals("fixed src y", 0f, d[10], EPS);
+            assertEquals("fixed src w", 464f, d[11], EPS);
+            assertEquals("fixed src h", 98f, d[12], EPS);
+            assertFalse("no per-instance flip X", batch.drawnFlipX);
+            assertFalse("no per-instance flip Y", batch.drawnFlipY);
+        } finally {
+            setStaticField(ImageMaster.class, "REWARD_SCREEN_ITEM", previous);
+        }
+    }
+
+    @Test
+    public void rewardGlowMissingStaticTextureFailsOpenAndCannotDraw() {
+        Object previous = ImageMaster.REWARD_SCREEN_ITEM;
+        setStaticField(ImageMaster.class, "REWARD_SCREEN_ITEM", null);
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            AbstractGameEffect effect = seededRewardGlow(5f, 6f, 1f, Color.WHITE);
+
+            CountingBatch batch = newCountingBatch();
+            assertFalse("a RewardGlowEffect instance without the static texture fails open",
+                    renderer.render(batch, effect));
+            assertEquals("no draw", 0, batch.drawCalls);
+            assertFalse("a RewardGlowEffect instance without the static texture cannotDraw",
+                    renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "REWARD_SCREEN_ITEM", previous);
+        }
+    }
+
+    /** REWARD_GLOW layout missing the required {@code x}. */
+    static class RewardGlowNoXHolder extends NoRotationBase {
+        private float y;
+    }
+
+    /** REWARD_GLOW layout missing the required {@code y}. */
+    static class RewardGlowNoYHolder extends NoRotationBase {
+        private float x;
+    }
+
+    @Test
+    public void readTextureFieldsResolvesRewardGlowWithoutRotation() {
+        // The fixture must be GENUINELY rotation-less: if RewardGlowHolder's class hierarchy ever
+        // declares a rotation field (e.g. by extending a base that has one), this assertion fails —
+        // because then the test would merely read a present inherited rotation (default 0f) instead
+        // of exercising the renderer's `rotation == null -> 0f` default path.
+        try {
+            boolean hierarchyDeclaresRotation = false;
+            for (Class<?> c = RewardGlowHolder.class; c != null && c != Object.class;
+                    c = c.getSuperclass()) {
+                try {
+                    c.getDeclaredField("rotation");
+                    hierarchyDeclaresRotation = true;
+                    break;
+                } catch (NoSuchFieldException absent) {
+                    // keep walking
+                }
+            }
+            assertFalse("the REWARD_GLOW holder hierarchy must not declare rotation, otherwise this "
+                    + "test does not exercise the rotation == null -> 0f default",
+                    hierarchyDeclaresRotation);
+        } catch (Exception failure) {
+            throw new AssertionError("could not audit the holder hierarchy", failure);
+        }
+
+        RewardGlowHolder effect = new RewardGlowHolder();
+        effect.x = 11f;
+        effect.y = 22f;
+        effect.scale = 0.5f;
+        effect.color = Color.WHITE;
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.REWARD_GLOW, effect);
+        assertNotNull("a REWARD_GLOW holder without a rotation field resolves (optional)", f);
+        assertEquals(11f, f.x, EPS);
+        assertEquals(22f, f.y, EPS);
+        assertEquals(0.5f, f.scale, EPS);
+        assertEquals("rotation defaults to 0", 0f, f.rotation, EPS);
+        assertNull("REWARD_GLOW has no instance img", f.img);
+
+        // x and y stay REQUIRED: a holder missing either fails the snapshot open.
+        RewardGlowNoXHolder noX = new RewardGlowNoXHolder();
+        noX.y = 22f;
+        noX.scale = 0.5f;
+        noX.color = Color.WHITE;
+        assertNull("a REWARD_GLOW holder missing x fails open",
+                Sts1VfxArtRenderer.readTextureFields(VfxDrawGeometry.Kind.REWARD_GLOW, noX));
+
+        RewardGlowNoYHolder noY = new RewardGlowNoYHolder();
+        noY.x = 11f;
+        noY.scale = 0.5f;
+        noY.color = Color.WHITE;
+        assertNull("a REWARD_GLOW holder missing y fails open",
+                Sts1VfxArtRenderer.readTextureFields(VfxDrawGeometry.Kind.REWARD_GLOW, noY));
+
+        assertNull(VfxDrawGeometry.Kind.REWARD_GLOW + " null effect fails open",
+                Sts1VfxArtRenderer.readTextureFields(VfxDrawGeometry.Kind.REWARD_GLOW, null));
     }
 
     /**
@@ -2438,6 +2626,9 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.PING_HP));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.PingHpEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.REWARD_GLOW));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.RewardGlowEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2545,6 +2736,9 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.PING_HP + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.PING_HP + "2"));
         assertFalse(renderer.isReady("PingHpEffect"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.REWARD_GLOW + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.REWARD_GLOW + "2"));
+        assertFalse(renderer.isReady("RewardGlowEffect"));
     }
 
     @Test

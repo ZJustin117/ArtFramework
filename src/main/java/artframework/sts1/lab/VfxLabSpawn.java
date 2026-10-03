@@ -22,6 +22,7 @@ import com.megacrit.cardcrawl.vfx.DamageHeartEffect;
 import com.megacrit.cardcrawl.vfx.ShineLinesEffect;
 import com.megacrit.cardcrawl.vfx.TorchHeadFireEffect;
 import com.megacrit.cardcrawl.vfx.WarningSignEffect;
+import com.megacrit.cardcrawl.vfx.RewardGlowEffect;
 import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.BuffParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect;
@@ -149,6 +150,11 @@ import java.util.function.Predicate;
  * resolved at draw time, whose panel-space position depends on {@code Settings.HEIGHT} and
  * {@code Settings.scale}, and whose uniform scale is {@code scale * Settings.scale}; ctor
  * {@code (float x)}).
+ * The newest (NRO-04 B05) member is the {@code vfx-misc-root} {@code RewardGlowEffect} (a bare
+ * static-{@code Texture} REWARD-PANEL kind whose texture is the STATIC
+ * {@code ImageMaster.REWARD_SCREEN_ITEM} resolved at draw time, with a fixed {@code 464x98} rect, an
+ * anisotropic {@code Settings.xScale}/{@code scale + Settings.scale*0.05f} scale and a hardcoded
+ * zero rotation; ctor {@code (float x, float y)}).
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -384,6 +390,12 @@ public final class VfxLabSpawn {
         // the construct path is behind the existing fail-open guard.
         if ("pinghp".equalsIgnoreCase(value) || "ping".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.PING_HP;
+        }
+        // NRO-04 B05: RewardGlowEffect's texture is the STATIC ImageMaster.REWARD_SCREEN_ITEM
+        // resolved at draw time (there is no instance img field) and may be null off-game, and its
+        // ctor reads Settings.scale; the construct path is behind the existing fail-open guard.
+        if ("rewardglow".equalsIgnoreCase(value) || "reward".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.REWARD_GLOW;
         }
         return null;
     }
@@ -890,6 +902,13 @@ public final class VfxLabSpawn {
             // may be null off-game. Any failure is caught by spawn's fail-open guard rather than
             // propagating.
             return new PingHpEffect(960f);
+        }
+        if (VfxClaimPolicy.REWARD_GLOW.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point (e.g. 960f, 540f). Its ctor is
+            // (float x, float y) and reads Settings.scale; its texture is the STATIC
+            // ImageMaster.REWARD_SCREEN_ITEM resolved at draw time, which may be null off-game. Any
+            // failure is caught by spawn's fail-open guard rather than propagating.
+            return new RewardGlowEffect(960f, 540f);
         }
         return null;
     }

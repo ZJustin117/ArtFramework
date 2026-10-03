@@ -253,6 +253,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.TorchHeadFireEffect";
     public static final String CARD_TRAIL =
             "com.megacrit.cardcrawl.vfx.CardTrailEffect";
+    public static final String FLYING_ORB =
+            "com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -271,7 +273,7 @@ public final class VfxClaimPolicy {
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
-                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL));
+                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB));
 
     private VfxClaimPolicy() {}
 
@@ -339,7 +341,8 @@ public final class VfxClaimPolicy {
                 || BOTTOM_FOG.equals(value)
                 || GIANT_FIRE.equals(value)
                 || TORCH_HEAD_FIRE.equals(value)
-                || CARD_TRAIL.equals(value);
+                || CARD_TRAIL.equals(value)
+                || FLYING_ORB.equals(value);
     }
 
     /**
@@ -507,6 +510,25 @@ public final class VfxClaimPolicy {
      * {@code private static} field (resolved like {@code ExhaustPileParticle}), and it has a NO-ARG
      * constructor. Appended LAST; no new patch/bridge/console wiring; the default-off gate and
      * per-instance token semantics are unchanged.
+     * The newest (NRO-04 B01) member is the {@code vfx-combat} {@code FlyingOrbEffect} (fields
+     * {@code TextureAtlas.AtlasRegion img}, {@code Vector2[] points}, {@code Vector2 pos/target},
+     * {@code float rotation} — its OWN field, not inherited — plus the inherited {@code color}; it has
+     * NO {@code x}/{@code y}/{@code scale} field and its static {@code img} is set to
+     * {@code ImageMaster.GLOW_SPARK_2} in its {@code (float, float)} ctor). It is the seam's FIRST
+     * VARIABLE-LENGTH MULTI-DRAW kind — its draw count and each draw position come from the host
+     * {@code points[]} array, not a fixed pass list — and the seam's first BOOLEAN {@code isDone}
+     * draw guard: its native {@code render} returns immediately when {@code isDone} is true. It draws
+     * {@code points[index]} for {@code index} from {@code points.length - 1} DOWN TO {@code 1} (index
+     * {@code 0} is NEVER drawn), center-packed (native POSITION offset uses INTEGER division of the
+     * packed size, {@code x - (packed/2)}, while the ORIGIN uses FLOAT division, {@code packed/2f};
+     * they differ by {@code 0.5} for an odd region) with a UNIFORM scale that
+     * starts at {@code Settings.scale * 1.5f} and is multiplied by {@code 0.975f} after each DRAWN
+     * point, under the additive blend ({@code 770/1} before, {@code 770/771} after), consuming no RNG.
+     * A freshly lab-spawned instance's ctor allocates {@code points = new Vector2[60]} (a length-60
+     * array of nulls that {@code update()} fills), so it draws nothing until {@code update()} runs.
+     * Appended LAST after {@code CardTrailEffect};
+     * no new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+     * unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

@@ -170,6 +170,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE, VfxLabSpawn.classNameFor("torchhead"));
         assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("cardtrail"));
         assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("trail"));
+        assertEquals(VfxClaimPolicy.FLYING_ORB, VfxLabSpawn.classNameFor("flyingorb"));
+        assertEquals(VfxClaimPolicy.FLYING_ORB, VfxLabSpawn.classNameFor("orb"));
     }
 
     @Test
@@ -687,6 +689,15 @@ public class VfxLabSpawnTest {
         // null off-game). "cardtrail"/"trail" do not collide with any existing alias.
         assertSpawnRequests("cardtrail", VfxClaimPolicy.CARD_TRAIL);
         assertSpawnRequests("trail", VfxClaimPolicy.CARD_TRAIL);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheB01FlyingOrbThroughTheFactorySeam() {
+        // The newest (NRO-04 B01) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the ctor (which reads AbstractDungeon.player.hb and whose
+        // static img may be null off-game). "flyingorb"/"orb" do not collide with any existing alias.
+        assertSpawnRequests("flyingorb", VfxClaimPolicy.FLYING_ORB);
+        assertSpawnRequests("orb", VfxClaimPolicy.FLYING_ORB);
     }
 
     @Test

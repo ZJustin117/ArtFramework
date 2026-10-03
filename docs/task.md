@@ -1260,6 +1260,42 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
        one pixel pass, stream NOT restored), and `multiPassDrawSuccessStillIssuesAllPasses` (2 passes,
        returns `true`, stream advanced). Focused no-GL JUnit only.
 
+- [x] NRO-04 B01 (the seam's FIRST VARIABLE-LENGTH MULTI-DRAW kind, `FlyingOrbEffect`, joins the
+       default-off per-instance claim seam): `com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect` is
+       appended LAST to `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` and mapped by `kindFor`.
+       It is the seam's first kind whose draw COUNT comes from a host array rather than a fixed pass
+       list, and its first BOOLEAN `isDone` draw guard. `VfxDrawGeometry.Kind.FLYING_ORB` adds pure
+       capabilities: `variableLengthMultiDraw(kind)` (true only for `FLYING_ORB`; the F25 two-pass
+       `STANCE_CHANGE_ABSORPTION` stays fixed-length), the named constants
+       `flyingOrbStartScaleMultiplier()` = `1.5f` and `flyingOrbScaleDecayPerDraw()` = `0.975f`, and
+       the boolean-guard trio `nativeSkipsDrawByGuard`/`guardFieldName` (`"isDone"`)/`guardIsBoolean`/
+       `guardBlocksBoolean` (blocks iff true); the existing float `guardBlocks` for
+       FALLING_ICE/DAMAGE_HEART/WRATH is unchanged. `Sts1VfxArtRenderer` gains
+       `usesVariableLengthDraw` and a dedicated `renderFlyingOrb` branch BEFORE `readFields` (the
+       class has NO x/y/scale field): it reads the effect's own `Vector2[] points`, `rotation`,
+       `color`, `img`, computes `scale0 = Settings.scale * 1.5f`, and iterates `index` from
+       `points.length-1` down to `1` (index 0 is NEVER drawn) drawing each non-null point
+       center-packed with the native asymmetric division split — the POSITION offset uses INTEGER
+       division (`point.x - (packed/2)`), the ORIGIN uses FLOAT division (`packed/2f`), so an odd
+       region (native `ImageMaster.GLOW_SPARK_2` is 81x81) draws at `x - 40` with origin `40.5` — and
+       size `pw, ph`, with a uniform scale multiplied by `0.975f` after
+       each DRAWN point, additively (770/1 then 770/771), restoring color/blend in `finally`. It
+       honors the B09 multi-pass failure contract: a pre-draw throw fails open (returns false), a
+       post-draw throw keeps the claim (returns true, no RNG here). `guardSatisfied` now handles
+       boolean guards (reads raw `isDone`, blocks on TRUE), and `canDraw`/`imagePresent` treat a
+       FLYING_ORB instance as drawable iff its region is present and `!isDone` (no x/y/scale). The
+       lab gains aliases `"flyingorb"`/`"orb"` → `new FlyingOrbEffect(960f, 540f)` behind the
+       fail-open guard (its ctor reads `AbstractDungeon.player.hb` and allocates
+       `points = new Vector2[60]` (a length-60 array of nulls) that `update()` fills, so a fresh
+       instance draws nothing until then — the D1 scenario spawns it
+       for observation/lifecycle only). Tests: `VfxDrawGeometryTest` (kindFor + near-miss, variable
+       -length, decay constants, boolean guard), `Sts1VfxArtRendererTest` (descending non-null draw
+       order + exact per-draw scale sequence, index-0 ignored, odd-region integer-position/float-origin
+       split, `isDone` blocks, B09 pre/post-draw
+       branches, missing img fails open, null-points claims zero draws), `VfxDelegationSeamTest` /
+       `Sts1VfxRendererBindingTest` (readiness + appended-last order), `VfxLabSpawnTest` (alias → FQN
+       + capturing factory). No new patch/bridge/console wiring; the default-off gate is unchanged.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

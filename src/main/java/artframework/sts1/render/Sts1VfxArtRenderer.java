@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Vector2;
 import com.megacrit.cardcrawl.core.Settings;
 import com.megacrit.cardcrawl.helpers.ImageMaster;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
@@ -142,6 +143,18 @@ import java.lang.reflect.Field;
  * of {@link #readFields}' {@code rotation} requirement only DEFENSIVELY (the exemption is
  * behaviorally inert because the field is always present via inheritance). Fail-open/no-throw
  * preserved.
+ *
+ * <p>The newest (NRO-04 B01) member is the {@code vfx-combat} {@code FlyingOrbEffect} — the seam's
+ * FIRST VARIABLE-LENGTH MULTI-DRAW kind ({@link VfxDrawGeometry#variableLengthMultiDraw}) and its
+ * first BOOLEAN {@code isDone} guard ({@link VfxDrawGeometry#guardIsBoolean}/
+ * {@link VfxDrawGeometry#guardBlocksBoolean}). It has NO {@code x}/{@code y}/{@code scale} field, so
+ * it is served by the dedicated {@link #renderFlyingOrb} branch BEFORE {@link #readFields}: the
+ * renderer reads the effect's own {@code Vector2[] points} and draws one center-packed sprite per
+ * NON-NULL element for {@code index} from {@code points.length - 1} down to {@code 1} (index
+ * {@code 0} is never drawn) with a UNIFORM scale that starts at {@code Settings.scale * 1.5f} and is
+ * multiplied by {@code 0.975f} after each DRAWN point, under the additive blend, with the effect's own
+ * {@code rotation}. No RNG; a pre-draw throw fails open while a post-draw throw claims the frame (B09).
+ * {@link #usesVariableLengthDraw} exposes the capability. No new patch/bridge/console wiring.
  *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
@@ -594,6 +607,19 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (!VfxDrawGeometry.nativeSkipsDrawByGuard(kind)) return true;
         String field = VfxDrawGeometry.guardFieldName(kind);
         if (field == null) return true;
+        // NRO-04 B01: a BOOLEAN guard (FlyingOrbEffect's `if (isDone) return`) reads the raw flag and
+        // blocks when it is TRUE; a float guard uses the per-kind guardBlocks threshold. An
+        // absent/unreadable/wrong-typed guard field is treated as not blocking either way (the native
+        // render could not read it either).
+        if (VfxDrawGeometry.guardIsBoolean(kind)) {
+            try {
+                Object raw = readRaw(effect, field);
+                if (!(raw instanceof Boolean)) return true;
+                return !VfxDrawGeometry.guardBlocksBoolean(kind, ((Boolean) raw).booleanValue());
+            } catch (Throwable ignored) {
+                return true;
+            }
+        }
         Float value;
         try {
             value = readFloat(effect, field);
@@ -747,6 +773,13 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             // natively, so ART must draw nothing too (fail open: the patch calls native render, which
             // also draws nothing). Cheap no-op for every non-guard kind.
             if (!guardSatisfied(kind, effect)) return false;
+            // NRO-04 B01: FlyingOrbEffect is the first VARIABLE-LENGTH MULTI-DRAW kind — its draw
+            // count and per-draw positions come from its own Vector2[] points, not the generic
+            // packed-region/x-y/scale snapshot (it has no x/y/scale field at all). Serve it through a
+            // dedicated branch BEFORE the generic readFields path.
+            if (kind == VfxDrawGeometry.Kind.FLYING_ORB) {
+                return renderFlyingOrb(sb, effect);
+            }
             if (isTextureDrawKind(kind)) {
                 return renderTexture(sb, kind, effect);
             }
@@ -857,6 +890,142 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * Immutable snapshot of the fields the VARIABLE-LENGTH MULTI-DRAW {@code FlyingOrbEffect} draw
+     * needs (NRO-04 B01): the effect's own {@code Vector2[] points}, the inherited {@code color}, the
+     * static {@code img} {@link TextureAtlas.AtlasRegion}, and the effect's OWN {@code rotation} field
+     * (not inherited — the class declares it). A freshly spawned instance's {@code points} array is
+     * allocated but all entries are null until {@code update()} fills them, so it draws nothing until
+     * then.
+     */
+    static final class FlyingOrbFields {
+        final Vector2[] points;
+        final Color color;
+        final TextureAtlas.AtlasRegion img;
+        final float rotation;
+
+        FlyingOrbFields(Vector2[] points, Color color, TextureAtlas.AtlasRegion img,
+                float rotation) {
+            this.points = points;
+            this.color = color;
+            this.img = img;
+            this.rotation = rotation;
+        }
+    }
+
+    /**
+     * Snapshots the fields the {@code FlyingOrbEffect} draw needs. Required: {@code points}
+     * ({@code Vector2[]}), {@code color} ({@link Color}), {@code img}
+     * ({@link TextureAtlas.AtlasRegion}), and {@code rotation} (any {@link Number}; the class declares
+     * its own field). Returns {@code null} when the effect is null or any required field is absent,
+     * unreadable, or of the wrong type; never throws.
+     */
+    static FlyingOrbFields readFlyingOrbFields(Object effect) {
+        if (effect == null) return null;
+        try {
+            Object points = readRaw(effect, "points");
+            if (!(points instanceof Vector2[])) return null;
+            Float rotation = readFloat(effect, "rotation");
+            if (rotation == null) return null;
+            Object color = readRaw(effect, "color");
+            if (!(color instanceof Color)) return null;
+            Object img = readRaw(effect, "img");
+            if (!(img instanceof TextureAtlas.AtlasRegion)) return null;
+            return new FlyingOrbFields((Vector2[]) points, (Color) color,
+                    (TextureAtlas.AtlasRegion) img, rotation.floatValue());
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Narrow package-private capability seam: {@code true} for the VARIABLE-LENGTH MULTI-DRAW kinds
+     * ({@link VfxDrawGeometry#variableLengthMultiDraw}), today only
+     * {@link VfxDrawGeometry.Kind#FLYING_ORB}. Delegates to the pure predicate so the renderer and the
+     * geometry stay in sync.
+     */
+    static boolean usesVariableLengthDraw(VfxDrawGeometry.Kind kind) {
+        return VfxDrawGeometry.variableLengthMultiDraw(kind);
+    }
+
+    /**
+     * VARIABLE-LENGTH MULTI-DRAW branch (NRO-04 B01): replays {@code FlyingOrbEffect.render} exactly.
+     *
+     * <p>The native render first returns when {@code isDone} (already handled by
+     * {@link #guardSatisfied}, so a blocked instance never reaches here). Otherwise, under the additive
+     * blend ({@code setBlendFunction(770, 1)} before, {@code 770, 771} after) and with the effect's
+     * {@code color}, it iterates {@code index} from {@code points.length - 1} DOWN TO {@code 1} (index
+     * {@code 0} is NEVER drawn) and, for each NON-NULL {@code points[index]}, issues one center-packed
+     * draw with the native integer-divided position offset ({@code px - (packedWidth/2)},
+     * {@code py - (packedHeight/2)}) and the native float-divided center origin ({@code pw/2f},
+     * {@code ph/2f}) — for an odd region these differ by {@code 0.5f} — with a
+     * UNIFORM scale {@code s} that starts at {@code Settings.scale *
+     * VfxDrawGeometry.flyingOrbStartScaleMultiplier()} and is multiplied by
+     * {@code VfxDrawGeometry.flyingOrbScaleDecayPerDraw()} AFTER each DRAWN point. No RNG is consumed.
+     *
+     * <p>B09 multi-pass failure contract: if a draw throws after at least one draw succeeded, the
+     * claim keeps the frame (returns {@code true}, so native never double-draws) and RNG is left
+     * alone (there is no RNG here); if it throws before any draw, this fails open (returns
+     * {@code false}) so native draws. Blend/color are always restored in {@code finally}.
+     */
+    private boolean renderFlyingOrb(SpriteBatch sb, AbstractGameEffect effect) {
+        FlyingOrbFields f = readFlyingOrbFields(effect);
+        if (f == null) return false;
+        TextureAtlas.AtlasRegion gdx = f.img;
+        if (gdx == null || gdx.getTexture() == null) return false;
+        AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+        if (neutral == null || !neutral.valid()) return false;
+        TextureRegion canonical = canonicalRegion(gdx, false, false);
+        if (canonical == null) return false;
+        // Native integer-vs-float division split (verified bytecode): the draw POSITION offset uses
+        // INTEGER division of the packed size (packedWidth:I; iconst_2; idiv; i2f; fsub), while the
+        // draw ORIGIN uses FLOAT division (packedWidth:I; i2f; fconst_2; fdiv). For an odd region
+        // (ImageMaster.GLOW_SPARK_2 is 81x81) that is x - 40 with origin 40.5, NOT x - 40.5.
+        int regionWidth = gdx.getRegionWidth();
+        int regionHeight = gdx.getRegionHeight();
+        float pw = regionWidth;
+        float ph = regionHeight;
+        float posOffsetX = regionWidth / 2; // integer division, matching native packedWidth/2
+        float posOffsetY = regionHeight / 2;
+        float scale0 = Settings.scale * VfxDrawGeometry.flyingOrbStartScaleMultiplier();
+        boolean additive = VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLYING_ORB);
+        Color previous = new Color(sb.getColor());
+        boolean blendChanged = false;
+        boolean drewAny = false;
+        try {
+            sb.setColor(f.color != null ? f.color : Color.WHITE);
+            if (additive) {
+                sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+                blendChanged = true;
+            }
+            float s = scale0;
+            for (int index = f.points.length - 1; index >= 1; index--) {
+                Vector2 point = f.points[index];
+                if (point == null) continue;
+                sb.draw(canonical, point.x - posOffsetX, point.y - posOffsetY,
+                        pw / 2f, ph / 2f, pw, ph, s, s, f.rotation);
+                s *= VfxDrawGeometry.flyingOrbScaleDecayPerDraw();
+                drewAny = true;
+            }
+            return true;
+        } catch (Throwable ignored) {
+            // B09 multi-pass failure contract. POST-draw: at least one point already painted, so
+            // claim the frame (return true) so native never repaints the whole orb; no RNG to restore.
+            if (drewAny) {
+                return true;
+            }
+            return false;
+        } finally {
+            try {
+                if (blendChanged) {
+                    sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                }
+                sb.setColor(previous);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /**
      * True only when {@link #render} could actually draw this exact instance: the class maps to a
      * kind, the native draw guard is satisfied (a guard-blocked kind cannotDraw — native draws
      * nothing in that state either), the required fields resolve, the resolved region/texture is
@@ -893,6 +1062,16 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      */
     private static boolean imagePresent(VfxDrawGeometry.Kind kind, Object effect) {
         if (kind == null || effect == null) return false;
+        // NRO-04 B01: FlyingOrbEffect has NO x/y/scale; its draw is present iff its img/region is
+        // present (and, handled by the caller's guard, isDone is false). Read its own snapshot.
+        if (kind == VfxDrawGeometry.Kind.FLYING_ORB) {
+            FlyingOrbFields f = readFlyingOrbFields(effect);
+            if (f == null) return false;
+            TextureAtlas.AtlasRegion gdx = f.img;
+            if (gdx == null || gdx.getTexture() == null) return false;
+            AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+            return neutral != null && neutral.valid();
+        }
         // F24 PLAYER-HITBOX-RELATIVE X: a kind that draws relative to the player's hitbox cannot draw
         // without that center, so a missing player/hitbox makes the instance undrawable (native draws
         // it instead). Resolved here so canDraw/declinedWithoutPixels agree with render.

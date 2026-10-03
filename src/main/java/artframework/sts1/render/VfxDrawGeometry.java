@@ -419,6 +419,30 @@ package artframework.sts1.render;
  * {@code private static} {@code AtlasRegion img} (like {@code ExhaustPileParticle}) and has a NO-ARG
  * constructor. No new patch/bridge/console wiring; the default-off gate and per-instance token
  * semantics are unchanged.
+ *
+ * <p>The newest (NRO-04 B01) member is the {@code vfx-combat} {@code FlyingOrbEffect}
+ * ({@link Kind#FLYING_ORB}): the seam's FIRST VARIABLE-LENGTH MULTI-DRAW kind
+ * ({@link #variableLengthMultiDraw}) and its first BOOLEAN {@code isDone} native draw guard
+ * ({@link #guardIsBoolean}/{@link #guardBlocksBoolean}). Its fields are {@code TextureAtlas.AtlasRegion
+ * img} (static, {@code ImageMaster.GLOW_SPARK_2}), {@code Vector2[] points}, {@code Vector2
+ * pos}/{@code target}, its OWN {@code float rotation} (not inherited), and the inherited
+ * {@code color}; it has NO {@code x}/{@code y}/{@code scale} field, so the reader consumes
+ * {@code points[]} rather than x/y/scale. Its native {@code render} first returns when
+ * {@code isDone}; then, under the additive blend ({@code 770/1} before, {@code 770/771} after), it
+ * iterates {@code index} from {@code points.length - 1} DOWN TO {@code 1} (index {@code 0} is NEVER
+ * drawn) and draws each NON-NULL {@code points[index]} center-packed (the draw POSITION offset uses
+ * native INTEGER division of the packed size, {@code point.x - (packed/2)}, while the ORIGIN uses
+ * native FLOAT division, {@code packed/2f}; the two differ by {@code 0.5} for an odd region such as
+ * the native 81x81 {@code GLOW_SPARK_2}) with a
+ * UNIFORM scale that starts at {@code Settings.scale * }{@link #flyingOrbStartScaleMultiplier}
+ * ({@code 1.5f}) and is multiplied by {@link #flyingOrbScaleDecayPerDraw} ({@code 0.975f}) AFTER each
+ * DRAWN point (so the per-draw scale sequence is {@code scale0, scale0*0.975, scale0*0.975^2, ...}),
+ * with the effect's own {@code rotation} field. It draws no RNG. The B09 multi-pass failure contract
+ * applies: a throw before any draw fails open (returns {@code false}), while a throw after at least
+ * one draw keeps the claim (returns {@code true}) so native never double-draws. A freshly spawned
+ * instance's ctor allocates {@code points = new Vector2[60]} (a length-60 array of nulls that
+ * {@code update()} fills), so it draws nothing until {@code update()} runs. No new
+ * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
  */
 public final class VfxDrawGeometry {
 
@@ -483,7 +507,8 @@ public final class VfxDrawGeometry {
         BOTTOM_FOG,
         GIANT_FIRE,
         TORCH_HEAD_FIRE,
-        CARD_TRAIL
+        CARD_TRAIL,
+        FLYING_ORB
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -669,6 +694,20 @@ public final class VfxDrawGeometry {
     public static final float CARD_TRAIL_ORIGIN = 6f;
     /** Native CardTrail draw width/height ({@code 12f}). */
     public static final float CARD_TRAIL_SIZE = 12f;
+
+    // Native FlyingOrbEffect draw rule (see the class Javadoc): ADDITIVE, variable-length multi-draw
+    // over the effect's own Vector2[] points. Each non-null points[index] for index from
+    // points.length-1 DOWN TO 1 (index 0 is NEVER drawn) is drawn center-packed (origin packed/2)
+    // with a UNIFORM scale that starts at Settings.scale * this start multiplier and is multiplied by
+    // this decay factor after each DRAWN point; the rotation comes from the effect's OWN rotation
+    // field. Static img = ImageMaster.GLOW_SPARK_2; the class has NO x/y/scale field and its render is
+    // guarded by `if (isDone) return`.
+    /** Native FlyingOrb starting uniform scale multiplier applied to {@code Settings.scale} ({@code 1.5f}). */
+    public static final float FLYING_ORB_START_SCALE_MULTIPLIER = 1.5f;
+    /** Native FlyingOrb per-drawn-point uniform scale decay factor ({@code 0.975f}). */
+    public static final float FLYING_ORB_SCALE_DECAY_PER_DRAW = 0.975f;
+    /** Native FlyingOrbEffect boolean draw-guard field name ({@code "isDone"}, blocks when true). */
+    public static final String FLYING_ORB_GUARD_FIELD = "isDone";
 
     // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
     // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
@@ -970,6 +1009,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.GIANT_FIRE.equals(value)) return Kind.GIANT_FIRE;
         if (VfxClaimPolicy.TORCH_HEAD_FIRE.equals(value)) return Kind.TORCH_HEAD_FIRE;
         if (VfxClaimPolicy.CARD_TRAIL.equals(value)) return Kind.CARD_TRAIL;
+        if (VfxClaimPolicy.FLYING_ORB.equals(value)) return Kind.FLYING_ORB;
         return null;
     }
 
@@ -1096,7 +1136,9 @@ public final class VfxDrawGeometry {
      * {@link Kind#FALLING_ICE} ({@code FallingIceEffect}, guarded by {@code if (waitTimer < 0f)}),
      * {@link Kind#DAMAGE_HEART} ({@code DamageHeartEffect}, guarded by {@code if (delayTimer < 0f)}),
      * and {@link Kind#WRATH_STANCE_CHANGE} ({@code WrathStanceChangeParticle}, guarded by
-     * {@code if (delayTimer > 0f) return} — i.e. it draws only when {@code delayTimer <= 0f}). Every
+     * {@code if (delayTimer > 0f) return} — i.e. it draws only when {@code delayTimer <= 0f}), and the
+     * newest (B01) {@link Kind#FLYING_ORB} ({@code FlyingOrbEffect}, guarded by {@code if (isDone)
+     * return} — a BOOLEAN guard, see {@link #guardIsBoolean}/{@link #guardBlocksBoolean}). Every
      * other claimable kind draws unconditionally (or draws a fixed static texture), so it is
      * {@code false}. Callers use this together with {@link #guardFieldName} and the per-kind
      * {@link #guardBlocks} threshold to keep a claimed instance in pixel parity — the renderer
@@ -1110,7 +1152,44 @@ public final class VfxDrawGeometry {
             throw new IllegalArgumentException("kind must not be null");
         }
         return kind == Kind.FALLING_ICE || kind == Kind.DAMAGE_HEART
-                || kind == Kind.WRATH_STANCE_CHANGE;
+                || kind == Kind.WRATH_STANCE_CHANGE || kind == Kind.FLYING_ORB;
+    }
+
+    /**
+     * Pure per-kind predicate for a BOOLEAN native draw guard: {@code true} only for the kinds whose
+     * native {@code render} guards its draw on a boolean field rather than a wait-phase float
+     * threshold. Today that is exactly the newest (B01) {@link Kind#FLYING_ORB}
+     * ({@code FlyingOrbEffect}, whose native {@code render} begins {@code if (isDone) return}). For
+     * such a kind the renderer reads the raw {@code isDone} field and declines (draws nothing) when
+     * it is {@link Boolean#TRUE} — matching native — via {@link #guardBlocksBoolean}. Every other
+     * claimable kind is {@code false} here (their guard, if any, is the float {@link #guardBlocks}
+     * threshold).
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean guardIsBoolean(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.FLYING_ORB;
+    }
+
+    /**
+     * Pure per-kind BOOLEAN guard THRESHOLD: {@code true} when a present boolean guard field value
+     * blocks the native draw for {@code kind}, {@code false} otherwise. Today that is exactly the
+     * newest (B01) {@link Kind#FLYING_ORB}, whose native {@code render} returns immediately when
+     * {@code isDone} is true; so it blocks iff {@code value} is {@code true} and draws when it is
+     * {@code false}. Every other kind is {@code false} (no boolean guard). This is the boolean
+     * counterpart of the float {@link #guardBlocks}, and the renderer resolves the raw field
+     * reflectively so this class stays host-neutral.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean guardBlocksBoolean(Kind kind, boolean value) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.FLYING_ORB && value;
     }
 
     /**
@@ -1238,7 +1317,9 @@ public final class VfxDrawGeometry {
      * whose field is absent or unreadable is treated as SATISFIED (it draws), since the native
      * render would then not be able to read a guard either. Returns {@code "waitTimer"} for
      * {@link Kind#FALLING_ICE}, {@code "delayTimer"} for {@link Kind#DAMAGE_HEART}, and
-     * {@code "delayTimer"} for {@link Kind#WRATH_STANCE_CHANGE}.
+     * {@code "delayTimer"} for {@link Kind#WRATH_STANCE_CHANGE}, and {@code "isDone"} for the newest
+     * (B01) {@link Kind#FLYING_ORB} (the seam's first BOOLEAN guard field; see
+     * {@link #guardIsBoolean}).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -1249,7 +1330,50 @@ public final class VfxDrawGeometry {
         if (kind == Kind.FALLING_ICE) return FALLING_ICE_GUARD_FIELD;
         if (kind == Kind.DAMAGE_HEART) return DAMAGE_HEART_GUARD_FIELD;
         if (kind == Kind.WRATH_STANCE_CHANGE) return WRATH_STANCE_CHANGE_GUARD_FIELD;
+        if (kind == Kind.FLYING_ORB) return FLYING_ORB_GUARD_FIELD;
         return null;
+    }
+
+    /**
+     * Pure per-kind predicate for the seam's VARIABLE-LENGTH MULTI-DRAW capability: {@code true} only
+     * for a kind whose native {@code render} issues a draw whose COUNT (and, per draw, its position)
+     * is read from a HOST-SUPPLIED array rather than a fixed pass list. Today that is exactly the
+     * newest (NRO-04 B01) {@link Kind#FLYING_ORB} ({@code FlyingOrbEffect}), whose native
+     * {@code render} iterates its own {@code Vector2[] points} from {@code points.length - 1} down to
+     * {@code 1} and draws one center-packed sprite per NON-NULL element (index {@code 0} is never
+     * drawn). The renderer reads that array, so the number of draws is data-dependent; every other
+     * claimable kind issues a fixed, compile-time draw count (including the F25 two-pass
+     * {@link Kind#STANCE_CHANGE_ABSORPTION}, which is a FIXED-length multi-draw kind, not a
+     * variable-length one).
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean variableLengthMultiDraw(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.FLYING_ORB;
+    }
+
+    /**
+     * Native {@link Kind#FLYING_ORB} uniform-scale START multiplier: the first drawn point's uniform
+     * scale is {@code Settings.scale * }{@code this value} (the native bytecode computes
+     * {@code float s = Settings.scale * 1.5f;} once before the loop). It is a named constant so the
+     * renderer never hardcodes the magic {@code 1.5f}.
+     */
+    public static float flyingOrbStartScaleMultiplier() {
+        return FLYING_ORB_START_SCALE_MULTIPLIER;
+    }
+
+    /**
+     * Native {@link Kind#FLYING_ORB} per-drawn-point uniform-scale DECAY factor: after each DRAWN
+     * point the native loop multiplies its uniform scale by {@code 0.975f}
+     * ({@code s *= 0.975f;}), so the sequence of drawn scales is
+     * {@code scale0, scale0*0.975, scale0*0.975^2, ...} in draw order. It is a named constant so the
+     * renderer never hardcodes the magic {@code 0.975f}.
+     */
+    public static float flyingOrbScaleDecayPerDraw() {
+        return FLYING_ORB_SCALE_DECAY_PER_DRAW;
     }
 
     /**

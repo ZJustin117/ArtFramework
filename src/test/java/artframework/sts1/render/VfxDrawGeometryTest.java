@@ -320,6 +320,12 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.kindFor(VfxClaimPolicy.CARD_TRAIL));
         assertSame(VfxDrawGeometry.Kind.CARD_TRAIL,
                 VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.CardTrailEffect"));
+        // The newest (NRO-04 B01) member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.FLYING_ORB,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FLYING_ORB));
+        assertSame(VfxDrawGeometry.Kind.FLYING_ORB,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect"));
     }
 
     @Test
@@ -2654,9 +2660,12 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.DAMAGE_HEART));
         assertEquals("delayTimer",
                 VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE));
+        assertEquals("isDone",
+                VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.FLYING_ORB));
         assertEquals("waitTimer", VfxDrawGeometry.FALLING_ICE_GUARD_FIELD);
         assertEquals("delayTimer", VfxDrawGeometry.DAMAGE_HEART_GUARD_FIELD);
         assertEquals("delayTimer", VfxDrawGeometry.WRATH_STANCE_CHANGE_GUARD_FIELD);
+        assertEquals("isDone", VfxDrawGeometry.FLYING_ORB_GUARD_FIELD);
 
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             if (kind == VfxDrawGeometry.Kind.FALLING_ICE) {
@@ -2669,6 +2678,10 @@ public class VfxDrawGeometryTest {
             }
             if (kind == VfxDrawGeometry.Kind.WRATH_STANCE_CHANGE) {
                 assertEquals("delayTimer", VfxDrawGeometry.guardFieldName(kind));
+                continue;
+            }
+            if (kind == VfxDrawGeometry.Kind.FLYING_ORB) {
+                assertEquals("isDone", VfxDrawGeometry.guardFieldName(kind));
                 continue;
             }
             assertNull("no guard field name for " + kind, VfxDrawGeometry.guardFieldName(kind));
@@ -3369,5 +3382,97 @@ public class VfxDrawGeometryTest {
                 "com.megacrit.cardcrawl.vfx.CardTrailEffect$Sub"));
         assertNull(VfxDrawGeometry.kindFor("CardTrailEffect"));
         assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.CardTrail"));
+    }
+
+    // --- NRO-04 B01 FlyingOrbEffect: the first VARIABLE-LENGTH MULTI-DRAW kind ---
+
+    @Test
+    public void flyingOrbKindForFailsOpenForNearMisses() {
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("FlyingOrbEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.FlyingOrbEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlyingOrb"));
+    }
+
+    @Test
+    public void variableLengthMultiDrawIsTrueOnlyForFlyingOrb() {
+        assertTrue("FlyingOrbEffect is the first variable-length multi-draw kind",
+                VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.FLYING_ORB));
+
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.FLYING_ORB) continue;
+            assertFalse("no variable-length draw for " + kind,
+                    VfxDrawGeometry.variableLengthMultiDraw(kind));
+        }
+        // The fixed-length multi-draw F25 kind is NOT variable-length (compile-time pass count).
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+    }
+
+    @Test
+    public void variableLengthMultiDrawNullKindThrowsIllegalArgument() {
+        try {
+            VfxDrawGeometry.variableLengthMultiDraw(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void flyingOrbDecayConstantsMatchTheNativeBytecode() {
+        // Native bytecode (see the class Javadoc): `float s = Settings.scale * 1.5f;` then, after each
+        // DRAWN point, `s *= 0.975f;`.
+        assertEquals(1.5f, VfxDrawGeometry.FLYING_ORB_START_SCALE_MULTIPLIER, EPS);
+        assertEquals(1.5f, VfxDrawGeometry.flyingOrbStartScaleMultiplier(), EPS);
+        assertEquals(0.975f, VfxDrawGeometry.FLYING_ORB_SCALE_DECAY_PER_DRAW, EPS);
+        assertEquals(0.975f, VfxDrawGeometry.flyingOrbScaleDecayPerDraw(), EPS);
+    }
+
+    @Test
+    public void flyingOrbGuardPredicatesAreBooleanOnlyForFlyingOrb() {
+        assertTrue(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.FLYING_ORB));
+        assertTrue(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.FLYING_ORB));
+        assertEquals("isDone", VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.FLYING_ORB));
+
+        // The boolean threshold blocks iff the flag is true.
+        assertTrue("isDone == true blocks",
+                VfxDrawGeometry.guardBlocksBoolean(VfxDrawGeometry.Kind.FLYING_ORB, true));
+        assertFalse("isDone == false draws",
+                VfxDrawGeometry.guardBlocksBoolean(VfxDrawGeometry.Kind.FLYING_ORB, false));
+
+        // Every other kind is neither boolean-guarded nor blocked by the boolean predicate — including
+        // the float-guarded kinds, whose guard is the float guardBlocks threshold.
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.FLYING_ORB) continue;
+            assertFalse("no boolean guard for " + kind, VfxDrawGeometry.guardIsBoolean(kind));
+            assertFalse("no boolean block for " + kind,
+                    VfxDrawGeometry.guardBlocksBoolean(kind, true));
+            assertFalse("no boolean block for " + kind,
+                    VfxDrawGeometry.guardBlocksBoolean(kind, false));
+        }
+
+        assertTrue("FLYING_ORB installs the additive blend natively",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLYING_ORB));
+    }
+
+    @Test
+    public void flyingOrbGuardPredicatesThrowOnNullKind() {
+        try {
+            VfxDrawGeometry.guardIsBoolean(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+        try {
+            VfxDrawGeometry.guardBlocksBoolean(null, true);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
     }
 }

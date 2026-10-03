@@ -49,6 +49,15 @@
 # The newest (F30) is CardTrailEffect (root; additive img/AtlasRegion path with a new fixed-origin/
 # size rule — origin 6,6 and size 12x12 INDEPENDENT of the region's packed size, rotation hardcoded
 # 0f; static img, NO-ARG ctor).
+# The newest (NRO-04 B01) is FlyingOrbEffect (vfx-combat; the seam's FIRST VARIABLE-LENGTH MULTI-DRAW
+# kind — additive, one center-packed sprite per non-null points[index] for index from points.length-1
+# down to 1, uniform scale starting at Settings.scale*1.5f decaying by 0.975f per drawn point; the
+# native POSITION offset uses INTEGER division of the packed size while the ORIGIN uses FLOAT
+# division (a 0.5px difference for the odd 81x81 GLOW_SPARK_2); NO
+# x/y/scale field; guarded by `if (isDone) return`). The (float,float) ctor allocates
+# points = new Vector2[60] (a length-60 array of nulls) that update() fills, so a freshly spawned
+# instance draws nothing until update() runs; this spawn is for observation/lifecycle, NOT a per-kind
+# draw assertion.
 # NOTE: a freshly lab-spawned FallingIceEffect/DamageHeartEffect starts with its guard UNSATISFIED
 # (waitTimer/delayTimer >= 0f), so the spawn-frame evidence for these two is the per-FQN
 # active/entity delta on spawn (observation), NOT a draw increase at spawn. The kinds then diverge:
@@ -172,6 +181,7 @@ steps:
   - console: "art claim spawn giantfire 4"
   - console: "art claim spawn torchheadfire 4"
   - console: "art claim spawn cardtrail 4"
+  - console: "art claim spawn flyingorb 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -263,6 +273,7 @@ steps:
   - console: "art claim spawn giantfire 4"
   - console: "art claim spawn torchheadfire 4"
   - console: "art claim spawn cardtrail 4"
+  - console: "art claim spawn flyingorb 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

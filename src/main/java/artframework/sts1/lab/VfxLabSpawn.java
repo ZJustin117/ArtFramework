@@ -30,6 +30,7 @@ import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FallingIceEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
+import com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect;
 import com.megacrit.cardcrawl.vfx.combat.GiantFireEffect;
 import com.megacrit.cardcrawl.vfx.combat.IceShatterEffect;
@@ -122,7 +123,14 @@ import java.util.function.Predicate;
  * with a new asymmetric {@code scaleX = scale * 1.2f} rule and a {@code flippedX} flip; ctor
  * {@code (float, float)}), plus the newest (F30) member {@code CardTrailEffect} (root; additive img
  * path with a new fixed-origin/size rule {@code 6,6}/{@code 12,12} independent of the packed region;
- * static {@code img}; NO-ARG ctor) into the
+ * static {@code img}; NO-ARG ctor), plus the newest (NRO-04 B01) member {@code FlyingOrbEffect}
+ * ({@code vfx-combat}; the seam's FIRST VARIABLE-LENGTH MULTI-DRAW kind — additive, it draws one
+ * center-packed sprite per non-null {@code points[index]} for {@code index} from
+ * {@code points.length-1} down to {@code 1} with a uniform scale starting at
+ * {@code Settings.scale * 1.5f} and decaying by {@code 0.975f} per drawn point; the class has NO
+ * x/y/scale field and is guarded by {@code if (isDone) return}; ctor {@code (float, float)}; the ctor
+ * allocates {@code points = new Vector2[60]} (a length-60 array of nulls), so a freshly spawned
+ * instance draws nothing until {@code update()} fills it) into the
  * live STS effect containers so
  * a device-side lab run can exercise the family without combat.
  *
@@ -340,6 +348,9 @@ public final class VfxLabSpawn {
         }
         if ("cardtrail".equalsIgnoreCase(value) || "trail".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.CARD_TRAIL;
+        }
+        if ("flyingorb".equalsIgnoreCase(value) || "orb".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FLYING_ORB;
         }
         return null;
     }
@@ -813,6 +824,17 @@ public final class VfxLabSpawn {
             CardTrailEffect effect = new CardTrailEffect();
             effect.init(initArgs[0], initArgs[1]);
             return effect;
+        }
+        if (VfxClaimPolicy.FLYING_ORB.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point. FlyingOrbEffect's ctor is (float, float)
+            // and reads AbstractDungeon.player.hb (which may be null off-game), and its static
+            // img = ImageMaster.GLOW_SPARK_2 may be null outside a live game; any failure is caught by
+            // spawn's fail-open guard rather than propagating. NOTE: the ctor allocates
+            // points = new Vector2[60] (a length-60 array of nulls) and update() fills it, so a
+            // freshly constructed instance draws nothing until update() runs — the D1 scenario spawns
+            // it for observation/lifecycle, and the true draw path is covered by the unit tests with a
+            // synthetic points array.
+            return new FlyingOrbEffect(960f, 540f);
         }
         return null;
     }

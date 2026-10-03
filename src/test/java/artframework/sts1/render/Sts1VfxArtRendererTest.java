@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
 import com.megacrit.cardcrawl.helpers.Hitbox;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
@@ -19,6 +20,7 @@ import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect;
+import com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.WebParticleEffect;
@@ -4298,6 +4300,15 @@ public class Sts1VfxArtRendererTest {
         /** When true the packed-region draw overload throws (post-RNG fail-open test). */
         boolean throwOnRegionDraw;
         /**
+         * When {@code >= 0} the packed-region draw overload throws on the 0-based region draw of that
+         * index (the variable-length FlyingOrb post-draw fail-open test uses index 1, i.e. draw 2).
+         */
+        int throwOnRegionDrawIndex = -1;
+        /** Region draws that returned normally (i.e. actually painted), in call order. */
+        int successfulRegionDraws;
+        /** Every packed-region draw's arguments, in call order. Lazily allocated. */
+        java.util.List<float[]> allRegionDrawArgs;
+        /**
          * When {@code >= 0} the raw-texture draw overload throws on the 0-based texture draw of that
          * index (the multi-pass post-consumption fail-open test uses index 1, i.e. pass 1).
          */
@@ -4353,7 +4364,17 @@ public class Sts1VfxArtRendererTest {
             if (throwOnRegionDraw) {
                 throw new IllegalStateException("post-RNG draw boom");
             }
-            if (textureRegionDrawCalls++ == 0) {
+            int regionIndex = textureRegionDrawCalls++;
+            if (allRegionDrawArgs == null) {
+                allRegionDrawArgs = new java.util.ArrayList<float[]>();
+            }
+            allRegionDrawArgs.add(new float[] {x, y, originX, originY, width, height,
+                    scaleX, scaleY, rotation});
+            if (regionIndex == throwOnRegionDrawIndex) {
+                throw new IllegalStateException("variable-length region draw boom");
+            }
+            successfulRegionDraws++;
+            if (regionIndex == 0) {
                 drawnRegion = region;
                 drawnRegionArgs = new float[] {x, y, originX, originY, width, height,
                         scaleX, scaleY, rotation};
@@ -4396,6 +4417,7 @@ public class Sts1VfxArtRendererTest {
             CountingBatch sb = (CountingBatch) unsafe.allocateInstance(CountingBatch.class);
             // Unsafe.allocateInstance does not run field initializers, so set the sentinel explicitly.
             sb.throwOnTextureDrawIndex = -1;
+            sb.throwOnRegionDrawIndex = -1;
             setField(sb, SpriteBatch.class, "vertices", new float[20 * 4096]);
             setField(sb, SpriteBatch.class, "idx", Integer.valueOf(0));
             setField(sb, SpriteBatch.class, "drawing", Boolean.TRUE);
@@ -4485,6 +4507,234 @@ public class Sts1VfxArtRendererTest {
         } catch (Exception failure) {
             throw new AssertionError("could not build no-GL " + type.getSimpleName(), failure);
         }
+    }
+
+    /**
+     * Real {@code FlyingOrbEffect} with reflectively seeded {@code points}/{@code img}/{@code
+     * rotation} and the inherited {@code color}/{@code isDone} (no game/GL context). The class has NO
+     * {@code x}/{@code y}/{@code scale} field.
+     */
+    private static AbstractGameEffect seededFlyingOrb(Vector2[] points, boolean isDone,
+            float rotation) {
+        return seededFlyingOrb(points, isDone, rotation, 64, 48);
+    }
+
+    /**
+     * Same as {@link #seededFlyingOrb(Vector2[], boolean, float)} but with an explicit synthetic
+     * region size (so an ODD size can exercise the native integer-vs-float division split).
+     */
+    private static AbstractGameEffect seededFlyingOrb(Vector2[] points, boolean isDone,
+            float rotation, int regionWidth, int regionHeight) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            FlyingOrbEffect effect =
+                    (FlyingOrbEffect) unsafe.allocateInstance(FlyingOrbEffect.class);
+            setField(effect, FlyingOrbEffect.class, "points", points);
+            setField(effect, FlyingOrbEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, FlyingOrbEffect.class, "img",
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0,
+                            regionWidth, regionHeight));
+            setField(effect, AbstractGameEffect.class, "color", Color.WHITE);
+            setField(effect, AbstractGameEffect.class, "isDone", Boolean.valueOf(isDone));
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL FlyingOrbEffect", failure);
+        }
+    }
+
+    // --- NRO-04 B01 FlyingOrbEffect: the first variable-length multi-draw kind ---
+
+    @Test
+    public void flyingOrbDrawsNonNullPointsDescendingWithUniformScaleDecay() {
+        // Native FlyingOrbEffect.render (verified bytecode):
+        //   if (isDone) return;
+        //   setBlendFunction(770, 1); setColor(color);
+        //   float s = Settings.scale * 1.5f;
+        //   int index = points.length - 1;
+        //   while (index > 0) {
+        //       if (points[index] != null) {
+        //           sb.draw(img, points[index].x - pw/2f, points[index].y - ph/2f,
+        //                   pw/2f, ph/2f, pw, ph, s, s, rotation);
+        //           s *= 0.975f;
+        //       }
+        //       index--;
+        //   }
+        //   setBlendFunction(770, 771);
+        // Index 0 is NEVER drawn; only non-null points[>=1] are drawn, in DESCENDING index order,
+        // each with a uniform scale that starts at Settings.scale*1.5f and decays by 0.975f per draw.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        float rotation = 37f;
+        Vector2[] points = new Vector2[5];
+        points[0] = new Vector2(1000f, 1000f); // NEVER drawn (index 0 is skipped by `while (index > 0)`)
+        points[1] = new Vector2(11f, 21f);
+        // points[2] is null -> skipped
+        points[3] = new Vector2(33f, 43f);
+        points[4] = new Vector2(44f, 54f);
+
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededFlyingOrb(points, false, rotation);
+
+        assertTrue("a FlyingOrb instance with points draws", renderer.render(batch, effect));
+        assertEquals("the additive blend is installed and restored", 2, batch.setBlendCalls);
+        assertEquals("exactly the three non-null points[>=1] are drawn", 3,
+                batch.successfulRegionDraws);
+        assertEquals(3, batch.allRegionDrawArgs.size());
+
+        float pw = 64f;
+        float ph = 48f;
+        float scale0 = com.megacrit.cardcrawl.core.Settings.scale * 1.5f;
+
+        // Draw 0: points[4]; center-packed origin/size; scale0; the effect's rotation.
+        float[] d0 = batch.allRegionDrawArgs.get(0);
+        assertEquals(44f - pw / 2f, d0[0], EPS);
+        assertEquals(54f - ph / 2f, d0[1], EPS);
+        assertEquals(pw / 2f, d0[2], EPS);
+        assertEquals(ph / 2f, d0[3], EPS);
+        assertEquals(pw, d0[4], EPS);
+        assertEquals(ph, d0[5], EPS);
+        assertEquals("first drawn scale is Settings.scale * 1.5f", scale0, d0[6], EPS);
+        assertEquals(scale0, d0[7], EPS);
+        assertEquals("rotation comes from the effect's own field", rotation, d0[8], EPS);
+
+        // Draw 1: points[3]; scale decays once.
+        float[] d1 = batch.allRegionDrawArgs.get(1);
+        assertEquals(33f - pw / 2f, d1[0], EPS);
+        assertEquals(43f - ph / 2f, d1[1], EPS);
+        assertEquals(scale0 * 0.975f, d1[6], EPS);
+        assertEquals(scale0 * 0.975f, d1[7], EPS);
+
+        // Draw 2: points[1]; scale decays twice (index 2 was a null skip and did NOT decay).
+        float[] d2 = batch.allRegionDrawArgs.get(2);
+        assertEquals(11f - pw / 2f, d2[0], EPS);
+        assertEquals(21f - ph / 2f, d2[1], EPS);
+        assertEquals(scale0 * 0.975f * 0.975f, d2[6], EPS);
+        assertEquals(scale0 * 0.975f * 0.975f, d2[7], EPS);
+
+        assertTrue("FLYING_ORB is a variable-length draw kind",
+                Sts1VfxArtRenderer.usesVariableLengthDraw(VfxDrawGeometry.Kind.FLYING_ORB));
+        assertTrue("a drawable FlyingOrb instance canDraw", renderer.canDraw(effect));
+    }
+
+    @Test
+    public void flyingOrbUsesIntegerPositionOffsetButFloatOriginForAnOddRegion() {
+        // Native bytecode (verified against $ART_STS_JAR): the draw POSITION offset is
+        // `packedWidth:I; iconst_2; idiv; i2f; fsub` (INTEGER division) while the draw ORIGIN is
+        // `packedWidth:I; i2f; fconst_2; fdiv` (FLOAT division). ImageMaster.GLOW_SPARK_2 is 81x81,
+        // so native draws at x - 40 with origin 40.5, NOT x - 40.5. This test uses an 81x81 synthetic
+        // region and asserts BOTH halves; it FAILS if the position reverts to pw/2f (40.5).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        float pointX = 1000f;
+        float pointY = 2000f;
+        Vector2[] points = new Vector2[] {null, new Vector2(pointX, pointY)};
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededFlyingOrb(points, false, 0f, 81, 81);
+
+        assertTrue("an odd-region FlyingOrb draws", renderer.render(batch, effect));
+        assertEquals(1, batch.successfulRegionDraws);
+        float[] d = batch.allRegionDrawArgs.get(0);
+
+        // POSITION: integer half (81/2 == 40), the native `point.x - packedWidth/2` result.
+        assertEquals("position offset X uses integer division (point.x - 40)",
+                pointX - 40f, d[0], EPS);
+        assertEquals("position offset Y uses integer division (point.y - 40)",
+                pointY - 40f, d[1], EPS);
+        // ORIGIN: float half (81/2f == 40.5), the native `packedWidth/2f` result.
+        assertEquals("origin X uses float division (81/2f == 40.5)", 40.5f, d[2], EPS);
+        assertEquals("origin Y uses float division (81/2f == 40.5)", 40.5f, d[3], EPS);
+        // SIZE: the packed footprint (81), full float.
+        assertEquals(81f, d[4], EPS);
+        assertEquals(81f, d[5], EPS);
+
+        // The two halves are provably different for an odd region (guards against a regression that
+        // makes both pw/2f or both integer).
+        assertFalse("the integer position offset and the float origin differ by 0.5",
+                Math.abs((pointX - d[0]) - d[2]) < EPS);
+    }
+
+    @Test
+    public void flyingOrbIsDoneGuardBlocksTheDraw() {
+        // The native render begins `if (isDone) return;`, so an isDone instance draws nothing.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Vector2[] points = new Vector2[] {null, new Vector2(11f, 21f)};
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededFlyingOrb(points, true, 0f);
+
+        assertFalse("an isDone FlyingOrb instance draws nothing (guard blocks)",
+                renderer.render(batch, effect));
+        assertEquals("no draws on a guard-blocked instance", 0, batch.successfulRegionDraws);
+        assertFalse("a guard-blocked instance cannotDraw", renderer.canDraw(effect));
+        assertTrue("a guard-blocked instance is a benign no-pixel decline",
+                renderer.declinedWithoutPixels(effect));
+    }
+
+    @Test
+    public void flyingOrbEmptyPointsDrawsNothingButClaims() {
+        // A freshly spawned lab instance's (float,float) ctor allocates points = new Vector2[60] (a
+        // length-60 array of nulls) that update() fills; until then every element is null, so the loop
+        // body never runs: render issues zero draws but still returns true (nothing to native).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededFlyingOrb(new Vector2[60], false, 0f);
+
+        assertTrue("an empty-points FlyingOrb claims the frame with zero draws",
+                renderer.render(batch, effect));
+        assertEquals(0, batch.successfulRegionDraws);
+        assertEquals("the additive blend is still installed/restored", 2, batch.setBlendCalls);
+        assertTrue("an empty-points instance is still drawable", renderer.canDraw(effect));
+    }
+
+    @Test
+    public void flyingOrbThrowOnSecondDrawKeepsTheClaimPerB09() {
+        // B09 multi-pass contract: a throw after at least one draw succeeded keeps the claim (returns
+        // true) so native never double-draws the whole orb; there is no RNG to restore.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Vector2[] points = new Vector2[] {null, new Vector2(11f, 21f), new Vector2(22f, 32f),
+                new Vector2(33f, 43f)};
+        CountingBatch batch = newCountingBatch();
+        batch.throwOnRegionDrawIndex = 1; // the SECOND draw throws after the first painted
+        AbstractGameEffect effect = seededFlyingOrb(points, false, 0f);
+
+        assertTrue("a post-draw throw keeps the claim (returns true)",
+                renderer.render(batch, effect));
+        assertEquals("exactly the first draw painted", 1, batch.successfulRegionDraws);
+    }
+
+    @Test
+    public void flyingOrbThrowOnFirstDrawFailsOpen() {
+        // B09 pre-draw branch: nothing painted, so fail open (returns false) to native.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Vector2[] points = new Vector2[] {null, new Vector2(11f, 21f), new Vector2(22f, 32f)};
+        CountingBatch batch = newCountingBatch();
+        batch.throwOnRegionDrawIndex = 0;
+        AbstractGameEffect effect = seededFlyingOrb(points, false, 0f);
+
+        assertFalse("a first-draw throw fails open", renderer.render(batch, effect));
+        assertEquals("no pixels painted", 0, batch.successfulRegionDraws);
+    }
+
+    @Test
+    public void flyingOrbMissingImageFailsOpen() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Vector2[] points = new Vector2[] {null, new Vector2(11f, 21f)};
+        AbstractGameEffect effect = seededFlyingOrb(points, false, 0f);
+        setFieldUnchecked(effect, FlyingOrbEffect.class, "img", null);
+
+        CountingBatch batch = newCountingBatch();
+        assertFalse("a missing img fails the draw open", renderer.render(batch, effect));
+        assertFalse("a missing img cannotDraw", renderer.canDraw(effect));
+    }
+
+    @Test
+    public void flyingOrbReadsItsOwnPointsViaTheDedicatedSnapshot() {
+        Sts1VfxArtRenderer.FlyingOrbFields f = Sts1VfxArtRenderer.readFlyingOrbFields(
+                seededFlyingOrb(new Vector2[] {null, new Vector2(5f, 6f)}, false, 12f));
+        assertNotNull(f);
+        assertNotNull(f.img);
+        assertEquals(12f, f.rotation, EPS);
+        assertEquals(2, f.points.length);
     }
 
     /**

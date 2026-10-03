@@ -3186,46 +3186,126 @@ public class Sts1VfxArtRendererTest {
     }
 
     @Test
-    public void stanceChangeAbsorptionRestoresRngOnAPostConsumptionFailOpen() {
-        // The multi-draw snapshot is taken ONCE before ANY pass: if pass 1's draw throws AFTER all
-        // four RNG values were pulled, the renderer must restore the stream so the native fallback
-        // consumes exactly the four values it expects and the global stream does not drift.
+    public void multiPassDrawThrowOnFirstPassFailsOpenAndRestoresRng() {
+        // NRO-04 B09 multi-pass failure contract, PRE-pass branch: if the FIRST pass's draw throws,
+        // NO pixels were painted, so the claim must draw nothing and fail open to native — and it
+        // must restore the RNG snapshot so native re-consumes exactly the values it expects.
         Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
         Texture previous = ImageMaster.WOBBLY_ORB_VFX;
         Texture injected = noGlTexture(32, 32);
         java.util.Random savedRandom = MathUtils.random;
-        com.badlogic.gdx.math.RandomXS128 rng = new com.badlogic.gdx.math.RandomXS128(777777L);
+        com.badlogic.gdx.math.RandomXS128 rng = new com.badlogic.gdx.math.RandomXS128(424242L);
         MathUtils.random = rng;
         try {
             setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", injected);
             AbstractGameEffect effect =
                     seededStanceChangeAbsorption(7.5f, -3.25f, 0.6f, 210f);
+
             long before0 = rng.getState(0);
             long before1 = rng.getState(1);
+            // Control: two RNG draws from a never-rendered stream of the same seed.
+            com.badlogic.gdx.math.RandomXS128 control =
+                    new com.badlogic.gdx.math.RandomXS128(424242L);
+            float control0 = control.nextFloat();
+            float control1 = control.nextFloat();
 
             CountingBatch batch = newCountingBatch();
-            batch.throwOnTextureDrawIndex = 1; // pass 1's draw
-            assertFalse("a pass-1 throw must fail open", renderer.render(batch, effect));
+            batch.throwOnTextureDrawIndex = 0; // pass 0's draw throws before painting
+            assertFalse("a first-pass throw must fail open to native",
+                    renderer.render(batch, effect));
+            assertEquals("no pixels are recorded on a pre-pass failure",
+                    0, batch.successfulTextureDraws);
 
-            assertEquals("RNG seed0 is restored after a post-consumption fail-open",
+            // The RNG stream is exactly where the pre-call control left it.
+            assertEquals("RNG seed0 is restored after a pre-pass fail-open",
                     before0, rng.getState(0));
-            assertEquals("RNG seed1 is restored after a post-consumption fail-open",
+            assertEquals("RNG seed1 is restored after a pre-pass fail-open",
                     before1, rng.getState(1));
+            assertEquals("the restored stream's first draw matches the control",
+                    control0, rng.nextFloat(), 0f);
+            assertEquals("the restored stream's second draw matches the control",
+                    control1, rng.nextFloat(), 0f);
+        } finally {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", previous);
+            MathUtils.random = savedRandom;
+        }
+    }
 
-            // A retry reproduces the FIRST four values of the stream, proving none were lost.
-            com.badlogic.gdx.math.RandomXS128 mirrorValueRng =
-                    new com.badlogic.gdx.math.RandomXS128(777777L);
-            float e0 = mirrorValueRng.nextFloat();
-            float e1 = mirrorValueRng.nextFloat();
-            float e2 = mirrorValueRng.nextFloat();
-            float e3 = mirrorValueRng.nextFloat();
-            CountingBatch okBatch = newCountingBatch();
-            assertTrue("the retry draws", renderer.render(okBatch, effect));
-            assertEquals(2, okBatch.drawCalls);
-            assertEquals(0.6f * (0.5f + e0 * 1.5f), okBatch.allTextureDrawArgs.get(0)[6], EPS);
-            assertEquals(0.6f * (0.5f + e1 * 1.5f), okBatch.allTextureDrawArgs.get(0)[7], EPS);
-            assertEquals(0.6f * (0.6f + e2 * 1.9f), okBatch.allTextureDrawArgs.get(1)[6], EPS);
-            assertEquals(0.6f * (0.6f + e3 * 1.9f), okBatch.allTextureDrawArgs.get(1)[7], EPS);
+    @Test
+    public void multiPassDrawThrowOnSecondPassKeepsClaimedFrameAndDoesNotRestoreRng() {
+        // NRO-04 B09 multi-pass failure contract, POST-pass branch: pass 0 painted pixels, then
+        // pass 1's draw throws. The claim must NOT restore the RNG (the drawn pass's consumption
+        // stands) and must return true so native never repaints all passes (no double-draw).
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Texture previous = ImageMaster.WOBBLY_ORB_VFX;
+        Texture injected = noGlTexture(32, 32);
+        java.util.Random savedRandom = MathUtils.random;
+        com.badlogic.gdx.math.RandomXS128 rng = new com.badlogic.gdx.math.RandomXS128(424242L);
+        MathUtils.random = rng;
+        try {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", injected);
+            AbstractGameEffect effect =
+                    seededStanceChangeAbsorption(7.5f, -3.25f, 0.6f, 210f);
+
+            long before0 = rng.getState(0);
+            long before1 = rng.getState(1);
+            // Control: the two values pass 0 consumes from the same seed.
+            com.badlogic.gdx.math.RandomXS128 control =
+                    new com.badlogic.gdx.math.RandomXS128(424242L);
+            float control0 = 0.5f + control.nextFloat() * (2.0f - 0.5f);
+            float control1 = 0.5f + control.nextFloat() * (2.0f - 0.5f);
+
+            CountingBatch batch = newCountingBatch();
+            batch.throwOnTextureDrawIndex = 1; // pass 1's draw throws after pass 0 painted
+            assertTrue("a post-pass throw must claim the frame (return true), not fail open",
+                    renderer.render(batch, effect));
+            assertEquals("exactly pass 0's pixels were recorded", 1, batch.successfulTextureDraws);
+            // Pass 0 was recorded with the first two RNG values from the control seed.
+            assertEquals(0.6f * control0, batch.allTextureDrawArgs.get(0)[6], EPS);
+            assertEquals(0.6f * control1, batch.allTextureDrawArgs.get(0)[7], EPS);
+            // The RNG was NOT restored: the stream advanced past the pre-call state (the four
+            // multi-pass values stand).
+            assertFalse("the stream must advance on a post-pass throw (not restored)",
+                    rng.getState(0) == before0 && rng.getState(1) == before1);
+        } finally {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", previous);
+            MathUtils.random = savedRandom;
+        }
+    }
+
+    @Test
+    public void multiPassDrawSuccessStillIssuesAllPasses() {
+        // NRO-04 B09 control: the pre-existing success behavior is unchanged — all passes draw,
+        // render returns true, and the RNG advanced (not restored) by exactly the four values.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        Texture previous = ImageMaster.WOBBLY_ORB_VFX;
+        Texture injected = noGlTexture(32, 32);
+        java.util.Random savedRandom = MathUtils.random;
+        com.badlogic.gdx.math.RandomXS128 rng = new com.badlogic.gdx.math.RandomXS128(424242L);
+        MathUtils.random = rng;
+        try {
+            setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", injected);
+            AbstractGameEffect effect =
+                    seededStanceChangeAbsorption(7.5f, -3.25f, 0.6f, 210f);
+
+            com.badlogic.gdx.math.RandomXS128 control =
+                    new com.badlogic.gdx.math.RandomXS128(424242L);
+            float control0 = 0.5f + control.nextFloat() * (2.0f - 0.5f);
+            float control1 = 0.5f + control.nextFloat() * (2.0f - 0.5f);
+            float control2 = 0.6f + control.nextFloat() * (2.5f - 0.6f);
+            float control3 = 0.6f + control.nextFloat() * (2.5f - 0.6f);
+
+            CountingBatch batch = newCountingBatch();
+            assertTrue("a successful multi-draw returns true", renderer.render(batch, effect));
+            assertEquals("both passes painted", 2, batch.successfulTextureDraws);
+            assertEquals(2, batch.drawCalls);
+            assertEquals(0.6f * control0, batch.allTextureDrawArgs.get(0)[6], EPS);
+            assertEquals(0.6f * control1, batch.allTextureDrawArgs.get(0)[7], EPS);
+            assertEquals(0.6f * control2, batch.allTextureDrawArgs.get(1)[6], EPS);
+            assertEquals(0.6f * control3, batch.allTextureDrawArgs.get(1)[7], EPS);
+            // The stream advanced by exactly four values: its next draw matches the control's 5th.
+            assertEquals("the success path does not restore the RNG",
+                    control.nextFloat(), rng.nextFloat(), 0f);
         } finally {
             setStaticField(ImageMaster.class, "WOBBLY_ORB_VFX", previous);
             MathUtils.random = savedRandom;
@@ -4222,6 +4302,8 @@ public class Sts1VfxArtRendererTest {
          * index (the multi-pass post-consumption fail-open test uses index 1, i.e. pass 1).
          */
         int throwOnTextureDrawIndex = -1;
+        /** Raw-texture draws that returned normally (i.e. actually painted), in call order. */
+        int successfulTextureDraws;
         /** Every raw-texture (shape-C) draw's arguments, in call order. Lazily allocated. */
         java.util.List<float[]> allTextureDrawArgs;
         /** Count of {@code draw(TextureRegion, ...)} (the packed-region shape) calls. */
@@ -4293,6 +4375,7 @@ public class Sts1VfxArtRendererTest {
             if (index == throwOnTextureDrawIndex) {
                 throw new IllegalStateException("post-RNG texture draw boom");
             }
+            successfulTextureDraws++;
             if (index == 0) {
                 drawnTexture = texture;
                 drawnArgs = new float[] {x, y, originX, originY, width, height,

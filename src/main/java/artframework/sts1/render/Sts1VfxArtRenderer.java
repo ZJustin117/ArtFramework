@@ -88,9 +88,10 @@ import java.lang.reflect.Field;
  * {@code Texture} TWICE with the SAME shape-C fixed rect (offset/origin {@code 16f}, size
  * {@code 32f&times;32f}, src {@code 0,0,32,32}, rotation offset {@code -200f}) and consumes four
  * {@code MathUtils.random(...)} values in order, replayed via
- * {@link VfxDrawGeometry#drawPassRandomRanges} (the shared RNG is snapshotted once and restored on
- * any post-consumption fail-open). With it, both {@code vfx-stance-aura} non-deterministic paths are
- * claimed.
+ * {@link VfxDrawGeometry#drawPassRandomRanges} (the shared RNG is snapshotted once; a PRE-pass
+ * fail-open restores it and fails open to native, while a POST-pass fail-open keeps the consumed
+ * stream and claims the frame so native never double-draws — see {@link #renderTexture}). With it,
+ * both {@code vfx-stance-aura} non-deterministic paths are claimed.
  * The two newest (F27) members are the {@code vfx-combat} {@code WaterSplashParticleEffect} and
  * {@code BuffParticleEffect}, both on the img ({@link TextureAtlas.AtlasRegion}) path and both
  * requiring the inherited {@code rotation} field. {@code WaterSplashParticleEffect} is AMBIENT
@@ -644,11 +645,13 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * Snapshot of the shared global RNG state for the current {@code MathUtils.random} instance, or
      * {@code null} when it is not a libGDX {@link com.badlogic.gdx.math.RandomXS128} (whose two seed
-     * longs fully determine the next draw). Taken BEFORE any RNG value is pulled so that a
-     * post-consumption fail-open can restore the stream exactly, keeping the seam's contract that a
-     * fail-open never advances the global RNG and a successful draw advances it exactly as often as
-     * the kind's native render does — the renderer snapshots here and restores on any
-     * post-consumption fail-open, while the number of advances per successful draw is the kind's
+     * longs fully determine the next draw). Taken BEFORE any RNG value is pulled so that a PRE-pass
+     * fail-open (no pixels painted yet) can restore the stream exactly, keeping the seam's contract
+     * that such a fail-open never advances the global RNG and a successful draw advances it exactly as
+     * often as the kind's native render does — the renderer snapshots here and restores on a PRE-pass
+     * fail-open only, while a POST-pass fail-open (at least one pass already painted) keeps the
+     * consumed stream and claims the frame instead (NRO-04 B09; see {@link #renderTexture}). The
+     * number of advances per successful draw is the kind's
      * {@link VfxDrawGeometry#randomRanges} plus {@link VfxDrawGeometry#drawPassRandomRanges} RNG-call
      * count ({@code 0} for the deterministic kinds, {@code 2} for {@code WRATH_STANCE_CHANGE}, and
      * {@code 4} for the multi-draw {@code STANCE_CHANGE_ABSORPTION}). Never throws.
@@ -1018,10 +1021,24 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      * non-empty (today only {@code STANCE_CHANGE_ABSORPTION}) issues several RNG-consuming draws. The
      * shared RNG state is snapshotted ONCE before any pass; then for each pass in order, each inner
      * range in order pulls one {@code MathUtils.random(min, max)} and multiplies into scaleX (first)
-     * then scaleY (second), and the pass's draw is replayed with those scales. A throw during any
-     * pass restores the snapshot (so a fail-open leaves the global stream untouched and native
-     * re-consumes it); the success path does not restore. Every other kind keeps the single-draw path
-     * (no RNG unless it is {@code WRATH_STANCE_CHANGE} on the img path).
+     * then scaleY (second), and the pass's draw is replayed with those scales.
+     *
+     * <p>MULTI-DRAW FAILURE CONTRACT (NRO-04 B09), which future variable-length/repeated-draw
+     * native kinds depend on:
+     * <ul>
+     *   <li><b>Pre-pass failure</b> (no pass has painted pixels yet — the very first
+     *       {@code sb.draw} throws): the claim draws NOTHING, restores the RNG snapshot so the native
+     *       fallback re-consumes exactly the values it expects, and returns {@code false} to fail
+     *       open to native.</li>
+     *   <li><b>Post-pass failure</b> (at least one pass already painted pixels): the claim has
+     *       produced pixels, so it must NOT also let native paint all passes (that would double-draw
+     *       the earlier passes). The drawn passes' RNG consumption must stand, so the snapshot is
+     *       NOT restored, and the method returns {@code true} — the instance is treated as
+     *       ART-owned for this frame (no native double-draw).</li>
+     * </ul>
+     * The single-draw path ({@code drawPasses.isEmpty()}) is unchanged: a single draw cannot
+     * partially succeed, so any throw restores the snapshot and fails open. Every other kind keeps
+     * the single-draw path (no RNG unless it is {@code WRATH_STANCE_CHANGE} on the img path).
      */
     private boolean renderTexture(SpriteBatch sb, VfxDrawGeometry.Kind kind,
             AbstractGameEffect effect) {
@@ -1117,10 +1134,15 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         // F25 MULTI-DRAW: kinds whose native render issues several RNG-consuming draws (today
         // StanceChangeAbsorptionParticle) expose an ordered per-pass range list; every other kind
         // returns an empty outer list and keeps the single-draw path (no RNG). The shared RNG state
-        // is snapshotted ONCE BEFORE any pass so a post-consumption throw can restore it exactly.
+        // is snapshotted ONCE BEFORE any pass; NRO-04 B09 restores it only for a PRE-pass failure
+        // (no pixels yet), while a POST-pass failure keeps the consumed stream and claims the frame.
         java.util.List<java.util.List<float[]>> drawPasses =
                 VfxDrawGeometry.drawPassRandomRanges(kind);
         long[] rngSnapshot = drawPasses.isEmpty() ? null : rngSnapshot();
+        // NRO-04 B09 multi-pass failure contract: true once a pass's draw has returned normally
+        // (i.e. painted pixels). Stays false for the single-draw path, whose catch keeps the
+        // original fail-open behavior (a single draw cannot partially succeed).
+        boolean drewAny = false;
         try {
             sb.setColor(resolveColor(kind, f.color));
             if (additive) {
@@ -1152,13 +1174,22 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                     sb.draw(texture, p.x, p.y, p.originX, p.originY, p.width, p.height,
                             scaleX, scaleY, p.rotation, srcX, srcY, srcW, srcH,
                             f.flipX, f.flipY);
+                    // The draw returned (no throw): this pass painted pixels, so the frame is now
+                    // at least partially ART-owned and a later throw must NOT let native repaint
+                    // the earlier passes (see the catch below).
+                    drewAny = true;
                 }
             }
             return true;
         } catch (Throwable ignored) {
-            // A throw after the per-pass RNG values were pulled must not leak RNG consumption:
-            // restore the single snapshot (taken before ANY pass) so the native fallback consumes
-            // exactly the values it expects.
+            // NRO-04 B09 multi-pass failure contract. POST-pass: an earlier pass already painted
+            // pixels, so keep the RNG consumption (do NOT restore) and claim the frame by returning
+            // true — native must not draw all passes again (partial draw + full native draw would
+            // double-draw). PRE-pass (including the single-draw path): nothing was painted, so
+            // restore the snapshot and fail open so native re-consumes exactly the values it needs.
+            if (drewAny) {
+                return true;
+            }
             restoreRng(rngSnapshot);
             return false;
         } finally {

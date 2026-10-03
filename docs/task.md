@@ -1233,6 +1233,33 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       contract (the old `unknownLifecycle == 1` assertion was the defect). Verified: the four
       recovery re-admission tests FAIL with the old `markStale`+`clear` body and PASS with the fix.
 
+- [x] NRO-04 B09 (explicit MULTI-PASS draw FAILURE CONTRACT for the claim seam, landed BEFORE any
+       new variable-length/repeated-draw native class joins): the F25 multi-draw path
+       (`VfxDrawGeometry.drawPassRandomRanges`, today only `STANCE_CHANGE_ABSORPTION`, 2 passes)
+       snapshots the shared RNG ONCE before the first pass, but the previous behavior restored the
+       snapshot and returned `false` on a throw during ANY pass — so a throw on a LATER pass after an
+       earlier pass already painted pixels made the caller fail open to the NATIVE render of the whole
+       effect, double-drawing the earlier ART pass (partial ART draw + full native draw). That was an
+       unstated, unsafe contract. Defined and implemented: **pre-pass failure** (no pixels painted yet,
+       i.e. the first `sb.draw` throws) → draw nothing, restore the RNG snapshot so native re-consumes
+       exactly the values it expects, and return `false` (fail open); **post-pass failure** (at least
+       one pass already painted pixels) → the drawn passes' RNG consumption must stand, so do NOT
+       restore, and return `true` (the instance is treated as ART-owned for this frame, so native never
+       repaints all passes — no double-draw). Implemented in `Sts1VfxArtRenderer.renderTexture`'s
+       multi-pass branch only, via `boolean drewAny = false;` set true immediately AFTER each successful
+       `sb.draw(...)`: the `catch (Throwable)` returns `true` without restoring when `drewAny`, else
+       restores and returns `false`. The single-draw path (`drawPasses.isEmpty()`) is unchanged (a
+       single draw cannot partially succeed). The method Javadoc now states the contract explicitly and
+       notes it is the precondition for future variable-length multi-draw kinds (the next slice,
+       FlyingOrbEffect, is a variable-length multi-draw kind). No `VfxDrawGeometry` formula change, no
+       new RNG for kinds that have none, no bridge/renderer side effects beyond the local boolean.
+       Tests in `Sts1VfxArtRendererTest` pin both branches (+ the success control):
+       `multiPassDrawThrowOnFirstPassFailsOpenAndRestoresRng` (returns `false`, zero pixels, stream
+       equals the never-rendered control),
+       `multiPassDrawThrowOnSecondPassKeepsClaimedFrameAndDoesNotRestoreRng` (returns `true`, exactly
+       one pixel pass, stream NOT restored), and `multiPassDrawSuccessStillIssuesAllPasses` (2 passes,
+       returns `true`, stream advanced). Focused no-GL JUnit only.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

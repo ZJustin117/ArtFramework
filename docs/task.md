@@ -954,6 +954,35 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       renderer/geometry/policy/F30 kind are unchanged; a focused no-GL test proves the lab
       `construct` path invokes `init`.
 
+- [x] NRO-04 A01 (make the runtime-initialized/pooled native-effect init contract explicit and
+      tested; F30/F30b hardening, no behavior change): new pure host-neutral
+      `artframework.sts1.render.VfxInitContract` (no libGDX/STS imports beyond
+      `VfxDrawGeometry.Kind`) exposes `requiresRuntimeInit(kind)` (true iff the native effect is
+      pooled and its draw fields are only set by a post-constructor initializer — today exactly
+      `Kind.CARD_TRAIL`, `null`/all else false), `initializerMethod(kind)` (`"init"` for
+      `CARD_TRAIL`, null otherwise), and `initializerArgs(kind)` (`{960f, 540f}` for `CARD_TRAIL`,
+      null otherwise; a FRESH array each call). Whole-repo audit result: among the 60 claimable
+      FQNs ONLY `com.megacrit.cardcrawl.vfx.CardTrailEffect` is a `com.badlogic.gdx.utils.Pool.
+      Poolable` (verified via `javap` on `$ART_STS_JAR`); every other claimable class is fully
+      initialized by its constructor. `VfxLabSpawn.construct`'s `CARD_TRAIL` branch now derives the
+      initializer name AND coordinates from the contract (still a direct `effect.init(a, b)` call
+      with the existing fail-open comment and try/catch; no reflective invocation) and DECLINES the
+      uninitialized instance (returns null → fail-open) if the contract no longer claims a
+      post-constructor initializer. New pure no-GL `VfxInitContractTest` covers the
+      representative set, a CROSS-SOURCE audit that iterates `VfxClaimPolicy.supportedClasses()`,
+      loads each claimable class WITHOUT initializing it (`Class.forName(fqn, false, loader)`),
+      computes `Pool.Poolable.class.isAssignableFrom(cls)`, asserts the pooled-claimable set EQUALS
+      exactly `{VfxClaimPolicy.CARD_TRAIL}`, and then checks the contract bidirectionally for every
+      claimed FQN (`requiresRuntimeInit(kindFor(fqn)) == poolableClaimed.contains(fqn)`) — so a new
+      pooled claimable added to the policy without updating the contract FAILS the build, and a
+      stale contract entry fails too; plus fresh-array semantics and a reflection contract-vs-native
+      check (`CardTrailEffect` implements `Pool.Poolable` and declares a public `init(float,float)`).
+      `VfxLabSpawnTest` gains a reflection test that ties the contract's initializer name to the real
+      native `CardTrailEffect.init(float,float)` method and resolves the lab wiring chain
+      (`classNameFor("cardtrail")`/`"trail"` → `kindFor` → `Kind.CARD_TRAIL` →
+      `requiresRuntimeInit` == true). No renderer, geometry formula, policy, claim, bridge/patch,
+      console, or other lab-entry behavior changed.
+
 - [x] NRM-12 Transient-effect memory bound (P0, STS1): `AbstractGameEffect.update()` is
       non-abstract and most concrete native effects override it without calling `super.update()`,
       so the class-level Postfix in `TransientEffectRenderPatches` only fires for the few that do.

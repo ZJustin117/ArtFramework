@@ -1,6 +1,8 @@
 package artframework.sts1.lab;
 
 import artframework.sts1.render.VfxClaimPolicy;
+import artframework.sts1.render.VfxDrawGeometry;
+import artframework.sts1.render.VfxInitContract;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import com.megacrit.cardcrawl.vfx.CardTrailEffect;
@@ -733,6 +735,24 @@ public class VfxLabSpawnTest {
         } finally {
             imgField.set(null, previousImg);
         }
+    }
+
+    @Test
+    public void cardTrailLabPathDrivesInitFromTheContract() throws Exception {
+        // Tie the contract to the REAL native method and prove the lab wiring chain end-to-end,
+        // purely by reflection (no construct invocation, no GL). The existing
+        // cardTrailLabConstructInitializesTheEffect test proves construct actually reaches init.
+        VfxDrawGeometry.Kind kind = VfxDrawGeometry.Kind.CARD_TRAIL;
+        String initializer = VfxInitContract.initializerMethod(kind);
+        assertEquals("init", initializer);
+        assertNotNull("CardTrailEffect must declare the contract's initializer method",
+                CardTrailEffect.class.getMethod(initializer, float.class, float.class));
+
+        // Lab wiring chain: alias -> policy FQN -> draw kind -> contract.
+        assertEquals(VfxDrawGeometry.Kind.CARD_TRAIL,
+                VfxDrawGeometry.kindFor(VfxLabSpawn.classNameFor("cardtrail")));
+        assertTrue(VfxInitContract.requiresRuntimeInit(
+                VfxDrawGeometry.kindFor(VfxLabSpawn.classNameFor("trail"))));
     }
 
     private static void assertSpawnRequests(String alias, String expectedFqn) {

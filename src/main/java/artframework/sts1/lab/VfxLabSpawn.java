@@ -1,6 +1,8 @@
 package artframework.sts1.lab;
 
 import artframework.sts1.render.VfxClaimPolicy;
+import artframework.sts1.render.VfxDrawGeometry;
+import artframework.sts1.render.VfxInitContract;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
@@ -794,10 +796,22 @@ public final class VfxLabSpawn {
             // obtained then init(x, y) is called, which sets duration/startingDuration/x/y/color
             // (from AbstractDungeon.player.getCardTrailColor())/scale and isDone=false. The lab must
             // init too so color is non-null (the renderer requires a Color) and x/y match the lab
-            // point. init reads AbstractDungeon.player, which may be null off-game, so any failure is
-            // caught by spawn's fail-open guard rather than propagating.
+            // point. The method name and coordinates are the single-source-of-truth
+            // VfxInitContract: if the contract ever stops claiming a post-constructor initializer
+            // (or renames it), this path DECLINES the uninitialized instance (fail-open) rather than
+            // presenting a null-color effect. init reads AbstractDungeon.player, which may be null
+            // off-game, so any failure is caught by spawn's fail-open guard rather than propagating.
+            VfxDrawGeometry.Kind kind = VfxDrawGeometry.Kind.CARD_TRAIL;
+            String initializer = VfxInitContract.initializerMethod(kind);
+            float[] initArgs = VfxInitContract.initializerArgs(kind);
+            if (!VfxInitContract.requiresRuntimeInit(kind)
+                    || !"init".equals(initializer)
+                    || initArgs == null
+                    || initArgs.length < 2) {
+                return null;
+            }
             CardTrailEffect effect = new CardTrailEffect();
-            effect.init(960f, 540f);
+            effect.init(initArgs[0], initArgs[1]);
             return effect;
         }
         return null;

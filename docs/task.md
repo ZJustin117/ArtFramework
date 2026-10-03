@@ -1012,10 +1012,59 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `super.update()`, but D1 showed it was **worse than the memory it bounded and was REMOVED**:
       live effects were rejected as terminal every frame — `rejectedTerminal` (== `unknownLifecycle`)
       grew ~1 per observed render (~5k/s), `rendered`/`total` froze, and `nativeRenderStrict.accepted`
-      stayed `false` (strict requires `transientEffectUNKNOWN == 0`). `TransientEffectContainerPatches`
-      is back to the render-only instrument, and completion observation remains the class-level
-      `AbstractGameEffect.update()` Postfix in `TransientEffectRenderPatches` (unchanged). No on-device
-      completion-observation improvement is claimed.
+      stayed `false` (strict requires `transientEffectUNKNOWN == 0`). That failure was a LIFECYCLE
+      mistake (the old instrument re-applied/called `update()` and mis-observed), not a defect of
+      observing completion at the container; it also predated the NRM-13 non-reusable identity fix.
+
+- [x] NRM-12b / NRO-04 A04 (container AFTER-update DETACH observation, superless effects):
+      the completion-observation gap for effects whose `update()` does NOT call `super.update()` is
+      handled by a container-level instrument. `TransientEffectContainerPatches
+      .ObserveContainerEffectUpdates` instruments `AbstractDungeon.update()` and, for every
+      `AbstractGameEffect.update()` call site, emits `$proceed($$)` followed by
+      `observeAfterUpdate($0)` — so the native update runs exactly as before and only the
+      POST-update `isDone` is observed. `observeAfterUpdate` delegates to
+      `NativeRenderBridge.observeEffectUpdateDetached`, which DETACHES: when the effect reports
+      `isDone` it drops the active record via `TransientEffectLedger.detach(identity)` WITHOUT
+      retaining a terminal record, then cleans up the projected entity and runs the projection tail.
+      Detach does not touch `recent`/`staleIdentities`/`total`/`completed`; it never throws, and
+      honors the panic fail-open. It does NOT re-apply or duplicate the native update and does NOT
+      change identity/admission.
+
+      **Why detach and not complete (the D1 rework):** container `isDone` is NOT a reliable
+      end-of-life signal. D1 reproduced the regression with the gate OFF: `observeAfterUpdate`
+      completed the record (`updateIfActive` → `complete` → `retainRecent`), but the object was
+      STILL rendered by native `AbstractDungeon.render` (not yet removed, or re-added), so each
+      subsequent render hit `admitRender`'s terminal branch and incremented `rejectedTerminal`/
+      `unknownLifecycle` (~3800/s), froze `total`/`completed` at the 256 `recent` window, and made
+      `nativeRenderStrict.accepted` permanently false. The retained-terminal approach is therefore
+      wrong for the container path; detaching lets a later render of the same object be re-admitted
+      as a fresh active record instead of rejected. This is also why the earlier removed attempt
+      failed. The `Pool.Poolable` exclusion did not help because the rejecting objects are
+      non-pooled.
+
+      **Class-level Postfix unchanged:** `observeEffectUpdate` (used only by the
+      `AbstractGameEffect.update()` Postfix in `TransientEffectRenderPatches` for subclasses that
+      call `super.update()`) still COMPLETES and retains a terminal record; that is safe because a
+      super-calling effect that reports done is treated as genuinely finished.
+
+      **Pooled exclusion retained:** `com.badlogic.gdx.utils.Pool.Poolable` effects are excluded
+      from BOTH the complete and the detach paths (early return before `effectIdentity`): a pooled
+      object is recycled (re-`init`ed and rendered again), so it must simply stay active and be
+      re-admitted on reuse (e.g. `CardTrailEffect`). Memory stays bounded by the detach/drop plus the
+      active/recent capacities as defense-in-depth. Only `detach` was ADDED to the ledger; no
+      `admitRender`/`complete`/`dispose`/`update`/`updateIfActive` semantics or identity code
+      changed.
+
+      **A04c D1 native flakiness observation (not attributed to this slice):** during a first soak
+      burst, `java.lang.NullPointerException` occurred once at
+      `com.megacrit.cardcrawl.dungeons.AbstractDungeon.render(AbstractDungeon.java:2673)` (a null
+      element in `effectList` during the native render traversal); at the crash all transient ledger
+      counters were 0 (no `rejectedTerminal`/`unknownLifecycle`/`leaked`). The game was recovered and
+      a full 8-burst retry soak plus the 148-step `d1_aura_claim` scenario ran clean, so the crash did
+      not reproduce. The same `AbstractDungeon.render` NPE signature also appears in historical
+      (2026-08-05) harness artifacts unrelated to this slice, so it is recorded as host-side/native
+      flakiness and NOT attributed to A04/A04c.
+
 
 - [x] NRM-13 Transient-effect identity (P0 follow-up, STS1): the original `instanceId` was
       `class@Integer.toHexString(System.identityHashCode(effect))`, and `identityHashCode` values are
@@ -1116,6 +1165,20 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       the one native + two ART frame PNGs plus their probe metadata are the artifacts for
       INDEPENDENT VISUAL REVIEW, and repeatability is asserted at the counter level instead. YAML +
       docs only (no runner change); reused by later family slices.
+
+- [x] NRO-04 A04 (container AFTER-update DETACH observation for superless effects): closed the NRM-12
+      gap without re-applying update and without retaining a terminal record. `TransientEffectContainerPatches
+      .ObserveContainerEffectUpdates` instruments `AbstractDungeon.update()` and wraps each
+      `AbstractGameEffect.update()` call site as `$proceed($$); observeAfterUpdate($0);` so the
+      native update runs unchanged and only the POST-update `isDone` is observed via
+      `NativeRenderBridge.observeEffectUpdateDetached` → `TransientEffectLedger.detach(identity)`
+      (never calls update; no identity/admission change). Detach drops the active record without a
+      terminal record so a still-rendered/re-added object re-admits instead of being rejected — D1
+      showed the retained-terminal version spiked `rejectedTerminal`/`unknownLifecycle` (~3800/s),
+      froze `total`/`completed`, and made strict false with the gate OFF. Contrast with the removed
+      `observeThenUpdate` attempt, which re-applied update. The class-level `super.update()` Postfix
+      still completes/retains; POOLED (`Pool.Poolable`) effects are excluded from both paths. Only
+      `TransientEffectLedger.detach` was added. See the NRM-12b/A04 note above.
 
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See

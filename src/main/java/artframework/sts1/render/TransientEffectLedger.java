@@ -171,6 +171,28 @@ public final class TransientEffectLedger {
         return active != null && sameIdentity(active.identity, identity);
     }
 
+    /**
+     * Removes an active record WITHOUT retaining a terminal record (container observation detach).
+     *
+     * <p>Used by the container AFTER-update observation path, where {@code isDone} is not a reliable
+     * end-of-life signal: the object may still be rendered (not yet removed, or re-added) after it
+     * reports done. Retaining a terminal record would then make its next render a terminal
+     * rejection (under NRM-13 sticky per-object ids) and inflate {@code rejectedTerminal}/
+     * {@code unknownLifecycle} once per render. Detaching simply drops the active record so a later
+     * render of the same object is re-admitted as a fresh active record; memory stays bounded
+     * because the active record is released.
+     *
+     * <p>Does not touch {@code recent}, {@code staleIdentities}, {@code totalCount}, or the
+     * completed count. Returns {@code true} only when an active record for {@code identity} was
+     * present and removed; {@code false} for a null/absent/terminal identity. Never throws.
+     */
+    public synchronized boolean detach(TransientEffectIdentity identity) {
+        if (identity == null) return false;
+        MutableRecord active = records.get(identity.instanceId);
+        if (active == null || !sameIdentity(active.identity, identity)) return false;
+        return removeActive(active);
+    }
+
     public synchronized void complete(TransientEffectIdentity identity) {
         MutableRecord record = record(identity);
         if (record == null) return;

@@ -986,10 +986,11 @@ public class NativeRenderBridgeTest {
     /**
      * Completion observation via the retained class-level {@code AbstractGameEffect#update()}
      * Postfix (whose body is {@link NativeRenderBridge#observeEffectUpdate}) reclaims an active
-     * record for an effect that DOES call {@code super.update()}. This is the only completion
-     * path now that the container {@code AbstractDungeon.update} instrument has been removed; the
-     * real ModTheSpire Postfix wiring is proven on-device, so this test drives the Postfix body
-     * directly (the native {@code super.update()} body touches {@code Gdx.graphics} and cannot run
+     * record for an effect that DOES call {@code super.update()}. This is one of two completion
+     * observation paths: the container {@code AbstractDungeon.update} AFTER-update instrument covers
+     * superless effects (see {@link TransientEffectContainerPatches#observeAfterUpdate}). The real
+     * ModTheSpire Postfix wiring is proven on-device, so this test drives the Postfix body directly
+     * (the native {@code super.update()} body touches {@code Gdx.graphics} and cannot run
      * off-device).
      */
     @Test
@@ -1005,6 +1006,234 @@ public class NativeRenderBridgeTest {
                 Integer.valueOf(0), transientEffects().get("active"));
         assertEquals(Integer.valueOf(1), transientEffects().get("total"));
         assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+    }
+
+    /**
+     * Container {@code AbstractDungeon.update()} AFTER-update observation
+     * ({@link TransientEffectContainerPatches#observeAfterUpdate}) DETACHES an active record for a
+     * superless effect (one whose {@code update()} does NOT call {@code super.update()}, so the
+     * class-level Postfix never fires) when it reports done. Detach drops the active record WITHOUT
+     * retaining a terminal record, because container {@code isDone} is not a reliable end signal
+     * (the object may still render/re-add). The real ModTheSpire instrumentation is proven
+     * on-device, so this test drives the generated helper body directly.
+     */
+    @Test
+    public void containerAfterUpdateObservationDetachesSuperlessCompletedEffect() {
+        SuperlessEffect effect = superlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        effect.isDone = true;
+        TransientEffectContainerPatches.observeAfterUpdate(effect);
+
+        assertEquals("done=true observation must release the active record",
+                Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals("detach must NOT retain a terminal record",
+                Integer.valueOf(0), transientEffects().get("recent"));
+        assertEquals("detach must NOT advance the completion total",
+                Integer.valueOf(0), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("leaked"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("failOpen"));
+    }
+
+    /**
+     * KEY regression: a superless object that is still rendered after it reported done must be
+     * RE-ADMITTED on its next render, not rejected as terminal. This FAILS if the container path
+     * retains a terminal record (the D1 regression) instead of detaching.
+     */
+    @Test
+    public void containerCompletedObjectReRenderIsAdmittedNotRejected() {
+        SuperlessEffect effect = superlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        effect.isDone = true;
+        TransientEffectContainerPatches.observeAfterUpdate(effect);
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+
+        // The native AbstractDungeon.render traversal renders the same object again.
+        effect.isDone = false;
+        RenderDisposition reRender = NativeRenderBridge.beginEffectRender(effect, "render-again");
+
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, reRender.mode);
+        assertEquals("a still-rendered object must be re-admitted as active",
+                Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals("re-render must never be a terminal rejection",
+                Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("failOpen"));
+    }
+
+    @Test
+    public void containerAfterUpdateObservationLeavesLiveEffectActive() {
+        SuperlessEffect effect = superlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        effect.isDone = false;
+        TransientEffectContainerPatches.observeAfterUpdate(effect);
+
+        assertEquals("a live effect stays active across observation",
+                Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+    }
+
+    @Test
+    public void containerAfterUpdateObservationIsIdempotentAfterDetach() {
+        SuperlessEffect effect = superlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        effect.isDone = true;
+        TransientEffectContainerPatches.observeAfterUpdate(effect);
+
+        for (int frame = 0; frame < 3; frame++) {
+            TransientEffectContainerPatches.observeAfterUpdate(effect);
+        }
+
+        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals("re-observation after detach must not create a terminal record",
+                Integer.valueOf(0), transientEffects().get("recent"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("failOpen"));
+        assertEquals("re-observation after detach must not inflate unknownLifecycle",
+                Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+    }
+
+    @Test
+    public void containerAfterUpdateObservationIsNullSafe() {
+        // Baseline: no counters move at all.
+        int active = ((Number) transientEffects().get("active")).intValue();
+        int total = ((Number) transientEffects().get("total")).intValue();
+        int failOpen = ((Number) transientEffects().get("failOpen")).intValue();
+        int unknown = ((Number) transientEffects().get("unknownLifecycle")).intValue();
+
+        TransientEffectContainerPatches.observeAfterUpdate(null);
+
+        assertEquals(Integer.valueOf(active), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(total), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(failOpen), transientEffects().get("failOpen"));
+        assertEquals(Integer.valueOf(unknown), transientEffects().get("unknownLifecycle"));
+    }
+
+    /**
+     * Structural guard for the container instrument target. Real javassist instrumentation cannot
+     * run offline, so this asserts the extracted targeting predicate and replacement body directly:
+     * it can actually FAIL if the instrument targets the wrong method/class/signature or drops
+     * {@code $proceed($$)} / the observation.
+     */
+    @Test
+    public void containerUpdateInstrumentTargetsTheNativeUpdateSignature() throws Exception {
+        Class<?> patchClass = Class.forName(
+                "artframework.sts1.patch.TransientEffectContainerPatches$ObserveContainerEffectUpdates");
+        java.lang.reflect.Method observe = TransientEffectContainerPatches.class.getMethod(
+                "observeAfterUpdate", AbstractGameEffect.class);
+        assertTrue("observeAfterUpdate must be public static",
+                java.lang.reflect.Modifier.isPublic(observe.getModifiers())
+                        && java.lang.reflect.Modifier.isStatic(observe.getModifiers()));
+
+        // The native update call site is matched exactly.
+        assertTrue(TransientEffectContainerPatches.ObserveContainerEffectUpdates
+                .isNativeEffectUpdateCall(
+                        "update", "com.megacrit.cardcrawl.vfx.AbstractGameEffect", "()V"));
+        // Wrong method, class, signature, and null/blank inputs are all rejected.
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectUpdates
+                .isNativeEffectUpdateCall(
+                        "render", "com.megacrit.cardcrawl.vfx.AbstractGameEffect", "()V"));
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectUpdates
+                .isNativeEffectUpdateCall("update", "com.example.Other", "()V"));
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectUpdates
+                .isNativeEffectUpdateCall(
+                        "update", "com.megacrit.cardcrawl.vfx.AbstractGameEffect", "(F)V"));
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectUpdates
+                .isNativeEffectUpdateCall(null, null, null));
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectUpdates
+                .isNativeEffectUpdateCall("", "  ", ""));
+
+        // The replacement must run the native update and then observe, never re-apply update.
+        String body = TransientEffectContainerPatches.ObserveContainerEffectUpdates.replacementBody();
+        assertTrue("the native update must still run", body.contains("$proceed($$)"));
+        assertTrue("the observation must follow the native update",
+                body.contains("observeAfterUpdate($0)"));
+        assertFalse("the replacement must never directly call update(",
+                body.contains(".update("));
+
+        java.lang.reflect.Method instrument = patchClass.getMethod("Instrument");
+        assertNotNull("the container update instrument must expose an ExprEditor",
+                instrument.invoke(null));
+
+        TransientEffectContainerPatches.ObserveContainerEffectUpdates instrumentInstance =
+                new TransientEffectContainerPatches.ObserveContainerEffectUpdates();
+        assertNotNull(instrumentInstance);
+    }
+
+    /**
+     * A POOLED superless effect: {@code Pool.Poolable} and overriding {@code update()} without
+     * calling {@code super.update()}. This mirrors native STS effects such as {@code CardTrailEffect}
+     * that are recycled (same object re-`init`ed and rendered again), which is the exact case the
+     * pooled observation skip exists for.
+     */
+    private static final class PoolableSuperlessEffect extends AbstractGameEffect
+            implements com.badlogic.gdx.utils.Pool.Poolable {
+        @Override
+        public void render(SpriteBatch sb) {
+        }
+
+        @Override
+        public void dispose() {
+        }
+
+        @Override
+        public void update() {
+        }
+
+        @Override
+        public void reset() {
+        }
+    }
+
+    @Test
+    public void containerAfterUpdateObservationDoesNotCompletePooledEffect() {
+        PoolableSuperlessEffect effect = new PoolableSuperlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        effect.isDone = true;
+        TransientEffectContainerPatches.observeAfterUpdate(effect);
+
+        assertEquals("a pooled effect must stay active (never move to recent)",
+                Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("total"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("failOpen"));
+    }
+
+    /**
+     * The exact pooled regression: after a pooled effect reports done and is observed, its REUSE
+     * must be re-admitted as active, not rejected as a terminal observation. This test FAILS if the
+     * {@code Pool.Poolable} skip is removed from the observation paths (complete OR detach).
+     */
+    @Test
+    public void pooledEffectReuseAfterUpdateObservationIsNotRejected() {
+        PoolableSuperlessEffect effect = new PoolableSuperlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        effect.isDone = true;
+        TransientEffectContainerPatches.observeAfterUpdate(effect);
+
+        // Simulate pool reuse: same object, reset then rendered again.
+        effect.reset();
+        effect.isDone = false;
+        NativeRenderBridge.beginEffectRender(effect, "render-reuse");
+
+        assertEquals("reuse of a pooled object stays admitted as active",
+                Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("failOpen"));
     }
 
     @Test

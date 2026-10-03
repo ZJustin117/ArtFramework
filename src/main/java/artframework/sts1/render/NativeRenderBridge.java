@@ -736,19 +736,61 @@ public final class NativeRenderBridge {
     public static void observeEffectUpdate(
             com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
         if (PresentSafety.isPanic()) return;
+        // A pooled effect is RECYCLED: the same object is re-`init` and rendered again after it
+        // completes. With the NRM-13 sticky per-object instanceId, completing it would move its
+        // record into `recent`; its next reuse would then re-admit under the same id and be
+        // rejected as a terminal observation (rejectedTerminal/unknownLifecycle ~1 per recycled
+        // render). Pooled objects therefore stay active (not completed) and are simply re-admitted
+        // on reuse, bounded by the pool size (and the 4096 caps as defense-in-depth). This applies
+        // to BOTH the class-level Postfix path and the container detached path below.
+        if (effect instanceof com.badlogic.gdx.utils.Pool.Poolable) return;
         TransientEffectIdentity identity = effectIdentity(effect);
         if (identity == null) return;
         // Reached from the class-level AbstractGameEffect.update() Postfix in
-        // TransientEffectRenderPatches (the container AbstractDungeon.update instrument was
-        // removed). updateIfActive performs the check and the update under one lock, so a
-        // no-longer-active instance never surfaces "update after effect termination" from an
-        // observation path. The projected entity is reclaimed once, on the observation that
-        // actually terminates the instance, and the projection tail always runs so a pending
-        // projection is never stranded.
+        // TransientEffectRenderPatches for subclasses that call super.update(). This path COMPLETES
+        // (and retains a terminal record): a super-calling effect that reports isDone is treated as
+        // genuinely finished, so its projected entity is reclaimed once. The container AFTER-update
+        // path for superless effects uses observeEffectUpdateDetached instead, because container
+        // isDone is not a reliable end signal. updateIfActive performs the check and the update
+        // under one lock, so a no-longer-active instance never surfaces "update after effect
+        // termination" from an observation path.
         if (EFFECT_LEDGER.updateIfActive(identity, effect.isDone) && effect.isDone) {
             EFFECT_REGISTRY.cleanup(identity);
         }
         projectPendingEffectsOncePerFrame();
+    }
+
+    /**
+     * Container AFTER-update completion observation for effects whose {@code update()} does NOT
+     * call {@code super.update()} (so the class-level Postfix never fires).
+     *
+     * <p>Unlike {@link #observeEffectUpdate}, this path DETACHES: when the effect reports
+     * {@code isDone} it drops the active record WITHOUT retaining a terminal record. Container
+     * {@code isDone} is not a reliable end-of-life signal — the native {@code AbstractDungeon.render}
+     * traversal may still render the object (not yet removed, or re-added), and under the NRM-13
+     * sticky per-object ids a retained terminal record would make that next render a terminal
+     * rejection ({@code rejectedTerminal}/{@code unknownLifecycle} once per render, freezing
+     * {@code total}/{@code completed}). Detaching lets a later render of the same object re-admit as
+     * a fresh active record; memory stays bounded because the active record is released. Any
+     * observation failure is swallowed (counted as fail-open) so the native update path is never
+     * interrupted.
+     */
+    public static void observeEffectUpdateDetached(
+            com.megacrit.cardcrawl.vfx.AbstractGameEffect effect) {
+        if (PresentSafety.isPanic()) return;
+        // Pooled effects are excluded for the same reason as observeEffectUpdate: a recycled object
+        // must not be moved into a terminal state, so its record stays active and is re-admitted.
+        if (effect instanceof com.badlogic.gdx.utils.Pool.Poolable) return;
+        try {
+            TransientEffectIdentity identity = effectIdentity(effect);
+            if (identity == null) return;
+            if (effect.isDone && EFFECT_LEDGER.detach(identity)) {
+                EFFECT_REGISTRY.cleanup(identity);
+            }
+            projectPendingEffectsOncePerFrame();
+        } catch (Throwable error) {
+            recordEffectObservationFailure();
+        }
     }
 
     public static void observeEffectDispose(

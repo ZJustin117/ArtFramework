@@ -396,6 +396,41 @@ public class TransientEffectLedgerTest {
     }
 
     @Test
+    public void detachRemovesActiveWithoutRetainingTerminal() {
+        TransientEffectLedger ledger = new TransientEffectLedger(2);
+        TransientEffectIdentity effect = identity("detached");
+        assertTrue(ledger.admitRender(effect));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.activeCount()));
+
+        assertTrue("detach removes the active record", ledger.detach(effect));
+
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
+        assertEquals("detach must not retain a terminal record",
+                Integer.valueOf(0), Integer.valueOf(ledger.recentCount()));
+        assertEquals("detach must not advance the completion total",
+                Integer.valueOf(0), Integer.valueOf(ledger.totalCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.evictedCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeEvictedCount()));
+
+        // The SAME identity is re-admitted on its next render — not rejected as terminal.
+        assertTrue("a detached (still-live) object re-admits normally",
+                ledger.admitRender(effect));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(
+                ledger.rejectedTerminalObservationCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.unknownLifecycleCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.activeCount()));
+
+        // Absent/terminal/null identities: false, no throw, no counter movement.
+        assertFalse(ledger.detach(null));
+        assertFalse(ledger.detach(identity("never-created")));
+        ledger.complete(effect);
+        assertFalse("a terminal identity is not detachable", ledger.detach(effect));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.recentCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.totalCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.unknownLifecycleCount()));
+    }
+
+    @Test
     public void recordsAreImmutableSnapshotsAndCannotChangeLedgerAccounting() {
         TransientEffectLedger ledger = new TransientEffectLedger();
         TransientEffectIdentity effect = identity("immutable");

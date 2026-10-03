@@ -255,6 +255,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.CardTrailEffect";
     public static final String FLYING_ORB =
             "com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect";
+    public static final String FLICK_COIN =
+            "com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -273,7 +275,7 @@ public final class VfxClaimPolicy {
                     FALLING_ICE, DAMAGE_HEART, SPOOKY_CHEST, IRONCLAD_VICTORY_FLAME,
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
-                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB));
+                    BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN));
 
     private VfxClaimPolicy() {}
 
@@ -342,7 +344,8 @@ public final class VfxClaimPolicy {
                 || GIANT_FIRE.equals(value)
                 || TORCH_HEAD_FIRE.equals(value)
                 || CARD_TRAIL.equals(value)
-                || FLYING_ORB.equals(value);
+                || FLYING_ORB.equals(value)
+                || FLICK_COIN.equals(value);
     }
 
     /**
@@ -527,6 +530,19 @@ public final class VfxClaimPolicy {
      * A freshly lab-spawned instance's ctor allocates {@code points = new Vector2[60]} (a length-60
      * array of nulls that {@code update()} fills), so it draws nothing until {@code update()} runs.
      * Appended LAST after {@code CardTrailEffect};
+     * no new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+     * unchanged.
+     * The newest (NRO-04 B02) member is the {@code vfx-combat} {@code FlickCoinEffect} (fields
+     * {@code float sX, sY, cX, cY, dX, dY, yOffset, bounceHeight, rotation}, {@code boolean
+     * playedSfx}, {@code float sparkleTimer}, a static {@code TextureAtlas.AtlasRegion img} set in
+     * the ctor from {@code ImageMaster.vfxAtlas.findRegion("combat/empowerCircle1")}, plus the
+     * inherited {@code color} and {@code scale}). It has NO {@code x}/{@code y} field: its native
+     * draw POSITION is {@code (cX - img.packedWidth / 2, cY - img.packedHeight / 2 + yOffset)} (the
+     * half uses native INTEGER division of the packed size) while its ORIGIN uses native FLOAT
+     * division ({@code packed/2f}; the two differ by {@code 0.5} for an odd region), and its draw
+     * scale is ANISOTROPIC ({@code scaleX = scale * 0.7f}, {@code scaleY = scale * 0.4f}), ADDITIVE,
+     * with the effect's own {@code rotation} field and draw color. Its single draw has NO
+     * {@code isDone} guard. Appended LAST after {@code FlyingOrbEffect};
      * no new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
      * unchanged.
      */

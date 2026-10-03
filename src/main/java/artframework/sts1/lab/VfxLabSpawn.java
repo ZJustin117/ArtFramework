@@ -30,6 +30,7 @@ import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FallingIceEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
+import com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlyingSpikeEffect;
 import com.megacrit.cardcrawl.vfx.combat.GiantFireEffect;
@@ -132,7 +133,11 @@ import java.util.function.Predicate;
  * allocates {@code points = new Vector2[60]} (a length-60 array of nulls), so a freshly spawned
  * instance draws nothing until {@code update()} fills it) into the
  * live STS effect containers so
- * a device-side lab run can exercise the family without combat.
+ * a device-side lab run can exercise the family without combat. The newest (NRO-04 B02) member is
+ * the {@code vfx-combat} {@code FlickCoinEffect} (a single-draw img/AtlasRegion kind with a
+ * dedicated {@code cX}/{@code cY}/{@code yOffset} position reader, an integer-half position offset,
+ * a float-half origin, and an anisotropic scale 0.7f/0.4f; ctor {@code (float, float, float, float)};
+ * its static {@code img} comes from {@code ImageMaster.vfxAtlas} and may be null off-game).
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -351,6 +356,11 @@ public final class VfxLabSpawn {
         }
         if ("flyingorb".equalsIgnoreCase(value) || "orb".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.FLYING_ORB;
+        }
+        // NRO-04 B02: FlickCoinEffect's static img comes from ImageMaster.vfxAtlas and may be null
+        // off-game; the construct path is behind the existing fail-open guard.
+        if ("flickcoin".equalsIgnoreCase(value) || "coin".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FLICK_COIN;
         }
         return null;
     }
@@ -835,6 +845,14 @@ public final class VfxLabSpawn {
             // it for observation/lifecycle, and the true draw path is covered by the unit tests with a
             // synthetic points array.
             return new FlyingOrbEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.FLICK_COIN.equals(fqn)) {
+            // Safe lab defaults: the ctor is (float sX, float sY, float dX, float dY) and sets
+            // cX=sX, cY=sY; passing the same center point for both keeps it centered. Its static img
+            // comes from ImageMaster.vfxAtlas.findRegion("combat/empowerCircle1") and may be null
+            // outside a live game; any failure is caught by spawn's fail-open guard rather than
+            // propagating.
+            return new FlickCoinEffect(960f, 540f, 960f, 540f);
         }
         return null;
     }

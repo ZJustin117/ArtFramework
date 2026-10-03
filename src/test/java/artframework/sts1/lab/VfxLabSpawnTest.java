@@ -172,6 +172,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("trail"));
         assertEquals(VfxClaimPolicy.FLYING_ORB, VfxLabSpawn.classNameFor("flyingorb"));
         assertEquals(VfxClaimPolicy.FLYING_ORB, VfxLabSpawn.classNameFor("orb"));
+        assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("flickcoin"));
+        assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("coin"));
     }
 
     @Test
@@ -272,6 +274,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.TORCH_HEAD_FIRE, VfxLabSpawn.classNameFor("TORCHHEAD"));
         assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("  CaRdTrAiL "));
         assertEquals(VfxClaimPolicy.CARD_TRAIL, VfxLabSpawn.classNameFor("TRAIL"));
+        assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("  FlIcKcOiN "));
+        assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("COIN"));
     }
 
     @Test
@@ -698,6 +702,15 @@ public class VfxLabSpawnTest {
         // static img may be null off-game). "flyingorb"/"orb" do not collide with any existing alias.
         assertSpawnRequests("flyingorb", VfxClaimPolicy.FLYING_ORB);
         assertSpawnRequests("orb", VfxClaimPolicy.FLYING_ORB);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheB02FlickCoinThroughTheFactorySeam() {
+        // The newest (NRO-04 B02) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the ctor (whose static img comes from ImageMaster.vfxAtlas
+        // and may be null off-game). "flickcoin"/"coin" do not collide with any existing alias.
+        assertSpawnRequests("flickcoin", VfxClaimPolicy.FLICK_COIN);
+        assertSpawnRequests("coin", VfxClaimPolicy.FLICK_COIN);
     }
 
     @Test

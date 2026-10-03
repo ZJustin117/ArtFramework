@@ -20,6 +20,7 @@ import com.megacrit.cardcrawl.vfx.combat.BlockImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect;
+import com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect;
 import com.megacrit.cardcrawl.vfx.combat.SmokeBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.UnknownParticleEffect;
@@ -679,6 +680,25 @@ public class Sts1VfxArtRendererTest {
         private float x;
         private float y;
         private float aV;
+    }
+
+    /**
+     * {@code FlickCoinEffect} layout: {@code cX}/{@code cY}/{@code yOffset} (NOT {@code x}/{@code y})
+     * plus the static {@code img}; the inherited {@code scale}/{@code rotation}/{@code color} come
+     * from {@link BaseEffect}.
+     */
+    static class FlickCoinEffectHolder extends BaseEffect {
+        private float cX;
+        private float cY;
+        private float yOffset;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** {@code FlickCoinEffect} layout missing {@code img}. */
+    static class FlickCoinNoImgEffect extends BaseEffect {
+        private float cX;
+        private float cY;
+        private float yOffset;
     }
 
     @Test
@@ -5934,5 +5954,136 @@ public class Sts1VfxArtRendererTest {
         assertFalse(VfxArtRenderer.render(null, null));
         assertFalse("no adapter installed means canDraw is false",
                 VfxArtRenderer.canDraw(null));
+    }
+
+    // --- NRO-04 B02 FlickCoinEffect: dedicated cX/cY/yOffset reader + anisotropic single draw ---
+
+    /** A holder seeded as a FlickCoinEffect (cX/cY/yOffset + static img). */
+    private static FlickCoinEffectHolder flickCoin(float cX, float cY, float yOffset,
+            float scale, float rotation, Color color, TextureAtlas.AtlasRegion img) {
+        FlickCoinEffectHolder effect = new FlickCoinEffectHolder();
+        effect.cX = cX;
+        effect.cY = cY;
+        effect.yOffset = yOffset;
+        effect.scale = scale;
+        effect.rotation = rotation;
+        effect.color = color;
+        effect.img = img;
+        return effect;
+    }
+
+    /**
+     * Real {@code FlickCoinEffect} with reflectively seeded {@code cX}/{@code cY}/{@code yOffset} and
+     * its own {@code rotation} (the class declares it), the static {@code img}, and the inherited
+     * {@code scale}/{@code color} (no game/GL context).
+     */
+    private static AbstractGameEffect seededFlickCoin(float cX, float cY, float yOffset, float scale,
+            float rotation, Color color, TextureAtlas.AtlasRegion img) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            FlickCoinEffect effect =
+                    (FlickCoinEffect) unsafe.allocateInstance(FlickCoinEffect.class);
+            setField(effect, FlickCoinEffect.class, "cX", Float.valueOf(cX));
+            setField(effect, FlickCoinEffect.class, "cY", Float.valueOf(cY));
+            setField(effect, FlickCoinEffect.class, "yOffset", Float.valueOf(yOffset));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, FlickCoinEffect.class, "img", img);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL FlickCoinEffect", failure);
+        }
+    }
+
+    @Test
+    public void flickCoinDrawsOnceWithIntegerHalfPositionFloatHalfOriginAndAnisotropicScale() {
+        // Native FlickCoinEffect.render (verified bytecode):
+        //   setBlendFunction(770, 1); setColor(color);
+        //   sb.draw(img, cX - (img.packedWidth / 2), cY - (img.packedHeight / 2) + yOffset,
+        //           img.packedWidth / 2f, img.packedHeight / 2f,
+        //           img.packedWidth, img.packedHeight, scale * 0.7f, scale * 0.4f, rotation);
+        //   setBlendFunction(770, 771);
+        // An ODD region size (81x81) pins the native integer-vs-float division split: position uses
+        // 40 (integer), origin uses 40.5 (float).
+        int pw = 81;
+        int ph = 81;
+        float cX = 123.5f;
+        float cY = 456.75f;
+        float yOffset = -7.25f;
+        float scale = 1.3f;
+        float rotation = 41f;
+        Color color = new Color(0.2f, 0.4f, 0.6f, 0.8f);
+
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        AbstractGameEffect effect = seededFlickCoin(cX, cY, yOffset, scale, rotation, color,
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, pw, ph));
+
+        assertTrue("a FlickCoin instance with an img draws", renderer.render(batch, effect));
+        assertEquals("exactly ONE draw", 1, batch.successfulRegionDraws);
+        assertEquals(1, batch.textureRegionDrawCalls);
+        assertEquals("additive blend installed and restored", 2, batch.setBlendCalls);
+        assertNotNull("the applied tint was captured", batch.firstSetColor);
+        assertEquals("color is the effect's own color", color.r, batch.firstSetColor.r, EPS);
+        assertEquals(color.g, batch.firstSetColor.g, EPS);
+        assertEquals(color.b, batch.firstSetColor.b, EPS);
+        assertEquals(color.a, batch.firstSetColor.a, EPS);
+
+        float[] d = batch.drawnRegionArgs;
+        assertEquals("position x uses the integer half", cX - 40f, d[0], EPS);
+        assertEquals("position y adds yOffset to the integer half",
+                cY - 40f + yOffset, d[1], EPS);
+        assertEquals("origin x uses the float half", 40.5f, d[2], EPS);
+        assertEquals("origin y uses the float half", 40.5f, d[3], EPS);
+        assertEquals((float) pw, d[4], EPS);
+        assertEquals((float) ph, d[5], EPS);
+        assertEquals("scaleX is scale * 0.7f", scale * 0.7f, d[6], EPS);
+        assertEquals("scaleY is scale * 0.4f", scale * 0.4f, d[7], EPS);
+        assertEquals("rotation comes from the field", rotation, d[8], EPS);
+    }
+
+    @Test
+    public void flickCoinMissingImageFailsOpenAndCannotDraw() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        AbstractGameEffect effect = seededFlickCoin(1f, 2f, 3f, 1f, 4f, Color.WHITE,
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48));
+        setFieldUnchecked(effect, FlickCoinEffect.class, "img", null);
+
+        CountingBatch batch = newCountingBatch();
+        assertFalse("a FlickCoin instance without an img fails open",
+                renderer.render(batch, effect));
+        assertEquals("no draw", 0, batch.successfulRegionDraws);
+        assertFalse("a FlickCoin instance without an img cannotDraw", renderer.canDraw(effect));
+    }
+
+    @Test
+    public void flickCoinReadsItsOwnFieldsViaTheDedicatedSnapshot() {
+        FlickCoinEffectHolder effect = flickCoin(11f, 22f, 33f, 0.5f, 44f, Color.WHITE,
+                fakeRegion());
+
+        Sts1VfxArtRenderer.FlickCoinFields f = Sts1VfxArtRenderer.readFlickCoinFields(effect);
+
+        assertNotNull("a fully seeded FlickCoin holder resolves", f);
+        assertEquals(11f, f.cX, EPS);
+        assertEquals(22f, f.cY, EPS);
+        assertEquals(33f, f.yOffset, EPS);
+        assertEquals(0.5f, f.scale, EPS);
+        assertEquals(44f, f.rotation, EPS);
+        assertSame(effect.img, f.img);
+
+        FlickCoinNoImgEffect noImg = new FlickCoinNoImgEffect();
+        noImg.cX = 1f;
+        noImg.cY = 2f;
+        noImg.yOffset = 3f;
+        noImg.scale = 1f;
+        noImg.rotation = 4f;
+        noImg.color = Color.WHITE;
+        assertNull("a missing img fails the dedicated snapshot",
+                Sts1VfxArtRenderer.readFlickCoinFields(noImg));
+        assertNull(Sts1VfxArtRenderer.readFlickCoinFields(null));
     }
 }

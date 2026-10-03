@@ -156,6 +156,18 @@ import java.lang.reflect.Field;
  * {@code rotation}. No RNG; a pre-draw throw fails open while a post-draw throw claims the frame (B09).
  * {@link #usesVariableLengthDraw} exposes the capability. No new patch/bridge/console wiring.
  *
+ * <p>The newest (NRO-04 B02) member is the {@code vfx-combat} {@code FlickCoinEffect}. It has NO
+ * {@code x}/{@code y} field — its position fields are {@code cX}/{@code cY}/{@code yOffset} — so it
+ * is served by the dedicated {@link #renderFlickCoin} branch BEFORE {@link #readFields}, like
+ * {@link #renderFlyingOrb}. Its native single draw is ADDITIVE with the effect's own {@code color};
+ * the POSITION is {@code (cX - packedWidth/2, cY - packedHeight/2 + yOffset)} using native INTEGER
+ * division of the packed size, the ORIGIN is {@code (packedWidth/2f, packedHeight/2f)} using native
+ * FLOAT division (a {@code 0.5} difference on an odd region), and the scale is ANISOTROPIC
+ * ({@code scale * 0.7f} on X, {@code scale * 0.4f} on Y) with the effect's own {@code rotation}. It
+ * has no {@code isDone} guard. {@link #imagePresent} reports it drawable iff its {@code img} region
+ * is present. No new patch/bridge/console wiring; the default-off gate and per-instance token
+ * semantics are unchanged.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -780,6 +792,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             if (kind == VfxDrawGeometry.Kind.FLYING_ORB) {
                 return renderFlyingOrb(sb, effect);
             }
+            // NRO-04 B02: FlickCoinEffect has NO x/y/scale fields (its position fields are
+            // cX/cY/yOffset), so it is served by a dedicated branch BEFORE the generic readFields
+            // path, like FLYING_ORB.
+            if (kind == VfxDrawGeometry.Kind.FLICK_COIN) {
+                return renderFlickCoin(sb, effect);
+            }
             if (isTextureDrawKind(kind)) {
                 return renderTexture(sb, kind, effect);
             }
@@ -938,6 +956,124 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * Immutable snapshot of the fields the single-draw img-path {@code FlickCoinEffect} draw needs
+     * (NRO-04 B02). Its position fields are {@code cX}/{@code cY}/{@code yOffset} (NOT
+     * {@code x}/{@code y}), so it is served by a dedicated reader rather than the generic
+     * {@link #readFields}. The inherited {@code scale} is required (read from the inherited
+     * {@code AbstractGameEffect.scale} field; the class has no {@code scale} of its own), as are the
+     * inherited {@code color} and the static {@code img} {@link TextureAtlas.AtlasRegion}.
+     */
+    static final class FlickCoinFields {
+        final float cX;
+        final float cY;
+        final float yOffset;
+        final float scale;
+        final float rotation;
+        final Color color;
+        final TextureAtlas.AtlasRegion img;
+
+        FlickCoinFields(float cX, float cY, float yOffset, float scale, float rotation, Color color,
+                TextureAtlas.AtlasRegion img) {
+            this.cX = cX;
+            this.cY = cY;
+            this.yOffset = yOffset;
+            this.scale = scale;
+            this.rotation = rotation;
+            this.color = color;
+            this.img = img;
+        }
+    }
+
+    /**
+     * Snapshots the fields the {@code FlickCoinEffect} draw needs (NRO-04 B02). Required:
+     * {@code cX}, {@code cY}, {@code yOffset} and {@code rotation} (any {@link Number}),
+     * {@code scale} (any {@link Number}, the inherited field), {@code color} ({@link Color}), and
+     * {@code img} ({@link TextureAtlas.AtlasRegion}); an absent/unreadable/wrongly typed required
+     * field fails the snapshot ({@code null}). Never throws.
+     */
+    static FlickCoinFields readFlickCoinFields(Object effect) {
+        if (effect == null) return null;
+        try {
+            Float cX = readFloat(effect, "cX");
+            Float cY = readFloat(effect, "cY");
+            Float yOffset = readFloat(effect, "yOffset");
+            Float scale = readFloat(effect, "scale");
+            Float rotation = readFloat(effect, "rotation");
+            if (cX == null || cY == null || yOffset == null || scale == null || rotation == null) {
+                return null;
+            }
+            Object color = readRaw(effect, "color");
+            if (!(color instanceof Color)) return null;
+            Object img = readRaw(effect, "img");
+            if (!(img instanceof TextureAtlas.AtlasRegion)) return null;
+            return new FlickCoinFields(cX.floatValue(), cY.floatValue(), yOffset.floatValue(),
+                    scale.floatValue(), rotation.floatValue(), (Color) color,
+                    (TextureAtlas.AtlasRegion) img);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Dedicated single-draw img-path branch for {@code FlickCoinEffect} (NRO-04 B02), served BEFORE
+     * the generic {@link #readFields} path because the class has NO {@code x}/{@code y} field (its
+     * position fields are {@code cX}/{@code cY}/{@code yOffset}). Reproduces the native render
+     * exactly: ADDITIVE blend installed/restored, the effect's own {@code color}, the draw POSITION
+     * {@code (cX - packedWidth/2, cY - packedHeight/2 + yOffset)} using native INTEGER division of the
+     * packed size, the draw ORIGIN {@code (packedWidth/2f, packedHeight/2f)} using native FLOAT
+     * division (differing by {@code 0.5} for an odd region), the packed size, and the ANISOTROPIC
+     * scale ({@code scale * }{@link VfxDrawGeometry#FLICK_COIN_SCALE_X},
+     * {@code scale * }{@link VfxDrawGeometry#FLICK_COIN_SCALE_Y}) with the effect's own
+     * {@code rotation} — the per-axis multipliers are applied by
+     * {@link VfxDrawGeometry#params}, which this branch calls with the effect's {@code cX}/{@code cY}/
+     * {@code yOffset} mapped onto its {@code x}/{@code y}/{@code vY} inputs.
+     *
+     * <p>There is exactly ONE draw, so a throw before it fails open (returns {@code false} so native
+     * draws); blend/color are always restored in {@code finally}. Never throws.
+     */
+    private boolean renderFlickCoin(SpriteBatch sb, AbstractGameEffect effect) {
+        FlickCoinFields f = readFlickCoinFields(effect);
+        if (f == null) return false;
+        TextureAtlas.AtlasRegion gdx = f.img;
+        if (gdx == null || gdx.getTexture() == null) return false;
+        AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+        if (neutral == null || !neutral.valid()) return false;
+        TextureRegion canonical = canonicalRegion(gdx, false, false);
+        if (canonical == null) return false;
+        // Pass cX/cY/yOffset through the shared x/y/vY inputs; the FLICK_COIN params branch applies
+        // the native INTEGER-half position offset, FLOAT-half origin, packed size, and anisotropic
+        // scale. The effect's own rotation is passed through unchanged.
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.FLICK_COIN,
+                f.cX, f.cY, f.yOffset, f.scale, f.rotation, 0f, 0f, Settings.scale,
+                gdx.getRegionWidth(), gdx.getRegionHeight(), 0f, 0f, 0f, 0f, 0f, 1f);
+        boolean additive = VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLICK_COIN);
+        Color previous = new Color(sb.getColor());
+        boolean blendChanged = false;
+        try {
+            sb.setColor(f.color != null ? f.color : Color.WHITE);
+            if (additive) {
+                sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+                blendChanged = true;
+            }
+            sb.draw(canonical, p.x, p.y, p.originX, p.originY, p.width, p.height,
+                    p.scaleX, p.scaleY, p.rotation);
+            return true;
+        } catch (Throwable ignored) {
+            // Single draw: a throw here painted nothing, so fail open to native.
+            return false;
+        } finally {
+            try {
+                if (blendChanged) {
+                    sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                }
+                sb.setColor(previous);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /**
      * Narrow package-private capability seam: {@code true} for the VARIABLE-LENGTH MULTI-DRAW kinds
      * ({@link VfxDrawGeometry#variableLengthMultiDraw}), today only
      * {@link VfxDrawGeometry.Kind#FLYING_ORB}. Delegates to the pure predicate so the renderer and the
@@ -1066,6 +1202,16 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         // present (and, handled by the caller's guard, isDone is false). Read its own snapshot.
         if (kind == VfxDrawGeometry.Kind.FLYING_ORB) {
             FlyingOrbFields f = readFlyingOrbFields(effect);
+            if (f == null) return false;
+            TextureAtlas.AtlasRegion gdx = f.img;
+            if (gdx == null || gdx.getTexture() == null) return false;
+            AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+            return neutral != null && neutral.valid();
+        }
+        // NRO-04 B02: FlickCoinEffect has NO x/y/scale beyond the inherited scale; its draw is
+        // present iff its img region is present (read via its dedicated reader).
+        if (kind == VfxDrawGeometry.Kind.FLICK_COIN) {
+            FlickCoinFields f = readFlickCoinFields(effect);
             if (f == null) return false;
             TextureAtlas.AtlasRegion gdx = f.img;
             if (gdx == null || gdx.getTexture() == null) return false;

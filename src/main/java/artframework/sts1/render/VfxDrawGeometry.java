@@ -443,6 +443,26 @@ package artframework.sts1.render;
  * instance's ctor allocates {@code points = new Vector2[60]} (a length-60 array of nulls that
  * {@code update()} fills), so it draws nothing until {@code update()} runs. No new
  * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
+ *
+ * <p>The newest (NRO-04 B02) member is the {@code vfx-combat} {@code FlickCoinEffect}
+ * ({@link Kind#FLICK_COIN}): a single-draw img ({@code TextureAtlas.AtlasRegion}) kind with a
+ * DEDICATED position reader — its position fields are {@code cX}/{@code cY}/{@code yOffset}, NOT
+ * {@code x}/{@code y} — and an ANISOTROPIC scale. This class stays pure/host-neutral; the dedicated
+ * reader lives in {@link Sts1VfxArtRenderer}, which maps the effect's {@code cX}/{@code cY} onto the
+ * shared {@code x}/{@code y} {@link #params} inputs and its {@code yOffset} onto {@code vY}. Its
+ * native {@code render} (verified bytecode) is
+ * {@code setBlendFunction(770, 1); setColor(color); sb.draw(img, cX - (img.packedWidth / 2),
+ * cY - (img.packedHeight / 2) + yOffset, img.packedWidth / 2f, img.packedHeight / 2f,
+ * img.packedWidth, img.packedHeight, scale * 0.7f, scale * 0.4f, rotation);
+ * setBlendFunction(770, 771)}. So the draw POSITION half uses native INTEGER division of the packed
+ * size while the ORIGIN half uses native FLOAT division ({@code packed/2f}; they differ by
+ * {@code 0.5} for an odd region such as the native 81x81 region), the size is the packed size, the
+ * draw scale is ANISOTROPIC ({@link #FLICK_COIN_SCALE_X} {@code = 0.7f} on X,
+ * {@link #FLICK_COIN_SCALE_Y} {@code = 0.4f} on Y), the rotation comes from the effect's own
+ * {@code rotation} field, and it is ADDITIVE. It has NO {@code isDone} guard, so it joins no guard/
+ * flip/mirror/RNG capability ({@link #flickCoinUsesAnisotropicScale} is its only new pure predicate).
+ * No new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+ * unchanged.
  */
 public final class VfxDrawGeometry {
 
@@ -508,7 +528,8 @@ public final class VfxDrawGeometry {
         GIANT_FIRE,
         TORCH_HEAD_FIRE,
         CARD_TRAIL,
-        FLYING_ORB
+        FLYING_ORB,
+        FLICK_COIN
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -708,6 +729,23 @@ public final class VfxDrawGeometry {
     public static final float FLYING_ORB_SCALE_DECAY_PER_DRAW = 0.975f;
     /** Native FlyingOrbEffect boolean draw-guard field name ({@code "isDone"}, blocks when true). */
     public static final String FLYING_ORB_GUARD_FIELD = "isDone";
+
+    // Native FlickCoinEffect draw rule (see the class Javadoc): the img (AtlasRegion) path with a
+    // DEDICATED position reader (its fields are cX/cY/yOffset, NOT x/y) and an ANISOTROPIC draw
+    // scale. The native render is
+    //   setBlendFunction(770, 1); setColor(color);
+    //   sb.draw(img, cX - (img.packedWidth / 2), cY - (img.packedHeight / 2) + yOffset,
+    //           img.packedWidth / 2f, img.packedHeight / 2f,
+    //           img.packedWidth, img.packedHeight,
+    //           scale * 0.7f, scale * 0.4f, rotation);
+    //   setBlendFunction(770, 771);
+    // so the POSITION half uses native INTEGER division of the packed size while the ORIGIN half
+    // uses native FLOAT division (differing by 0.5 for an odd region), and the two draw scale axes
+    // are scale * 0.7f (X) and scale * 0.4f (Y). Additive; no isDone guard.
+    /** Native FlickCoin X-axis scale multiplier ({@code 0.7f}). */
+    public static final float FLICK_COIN_SCALE_X = 0.7f;
+    /** Native FlickCoin Y-axis scale multiplier ({@code 0.4f}). */
+    public static final float FLICK_COIN_SCALE_Y = 0.4f;
 
     // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
     // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
@@ -1010,6 +1048,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.TORCH_HEAD_FIRE.equals(value)) return Kind.TORCH_HEAD_FIRE;
         if (VfxClaimPolicy.CARD_TRAIL.equals(value)) return Kind.CARD_TRAIL;
         if (VfxClaimPolicy.FLYING_ORB.equals(value)) return Kind.FLYING_ORB;
+        if (VfxClaimPolicy.FLICK_COIN.equals(value)) return Kind.FLICK_COIN;
         return null;
     }
 
@@ -1374,6 +1413,45 @@ public final class VfxDrawGeometry {
      */
     public static float flyingOrbScaleDecayPerDraw() {
         return FLYING_ORB_SCALE_DECAY_PER_DRAW;
+    }
+
+    /**
+     * Pure per-kind predicate for the ANISOTROPIC img-path scale capability: {@code true} only for
+     * the newest (NRO-04 B02) {@link Kind#FLICK_COIN}, whose native {@code render} draws with
+     * {@code scaleX = scale * }{@link #FLICK_COIN_SCALE_X} ({@code 0.7f}) and
+     * {@code scaleY = scale * }{@link #FLICK_COIN_SCALE_Y} ({@code 0.4f}) — BOTH axes are scaled, so
+     * unlike the F27 single-axis {@code WATER_SPLASH} rule it cannot ride the shared
+     * {@link #params} {@code scaleYMultiplier} tail (which leaves {@code scaleX} alone). Every other
+     * kind is {@code false}. The per-axis multipliers themselves are applied by {@link #params}
+     * through the {@link #FLICK_COIN_SCALE_X}/{@link #FLICK_COIN_SCALE_Y} constants (not by this
+     * predicate); the {@link #flickCoinScaleXMultiplier()}/{@link #flickCoinScaleYMultiplier()}
+     * accessors simply expose those same constants to consumers/tests.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean flickCoinUsesAnisotropicScale(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.FLICK_COIN;
+    }
+
+    /**
+     * Native {@link Kind#FLICK_COIN} X-axis draw scale multiplier ({@code 0.7f}). It exposes the
+     * {@link #FLICK_COIN_SCALE_X} constant to consumers/tests; the render branch itself applies the
+     * constant inside {@link #params}.
+     */
+    public static float flickCoinScaleXMultiplier() {
+        return FLICK_COIN_SCALE_X;
+    }
+
+    /**
+     * Native {@link Kind#FLICK_COIN} Y-axis draw scale multiplier ({@code 0.4f}). It exposes the
+     * {@link #FLICK_COIN_SCALE_Y} constant to consumers/tests; the render branch itself applies the
+     * constant inside {@link #params}.
+     */
+    public static float flickCoinScaleYMultiplier() {
+        return FLICK_COIN_SCALE_Y;
     }
 
     /**
@@ -1848,6 +1926,24 @@ public final class VfxDrawGeometry {
                 // dur_div2, duration, and Settings.scale are unused.
                 return new Params(x, y, CARD_TRAIL_ORIGIN, CARD_TRAIL_ORIGIN,
                         CARD_TRAIL_SIZE, CARD_TRAIL_SIZE, scale, scale, 0f);
+            case FLICK_COIN:
+                // Native FlickCoinEffect: setBlendFunction(770, 1); setColor(color); setColor(color);
+                //   sb.draw(img, cX - (img.packedWidth / 2), cY - (img.packedHeight / 2) + yOffset,
+                //           img.packedWidth / 2f, img.packedHeight / 2f,
+                //           img.packedWidth, img.packedHeight,
+                //           scale * 0.7f, scale * 0.4f, rotation);
+                //   setBlendFunction(770, 771).
+                // The caller maps the effect's cX/cY/yOffset onto the (x, y, vY) inputs. The draw
+                // POSITION half uses native INTEGER division of the packed size while the ORIGIN half
+                // uses native FLOAT division (they differ by 0.5 for an odd region); the draw scale is
+                // ANISOTROPIC (scaleX = scale*0.7f, scaleY = scale*0.4f). durDiv2/duration/
+                // settingsScale/vX/the region offsets are unused.
+                return new Params(
+                        x - (int) packedWidth / 2,
+                        y - (int) packedHeight / 2 + vY,
+                        packedWidth / 2f, packedHeight / 2f,
+                        packedWidth, packedHeight,
+                        scale * FLICK_COIN_SCALE_X, scale * FLICK_COIN_SCALE_Y, rotation);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

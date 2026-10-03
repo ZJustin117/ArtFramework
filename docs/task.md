@@ -1296,6 +1296,35 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
        `Sts1VfxRendererBindingTest` (readiness + appended-last order), `VfxLabSpawnTest` (alias → FQN
        + capturing factory). No new patch/bridge/console wiring; the default-off gate is unchanged.
 
+- [x] NRO-04 B02 (`FlickCoinEffect` joins the default-off per-instance claim seam):
+       `com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect` is appended LAST to
+       `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` and mapped by `kindFor`. It is a
+       single-draw img path with a dedicated reader (its position fields are `cX`/`cY`/`yOffset`, NOT
+       `x`/`y`), an integer-half position offset, a float-half origin, and an ANISOTROPIC scale:
+       `VfxDrawGeometry.Kind.FLICK_COIN` adds the named constants `FLICK_COIN_SCALE_X = 0.7f` /
+       `FLICK_COIN_SCALE_Y = 0.4f` and the pure predicate `flickCoinUsesAnisotropicScale` /
+       `flickCoinScaleXMultiplier()` / `flickCoinScaleYMultiplier()` (`additiveBlend` true; it joins
+       no guard/flip/mirror/RNG capability, and no existing kind's multipliers change). Its `params`
+       branch draws the packed size with POSITION `(cX - int(pw/2), cY - int(ph/2) + yOffset)`
+       (native INTEGER division), ORIGIN `(pw/2f, ph/2f)` (native FLOAT division), and scale
+       `(scale*0.7f, scale*0.4f)` with the field rotation. `Sts1VfxArtRenderer` gains a dedicated
+       `renderFlickCoin` branch BEFORE `readFields` (like FLYING_ORB), reading
+       `cX`/`cY`/`yOffset`/`rotation`/`color`/`img` plus the inherited `scale`; a single draw
+       installs/restores the additive blend and color inside try/catch(Throwable) with a `finally`
+       restore, and a throw before the draw fails open (returns false). `canDraw`/`imagePresent`
+       treat a FLICK_COIN instance as drawable iff its `img` region is present (the generic
+       `readFields` requirements are unchanged). The lab gains aliases `"flickcoin"`/`"coin"` ->
+       `new FlickCoinEffect(960f, 540f, 960f, 540f)` behind the existing fail-open guard (its static
+       `img` comes from `ImageMaster.vfxAtlas` and may be null off-game). The D1 scenario
+       `d1_aura_claim.yaml` adds `art claim spawn flickcoin 4` to both gate phases. Tests:
+       `VfxDrawGeometryTest` (kindFor + near-miss, anisotropic-scale capability/constants,
+       additive, not guard/flip/mirror/RNG), `Sts1VfxArtRendererTest` (single draw with odd-region
+       integer-position/float-origin split, anisotropic scale, field rotation, additive
+       installed/restored, effect color, missing `img` fails open), `VfxDelegationSeamTest` /
+       `Sts1VfxRendererBindingTest` (readiness + appended-last order), `VfxLabSpawnTest` (alias ->
+       FQN + capturing factory). No new patch/bridge/console wiring; the default-off gate is
+       unchanged.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

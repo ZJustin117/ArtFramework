@@ -326,6 +326,12 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.FLYING_ORB,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.FlyingOrbEffect"));
+        // The newest (NRO-04 B02) member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.FLICK_COIN,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FLICK_COIN));
+        assertSame(VfxDrawGeometry.Kind.FLICK_COIN,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect"));
     }
 
     @Test
@@ -3470,6 +3476,101 @@ public class VfxDrawGeometryTest {
         }
         try {
             VfxDrawGeometry.guardBlocksBoolean(null, true);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    // --- NRO-04 B02 FlickCoinEffect: single-draw img path, cX/cY/yOffset position, anisotropic ---
+
+    @Test
+    public void flickCoinKindForFailsOpenForNearMisses() {
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("FlickCoinEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.FlickCoinEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.combat.FlickCoin"));
+    }
+
+    @Test
+    public void flickCoinUsesIntegerHalfPositionFloatHalfOriginAndAnisotropicScale() {
+        // Native FlickCoinEffect (verified bytecode): ADDITIVE; cX/cY/yOffset position fields (NO
+        // x/y); the POSITION half uses INTEGER division of the packed size and the ORIGIN half uses
+        // FLOAT division (differing by 0.5 for an odd region); the scale is ANISOTROPIC
+        // (scaleX = scale*0.7f, scaleY = scale*0.4f) with the effect's own rotation.
+        int pw = 81;
+        int ph = 81;
+        float cX = 123.5f;
+        float cY = 456.75f;
+        float yOffset = -7.25f;
+        float scale = 1.3f;
+        float rotation = 41f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.FLICK_COIN,
+                cX, cY, yOffset /* consumed as the yOffset */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                pw, ph, 1234f /* vX ignored */, 6f /* regionOffsetX ignored */,
+                10f /* regionOffsetY ignored */, 0f, 0f, 1f);
+
+        // POSITION: integer half (81/2 == 40), NOT float half (40.5).
+        assertEquals("position uses the integer half of the packed size",
+                cX - 40f, p.x, EPS);
+        assertEquals("position adds yOffset to the integer half",
+                cY - 40f + yOffset, p.y, EPS);
+        // ORIGIN: float half (40.5).
+        assertEquals("origin uses the float half of the packed width", 40.5f, p.originX, EPS);
+        assertEquals("origin uses the float half of the packed height", 40.5f, p.originY, EPS);
+        assertEquals((float) pw, p.width, EPS);
+        assertEquals((float) ph, p.height, EPS);
+        assertEquals("scaleX is scale * 0.7f",
+                scale * VfxDrawGeometry.FLICK_COIN_SCALE_X, p.scaleX, EPS);
+        assertEquals("scaleY is scale * 0.4f",
+                scale * VfxDrawGeometry.FLICK_COIN_SCALE_Y, p.scaleY, EPS);
+        assertEquals("FlickCoin consumes the rotation field", rotation, p.rotation, EPS);
+
+        assertEquals(0.7f, VfxDrawGeometry.FLICK_COIN_SCALE_X, EPS);
+        assertEquals(0.4f, VfxDrawGeometry.FLICK_COIN_SCALE_Y, EPS);
+        assertTrue(VfxDrawGeometry.flickCoinUsesAnisotropicScale(
+                VfxDrawGeometry.Kind.FLICK_COIN));
+        assertEquals(0.7f, VfxDrawGeometry.flickCoinScaleXMultiplier(), EPS);
+        assertEquals(0.4f, VfxDrawGeometry.flickCoinScaleYMultiplier(), EPS);
+
+        assertTrue("FLICK_COIN installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FLICK_COIN));
+        // It joins NO guard / flip / mirror / RNG capability.
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(
+                VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.FLICK_COIN));
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.FLICK_COIN).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(
+                VfxDrawGeometry.Kind.FLICK_COIN).isEmpty());
+    }
+
+    @Test
+    public void flickCoinAnisotropicScaleIsTrueOnlyForFlickCoinAndNullThrows() {
+        assertTrue(VfxDrawGeometry.flickCoinUsesAnisotropicScale(
+                VfxDrawGeometry.Kind.FLICK_COIN));
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            if (kind == VfxDrawGeometry.Kind.FLICK_COIN) continue;
+            assertFalse("only FlickCoin uses the anisotropic anisotropic-scale predicate: " + kind,
+                    VfxDrawGeometry.flickCoinUsesAnisotropicScale(kind));
+        }
+        try {
+            VfxDrawGeometry.flickCoinUsesAnisotropicScale(null);
             fail("expected IllegalArgumentException");
         } catch (IllegalArgumentException expected) {
             // expected

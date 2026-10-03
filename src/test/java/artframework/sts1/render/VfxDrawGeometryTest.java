@@ -3970,4 +3970,68 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.MAP_CIRCLE).isEmpty());
         assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.MAP_CIRCLE).isEmpty());
     }
+
+    // --- NRO-04 B07 SpotlightEffect: FULL-SCREEN bare static Texture, no per-effect geometry,
+    // draw (0,0,Settings.WIDTH,Settings.HEIGHT), additive, own color, production-reachable via
+    // GrandFinale -> AbstractDungeon.effectsQueue ---
+
+    @Test
+    public void spotlightKindForMapsTheExactFqnAndFailsOpenForNearMisses() {
+        assertSame(VfxDrawGeometry.Kind.SPOTLIGHT,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.SPOTLIGHT));
+        assertSame(VfxDrawGeometry.Kind.SPOTLIGHT,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.SpotlightEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.SpotlightEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.SpotlightEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("SpotlightEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.SpotlightEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.Spotlight"));
+    }
+
+    @Test
+    public void fullScreenTextureIsTrueOnlyForSpotlight() {
+        assertTrue("SPOTLIGHT is the full-screen bare-texture kind",
+                VfxDrawGeometry.fullScreenTexture(VfxDrawGeometry.Kind.SPOTLIGHT));
+        // The truth table is exhaustive over the enum.
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            assertEquals("full-screen texture truth table for " + kind,
+                    kind == VfxDrawGeometry.Kind.SPOTLIGHT,
+                    VfxDrawGeometry.fullScreenTexture(kind));
+        }
+        try {
+            VfxDrawGeometry.fullScreenTexture(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void spotlightIsAdditiveAndJoinsNoGuardFlipMirrorRngOrVariableLengthCapability() {
+        // Native SpotlightEffect.render: setColor(color); setBlendFunction(770, 1); draw full screen;
+        // setBlendFunction(770, 771) — ADDITIVE, no guard, no flip/mirror, no RNG, single draw.
+        assertTrue("SPOTLIGHT installs additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertEquals(1f, VfxDrawGeometry.uniformScaleMultiplier(
+                VfxDrawGeometry.Kind.SPOTLIGHT, 2f), EPS);
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.SPOTLIGHT).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.SPOTLIGHT).isEmpty());
+    }
 }

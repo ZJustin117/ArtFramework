@@ -176,6 +176,7 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("coin"));
         assertEquals(VfxClaimPolicy.MAP_CIRCLE, VfxLabSpawn.classNameFor("mapcircle"));
         assertEquals(VfxClaimPolicy.MAP_CIRCLE, VfxLabSpawn.classNameFor("map"));
+        assertEquals(VfxClaimPolicy.SPOTLIGHT, VfxLabSpawn.classNameFor("spotlight"));
     }
 
     @Test
@@ -280,6 +281,7 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("COIN"));
         assertEquals(VfxClaimPolicy.HEAL_PANEL, VfxLabSpawn.classNameFor("  HeAlPaNeL "));
         assertEquals(VfxClaimPolicy.HEAL_PANEL, VfxLabSpawn.classNameFor("HEAL"));
+        assertEquals(VfxClaimPolicy.SPOTLIGHT, VfxLabSpawn.classNameFor("  SpOtLiGhT "));
     }
 
     @Test
@@ -755,6 +757,14 @@ public class VfxLabSpawnTest {
         // any existing alias.
         assertSpawnRequests("mapcircle", VfxClaimPolicy.MAP_CIRCLE);
         assertSpawnRequests("map", VfxClaimPolicy.MAP_CIRCLE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheB07SpotlightThroughTheFactorySeam() {
+        // The newest (NRO-04 B07) claimable FQN; the capturing factory proves the alias requests
+        // exactly that FQN without running the NO-ARG ctor (whose static ImageMaster.SPOTLIGHT_VFX
+        // texture may be null off-game). "spotlight" does not collide with any existing alias.
+        assertSpawnRequests("spotlight", VfxClaimPolicy.SPOTLIGHT);
     }
 
     @Test

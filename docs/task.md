@@ -1496,6 +1496,48 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         Claiming a real map-screen instance requires instrumenting the map-screen effect render call
         site (tracked as B06b below); until then the seam fails open to native there.
 
+- [x] NRO-04 B07 (`SpotlightEffect` joins the default-off per-instance claim seam):
+        `com.megacrit.cardcrawl.vfx.SpotlightEffect` is appended LAST to
+        `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` and mapped by `kindFor` (after
+        `MapCircleEffect`). It is a FULL-SCREEN bare static-`Texture` kind with no own per-effect
+        geometry field (no `x`/`y`/`scale`/`rotation`; the native `render` consumes only `color` — the
+        inherited `scale`/`rotation` are unused and not required) and a public NO-ARG ctor
+        (`duration = 3f`, `color = new Color(1f, 1f, 0.8f, 0.5f)`). Its native `render(SpriteBatch)`
+        is `setColor(color); setBlendFunction(770, 1); sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f,
+        Settings.WIDTH, Settings.HEIGHT); setBlendFunction(770, 771)` — ADDITIVE, the static
+        `ImageMaster.SPOTLIGHT_VFX` `Texture`, position `(0f, 0f)`, size
+        `Settings.WIDTH x Settings.HEIGHT`, NO origin/rotation/scale, and draw color = the effect's
+        own `color`. `VfxDrawGeometry.Kind.SPOTLIGHT` adds the pure capability
+        `fullScreenTexture(Kind)` (true only for `SPOTLIGHT`; the renderer synthesizes the
+        `(0,0,Settings.WIDTH,Settings.HEIGHT)` draw and this class stays free of `Settings`), maps the
+        exact FQN, is ADDITIVE, and joins NO guard/flip/mirror/RNG/variable-length/flickCoin/
+        uses-instance-texture capability. `Sts1VfxArtRenderer` adds `SPOTLIGHT` to
+        `isTextureDrawKind` (NOT `usesInstanceTexture`), a static `resolveTexture` case returning
+        `ImageMaster.SPOTLIGHT_VFX`, and a dedicated `renderFullScreenTexture` branch served BEFORE
+        `readTextureFields` (which requires x/y/scale and does not apply): it reads ONLY the effect's
+        own `color`, installs/restores the additive blend, saves/restores color, and draws through the
+        4-arg `sb.draw(texture, 0f, 0f, Settings.WIDTH, Settings.HEIGHT)` overload with the single-draw
+        failure contract (a throw before the draw fails open). `imagePresent`/`canDraw` for `SPOTLIGHT`
+        require only the static texture non-null plus a non-null effect color. The lab gains the alias
+        `"spotlight"` -> `new SpotlightEffect()` (NO-ARG) behind the existing fail-open guard. The D1
+        scenario `d1_aura_claim.yaml` adds `art claim spawn spotlight 4` to both gate phases. Tests:
+        `VfxDrawGeometryTest` (kindFor + near-miss fail-open, `fullScreenTexture` true only for
+        `SPOTLIGHT`, additive, not guard/flip/mirror/RNG/var-length/flickCoin/uses-instance-texture),
+        `Sts1VfxArtRendererTest` (a SpotlightEffect instance with a resolvable static texture and a
+        color and NO x/y/scale/rotation fields: exactly ONE full-screen 4-arg draw at
+        `(0,0,Settings.WIDTH,Settings.HEIGHT)`, additive installed/restored, color = the effect's own
+        color; missing/null static texture fails open; null color fails open),
+        `VfxDelegationSeamTest`/`Sts1VfxRendererBindingTest` (readiness + appended-last order +
+        texture-kind), `VfxLabSpawnTest` (alias -> FQN + capturing factory). No new
+        patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+        unchanged. PRODUCTION REACH (positive, B07): the claim seam's only effect observer
+        instruments `AbstractDungeon.render`'s direct `AbstractGameEffect.render` call sites
+        (`TransientEffectContainerPatches`). `SpotlightEffect` IS constructed by
+        `com.megacrit.cardcrawl.vfx.combat.GrandFinalEffect`, which adds it to
+        `AbstractDungeon.effectsQueue`; it is therefore rendered by that instrumented effect loop, so
+        the seam DOES reach a real instance (unlike the B05/B06 reward/map cases). It is also
+        lab-spawnable.
+
 - [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
         `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
         loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`

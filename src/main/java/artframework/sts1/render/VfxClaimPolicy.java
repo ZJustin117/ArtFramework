@@ -130,6 +130,11 @@ import java.util.List;
  * additive
  * members are the only ones whose host draw installs additive blend; every member may be claimed
  * per instance.
+ *
+ * <p>The newest (NRO-04 B07) member is the {@code vfx-misc-root} {@code SpotlightEffect}: a
+ * FULL-SCREEN bare static-{@code Texture} kind with NO per-effect geometry fields, ADDITIVE, and
+ * production-reachable (constructed by {@code GrandFinalEffect} into
+ * {@code AbstractDungeon.effectsQueue}) — see {@link #supportedClasses()} for the boundary note.
  */
 public final class VfxClaimPolicy {
 
@@ -265,6 +270,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.RewardGlowEffect";
     public static final String MAP_CIRCLE =
             "com.megacrit.cardcrawl.vfx.MapCircleEffect";
+    public static final String SPOTLIGHT =
+            "com.megacrit.cardcrawl.vfx.SpotlightEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -284,7 +291,7 @@ public final class VfxClaimPolicy {
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
                     BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN,
-                    HEAL_PANEL, PING_HP, REWARD_GLOW, MAP_CIRCLE));
+                    HEAL_PANEL, PING_HP, REWARD_GLOW, MAP_CIRCLE, SPOTLIGHT));
 
     private VfxClaimPolicy() {}
 
@@ -358,7 +365,8 @@ public final class VfxClaimPolicy {
                 || HEAL_PANEL.equals(value)
                 || PING_HP.equals(value)
                 || REWARD_GLOW.equals(value)
-                || MAP_CIRCLE.equals(value);
+                || MAP_CIRCLE.equals(value)
+                || SPOTLIGHT.equals(value);
     }
 
     /**
@@ -641,6 +649,27 @@ public final class VfxClaimPolicy {
      * parity/claim path is unit-verified; on the map screen the seam fails open to native. Claiming a
      * real map-screen instance requires instrumenting the map-screen effect render call site (a
      * separate boundary slice tracked as B06b).
+     *
+     * <p>The newest (NRO-04 B07) member is the {@code vfx-misc-root} {@code SpotlightEffect}
+     * (public NO-ARG ctor, which sets {@code duration = 3f} and {@code color = new Color(1f, 1f,
+     * 0.8f, 0.5f)}): a FULL-SCREEN bare static-{@code Texture} kind with NO own per-effect geometry
+     * field (no {@code x}/{@code y}/{@code scale}/{@code rotation}; the native {@code render}
+     * consumes only {@code color} — the inherited {@code scale}/{@code rotation} are unused and not
+     * required). Its
+     * native {@code render} is {@code setColor(color); setBlendFunction(770, 1);
+     * sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH, Settings.HEIGHT);
+     * setBlendFunction(770, 771)} — ADDITIVE, the static {@code ImageMaster.SPOTLIGHT_VFX}
+     * {@code Texture}, position {@code (0f, 0f)}, size {@code Settings.WIDTH x Settings.HEIGHT}, NO
+     * origin/rotation/scale, and draw color = the effect's own {@code color}.
+     * <b>PRODUCTION REACH (positive).</b> Unlike {@code RewardGlowEffect} (B05) and
+     * {@code MapCircleEffect} (B06), {@code SpotlightEffect} IS constructed by
+     * {@code com.megacrit.cardcrawl.vfx.combat.GrandFinalEffect}, which adds it to
+     * {@code AbstractDungeon.effectsQueue}; it is therefore rendered by the {@code AbstractDungeon
+     * .render} effect loop the claim seam instruments
+     * ({@code TransientEffectContainerPatches}), so the seam DOES reach a real instance. It is also
+     * lab-spawnable via the {@code "spotlight"} alias. Appended LAST after {@code MapCircleEffect};
+     * no new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+     * unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

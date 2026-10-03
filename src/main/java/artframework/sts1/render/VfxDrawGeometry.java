@@ -582,6 +582,26 @@ package artframework.sts1.render;
  * real map-screen instances are NOT observed/claimed; B06 is reachable on-device only via the lab
  * spawn and fails open to native on the map screen. Claiming a real map-screen instance requires
  * instrumenting the map-screen effect render call site (tracked as B06b).
+ *
+ * <p>The newest (NRO-04 B07) member is the {@code vfx-misc-root} {@code SpotlightEffect}
+ * ({@link Kind#SPOTLIGHT}): a FULL-SCREEN bare static-{@code Texture} kind with NO own per-effect
+ * geometry field (NO {@code x}/{@code y}/{@code scale}/{@code rotation}; the native {@code render}
+ * consumes only {@code color} — the inherited {@code scale}/{@code rotation} are unused and not
+ * required). Its native {@code render} is {@code setColor(color); setBlendFunction(770, 1);
+ * sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH, Settings.HEIGHT);
+ * setBlendFunction(770, 771)} — ADDITIVE, the static {@code ImageMaster.SPOTLIGHT_VFX}
+ * {@code Texture}, position {@code (0f, 0f)}, size {@code Settings.WIDTH x Settings.HEIGHT}, and
+ * the effect's own {@code color}. It is the first kind whose draw is the FULL SCREEN with no
+ * per-instance geometry, so it is modeled by the pure {@link #fullScreenTexture} capability and
+ * the renderer special-cases it BEFORE {@code params} (no {@code params} geometry branch is added,
+ * keeping this class free of {@code Settings}); the fixed full-screen geometry is
+ * {@code (0, 0, Settings.WIDTH, Settings.HEIGHT)}. It is ADDITIVE and joins NO guard / flip /
+ * mirror / RNG / variable-length / flickCoin-anisotropic / uses-instance-texture capability.
+ * PRODUCTION REACH (positive): unlike {@code RewardGlowEffect} (B05) and {@code MapCircleEffect}
+ * (B06), {@code SpotlightEffect} IS constructed by {@code GrandFinalEffect} and added to
+ * {@code AbstractDungeon.effectsQueue}, so the {@code AbstractDungeon.render} effect loop the claim
+ * seam instruments DOES render a real instance; it is also lab-spawnable. No new
+ * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
  */
 public final class VfxDrawGeometry {
 
@@ -652,7 +672,8 @@ public final class VfxDrawGeometry {
         HEAL_PANEL,
         PING_HP,
         REWARD_GLOW,
-        MAP_CIRCLE
+        MAP_CIRCLE,
+        SPOTLIGHT
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -1281,6 +1302,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.PING_HP.equals(value)) return Kind.PING_HP;
         if (VfxClaimPolicy.REWARD_GLOW.equals(value)) return Kind.REWARD_GLOW;
         if (VfxClaimPolicy.MAP_CIRCLE.equals(value)) return Kind.MAP_CIRCLE;
+        if (VfxClaimPolicy.SPOTLIGHT.equals(value)) return Kind.SPOTLIGHT;
         return null;
     }
 
@@ -1404,6 +1426,30 @@ public final class VfxDrawGeometry {
             throw new IllegalArgumentException("kind must not be null");
         }
         return kind == Kind.FLASH_ATK_IMG;
+    }
+
+    /**
+     * Pure per-kind predicate for the seam's FULL-SCREEN bare static-{@code Texture} capability:
+     * {@code true} only for a kind whose native {@code render} draws a static texture over the WHOLE
+     * screen with NO per-effect geometry — position {@code (0f, 0f)} and size
+     * {@code (Settings.WIDTH, Settings.HEIGHT)} regardless of any effect field. Today that is exactly
+     * the newest (NRO-04 B07) {@link Kind#SPOTLIGHT} ({@code SpotlightEffect}), whose native
+     * {@code render} is {@code setColor(color); setBlendFunction(770, 1);
+     * sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH, Settings.HEIGHT);
+     * setBlendFunction(770, 771)} — it has NO {@code x}/{@code y}/{@code scale}/{@code rotation}
+     * field, so the draw position/size are fixed screen geometry rather than per-instance inputs.
+     * The renderer special-cases this kind to synthesize the full-screen draw (reading ONLY the
+     * effect's own {@code color}); every other claimable kind has per-effect geometry and is
+     * {@code false} here. This class stays host-neutral: the fixed screen size depends on
+     * {@code Settings}, which the renderer (not this class) supplies.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean fullScreenTexture(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.SPOTLIGHT;
     }
 
     /**

@@ -1266,6 +1266,140 @@ public class Sts1VfxArtRendererTest {
         assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_R, overrideNull.r, EPS);
     }
 
+    // --- NRO-04 B07 SpotlightEffect: FULL-SCREEN bare static Texture, NO per-effect geometry,
+    // draw (0,0,Settings.WIDTH,Settings.HEIGHT), additive, own color ---
+
+    /**
+     * Real {@code SpotlightEffect} is GL-free: its NO-ARG ctor sets {@code duration = 3f} and
+     * {@code color = new Color(1f, 1f, 0.8f, 0.5f)} with no GL/asset access. The distinctive color
+     * is reflectively overridden so the draw assertion can prove the effect's OWN color is applied
+     * (rather than a hardcoded/white-forced one).
+     */
+    private static AbstractGameEffect seededSpotlight(Color color) {
+        AbstractGameEffect effect = new com.megacrit.cardcrawl.vfx.SpotlightEffect();
+        try {
+            setField(effect, AbstractGameEffect.class, "color", color);
+        } catch (Exception failure) {
+            throw new AssertionError("could not seed SpotlightEffect color", failure);
+        }
+        return effect;
+    }
+
+    @Test
+    public void spotlightEffectHasNoPerEffectGeometryFields() {
+        // The whole point of the full-screen kind: SpotlightEffect declares NO x/y/scale/rotation/img
+        // (and no vX/vY) field of its own; only the inherited color exists. The generic img-path /
+        // bare-Texture readers require x/y/scale, so the renderer MUST serve it specially.
+        for (String field : new String[] {"x", "y", "scale", "rotation", "img", "vY", "vX"}) {
+            assertFalse("SpotlightEffect must not declare a per-effect " + field + " field",
+                    declaresOnClass(com.megacrit.cardcrawl.vfx.SpotlightEffect.class, field));
+        }
+        // The bare-Texture reader (which requires x/y/scale) does not apply to a SpotlightEffect.
+        Texture previous = ImageMaster.SPOTLIGHT_VFX;
+        setStaticField(ImageMaster.class, "SPOTLIGHT_VFX", noGlTexture(1920, 1080));
+        try {
+            AbstractGameEffect effect = seededSpotlight(new Color(1f, 1f, 0.8f, 0.5f));
+            assertNull("readTextureFields does not apply to SpotlightEffect (no x/y/scale)",
+                    Sts1VfxArtRenderer.readTextureFields(
+                            VfxDrawGeometry.Kind.SPOTLIGHT, effect));
+        } finally {
+            setStaticField(ImageMaster.class, "SPOTLIGHT_VFX", previous);
+        }
+    }
+
+    @Test
+    public void spotlightDrawsOnceFullScreenWithAdditiveBlendAndOwnColor() {
+        // Native SpotlightEffect.render (verified bytecode): setColor(color);
+        //   setBlendFunction(770, 1); sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH,
+        //   Settings.HEIGHT); setBlendFunction(770, 771). The 4-arg texture overload; NO
+        //   x/y/scale/rotation field is read.
+        Texture previous = ImageMaster.SPOTLIGHT_VFX;
+        Texture injected = noGlTexture(1920, 1080);
+        Color color = new Color(0.9f, 0.85f, 0.7f, 0.45f);
+        float settingsWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        float settingsHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        try {
+            setStaticField(ImageMaster.class, "SPOTLIGHT_VFX", injected);
+            assertSame(injected, ImageMaster.SPOTLIGHT_VFX);
+
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededSpotlight(color);
+
+            assertTrue("a SpotlightEffect instance with the static texture draws",
+                    renderer.render(batch, effect));
+            assertEquals("exactly ONE full-screen 4-arg texture draw", 1, batch.fullScreenDrawCalls);
+            assertEquals("the 16-arg shape-C overload is NOT used", 0, batch.drawCalls);
+            assertEquals(1, batch.successfulFullScreenDraws);
+            assertEquals("the additive blend is installed and restored", 2, batch.setBlendCalls);
+            assertSame("Spotlight draws the static SPOTLIGHT_VFX texture",
+                    injected, batch.drawnFullScreenTexture);
+            assertNotNull("the applied tint was captured", batch.firstSetColor);
+            assertEquals("color is the effect's own color (NOT white-forced)",
+                    color.r, batch.firstSetColor.r, EPS);
+            assertEquals(color.g, batch.firstSetColor.g, EPS);
+            assertEquals(color.b, batch.firstSetColor.b, EPS);
+            assertEquals(color.a, batch.firstSetColor.a, EPS);
+
+            float[] d = batch.drawnFullScreenArgs;
+            assertEquals("position x is 0f", 0f, d[0], EPS);
+            assertEquals("position y is 0f", 0f, d[1], EPS);
+            assertEquals("width is Settings.WIDTH", settingsWidth, d[2], EPS);
+            assertEquals("height is Settings.HEIGHT", settingsHeight, d[3], EPS);
+
+            assertTrue("a SpotlightEffect instance with the static texture canDraw",
+                    renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "SPOTLIGHT_VFX", previous);
+        }
+    }
+
+    @Test
+    public void spotlightMissingStaticImageFailsOpenAndCannotDraw() {
+        Texture previous = ImageMaster.SPOTLIGHT_VFX;
+        setStaticField(ImageMaster.class, "SPOTLIGHT_VFX", null);
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededSpotlight(new Color(1f, 1f, 0.8f, 0.5f));
+
+            assertFalse("a SpotlightEffect instance without the static img fails open",
+                    renderer.render(batch, effect));
+            assertEquals("no draw", 0, batch.fullScreenDrawCalls);
+            assertFalse("a SpotlightEffect instance without the static img cannotDraw",
+                    renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "SPOTLIGHT_VFX", previous);
+        }
+    }
+
+    @Test
+    public void spotlightNullColorFailsOpen() {
+        Texture previous = ImageMaster.SPOTLIGHT_VFX;
+        setStaticField(ImageMaster.class, "SPOTLIGHT_VFX", noGlTexture(1920, 1080));
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededSpotlight(null);
+
+            assertFalse("a SpotlightEffect with a null color fails open",
+                    renderer.render(batch, effect));
+            assertEquals("no draw", 0, batch.fullScreenDrawCalls);
+            assertFalse("a null-color SpotlightEffect cannotDraw", renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "SPOTLIGHT_VFX", previous);
+        }
+    }
+
+    private static boolean declaresOnClass(Class<?> type, String name) {
+        try {
+            type.getDeclaredField(name);
+            return true;
+        } catch (NoSuchFieldException ignored) {
+            return false;
+        }
+    }
+
     /**
      * Real {@code HealPanelEffect} with reflectively seeded {@code x} and inherited
      * {@code scale}/{@code rotation}/{@code color}, plus its class-level static {@code img}
@@ -2856,6 +2990,9 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.MAP_CIRCLE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.MapCircleEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.SPOTLIGHT));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.SpotlightEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2969,6 +3106,9 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.MAP_CIRCLE + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.MAP_CIRCLE + "2"));
         assertFalse(renderer.isReady("MapCircleEffect"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SPOTLIGHT + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.SPOTLIGHT + "2"));
+        assertFalse(renderer.isReady("SpotlightEffect"));
     }
 
     @Test
@@ -5069,6 +5209,14 @@ public class Sts1VfxArtRendererTest {
         boolean drawnFlipsCaptured;
         boolean drawnFlipX;
         boolean drawnFlipY;
+        /** Count of the 4-arg {@code draw(Texture, x, y, w, h)} full-screen overload calls. */
+        int fullScreenDrawCalls;
+        /** 4-arg full-screen draws that returned normally (i.e. actually painted). */
+        int successfulFullScreenDraws;
+        /** The first {@link Texture} passed to the 4-arg full-screen overload. */
+        Texture drawnFullScreenTexture;
+        /** The first 4-arg full-screen draw's arguments ({@code x, y, width, height}). */
+        float[] drawnFullScreenArgs;
 
         CountingBatch() {
             // Never invoked: instances are created with Unsafe.allocateInstance so no GL/asset state
@@ -5141,6 +5289,18 @@ public class Sts1VfxArtRendererTest {
                 drawnFlipsCaptured = true;
                 drawnFlipX = flipX;
                 drawnFlipY = flipY;
+            }
+        }
+
+        @Override
+        public void draw(Texture texture, float x, float y, float width, float height) {
+            // The 4-arg texture overload (NRO-04 B07 SpotlightEffect full-screen draw). Record the
+            // call only; skipping super avoids the real (absent) GL texture bind path.
+            fullScreenDrawCalls++;
+            successfulFullScreenDraws++;
+            if (fullScreenDrawCalls == 1) {
+                drawnFullScreenTexture = texture;
+                drawnFullScreenArgs = new float[] {x, y, width, height};
             }
         }
     }

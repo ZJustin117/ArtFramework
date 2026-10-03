@@ -21,6 +21,7 @@ import com.megacrit.cardcrawl.vfx.MapCircleEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
 import com.megacrit.cardcrawl.vfx.DamageHeartEffect;
 import com.megacrit.cardcrawl.vfx.ShineLinesEffect;
+import com.megacrit.cardcrawl.vfx.SpotlightEffect;
 import com.megacrit.cardcrawl.vfx.TorchHeadFireEffect;
 import com.megacrit.cardcrawl.vfx.WarningSignEffect;
 import com.megacrit.cardcrawl.vfx.RewardGlowEffect;
@@ -163,6 +164,15 @@ import java.util.function.Predicate;
  * {@code 192x192} rect at position {@code (x - 96f, y - 96f)} with the uniform scale and the field
  * rotation, and a HARDCODED draw color {@code (0.09f, 0.13f, 0.17f, 1f)} that ignores the effect's
  * own color; ctor {@code (float x, float y, float rotation)}).
+ *
+ * <p>The newest (NRO-04 B07) member is the {@code vfx-misc-root} {@code SpotlightEffect} — a
+ * FULL-SCREEN bare static-{@code Texture} kind with NO own per-effect geometry field (no
+ * {@code x}/{@code y}/{@code scale}/{@code rotation}; the native {@code render} consumes only
+ * {@code color} — the inherited {@code scale}/{@code rotation} are unused and not required); it draws
+ * the static {@code ImageMaster.SPOTLIGHT_VFX Texture} at {@code (0f, 0f)} over
+ * {@code Settings.WIDTH x Settings.HEIGHT} additively with its own color, and has a public NO-ARG
+ * ctor. It is production-reachable: {@code GrandFinalEffect} constructs it into
+ * {@code AbstractDungeon.effectsQueue}.
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -411,6 +421,13 @@ public final class VfxLabSpawn {
         // fail-open guard.
         if ("mapcircle".equalsIgnoreCase(value) || "map".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.MAP_CIRCLE;
+        }
+        // NRO-04 B07: SpotlightEffect draws the STATIC ImageMaster.SPOTLIGHT_VFX Texture full-screen;
+        // the native render consumes only its inherited color (the inherited scale/rotation are unused
+        // and not required). That texture may be null off-game, so the construct path is behind the
+        // existing fail-open guard.
+        if ("spotlight".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.SPOTLIGHT;
         }
         return null;
     }
@@ -931,6 +948,12 @@ public final class VfxLabSpawn {
             // may be null off-game (and update() later swaps it through MAP_CIRCLE_5/4/3/2). Any
             // failure is caught by spawn's fail-open guard rather than propagating.
             return new MapCircleEffect(960f, 540f, 0f);
+        }
+        if (VfxClaimPolicy.SPOTLIGHT.equals(fqn)) {
+            // NRO-04 B07: SpotlightEffect has a NO-ARG ctor (duration 3f, color (1,1,0.8,0.5)) and
+            // draws the static ImageMaster.SPOTLIGHT_VFX Texture full-screen; that texture may be null
+            // off-game, so any failure is caught by spawn's fail-open guard rather than propagating.
+            return new SpotlightEffect();
         }
         return null;
     }

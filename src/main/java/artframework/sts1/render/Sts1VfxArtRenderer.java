@@ -208,6 +208,21 @@ import java.lang.reflect.Field;
  * No new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
  * unchanged.
  *
+ * <p>The newest (NRO-04 B07) member is the {@code vfx-misc-root} {@code SpotlightEffect}: a
+ * FULL-SCREEN bare static-{@code Texture} kind with NO {@code x}/{@code y} field, and its native
+ * {@code render} consumes only {@code color} (the inherited {@code scale}/{@code rotation} are
+ * unused and not required), so it is served by a dedicated
+ * {@link #renderFullScreenTexture} branch BEFORE {@link #readFields}/{@link #readTextureFields}. Its
+ * native {@code render} is {@code setColor(color); setBlendFunction(770, 1);
+ * sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH, Settings.HEIGHT);
+ * setBlendFunction(770, 771)} — ADDITIVE, the static {@code ImageMaster.SPOTLIGHT_VFX Texture}, the
+ * fixed full-screen position/size, and the effect's OWN color ({@link #resolveTexture} returns the
+ * static texture; ONLY {@code color} is read from the effect). A missing/null static texture (or
+ * null color) fails open. PRODUCTION REACH (positive): it IS constructed by
+ * {@code GrandFinalEffect} into {@code AbstractDungeon.effectsQueue}, so the {@code AbstractDungeon
+ * .render} effect loop the seam instruments does reach a real instance. No new
+ * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -969,6 +984,63 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * FULL-SCREEN bare static-{@code Texture} branch for {@code SpotlightEffect} (NRO-04 B07),
+     * served BEFORE the generic {@link #readTextureFields} path because the class has NO
+     * {@code x}/{@code y} field and its native {@code render} consumes only {@code color} (the
+     * inherited {@code scale}/{@code rotation} are unused and not required) — its native draw is
+     * fixed screen geometry. Reproduces the native render exactly: {@code setColor(color);
+     * setBlendFunction(770, 1); sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH,
+     * Settings.HEIGHT); setBlendFunction(770, 771)} — ADDITIVE, the effect's OWN color, position
+     * {@code (0f, 0f)} and size {@code (Settings.WIDTH, Settings.HEIGHT)}. Only {@code color} is
+     * read from the effect (see {@link VfxDrawGeometry#fullScreenTexture}).
+     *
+     * <p>There is exactly ONE draw, so a throw before it fails open (returns {@code false} so native
+     * draws); blend/color are always restored in {@code finally}. Never throws.
+     */
+    private boolean renderFullScreenTexture(SpriteBatch sb, VfxDrawGeometry.Kind kind,
+            AbstractGameEffect effect) {
+        Texture texture = resolveTexture(kind, null);
+        if (texture == null) return false;
+        Color color = readColor(effect, "color");
+        if (color == null) return false;
+        boolean additive = VfxDrawGeometry.additiveBlend(kind);
+        Color previous = new Color(sb.getColor());
+        boolean blendChanged = false;
+        try {
+            sb.setColor(color);
+            if (additive) {
+                sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE);
+                blendChanged = true;
+            }
+            // The 4-arg texture overload: position (0f, 0f) and size (Settings.WIDTH, Settings.HEIGHT),
+            // exactly as the native effect draws (no origin/rotation/scale).
+            sb.draw(texture, 0f, 0f, Settings.WIDTH, Settings.HEIGHT);
+            return true;
+        } catch (Throwable ignored) {
+            // Single draw: a throw here painted nothing (or is unrecoverable), so fail open to native.
+            return false;
+        } finally {
+            try {
+                if (blendChanged) {
+                    sb.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                }
+                sb.setColor(previous);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /**
+     * Required color read: the effect's own {@link Color}, or {@code null} when the field is
+     * absent/unreadable/wrong-typed. Used by the full-screen {@code SpotlightEffect} branch, whose
+     * native {@code setColor(color)} consumes a non-null color (a real instance always has one).
+     */
+    private static Color readColor(Object target, String name) {
+        Object raw = readRaw(target, name);
+        return raw instanceof Color ? (Color) raw : null;
+    }
+
+    /**
      * Resolves the {@link Color} the bare-{@code Texture} branch passes to
      * {@code SpriteBatch.setColor}. The newest (NRO-04 B06) {@code MAP_CIRCLE} returns its
      * HARDCODED {@code (0.09f, 0.13f, 0.17f, 1f)} regardless of the effect color (a real
@@ -1316,6 +1388,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             return false;
         }
         if (isTextureDrawKind(kind)) {
+            // NRO-04 B07: SpotlightEffect has NO own x/y field and its native render consumes only
+            // color (the inherited scale/rotation are unused and not required), so readTextureFields
+            // (which requires x/y/scale) does not apply; its drawable image is exactly the static
+            // ImageMaster.SPOTLIGHT_VFX Texture (plus a non-null effect color).
+            if (VfxDrawGeometry.fullScreenTexture(kind)) {
+                return resolveTexture(kind, null) != null
+                        && readColor(effect, "color") != null;
+            }
             TextureFields f = readTextureFields(kind, effect);
             return f != null && resolveTexture(kind, f) != null;
         }
@@ -1351,7 +1431,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.HEAL_PANEL
                 || kind == VfxDrawGeometry.Kind.PING_HP
                 || kind == VfxDrawGeometry.Kind.REWARD_GLOW
-                || kind == VfxDrawGeometry.Kind.MAP_CIRCLE;
+                || kind == VfxDrawGeometry.Kind.MAP_CIRCLE
+                || kind == VfxDrawGeometry.Kind.SPOTLIGHT;
     }
 
     /**
@@ -1439,6 +1520,11 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             // static field through readRaw and requires it to be a non-null Texture.
             return f.img;
         }
+        if (kind == VfxDrawGeometry.Kind.SPOTLIGHT) {
+            // SpotlightEffect draws the static ImageMaster.SPOTLIGHT_VFX Texture (it has NO instance
+            // img field; its native render consumes only color). May be null off-game; a null fails open.
+            return ImageMaster.SPOTLIGHT_VFX;
+        }
         if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
             // WebParticleEffect and EntangleEffect share the static ImageMaster.WEB_VFX Texture.
@@ -1493,6 +1579,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
      */
     private boolean renderTexture(SpriteBatch sb, VfxDrawGeometry.Kind kind,
             AbstractGameEffect effect) {
+        // NRO-04 B07: SpotlightEffect has NO own x/y field and its native render consumes only color
+        // (the inherited scale/rotation are unused and not required), so it is served by a dedicated
+        // branch BEFORE the generic readTextureFields path (which requires x/y/scale). Its draw reads
+        // ONLY the effect's own color; the position/size are fixed screen geometry
+        // (0, 0, Settings.WIDTH, Settings.HEIGHT).
+        if (VfxDrawGeometry.fullScreenTexture(kind)) {
+            return renderFullScreenTexture(sb, kind, effect);
+        }
         TextureFields f = readTextureFields(kind, effect);
         if (f == null) return false;
         Texture texture = resolveTexture(kind, f);

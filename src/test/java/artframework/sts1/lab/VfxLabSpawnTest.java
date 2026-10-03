@@ -182,6 +182,9 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.CAMPFIRE_RECALL, VfxLabSpawn.classNameFor("recall"));
         assertEquals(VfxClaimPolicy.FADE_WIPE, VfxLabSpawn.classNameFor("fadewipe"));
         assertEquals(VfxClaimPolicy.FADE_WIPE, VfxLabSpawn.classNameFor("wipe"));
+        assertEquals(VfxClaimPolicy.EMPOWER_CIRCLE,
+                VfxLabSpawn.classNameFor("empowercircle"));
+        assertEquals(VfxClaimPolicy.EMPOWER_CIRCLE, VfxLabSpawn.classNameFor("empower"));
     }
 
     @Test
@@ -794,6 +797,16 @@ public class VfxLabSpawnTest {
         // "fadewipe"/"wipe" do not collide with any existing alias.
         assertSpawnRequests("fadewipe", VfxClaimPolicy.FADE_WIPE);
         assertSpawnRequests("wipe", VfxClaimPolicy.FADE_WIPE);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheB11EmpowerCircleThroughTheFactorySeam() {
+        // The newest (NRO-04 B11) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the ctor (whose instance img is chosen from the static
+        // ImageMaster.POWER_UP_1/POWER_UP_2 art and may be null off-game).
+        // "empowercircle"/"empower" do not collide with any existing alias.
+        assertSpawnRequests("empowercircle", VfxClaimPolicy.EMPOWER_CIRCLE);
+        assertSpawnRequests("empower", VfxClaimPolicy.EMPOWER_CIRCLE);
     }
 
     @Test

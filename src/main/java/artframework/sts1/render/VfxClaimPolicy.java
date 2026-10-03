@@ -282,6 +282,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect";
     public static final String FADE_WIPE =
             "com.megacrit.cardcrawl.vfx.FadeWipeParticle";
+    public static final String EMPOWER_CIRCLE =
+            "com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -302,7 +304,7 @@ public final class VfxClaimPolicy {
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
                     BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN,
                     HEAL_PANEL, PING_HP, REWARD_GLOW, MAP_CIRCLE, SPOTLIGHT,
-                    CAMPFIRE_RECALL, FADE_WIPE));
+                    CAMPFIRE_RECALL, FADE_WIPE, EMPOWER_CIRCLE));
 
     private VfxClaimPolicy() {}
 
@@ -379,7 +381,8 @@ public final class VfxClaimPolicy {
                 || MAP_CIRCLE.equals(value)
                 || SPOTLIGHT.equals(value)
                 || CAMPFIRE_RECALL.equals(value)
-                || FADE_WIPE.equals(value);
+                || FADE_WIPE.equals(value)
+                || EMPOWER_CIRCLE.equals(value);
     }
 
     /**
@@ -730,6 +733,38 @@ public final class VfxClaimPolicy {
      * {@code AbstractDungeon.render} effect loop DOES reach a real instance (like B07/B08); it is
      * also lab-spawnable via the {@code "fadewipe"}/{@code "wipe"} aliases. ({@code TopPanel} does
      * NOT construct it; it only references the class via an {@code instanceof} check.)
+     *
+     * <p>The newest (NRO-04 B11) member is the {@code vfx-combat}
+     * {@code com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect} (public ctor
+     * {@code (float, float)}). Its fields are {@code private float x}, {@code private float y},
+     * {@code private float vX}, {@code private float vY}, and an instance
+     * {@code AtlasRegion img} chosen at CONSTRUCTION time from
+     * {@code ImageMaster.POWER_UP_1}/{@code POWER_UP_2} via a {@code MathUtils.randomBoolean()};
+     * it has NO {@code scale}/{@code rotation} field of its own (the inherited
+     * {@code AbstractGameEffect.scale}/{@code rotation} are used). Its native
+     * {@code render(SpriteBatch)} is the seam's RNG-REPLAY-WITH-BOOLEAN-GUARD combination: it returns
+     * immediately when {@code isDone} is true (the SAME boolean shape as {@code FlyingOrbEffect}),
+     * otherwise it draws ONCE with NO {@code setBlendFunction} (AMBIENT):
+     * {@code sb.draw(img, x, y, img.packedWidth/2f, img.packedHeight/2f, img.packedWidth,
+     * img.packedHeight, scale * MathUtils.random(0.9f, 1.1f), scale * MathUtils.random(0.9f, 1.1f),
+     * rotation)} — center-packed origin/size, position {@code (x, y)} passthrough, the uniform
+     * {@code scale} multiplied by {@code random(0.9f, 1.1f)} for scaleX THEN
+     * {@code random(0.9f, 1.1f)} for scaleY (EXACT order, replayed via
+     * {@link VfxDrawGeometry#randomRanges}), and the field rotation. The boolean {@code isDone} guard
+     * reuses the B01 capability ({@link VfxDrawGeometry#nativeSkipsDrawByGuard}/
+     * {@link VfxDrawGeometry#guardIsBoolean}/{@link VfxDrawGeometry#guardBlocksBoolean}). It is
+     * appended LAST after {@code FadeWipeParticle}; no new patch/bridge/console wiring; the
+     * default-off gate and per-instance token semantics are unchanged.
+     *
+     * <p><b>PRODUCTION REACH (B11, positive).</b> The claim seam's only effect observer instruments
+     * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
+     * ({@code TransientEffectContainerPatches}). {@code EmpowerCircleEffect} is constructed by
+     * {@code com.megacrit.cardcrawl.vfx.combat.EmpowerEffect}, whose ctor queues EIGHTEEN of them
+     * into {@code AbstractDungeon.effectList}; {@code EmpowerEffect} is in turn constructed by
+     * {@code com.megacrit.cardcrawl.cards.Soul} (during the soul-into-card power-application
+     * animation). So the instrumented {@code AbstractDungeon.render} effect loop DOES reach a real
+     * instance (like B07/B08/B10); it is also lab-spawnable via the
+     * {@code "empowercircle"}/{@code "empower"} aliases.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

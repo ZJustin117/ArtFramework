@@ -1635,6 +1635,55 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         lab-spawnable via the `fadewipe`/`wipe` aliases. (`TopPanel` does NOT construct it; it only
         references the class via an `instanceof` check.)
 
+- [x] NRO-04 B11 (`EmpowerCircleEffect` joins the default-off per-instance claim seam):
+        `com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect` is appended LAST to
+        `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` (after `FadeWipeParticle`) and mapped by
+        `kindFor`. It is a single-draw kind whose render consumes render-time RNG for scaleX/scaleY
+        AND is guarded by a boolean `isDone`; it reuses three existing capabilities with no new
+        machinery. Its fields are `private float x`, `private float y`, `private float vX`,
+        `private float vY`, an instance `AtlasRegion img` chosen at CONSTRUCTION time from
+        `ImageMaster.POWER_UP_1`/`POWER_UP_2` via `MathUtils.randomBoolean()`, plus the inherited
+        `color`/`scale`/`rotation`; ctor `(float, float)`. Its native `render(SpriteBatch)` is
+        `if (isDone) return; setColor(color); sb.draw(img, x, y, img.packedWidth/2f,
+        img.packedHeight/2f, img.packedWidth, img.packedHeight, scale * MathUtils.random(0.9f, 1.1f),
+        scale * MathUtils.random(0.9f, 1.1f), rotation)` — NO `setBlendFunction` (AMBIENT),
+        center-packed origin/size, position `(x, y)` passthrough, the uniform `scale` multiplied by
+        `random(0.9f, 1.1f)` for scaleX THEN `random(0.9f, 1.1f)` for scaleY (EXACT order). It is the
+        seam's producer of the RNG-REPLAY-WITH-BOOLEAN-GUARD combination. `VfxDrawGeometry` adds
+        `Kind.EMPOWER_CIRCLE`: `randomRanges` returns the ordered list `[{0.9f,1.1f},{0.9f,1.1f}]`
+        (the same shape as `WRATH_STANCE_CHANGE`), the boolean guard set gains it
+        (`nativeSkipsDrawByGuard` true, `guardFieldName` == `"isDone"`, `guardIsBoolean` true,
+        `guardBlocksBoolean` true when the value is true), `additiveBlend` is FALSE (ambient), and it
+        reuses the existing center-packed `params` branch (no new geometry branch); it is NOT in
+        flip/mirror/variable-length/flickCoin/fullScreenTexture/multiSourceWipe. `Sts1VfxArtRenderer`
+        needs NO new draw branch: it rides the existing img path (`readFields` requires
+        x/y/scale/rotation/color/img — all present — and treats `vY` as optional; the existing
+        `randomRanges` handling pulls the two values in order and applies them to scaleX then scaleY,
+        and the existing boolean `isDone` `guardSatisfied` blocks when true). The lab gains the
+        aliases `"empowercircle"`/`"empower"` -> `new EmpowerCircleEffect(960f, 540f)` behind the
+        existing fail-open guard (static ImageMaster art may be null off-game). Tests:
+        `VfxDrawGeometryTest` (kindFor + near-miss fail-open, ordered `randomRanges`, boolean guard
+        predicates, ambient, not flip/mirror/var-length/flickCoin/full-screen/multi-source),
+        `Sts1VfxArtRendererTest` (an EMPOWER_CIRCLE holder with x/y/scale/rotation/color/img:
+        exactly ONE center-packed draw at `(x, y)` with origin `packed/2` and the RNG-replayed
+        scaleX/scaleY `scale * random(0.9f,1.1f)` in native order via mirror-RNG; an `isDone == true`
+        instance draws nothing and consumes no RNG; a missing `img` fails open; a throw after RNG
+        consumption restores the global RNG snapshot),
+        `VfxDelegationSeamTest`/`Sts1VfxRendererBindingTest` (readiness + appended-last order),
+        `VfxLabSpawnTest` (alias -> FQN + capturing factory). DEVICE: `art claim spawn empower 4` is
+        added to BOTH the gate-OFF and gate-ON phases of `tests/ui-scenarios/device/d1_aura_claim.yaml`.
+        NOTE: this is a NON-DETERMINISTIC (render-time RNG) kind, so the D1 probe only sees draw
+        counts/entities, not the RNG-derived scale; the sequence/order is guaranteed by the unit
+        tests (mirror-RNG), and the scenario spawns it for draw/lifecycle evidence like the other
+        non-deterministic kinds. No new patch/bridge/console wiring; the default-off gate and
+        per-instance token semantics are unchanged. PRODUCTION REACH (positive, B11):
+        `EmpowerCircleEffect` is constructed by `com.megacrit.cardcrawl.vfx.combat.EmpowerEffect`,
+        whose ctor queues eighteen of them into `AbstractDungeon.effectList`; `EmpowerEffect` is in
+        turn constructed by `com.megacrit.cardcrawl.cards.Soul` (during the soul-into-card
+        power-application animation), so the instrumented `AbstractDungeon.render` effect loop DOES
+        reach real instances (like B07/B08/B10); it is also lab-spawnable via the
+        `empowercircle`/`empower` aliases.
+
 - [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
         `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
         loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`

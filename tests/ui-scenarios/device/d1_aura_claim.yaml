@@ -87,6 +87,16 @@
 # geometry). PRODUCTION REACH: MapRoomNode and SecretPortal construct it into
 # AbstractDungeon.topLevelEffects, so the container loop DOES reach a real instance; lab-spawnable
 # here via `fadewipe`/`wipe` (TopPanel does NOT construct it; it only does an instanceof check).
+# The newest (NRO-04 B11) is EmpowerCircleEffect (vfx-combat; a single-draw AMBIENT center-packed
+# AtlasRegion kind whose native render returns early when `isDone` is true — a BOOLEAN guard — and
+# otherwise consumes TWO render-time MathUtils.random(0.9f, 1.1f) values for scaleX then scaleY,
+# replayed by the seam to keep the global RNG stream identical). NOTE: this is a NON-DETERMINISTIC
+# (render-time RNG) kind, so the D1 probe only sees draw counts/entities, not the RNG-derived scale;
+# the sequence/order is guaranteed by the unit tests (mirror-RNG), and the scenario spawns it for
+# draw/lifecycle evidence like the other non-deterministic kinds. PRODUCTION REACH (positive):
+# EmpowerEffect constructs eighteen of them into AbstractDungeon.effectList, and EmpowerEffect is
+# constructed by cards.Soul, so the container loop DOES reach real instances; lab-spawnable here via
+# `empowercircle`/`empower`.
 # Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.
@@ -212,6 +222,7 @@ steps:
   - console: "art claim spawn mapcircle 4"
   - console: "art claim spawn spotlight 4"
   - console: "art claim spawn fadewipe 4"
+  - console: "art claim spawn empower 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -311,6 +322,7 @@ steps:
   - console: "art claim spawn mapcircle 4"
   - console: "art claim spawn spotlight 4"
   - console: "art claim spawn fadewipe 4"
+  - console: "art claim spawn empower 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

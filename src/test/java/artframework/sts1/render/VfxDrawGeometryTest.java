@@ -344,6 +344,12 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.PING_HP,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.PingHpEffect"));
+        // The newest (NRO-04 B11) member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.EMPOWER_CIRCLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.EMPOWER_CIRCLE));
+        assertSame(VfxDrawGeometry.Kind.EMPOWER_CIRCLE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect"));
     }
 
     @Test
@@ -2266,7 +2272,8 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.BOTTOM_FOG
                     || kind == VfxDrawGeometry.Kind.MAP_CIRCLE
                     || kind == VfxDrawGeometry.Kind.CAMPFIRE_RECALL
-                    || kind == VfxDrawGeometry.Kind.FADE_WIPE) {
+                    || kind == VfxDrawGeometry.Kind.FADE_WIPE
+                    || kind == VfxDrawGeometry.Kind.EMPOWER_CIRCLE) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -2702,6 +2709,10 @@ public class VfxDrawGeometryTest {
                 continue;
             }
             if (kind == VfxDrawGeometry.Kind.FLYING_ORB) {
+                assertEquals("isDone", VfxDrawGeometry.guardFieldName(kind));
+                continue;
+            }
+            if (kind == VfxDrawGeometry.Kind.EMPOWER_CIRCLE) {
                 assertEquals("isDone", VfxDrawGeometry.guardFieldName(kind));
                 continue;
             }
@@ -3469,7 +3480,10 @@ public class VfxDrawGeometryTest {
         // Every other kind is neither boolean-guarded nor blocked by the boolean predicate — including
         // the float-guarded kinds, whose guard is the float guardBlocks threshold.
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
-            if (kind == VfxDrawGeometry.Kind.FLYING_ORB) continue;
+            if (kind == VfxDrawGeometry.Kind.FLYING_ORB
+                    || kind == VfxDrawGeometry.Kind.EMPOWER_CIRCLE) {
+                continue;
+            }
             assertFalse("no boolean guard for " + kind, VfxDrawGeometry.guardIsBoolean(kind));
             assertFalse("no boolean block for " + kind,
                     VfxDrawGeometry.guardBlocksBoolean(kind, true));
@@ -4174,5 +4188,115 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.fullScreenTexture(VfxDrawGeometry.Kind.FADE_WIPE));
         assertFalse(VfxDrawGeometry.fullScreenTextureReadsScreenColor(
                 VfxDrawGeometry.Kind.FADE_WIPE));
+    }
+
+    // --- NRO-04 B11 EmpowerCircleEffect: center-packed img, render-time RNG scaleX/scaleY, and the
+    // boolean isDone guard (the seam's first RNG-replay-WITH-boolean-guard kind) ---
+
+    @Test
+    public void empowerCircleKindForMapsTheExactFqnAndFailsOpenForNearMisses() {
+        assertSame(VfxDrawGeometry.Kind.EMPOWER_CIRCLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.EMPOWER_CIRCLE));
+        assertSame(VfxDrawGeometry.Kind.EMPOWER_CIRCLE,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("EmpowerCircleEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.EmpowerCircleEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.combat.EmpowerCircle"));
+    }
+
+    @Test
+    public void empowerCircleUsesTheCenterPackedGeometryAndReplaysTwoOrderedRngRanges() {
+        // Native EmpowerCircleEffect.render (verified bytecode):
+        //   if (isDone) return;
+        //   setColor(color);
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph,
+        //           scale * MathUtils.random(0.9f, 1.1f), scale * MathUtils.random(0.9f, 1.1f),
+        //           rotation);
+        // The geometry is the shared center-packed branch (x/y passthrough, origin packed/2f, packed
+        // size, uniform scale); the renderer applies the two RNG factors (replayed via randomRanges).
+        float pw = 64f;
+        float ph = 48f;
+        float x = 12.5f;
+        float y = 33.25f;
+        float scale = 0.7f;
+        float rotation = 51f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.EMPOWER_CIRCLE,
+                x, y, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                pw, ph, 1234f /* vX ignored */, 6f /* regionOffsetX ignored */,
+                10f /* regionOffsetY ignored */, 0f, 0f, 1f);
+
+        assertEquals(x, p.x, EPS);
+        assertEquals(y, p.y, EPS);
+        assertEquals(pw / 2f, p.originX, EPS);
+        assertEquals(ph / 2f, p.originY, EPS);
+        assertEquals(pw, p.width, EPS);
+        assertEquals(ph, p.height, EPS);
+        assertEquals("base scaleX is scale (RNG applied by the renderer)", scale, p.scaleX, EPS);
+        assertEquals("base scaleY is scale (RNG applied by the renderer)", scale, p.scaleY, EPS);
+        assertEquals(rotation, p.rotation, EPS);
+
+        VfxDrawGeometry.Params aura = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.STANCE_AURA,
+                x, y, 0f, scale, rotation, 0f, 0f, 1f, pw, ph, 0f, 0f, 0f, 0f, 0f, 1f);
+        assertEquals("geometry equals the STANCE_AURA center-packed shape", aura, p);
+
+        // The render-time RNG is the exact ordered two-range list scaleX then scaleY, each
+        // (0.9f, 1.1f) — the same shape as WRATH_STANCE_CHANGE.
+        java.util.List<float[]> ranges =
+                VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.EMPOWER_CIRCLE);
+        assertEquals("Empower consumes exactly two RNG draws in order", 2, ranges.size());
+        assertEquals(0.9f, ranges.get(0)[0], EPS);
+        assertEquals(1.1f, ranges.get(0)[1], EPS);
+        assertEquals(0.9f, ranges.get(1)[0], EPS);
+        assertEquals(1.1f, ranges.get(1)[1], EPS);
+        assertEquals(0.9f, VfxDrawGeometry.EMPOWER_CIRCLE_RANDOM_MIN, EPS);
+        assertEquals(1.1f, VfxDrawGeometry.EMPOWER_CIRCLE_RANDOM_MAX, EPS);
+        // It is a single-draw (not multi-pass) kind.
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(
+                VfxDrawGeometry.Kind.EMPOWER_CIRCLE).isEmpty());
+    }
+
+    @Test
+    public void empowerCircleIsAmbientAndJoinsTheBooleanGuardsButNoFlipMirrorOrMultiDraw() {
+        // Native EmpowerCircleEffect: AMBIENT (NO setBlendFunction), guarded by `if (isDone) return`
+        // (a BOOLEAN guard), no flip/mirror, no variable-length/flickCoin/full-screen/multiSourceWipe.
+        assertFalse("EMPOWER_CIRCLE never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(
+                VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+
+        assertTrue("EMPOWER_CIRCLE has a native draw guard",
+                VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertTrue("the EMPOWER_CIRCLE guard is a boolean isDone",
+                VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertEquals("isDone", VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertEquals("isDone", VfxDrawGeometry.EMPOWER_CIRCLE_GUARD_FIELD);
+        assertTrue("isDone == true blocks the draw",
+                VfxDrawGeometry.guardBlocksBoolean(VfxDrawGeometry.Kind.EMPOWER_CIRCLE, true));
+        assertFalse("isDone == false draws",
+                VfxDrawGeometry.guardBlocksBoolean(VfxDrawGeometry.Kind.EMPOWER_CIRCLE, false));
+
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.multiSourceWipe(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(
+                VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertFalse(VfxDrawGeometry.fullScreenTexture(VfxDrawGeometry.Kind.EMPOWER_CIRCLE));
+        assertEquals(1f, VfxDrawGeometry.uniformScaleMultiplier(
+                VfxDrawGeometry.Kind.EMPOWER_CIRCLE, 2f), EPS);
     }
 }

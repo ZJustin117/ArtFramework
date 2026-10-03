@@ -3391,6 +3391,8 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.CAMPFIRE_RECALL));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.FADE_WIPE));
+        assertTrue(renderer.isReady(VfxClaimPolicy.EMPOWER_CIRCLE));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -3507,6 +3509,9 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.SPOTLIGHT + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.SPOTLIGHT + "2"));
         assertFalse(renderer.isReady("SpotlightEffect"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.EMPOWER_CIRCLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.EMPOWER_CIRCLE + "2"));
+        assertFalse(renderer.isReady("EmpowerCircleEffect"));
     }
 
     @Test
@@ -7405,5 +7410,164 @@ public class Sts1VfxArtRendererTest {
         assertNull("a missing img fails the dedicated snapshot",
                 Sts1VfxArtRenderer.readFlickCoinFields(noImg));
         assertNull(Sts1VfxArtRenderer.readFlickCoinFields(null));
+    }
+
+    // --- NRO-04 B11 EmpowerCircleEffect: center-packed img + render-time RNG + boolean isDone guard ---
+
+    /**
+     * Real {@code EmpowerCircleEffect} with reflectively seeded {@code x}/{@code y}/instance
+     * {@code AtlasRegion img} plus the inherited {@code scale}/{@code rotation}/{@code color} and the
+     * boolean {@code isDone} guard (no game/GL context).
+     */
+    private static AbstractGameEffect seededEmpowerCircle(float x, float y, float scale,
+            float rotation, Color color, TextureAtlas.AtlasRegion img, boolean isDone) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect.class,
+                    "x", Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect.class,
+                    "y", Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect.class,
+                    "img", img);
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            setField(effect, AbstractGameEffect.class, "isDone", Boolean.valueOf(isDone));
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL EmpowerCircleEffect", failure);
+        }
+    }
+
+    @Test
+    public void empowerCircleDrawsOnceCenterPackedAmbientlyReplayingTwoOrderedRngDraws() {
+        // Native EmpowerCircleEffect.render (verified bytecode):
+        //   if (isDone) return;
+        //   setColor(color);
+        //   sb.draw(img, x, y, pw/2f, ph/2f, pw, ph,
+        //           scale * MathUtils.random(0.9f, 1.1f), scale * MathUtils.random(0.9f, 1.1f),
+        //           rotation);
+        // One AMBIENT (no setBlendFunction) center-packed draw whose scaleX then scaleY are each
+        // multiplied by a render-time MathUtils.random(0.9f, 1.1f) — the EXACT native call order.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        TextureAtlas.AtlasRegion region =
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        java.util.Random savedRandom = MathUtils.random;
+        java.util.Random live = new java.util.Random(24681357L);
+        java.util.Random mirror = new java.util.Random(24681357L);
+        MathUtils.random = live;
+        try {
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededEmpowerCircle(
+                    12.5f, -3.25f, 0.6f, 27f, Color.WHITE, region, false);
+
+            assertTrue("an EmpowerCircle instance draws", renderer.render(batch, effect));
+            assertEquals("EmpowerCircle is AMBIENT: no setBlendFunction call", 0, batch.setBlendCalls);
+            assertEquals("EmpowerCircle issues exactly ONE draw", 1, batch.successfulRegionDraws);
+            assertNotNull(batch.drawnRegionArgs);
+            assertEquals("position x is the effect's own x", 12.5f, batch.drawnRegionArgs[0], EPS);
+            assertEquals("position y is the effect's own y", -3.25f, batch.drawnRegionArgs[1], EPS);
+            assertEquals("originX is packedWidth/2f", 32f, batch.drawnRegionArgs[2], EPS);
+            assertEquals("originY is packedHeight/2f", 24f, batch.drawnRegionArgs[3], EPS);
+            assertEquals("width is the packed width", 64f, batch.drawnRegionArgs[4], EPS);
+            assertEquals("height is the packed height", 48f, batch.drawnRegionArgs[5], EPS);
+
+            // Two ordered (0.9f, 1.1f) RNG draws: scaleX then scaleY.
+            float r0 = 0.9f + mirror.nextFloat() * (1.1f - 0.9f);
+            float r1 = 0.9f + mirror.nextFloat() * (1.1f - 0.9f);
+            assertEquals("scaleX is scale * the first (0.9,1.1) RNG draw",
+                    0.6f * r0, batch.drawnRegionArgs[6], EPS);
+            assertEquals("scaleY is scale * the second (0.9,1.1) RNG draw",
+                    0.6f * r1, batch.drawnRegionArgs[7], EPS);
+            assertEquals("the rotation comes from the effect's own field",
+                    27f, batch.drawnRegionArgs[8], EPS);
+            assertEquals("the draw consumed exactly two RNG values in order",
+                    mirror.nextFloat(), live.nextFloat(), 0f);
+
+            assertTrue("a drawable EmpowerCircle instance canDraw", renderer.canDraw(effect));
+        } finally {
+            MathUtils.random = savedRandom;
+        }
+    }
+
+    @Test
+    public void empowerCircleIsDoneGuardBlocksTheDraw() {
+        // The native render begins `if (isDone) return;`, so an isDone instance draws nothing and must
+        // consume NO RNG.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        java.util.Random savedRandom = MathUtils.random;
+        CountingRandom counting = new CountingRandom();
+        MathUtils.random = counting;
+        try {
+            AbstractGameEffect blocked = seededEmpowerCircle(12.5f, -3.25f, 0.6f, 27f, Color.WHITE,
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48), true);
+            CountingBatch batch = newCountingBatch();
+            assertFalse("an isDone EmpowerCircle draws nothing (guard blocks)",
+                    renderer.render(batch, blocked));
+            assertEquals("no draws on a guard-blocked instance", 0, batch.successfulRegionDraws);
+            assertEquals("a guarded-out EmpowerCircle consumes NO RNG", 0, counting.floatCalls);
+            assertFalse("a guard-blocked instance cannotDraw", renderer.canDraw(blocked));
+            assertTrue("a guard-blocked instance is a benign no-pixel decline",
+                    renderer.declinedWithoutPixels(blocked));
+        } finally {
+            MathUtils.random = savedRandom;
+        }
+    }
+
+    @Test
+    public void empowerCircleMissingImageFailsOpenAndCannotDraw() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        AbstractGameEffect effect = seededEmpowerCircle(12.5f, -3.25f, 0.6f, 27f, Color.WHITE, null,
+                false);
+
+        CountingBatch batch = newCountingBatch();
+        assertFalse("a missing img fails the draw open", renderer.render(batch, effect));
+        assertEquals("no draw on a missing img", 0, batch.successfulRegionDraws);
+        assertFalse("a missing img cannotDraw", renderer.canDraw(effect));
+    }
+
+    @Test
+    public void empowerCircleRestoresRngOnAPostConsumptionFailOpen() {
+        // If the single draw throws AFTER the two random values were pulled, the renderer must restore
+        // the RNG snapshot so the native fallback consumes exactly the values it expects.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        java.util.Random savedRandom = MathUtils.random;
+        com.badlogic.gdx.math.RandomXS128 rng = new com.badlogic.gdx.math.RandomXS128(424242L);
+        MathUtils.random = rng;
+        try {
+            AbstractGameEffect effect = seededEmpowerCircle(12.5f, -3.25f, 0.6f, 27f, Color.WHITE,
+                    new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48), false);
+            long before0 = rng.getState(0);
+            long before1 = rng.getState(1);
+
+            CountingBatch batch = newCountingBatch();
+            batch.throwOnRegionDraw = true;
+            assertFalse("a post-consumption throw must fail open", renderer.render(batch, effect));
+            assertEquals("RNG seed0 is restored after a post-consumption fail-open",
+                    before0, rng.getState(0));
+            assertEquals("RNG seed1 is restored after a post-consumption fail-open",
+                    before1, rng.getState(1));
+
+            com.badlogic.gdx.math.RandomXS128 mirror =
+                    new com.badlogic.gdx.math.RandomXS128(424242L);
+            float expected0 = mirror.nextFloat();
+            float expected1 = mirror.nextFloat();
+            CountingBatch okBatch = newCountingBatch();
+            assertTrue("the retry draws", renderer.render(okBatch, effect));
+            assertNotNull(okBatch.drawnRegionArgs);
+            assertEquals(0.6f * (0.9f + expected0 * (1.1f - 0.9f)),
+                    okBatch.drawnRegionArgs[6], EPS);
+            assertEquals(0.6f * (0.9f + expected1 * (1.1f - 0.9f)),
+                    okBatch.drawnRegionArgs[7], EPS);
+        } finally {
+            MathUtils.random = savedRandom;
+        }
     }
 }

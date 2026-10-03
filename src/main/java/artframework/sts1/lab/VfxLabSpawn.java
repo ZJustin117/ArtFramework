@@ -32,6 +32,7 @@ import com.megacrit.cardcrawl.vfx.combat.DamageImpactBlurEffect;
 import com.megacrit.cardcrawl.vfx.combat.DamageImpactLineEffect;
 import com.megacrit.cardcrawl.vfx.combat.DarkOrbPassiveEffect;
 import com.megacrit.cardcrawl.vfx.combat.EntangleEffect;
+import com.megacrit.cardcrawl.vfx.combat.EmpowerCircleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FallingIceEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlameParticleEffect;
 import com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect;
@@ -189,6 +190,14 @@ import java.util.function.Predicate;
  * {@code AbstractDungeon.fadeColor} and sets the static {@code ImageMaster.SCENE_TRANSITION_FADER}
  * region and {@code ImageMaster.WHITE_SQUARE_IMG} texture (both may be null off-game). The aliases
  * are {@code "fadewipe"}/{@code "wipe"} -> {@code new FadeWipeParticle()}.
+ *
+ * <p>The newest (NRO-04 B11) member is the {@code vfx-combat} {@code EmpowerCircleEffect}: a
+ * single-draw AMBIENT center-packed {@code AtlasRegion} kind whose native {@code render} returns
+ * early when {@code isDone} is true (a boolean guard) and otherwise consumes two render-time
+ * {@code MathUtils.random(0.9f, 1.1f)} values for scaleX then scaleY. The aliases are
+ * {@code "empowercircle"}/{@code "empower"} -> {@code new EmpowerCircleEffect(960f, 540f)} behind
+ * the existing fail-open guard (its static {@code ImageMaster.POWER_UP_1}/{@code _2} art may be
+ * null off-game).
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -458,6 +467,12 @@ public final class VfxLabSpawn {
         // fail-open guard.
         if ("fadewipe".equalsIgnoreCase(value) || "wipe".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.FADE_WIPE;
+        }
+        // NRO-04 B11: EmpowerCircleEffect's instance img is chosen in the ctor from
+        // ImageMaster.POWER_UP_1/POWER_UP_2 via MathUtils.randomBoolean(), so that static art may be
+        // null off-game; the construct path is behind the existing fail-open guard.
+        if ("empowercircle".equalsIgnoreCase(value) || "empower".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.EMPOWER_CIRCLE;
         }
         return null;
     }
@@ -999,6 +1014,15 @@ public final class VfxLabSpawn {
             // region and ImageMaster.WHITE_SQUARE_IMG texture, either of which may be null off-game; any
             // failure is caught by spawn's fail-open guard rather than propagating.
             return new FadeWipeParticle();
+        }
+        if (VfxClaimPolicy.EMPOWER_CIRCLE.equals(fqn)) {
+            // NRO-04 B11: a screen-center-ish point. The ctor selects its instance AtlasRegion img
+            // from the static ImageMaster.POWER_UP_1/POWER_UP_2 art via MathUtils.randomBoolean()
+            // (and sets its rotation from vX/vY); that art may be null off-game, so any failure is
+            // caught by spawn's fail-open guard rather than propagating. It is AMBIENT (no
+            // setBlendFunction), center-packed, consumes scaleX/scaleY RNG at render time, and is
+            // guarded by `if (isDone) return`.
+            return new EmpowerCircleEffect(960f, 540f);
         }
         return null;
     }

@@ -647,6 +647,24 @@ package artframework.sts1.render;
  * {@code AbstractDungeon.render} effect loop DOES reach a real instance; it is also lab-spawnable
  * via the {@code "fadewipe"}/{@code "wipe"} aliases. ({@code TopPanel} does NOT construct it; it
  * only references the class via an {@code instanceof} check.)
+ *
+ * <p>The newest (NRO-04 B11) member is the {@code vfx-combat} {@code EmpowerCircleEffect}
+ * ({@link Kind#EMPOWER_CIRCLE}): a single-draw img ({@code AtlasRegion}) kind that reuses the shared
+ * center-packed geometry (position {@code (x, y)} passthrough, origin {@code packed/2f}, packed
+ * size) AND the F24 RNG-REPLAY capability AND the B01 BOOLEAN {@code isDone} guard. Its native
+ * {@code render} returns immediately when {@code isDone} is true (the same boolean shape as
+ * {@code FlyingOrbEffect}); otherwise it draws ONCE with NO {@code setBlendFunction} (AMBIENT) and
+ * computes scaleX = {@code scale * MathUtils.random(0.9f, 1.1f)} then scaleY =
+ * {@code scale * MathUtils.random(0.9f, 1.1f)} (the two ordered ranges of {@link #randomRanges}; the
+ * same two-ranges shape as {@code WRATH_STANCE_CHANGE}) with the effect's own rotation. The class
+ * owns an instance {@code AtlasRegion img} chosen at construction (its {@code vX}/{@code vY} are
+ * update-only). It is the seam's first member to combine RNG-replay WITH a boolean guard. Appended
+ * LAST after {@code FADE_WIPE}; no new patch/bridge/console wiring; the default-off gate and
+ * per-instance token semantics are unchanged. PRODUCTION REACH (positive): constructed by
+ * {@code EmpowerEffect} (which queues eighteen of them into {@code AbstractDungeon.effectList}),
+ * itself constructed by {@code cards.Soul}, so the instrumented {@code AbstractDungeon.render}
+ * effect loop DOES reach real instances; it is also lab-spawnable via the
+ * {@code "empowercircle"}/{@code "empower"} aliases.
  */
 public final class VfxDrawGeometry {
 
@@ -720,7 +738,8 @@ public final class VfxDrawGeometry {
         MAP_CIRCLE,
         SPOTLIGHT,
         CAMPFIRE_RECALL,
-        FADE_WIPE
+        FADE_WIPE,
+        EMPOWER_CIRCLE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -920,6 +939,8 @@ public final class VfxDrawGeometry {
     public static final float FLYING_ORB_SCALE_DECAY_PER_DRAW = 0.975f;
     /** Native FlyingOrbEffect boolean draw-guard field name ({@code "isDone"}, blocks when true). */
     public static final String FLYING_ORB_GUARD_FIELD = "isDone";
+    /** Native EmpowerCircleEffect boolean draw-guard field name ({@code "isDone"}, blocks when true). */
+    public static final String EMPOWER_CIRCLE_GUARD_FIELD = "isDone";
 
     // Native FlickCoinEffect draw rule (see the class Javadoc): the img (AtlasRegion) path with a
     // DEDICATED position reader (its fields are cX/cY/yOffset, NOT x/y) and an ANISOTROPIC draw
@@ -1166,6 +1187,23 @@ public final class VfxDrawGeometry {
                     new float[] {
                             WRATH_STANCE_CHANGE_SCALE_Y_MIN, WRATH_STANCE_CHANGE_SCALE_Y_MAX }));
 
+    // Native EmpowerCircleEffect render-time RNG (see randomRanges): its single draw computes
+    // scaleX = scale * MathUtils.random(0.9f, 1.1f) then scaleY = scale * MathUtils.random(0.9f, 1.1f),
+    // in that exact call order — the same two-ranges shape as WrathStanceChangeParticle.
+    /** Native EmpowerCircle scaleX/scaleY RNG range min ({@code 0.9f}). */
+    public static final float EMPOWER_CIRCLE_RANDOM_MIN = 0.9f;
+    /** Native EmpowerCircle scaleX/scaleY RNG range max ({@code 1.1f}). */
+    public static final float EMPOWER_CIRCLE_RANDOM_MAX = 1.1f;
+
+    /**
+     * The ordered native RNG ranges for {@link Kind#EMPOWER_CIRCLE} (see {@link #randomRanges}):
+     * scaleX {@code (0.9f, 1.1f)} then scaleY {@code (0.9f, 1.1f)}, in native call order. Immutable.
+     */
+    private static final java.util.List<float[]> EMPOWER_CIRCLE_RANDOM_RANGES =
+            java.util.Collections.unmodifiableList(java.util.Arrays.asList(
+                    new float[] {EMPOWER_CIRCLE_RANDOM_MIN, EMPOWER_CIRCLE_RANDOM_MAX },
+                    new float[] {EMPOWER_CIRCLE_RANDOM_MIN, EMPOWER_CIRCLE_RANDOM_MAX }));
+
     // The ordered per-PASS native MathUtils.random(min, max) ranges a MULTI-DRAW kind consumes (see
     // drawPassRandomRanges). StanceChangeAbsorptionParticle draws TWICE over the same static
     // ImageMaster.WOBBLY_ORB_VFX Texture; pass 0 draws scaleX/scaleY with scale * random(0.5f, 2.0f)
@@ -1352,6 +1390,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.SPOTLIGHT.equals(value)) return Kind.SPOTLIGHT;
         if (VfxClaimPolicy.CAMPFIRE_RECALL.equals(value)) return Kind.CAMPFIRE_RECALL;
         if (VfxClaimPolicy.FADE_WIPE.equals(value)) return Kind.FADE_WIPE;
+        if (VfxClaimPolicy.EMPOWER_CIRCLE.equals(value)) return Kind.EMPOWER_CIRCLE;
         return null;
     }
 
@@ -1422,6 +1461,8 @@ public final class VfxDrawGeometry {
      * newest (NRO-04 B04) member {@link Kind#PING_HP} likewise installs/restores the additive blend
      * natively and is ADDITIVE. The newest (NRO-04 B06) member {@link Kind#MAP_CIRCLE} never calls
      * {@code setBlendFunction} natively (AMBIENT blend), so {@code additiveBlend} reports {@code false}
+     * for it. The newest (NRO-04 B11) member {@link Kind#EMPOWER_CIRCLE} likewise never calls
+     * {@code setBlendFunction} natively (AMBIENT blend), so {@code additiveBlend} reports {@code false}
      * for it.
      *
      * @throws IllegalArgumentException when {@code kind} is null
@@ -1457,7 +1498,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.BOTTOM_FOG
                 && kind != Kind.MAP_CIRCLE
                 && kind != Kind.CAMPFIRE_RECALL
-                && kind != Kind.FADE_WIPE;
+                && kind != Kind.FADE_WIPE
+                && kind != Kind.EMPOWER_CIRCLE;
     }
 
     /**
@@ -1535,7 +1577,9 @@ public final class VfxDrawGeometry {
      * and {@link Kind#WRATH_STANCE_CHANGE} ({@code WrathStanceChangeParticle}, guarded by
      * {@code if (delayTimer > 0f) return} — i.e. it draws only when {@code delayTimer <= 0f}), and the
      * newest (B01) {@link Kind#FLYING_ORB} ({@code FlyingOrbEffect}, guarded by {@code if (isDone)
-     * return} — a BOOLEAN guard, see {@link #guardIsBoolean}/{@link #guardBlocksBoolean}). Every
+     * return} — a BOOLEAN guard, see {@link #guardIsBoolean}/{@link #guardBlocksBoolean}), and the
+     * newest (B11) {@link Kind#EMPOWER_CIRCLE} ({@code EmpowerCircleEffect}, also guarded by
+     * {@code if (isDone) return} — the same BOOLEAN guard shape). Every
      * other claimable kind draws unconditionally (or draws a fixed static texture), so it is
      * {@code false}. Callers use this together with {@link #guardFieldName} and the per-kind
      * {@link #guardBlocks} threshold to keep a claimed instance in pixel parity — the renderer
@@ -1549,14 +1593,17 @@ public final class VfxDrawGeometry {
             throw new IllegalArgumentException("kind must not be null");
         }
         return kind == Kind.FALLING_ICE || kind == Kind.DAMAGE_HEART
-                || kind == Kind.WRATH_STANCE_CHANGE || kind == Kind.FLYING_ORB;
+                || kind == Kind.WRATH_STANCE_CHANGE || kind == Kind.FLYING_ORB
+                || kind == Kind.EMPOWER_CIRCLE;
     }
 
     /**
      * Pure per-kind predicate for a BOOLEAN native draw guard: {@code true} only for the kinds whose
      * native {@code render} guards its draw on a boolean field rather than a wait-phase float
      * threshold. Today that is exactly the newest (B01) {@link Kind#FLYING_ORB}
-     * ({@code FlyingOrbEffect}, whose native {@code render} begins {@code if (isDone) return}). For
+     * ({@code FlyingOrbEffect}, whose native {@code render} begins {@code if (isDone) return}) and
+     * the newest (B11) {@link Kind#EMPOWER_CIRCLE} ({@code EmpowerCircleEffect}, the same boolean
+     * {@code isDone} guard). For
      * such a kind the renderer reads the raw {@code isDone} field and declines (draws nothing) when
      * it is {@link Boolean#TRUE} — matching native — via {@link #guardBlocksBoolean}. Every other
      * claimable kind is {@code false} here (their guard, if any, is the float {@link #guardBlocks}
@@ -1568,14 +1615,16 @@ public final class VfxDrawGeometry {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
-        return kind == Kind.FLYING_ORB;
+        return kind == Kind.FLYING_ORB || kind == Kind.EMPOWER_CIRCLE;
     }
 
     /**
      * Pure per-kind BOOLEAN guard THRESHOLD: {@code true} when a present boolean guard field value
      * blocks the native draw for {@code kind}, {@code false} otherwise. Today that is exactly the
      * newest (B01) {@link Kind#FLYING_ORB}, whose native {@code render} returns immediately when
-     * {@code isDone} is true; so it blocks iff {@code value} is {@code true} and draws when it is
+     * {@code isDone} is true, and the newest (B11) {@link Kind#EMPOWER_CIRCLE}, whose native
+     * {@code render} has the same {@code if (isDone) return}; so both block iff {@code value} is
+     * {@code true} and draw when it is
      * {@code false}. Every other kind is {@code false} (no boolean guard). This is the boolean
      * counterpart of the float {@link #guardBlocks}, and the renderer resolves the raw field
      * reflectively so this class stays host-neutral.
@@ -1586,7 +1635,7 @@ public final class VfxDrawGeometry {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
-        return kind == Kind.FLYING_ORB && value;
+        return (kind == Kind.FLYING_ORB || kind == Kind.EMPOWER_CIRCLE) && value;
     }
 
     /**
@@ -1630,11 +1679,15 @@ public final class VfxDrawGeometry {
      * native call sequence exactly) and multiply the params' corresponding scale component by the
      * returned value, so pixel equivalence is an identity rather than a probabilistic match.
      *
-     * <p>Today only {@link Kind#WRATH_STANCE_CHANGE} consumes RNG: its native {@code render} computes
-     * {@code scale * MathUtils.random(2.9f, 3.1f)} for scaleX then {@code scale * MathUtils.random(
-     * 0.95f, 1.05f)} for scaleY, so this returns {@code [(2.9f, 3.1f), (0.95f, 1.05f)]} in that
-     * order. Every other claimable kind's native {@code update}/{@code render} consumes no RNG during
-     * the draw, so it returns an empty list. The returned list is immutable.
+     * <p>Today {@link Kind#WRATH_STANCE_CHANGE} and the newest (B11) {@link Kind#EMPOWER_CIRCLE}
+     * consume RNG: Wrath's native {@code render} computes {@code scale * MathUtils.random(2.9f, 3.1f)}
+     * for scaleX then {@code scale * MathUtils.random(0.95f, 1.05f)} for scaleY (this returns
+     * {@code [(2.9f, 3.1f), (0.95f, 1.05f)]} in that order), while Empower's native {@code render}
+     * computes {@code scale * MathUtils.random(0.9f, 1.1f)} for scaleX then
+     * {@code scale * MathUtils.random(0.9f, 1.1f)} for scaleY (this returns
+     * {@code [(0.9f, 1.1f), (0.9f, 1.1f)]} in that order). Every other claimable kind's native
+     * {@code update}/{@code render} consumes no RNG during the draw, so it returns an empty list.
+     * The returned list is immutable.
      *
      * <p>{@code float[]} is host-neutral primitives, so this class stays GL/host-free.
      *
@@ -1646,6 +1699,9 @@ public final class VfxDrawGeometry {
         }
         if (kind == Kind.WRATH_STANCE_CHANGE) {
             return WRATH_STANCE_CHANGE_RANDOM_RANGES;
+        }
+        if (kind == Kind.EMPOWER_CIRCLE) {
+            return EMPOWER_CIRCLE_RANDOM_RANGES;
         }
         return java.util.Collections.emptyList();
     }
@@ -1716,7 +1772,8 @@ public final class VfxDrawGeometry {
      * {@link Kind#FALLING_ICE}, {@code "delayTimer"} for {@link Kind#DAMAGE_HEART}, and
      * {@code "delayTimer"} for {@link Kind#WRATH_STANCE_CHANGE}, and {@code "isDone"} for the newest
      * (B01) {@link Kind#FLYING_ORB} (the seam's first BOOLEAN guard field; see
-     * {@link #guardIsBoolean}).
+     * {@link #guardIsBoolean}), and {@code "isDone"} for the newest (B11) {@link Kind#EMPOWER_CIRCLE}
+     * (the same boolean guard field).
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -1728,6 +1785,7 @@ public final class VfxDrawGeometry {
         if (kind == Kind.DAMAGE_HEART) return DAMAGE_HEART_GUARD_FIELD;
         if (kind == Kind.WRATH_STANCE_CHANGE) return WRATH_STANCE_CHANGE_GUARD_FIELD;
         if (kind == Kind.FLYING_ORB) return FLYING_ORB_GUARD_FIELD;
+        if (kind == Kind.EMPOWER_CIRCLE) return EMPOWER_CIRCLE_GUARD_FIELD;
         return null;
     }
 
@@ -2107,6 +2165,7 @@ public final class VfxDrawGeometry {
             case WATER_SPLASH:
             case BOTTOM_FOG:
             case GIANT_FIRE:
+            case EMPOWER_CIRCLE:
                 // DivinityStanceChangeParticle, the cross-family LightFlareSEffect/MEffect/LEffect,
                 // TorchParticleLEffect, the vfx-combat FlashAtkImgEffect, the two fire bursts, the
                 // smoke blur, the ceiling dust, the nemesis fire, TorchParticleXLEffect,
@@ -2138,6 +2197,11 @@ public final class VfxDrawGeometry {
                 // scale * Settings.scale — expressed through uniformScaleMultiplier(kind, settingsScale)
                 // (settingsScale for GIANT_FIRE, 1f for every other kind), which is composed with the
                 // scaleYMultiplier tail (1f for GIANT_FIRE, so both axes are scale*settingsScale).
+                // EmpowerCircleEffect (B11) also joins this branch: it is AMBIENT center-packed with
+                // a single draw whose scaleX/scaleY are each multiplied by a render-time
+                // MathUtils.random(0.9f, 1.1f) — those two ordered ranges are replayed by the
+                // renderer (randomRanges), not here; the native render also returns early when
+                // isDone is true (the boolean guard, resolved by the renderer).
                 {
                     float uniform = uniformScaleMultiplier(kind, settingsScale);
                     return new Params(x, y, originX, originY, packedWidth, packedHeight,

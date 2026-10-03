@@ -1358,6 +1358,39 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
        `VfxLabSpawnTest` (alias -> FQN + capturing factory). No new patch/bridge/console wiring; the
        default-off gate is unchanged.
 
+- [x] NRO-04 B04 (`PingHpEffect` joins the default-off per-instance claim seam):
+        `com.megacrit.cardcrawl.vfx.combat.PingHpEffect` is appended LAST to
+        `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` and mapped by `kindFor` (after
+        `HealPanelEffect`). It is the HealPanel analogue: a bare STATIC `Texture` kind with a fixed
+        64x64 source rect (`0,0,64,64`), a fixed `(32f, 32f)` origin and a fixed `64f x 64f` size,
+        whose texture is the STATIC `ImageMaster.TP_HP` resolved at draw time (there is NO instance
+        `img` field). Its native draw position is the identical PANEL-SPACE rule as HealPanel,
+        depending on `Settings.HEIGHT` as well as `Settings.scale`:
+        `x = x - 32f + 32f * Settings.scale` and `y = Settings.HEIGHT - 32f * Settings.scale - 32f`;
+        the rotation comes from the field and the color is the effect's own (yellow, animated alpha).
+        The ONE difference from HealPanel is the uniform draw scale: BOTH axes are
+        `scale * Settings.scale`. It is ADDITIVE (setBlendFunction 770/1 before and 770/771 after, with
+        `setColor(color)` BEFORE the blend) and joins NO guard/flip/mirror/RNG/variable-length
+        capability. `VfxDrawGeometry.Kind.PING_HP` adds the named constants
+        `PING_HP_SRC_X/SRC_Y/SRC_W/SRC_H = 0/0/64/64`, `PING_HP_ORIGIN = 32f`, `PING_HP_SIZE = 64f`,
+        `PING_HP_X_OFFSET = 32f`, `PING_HP_Y_OFFSET = 32f` and a dedicated `params` branch (via the
+        `settingsHeight` overload) returning `(scale * settingsScale, scale * settingsScale)`;
+        `Sts1VfxArtRenderer` routes `PING_HP` through the existing bare-`Texture` `renderTexture` path
+        (added to `isTextureDrawKind`, NOT `usesInstanceTexture`), resolves the STATIC
+        `ImageMaster.TP_HP` (a static `resolveTexture` case), the fixed `PING_HP_SRC_*` src rect, and
+        the effect's own color (NOT white-alpha), with `readTextureFields`/`imagePresent`/`canDraw`
+        treating `y` as optional and no guard/playerHitbox. The lab gains aliases `"pinghp"`/`"ping"`
+        -> `new PingHpEffect(960f)` behind the existing fail-open guard. The D1 scenario
+        `d1_aura_claim.yaml` adds `art claim spawn pinghp 4` to both gate phases. Tests:
+        `VfxDrawGeometryTest` (kindFor + near-miss, exact panel-space params with the
+        `Settings.HEIGHT`/`Settings.scale` terms and BOTH axes at `scale * Settings.scale` vs HealPanel,
+        additive, not guard/flip/mirror/RNG/variable-length/anisotropic), `Sts1VfxArtRendererTest` (one
+        draw with the fixed src/origin/size, panel-space position, `scale * Settings.scale` uniform
+        scale, field rotation, additive installed/restored, effect's own color not white-forced,
+        missing/null static texture fails open), `VfxDelegationSeamTest` (readiness + appended-last
+        order), `VfxLabSpawnTest` (alias -> FQN + capturing factory). No new patch/bridge/console
+        wiring; the default-off gate is unchanged.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

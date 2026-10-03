@@ -726,6 +726,16 @@ public class VfxLabSpawnTest {
     }
 
     @Test
+    public void spawnHappyPathQueuesTheB04PingHpThroughTheFactorySeam() {
+        // The newest (NRO-04 B04) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the ctor (which reads Settings.scale and whose static
+        // ImageMaster.TP_HP texture may be null off-game). "pinghp"/"ping" do not collide with any
+        // existing alias.
+        assertSpawnRequests("pinghp", VfxClaimPolicy.PING_HP);
+        assertSpawnRequests("ping", VfxClaimPolicy.PING_HP);
+    }
+
+    @Test
     public void cardTrailLabConstructInitializesTheEffect() throws Exception {
         // CardTrailEffect is a pooled Pool.Poolable effect: its no-arg ctor only selects the static
         // img, while color/x/y/scale/duration come from init(x, y). VfxLabSpawn.construct must

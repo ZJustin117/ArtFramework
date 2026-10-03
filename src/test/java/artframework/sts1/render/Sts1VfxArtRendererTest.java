@@ -717,6 +717,144 @@ public class Sts1VfxArtRendererTest {
     }
 
     /**
+     * {@code PingHpEffect} layout: the instance {@code x} plus the inherited
+     * {@code scale}/{@code rotation}/{@code color} from {@link BaseEffect}. Its texture is the STATIC
+     * {@code ImageMaster.TP_HP} resolved at draw time, so the holder has NO {@code img} field and NO
+     * {@code y} field.
+     */
+    static class PingHpHolder extends BaseEffect {
+        private float x;
+    }
+
+    /**
+     * Real {@code PingHpEffect} with reflectively seeded {@code x} and inherited
+     * {@code scale}/{@code rotation}/{@code color} (no game/GL context). Its texture is the static
+     * {@code ImageMaster.TP_HP}, seeded separately by the test.
+     */
+    private static AbstractGameEffect seededPingHp(float x, float scale, float rotation,
+            Color color) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.combat.PingHpEffect effect =
+                    (com.megacrit.cardcrawl.vfx.combat.PingHpEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.combat.PingHpEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.combat.PingHpEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL PingHpEffect", failure);
+        }
+    }
+
+    @Test
+    public void pingHpDrawsOnceWithTheFixedRectPanelSpacePositionAndSettingsScaledUniformScale() {
+        // Native PingHpEffect.render (verified bytecode; the HealPanel analogue):
+        //   setColor(color); setBlendFunction(770, 1);
+        //   sb.draw(ImageMaster.TP_HP, x - 32f + 32f*Settings.scale,
+        //           Settings.HEIGHT - 32f*Settings.scale - 32f,
+        //           32f, 32f, 64f, 64f, scale * Settings.scale, scale * Settings.scale, rotation,
+        //           0, 0, 64, 64, false, false);
+        //   setBlendFunction(770, 771);
+        // The image is the STATIC ImageMaster.TP_HP (no instance field); the ONE difference from
+        // HealPanel is the uniform draw scale, BOTH axes = scale * Settings.scale.
+        float x = 321.5f;
+        float scale = 0.9f;
+        float rotation = 53f;
+        float settingsScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float settingsHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        Color color = new Color(1f, 1f, 0.2f, 0.5f);
+
+        Object previous = ImageMaster.TP_HP;
+        setStaticField(ImageMaster.class, "TP_HP", noGlTexture(64, 64));
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededPingHp(x, scale, rotation, color);
+
+            assertTrue("a PingHpEffect instance with the static texture draws",
+                    renderer.render(batch, effect));
+            assertEquals("exactly ONE raw-texture draw", 1, batch.drawCalls);
+            assertEquals(1, batch.successfulTextureDraws);
+            assertEquals("the additive blend is installed and restored", 2, batch.setBlendCalls);
+            assertNotNull("the applied tint was captured", batch.firstSetColor);
+            assertEquals("color is the effect's own color (NOT white-forced)",
+                    color.r, batch.firstSetColor.r, EPS);
+            assertEquals(color.g, batch.firstSetColor.g, EPS);
+            assertEquals(color.b, batch.firstSetColor.b, EPS);
+            assertEquals(color.a, batch.firstSetColor.a, EPS);
+
+            float[] d = batch.drawnArgs;
+            assertEquals("position x uses the Settings.scale term",
+                    x - 32f + 32f * settingsScale, d[0], EPS);
+            assertEquals("position y is anchored to Settings.HEIGHT",
+                    settingsHeight - 32f * settingsScale - 32f, d[1], EPS);
+            assertEquals("origin is the fixed 32", 32f, d[2], EPS);
+            assertEquals("origin is the fixed 32", 32f, d[3], EPS);
+            assertEquals("size is the fixed 64", 64f, d[4], EPS);
+            assertEquals("size is the fixed 64", 64f, d[5], EPS);
+            assertEquals("uniform scale on X is scale * Settings.scale",
+                    scale * settingsScale, d[6], EPS);
+            assertEquals("uniform scale on Y is scale * Settings.scale",
+                    scale * settingsScale, d[7], EPS);
+            assertEquals("rotation comes from the field", rotation, d[8], EPS);
+            assertEquals("fixed src x", 0f, d[9], EPS);
+            assertEquals("fixed src y", 0f, d[10], EPS);
+            assertEquals("fixed src w", 64f, d[11], EPS);
+            assertEquals("fixed src h", 64f, d[12], EPS);
+            assertFalse("no per-instance flip X", batch.drawnFlipX);
+            assertFalse("no per-instance flip Y", batch.drawnFlipY);
+        } finally {
+            setStaticField(ImageMaster.class, "TP_HP", previous);
+        }
+    }
+
+    @Test
+    public void pingHpMissingStaticTextureFailsOpenAndCannotDraw() {
+        Object previous = ImageMaster.TP_HP;
+        setStaticField(ImageMaster.class, "TP_HP", null);
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            AbstractGameEffect effect = seededPingHp(5f, 1f, 0f, Color.WHITE);
+
+            CountingBatch batch = newCountingBatch();
+            assertFalse("a PingHpEffect instance without the static texture fails open",
+                    renderer.render(batch, effect));
+            assertEquals("no draw", 0, batch.drawCalls);
+            assertFalse("a PingHpEffect instance without the static texture cannotDraw",
+                    renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "TP_HP", previous);
+        }
+    }
+
+    @Test
+    public void readTextureFieldsResolvesPingHpWithoutY() {
+        PingHpHolder effect = new PingHpHolder();
+        effect.x = 11f;
+        effect.scale = 0.5f;
+        effect.rotation = 44f;
+        effect.color = Color.WHITE;
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.PING_HP, effect);
+        assertNotNull("a PING_HP holder without a y field resolves (y is optional)", f);
+        assertEquals(11f, f.x, EPS);
+        assertEquals(0f, f.y, EPS);
+        assertEquals(0.5f, f.scale, EPS);
+        assertEquals(44f, f.rotation, EPS);
+
+        assertNull(VfxDrawGeometry.Kind.PING_HP + " null effect fails open",
+                Sts1VfxArtRenderer.readTextureFields(VfxDrawGeometry.Kind.PING_HP, null));
+    }
+
+    /**
      * Real {@code HealPanelEffect} with reflectively seeded {@code x} and inherited
      * {@code scale}/{@code rotation}/{@code color}, plus its class-level static {@code img}
      * (no game/GL context).
@@ -2294,6 +2432,12 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.GIANT_FIRE));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.GiantFireEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.HEAL_PANEL));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.PING_HP));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.combat.PingHpEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2398,6 +2542,9 @@ public class Sts1VfxArtRendererTest {
                 "com.megacrit.cardcrawl.vfx.scene.LightFlareSEffect2"));
         assertFalse(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.combat.FlashAtkImgEffect2"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.PING_HP + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.PING_HP + "2"));
+        assertFalse(renderer.isReady("PingHpEffect"));
     }
 
     @Test

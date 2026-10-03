@@ -259,6 +259,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.FlickCoinEffect";
     public static final String HEAL_PANEL =
             "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect";
+    public static final String PING_HP =
+            "com.megacrit.cardcrawl.vfx.combat.PingHpEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -278,7 +280,7 @@ public final class VfxClaimPolicy {
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
                     BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN,
-                    HEAL_PANEL));
+                    HEAL_PANEL, PING_HP));
 
     private VfxClaimPolicy() {}
 
@@ -349,7 +351,8 @@ public final class VfxClaimPolicy {
                 || CARD_TRAIL.equals(value)
                 || FLYING_ORB.equals(value)
                 || FLICK_COIN.equals(value)
-                || HEAL_PANEL.equals(value);
+                || HEAL_PANEL.equals(value)
+                || PING_HP.equals(value);
     }
 
     /**
@@ -562,6 +565,21 @@ public final class VfxClaimPolicy {
      * {@code rotation}, and the effect's own {@code color} (CHARTREUSE with animated alpha). It is
      * ADDITIVE. Appended LAST after {@code FlickCoinEffect}; no new patch/bridge/console wiring; the
      * default-off gate and per-instance token semantics are unchanged.
+     * The newest (NRO-04 B04) member is the {@code vfx-combat} {@code PingHpEffect} (field
+     * {@code float x}, plus the inherited {@code color}/{@code scale}/{@code rotation}; no instance
+     * {@code img} field — its draw reads the STATIC {@code ImageMaster.TP_HP} {@code Texture} at draw
+     * time). Its native {@code render} is {@code setColor(color); setBlendFunction(770, 1);
+     * sb.draw(ImageMaster.TP_HP, x - 32f + 32f * Settings.scale,
+     * Settings.HEIGHT - 32f * Settings.scale - 32f, 32f, 32f, 64f, 64f,
+     * scale * Settings.scale, scale * Settings.scale, rotation, 0, 0, 64, 64, false, false);
+     * setBlendFunction(770, 771)} — the HealPanel analogue: a bare-{@code Texture} fixed-rect kind
+     * (fixed {@code (0,0,64,64)} src rect, fixed {@code (32,32)} origin and fixed {@code 64&times;64}
+     * size) with a PANEL-SPACE position depending on {@code Settings.HEIGHT} and
+     * {@code Settings.scale}, the field {@code rotation} and the effect's own color (yellow, animated
+     * alpha). Its ONE difference from {@code HealPanelEffect} is the uniform draw scale: BOTH axes are
+     * {@code scale * Settings.scale} (HealPanel used plain {@code scale}). It is ADDITIVE. Appended
+     * LAST after {@code HealPanelEffect}; no new patch/bridge/console wiring; the default-off gate and
+     * per-instance token semantics are unchanged.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

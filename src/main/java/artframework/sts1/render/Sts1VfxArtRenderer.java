@@ -181,6 +181,17 @@ import java.lang.reflect.Field;
  * {@link VfxDrawGeometry#params} overload, so every other kind's result is unchanged. No new
  * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
  *
+ * <p>The newest (NRO-04 B04) member is the {@code vfx-combat} {@code PingHpEffect} (ctor
+ * {@code (float)}), the HealPanel analogue: a bare-{@code Texture} fixed-source-rect kind routed
+ * through the same {@link #renderTexture} path, whose image is the STATIC {@code ImageMaster.TP_HP}
+ * {@code Texture} resolved at draw time (NO instance {@code img} field), with the same fixed src rect
+ * {@code (0,0,64,64)}, fixed origin {@code (32,32)} and fixed {@code 64&times;64} size, its own
+ * {@code rotation} field, its own {@code color} (NOT the white-alpha rule) and the additive blend. It
+ * shares HealPanel's PANEL-SPACE position (the renderer supplies {@code Settings.HEIGHT} through the
+ * {@code settingsHeight} argument) but its ONE difference is the uniform draw scale: BOTH axes are
+ * {@code scale * Settings.scale}. No new patch/bridge/console wiring; the default-off gate and
+ * per-instance token semantics are unchanged.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -439,8 +450,9 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     /**
      * Snapshots the fields a bare-{@code Texture} draw needs. Required: {@code x}, {@code y},
      * {@code scale}, {@code color} ({@link Color}); {@code y} is optional (defaulting to {@code 0})
-     * only for {@code HEAL_PANEL}, whose native draw y is panel-space from {@code Settings.HEIGHT}
-     * rather than the effect's own field (the class has no {@code y}); {@code rotation} is additionally
+     * only for {@code HEAL_PANEL} and the newest (NRO-04 B04) {@code PING_HP}, whose native draw y is
+     * panel-space from {@code Settings.HEIGHT} rather than the effect's own field (the classes have no
+     * {@code y}); {@code rotation} is additionally
      * required for
      * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE}/{@code ICE_SHATTER}/{@code UNKNOWN_PARTICLE}/
      * {@code DARK_ORB_PASSIVE}/{@code LIGHTNING_ORB_PASSIVE}/{@code FALLING_ICE}
@@ -472,15 +484,17 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.LIGHTNING_ORB_PASSIVE
                 || kind == VfxDrawGeometry.Kind.FALLING_ICE
                 || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION
-                || kind == VfxDrawGeometry.Kind.HEAL_PANEL;
+                || kind == VfxDrawGeometry.Kind.HEAL_PANEL
+                || kind == VfxDrawGeometry.Kind.PING_HP;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
             Float scale = readFloat(effect, "scale");
-            // HEAL_PANEL has NO y field: its native draw y is panel-space from Settings.HEIGHT, so
-            // the reader defaults y to 0 (the params branch ignores it).
+            // HEAL_PANEL and PING_HP have NO y field: their native draw y is panel-space from
+            // Settings.HEIGHT, so the reader defaults y to 0 (the params branch ignores it).
             if (x == null || scale == null
-                    || (y == null && kind != VfxDrawGeometry.Kind.HEAL_PANEL)) {
+                    || (y == null && kind != VfxDrawGeometry.Kind.HEAL_PANEL
+                            && kind != VfxDrawGeometry.Kind.PING_HP)) {
                 return null;
             }
             Float rotation = readFloat(effect, "rotation");
@@ -1279,7 +1293,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.TORCH_HEAD_FIRE
                 || kind == VfxDrawGeometry.Kind.FALLING_ICE
                 || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION
-                || kind == VfxDrawGeometry.Kind.HEAL_PANEL;
+                || kind == VfxDrawGeometry.Kind.HEAL_PANEL
+                || kind == VfxDrawGeometry.Kind.PING_HP;
     }
 
     /**
@@ -1335,6 +1350,10 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         }
         if (kind == VfxDrawGeometry.Kind.SHIELD_PARTICLE) {
             return ImageMaster.INTENT_DEFEND;
+        }
+        if (kind == VfxDrawGeometry.Kind.PING_HP) {
+            // PingHpEffect draws the STATIC ImageMaster.TP_HP Texture (it has no instance Texture img).
+            return ImageMaster.TP_HP;
         }
         if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
@@ -1466,6 +1485,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.HEAL_PANEL_SRC_Y;
             srcW = VfxDrawGeometry.HEAL_PANEL_SRC_W;
             srcH = VfxDrawGeometry.HEAL_PANEL_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.PING_HP) {
+            // PingHpEffect draws the fixed 64x64 src rect of the static ImageMaster.TP_HP Texture.
+            srcX = VfxDrawGeometry.PING_HP_SRC_X;
+            srcY = VfxDrawGeometry.PING_HP_SRC_Y;
+            srcW = VfxDrawGeometry.PING_HP_SRC_W;
+            srcH = VfxDrawGeometry.PING_HP_SRC_H;
         } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
             // WebParticleEffect and EntangleEffect share the static WEB_VFX src rect.

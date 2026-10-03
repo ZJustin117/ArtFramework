@@ -338,6 +338,12 @@ public class VfxDrawGeometryTest {
         assertSame(VfxDrawGeometry.Kind.HEAL_PANEL,
                 VfxDrawGeometry.kindFor(
                         "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect"));
+        // The newest (NRO-04 B04) member, via constant and literal FQN.
+        assertSame(VfxDrawGeometry.Kind.PING_HP,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.PING_HP));
+        assertSame(VfxDrawGeometry.Kind.PING_HP,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.PingHpEffect"));
     }
 
     @Test
@@ -3669,5 +3675,112 @@ public class VfxDrawGeometryTest {
         assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.HEAL_PANEL).isEmpty());
         assertTrue(VfxDrawGeometry.drawPassRandomRanges(
                 VfxDrawGeometry.Kind.HEAL_PANEL).isEmpty());
+    }
+
+    // --- NRO-04 B04 PingHpEffect: bare static ImageMaster.TP_HP Texture + fixed 64x64 rect,
+    // panel-space position, uniform scale scale*Settings.scale (the HealPanel analogue with the
+    // Settings.scale uniform-scale difference) ---
+
+    @Test
+    public void pingHpKindForFailsOpenForNearMisses() {
+        assertSame(VfxDrawGeometry.Kind.PING_HP,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.PING_HP));
+        assertSame(VfxDrawGeometry.Kind.PING_HP,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.combat.PingHpEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.PingHpEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.PingHpEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("PingHpEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.PingHpEffect"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.combat.PingHp"));
+        // It must not be matched by any other combat kind's FQN.
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.HealPanelEffect2"));
+    }
+
+    @Test
+    public void pingHpUsesTheFixedRectAndPanelSpacePositionWithSettingsScaledUniformScale() {
+        // Native PingHpEffect (verified bytecode; the HealPanel analogue): ADDITIVE; the STATIC
+        // ImageMaster.TP_HP Texture resolved at draw time (no instance img field); the SAME fixed
+        // shape-C rect as HealPanel (src 0,0,64,64, origin 32,32, size 64,64) and the SAME
+        // PANEL-SPACE position x = x - 32f + 32f*Settings.scale,
+        // y = Settings.HEIGHT - 32f*Settings.scale - 32f; but its ONE difference is the uniform
+        // draw scale: BOTH axes are scale * Settings.scale (HealPanel used plain scale).
+        float x = 100f;
+        float scale = 0.8f;
+        float rotation = 37f;
+        float settingsScale = 1.5f;
+        float settingsHeight = 1080f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.PING_HP,
+                x, 222f /* y ignored (panel-space) */, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, settingsScale,
+                10f /* packedWidth ignored */, 20f /* packedHeight ignored */,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */, 7f /* regionOffsetY ignored */,
+                0f, 0f, 1f, settingsHeight);
+
+        assertEquals("x uses the Settings.scale term",
+                x - VfxDrawGeometry.PING_HP_X_OFFSET
+                        + VfxDrawGeometry.PING_HP_X_OFFSET * settingsScale,
+                p.x, EPS);
+        assertEquals("y is anchored to Settings.HEIGHT with the Settings.scale term and fixed offset",
+                settingsHeight - VfxDrawGeometry.PING_HP_Y_OFFSET * settingsScale
+                        - VfxDrawGeometry.PING_HP_Y_OFFSET,
+                p.y, EPS);
+        assertEquals("origin is the fixed 32", 32f, p.originX, EPS);
+        assertEquals("origin is the fixed 32", 32f, p.originY, EPS);
+        assertEquals("size is the fixed 64", 64f, p.width, EPS);
+        assertEquals("size is the fixed 64", 64f, p.height, EPS);
+        assertEquals("uniform scale on X is scale * Settings.scale",
+                scale * settingsScale, p.scaleX, EPS);
+        assertEquals("uniform scale on Y is scale * Settings.scale",
+                scale * settingsScale, p.scaleY, EPS);
+        assertEquals("PingHp consumes the rotation field", rotation, p.rotation, EPS);
+
+        // Contrast with the directly analogous HEAL_PANEL: same position, plain uniform scale.
+        VfxDrawGeometry.Params heal = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.HEAL_PANEL,
+                x, 222f, 999f, scale, rotation, 7f, 5f, settingsScale,
+                10f, 20f, 1234f, 6f, 7f, 0f, 0f, 1f, settingsHeight);
+        assertEquals("the two kinds share the panel-space x", heal.x, p.x, EPS);
+        assertEquals("the two kinds share the panel-space y", heal.y, p.y, EPS);
+        assertEquals("HealPanel keeps the plain uniform scale", scale, heal.scaleX, EPS);
+        assertEquals("PingHp multiplies the X axis by Settings.scale",
+                heal.scaleX * settingsScale, p.scaleX, EPS);
+        assertEquals("PingHp multiplies the Y axis by Settings.scale",
+                heal.scaleY * settingsScale, p.scaleY, EPS);
+
+        // The named constants mirror the native bytecode.
+        assertEquals(0, VfxDrawGeometry.PING_HP_SRC_X);
+        assertEquals(0, VfxDrawGeometry.PING_HP_SRC_Y);
+        assertEquals(64, VfxDrawGeometry.PING_HP_SRC_W);
+        assertEquals(64, VfxDrawGeometry.PING_HP_SRC_H);
+        assertEquals(32f, VfxDrawGeometry.PING_HP_ORIGIN, EPS);
+        assertEquals(64f, VfxDrawGeometry.PING_HP_SIZE, EPS);
+        assertEquals(32f, VfxDrawGeometry.PING_HP_X_OFFSET, EPS);
+        assertEquals(32f, VfxDrawGeometry.PING_HP_Y_OFFSET, EPS);
+
+        assertTrue("PING_HP installs the additive blend",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse("PING_HP uses its own color, not the white-alpha rule",
+                VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.PING_HP));
+        // It joins NO guard / flip / mirror / RNG / variable-length / anisotropic capability.
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.PING_HP));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.PING_HP));
+        assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(VfxDrawGeometry.Kind.PING_HP));
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.PING_HP).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.PING_HP).isEmpty());
     }
 }

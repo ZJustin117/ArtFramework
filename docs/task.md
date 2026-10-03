@@ -1100,6 +1100,23 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       REMOVED: the real unknown-kind path is a command-layer usage no-op that returns success, so it
       can never satisfy an expected-error step.)
 
+- [x] NRO-04 A03 (repeatable native-vs-ART visual-sampling scenario): new
+      `tests/ui-scenarios/device/d1_vfx_parity_capture.yaml` captures a NATIVE (claim-seam OFF)
+      frame and an ART (claim-seam ON) frame of the SAME spawned claimable kind at one encounter
+      state, records `probe: all` metadata around each frame, then REPEATS the gate-ON sample once
+      more for counter-level repeatability. A leading `set: {target_kind, spawn_count}`
+      parameterizes it; retarget by editing those vars (`cardtrail`/`torchheadfire`/`absorption`,
+      any count). Gated invariants are robust counters only: native leg has `gate eq false` plus a
+      real fore/aft `eq_var` zero-ART-draws check (native `aura.draws` is lifetime-stable); each
+      gate-ON sample proves draw GROWTH (`gt_var` on its own cleared baseline) with
+      `declinedTotal`/`dispositionMismatch`/`orphanArtOutput` FLAT (`eq_var` before/after);
+      `nativeRenderStrict.accepted eq true`; final `claim clear` + `claim off` leaves `gate false`.
+      PIXEL PARITY IS DELIBERATELY NOT GATED: the live combat scene is not frame-frozen (enemy idle
+      animation and ambient effects differ between captures), so exact pixel comparison would flake;
+      the one native + two ART frame PNGs plus their probe metadata are the artifacts for
+      INDEPENDENT VISUAL REVIEW, and repeatability is asserted at the counter level instead. YAML +
+      docs only (no runner change); reused by later family slices.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

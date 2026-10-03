@@ -263,6 +263,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.combat.PingHpEffect";
     public static final String REWARD_GLOW =
             "com.megacrit.cardcrawl.vfx.RewardGlowEffect";
+    public static final String MAP_CIRCLE =
+            "com.megacrit.cardcrawl.vfx.MapCircleEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -282,7 +284,7 @@ public final class VfxClaimPolicy {
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
                     BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN,
-                    HEAL_PANEL, PING_HP, REWARD_GLOW));
+                    HEAL_PANEL, PING_HP, REWARD_GLOW, MAP_CIRCLE));
 
     private VfxClaimPolicy() {}
 
@@ -355,7 +357,8 @@ public final class VfxClaimPolicy {
                 || FLICK_COIN.equals(value)
                 || HEAL_PANEL.equals(value)
                 || PING_HP.equals(value)
-                || REWARD_GLOW.equals(value);
+                || REWARD_GLOW.equals(value)
+                || MAP_CIRCLE.equals(value);
     }
 
     /**
@@ -612,8 +615,32 @@ public final class VfxClaimPolicy {
      * parity/claim path is unit-verified. A real reward-screen claim requires instrumenting
      * {@code RewardItem.render}'s {@code AbstractGameEffect.render} call site (a separate boundary
      * slice tracked as B05b), and until then the seam fails open to native there.
-     * Appended LAST after {@code PingHpEffect}; no new patch/bridge/console wiring; the default-off
-     * gate and per-instance token semantics are unchanged.
+     *
+     * <p>The newest (NRO-04 B06) member is the {@code vfx-misc-root} {@code MapCircleEffect} (fields
+     * {@code public static Texture img} — set in the ctor to {@code ImageMaster.MAP_CIRCLE_1} and
+     * SWAPPED by {@code update()} through {@code MAP_CIRCLE_5}/{@code MAP_CIRCLE_4}/
+     * {@code MAP_CIRCLE_3}/{@code MAP_CIRCLE_2}, so there is NO instance {@code img} — plus
+     * {@code private float x}, {@code private float y} and the inherited {@code scale}/
+     * {@code rotation}; ctor {@code (float x, float y, float rotation)}). Its native {@code render}
+     * is {@code sb.setColor(new Color(0.09f, 0.13f, 0.17f, 1f)); sb.draw(img, x - 96f, y - 96f, 96f,
+     * 96f, 192f, 192f, scale, scale, rotation, 0, 0, 192, 192, false, false)} — a bare static
+     * {@code Texture} fixed-rect kind with a FIXED {@code (0,0,192,192)} source rect, a FIXED
+     * {@code (96f,96f)} origin and a FIXED {@code 192&times;192} size, position {@code (x - 96f,
+     * y - 96f)}, the uniform {@code scale}, the field {@code rotation}, NO {@code setBlendFunction}
+     * (AMBIENT blend), and — uniquely — a HARDCODED draw color {@code (0.09f, 0.13f, 0.17f, 1f)}
+     * that IGNORES the effect's own color field. Appended LAST after {@code RewardGlowEffect}; no
+     * new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+     * unchanged.
+     *
+     * <p><b>Production reach (B06 boundary).</b> The claim seam's only effect observer instruments
+     * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
+     * ({@code TransientEffectContainerPatches}). {@code MapCircleEffect} is owned by the MAP screen
+     * ({@code MapRoomNode}/{@code DungeonMapScreen}), whose effect loop the seam does NOT instrument,
+     * so real map-screen {@code MapCircleEffect} instances are NOT yet observed or claimed. On-device
+     * B06 is reachable only via the lab spawn into the {@code AbstractDungeon} effect queues, and the
+     * parity/claim path is unit-verified; on the map screen the seam fails open to native. Claiming a
+     * real map-screen instance requires instrumenting the map-screen effect render call site (a
+     * separate boundary slice tracked as B06b).
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

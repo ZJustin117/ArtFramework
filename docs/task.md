@@ -1451,6 +1451,59 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         lab-only check cannot exercise this path — that limitation must be noted in the slice's
         evidence. Do NOT implement B05b as part of B05.
 
+- [x] NRO-04 B06 (`MapCircleEffect` joins the default-off per-instance claim seam):
+        `com.megacrit.cardcrawl.vfx.MapCircleEffect` is appended LAST to
+        `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` and mapped by `kindFor` (after
+        `RewardGlowEffect`). Its fields are `public static Texture img` (set in the ctor to
+        `ImageMaster.MAP_CIRCLE_1` and SWAPPED by `update()` through
+        `MAP_CIRCLE_5`/`MAP_CIRCLE_4`/`MAP_CIRCLE_3`/`MAP_CIRCLE_2`; there is NO instance `img`
+        field), `private float x`, `private float y`, and the inherited `scale`/`rotation`; ctor
+        `(float x, float y, float rotation)`. Its native `render(SpriteBatch)` is
+        `sb.setColor(new Color(0.09f, 0.13f, 0.17f, 1f)); sb.draw(img, x - 96f, y - 96f, 96f, 96f,
+        192f, 192f, scale, scale, rotation, 0, 0, 192, 192, false, false)` — a bare static-`Texture`
+        fixed-rect kind with a FIXED `(0,0,192,192)` src rect, a FIXED `(96f,96f)` origin and a FIXED
+        `192f x 192f` size, position `(x - 96f, y - 96f)`, the uniform `scale`, the field `rotation`,
+        NO `setBlendFunction` (AMBIENT blend), and — uniquely — a HARDCODED draw color
+        `(0.09f, 0.13f, 0.17f, 1f)` that IGNORES the effect's own color field.
+        `VfxDrawGeometry.Kind.MAP_CIRCLE` adds the named constants `MAP_CIRCLE_SRC_X/SRC_Y/SRC_W/
+        SRC_H = 0/0/192/192`, `MAP_CIRCLE_ORIGIN = 96f`, `MAP_CIRCLE_SIZE = 192f` and the hardcoded
+        color components `MAP_CIRCLE_COLOR_R/G/B/A = 0.09f/0.13f/0.17f/1f`, plus a dedicated `params`
+        branch (position/origin/size/scale/rotation; all other inputs unused). `Sts1VfxArtRenderer`
+        routes `MAP_CIRCLE` through the existing bare-`Texture` `renderTexture` path (added to
+        `isTextureDrawKind`, NOT `usesInstanceTexture`), reads the PUBLIC STATIC field via
+        `readRaw(effect, "img")` (which resolves the static value and requires a non-null `Texture`),
+        adds a static `resolveTexture` case returning that field, the fixed `MAP_CIRCLE_SRC_*` src
+        rect, the AMBIENT blend (no blend switch; restores only color), and a dedicated `resolveColor`
+        branch returning `new Color(0.09f, 0.13f, 0.17f, 1f)` (NOT the effect color, and NOT the
+        white-alpha rule). `readTextureFields` treats `rotation` as REQUIRED (native consumes it) and
+        `x`/`y` as required. The lab gains aliases `"mapcircle"`/`"map"` ->
+        `new MapCircleEffect(960f, 540f, 0f)` behind the existing fail-open guard. The D1 scenario
+        `d1_aura_claim.yaml` adds `art claim spawn mapcircle 4` to both gate phases. Tests:
+        `VfxDrawGeometryTest` (kindFor + near-miss, exact params + hardcoded color constants, ambient,
+        not guard/flip/mirror/RNG/variable-length/flickCoin), `Sts1VfxArtRendererTest` (one draw with
+        the fixed src/origin/size, position, uniform scale, field rotation, NO blend change (ambient),
+        hardcoded color regardless of the effect color, missing/null static img fails open, missing
+        rotation fails open), `VfxDelegationSeamTest`/`Sts1VfxRendererBindingTest` (readiness +
+        appended-last order + texture-kind), `VfxLabSpawnTest` (alias -> FQN + capturing factory). No
+        new patch/bridge/console wiring; the default-off gate is unchanged.
+        PRODUCTION REACH (B06 boundary): the claim seam's only effect observer instruments
+        `AbstractDungeon.render`'s direct `AbstractGameEffect.render` call sites
+        (`TransientEffectContainerPatches`). `MapCircleEffect` is owned by the MAP screen
+        (`MapRoomNode`/`DungeonMapScreen`), whose effect loop the seam does NOT instrument. Real
+        map-screen `MapCircle` instances are therefore NOT yet observed/claimed; B06 is reachable
+        on-device only via the lab spawn into the `AbstractDungeon` effect queues, and its
+        parity/claim path is unit-verified. On the map screen the seam fails open to native.
+        Claiming a real map-screen instance requires instrumenting the map-screen effect render call
+        site (tracked as B06b below); until then the seam fails open to native there.
+
+- [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
+        `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
+        loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`
+        (with NRCC ownership-manifest coverage), so map-screen effects — starting with
+        `MapCircleEffect` (B06) — are actually observed and claimable in production (today the seam's
+        only observer is `AbstractDungeon.render`, so the map-screen effect loop is unseen). D1
+        verification requires a REAL map screen. Do NOT implement B06b as part of B06.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

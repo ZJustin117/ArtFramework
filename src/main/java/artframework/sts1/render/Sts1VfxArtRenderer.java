@@ -465,10 +465,14 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
 
     /**
      * Snapshots the fields a bare-{@code Texture} draw needs. Required: {@code x}, {@code y},
-     * {@code scale}, {@code color} ({@link Color}); {@code y} is optional (defaulting to {@code 0})
+     * {@code scale}, {@code color} ({@link Color}) — except that {@code y} is optional (defaulting to
+     * {@code 0})
      * only for {@code HEAL_PANEL} and the newest (NRO-04 B04) {@code PING_HP}, whose native draw y is
      * panel-space from {@code Settings.HEIGHT} rather than the effect's own field (the classes have no
-     * {@code y}); {@code rotation} is additionally
+     * {@code y}), and {@code color} is optional (stored as {@code null}) for the newest (NRO-04 B06)
+     * {@code MAP_CIRCLE}, whose native ctor never initializes the inherited color field (a REAL
+     * instance has {@code color == null}) and whose draw color is HARDCODED (applied by
+     * {@code resolveColor}); {@code rotation} is additionally
      * required for
      * {@code CALM_PARTICLE}/{@code DEBUFF_PARTICLE}/{@code ICE_SHATTER}/{@code UNKNOWN_PARTICLE}/
      * {@code DARK_ORB_PASSIVE}/{@code LIGHTNING_ORB_PASSIVE}/{@code FALLING_ICE}
@@ -505,7 +509,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.FALLING_ICE
                 || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION
                 || kind == VfxDrawGeometry.Kind.HEAL_PANEL
-                || kind == VfxDrawGeometry.Kind.PING_HP;
+                || kind == VfxDrawGeometry.Kind.PING_HP
+                || kind == VfxDrawGeometry.Kind.MAP_CIRCLE;
         try {
             Float x = readFloat(effect, "x");
             Float y = readFloat(effect, "y");
@@ -521,10 +526,29 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             if (requireRotation && rotation == null) {
                 return null;
             }
-            Object color = readRaw(effect, "color");
-            if (!(color instanceof Color)) return null;
+            Object rawColor = readRaw(effect, "color");
+            // MAP_CIRCLE's native ctor NEVER initializes the inherited color field
+            // (AbstractGameEffect.<init> does not set it), so a REAL MapCircleEffect instance has
+            // color == null. Its draw color is HARDCODED and applied by resolveColor, so color is
+            // OPTIONAL for this kind (exactly like y for HEAL_PANEL/PING_HP): a missing/null/non-Color
+            // value does NOT fail the snapshot and is stored as null. Every OTHER texture kind still
+            // requires a Color here.
+            Color color;
+            if (kind == VfxDrawGeometry.Kind.MAP_CIRCLE) {
+                color = rawColor instanceof Color ? (Color) rawColor : null;
+            } else {
+                if (!(rawColor instanceof Color)) return null;
+                color = (Color) rawColor;
+            }
             Texture img = null;
             if (usesInstanceTexture(kind)) {
+                Object raw = readRaw(effect, "img");
+                if (!(raw instanceof Texture)) return null;
+                img = (Texture) raw;
+            } else if (kind == VfxDrawGeometry.Kind.MAP_CIRCLE) {
+                // MapCircleEffect.img is a PUBLIC STATIC Texture on the effect's own class (there is
+                // NO instance img field); readRaw walks the hierarchy and Field.get resolves the
+                // static value regardless of the instance. It must be a non-null Texture.
                 Object raw = readRaw(effect, "img");
                 if (!(raw instanceof Texture)) return null;
                 img = (Texture) raw;
@@ -548,7 +572,7 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             return new TextureFields(x, y != null ? y : 0f, scale,
                     rotation != null ? rotation : 0f,
                     optionalFloat(effect, "dur_div2"), optionalFloat(effect, "duration"),
-                    (Color) color, img, flipX, flipY);
+                    color, img, flipX, flipY);
         } catch (Throwable ignored) {
             return null;
         }
@@ -946,14 +970,25 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
 
     /**
      * Resolves the {@link Color} the bare-{@code Texture} branch passes to
-     * {@code SpriteBatch.setColor}. Null collapses to white (the same default the img-based branch
+     * {@code SpriteBatch.setColor}. The newest (NRO-04 B06) {@code MAP_CIRCLE} returns its
+     * HARDCODED {@code (0.09f, 0.13f, 0.17f, 1f)} regardless of the effect color (a real
+     * {@code MapCircleEffect} has a null color and the native render ignores it). For every other
+     * kind null collapses to white (the same default the img-based branch
      * uses); for a kind that {@link VfxDrawGeometry#whiteAlphaOnly} reports true for, the RGB
      * channels are forced to {@code 1f} and only the effect color's alpha is kept, mirroring the
      * native {@code new Color(1f, 1f, 1f, color.a)}; every other kind passes the color through
-     * unchanged. Never mutates the effect's color and never throws (the caller already knows the
-     * color is a non-null {@link Color}, but nulls still fail safe to white).
+     * unchanged. Never mutates the effect's color and never throws (a null still fails safe).
      */
     static Color resolveColor(VfxDrawGeometry.Kind kind, Color effectColor) {
+        if (kind == VfxDrawGeometry.Kind.MAP_CIRCLE) {
+            // MapCircleEffect.render hardcodes its setColor to new Color(0.09f, 0.13f, 0.17f, 1f);
+            // the effect's OWN color field is IGNORED. This is NOT the white-alpha rule (it is a
+            // distinct hardcoded dark color), so it is handled before the null/white-alpha checks.
+            return new Color(VfxDrawGeometry.MAP_CIRCLE_COLOR_R,
+                    VfxDrawGeometry.MAP_CIRCLE_COLOR_G,
+                    VfxDrawGeometry.MAP_CIRCLE_COLOR_B,
+                    VfxDrawGeometry.MAP_CIRCLE_COLOR_A);
+        }
         if (effectColor == null) {
             return Color.WHITE;
         }
@@ -1315,7 +1350,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION
                 || kind == VfxDrawGeometry.Kind.HEAL_PANEL
                 || kind == VfxDrawGeometry.Kind.PING_HP
-                || kind == VfxDrawGeometry.Kind.REWARD_GLOW;
+                || kind == VfxDrawGeometry.Kind.REWARD_GLOW
+                || kind == VfxDrawGeometry.Kind.MAP_CIRCLE;
     }
 
     /**
@@ -1396,6 +1432,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             // RewardGlowEffect.render(SpriteBatch) draws the STATIC ImageMaster.REWARD_SCREEN_ITEM
             // Texture (the class has NO instance Texture img).
             return ImageMaster.REWARD_SCREEN_ITEM;
+        }
+        if (kind == VfxDrawGeometry.Kind.MAP_CIRCLE) {
+            // MapCircleEffect draws its own PUBLIC STATIC Texture img (set in the ctor and swapped by
+            // update(); there is NO instance img field). readTextureFields has already read the
+            // static field through readRaw and requires it to be a non-null Texture.
+            return f.img;
         }
         if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
@@ -1540,6 +1582,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             srcY = VfxDrawGeometry.REWARD_GLOW_SRC_Y;
             srcW = VfxDrawGeometry.REWARD_GLOW_SRC_W;
             srcH = VfxDrawGeometry.REWARD_GLOW_SRC_H;
+        } else if (kind == VfxDrawGeometry.Kind.MAP_CIRCLE) {
+            // MapCircleEffect draws the FIXED 192x192 src rect of its public static Texture img.
+            srcX = VfxDrawGeometry.MAP_CIRCLE_SRC_X;
+            srcY = VfxDrawGeometry.MAP_CIRCLE_SRC_Y;
+            srcW = VfxDrawGeometry.MAP_CIRCLE_SRC_W;
+            srcH = VfxDrawGeometry.MAP_CIRCLE_SRC_H;
         } else if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {
             // WebParticleEffect and EntangleEffect share the static WEB_VFX src rect.

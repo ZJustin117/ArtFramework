@@ -2263,7 +2263,8 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.CAMPFIRE_SLEEP_COVER
                     || kind == VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY
                     || kind == VfxDrawGeometry.Kind.WATER_SPLASH
-                    || kind == VfxDrawGeometry.Kind.BOTTOM_FOG) {
+                    || kind == VfxDrawGeometry.Kind.BOTTOM_FOG
+                    || kind == VfxDrawGeometry.Kind.MAP_CIRCLE) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -3878,5 +3879,95 @@ public class VfxDrawGeometryTest {
         assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(VfxDrawGeometry.Kind.REWARD_GLOW));
         assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.REWARD_GLOW).isEmpty());
         assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.REWARD_GLOW).isEmpty());
+    }
+
+    // --- NRO-04 B06 MapCircleEffect: ambient bare static Texture img (public static, swapped by
+    // update()), fixed 192x192 rect, position (x-96, y-96), uniform scale, field rotation,
+    // HARDCODED draw color (0.09,0.13,0.17,1) that ignores the effect color ---
+
+    @Test
+    public void mapCircleKindForMapsTheExactFqnAndFailsOpenForNearMisses() {
+        assertSame(VfxDrawGeometry.Kind.MAP_CIRCLE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.MAP_CIRCLE));
+        assertSame(VfxDrawGeometry.Kind.MAP_CIRCLE,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.MapCircleEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.MapCircleEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.MapCircleEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("MapCircleEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.combat.MapCircleEffect"));
+    }
+
+    @Test
+    public void mapCircleUsesTheFixed192RectPositionAndHardcodedColorAmbiently() {
+        // Native MapCircleEffect.render (verified bytecode): AMBIENT (NO setBlendFunction);
+        //   sb.setColor(new Color(0.09f, 0.13f, 0.17f, 1f));   // HARDCODED, ignores the effect color
+        //   sb.draw(img, x - 96f, y - 96f, 96f, 96f, 192f, 192f, scale, scale, rotation,
+        //           0, 0, 192, 192, false, false);
+        float x = 500f;
+        float y = 300f;
+        float scale = 1.25f;
+        float rotation = 42f;
+
+        VfxDrawGeometry.Params p = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.MAP_CIRCLE,
+                x, y, 999f /* vY ignored */, scale, rotation,
+                7f /* durDiv2 ignored */, 5f /* duration ignored */, 2f /* settingsScale ignored */,
+                10f /* packedWidth ignored */, 20f /* packedHeight ignored */,
+                1234f /* vX ignored */, 6f /* regionOffsetX ignored */,
+                7f /* regionOffsetY ignored */, 0f, 0f, 1f);
+
+        assertEquals("position x is x - 96f", x - 96f, p.x, EPS);
+        assertEquals("position y is y - 96f", y - 96f, p.y, EPS);
+        assertEquals("origin x is the fixed 96f", 96f, p.originX, EPS);
+        assertEquals("origin y is the fixed 96f", 96f, p.originY, EPS);
+        assertEquals("size w is the fixed 192f", 192f, p.width, EPS);
+        assertEquals("size h is the fixed 192f", 192f, p.height, EPS);
+        assertEquals("uniform scale on X", scale, p.scaleX, EPS);
+        assertEquals("uniform scale on Y", scale, p.scaleY, EPS);
+        assertEquals("rotation comes from the field (native consumes it)", rotation, p.rotation, EPS);
+
+        // A different vY/packed size produces byte-identical geometry.
+        VfxDrawGeometry.Params q = VfxDrawGeometry.params(
+                VfxDrawGeometry.Kind.MAP_CIRCLE,
+                x, y, -12345f, scale, rotation, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 1f);
+        assertEquals(p, q);
+
+        // The named constants mirror the native bytecode.
+        assertEquals(0, VfxDrawGeometry.MAP_CIRCLE_SRC_X);
+        assertEquals(0, VfxDrawGeometry.MAP_CIRCLE_SRC_Y);
+        assertEquals(192, VfxDrawGeometry.MAP_CIRCLE_SRC_W);
+        assertEquals(192, VfxDrawGeometry.MAP_CIRCLE_SRC_H);
+        assertEquals(96f, VfxDrawGeometry.MAP_CIRCLE_ORIGIN, EPS);
+        assertEquals(192f, VfxDrawGeometry.MAP_CIRCLE_SIZE, EPS);
+        assertEquals(0.09f, VfxDrawGeometry.MAP_CIRCLE_COLOR_R, EPS);
+        assertEquals(0.13f, VfxDrawGeometry.MAP_CIRCLE_COLOR_G, EPS);
+        assertEquals(0.17f, VfxDrawGeometry.MAP_CIRCLE_COLOR_B, EPS);
+        assertEquals(1f, VfxDrawGeometry.MAP_CIRCLE_COLOR_A, EPS);
+
+        assertFalse("MAP_CIRCLE never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        // The draw color is a distinct hardcoded color, NOT the white-alpha rule.
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        // It joins NO guard / boolean-guard / no-image / flip / mirror / textured-flip /
+        // player-hitbox / variable-length / flickCoin-anisotropic / RNG capability.
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(VfxDrawGeometry.Kind.MAP_CIRCLE));
+        assertEquals(1f, VfxDrawGeometry.uniformScaleMultiplier(
+                VfxDrawGeometry.Kind.MAP_CIRCLE, 2f), EPS);
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.MAP_CIRCLE).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.MAP_CIRCLE).isEmpty());
     }
 }

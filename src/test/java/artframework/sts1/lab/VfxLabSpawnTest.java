@@ -174,6 +174,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.FLYING_ORB, VfxLabSpawn.classNameFor("orb"));
         assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("flickcoin"));
         assertEquals(VfxClaimPolicy.FLICK_COIN, VfxLabSpawn.classNameFor("coin"));
+        assertEquals(VfxClaimPolicy.MAP_CIRCLE, VfxLabSpawn.classNameFor("mapcircle"));
+        assertEquals(VfxClaimPolicy.MAP_CIRCLE, VfxLabSpawn.classNameFor("map"));
     }
 
     @Test
@@ -743,6 +745,16 @@ public class VfxLabSpawnTest {
         // collide with any existing alias.
         assertSpawnRequests("rewardglow", VfxClaimPolicy.REWARD_GLOW);
         assertSpawnRequests("reward", VfxClaimPolicy.REWARD_GLOW);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheB06MapCircleThroughTheFactorySeam() {
+        // The newest (NRO-04 B06) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the ctor (whose PUBLIC STATIC img = ImageMaster.MAP_CIRCLE_1
+        // may be null off-game, and which update() later swaps). "mapcircle"/"map" do not collide with
+        // any existing alias.
+        assertSpawnRequests("mapcircle", VfxClaimPolicy.MAP_CIRCLE);
+        assertSpawnRequests("map", VfxClaimPolicy.MAP_CIRCLE);
     }
 
     @Test

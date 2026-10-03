@@ -1043,6 +1043,230 @@ public class Sts1VfxArtRendererTest {
     }
 
     /**
+     * {@code MapCircleEffect} layout: the instance {@code x}/{@code y} plus the inherited
+     * {@code scale}/{@code rotation}/{@code color} from {@link BaseEffect}, and a
+     * {@code public static Texture img} declared on the class (the native effect has NO instance img
+     * field; its static img is set in the ctor and swapped by {@code update()}).
+     */
+    static class MapCircleHolder extends BaseEffect {
+        private float x;
+        private float y;
+        public static Texture img;
+    }
+
+    /**
+     * {@code MapCircleEffect} layout with a PUBLIC STATIC {@code Texture img} but no inherited
+     * {@code rotation} field, proving {@code rotation} is genuinely REQUIRED (native consumes it).
+     */
+    static class MapCircleNoRotationBase {
+        protected float scale;
+        protected Color color;
+    }
+
+    static class MapCircleNoRotationHolder extends MapCircleNoRotationBase {
+        private float x;
+        private float y;
+        public static Texture img;
+    }
+
+    /** {@code MapCircleEffect} layout with no {@code img} field at all (static img unresolvable). */
+    static class MapCircleNoImgHolder extends BaseEffect {
+        private float x;
+        private float y;
+    }
+
+    /**
+     * Real {@code MapCircleEffect} with reflectively seeded {@code x}/{@code y} and inherited
+     * {@code scale}/{@code rotation} (no game/GL context). Its static {@code MapCircleEffect.img}
+     * texture is seeded separately by the test. The inherited {@code color} field is deliberately
+     * left UNSET (null), exactly like a real native instance whose ctor never initializes it.
+     */
+    private static AbstractGameEffect seededMapCircle(float x, float y, float scale,
+            float rotation) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.MapCircleEffect effect =
+                    (com.megacrit.cardcrawl.vfx.MapCircleEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.MapCircleEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "x",
+                    Float.valueOf(x));
+            setField(effect, com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "y",
+                    Float.valueOf(y));
+            setField(effect, AbstractGameEffect.class, "scale", Float.valueOf(scale));
+            setField(effect, AbstractGameEffect.class, "rotation", Float.valueOf(rotation));
+            // Deliberately do NOT seed color: a real MapCircleEffect has color == null.
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL MapCircleEffect", failure);
+        }
+    }
+
+    @Test
+    public void mapCircleDrawsOnceWithTheFixed192RectAmbientBlendAndHardcodedColor() {
+        // Native MapCircleEffect.render (verified bytecode): AMBIENT (NO setBlendFunction);
+        //   sb.setColor(new Color(0.09f, 0.13f, 0.17f, 1f));   // HARDCODED, ignores the effect color
+        //   sb.draw(img, x - 96f, y - 96f, 96f, 96f, 192f, 192f, scale, scale, rotation,
+        //           0, 0, 192, 192, false, false);
+        // img is the PUBLIC STATIC MapCircleEffect.img Texture (no instance img field). The effect's
+        // inherited color is left null (as a real instance is), so this exercises the color-optional
+        // MAP_CIRCLE path end to end.
+        float x = 480.5f;
+        float y = 271.25f;
+        float scale = 1.15f;
+        float rotation = 37f;
+
+        Object previous = getStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img");
+        setStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img", noGlTexture(192, 192));
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededMapCircle(x, y, scale, rotation);
+
+            assertTrue("a MapCircleEffect instance (null color) with the static texture draws",
+                    renderer.render(batch, effect));
+            assertEquals("exactly ONE raw-texture draw", 1, batch.drawCalls);
+            assertEquals(1, batch.successfulTextureDraws);
+            assertEquals("MAP_CIRCLE is ambient: NO setBlendFunction call", 0, batch.setBlendCalls);
+            assertNotNull("the applied tint was captured", batch.firstSetColor);
+            assertEquals("the draw color is the HARDCODED red",
+                    VfxDrawGeometry.MAP_CIRCLE_COLOR_R, batch.firstSetColor.r, EPS);
+            assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_G, batch.firstSetColor.g, EPS);
+            assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_B, batch.firstSetColor.b, EPS);
+            assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_A, batch.firstSetColor.a, EPS);
+
+            float[] d = batch.drawnArgs;
+            assertEquals("position x is x - 96f", x - 96f, d[0], EPS);
+            assertEquals("position y is y - 96f", y - 96f, d[1], EPS);
+            assertEquals("origin is the fixed 96", 96f, d[2], EPS);
+            assertEquals("origin is the fixed 96", 96f, d[3], EPS);
+            assertEquals("size is the fixed 192", 192f, d[4], EPS);
+            assertEquals("size is the fixed 192", 192f, d[5], EPS);
+            assertEquals("uniform scale on X", scale, d[6], EPS);
+            assertEquals("uniform scale on Y", scale, d[7], EPS);
+            assertEquals("rotation comes from the field", rotation, d[8], EPS);
+            assertEquals("fixed src x", 0f, d[9], EPS);
+            assertEquals("fixed src y", 0f, d[10], EPS);
+            assertEquals("fixed src w", 192f, d[11], EPS);
+            assertEquals("fixed src h", 192f, d[12], EPS);
+            assertFalse("no per-instance flip X", batch.drawnFlipX);
+            assertFalse("no per-instance flip Y", batch.drawnFlipY);
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img", previous);
+        }
+    }
+
+    @Test
+    public void mapCircleWithNullColorStillResolvesAndDrawsTheHardcodedColor() {
+        // REGRESSION (B06 review): a REAL MapCircleEffect has color == null (its ctor never
+        // initializes the inherited field). readTextureFields must NOT fail open on the missing
+        // Color for this kind (its draw color is HARDCODED), and the render must draw the hardcoded
+        // (0.09, 0.13, 0.17, 1) color. Under the old "require Color for every texture kind" logic the
+        // snapshot returned null and the claim could never succeed.
+        Object previous = getStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img");
+        setStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img", noGlTexture(192, 192));
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            AbstractGameEffect effect = seededMapCircle(10f, 20f, 1f, 0f);
+            assertNull("the fixture genuinely has a null color",
+                    readField(effect, "color"));
+
+            Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                    VfxDrawGeometry.Kind.MAP_CIRCLE, effect);
+            assertNotNull("a null-color MAP_CIRCLE still resolves", f);
+            assertNull("the null effect color is stored as null (color is optional)", f.color);
+
+            CountingBatch batch = newCountingBatch();
+            assertTrue("a null-color MAP_CIRCLE renders", renderer.render(batch, effect));
+            assertEquals("exactly ONE raw-texture draw", 1, batch.drawCalls);
+            assertNotNull("the applied tint was captured", batch.firstSetColor);
+            assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_R, batch.firstSetColor.r, EPS);
+            assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_G, batch.firstSetColor.g, EPS);
+            assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_B, batch.firstSetColor.b, EPS);
+            assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_A, batch.firstSetColor.a, EPS);
+            assertTrue("a null-color MAP_CIRCLE canDraw", renderer.canDraw(effect));
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img", previous);
+        }
+    }
+
+    @Test
+    public void mapCircleMissingStaticImageFailsOpenAndCannotDraw() {
+        Object previous = getStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img");
+        setStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img", null);
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            AbstractGameEffect effect = seededMapCircle(5f, 6f, 1f, 0f);
+
+            CountingBatch batch = newCountingBatch();
+            assertFalse("a MapCircleEffect instance without the static img fails open",
+                    renderer.render(batch, effect));
+            assertEquals("no draw", 0, batch.drawCalls);
+            assertFalse("a MapCircleEffect instance without the static img cannotDraw",
+                    renderer.canDraw(effect));
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.vfx.MapCircleEffect.class, "img", previous);
+        }
+    }
+
+    @Test
+    public void readTextureFieldsResolvesMapCircleStaticTextureAndRequiresRotation() {
+        Texture img = noGlTexture(192, 192);
+        setStaticField(MapCircleHolder.class, "img", img);
+
+        MapCircleHolder effect = new MapCircleHolder();
+        effect.x = 11f;
+        effect.y = 22f;
+        effect.scale = 0.5f;
+        effect.rotation = 44f;
+        // color deliberately left null (a real MapCircleEffect never initializes it).
+
+        Sts1VfxArtRenderer.TextureFields f = Sts1VfxArtRenderer.readTextureFields(
+                VfxDrawGeometry.Kind.MAP_CIRCLE, effect);
+        assertNotNull("a MapCircle holder with a null color resolves (color is optional)", f);
+        assertEquals(11f, f.x, EPS);
+        assertEquals(22f, f.y, EPS);
+        assertEquals(0.5f, f.scale, EPS);
+        assertEquals(44f, f.rotation, EPS);
+        assertNull("the null color is stored as null", f.color);
+        assertSame("the static img is resolved", img, f.img);
+
+        // rotation is REQUIRED for this kind (native consumes it): a holder with a valid static img
+        // but NO rotation field fails the snapshot open.
+        Texture img2 = noGlTexture(192, 192);
+        setStaticField(MapCircleNoRotationHolder.class, "img", img2);
+        MapCircleNoRotationHolder noRotation = new MapCircleNoRotationHolder();
+        noRotation.x = 11f;
+        noRotation.y = 22f;
+        noRotation.scale = 0.5f;
+        assertNull("a MAP_CIRCLE holder without a rotation field fails open (rotation is required)",
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.MAP_CIRCLE, noRotation));
+
+        // A holder with no img field at all fails open.
+        assertNull("a MAP_CIRCLE holder with no img field fails open",
+                Sts1VfxArtRenderer.readTextureFields(
+                        VfxDrawGeometry.Kind.MAP_CIRCLE, new MapCircleNoImgHolder()));
+        assertNull(VfxDrawGeometry.Kind.MAP_CIRCLE + " null effect fails open",
+                Sts1VfxArtRenderer.readTextureFields(VfxDrawGeometry.Kind.MAP_CIRCLE, null));
+
+        // The hardcoded color override ignores the effect's own color entirely.
+        Color override = Sts1VfxArtRenderer.resolveColor(
+                VfxDrawGeometry.Kind.MAP_CIRCLE, new Color(0.9f, 0.2f, 0.7f, 0.4f));
+        assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_R, override.r, EPS);
+        assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_G, override.g, EPS);
+        assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_B, override.b, EPS);
+        assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_A, override.a, EPS);
+        // Even a null effect color still yields the hardcoded color (not white).
+        Color overrideNull = Sts1VfxArtRenderer.resolveColor(
+                VfxDrawGeometry.Kind.MAP_CIRCLE, null);
+        assertEquals(VfxDrawGeometry.MAP_CIRCLE_COLOR_R, overrideNull.r, EPS);
+    }
+
+    /**
      * Real {@code HealPanelEffect} with reflectively seeded {@code x} and inherited
      * {@code scale}/{@code rotation}/{@code color}, plus its class-level static {@code img}
      * (no game/GL context).
@@ -2629,6 +2853,9 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.REWARD_GLOW));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.RewardGlowEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.MAP_CIRCLE));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.MapCircleEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));
@@ -2739,6 +2966,9 @@ public class Sts1VfxArtRendererTest {
         assertFalse(renderer.isReady(VfxClaimPolicy.REWARD_GLOW + "$Sub"));
         assertFalse(renderer.isReady(VfxClaimPolicy.REWARD_GLOW + "2"));
         assertFalse(renderer.isReady("RewardGlowEffect"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.MAP_CIRCLE + "$Sub"));
+        assertFalse(renderer.isReady(VfxClaimPolicy.MAP_CIRCLE + "2"));
+        assertFalse(renderer.isReady("MapCircleEffect"));
     }
 
     @Test
@@ -4785,6 +5015,16 @@ public class Sts1VfxArtRendererTest {
             field.set(null, value);
         } catch (Exception failure) {
             throw new AssertionError("could not set static field " + owner + "." + name, failure);
+        }
+    }
+
+    private static Object getStaticField(Class<?> owner, String name) {
+        try {
+            Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            return field.get(null);
+        } catch (Exception failure) {
+            throw new AssertionError("could not get static field " + owner + "." + name, failure);
         }
     }
 

@@ -296,6 +296,15 @@ package artframework.sts1.render;
  *     sb.draw(ImageMaster.REWARD_SCREEN_ITEM, x - 232f, y - 49f,
  *             232f, 49f, 464f, 98f, Settings.xScale, scale + Settings.scale * 0.05f, 0f,
  *             0, 0, 464, 98, false, false)
+ *   MapCircleEffect.render (note: AMBIENT blend (NO setBlendFunction); the img is the PUBLIC STATIC
+ *                           MapCircleEffect.img Texture — set in the ctor to ImageMaster.MAP_CIRCLE_1
+ *                           and SWAPPED by update() through MAP_CIRCLE_5/4/3/2, so there is NO instance
+ *                           img field; a fixed shape-C rect — src 0,0,192,192, origin 96,96, size
+ *                           192x192 — with position (x - 96f, y - 96f), the uniform effect scale, the
+ *                           field rotation, and a HARDCODED draw color (0.09f, 0.13f, 0.17f, 1f) that
+ *                           IGNORES the effect's own color field):
+ *     sb.draw(img, x - 96f, y - 96f, 96f, 96f, 192f, 192f, scale, scale, rotation,
+ *             0, 0, 192, 192, false, false)
  * </pre>
  *
  * where {@code pw}/{@code ph} are the region's {@code packedWidth}/{@code packedHeight}. The
@@ -549,6 +558,30 @@ package artframework.sts1.render;
  * only via the lab spawn and its parity/claim path is unit-verified. Claiming a real reward-screen
  * instance requires instrumenting {@code RewardItem.render}'s {@code AbstractGameEffect.render} call
  * site (tracked as B05b); until then the seam fails open to native there.
+ *
+ * <p>The newest (NRO-04 B06) member is the {@code vfx-misc-root} {@code MapCircleEffect}
+ * ({@link Kind#MAP_CIRCLE}): an AMBIENT bare static-{@code Texture} kind. Its fields are a
+ * {@code public static Texture img} — set in the ctor to {@code ImageMaster.MAP_CIRCLE_1} and
+ * SWAPPED by {@code update()} through {@code MAP_CIRCLE_5}/{@code MAP_CIRCLE_4}/{@code MAP_CIRCLE_3}/
+ * {@code MAP_CIRCLE_2}, so there is NO instance {@code img} field — plus {@code private float x},
+ * {@code private float y} and the inherited {@code scale}/{@code rotation}. It draws a FIXED
+ * shape-C rect ({@code src 0,0,192,192}, origin {@code (96f, 96f)}, size {@code 192f&times;192f}) at
+ * position {@code (x - 96f, y - 96f)} with the uniform effect {@code scale} and the field
+ * {@code rotation} (REQUIRED — native consumes it), and it never calls {@code setBlendFunction}
+ * (ambient blend). Its ONE new pure rule is the HARDCODED draw color
+ * {@code (0.09f, 0.13f, 0.17f, 1f)} (see the {@code MAP_CIRCLE_COLOR_*} constants): the effect's own
+ * color field is IGNORED, so the renderer overrides it via {@code resolveColor}. Because the class
+ * stays host-neutral it never reads the constant itself; the renderer owns the color override. No
+ * new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+ * unchanged.
+ *
+ * <p><b>B06 production reach.</b> The claim seam's only effect observer instruments
+ * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
+ * ({@code TransientEffectContainerPatches}). {@code MapCircleEffect} is owned by the MAP screen
+ * ({@code MapRoomNode}/{@code DungeonMapScreen}), whose effect loop the seam does NOT instrument, so
+ * real map-screen instances are NOT observed/claimed; B06 is reachable on-device only via the lab
+ * spawn and fails open to native on the map screen. Claiming a real map-screen instance requires
+ * instrumenting the map-screen effect render call site (tracked as B06b).
  */
 public final class VfxDrawGeometry {
 
@@ -618,7 +651,8 @@ public final class VfxDrawGeometry {
         FLICK_COIN,
         HEAL_PANEL,
         PING_HP,
-        REWARD_GLOW
+        REWARD_GLOW,
+        MAP_CIRCLE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -912,6 +946,34 @@ public final class VfxDrawGeometry {
     public static final float REWARD_GLOW_SIZE_H = 98f;
     /** Native RewardGlow scaleY settings multiplier ({@code 0.05f}, applied to {@code Settings.scale}). */
     public static final float REWARD_GLOW_SCALE_Y_SETTINGS_MULT = 0.05f;
+
+    // Native MapCircleEffect.draw constants (see the class Javadoc): an ambient bare static-Texture
+    // kind whose img is the PUBLIC STATIC MapCircleEffect.img (set in the ctor to
+    // ImageMaster.MAP_CIRCLE_1 and swapped by update()); the geometry is a FIXED source rect
+    // (0, 0, 192, 192), a FIXED origin (96f, 96f) and a FIXED 192f x 192f size, position
+    // (x - 96f, y - 96f), the uniform effect scale and the field rotation. Its draw color is NOT the
+    // effect's color but a HARDCODED (0.09f, 0.13f, 0.17f, 1f) — see mapCircleColorR/G/B/A. It never
+    // calls setBlendFunction (ambient blend) and there is NO instance img field.
+    /** Native MapCircle draw source rect x ({@code 0}). */
+    public static final int MAP_CIRCLE_SRC_X = 0;
+    /** Native MapCircle draw source rect y ({@code 0}). */
+    public static final int MAP_CIRCLE_SRC_Y = 0;
+    /** Native MapCircle draw source rect width ({@code 192}). */
+    public static final int MAP_CIRCLE_SRC_W = 192;
+    /** Native MapCircle draw source rect height ({@code 192}). */
+    public static final int MAP_CIRCLE_SRC_H = 192;
+    /** Native MapCircle draw origin ({@code 96f}). */
+    public static final float MAP_CIRCLE_ORIGIN = 96f;
+    /** Native MapCircle draw width/height ({@code 192f}). */
+    public static final float MAP_CIRCLE_SIZE = 192f;
+    /** Native MapCircle HARDCODED draw color red ({@code 0.09f}). */
+    public static final float MAP_CIRCLE_COLOR_R = 0.09f;
+    /** Native MapCircle HARDCODED draw color green ({@code 0.13f}). */
+    public static final float MAP_CIRCLE_COLOR_G = 0.13f;
+    /** Native MapCircle HARDCODED draw color blue ({@code 0.17f}). */
+    public static final float MAP_CIRCLE_COLOR_B = 0.17f;
+    /** Native MapCircle HARDCODED draw color alpha ({@code 1f}). */
+    public static final float MAP_CIRCLE_COLOR_A = 1f;
 
     // Native WarningSignEffect draw constants (see the class Javadoc): fixed origin/size and the
     // fixed source rect of the static ImageMaster.WARNING_ICON_VFX Texture. The rotation is
@@ -1218,6 +1280,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.HEAL_PANEL.equals(value)) return Kind.HEAL_PANEL;
         if (VfxClaimPolicy.PING_HP.equals(value)) return Kind.PING_HP;
         if (VfxClaimPolicy.REWARD_GLOW.equals(value)) return Kind.REWARD_GLOW;
+        if (VfxClaimPolicy.MAP_CIRCLE.equals(value)) return Kind.MAP_CIRCLE;
         return null;
     }
 
@@ -1286,7 +1349,9 @@ public final class VfxDrawGeometry {
      * natively and is ADDITIVE, so it is not in the ambient set. The newest (NRO-04 B03) member
      * {@link Kind#HEAL_PANEL} also installs/restores the additive blend natively and is ADDITIVE. The
      * newest (NRO-04 B04) member {@link Kind#PING_HP} likewise installs/restores the additive blend
-     * natively and is ADDITIVE.
+     * natively and is ADDITIVE. The newest (NRO-04 B06) member {@link Kind#MAP_CIRCLE} never calls
+     * {@code setBlendFunction} natively (AMBIENT blend), so {@code additiveBlend} reports {@code false}
+     * for it.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -1318,7 +1383,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.CAMPFIRE_SLEEP_COVER
                 && kind != Kind.DEATH_SCREEN_FLOATY
                 && kind != Kind.WATER_SPLASH
-                && kind != Kind.BOTTOM_FOG;
+                && kind != Kind.BOTTOM_FOG
+                && kind != Kind.MAP_CIRCLE;
     }
 
     /**
@@ -2200,6 +2266,23 @@ public final class VfxDrawGeometry {
                         REWARD_GLOW_ORIGIN_X, REWARD_GLOW_ORIGIN_Y,
                         REWARD_GLOW_SIZE_W, REWARD_GLOW_SIZE_H,
                         settingsHeight, scale + settingsScale * REWARD_GLOW_SCALE_Y_SETTINGS_MULT, 0f);
+            case MAP_CIRCLE:
+                // Native MapCircleEffect.render (verified bytecode): AMBIENT (NO setBlendFunction);
+                //   sb.setColor(new Color(0.09f, 0.13f, 0.17f, 1f));   // HARDCODED, ignores the
+                //                                                        // effect's own color field
+                //   sb.draw(img, x - 96f, y - 96f, 96f, 96f, 192f, 192f, scale, scale, rotation,
+                //           0, 0, 192, 192, false, false);
+                // A bare STATIC Texture kind (img is the PUBLIC STATIC MapCircleEffect.img, set in the
+                // ctor and swapped by update(); there is NO instance img field) with a FIXED src rect
+                // (0, 0, 192, 192), a FIXED origin (96f, 96f) and a FIXED 192f x 192f size; the draw
+                // position is (x - 96f, y - 96f), the scale is the effect's uniform scale and the
+                // rotation comes from the field (native CONSUMES it; it is REQUIRED). The hardcoded
+                // draw color is applied by the renderer (resolveColor), not here, because this class
+                // stays host-neutral. packedWidth/packedHeight, vY, vX, the region offsets,
+                // dur_div2, duration, settingsScale and settingsHeight are unused.
+                return new Params(x - MAP_CIRCLE_ORIGIN, y - MAP_CIRCLE_ORIGIN,
+                        MAP_CIRCLE_ORIGIN, MAP_CIRCLE_ORIGIN,
+                        MAP_CIRCLE_SIZE, MAP_CIRCLE_SIZE, scale, scale, rotation);
             default:
                 throw new IllegalArgumentException("unhandled kind: " + kind);
         }

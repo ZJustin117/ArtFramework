@@ -17,6 +17,7 @@ import com.megacrit.cardcrawl.vfx.FlameBallParticleEffect;
 import com.megacrit.cardcrawl.vfx.GenericSmokeEffect;
 import com.megacrit.cardcrawl.vfx.GhostlyWeakFireEffect;
 import com.megacrit.cardcrawl.vfx.GlowyFireEyesEffect;
+import com.megacrit.cardcrawl.vfx.MapCircleEffect;
 import com.megacrit.cardcrawl.vfx.NemesisFireParticle;
 import com.megacrit.cardcrawl.vfx.DamageHeartEffect;
 import com.megacrit.cardcrawl.vfx.ShineLinesEffect;
@@ -155,6 +156,13 @@ import java.util.function.Predicate;
  * {@code ImageMaster.REWARD_SCREEN_ITEM} resolved at draw time, with a fixed {@code 464x98} rect, an
  * anisotropic {@code Settings.xScale}/{@code scale + Settings.scale*0.05f} scale and a hardcoded
  * zero rotation; ctor {@code (float x, float y)}).
+ * The newest (NRO-04 B06) member is the {@code vfx-misc-root} {@code MapCircleEffect} (an ambient
+ * bare STATIC-{@code Texture} kind whose img is the PUBLIC STATIC {@code MapCircleEffect.img}, set
+ * in the ctor to {@code ImageMaster.MAP_CIRCLE_1} and SWAPPED by {@code update()} through
+ * {@code MAP_CIRCLE_5}/{@code MAP_CIRCLE_4}/{@code MAP_CIRCLE_3}/{@code MAP_CIRCLE_2}; a fixed
+ * {@code 192x192} rect at position {@code (x - 96f, y - 96f)} with the uniform scale and the field
+ * rotation, and a HARDCODED draw color {@code (0.09f, 0.13f, 0.17f, 1f)} that ignores the effect's
+ * own color; ctor {@code (float x, float y, float rotation)}).
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -396,6 +404,13 @@ public final class VfxLabSpawn {
         // ctor reads Settings.scale; the construct path is behind the existing fail-open guard.
         if ("rewardglow".equalsIgnoreCase(value) || "reward".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.REWARD_GLOW;
+        }
+        // NRO-04 B06: MapCircleEffect's img is the PUBLIC STATIC MapCircleEffect.img Texture, set in
+        // the ctor to ImageMaster.MAP_CIRCLE_1 (and later SWAPPED by update() through
+        // MAP_CIRCLE_5/4/3/2); it may be null off-game, so the construct path is behind the existing
+        // fail-open guard.
+        if ("mapcircle".equalsIgnoreCase(value) || "map".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.MAP_CIRCLE;
         }
         return null;
     }
@@ -909,6 +924,13 @@ public final class VfxLabSpawn {
             // ImageMaster.REWARD_SCREEN_ITEM resolved at draw time, which may be null off-game. Any
             // failure is caught by spawn's fail-open guard rather than propagating.
             return new RewardGlowEffect(960f, 540f);
+        }
+        if (VfxClaimPolicy.MAP_CIRCLE.equals(fqn)) {
+            // Safe lab defaults: a screen-center-ish point (e.g. 960f, 540f) with rotation 0f. Its
+            // ctor is (float x, float y, float rotation); its static img = ImageMaster.MAP_CIRCLE_1
+            // may be null off-game (and update() later swaps it through MAP_CIRCLE_5/4/3/2). Any
+            // failure is caught by spawn's fail-open guard rather than propagating.
+            return new MapCircleEffect(960f, 540f, 0f);
         }
         return null;
     }

@@ -1101,6 +1101,68 @@ public class NativeRenderBridgeTest {
                 Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
     }
 
+    /**
+     * A05 recovery/long-run lifecycle regression: the container DETACH path drops a superless
+     * effect's active record WITHOUT a terminal record, so a recovery/panic that follows must not
+     * leave a stale tombstone for the still-live object, and its next render must be RE-ADMITTED
+     * (never rejected as terminal). A pooled effect is never completed by the container
+     * observation, so its reuse stays admitted the same way. Off-device this drives the generated
+     * helper bodies directly; the real ModTheSpire wiring is proven on-device.
+     */
+    @Test
+    public void detachedEffectSurvivesRecoveryAndReAdmits() {
+        // Superless effect: detach (not complete), then recovery, then re-render the SAME object.
+        SuperlessEffect effect = superlessEffect();
+        NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        effect.isDone = true;
+        TransientEffectContainerPatches.observeAfterUpdate(effect);
+        assertEquals("detach must drop the active record",
+                Integer.valueOf(0), transientEffects().get("active"));
+        assertEquals("detach must not retain a terminal record",
+                Integer.valueOf(0), transientEffects().get("recent"));
+        assertEquals("detach must not advance the completion total",
+                Integer.valueOf(0), transientEffects().get("total"));
+
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+
+        RenderDisposition reRender =
+                NativeRenderBridge.beginEffectRender(effect, "render-after-recovery");
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, reRender.mode);
+        assertEquals("a detached object must be re-admitted after recovery",
+                Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals("recovery must not create a terminal rejection",
+                Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+        assertEquals("recovery must not create an unknown lifecycle",
+                Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+        assertEquals("recovery must not leak an unfinished record",
+                Integer.valueOf(0), transientEffects().get("leaked"));
+
+        // Pooled effect: the container observation deliberately does NOT complete a recycled
+        // object, so it stays admitted and its reuse is never a terminal rejection.
+        PoolableSuperlessEffect pooled = new PoolableSuperlessEffect();
+        NativeRenderBridge.beginEffectRender(pooled, "render");
+        assertEquals(Integer.valueOf(2), transientEffects().get("active"));
+
+        pooled.isDone = true;
+        TransientEffectContainerPatches.observeAfterUpdate(pooled);
+        assertEquals("a pooled effect is never completed by container observation",
+                Integer.valueOf(2), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+
+        pooled.isDone = false;
+        RenderDisposition pooledReuse =
+                NativeRenderBridge.beginEffectRender(pooled, "render-reuse");
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, pooledReuse.mode);
+        assertEquals("pooled reuse stays admitted",
+                Integer.valueOf(2), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("leaked"));
+    }
+
     @Test
     public void containerAfterUpdateObservationIsNullSafe() {
         // Baseline: no counters move at all.
@@ -2037,6 +2099,29 @@ public class NativeRenderBridgeTest {
     }
 
     @Test
+    public void liveEffectReAdmitsAfterRecoveryWithoutRejection() {
+        // Real device path: a non-pooled live effect rendered before recovery is RE-ADMITTED on
+        // its next render after `clearTransientEffectsForRecovery` — it is not stale-marked, so it
+        // is never rejected as terminal and cannot force strict acceptance false.
+        SuperlessEffect effect = superlessEffect();
+        RenderDisposition before = NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, before.mode);
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+
+        NativeRenderBridge.clearTransientEffectsForRecovery();
+
+        RenderDisposition after =
+                NativeRenderBridge.beginEffectRender(effect, "render-after-recovery");
+        assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, after.mode);
+        assertEquals("a still-live effect re-admits as active after recovery",
+                Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals("recovery must not reject the re-rendered live object",
+                Integer.valueOf(0), transientEffects().get("rejectedTerminal"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("leaked"));
+    }
+
+    @Test
     public void lateBeginEffectRenderAfterRecoveryClearRemainsFailOpenAndInactive() {
         AbstractGameEffect effect = effect();
         NativeRenderBridge.beginEffectRender(effect, "render");
@@ -2045,8 +2130,9 @@ public class NativeRenderBridgeTest {
         RenderDisposition late = NativeRenderBridge.beginEffectRender(effect, "late-render");
 
         assertEquals(RenderDisposition.Mode.CAPTURE_AND_PASS, late.mode);
-        assertEquals(Integer.valueOf(0), transientEffects().get("active"));
-        assertEquals(Integer.valueOf(1), transientEffects().get("unknownLifecycle"));
+        // The live object re-admits after recovery rather than being stale-marked and rejected.
+        assertEquals(Integer.valueOf(1), transientEffects().get("active"));
+        assertEquals(Integer.valueOf(0), transientEffects().get("unknownLifecycle"));
         assertEquals(Integer.valueOf(0), transientEffects().get("total"));
     }
 

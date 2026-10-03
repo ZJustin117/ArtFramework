@@ -383,16 +383,43 @@ public class TransientEffectLedgerTest {
     }
 
     @Test
-    public void recoveryClearRejectsLateRenderWithBoundedStaleIdentityMarkers() {
+    public void recoveryClearReAdmitsLiveRenderWithoutStaleRejection() {
         TransientEffectLedger ledger = new TransientEffectLedger(2);
         TransientEffectIdentity identity = identity("recovery");
         ledger.create(identity);
         ledger.clearCompletedForRecovery();
 
-        assertFalse(ledger.admitRender(identity));
-        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.activeCount()));
-        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.unknownLifecycleCount()));
-        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.staleIdentityCount()));
+        // A still-live object rendered after recovery is RE-ADMITTED, never rejected. Recovery
+        // must not stale-mark live records (NRM-13 non-reusable ids make stale-marking them a
+        // permanent rejection source).
+        assertTrue("a live effect re-admits after recovery", ledger.admitRender(identity));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.activeCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.unknownLifecycleCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(
+                ledger.rejectedTerminalObservationCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.staleIdentityCount()));
+    }
+
+    @Test
+    public void recoveryClearLeavesGenuineTerminalRecordsUntouched() {
+        TransientEffectLedger ledger = new TransientEffectLedger(2);
+        TransientEffectIdentity dead = identity("dead");
+        ledger.create(dead);
+        ledger.complete(dead);
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.recentCount()));
+
+        TransientEffectIdentity live = identity("live");
+        ledger.create(live);
+        ledger.clearCompletedForRecovery();
+
+        // Recovery drops only the active window; the genuine terminal record in `recent` survives
+        // and still rejects a late render of that dead object.
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.recentCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.totalCount()));
+        assertFalse("a genuinely terminal object is still rejected",
+                ledger.admitRender(dead));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(
+                ledger.rejectedTerminalObservationCount()));
     }
 
     @Test

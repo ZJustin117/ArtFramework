@@ -167,7 +167,11 @@ public class TransientEffectLifecycleAdapterTest {
     }
 
     @Test
-    public void recoveryRenderDoesNotRecreatePresentationEntity() {
+    public void recoveryRenderReAdmitsLiveEffectWithoutRejection() {
+        // Recovery drops the active record WITHOUT stale-marking it, so the still-live object is
+        // re-admitted (and its presentation entity re-projected) on its next render — it is never
+        // terminated or counted as an unknown lifecycle. This is the A05b fix: the previous
+        // stale-marking made every post-recovery render of the same live object a rejection.
         TransientEffectIdentity identity = identity("recovery-render");
         adapter.render(identity, 1L, "render");
         drain();
@@ -177,9 +181,13 @@ public class TransientEffectLifecycleAdapterTest {
         adapter.render(identity, 2L, "late-render");
         drain();
 
-        assertEquals(Integer.valueOf(0), Integer.valueOf(registry.activeCount()));
-        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.unknownLifecycleCount()));
+        assertEquals("the live effect re-admits and re-projects its entity",
+                Integer.valueOf(1), Integer.valueOf(registry.activeCount()));
+        assertTrue(Sts1NativePresentationAdapter.hasEntity("effect:" + identity.instanceId));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.unknownLifecycleCount()));
+        assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.rejectedTerminalObservationCount()));
         assertEquals(Integer.valueOf(0), Integer.valueOf(ledger.totalCount()));
+        assertEquals(Integer.valueOf(1), Integer.valueOf(ledger.activeCount()));
     }
 
     @Test

@@ -228,9 +228,23 @@ public final class TransientEffectLedger {
         records.clear();
     }
 
-    /** Drops recovery-owned records without classifying them as application leaks. */
+    /**
+     * Drops recovery-owned ACTIVE records. Recovery ends every in-flight delegation, so the
+     * ledger's active window is empty afterwards. An effect that is still live and rendered after
+     * recovery is then RE-ADMITTED as a fresh active record by {@link #admitRender} rather than
+     * rejected as terminal.
+     *
+     * <p>This deliberately does NOT stale-mark the dropped records. Since NRM-13, instance ids are
+     * non-reusable per-object monotonic ids ({@code class#<seq>}), so {@code staleIdentities} can
+     * only ever match the SAME object; it no longer protects against id reuse by a DIFFERENT
+     * object. Marking a still-live record stale therefore only harms that object: on the next
+     * render of the same live object, {@link #admitRender} would find its own id in
+     * {@code staleIdentities} and increment {@code rejectedTerminal}/{@code unknownLifecycle} once
+     * per render forever (the D1 defect: ~3900/s after {@code art present clear-panic}, permanently
+     * forcing strict acceptance false). {@code staleIdentities} remains in use for its genuine
+     * TERMINAL purpose only — the recent-window eviction path in {@link #retainRecent}.
+     */
     public synchronized void clearCompletedForRecovery() {
-        markStale(records.values());
         records.clear();
     }
 

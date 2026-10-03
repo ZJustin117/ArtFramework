@@ -1,0 +1,211 @@
+# D1 acceptance: recovery / long-run LIFECYCLE of the transient-effect claim seam (NRO-04 A05).
+#
+# This scenario proves the seam's long-run invariants around destructive recovery, not the
+# per-frame claim pixels (see d1_vfx_claim_isolation.yaml / d1_aura_claim.yaml for those):
+#   * PANIC/RECOVERY: `art present panic lab` tears the seam down
+#     (NativeRenderBridge.clearTransientEffectsForRecovery → ledger/registry/tokens cleared,
+#     isolate/filter/surface cleared, present forced OFF) with `backend.safety.panic` true;
+#     `art present clear-panic` flips it back to false. Across the whole cycle the terminal
+#     counters must NOT advance.
+#   * ROOM CHANGE / RESTART: after `ensure-fresh-menu` + `start-run IRONCLAD` the same counters
+#     are still unadvanced — a room transition must not leak unfinished records or reject any
+#     still-live object as terminal.
+#   * RE-CLAIM AFTER RECOVERY: the seam still claims and DRAWS the target after recovery and
+#     restart (a real `gt_var` draw GROWTH over a fresh cleared baseline), with
+#     `dispositionMismatch` flat over the leg and `nativeRenderStrict.accepted eq true`.
+#   * CAPACITY BOUND: the active window is reported at its 4096 cap and never exceeds it.
+#
+# INVARIANTS that MUST hold (all lifetime counters, so asserted against captured baselines):
+#   `rejectedTerminal` and `unknownLifecycle` must NOT grow (a still-rendered/re-added object is
+#   re-admitted, never rejected), and `leaked` must NOT grow (recovery cancels unfinished records
+#   instead of leaking them). This is the exact A04 detach-then-recovery contract: the container
+#   AFTER-update DETACH path drops the active record WITHOUT a terminal record, so recovery has no
+#   stale tombstone to reject and the object re-admits on its next render.
+#
+# RETARGET: edit the leading `set:` step's `target_kind` (e.g. `smoke`, `cardtrail`,
+# `torchheadfire`, `absorption`) — every `${...}` reference below resolves from that variable.
+# `smoke` (SMOKE_BLUR) is a non-pooled claimable kind, so it exercises the detach/complete paths
+# rather than the pool-reuse skip.
+#
+# DELIBERATELY NOT A DEVICE STEP: a real 4096-entry active-window overflow, its eviction, and the
+# re-admission of a still-live evicted object are boundary behaviors covered by no-GL unit tests
+# (`NativeRenderBridgeTest.detachedEffectSurvivesRecoveryAndReAdmits` plus the ledger cap tests);
+# the device leg only checks the reported `activeCap eq 4096` and `active lte 4096`.
+name: d1_vfx_claim_lifecycle
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - set:
+      target_kind: smoke
+  # --- Standard run preamble (shape copied from d1_vfx_claim_isolation.yaml). ---
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: lab.inCombat
+        eq: true
+  # --- GATE-ON + spawn: clear queued state, baseline the lifetime counters and ART draws, then
+  #     spawn the target and require draw GROWTH with FLAT terminal/leak counters. ---
+  - console: "art claim on"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.ready
+        gte: 1
+  - console: "art claim clear"
+  - probe: all
+  - capture:
+      path: backend.renderPlan.aura.draws
+      var: pre_draws
+  - capture:
+      path: backend.renderPlan.nativeRender.transientEffects.leaked
+      var: pre_leaked
+  - capture:
+      path: backend.renderPlan.nativeRender.transientEffects.rejectedTerminal
+      var: pre_rejected
+  - console: "art claim spawn ${target_kind} 20"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.draws
+        gt_var: pre_draws
+  - probe: all
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.leaked
+      eq_var: pre_leaked
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.rejectedTerminal
+      eq_var: pre_rejected
+  - screenshot: true
+  # --- PANIC / RECOVERY: recovery clears the seam and forces present OFF; the terminal counters
+  #     must be unchanged across the cycle. ---
+  - console: "art present panic lab"
+  - wait_ms: 600
+  - probe: all
+  - assert:
+      path: backend.safety.panic
+      eq: true
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.rejectedTerminal
+      eq_var: pre_rejected
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.leaked
+      eq_var: pre_leaked
+  - console: "art present clear-panic"
+  - wait_ms: 400
+  - probe: all
+  - assert:
+      path: backend.safety.panic
+      eq: false
+  # --- ROOM CHANGE / RESTART: a fresh menu + run must not leak unfinished records or reject any
+  #     still-live object as terminal. ---
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  - probe: all
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.rejectedTerminal
+      eq_var: pre_rejected
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.leaked
+      eq_var: pre_leaked
+  # Re-enter combat before re-claiming so the freshly spawned target renders.
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: lab.inCombat
+        eq: true
+  # --- RE-CLAIM AFTER RECOVERY: the seam still claims and draws; `dispositionMismatch` is
+  #     captured before/after and must stay flat, and strict acceptance holds. ---
+  - console: "art claim on"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.ready
+        gte: 1
+  - probe: all
+  - capture:
+      path: backend.renderPlan.aura.draws
+      var: post_draws
+  - capture:
+      path: backend.renderPlan.nativeRender.dispositionMismatch
+      var: post_reclaim_mismatch
+  - console: "art claim spawn ${target_kind} 20"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.draws
+        gt_var: post_draws
+  - probe: all
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.rejectedTerminal
+      eq_var: pre_rejected
+  - assert:
+      path: backend.renderPlan.nativeRender.dispositionMismatch
+      eq_var: post_reclaim_mismatch
+  - assert:
+      path: backend.renderPlan.nativeRenderStrict.accepted
+      eq: true
+  - screenshot: true
+  # --- CAPACITY BOUND: reported cap is 4096 and the live active window never exceeds it. True
+  #     overflow/eviction/re-admission is a unit-tested boundary, not a device step. ---
+  - probe: all
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.activeCap
+      eq: 4096
+  - assert:
+      path: backend.renderPlan.nativeRender.transientEffects.active
+      lte: 4096
+  # --- FINISH: drop queued effects and return native pixels to authoritative. ---
+  - console: "art claim clear"
+  - console: "art claim off"

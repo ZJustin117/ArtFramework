@@ -1180,6 +1180,59 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       still completes/retains; POOLED (`Pool.Poolable`) effects are excluded from both paths. Only
       `TransientEffectLedger.detach` was added. See the NRM-12b/A04 note above.
 
+- [x] NRO-04 A05 (recovery / long-run lifecycle device scenario + detach-then-recovery unit test):
+      new `tests/ui-scenarios/device/d1_vfx_claim_lifecycle.yaml` verifies the transient-effect
+      claim seam across destructive recovery and a room change/restart, parameterized by a leading
+      `set: {target_kind}` (default `smoke`, a non-pooled claimable kind; retarget via
+      `cardtrail`/`torchheadfire`/`absorption`). Legs: (1) GATE-ON spawn — `art claim on` →
+      `aura.ready gte 1` → `art claim clear` → baseline `aura.draws`/`leaked`/`rejectedTerminal`,
+      then `art claim spawn ${target_kind} 20` must grow ART draws (`gt_var`) with
+      `leaked`/`rejectedTerminal` flat; (2) PANIC/RECOVERY — `art present panic lab` makes
+      `backend.safety.panic eq true` and clears the seam (ledger/registry/tokens/isolate/filter/
+      surface, present OFF) while `rejectedTerminal`/`leaked` stay flat, then
+      `art present clear-panic` flips `panic eq false`; (3) ROOM CHANGE / RESTART —
+      `ensure-fresh-menu` + `start-run IRONCLAD` must not leak unfinished records or reject any
+      still-live object (`rejectedTerminal`/`leaked` still flat), then re-enter combat; (4) RE-CLAIM
+      AFTER RECOVERY — the seam still claims and DRAWS (`gt_var` over a fresh cleared baseline) with
+      `dispositionMismatch` captured before/after and flat plus `nativeRenderStrict.accepted
+      eq true`; (5) CAPACITY BOUND — `transientEffects.activeCap eq 4096` and `active lte 4096`.
+      Invariant: `rejectedTerminal`/`unknownLifecycle`/`leaked` must NOT grow; the exact A04
+      detach-then-recovery re-admission contract. True 4096 active-window overflow, its eviction,
+      and re-admission of a still-live evicted object are DELIBERATELY a no-GL unit boundary, not a
+      device step. Supporting unit test
+      `NativeRenderBridgeTest.detachedEffectSurvivesRecoveryAndReAdmits`: render a superless effect
+      (active 1) → `isDone=true` → container `observeAfterUpdate` detaches it (active 0, no recent/
+      terminal record, `total` unchanged) → `clearTransientEffectsForRecovery()` → re-render the
+      SAME object is RE-ADMITTED (active 1) with `rejectedTerminal`/`unknownLifecycle`/`leaked`
+      all 0; a pooled effect behaves the same (never completed, reuse re-admitted). No production
+      code change.
+
+- [x] NRO-04 A05b (fix real D1 defect: recovery stale-marking live records caused permanent
+      `rejectedTerminal`/`unknownLifecycle` growth after panic): D1 showed that after
+      `art present panic lab` → `art present clear-panic`, still-live ambient effects re-rendered
+      and the ledger rejected them once per render per object (~3900/s), permanently forcing
+      `nativeRenderStrict.accepted=false` and poisoning normal play (strict acceptance could never
+      recover after a panic). Root cause: `TransientEffectLedger.clearCompletedForRecovery()` did
+      `markStale(records.values()); records.clear();` — `records` holds the still-ACTIVE effects, so
+      stale-marking put each live object's own id into `staleIdentities`; on the next render
+      `admitRender` matched it and counted a terminal rejection. This is OBSOLETE under NRM-13:
+      instance ids are non-reusable per-object monotonic ids (`class#<seq>`), so `staleIdentities`
+      can only ever match the SAME object and no longer protects against id reuse by a DIFFERENT
+      object; marking a live record stale therefore only harms it. Fix:
+      `clearCompletedForRecovery()` now drops the active records WITHOUT stale-marking
+      (`records.clear();` only), so a still-live effect rendered after recovery is RE-ADMITTED as a
+      fresh active record. `clearLeaked`/`detach`/`admitRender`/`markStale`/`retainRecent`/the
+      recent-window terminal stale-identity eviction path are unchanged (`staleIdentities` keeps its
+      genuine terminal purpose). Tests: replaced `TransientEffectLedgerTest.recoveryClearRejectsLateRenderWithBoundedStaleIdentityMarkers`
+      with `recoveryClearReAdmitsLiveRenderWithoutStaleRejection` (+ new
+      `recoveryClearLeavesGenuineTerminalRecordsUntouched`); replaced the old-behavior
+      `TransientEffectLifecycleAdapterTest.recoveryRenderDoesNotRecreatePresentationEntity` with
+      `recoveryRenderReAdmitsLiveEffectWithoutRejection`; replaced/added the bridge tests
+      `NativeRenderBridgeTest.liveEffectReAdmitsAfterRecoveryWithoutRejection` and updated
+      `lateBeginEffectRenderAfterRecoveryClearRemainsFailOpenAndInactive` to the re-admission
+      contract (the old `unknownLifecycle == 1` assertion was the defect). Verified: the four
+      recovery re-admission tests FAIL with the old `markStale`+`clear` body and PASS with the fix.
+
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See
       [`docs/design/render-z-order.md`](design/render-z-order.md).

@@ -53,6 +53,7 @@ import com.megacrit.cardcrawl.vfx.scene.CeilingDustCloudEffect;
 import com.megacrit.cardcrawl.vfx.scene.BottomFogEffect;
 import com.megacrit.cardcrawl.vfx.scene.DustEffect;
 import com.megacrit.cardcrawl.vfx.campfire.CampfireSleepScreenCoverEffect;
+import com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect;
 import com.megacrit.cardcrawl.vfx.scene.IroncladVictoryFlameEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareLEffect;
 import com.megacrit.cardcrawl.vfx.scene.LightFlareMEffect;
@@ -173,6 +174,15 @@ import java.util.function.Predicate;
  * {@code Settings.WIDTH x Settings.HEIGHT} additively with its own color, and has a public NO-ARG
  * ctor. It is production-reachable: {@code GrandFinalEffect} constructs it into
  * {@code AbstractDungeon.effectsQueue}.
+ *
+ * <p>The newest (NRO-04 B08) member is the {@code vfx-campfire} {@code CampfireRecallEffect} — a
+ * FULL-SCREEN bare static-{@code Texture} kind with NO own per-effect geometry field (no
+ * {@code x}/{@code y}/{@code scale}/{@code rotation}); it draws the static
+ * {@code ImageMaster.WHITE_SQUARE_IMG Texture} at {@code (0f, 0f)} over
+ * {@code Settings.WIDTH x Settings.HEIGHT} AMBIENTLY (no blend switch) with its own
+ * {@code screenColor} field (NOT the inherited {@code color}), and has a public NO-ARG ctor. It is
+ * production-reachable: {@code RecallOption} constructs it into {@code AbstractDungeon.effectList}.
+ * The aliases are {@code "campfirerecall"}/{@code "recall"} -> {@code new CampfireRecallEffect()}.
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -428,6 +438,13 @@ public final class VfxLabSpawn {
         // existing fail-open guard.
         if ("spotlight".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.SPOTLIGHT;
+        }
+        // NRO-04 B08: CampfireRecallEffect draws the STATIC ImageMaster.WHITE_SQUARE_IMG Texture
+        // full-screen ambiently; its native render reads its own screenColor field (NOT color). Its
+        // NO-ARG ctor reads AbstractDungeon.fadeColor and may throw off-game, so the construct path is
+        // behind the existing fail-open guard.
+        if ("campfirerecall".equalsIgnoreCase(value) || "recall".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.CAMPFIRE_RECALL;
         }
         return null;
     }
@@ -954,6 +971,14 @@ public final class VfxLabSpawn {
             // draws the static ImageMaster.SPOTLIGHT_VFX Texture full-screen; that texture may be null
             // off-game, so any failure is caught by spawn's fail-open guard rather than propagating.
             return new SpotlightEffect();
+        }
+        if (VfxClaimPolicy.CAMPFIRE_RECALL.equals(fqn)) {
+            // NRO-04 B08: CampfireRecallEffect has a NO-ARG ctor that reads AbstractDungeon.fadeColor
+            // into its screenColor field (alpha 0f) and draws the static
+            // ImageMaster.WHITE_SQUARE_IMG Texture full-screen ambiently; the static texture may be
+            // null and the ctor may throw off-game, so any failure is caught by spawn's fail-open
+            // guard rather than propagating.
+            return new CampfireRecallEffect();
         }
         return null;
     }

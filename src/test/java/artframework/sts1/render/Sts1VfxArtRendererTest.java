@@ -1391,6 +1391,150 @@ public class Sts1VfxArtRendererTest {
         }
     }
 
+    // --- NRO-04 B08 CampfireRecallEffect: FULL-SCREEN bare static Texture (WHITE_SQUARE_IMG), NO
+    // per-effect geometry, draw (0,0,Settings.WIDTH,Settings.HEIGHT), AMBIENT, color from the
+    // screenColor field (NOT color) ---
+
+    /**
+     * Real {@code CampfireRecallEffect} is GL-free: its NO-ARG ctor sets {@code duration = 2f},
+     * {@code hasRecalled = false} and {@code screenColor} from {@code AbstractDungeon.fadeColor}
+     * (which may throw off-game). It is therefore allocated with {@code Unsafe} and its
+     * {@code screenColor} field is seeded reflectively so the draw assertion can prove the
+     * {@code screenColor} field (NOT the inherited {@code color}) is applied.
+     */
+    private static AbstractGameEffect seededCampfireRecall(Color screenColor, Color inheritedColor) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect effect =
+                    (com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect.class,
+                    "screenColor", screenColor);
+            setField(effect, AbstractGameEffect.class, "color", inheritedColor);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL CampfireRecallEffect", failure);
+        }
+    }
+
+    @Test
+    public void campfireRecallHasNoPerEffectGeometryFields() {
+        // The whole point of the full-screen kind: CampfireRecallEffect declares NO x/y/scale/rotation
+        // (and no img) field of its own; only screenColor and the inherited color exist. The generic
+        // bare-Texture reader (which requires x/y/scale) MUST NOT apply.
+        for (String field : new String[] {"x", "y", "scale", "rotation", "img", "vY", "vX"}) {
+            assertFalse("CampfireRecallEffect must not declare a per-effect " + field + " field",
+                    declaresOnClass(
+                            com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect.class, field));
+        }
+        Texture previous = ImageMaster.WHITE_SQUARE_IMG;
+        setStaticField(ImageMaster.class, "WHITE_SQUARE_IMG", noGlTexture(1920, 1080));
+        try {
+            AbstractGameEffect effect = seededCampfireRecall(
+                    new Color(0.2f, 0.3f, 0.4f, 0.5f), new Color(1f, 1f, 1f, 1f));
+            assertNull("readTextureFields does not apply to CampfireRecallEffect (no x/y/scale)",
+                    Sts1VfxArtRenderer.readTextureFields(
+                            VfxDrawGeometry.Kind.CAMPFIRE_RECALL, effect));
+        } finally {
+            setStaticField(ImageMaster.class, "WHITE_SQUARE_IMG", previous);
+        }
+    }
+
+    @Test
+    public void campfireRecallDrawsOnceFullScreenAmbientlyWithItsScreenColor() {
+        // Native CampfireRecallEffect.render (verified bytecode): sb.setColor(screenColor);
+        //   sb.draw(ImageMaster.WHITE_SQUARE_IMG, 0f, 0f, Settings.WIDTH, Settings.HEIGHT);
+        // AMBIENT (NO setBlendFunction); color from the effect's screenColor field, NOT the inherited
+        // color. The 4-arg texture overload; NO x/y/scale/rotation field is read.
+        Texture previous = ImageMaster.WHITE_SQUARE_IMG;
+        Texture injected = noGlTexture(1920, 1080);
+        Color screenColor = new Color(0.2f, 0.3f, 0.4f, 0f);
+        Color inheritedColor = new Color(0.9f, 0.8f, 0.7f, 0.6f);
+        float settingsWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        float settingsHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        try {
+            setStaticField(ImageMaster.class, "WHITE_SQUARE_IMG", injected);
+            assertSame(injected, ImageMaster.WHITE_SQUARE_IMG);
+
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededCampfireRecall(screenColor, inheritedColor);
+
+            assertTrue("a CampfireRecall instance with the static texture draws",
+                    renderer.render(batch, effect));
+            assertEquals("exactly ONE full-screen 4-arg texture draw", 1, batch.fullScreenDrawCalls);
+            assertEquals("the 16-arg shape-C overload is NOT used", 0, batch.drawCalls);
+            assertEquals(1, batch.successfulFullScreenDraws);
+            assertEquals("CAMPFIRE_RECALL is ambient: NO setBlendFunction call",
+                    0, batch.setBlendCalls);
+            assertSame("CampfireRecall draws the static WHITE_SQUARE_IMG texture",
+                    injected, batch.drawnFullScreenTexture);
+            assertNotNull("the applied tint was captured", batch.firstSetColor);
+            assertEquals("color is the effect's screenColor (NOT the inherited color)",
+                    screenColor.r, batch.firstSetColor.r, EPS);
+            assertEquals(screenColor.g, batch.firstSetColor.g, EPS);
+            assertEquals(screenColor.b, batch.firstSetColor.b, EPS);
+            assertEquals(screenColor.a, batch.firstSetColor.a, EPS);
+            assertFalse("the color is NOT the inherited color's red",
+                    Math.abs(inheritedColor.r - batch.firstSetColor.r) < EPS);
+
+            float[] d = batch.drawnFullScreenArgs;
+            assertEquals("position x is 0f", 0f, d[0], EPS);
+            assertEquals("position y is 0f", 0f, d[1], EPS);
+            assertEquals("width is Settings.WIDTH", settingsWidth, d[2], EPS);
+            assertEquals("height is Settings.HEIGHT", settingsHeight, d[3], EPS);
+
+            assertTrue("a CampfireRecall instance with the static texture canDraw",
+                    renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "WHITE_SQUARE_IMG", previous);
+        }
+    }
+
+    @Test
+    public void campfireRecallNullScreenColorFailsOpen() {
+        Texture previous = ImageMaster.WHITE_SQUARE_IMG;
+        setStaticField(ImageMaster.class, "WHITE_SQUARE_IMG", noGlTexture(1920, 1080));
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            // screenColor is left UNSET (null), exactly like an instance whose ctor never ran; the
+            // inherited color is present but the native render does not read it.
+            AbstractGameEffect effect = seededCampfireRecall(null, new Color(1f, 1f, 1f, 1f));
+
+            assertFalse("a CampfireRecall with a null screenColor fails open",
+                    renderer.render(batch, effect));
+            assertEquals("no draw", 0, batch.fullScreenDrawCalls);
+            assertFalse("a null-screenColor CampfireRecall cannotDraw", renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "WHITE_SQUARE_IMG", previous);
+        }
+    }
+
+    @Test
+    public void campfireRecallMissingStaticTextureFailsOpenAndCannotDraw() {
+        Texture previous = ImageMaster.WHITE_SQUARE_IMG;
+        setStaticField(ImageMaster.class, "WHITE_SQUARE_IMG", null);
+        try {
+            Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+            CountingBatch batch = newCountingBatch();
+            AbstractGameEffect effect = seededCampfireRecall(
+                    new Color(1f, 1f, 1f, 1f), new Color(1f, 1f, 1f, 1f));
+
+            assertFalse("a CampfireRecall without the static img fails open",
+                    renderer.render(batch, effect));
+            assertEquals("no draw", 0, batch.fullScreenDrawCalls);
+            assertFalse("a CampfireRecall without the static img cannotDraw",
+                    renderer.canDraw(effect));
+        } finally {
+            setStaticField(ImageMaster.class, "WHITE_SQUARE_IMG", previous);
+        }
+    }
+
     private static boolean declaresOnClass(Class<?> type, String name) {
         try {
             type.getDeclaredField(name);
@@ -2993,6 +3137,9 @@ public class Sts1VfxArtRendererTest {
         assertTrue(renderer.isReady(VfxClaimPolicy.SPOTLIGHT));
         assertTrue(renderer.isReady(
                 "com.megacrit.cardcrawl.vfx.SpotlightEffect"));
+        assertTrue(renderer.isReady(VfxClaimPolicy.CAMPFIRE_RECALL));
+        assertTrue(renderer.isReady(
+                "com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect"));
 
         assertFalse(renderer.isReady(null));
         assertFalse(renderer.isReady(""));

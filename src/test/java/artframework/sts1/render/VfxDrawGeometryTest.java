@@ -2264,7 +2264,8 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.DEATH_SCREEN_FLOATY
                     || kind == VfxDrawGeometry.Kind.WATER_SPLASH
                     || kind == VfxDrawGeometry.Kind.BOTTOM_FOG
-                    || kind == VfxDrawGeometry.Kind.MAP_CIRCLE) {
+                    || kind == VfxDrawGeometry.Kind.MAP_CIRCLE
+                    || kind == VfxDrawGeometry.Kind.CAMPFIRE_RECALL) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -3993,13 +3994,34 @@ public class VfxDrawGeometryTest {
     }
 
     @Test
-    public void fullScreenTextureIsTrueOnlyForSpotlight() {
-        assertTrue("SPOTLIGHT is the full-screen bare-texture kind",
+    public void campfireRecallKindForMapsTheExactFqnAndFailsOpenForNearMisses() {
+        assertSame(VfxDrawGeometry.Kind.CAMPFIRE_RECALL,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.CAMPFIRE_RECALL));
+        assertSame(VfxDrawGeometry.Kind.CAMPFIRE_RECALL,
+                VfxDrawGeometry.kindFor(
+                        "com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect2"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("CampfireRecallEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.CampfireRecallEffect"));
+        assertNull(VfxDrawGeometry.kindFor(
+                "com.megacrit.cardcrawl.vfx.campfire.CampfireRecall"));
+    }
+
+    @Test
+    public void fullScreenTextureIsTrueOnlyForTheFullScreenKinds() {
+        assertTrue("SPOTLIGHT is a full-screen bare-texture kind",
                 VfxDrawGeometry.fullScreenTexture(VfxDrawGeometry.Kind.SPOTLIGHT));
+        assertTrue("CAMPFIRE_RECALL is a full-screen bare-texture kind",
+                VfxDrawGeometry.fullScreenTexture(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
         // The truth table is exhaustive over the enum.
         for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
             assertEquals("full-screen texture truth table for " + kind,
-                    kind == VfxDrawGeometry.Kind.SPOTLIGHT,
+                    kind == VfxDrawGeometry.Kind.SPOTLIGHT
+                            || kind == VfxDrawGeometry.Kind.CAMPFIRE_RECALL,
                     VfxDrawGeometry.fullScreenTexture(kind));
         }
         try {
@@ -4008,6 +4030,58 @@ public class VfxDrawGeometryTest {
         } catch (IllegalArgumentException expected) {
             // expected
         }
+    }
+
+    @Test
+    public void fullScreenTextureReadsScreenColorIsTrueOnlyForCampfireRecall() {
+        // The two full-screen kinds differ in WHICH color field their native render reads: SPOTLIGHT
+        // reads the inherited color; CAMPFIRE_RECALL reads its own screenColor.
+        assertTrue("CAMPFIRE_RECALL reads its screenColor field",
+                VfxDrawGeometry.fullScreenTextureReadsScreenColor(
+                        VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse("SPOTLIGHT reads the inherited color field",
+                VfxDrawGeometry.fullScreenTextureReadsScreenColor(
+                        VfxDrawGeometry.Kind.SPOTLIGHT));
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            assertEquals("screenColor truth table for " + kind,
+                    kind == VfxDrawGeometry.Kind.CAMPFIRE_RECALL,
+                    VfxDrawGeometry.fullScreenTextureReadsScreenColor(kind));
+        }
+        try {
+            VfxDrawGeometry.fullScreenTextureReadsScreenColor(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void campfireRecallIsAmbientAndJoinsNoGuardFlipMirrorRngOrVariableLengthCapability() {
+        // Native CampfireRecallEffect.render: sb.setColor(screenColor);
+        // sb.draw(ImageMaster.WHITE_SQUARE_IMG, 0f, 0f, Settings.WIDTH, Settings.HEIGHT) — AMBIENT
+        // (NO setBlendFunction), no guard, no flip/mirror, no RNG, single draw.
+        assertFalse("CAMPFIRE_RECALL never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(
+                VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(
+                VfxDrawGeometry.Kind.CAMPFIRE_RECALL));
+        assertEquals(1f, VfxDrawGeometry.uniformScaleMultiplier(
+                VfxDrawGeometry.Kind.CAMPFIRE_RECALL, 2f), EPS);
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.CAMPFIRE_RECALL).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(
+                VfxDrawGeometry.Kind.CAMPFIRE_RECALL).isEmpty());
     }
 
     @Test

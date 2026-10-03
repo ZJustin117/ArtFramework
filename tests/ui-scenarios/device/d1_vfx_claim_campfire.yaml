@@ -1,0 +1,119 @@
+# D1 acceptance: per-instance claim seam for the vfx-campfire member CampfireRecallEffect
+# (NRO-04 B08) — verified in the ONLY room where the native effect can actually be constructed.
+#
+# WHY THIS SCENARIO EXISTS (not folded into d1_aura_claim.yaml): CampfireRecallEffect's native
+# NO-ARG ctor ends by calling ((RestRoom) AbstractDungeon.getCurrRoom()).cutFireSound(). In a
+# COMBAT room getCurrRoom() is not a RestRoom, so the ctor throws ClassCastException, which
+# VfxLabSpawn.spawn swallows fail-open: `art claim spawn campfirerecall` silently queues 0 and does
+# NOT exercise the claim there. This is a lab-context limitation of the native effect (it is only
+# ever constructed by RecallOption inside a rest room), NOT a claim-seam defect. So B08 is verified
+# in a REST room, where the ctor runs and the spawn queues the full count. The rest-room preamble
+# is copied from the proven d1_full_present_rest.yaml: two `art lab proceed` warm-ups + `art present
+# rest on` BEFORE `art lab enter-room rest` (without mounting the rest present, `projection.scene`
+# never publishes and the scene wait below would time out at '' / available:false).
+#
+# WHAT IT ASSERTS (gate-ON): after spawning `campfirerecall` 20, the lifetime ART draw counter
+# STRICTLY grows (`gt_var` draw GROWTH is the authoritative proof), while `declinedTotal`,
+# `dispositionMismatch`, and `orphanArtOutput` stay FLAT over the leg and
+# `nativeRenderStrict.accepted` holds. CampfireRecallEffect is a FULL-SCREEN AMBIENT bare
+# static-Texture kind (ImageMaster.WHITE_SQUARE_IMG at (0,0) over Settings.WIDTH x Settings.HEIGHT;
+# color from its own `screenColor` field, NOT the inherited `color`; no blend switch).
+#
+# NOTE ON THE SCREENSHOT: the rest/map screen does not composite AbstractDungeon.effectList into the
+# still, so the recalled white-square fade may not be visible in the captured PNG. The draw-count
+# evidence (gt_var growth with flat ledgers) is therefore the authoritative B08 proof, not the image.
+name: d1_vfx_claim_campfire
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # --- Standard run preamble, then navigate to a REST room (the native ctor's required context). ---
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # PROVEN rest-room preamble (copied from d1_full_present_rest.yaml): two `proceed` warm-ups with
+  # a 3s settle each, then `art present rest on` MUST precede enter-room. Merely calling enter-room
+  # without mounting the rest present never publishes projection.scene (it stays '' / available:false),
+  # which is why the earlier version of this scenario timed out here.
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art present rest on"
+  - console: "art lab enter-room rest"
+  # enter-room is asynchronous native navigation (not a recipe), so the post-nav wait is the scene
+  # projection going rest — the same assertion d1_full_present_rest.yaml uses after enter-room rest.
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: rest
+  # --- GATE-ON: claim, baseline the lifetime counters, spawn campfirerecall 20, require draw
+  #     GROWTH with FLAT decline/mismatch/orphan ledgers and strict acceptance. ---
+  - console: "art claim on"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.ready
+        gte: 1
+  - probe: all
+  - capture:
+      path: backend.renderPlan.aura.draws
+      var: pre_draws
+  - capture:
+      path: backend.renderPlan.nativeRender.declinedTotal
+      var: pre_declines
+  - capture:
+      path: backend.renderPlan.nativeRender.dispositionMismatch
+      var: pre_mismatch
+  - capture:
+      path: backend.renderPlan.nativeRender.orphanArtOutput
+      var: pre_orphans
+  - console: "art claim spawn campfirerecall 20"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.draws
+        gt_var: pre_draws
+  - probe: all
+  - assert:
+      path: backend.renderPlan.nativeRender.declinedTotal
+      eq_var: pre_declines
+  - assert:
+      path: backend.renderPlan.nativeRender.dispositionMismatch
+      eq_var: pre_mismatch
+  - assert:
+      path: backend.renderPlan.nativeRender.orphanArtOutput
+      eq_var: pre_orphans
+  - assert:
+      path: backend.renderPlan.nativeRenderStrict.accepted
+      eq: true
+  - screenshot: true
+  # --- FINISH: drop queued effects and return native pixels to authoritative. ---
+  - console: "art claim clear"
+  - console: "art claim off"

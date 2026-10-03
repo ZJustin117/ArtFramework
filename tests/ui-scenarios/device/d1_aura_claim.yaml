@@ -70,6 +70,16 @@
 # from its own color). PRODUCTION REACH: GrandFinalEffect constructs it into
 # AbstractDungeon.effectsQueue, so the claim seam's container loop DOES reach it; it is also
 # lab-spawnable here via `spotlight`.
+# The newest (NRO-04 B08) is CampfireRecallEffect (vfx-campfire; a FULL-SCREEN bare static-Texture
+# kind with NO per-effect geometry — no x/y/scale/rotation; its native render sets only
+# screenColor then draws ImageMaster.WHITE_SQUARE_IMG at (0,0) over Settings.WIDTH x Settings.HEIGHT
+# AMBIENTLY (no blend switch), taking the color from its own screenColor field — NOT the inherited
+# color). PRODUCTION REACH: RecallOption constructs it into AbstractDungeon.effectList, so the
+# claim seam's container loop DOES reach it. It is NOT spawned in this scenario: its native NO-ARG
+# ctor ends by calling ((RestRoom) AbstractDungeon.getCurrRoom()).cutFireSound(), which throws a
+# ClassCastException in this COMBAT-based run, so `art claim spawn campfirerecall` would be a silent
+# fail-open no-op here (queued 0). B08 is verified by the dedicated REST-room scenario
+# `d1_vfx_claim_campfire.yaml` instead.
 # Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.

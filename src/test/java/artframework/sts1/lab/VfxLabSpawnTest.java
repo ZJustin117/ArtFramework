@@ -177,6 +177,9 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.MAP_CIRCLE, VfxLabSpawn.classNameFor("mapcircle"));
         assertEquals(VfxClaimPolicy.MAP_CIRCLE, VfxLabSpawn.classNameFor("map"));
         assertEquals(VfxClaimPolicy.SPOTLIGHT, VfxLabSpawn.classNameFor("spotlight"));
+        assertEquals(VfxClaimPolicy.CAMPFIRE_RECALL,
+                VfxLabSpawn.classNameFor("campfirerecall"));
+        assertEquals(VfxClaimPolicy.CAMPFIRE_RECALL, VfxLabSpawn.classNameFor("recall"));
     }
 
     @Test
@@ -282,6 +285,9 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.HEAL_PANEL, VfxLabSpawn.classNameFor("  HeAlPaNeL "));
         assertEquals(VfxClaimPolicy.HEAL_PANEL, VfxLabSpawn.classNameFor("HEAL"));
         assertEquals(VfxClaimPolicy.SPOTLIGHT, VfxLabSpawn.classNameFor("  SpOtLiGhT "));
+        assertEquals(VfxClaimPolicy.CAMPFIRE_RECALL,
+                VfxLabSpawn.classNameFor("  CaMpFiReReCaLL "));
+        assertEquals(VfxClaimPolicy.CAMPFIRE_RECALL, VfxLabSpawn.classNameFor("RECALL"));
     }
 
     @Test
@@ -765,6 +771,16 @@ public class VfxLabSpawnTest {
         // exactly that FQN without running the NO-ARG ctor (whose static ImageMaster.SPOTLIGHT_VFX
         // texture may be null off-game). "spotlight" does not collide with any existing alias.
         assertSpawnRequests("spotlight", VfxClaimPolicy.SPOTLIGHT);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheB08CampfireRecallThroughTheFactorySeam() {
+        // The newest (NRO-04 B08) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the NO-ARG ctor (which reads AbstractDungeon.fadeColor and
+        // whose static ImageMaster.WHITE_SQUARE_IMG texture may be null off-game).
+        // "campfirerecall"/"recall" do not collide with any existing alias.
+        assertSpawnRequests("campfirerecall", VfxClaimPolicy.CAMPFIRE_RECALL);
+        assertSpawnRequests("recall", VfxClaimPolicy.CAMPFIRE_RECALL);
     }
 
     @Test

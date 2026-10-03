@@ -135,6 +135,12 @@ import java.util.List;
  * FULL-SCREEN bare static-{@code Texture} kind with NO per-effect geometry fields, ADDITIVE, and
  * production-reachable (constructed by {@code GrandFinalEffect} into
  * {@code AbstractDungeon.effectsQueue}) — see {@link #supportedClasses()} for the boundary note.
+ * The newest (NRO-04 B08) member is the {@code vfx-campfire} {@code CampfireRecallEffect}: a
+ * FULL-SCREEN bare static-{@code Texture} kind (NO per-effect geometry fields) whose draw color
+ * comes from its {@code screenColor} field (NOT the inherited {@code color}) and which draws
+ * AMBIENTLY (no {@code setBlendFunction}), over the static {@code ImageMaster.WHITE_SQUARE_IMG}
+ * {@code Texture}; production-reachable (constructed by {@code RecallOption} into
+ * {@code AbstractDungeon.effectList}) — see {@link #supportedClasses()}.
  */
 public final class VfxClaimPolicy {
 
@@ -272,6 +278,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.MapCircleEffect";
     public static final String SPOTLIGHT =
             "com.megacrit.cardcrawl.vfx.SpotlightEffect";
+    public static final String CAMPFIRE_RECALL =
+            "com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -291,7 +299,8 @@ public final class VfxClaimPolicy {
                     SPOOKIER_CHEST, CAMPFIRE_SLEEP_COVER, DEATH_SCREEN_FLOATY,
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
                     BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN,
-                    HEAL_PANEL, PING_HP, REWARD_GLOW, MAP_CIRCLE, SPOTLIGHT));
+                    HEAL_PANEL, PING_HP, REWARD_GLOW, MAP_CIRCLE, SPOTLIGHT,
+                    CAMPFIRE_RECALL));
 
     private VfxClaimPolicy() {}
 
@@ -366,7 +375,8 @@ public final class VfxClaimPolicy {
                 || PING_HP.equals(value)
                 || REWARD_GLOW.equals(value)
                 || MAP_CIRCLE.equals(value)
-                || SPOTLIGHT.equals(value);
+                || SPOTLIGHT.equals(value)
+                || CAMPFIRE_RECALL.equals(value);
     }
 
     /**
@@ -670,6 +680,27 @@ public final class VfxClaimPolicy {
      * lab-spawnable via the {@code "spotlight"} alias. Appended LAST after {@code MapCircleEffect};
      * no new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
      * unchanged.
+     *
+     * <p>The newest (NRO-04 B08) member is the {@code vfx-campfire} {@code CampfireRecallEffect}
+     * (public NO-ARG ctor, which sets {@code duration = 2f}, initializes {@code hasRecalled = false},
+     * and sets {@code screenColor} from {@code AbstractDungeon.fadeColor} with alpha forced to
+     * {@code 0f}): a FULL-SCREEN bare static-{@code Texture} kind with NO own per-effect geometry
+     * field (no {@code x}/{@code y}/{@code scale}/{@code rotation}). Unlike {@code SpotlightEffect}
+     * its native {@code render} reads the {@code screenColor} field (NOT the inherited {@code color}),
+     * and it draws AMBIENTLY (no {@code setBlendFunction}): {@code sb.setColor(screenColor);
+     * sb.draw(ImageMaster.WHITE_SQUARE_IMG, 0f, 0f, Settings.WIDTH, Settings.HEIGHT)} — the static
+     * {@code ImageMaster.WHITE_SQUARE_IMG} {@code Texture}, position {@code (0f, 0f)}, size
+     * {@code Settings.WIDTH x Settings.HEIGHT}, NO origin/rotation/scale. Appended LAST after
+     * {@code SPOTLIGHT}; no new patch/bridge/console wiring; the default-off gate and per-instance
+     * token semantics are unchanged.
+     *
+     * <p><b>PRODUCTION REACH (B08).</b> The claim seam's only effect observer instruments
+     * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
+     * ({@code TransientEffectContainerPatches}). {@code CampfireRecallEffect} is constructed by
+     * {@code com.megacrit.cardcrawl.ui.campfire.RecallOption} and added to
+     * {@code AbstractDungeon.effectList}, so the instrumented {@code AbstractDungeon.render} effect
+     * loop DOES render a real instance (positive reach, like B07 and unlike B05/B06). It is also
+     * lab-spawnable via the {@code "campfirerecall"}/{@code "recall"} aliases.
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

@@ -1538,6 +1538,56 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         the seam DOES reach a real instance (unlike the B05/B06 reward/map cases). It is also
         lab-spawnable.
 
+- [x] NRO-04 B08 (`CampfireRecallEffect` joins the default-off per-instance claim seam):
+        `com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect` is appended LAST to
+        `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` (after `SpotlightEffect`) and mapped by
+        `kindFor`. It is a FULL-SCREEN bare static-`Texture` kind with NO own per-effect geometry field
+        (no `x`/`y`/`scale`/`rotation`) and a public NO-ARG ctor (`duration = 2f`, `hasRecalled =
+        false`, `screenColor` from `AbstractDungeon.fadeColor` with alpha `0f`). Its native
+        `render(SpriteBatch)` is `sb.setColor(screenColor); sb.draw(ImageMaster.WHITE_SQUARE_IMG, 0f,
+        0f, Settings.WIDTH, Settings.HEIGHT)` — AMBIENT (NO `setBlendFunction`), the static
+        `ImageMaster.WHITE_SQUARE_IMG` `Texture`, position `(0f, 0f)`, size
+        `Settings.WIDTH x Settings.HEIGHT`, NO origin/rotation/scale, and draw color read from the
+        `screenColor` field (NOT the inherited `color`). `VfxDrawGeometry.Kind.CAMPFIRE_RECALL` extends
+        the pure `fullScreenTexture(Kind)` capability to include it (the second full-screen member),
+        adds the pure `fullScreenTextureReadsScreenColor(Kind)` (true only for `CAMPFIRE_RECALL`; the
+        two full-screen kinds differ exactly here: `SPOTLIGHT` reads `color`, `CAMPFIRE_RECALL` reads
+        `screenColor`), maps the exact FQN, is AMBIENT (`additiveBlend` false), and joins NO
+        guard/flip/mirror/RNG/variable-length/flickCoin/uses-instance-texture capability.
+        `Sts1VfxArtRenderer` adds `CAMPFIRE_RECALL` to `isTextureDrawKind` (NOT
+        `usesInstanceTexture`), a static `resolveTexture` case returning
+        `ImageMaster.WHITE_SQUARE_IMG`, and extends `renderFullScreenTexture` to read the kind's color
+        field via `fullScreenTextureReadsScreenColor` (`color` for `SPOTLIGHT`, `screenColor` for
+        `CAMPFIRE_RECALL`); for the ambient kind it does NOT switch blend, still saves/restores color,
+        and keeps the single-draw fail-open. `imagePresent`/`canDraw` for `CAMPFIRE_RECALL` require the
+        static texture non-null AND `screenColor` non-null. Every other kind is byte-identical. The lab
+        gains the aliases `"campfirerecall"`/`"recall"` -> `new CampfireRecallEffect()` (NO-ARG) behind
+        the existing fail-open guard (the static `WHITE_SQUARE_IMG` may be null off-game; the ctor
+        reads `AbstractDungeon.fadeColor`). DEVICE VERIFICATION: `CampfireRecallEffect`'s native
+        NO-ARG ctor ends by calling `((RestRoom) AbstractDungeon.getCurrRoom()).cutFireSound()`, so a
+        COMBAT room makes it throw `ClassCastException`, which `VfxLabSpawn.spawn` swallows fail-open
+        (`queued 0`) — the native effect is only ever constructed by `RecallOption` inside a rest room.
+        It is therefore NOT spawned by the combat-based `d1_aura_claim.yaml` (a `campfirerecall` spawn
+        there would be a silent no-op and would not exercise B08); B08 is verified by the dedicated
+        REST-room scenario `tests/ui-scenarios/device/d1_vfx_claim_campfire.yaml`, which enters a rest
+        room and asserts a strict `gt_var` growth of the ART draw counter after `art claim spawn
+        campfirerecall 20` with FLAT `declinedTotal`/`dispositionMismatch`/`orphanArtOutput` and
+        `nativeRenderStrict.accepted eq true` (draw counts are authoritative; the rest/map screen does
+        not composite `AbstractDungeon.effectList` into the still). Tests: `VfxDrawGeometryTest`
+        (kindFor + near-miss fail-open, `fullScreenTexture` true for it, `fullScreenTextureReadsScreenColor`
+        true only for it, additive false, not guard/flip/mirror/RNG/var-length/flickCoin),
+        `Sts1VfxArtRendererTest` (a CAMPFIRE_RECALL holder with NO x/y/scale/rotation fields and a
+        `screenColor`: exactly ONE full-screen 4-arg draw of the static white-square at
+        `(0,0,Settings.WIDTH,Settings.HEIGHT)`, NO blend change (installed-additive count 0), color =
+        `screenColor` NOT `color`; null/absent `screenColor` fails open; null texture fails open),
+        `VfxDelegationSeamTest`/`Sts1VfxRendererBindingTest` (readiness + appended-last order +
+        texture-kind), `VfxLabSpawnTest` (alias -> FQN + capturing factory). No new
+        patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+        unchanged. PRODUCTION REACH (positive, B08): `CampfireRecallEffect` is constructed by
+        `com.megacrit.cardcrawl.ui.campfire.RecallOption` and added to `AbstractDungeon.effectList`,
+        so the instrumented `AbstractDungeon.render` effect loop DOES reach it (like B07); it is also
+        lab-spawnable inside a rest room.
+
 - [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
         `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
         loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`

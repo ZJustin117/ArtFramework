@@ -223,6 +223,22 @@ import java.lang.reflect.Field;
  * .render} effect loop the seam instruments does reach a real instance. No new
  * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
  *
+ * <p>The newest (NRO-04 B08) member is the {@code vfx-campfire} {@code CampfireRecallEffect}: a
+ * FULL-SCREEN bare static-{@code Texture} kind with NO {@code x}/{@code y} field whose native
+ * {@code render} consumes only its own {@code screenColor} field (NOT the inherited {@code color};
+ * the inherited {@code scale}/{@code rotation} are unused and not required), so it is served by the
+ * same {@link #renderFullScreenTexture} branch as {@code SpotlightEffect}. Its native {@code render}
+ * is {@code sb.setColor(screenColor); sb.draw(ImageMaster.WHITE_SQUARE_IMG, 0f, 0f, Settings.WIDTH,
+ * Settings.HEIGHT)} — AMBIENT (no {@code setBlendFunction}), the static
+ * {@code ImageMaster.WHITE_SQUARE_IMG Texture}, the fixed full-screen position/size, and the
+ * effect's OWN {@code screenColor} ({@link #resolveTexture} returns the static texture; ONLY
+ * {@code screenColor} is read from the effect, selected by
+ * {@link VfxDrawGeometry#fullScreenTextureReadsScreenColor}). A missing/null static texture (or
+ * null {@code screenColor}) fails open. PRODUCTION REACH (positive): it IS constructed by
+ * {@code RecallOption} and added to {@code AbstractDungeon.effectList}, so the
+ * {@code AbstractDungeon.render} effect loop the seam instruments does reach a real instance. No new
+ * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -984,24 +1000,32 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
-     * FULL-SCREEN bare static-{@code Texture} branch for {@code SpotlightEffect} (NRO-04 B07),
-     * served BEFORE the generic {@link #readTextureFields} path because the class has NO
-     * {@code x}/{@code y} field and its native {@code render} consumes only {@code color} (the
-     * inherited {@code scale}/{@code rotation} are unused and not required) — its native draw is
-     * fixed screen geometry. Reproduces the native render exactly: {@code setColor(color);
-     * setBlendFunction(770, 1); sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH,
-     * Settings.HEIGHT); setBlendFunction(770, 771)} — ADDITIVE, the effect's OWN color, position
-     * {@code (0f, 0f)} and size {@code (Settings.WIDTH, Settings.HEIGHT)}. Only {@code color} is
-     * read from the effect (see {@link VfxDrawGeometry#fullScreenTexture}).
+     * FULL-SCREEN bare static-{@code Texture} branch for {@code SpotlightEffect} (NRO-04 B07) and
+     * {@code CampfireRecallEffect} (NRO-04 B08), served BEFORE the generic
+     * {@link #readTextureFields} path because both classes have NO {@code x}/{@code y} field and
+     * their native {@code render} consumes only a color (the inherited {@code scale}/{@code rotation}
+     * are unused and not required) — their native draw is fixed screen geometry. Reproduces the
+     * native render exactly: for {@code SPOTLIGHT} {@code setColor(color); setBlendFunction(770, 1);
+     * sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH, Settings.HEIGHT);
+     * setBlendFunction(770, 771)} — ADDITIVE, the effect's OWN {@code color}; for
+     * {@code CAMPFIRE_RECALL} {@code sb.setColor(screenColor);
+     * sb.draw(ImageMaster.WHITE_SQUARE_IMG, 0f, 0f, Settings.WIDTH, Settings.HEIGHT)} — AMBIENT (no
+     * blend switch) and the effect's OWN {@code screenColor} field (NOT the inherited {@code color}).
+     * The color field to read is selected by
+     * {@link VfxDrawGeometry#fullScreenTextureReadsScreenColor} (position {@code (0f, 0f)} and size
+     * {@code (Settings.WIDTH, Settings.HEIGHT)} for both).
      *
      * <p>There is exactly ONE draw, so a throw before it fails open (returns {@code false} so native
-     * draws); blend/color are always restored in {@code finally}. Never throws.
+     * draws); blend (only when the kind is additive) and color are always restored in {@code finally}.
+     * Never throws.
      */
     private boolean renderFullScreenTexture(SpriteBatch sb, VfxDrawGeometry.Kind kind,
             AbstractGameEffect effect) {
         Texture texture = resolveTexture(kind, null);
         if (texture == null) return false;
-        Color color = readColor(effect, "color");
+        String colorField = VfxDrawGeometry.fullScreenTextureReadsScreenColor(kind)
+                ? "screenColor" : "color";
+        Color color = readColor(effect, colorField);
         if (color == null) return false;
         boolean additive = VfxDrawGeometry.additiveBlend(kind);
         Color previous = new Color(sb.getColor());
@@ -1388,13 +1412,17 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             return false;
         }
         if (isTextureDrawKind(kind)) {
-            // NRO-04 B07: SpotlightEffect has NO own x/y field and its native render consumes only
-            // color (the inherited scale/rotation are unused and not required), so readTextureFields
-            // (which requires x/y/scale) does not apply; its drawable image is exactly the static
-            // ImageMaster.SPOTLIGHT_VFX Texture (plus a non-null effect color).
+            // NRO-04 B07/B08: SpotlightEffect and CampfireRecallEffect have NO own x/y field and their
+            // native render consumes only a color (the inherited scale/rotation are unused and not
+            // required), so readTextureFields (which requires x/y/scale) does not apply; their drawable
+            // image is exactly the static texture (SPOTLIGHT_VFX / WHITE_SQUARE_IMG) plus a non-null
+            // effect color. The color field read is kind-specific (Spotlight: color;
+            // CampfireRecall: screenColor).
             if (VfxDrawGeometry.fullScreenTexture(kind)) {
+                String colorField = VfxDrawGeometry.fullScreenTextureReadsScreenColor(kind)
+                        ? "screenColor" : "color";
                 return resolveTexture(kind, null) != null
-                        && readColor(effect, "color") != null;
+                        && readColor(effect, colorField) != null;
             }
             TextureFields f = readTextureFields(kind, effect);
             return f != null && resolveTexture(kind, f) != null;
@@ -1432,7 +1460,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
                 || kind == VfxDrawGeometry.Kind.PING_HP
                 || kind == VfxDrawGeometry.Kind.REWARD_GLOW
                 || kind == VfxDrawGeometry.Kind.MAP_CIRCLE
-                || kind == VfxDrawGeometry.Kind.SPOTLIGHT;
+                || kind == VfxDrawGeometry.Kind.SPOTLIGHT
+                || kind == VfxDrawGeometry.Kind.CAMPFIRE_RECALL;
     }
 
     /**
@@ -1486,8 +1515,8 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
 
     /**
      * Resolves the native {@link Texture} the bare-{@code Texture} kinds draw (the static
-     * {@link ImageMaster} textures for Calm/Shield/Web/Entangle, the instance {@code img} for
-     * Debuff/IceShatter/Unknown/DarkOrb/FallingIce and the flip kinds
+     * {@link ImageMaster} textures for Calm/Shield/Web/Entangle/Spotlight/CampfireRecall, the
+     * instance {@code img} for Debuff/IceShatter/Unknown/DarkOrb/FallingIce and the flip kinds
      * LightningOrbPassive/GlowyFireEyes/TorchHeadFire),
      * or {@code null} when it is absent. Shared by
      * {@link #renderTexture} and {@link #canDraw} so the two stay consistent.
@@ -1524,6 +1553,12 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             // SpotlightEffect draws the static ImageMaster.SPOTLIGHT_VFX Texture (it has NO instance
             // img field; its native render consumes only color). May be null off-game; a null fails open.
             return ImageMaster.SPOTLIGHT_VFX;
+        }
+        if (kind == VfxDrawGeometry.Kind.CAMPFIRE_RECALL) {
+            // CampfireRecallEffect draws the static ImageMaster.WHITE_SQUARE_IMG Texture (it has NO
+            // instance img field; its native render consumes only its screenColor field). May be null
+            // off-game; a null fails open.
+            return ImageMaster.WHITE_SQUARE_IMG;
         }
         if (kind == VfxDrawGeometry.Kind.WEB_PARTICLE
                 || kind == VfxDrawGeometry.Kind.ENTANGLE) {

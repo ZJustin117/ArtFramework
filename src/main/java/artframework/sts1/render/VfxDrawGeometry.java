@@ -602,6 +602,23 @@ package artframework.sts1.render;
  * {@code AbstractDungeon.effectsQueue}, so the {@code AbstractDungeon.render} effect loop the claim
  * seam instruments DOES render a real instance; it is also lab-spawnable. No new
  * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
+ *
+ * <p>The newest (NRO-04 B08) member is the {@code vfx-campfire} {@code CampfireRecallEffect}
+ * ({@link Kind#CAMPFIRE_RECALL}): a FULL-SCREEN bare static-{@code Texture} kind with NO own
+ * per-effect geometry field (NO {@code x}/{@code y}/{@code scale}/{@code rotation}). Its native
+ * {@code render} is {@code sb.setColor(screenColor); sb.draw(ImageMaster.WHITE_SQUARE_IMG, 0f, 0f,
+ * Settings.WIDTH, Settings.HEIGHT)} — AMBIENT (NO {@code setBlendFunction}), the static
+ * {@code ImageMaster.WHITE_SQUARE_IMG} {@code Texture}, position {@code (0f, 0f)}, size
+ * {@code Settings.WIDTH x Settings.HEIGHT}. It is the second full-screen member (after
+ * {@code SPOTLIGHT}) so {@link #fullScreenTexture} includes it, but the two differ in WHICH color
+ * field they read: {@code SPOTLIGHT} reads the inherited {@code color} while
+ * {@code CAMPFIRE_RECALL} reads its own {@code screenColor} field, resolved by the new pure
+ * {@link #fullScreenTextureReadsScreenColor} capability. It joins NO guard / flip / mirror / RNG /
+ * variable-length / flickCoin-anisotropic / uses-instance-texture capability. PRODUCTION REACH
+ * (positive): {@code CampfireRecallEffect} IS constructed by {@code RecallOption} and added to
+ * {@code AbstractDungeon.effectList}, so the instrumented {@code AbstractDungeon.render} effect loop
+ * DOES render a real instance; it is also lab-spawnable. No new patch/bridge/console wiring; the
+ * default-off gate and per-instance token semantics are unchanged.
  */
 public final class VfxDrawGeometry {
 
@@ -673,7 +690,8 @@ public final class VfxDrawGeometry {
         PING_HP,
         REWARD_GLOW,
         MAP_CIRCLE,
-        SPOTLIGHT
+        SPOTLIGHT,
+        CAMPFIRE_RECALL
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -1303,6 +1321,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.REWARD_GLOW.equals(value)) return Kind.REWARD_GLOW;
         if (VfxClaimPolicy.MAP_CIRCLE.equals(value)) return Kind.MAP_CIRCLE;
         if (VfxClaimPolicy.SPOTLIGHT.equals(value)) return Kind.SPOTLIGHT;
+        if (VfxClaimPolicy.CAMPFIRE_RECALL.equals(value)) return Kind.CAMPFIRE_RECALL;
         return null;
     }
 
@@ -1406,7 +1425,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.DEATH_SCREEN_FLOATY
                 && kind != Kind.WATER_SPLASH
                 && kind != Kind.BOTTOM_FOG
-                && kind != Kind.MAP_CIRCLE;
+                && kind != Kind.MAP_CIRCLE
+                && kind != Kind.CAMPFIRE_RECALL;
     }
 
     /**
@@ -1437,11 +1457,14 @@ public final class VfxDrawGeometry {
      * {@code render} is {@code setColor(color); setBlendFunction(770, 1);
      * sb.draw(ImageMaster.SPOTLIGHT_VFX, 0f, 0f, Settings.WIDTH, Settings.HEIGHT);
      * setBlendFunction(770, 771)} — it has NO {@code x}/{@code y}/{@code scale}/{@code rotation}
-     * field, so the draw position/size are fixed screen geometry rather than per-instance inputs.
-     * The renderer special-cases this kind to synthesize the full-screen draw (reading ONLY the
-     * effect's own {@code color}); every other claimable kind has per-effect geometry and is
-     * {@code false} here. This class stays host-neutral: the fixed screen size depends on
-     * {@code Settings}, which the renderer (not this class) supplies.
+     * field, so the draw position/size are fixed screen geometry rather than per-instance inputs —
+     * and the newest (NRO-04 B08) {@link Kind#CAMPFIRE_RECALL} ({@code CampfireRecallEffect}), whose
+     * native {@code render} is {@code sb.setColor(screenColor); sb.draw(ImageMaster.WHITE_SQUARE_IMG,
+     * 0f, 0f, Settings.WIDTH, Settings.HEIGHT)} (also NO per-effect geometry field). The renderer
+     * special-cases these kinds to synthesize the full-screen draw; the two differ in WHICH color
+     * field they read (see {@link #fullScreenTextureReadsScreenColor}). Every other claimable kind
+     * has per-effect geometry and is {@code false} here. This class stays host-neutral: the fixed
+     * screen size depends on {@code Settings}, which the renderer (not this class) supplies.
      *
      * @throws IllegalArgumentException when {@code kind} is null
      */
@@ -1449,7 +1472,27 @@ public final class VfxDrawGeometry {
         if (kind == null) {
             throw new IllegalArgumentException("kind must not be null");
         }
-        return kind == Kind.SPOTLIGHT;
+        return kind == Kind.SPOTLIGHT || kind == Kind.CAMPFIRE_RECALL;
+    }
+
+    /**
+     * Pure per-kind predicate distinguishing WHICH color field a FULL-SCREEN bare static-{@code
+     * Texture} kind reads: {@code true} only for {@link Kind#CAMPFIRE_RECALL}, whose native
+     * {@code render} passes its own {@code screenColor} field to {@code setColor} (its inherited
+     * {@code color} field is NEVER used). {@code false} for every other kind — including
+     * {@link Kind#SPOTLIGHT}, which reads its inherited {@code color} — so the renderer uses the
+     * ordinary {@code color} read for them. Only meaningful for the kinds
+     * {@link #fullScreenTexture} reports {@code true} for (the two full-screen kinds differ exactly
+     * here: {@code SPOTLIGHT} reads {@code color}, {@code CAMPFIRE_RECALL} reads
+     * {@code screenColor}).
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean fullScreenTextureReadsScreenColor(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.CAMPFIRE_RECALL;
     }
 
     /**

@@ -1588,6 +1588,53 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         so the instrumented `AbstractDungeon.render` effect loop DOES reach it (like B07); it is also
         lab-spawnable inside a rest room.
 
+- [x] NRO-04 B10 (`FadeWipeParticle` joins the default-off per-instance claim seam):
+        `com.megacrit.cardcrawl.vfx.FadeWipeParticle` is appended LAST to
+        `VfxClaimPolicy.SUPPORTED_CLASSES`/`supports(...)` (after `CampfireRecallEffect`) and mapped
+        by `kindFor`. It is the seam's FIRST MULTI-SOURCE multi-draw kind: fields `float y`,
+        `float lerpTimer`, `float delayTimer`, an `AtlasRegion img` (ctor:
+        `ImageMaster.SCENE_TRANSITION_FADER`), a bare `Texture flatImg` (ctor:
+        `ImageMaster.WHITE_SQUARE_IMG`), and the inherited `color` (NO `x`/`scale`/`rotation` of its
+        own). Its public NO-ARG ctor reads `AbstractDungeon.fadeColor` into `color` with alpha `0f`.
+        Its native `render(SpriteBatch)` issues NO `setBlendFunction` (AMBIENT), NO branch, and NO
+        RNG, and draws TWO passes over TWO DIFFERENT image sources in this exact order:
+        pass 0 the instance `img` `AtlasRegion` (4-arg REGION overload
+        `sb.draw(img, 0f, y, Settings.WIDTH, img.packedHeight)`), then pass 1 the instance `flatImg`
+        `Texture` (4-arg TEXTURE overload `sb.draw(flatImg, 0f, y + img.packedHeight -
+        Settings.scale, Settings.WIDTH, Settings.HEIGHT)`); both use the effect's own `color`.
+        `VfxDrawGeometry.Kind.FADE_WIPE` adds the pure `multiSourceWipe(Kind)` capability (true only
+        for `FADE_WIPE`; DISTINCT from `variableLengthMultiDraw` and `drawPassRandomRanges`, and
+        documents the region-then-texture pass order), maps the exact FQN, is AMBIENT
+        (`additiveBlend` false), and joins NO guard/flip/mirror/RNG/variable-length/flickCoin/
+        uses-instance-texture capability. `Sts1VfxArtRenderer` adds a dedicated `renderFadeWipe`
+        branch BEFORE the generic `readFields`/`readTextureFields` routing (like FLYING_ORB/
+        FLICK_COIN/full-screen): it reads the instance `img` (canonical flip-invariant region via
+        `canonicalRegion`), `flatImg`, `y`, and `color`, draws pass 0 then pass 1 with the exact
+        native geometry, never changes blend, and restores color in `finally`. The B09 two-pass
+        failure contract applies: a pass-0 throw fails open (`return false`); a pass-1 throw after
+        pass 0 painted keeps the claim (`return true`, `drewAny` flag) so native never double-draws.
+        `imagePresent`/`canDraw` for `FADE_WIPE` require the `img` region valid AND `flatImg`
+        non-null AND `color` non-null. Every other kind is byte-identical. The lab gains the aliases
+        `"fadewipe"`/`"wipe"` -> `new FadeWipeParticle()` (NO-ARG) behind the existing fail-open guard
+        (static ImageMaster art may be null off-game). Tests: `VfxDrawGeometryTest` (kindFor +
+        near-miss fail-open, `multiSourceWipe` true only for it, additive false, not
+        guard/flip/mirror/RNG/var-length/flickCoin/full-screen), `Sts1VfxArtRendererTest` (a
+        FADE_WIPE holder with `img`/`flatImg`/`y`/`color` and NO x/scale/rotation: exactly TWO draws
+        IN ORDER — pass 0 the region at `(0, y, Settings.WIDTH, packedHeight)`, pass 1 the `flatImg`
+        texture at `(0, y + packedHeight - Settings.scale, Settings.WIDTH, Settings.HEIGHT)` —
+        ambient (installed-additive call count 0), color = the effect's own color; a pass-1 throw
+        keeps the claim (returns true, 1 draw) per B09; a pass-0 throw fails open; null
+        `flatImg`/`img`/color fail open),
+        `VfxDelegationSeamTest`/`Sts1VfxRendererBindingTest` (readiness + appended-last order),
+        `VfxLabSpawnTest` (alias -> FQN + capturing factory). DEVICE: `art claim spawn fadewipe 4` is
+        added to BOTH the gate-OFF and gate-ON phases of `tests/ui-scenarios/device/d1_aura_claim.yaml`.
+        No new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
+        unchanged. PRODUCTION REACH (positive, B10): `FadeWipeParticle` is constructed by
+        `MapRoomNode` and `SecretPortal` into `AbstractDungeon.topLevelEffects`, so the instrumented
+        `AbstractDungeon.render` effect loop DOES reach a real instance (like B07/B08); it is also
+        lab-spawnable via the `fadewipe`/`wipe` aliases. (`TopPanel` does NOT construct it; it only
+        references the class via an `instanceof` check.)
+
 - [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
         `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
         loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`

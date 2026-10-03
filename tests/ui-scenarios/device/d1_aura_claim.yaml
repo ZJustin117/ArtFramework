@@ -80,6 +80,13 @@
 # ClassCastException in this COMBAT-based run, so `art claim spawn campfirerecall` would be a silent
 # fail-open no-op here (queued 0). B08 is verified by the dedicated REST-room scenario
 # `d1_vfx_claim_campfire.yaml` instead.
+# The newest (NRO-04 B10) is FadeWipeParticle (root/misc; the seam's FIRST MULTI-SOURCE multi-draw
+# kind — NO x/scale/rotation, only y plus an AtlasRegion img (SCENE_TRANSITION_FADER) and a bare
+# Texture flatImg (WHITE_SQUARE_IMG); its native render is AMBIENT/branch-free/RNG-free and draws
+# pass 0 the img REGION then pass 1 the flatImg 4-arg TEXTURE, both at (0, y)-anchored full-width
+# geometry). PRODUCTION REACH: MapRoomNode and SecretPortal construct it into
+# AbstractDungeon.topLevelEffects, so the container loop DOES reach a real instance; lab-spawnable
+# here via `fadewipe`/`wipe` (TopPanel does NOT construct it; it only does an instanceof check).
 # Gate-OFF is
 # native-authoritative; gate-ON delegates the supported FQNs to ART
 # with draw evidence and no double-draw.
@@ -204,6 +211,7 @@ steps:
   - console: "art claim spawn rewardglow 4"
   - console: "art claim spawn mapcircle 4"
   - console: "art claim spawn spotlight 4"
+  - console: "art claim spawn fadewipe 4"
   - wait_probe:
       timeout_ms: 8000
       interval_ms: 200
@@ -302,6 +310,7 @@ steps:
   - console: "art claim spawn rewardglow 4"
   - console: "art claim spawn mapcircle 4"
   - console: "art claim spawn spotlight 4"
+  - console: "art claim spawn fadewipe 4"
   # STRICT increase over the ON baseline proves ART drew the spawned auras.
   - wait_probe:
       timeout_ms: 8000

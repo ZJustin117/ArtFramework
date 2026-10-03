@@ -239,6 +239,28 @@ import java.lang.reflect.Field;
  * {@code AbstractDungeon.render} effect loop the seam instruments does reach a real instance. No new
  * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
  *
+ * <p>The newest (NRO-04 B10) member is the {@code vfx-misc-root} {@code FadeWipeParticle}: the seam's
+ * FIRST MULTI-SOURCE multi-draw kind. It has NO {@code x}/{@code scale}/{@code rotation} field of its
+ * own (only {@code y}, {@code lerpTimer}, {@code delayTimer}, an {@code AtlasRegion img} =
+ * {@code ImageMaster.SCENE_TRANSITION_FADER}, a bare {@code Texture flatImg} =
+ * {@code ImageMaster.WHITE_SQUARE_IMG}, and the inherited {@code color}), so it is served by a
+ * dedicated {@link #renderFadeWipe} branch BEFORE {@link #readFields}/{@link #readTextureFields}. Its
+ * native {@code render} is AMBIENT (NO {@code setBlendFunction}), branch-free, and RNG-free, and draws
+ * TWO passes over TWO DIFFERENT image sources in this exact order: pass 0 the instance {@code img}
+ * {@code AtlasRegion} (4-arg REGION overload {@code sb.draw(canonical, 0f, y, Settings.WIDTH,
+ * packedHeight)}), then pass 1 the instance {@code flatImg} {@code Texture} (4-arg TEXTURE overload
+ * {@code sb.draw(flatImg, 0f, y + packedHeight - Settings.scale, Settings.WIDTH, Settings.HEIGHT)}),
+ * both with the effect's own {@code color}. {@link VfxDrawGeometry#multiSourceWipe} marks the
+ * capability. The B09 two-pass failure contract applies: a pass-0 throw fails open (returns
+ * {@code false}); a pass-1 throw after pass 0 painted keeps the claim (returns {@code true}) so
+ * native never double-draws. {@link #imagePresent} reports it drawable iff its {@code img} region is
+ * valid, {@code flatImg} is non-null, AND {@code color} is non-null. PRODUCTION REACH (positive):
+ * {@code FadeWipeParticle} is constructed by {@code MapRoomNode} and {@code SecretPortal} into
+ * {@code AbstractDungeon.topLevelEffects}, so the instrumented {@code AbstractDungeon.render}
+ * effect loop DOES reach a real instance. ({@code TopPanel} does NOT construct it; it only
+ * references the class via an {@code instanceof} check.) No new patch/bridge/console wiring; the
+ * default-off gate and per-instance token semantics are unchanged.
+ *
  * <p>F2b1 shipped the two host-free halves of the real renderer: the readiness predicate
  * ({@link #isReady}, backed by the exact-FQN {@link VfxDrawGeometry#kindFor}) and the reflective
  * field reader ({@link #readFields}) that snapshots the native effect's own draw inputs. F2b2
@@ -909,6 +931,13 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
             if (kind == VfxDrawGeometry.Kind.FLICK_COIN) {
                 return renderFlickCoin(sb, effect);
             }
+            // NRO-04 B10: FadeWipeParticle has NO x/scale/rotation field (only y) and draws TWO
+            // passes over TWO DIFFERENT image sources (an AtlasRegion then a bare Texture), so it is
+            // served by a dedicated branch BEFORE the generic readFields/readTextureFields path, like
+            // FLYING_ORB/FLICK_COIN/full-screen.
+            if (kind == VfxDrawGeometry.Kind.FADE_WIPE) {
+                return renderFadeWipe(sb, effect);
+            }
             if (isTextureDrawKind(kind)) {
                 return renderTexture(sb, kind, effect);
             }
@@ -1271,6 +1300,125 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
     }
 
     /**
+     * Narrow package-private capability seam: {@code true} for the MULTI-SOURCE MULTI-DRAW wipe kinds
+     * ({@link VfxDrawGeometry#multiSourceWipe}), today only {@link VfxDrawGeometry.Kind#FADE_WIPE}.
+     * Delegates to the pure predicate so the renderer and the geometry stay in sync.
+     */
+    static boolean usesMultiSourceWipe(VfxDrawGeometry.Kind kind) {
+        return VfxDrawGeometry.multiSourceWipe(kind);
+    }
+
+    /**
+     * Immutable snapshot of the fields the MULTI-SOURCE {@code FadeWipeParticle} draw needs (NRO-04
+     * B10): the effect's own {@code y}, the instance {@code img} {@link TextureAtlas.AtlasRegion}
+     * ({@code ImageMaster.SCENE_TRANSITION_FADER}), the instance {@code flatImg} {@link Texture}
+     * ({@code ImageMaster.WHITE_SQUARE_IMG}), and the inherited {@code color}. The class has NO
+     * {@code x}/{@code scale}/{@code rotation} field of its own.
+     */
+    static final class FadeWipeFields {
+        final float y;
+        final Color color;
+        final TextureAtlas.AtlasRegion img;
+        final Texture flatImg;
+
+        FadeWipeFields(float y, Color color, TextureAtlas.AtlasRegion img, Texture flatImg) {
+            this.y = y;
+            this.color = color;
+            this.img = img;
+            this.flatImg = flatImg;
+        }
+    }
+
+    /**
+     * Snapshots the fields the {@code FadeWipeParticle} draw needs (NRO-04 B10). Required:
+     * {@code y} (any {@link Number}), {@code color} ({@link Color}), {@code img}
+     * ({@link TextureAtlas.AtlasRegion}), and {@code flatImg} ({@link Texture}). Returns {@code null}
+     * when the effect is null or any required field is absent, unreadable, or of the wrong type;
+     * never throws.
+     */
+    static FadeWipeFields readFadeWipeFields(Object effect) {
+        if (effect == null) return null;
+        try {
+            Float y = readFloat(effect, "y");
+            if (y == null) return null;
+            Object color = readRaw(effect, "color");
+            if (!(color instanceof Color)) return null;
+            Object img = readRaw(effect, "img");
+            if (!(img instanceof TextureAtlas.AtlasRegion)) return null;
+            Object flatImg = readRaw(effect, "flatImg");
+            if (!(flatImg instanceof Texture)) return null;
+            return new FadeWipeFields(y.floatValue(), (Color) color,
+                    (TextureAtlas.AtlasRegion) img, (Texture) flatImg);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Dedicated MULTI-SOURCE branch for {@code FadeWipeParticle} (NRO-04 B10), served BEFORE the
+     * generic {@link #readFields}/{@link #readTextureFields} path because the class has NO
+     * {@code x}/{@code scale}/{@code rotation} field (only {@code y}) and its native {@code render}
+     * draws TWO passes over TWO DIFFERENT image sources. Reproduces the native render exactly:
+     * AMBIENT (NO {@code setBlendFunction}), branch-free, RNG-free, both draws use the effect's own
+     * {@code color}, in this exact order:
+     * <pre>
+     *   setColor(color);
+     *   sb.draw(canonical, 0f, y, Settings.WIDTH, gdx.getRegionHeight());   // pass 0: REGION overload
+     *   sb.draw(flatImg, 0f, y + gdx.getRegionHeight() - Settings.scale,
+     *           Settings.WIDTH, Settings.HEIGHT);                           // pass 1: TEXTURE overload
+     * </pre>
+     * The pass-0 region is the canonical (flip-invariant) view of the instance {@code img}
+     * ({@link #canonicalRegion}); the native {@code packedHeight} is the flip-invariant
+     * {@code getRegionHeight()}.
+     *
+     * <p>B09 multi-pass failure contract: if pass 0's draw throws, nothing was painted, so this
+     * fails open (returns {@code false}) and native draws; if pass 1's draw throws after pass 0
+     * painted, the claim keeps the frame (returns {@code true}) so native never double-draws. There
+     * is no RNG to restore. Color is always restored in {@code finally}.
+     */
+    private boolean renderFadeWipe(SpriteBatch sb, AbstractGameEffect effect) {
+        FadeWipeFields f = readFadeWipeFields(effect);
+        if (f == null) return false;
+        TextureAtlas.AtlasRegion gdx = f.img;
+        if (gdx == null || gdx.getTexture() == null) return false;
+        AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+        if (neutral == null || !neutral.valid()) return false;
+        // The claim suppresses native rendering, so draw a CANONICAL (pollution-immune) view rather
+        // than the possibly-natively-flipped shared region. FadeWipeParticle has no per-instance
+        // mirror (it never calls img.flip), so no UV swap is applied.
+        TextureRegion canonical = canonicalRegion(gdx, false, false);
+        if (canonical == null) return false;
+        // Native packedHeight is the flip-invariant region height (getRegionHeight()); Settings.scale
+        // supplies the pass-1 position's settings-scaled drop.
+        float packedHeight = gdx.getRegionHeight();
+        Color previous = new Color(sb.getColor());
+        boolean drewAny = false;
+        try {
+            sb.setColor(f.color != null ? f.color : Color.WHITE);
+            // Pass 0: the instance img AtlasRegion via the 4-arg REGION overload.
+            sb.draw(canonical, 0f, f.y, Settings.WIDTH, packedHeight);
+            drewAny = true;
+            // Pass 1: the instance flatImg Texture via the 4-arg TEXTURE overload.
+            sb.draw(f.flatImg, 0f, f.y + packedHeight - Settings.scale,
+                    Settings.WIDTH, Settings.HEIGHT);
+            return true;
+        } catch (Throwable ignored) {
+            // B09 multi-pass contract. POST-pass: pass 0 already painted, so claim the frame
+            // (return true) so native never repaints both passes. PRE-pass: nothing painted, so fail
+            // open to native. There is no RNG to restore.
+            if (drewAny) {
+                return true;
+            }
+            return false;
+        } finally {
+            try {
+                sb.setColor(previous);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /**
      * VARIABLE-LENGTH MULTI-DRAW branch (NRO-04 B01): replays {@code FlyingOrbEffect.render} exactly.
      *
      * <p>The native render first returns when {@code isDone} (already handled by
@@ -1400,6 +1548,17 @@ public final class Sts1VfxArtRenderer implements VfxArtRenderer.Adapter {
         if (kind == VfxDrawGeometry.Kind.FLICK_COIN) {
             FlickCoinFields f = readFlickCoinFields(effect);
             if (f == null) return false;
+            TextureAtlas.AtlasRegion gdx = f.img;
+            if (gdx == null || gdx.getTexture() == null) return false;
+            AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+            return neutral != null && neutral.valid();
+        }
+        // NRO-04 B10: FadeWipeParticle has NO x/scale/rotation field and draws TWO passes over TWO
+        // image sources, so it is drawable iff BOTH sources are present (the img region valid AND
+        // flatImg non-null) AND the effect color is non-null. Read its own dedicated snapshot.
+        if (kind == VfxDrawGeometry.Kind.FADE_WIPE) {
+            FadeWipeFields f = readFadeWipeFields(effect);
+            if (f == null || f.flatImg == null || f.color == null) return false;
             TextureAtlas.AtlasRegion gdx = f.img;
             if (gdx == null || gdx.getTexture() == null) return false;
             AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);

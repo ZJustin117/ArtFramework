@@ -619,6 +619,34 @@ package artframework.sts1.render;
  * {@code AbstractDungeon.effectList}, so the instrumented {@code AbstractDungeon.render} effect loop
  * DOES render a real instance; it is also lab-spawnable. No new patch/bridge/console wiring; the
  * default-off gate and per-instance token semantics are unchanged.
+ *
+ * <p>The newest (NRO-04 B10) member is the {@code vfx-misc-root} {@code FadeWipeParticle}
+ * ({@link Kind#FADE_WIPE}): the seam's FIRST MULTI-SOURCE multi-draw kind. Its fields are
+ * {@code float y}, {@code float lerpTimer}, {@code float delayTimer}, an {@code AtlasRegion}
+ * {@code img} (ctor: {@code ImageMaster.SCENE_TRANSITION_FADER}), a bare {@code Texture}
+ * {@code flatImg} (ctor: {@code ImageMaster.WHITE_SQUARE_IMG}), and the inherited {@code color}; it
+ * has NO {@code x}/{@code scale}/{@code rotation} field of its own (the ctor leaves the inherited
+ * {@code scale}/{@code rotation} unused). Its native {@code render} issues NO
+ * {@code setBlendFunction} (AMBIENT blend), NO branch, and NO RNG, and draws TWO passes over TWO
+ * DIFFERENT image sources — pass 0 the instance {@code img} {@code AtlasRegion} (4-arg REGION
+ * overload), pass 1 the instance {@code flatImg} {@code Texture} (4-arg TEXTURE overload):
+ * <pre>
+ *   setColor(color);
+ *   sb.draw(img, 0f, y, Settings.WIDTH, img.packedHeight);
+ *   sb.draw(flatImg, 0f, y + img.packedHeight - Settings.scale, Settings.WIDTH, Settings.HEIGHT);
+ * </pre>
+ * Both draws use the effect's own {@code color}. The multi-source capability is the pure
+ * {@link #multiSourceWipe} (true only for {@code FADE_WIPE}, DISTINCT from
+ * {@link #variableLengthMultiDraw} and {@link #drawPassRandomRanges}), and the ordered pass
+ * structure (region then texture) is replayed by the renderer. {@link #additiveBlend} reports
+ * {@code false} (ambient), and it joins NO guard/flip/mirror/RNG/variable-length/flickCoin/
+ * uses-instance-texture capability. Appended LAST after {@code CAMPFIRE_RECALL}; no new
+ * patch/bridge/console wiring; the default-off gate and per-instance token semantics are unchanged.
+ * PRODUCTION REACH (positive): {@code FadeWipeParticle} is constructed by {@code MapRoomNode} and
+ * {@code SecretPortal} into {@code AbstractDungeon.topLevelEffects}, so the instrumented
+ * {@code AbstractDungeon.render} effect loop DOES reach a real instance; it is also lab-spawnable
+ * via the {@code "fadewipe"}/{@code "wipe"} aliases. ({@code TopPanel} does NOT construct it; it
+ * only references the class via an {@code instanceof} check.)
  */
 public final class VfxDrawGeometry {
 
@@ -691,7 +719,8 @@ public final class VfxDrawGeometry {
         REWARD_GLOW,
         MAP_CIRCLE,
         SPOTLIGHT,
-        CAMPFIRE_RECALL
+        CAMPFIRE_RECALL,
+        FADE_WIPE
     }
 
     // Native CalmParticleEffect draw constants (see the class Javadoc): fixed origin/size and the
@@ -1322,6 +1351,7 @@ public final class VfxDrawGeometry {
         if (VfxClaimPolicy.MAP_CIRCLE.equals(value)) return Kind.MAP_CIRCLE;
         if (VfxClaimPolicy.SPOTLIGHT.equals(value)) return Kind.SPOTLIGHT;
         if (VfxClaimPolicy.CAMPFIRE_RECALL.equals(value)) return Kind.CAMPFIRE_RECALL;
+        if (VfxClaimPolicy.FADE_WIPE.equals(value)) return Kind.FADE_WIPE;
         return null;
     }
 
@@ -1426,7 +1456,8 @@ public final class VfxDrawGeometry {
                 && kind != Kind.WATER_SPLASH
                 && kind != Kind.BOTTOM_FOG
                 && kind != Kind.MAP_CIRCLE
-                && kind != Kind.CAMPFIRE_RECALL;
+                && kind != Kind.CAMPFIRE_RECALL
+                && kind != Kind.FADE_WIPE;
     }
 
     /**
@@ -1719,6 +1750,30 @@ public final class VfxDrawGeometry {
             throw new IllegalArgumentException("kind must not be null");
         }
         return kind == Kind.FLYING_ORB;
+    }
+
+    /**
+     * Pure per-kind predicate for the seam's MULTI-SOURCE MULTI-DRAW capability: {@code true} only
+     * for a kind whose native {@code render} issues a FIXED two-pass draw where the two passes use
+     * TWO DIFFERENT image sources (an {@code AtlasRegion} then a bare {@code Texture}), unlike every
+     * other multi-draw kind which repeats one source. Today that is exactly the newest (NRO-04 B10)
+     * {@link Kind#FADE_WIPE} ({@code FadeWipeParticle}), whose native {@code render} draws pass 0 the
+     * instance {@code img} {@code AtlasRegion} (the 4-arg REGION overload
+     * {@code sb.draw(img, 0f, y, Settings.WIDTH, img.packedHeight)}) then pass 1 the instance
+     * {@code flatImg} {@code Texture} (the 4-arg TEXTURE overload
+     * {@code sb.draw(flatImg, 0f, y + img.packedHeight - Settings.scale, Settings.WIDTH,
+     * Settings.HEIGHT)}). Pass order is region then texture. It is DISTINCT from
+     * {@link #variableLengthMultiDraw} (a data-dependent draw count from a host array) and from
+     * {@link #drawPassRandomRanges} (an ordered per-pass RNG list; {@code FADE_WIPE} consumes no
+     * RNG). Every other claimable kind is {@code false}.
+     *
+     * @throws IllegalArgumentException when {@code kind} is null
+     */
+    public static boolean multiSourceWipe(Kind kind) {
+        if (kind == null) {
+            throw new IllegalArgumentException("kind must not be null");
+        }
+        return kind == Kind.FADE_WIPE;
     }
 
     /**

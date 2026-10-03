@@ -180,6 +180,8 @@ public class VfxLabSpawnTest {
         assertEquals(VfxClaimPolicy.CAMPFIRE_RECALL,
                 VfxLabSpawn.classNameFor("campfirerecall"));
         assertEquals(VfxClaimPolicy.CAMPFIRE_RECALL, VfxLabSpawn.classNameFor("recall"));
+        assertEquals(VfxClaimPolicy.FADE_WIPE, VfxLabSpawn.classNameFor("fadewipe"));
+        assertEquals(VfxClaimPolicy.FADE_WIPE, VfxLabSpawn.classNameFor("wipe"));
     }
 
     @Test
@@ -781,6 +783,17 @@ public class VfxLabSpawnTest {
         // "campfirerecall"/"recall" do not collide with any existing alias.
         assertSpawnRequests("campfirerecall", VfxClaimPolicy.CAMPFIRE_RECALL);
         assertSpawnRequests("recall", VfxClaimPolicy.CAMPFIRE_RECALL);
+    }
+
+    @Test
+    public void spawnHappyPathQueuesTheB10FadeWipeThroughTheFactorySeam() {
+        // The newest (NRO-04 B10) claimable FQN; the capturing factory proves both aliases request
+        // exactly that FQN without running the NO-ARG ctor (which reads AbstractDungeon.fadeColor and
+        // sets the static ImageMaster.SCENE_TRANSITION_FADER region /
+        // ImageMaster.WHITE_SQUARE_IMG texture, either of which may be null off-game).
+        // "fadewipe"/"wipe" do not collide with any existing alias.
+        assertSpawnRequests("fadewipe", VfxClaimPolicy.FADE_WIPE);
+        assertSpawnRequests("wipe", VfxClaimPolicy.FADE_WIPE);
     }
 
     @Test

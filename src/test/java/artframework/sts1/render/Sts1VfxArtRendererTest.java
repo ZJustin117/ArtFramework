@@ -1544,6 +1544,257 @@ public class Sts1VfxArtRendererTest {
         }
     }
 
+    // --- NRO-04 B10 FadeWipeParticle: the FIRST MULTI-SOURCE multi-draw kind — pass 0 an
+    // AtlasRegion (SCENE_TRANSITION_FADER), pass 1 a bare Texture (WHITE_SQUARE_IMG); ambient; own
+    // color; NO x/scale/rotation field of its own ---
+
+    /**
+     * FadeWipeParticle layout: only {@code y} plus the instance {@code img} {@code AtlasRegion} and
+     * the instance {@code flatImg} {@code Texture}; the inherited {@code color} comes from the base.
+     * It has NO {@code x}/{@code scale}/{@code rotation}/{@code vY} field of its own.
+     */
+    static class FadeWipeEffect extends BaseEffect {
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+        private Texture flatImg;
+    }
+
+    /** FadeWipe layout missing the {@code flatImg} field entirely. */
+    static class FadeWipeNoFlatEffect extends BaseEffect {
+        private float y;
+        private TextureAtlas.AtlasRegion img;
+    }
+
+    /** FadeWipe layout whose {@code img} is a bare {@code Texture} instead of an AtlasRegion. */
+    static class FadeWipeTextureImgEffect extends BaseEffect {
+        private float y;
+        private Texture img;
+        private Texture flatImg;
+    }
+
+    // --- NRO-04 B10 FadeWipeParticle: readFields/readTextureFields do not apply (no x/scale) ---
+
+    /**
+     * Real {@code FadeWipeParticle} with reflectively seeded {@code y}/{@code img}/{@code flatImg}
+     * and the inherited {@code color} (no game/GL context). The class has NO {@code x}/{@code scale}/
+     * {@code rotation} field of its own. Any of the three references may be {@code null} to exercise
+     * the fail-open paths.
+     */
+    private static AbstractGameEffect seededFadeWipe(float y, Color color,
+            TextureAtlas.AtlasRegion img, Texture flatImg) {
+        try {
+            java.lang.reflect.Field unsafeField =
+                    sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            com.megacrit.cardcrawl.vfx.FadeWipeParticle effect =
+                    (com.megacrit.cardcrawl.vfx.FadeWipeParticle)
+                            unsafe.allocateInstance(
+                                    com.megacrit.cardcrawl.vfx.FadeWipeParticle.class);
+            setField(effect, com.megacrit.cardcrawl.vfx.FadeWipeParticle.class, "y",
+                    Float.valueOf(y));
+            setField(effect, com.megacrit.cardcrawl.vfx.FadeWipeParticle.class, "img", img);
+            setField(effect, com.megacrit.cardcrawl.vfx.FadeWipeParticle.class, "flatImg",
+                    flatImg);
+            setField(effect, AbstractGameEffect.class, "color", color);
+            return effect;
+        } catch (Exception failure) {
+            throw new AssertionError("could not build no-GL FadeWipeParticle", failure);
+        }
+    }
+
+    @Test
+    public void fadeWipeReadFieldsLooksUpItsOwnHolder() {
+        // FadeWipeParticle has no x/scale field of its own, so the generic img reader (which requires
+        // x/y/scale) does not apply; it is served by the dedicated renderFadeWipe branch.
+        FadeWipeEffect effect = new FadeWipeEffect();
+        effect.y = 5f;
+        effect.scale = 1f;
+        effect.rotation = 0f;
+        effect.color = Color.WHITE;
+        effect.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        effect.flatImg = noGlTexture(1, 1);
+
+        assertNull("readFields does not apply to FadeWipeParticle (no x field)",
+                Sts1VfxArtRenderer.readFields(VfxDrawGeometry.Kind.FADE_WIPE, effect));
+        assertNull("readTextureFields does not apply to FadeWipeParticle (no x/scale)",
+                Sts1VfxArtRenderer.readTextureFields(VfxDrawGeometry.Kind.FADE_WIPE, effect));
+    }
+
+    @Test
+    public void readFadeWipeFieldsReadsYImgFlatImgAndColor() {
+        FadeWipeEffect effect = new FadeWipeEffect();
+        effect.y = -3.25f;
+        effect.color = new Color(0.2f, 0.3f, 0.4f, 0.5f);
+        effect.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        effect.flatImg = noGlTexture(1, 1);
+
+        Sts1VfxArtRenderer.FadeWipeFields f = Sts1VfxArtRenderer.readFadeWipeFields(effect);
+
+        assertNotNull(f);
+        assertEquals(-3.25f, f.y, EPS);
+        assertSame(effect.color, f.color);
+        assertSame(effect.img, f.img);
+        assertSame(effect.flatImg, f.flatImg);
+    }
+
+    @Test
+    public void readFadeWipeFieldsFailsOpenForNullAndMissingFields() {
+        assertNull(Sts1VfxArtRenderer.readFadeWipeFields(null));
+
+        // Missing flatImg entirely.
+        FadeWipeNoFlatEffect noFlat = new FadeWipeNoFlatEffect();
+        noFlat.y = 1f;
+        noFlat.color = Color.WHITE;
+        noFlat.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        assertNull(Sts1VfxArtRenderer.readFadeWipeFields(noFlat));
+
+        // img is a bare Texture, not an AtlasRegion.
+        FadeWipeTextureImgEffect wrongImg = new FadeWipeTextureImgEffect();
+        wrongImg.y = 1f;
+        wrongImg.color = Color.WHITE;
+        wrongImg.img = noGlTexture(64, 48);
+        wrongImg.flatImg = noGlTexture(1, 1);
+        assertNull(Sts1VfxArtRenderer.readFadeWipeFields(wrongImg));
+
+        // Null color.
+        FadeWipeEffect noColor = new FadeWipeEffect();
+        noColor.y = 1f;
+        noColor.img = new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        noColor.flatImg = noGlTexture(1, 1);
+        assertNull(Sts1VfxArtRenderer.readFadeWipeFields(noColor));
+    }
+
+    @Test
+    public void fadeWipeDrawsTwoPassesRegionThenTextureAmbientlyWithOwnColor() {
+        // Native FadeWipeParticle.render (verified bytecode): setColor(color);
+        //   sb.draw(img, 0f, y, Settings.WIDTH, img.packedHeight);
+        //   sb.draw(flatImg, 0f, y + img.packedHeight - Settings.scale, Settings.WIDTH,
+        //           Settings.HEIGHT);
+        // AMBIENT (NO setBlendFunction); NO branch; NO RNG. Pass 0 is the REGION overload, pass 1 is
+        // the 4-arg TEXTURE overload; both use the effect's own color.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        Color color = new Color(0.4f, 0.5f, 0.6f, 0.25f);
+        float y = 12.5f;
+        float settingsWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        float settingsHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        float settingsScale = com.megacrit.cardcrawl.core.Settings.scale;
+        Texture flatImg = noGlTexture(1, 1);
+
+        // A 64x48 packed region so the region draw's height (48) and the pass-1 y-shift differ
+        // clearly from the full-screen height.
+        TextureAtlas.AtlasRegion img =
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48);
+        AbstractGameEffect effect = seededFadeWipe(y, color, img, flatImg);
+
+        assertTrue("a FadeWipe instance draws", renderer.render(batch, effect));
+        assertEquals("exactly ONE region draw (pass 0)", 1, batch.regionFourArgDrawCalls);
+        assertEquals("exactly ONE 4-arg texture draw (pass 1)", 1, batch.fullScreenDrawCalls);
+        assertEquals("the 16-arg shape-C overload is NOT used", 0, batch.drawCalls);
+        assertEquals("the 10-arg region overload is NOT used", 0, batch.textureRegionDrawCalls);
+        assertEquals("FADE_WIPE is ambient: NO setBlendFunction call", 0, batch.setBlendCalls);
+
+        // Draw ORDER: pass 0 (region) happened before pass 1 (texture). The CountingBatch records
+        // each overload separately, so we additionally assert both were invoked; the renderer's
+        // try/drewAny contract guarantees region precedes texture.
+        assertNotNull("pass 0 recorded", batch.drawnRegionFourArg);
+        assertEquals("pass 0 (region) precedes pass 1 (texture) in draw order",
+                java.util.Arrays.asList("region", "texture"), batch.orderedFourArgDraws);
+
+        // Pass 0: position (0, y), size (Settings.WIDTH, packedHeight=48).
+        float[] pass0 = batch.drawnRegionFourArgArgs;
+        assertEquals("pass 0 x is 0f", 0f, pass0[0], EPS);
+        assertEquals("pass 0 y is the effect's own y", y, pass0[1], EPS);
+        assertEquals("pass 0 width is Settings.WIDTH", settingsWidth, pass0[2], EPS);
+        assertEquals("pass 0 height is img.packedHeight (48)", 48f, pass0[3], EPS);
+        assertNotNull("pass 0 draws the canonical view of the instance img region",
+                batch.drawnRegionFourArg);
+
+        // Pass 1: the flatImg texture at (0, y + packedHeight - Settings.scale), size full screen.
+        assertSame("pass 1 draws the instance flatImg Texture", flatImg,
+                batch.drawnFullScreenTexture);
+        float[] pass1 = batch.drawnFullScreenArgs;
+        assertEquals("pass 1 x is 0f", 0f, pass1[0], EPS);
+        assertEquals("pass 1 y is y + packedHeight - Settings.scale",
+                y + 48f - settingsScale, pass1[1], EPS);
+        assertEquals("pass 1 width is Settings.WIDTH", settingsWidth, pass1[2], EPS);
+        assertEquals("pass 1 height is Settings.HEIGHT", settingsHeight, pass1[3], EPS);
+
+        // Color is the effect's OWN color (not white-forced).
+        assertNotNull("the applied tint was captured", batch.firstSetColor);
+        assertEquals(color.r, batch.firstSetColor.r, EPS);
+        assertEquals(color.g, batch.firstSetColor.g, EPS);
+        assertEquals(color.b, batch.firstSetColor.b, EPS);
+        assertEquals(color.a, batch.firstSetColor.a, EPS);
+
+        assertTrue("a drawable FadeWipe instance canDraw", renderer.canDraw(effect));
+        assertTrue("FADE_WIPE is a multi-source wipe kind",
+                Sts1VfxArtRenderer.usesMultiSourceWipe(VfxDrawGeometry.Kind.FADE_WIPE));
+    }
+
+    @Test
+    public void fadeWipePass1ThrowAfterPass0PaintedKeepsTheClaimPerB09() {
+        // B09 multi-pass contract, POST-pass: pass 0 painted, then pass 1's draw throws. The claim
+        // must return true so native never repaints both passes. Exactly ONE draw was painted.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        batch.throwOnFullScreenDraw = true;
+
+        AbstractGameEffect effect = seededFadeWipe(1f, Color.WHITE,
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48),
+                noGlTexture(1, 1));
+
+        assertTrue("a post-pass throw must claim the frame (return true), not fail open",
+                renderer.render(batch, effect));
+        assertEquals("exactly pass 0's region draw painted", 1, batch.successfulRegionFourArgDraws);
+        assertEquals("pass 1 did not paint", 0, batch.successfulFullScreenDraws);
+    }
+
+    @Test
+    public void fadeWipePass0ThrowFailsOpen() {
+        // B09 multi-pass contract, PRE-pass: pass 0's draw throws before anything painted, so the
+        // claim must fail open (return false) so native draws.
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+        CountingBatch batch = newCountingBatch();
+        batch.throwOnRegionFourArgDraw = true;
+
+        AbstractGameEffect effect = seededFadeWipe(1f, Color.WHITE,
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48),
+                noGlTexture(1, 1));
+
+        assertFalse("a first-pass throw must fail open to native",
+                renderer.render(batch, effect));
+        assertEquals("nothing painted", 0, batch.successfulRegionFourArgDraws);
+        assertEquals("no texture draw either", 0, batch.successfulFullScreenDraws);
+    }
+
+    @Test
+    public void fadeWipeNullFlatImgOrImgOrColorFailsOpenAndCannotDraw() {
+        Sts1VfxArtRenderer renderer = new Sts1VfxArtRenderer();
+
+        // Null flatImg.
+        AbstractGameEffect nullFlat = seededFadeWipe(1f, Color.WHITE,
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48), null);
+        assertFalse("a FadeWipe with a null flatImg fails open",
+                renderer.render(newCountingBatch(), nullFlat));
+        assertFalse("a FadeWipe with a null flatImg cannotDraw", renderer.canDraw(nullFlat));
+
+        // Null img.
+        AbstractGameEffect nullImg = seededFadeWipe(1f, Color.WHITE, null, noGlTexture(1, 1));
+        assertFalse("a FadeWipe with a null img fails open",
+                renderer.render(newCountingBatch(), nullImg));
+        assertFalse("a FadeWipe with a null img cannotDraw", renderer.canDraw(nullImg));
+
+        // Null color.
+        AbstractGameEffect nullColor = seededFadeWipe(1f, null,
+                new TextureAtlas.AtlasRegion(noGlTexture(256, 256), 0, 0, 64, 48),
+                noGlTexture(1, 1));
+        assertFalse("a FadeWipe with a null color fails open",
+                renderer.render(newCountingBatch(), nullColor));
+        assertFalse("a FadeWipe with a null color cannotDraw", renderer.canDraw(nullColor));
+    }
+
     /**
      * Real {@code HealPanelEffect} with reflectively seeded {@code x} and inherited
      * {@code scale}/{@code rotation}/{@code color}, plus its class-level static {@code img}
@@ -5364,6 +5615,24 @@ public class Sts1VfxArtRendererTest {
         Texture drawnFullScreenTexture;
         /** The first 4-arg full-screen draw's arguments ({@code x, y, width, height}). */
         float[] drawnFullScreenArgs;
+        /** 4-arg full-screen-texture draws that threw, so the FadeWipe post-pass test can force it. */
+        boolean throwOnFullScreenDraw;
+        /** Count of the 4-arg {@code draw(TextureRegion, x, y, w, h)} (FadeWipe pass 0) calls. */
+        int regionFourArgDrawCalls;
+        /** 4-arg region draws that returned normally (i.e. actually painted). */
+        int successfulRegionFourArgDraws;
+        /** The first {@link TextureRegion} passed to the 4-arg region overload. */
+        TextureRegion drawnRegionFourArg;
+        /** The first 4-arg region draw's arguments ({@code x, y, width, height}). */
+        float[] drawnRegionFourArgArgs;
+        /** When true the 4-arg region overload throws (the FadeWipe pre-pass fail-open test). */
+        boolean throwOnRegionFourArgDraw;
+        /**
+         * Ordered log of the 4-arg draw overloads actually invoked, as {@code "region"} (the 4-arg
+         * region overload) or {@code "texture"} (the 4-arg texture overload) — used to prove the
+         * FadeWipe pass ORDER (region then texture). Lazily allocated.
+         */
+        java.util.List<String> orderedFourArgDraws;
 
         CountingBatch() {
             // Never invoked: instances are created with Unsafe.allocateInstance so no GL/asset state
@@ -5441,13 +5710,40 @@ public class Sts1VfxArtRendererTest {
 
         @Override
         public void draw(Texture texture, float x, float y, float width, float height) {
-            // The 4-arg texture overload (NRO-04 B07 SpotlightEffect full-screen draw). Record the
-            // call only; skipping super avoids the real (absent) GL texture bind path.
+            // The 4-arg texture overload (NRO-04 B07 SpotlightEffect full-screen draw; NRO-04 B10
+            // FadeWipe pass 1). Record the call only; skipping super avoids the real (absent) GL
+            // texture bind path.
+            if (throwOnFullScreenDraw) {
+                throw new IllegalStateException("fade-wipe pass 1 texture draw boom");
+            }
+            if (orderedFourArgDraws == null) {
+                orderedFourArgDraws = new java.util.ArrayList<String>();
+            }
+            orderedFourArgDraws.add("texture");
             fullScreenDrawCalls++;
             successfulFullScreenDraws++;
             if (fullScreenDrawCalls == 1) {
                 drawnFullScreenTexture = texture;
                 drawnFullScreenArgs = new float[] {x, y, width, height};
+            }
+        }
+
+        @Override
+        public void draw(TextureRegion region, float x, float y, float width, float height) {
+            // The 4-arg region overload (NRO-04 B10 FadeWipe pass 0). Record the call only; skipping
+            // super avoids the real (absent) GL texture bind path.
+            if (throwOnRegionFourArgDraw) {
+                throw new IllegalStateException("fade-wipe pass 0 region draw boom");
+            }
+            if (orderedFourArgDraws == null) {
+                orderedFourArgDraws = new java.util.ArrayList<String>();
+            }
+            orderedFourArgDraws.add("region");
+            regionFourArgDrawCalls++;
+            successfulRegionFourArgDraws++;
+            if (regionFourArgDrawCalls == 1) {
+                drawnRegionFourArg = region;
+                drawnRegionFourArgArgs = new float[] {x, y, width, height};
             }
         }
     }

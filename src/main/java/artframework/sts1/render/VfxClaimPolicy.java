@@ -280,6 +280,8 @@ public final class VfxClaimPolicy {
             "com.megacrit.cardcrawl.vfx.SpotlightEffect";
     public static final String CAMPFIRE_RECALL =
             "com.megacrit.cardcrawl.vfx.campfire.CampfireRecallEffect";
+    public static final String FADE_WIPE =
+            "com.megacrit.cardcrawl.vfx.FadeWipeParticle";
 
     private static final List<String> SUPPORTED_CLASSES = Collections.unmodifiableList(
             Arrays.asList(STANCE_AURA_EFFECT, WRATH_PARTICLE_EFFECT, DIVINITY_PARTICLE_EFFECT,
@@ -300,7 +302,7 @@ public final class VfxClaimPolicy {
                     WRATH_STANCE_CHANGE, STANCE_CHANGE_ABSORPTION, WATER_SPLASH, BUFF_PARTICLE,
                     BOTTOM_FOG, GIANT_FIRE, TORCH_HEAD_FIRE, CARD_TRAIL, FLYING_ORB, FLICK_COIN,
                     HEAL_PANEL, PING_HP, REWARD_GLOW, MAP_CIRCLE, SPOTLIGHT,
-                    CAMPFIRE_RECALL));
+                    CAMPFIRE_RECALL, FADE_WIPE));
 
     private VfxClaimPolicy() {}
 
@@ -376,7 +378,8 @@ public final class VfxClaimPolicy {
                 || REWARD_GLOW.equals(value)
                 || MAP_CIRCLE.equals(value)
                 || SPOTLIGHT.equals(value)
-                || CAMPFIRE_RECALL.equals(value);
+                || CAMPFIRE_RECALL.equals(value)
+                || FADE_WIPE.equals(value);
     }
 
     /**
@@ -701,6 +704,32 @@ public final class VfxClaimPolicy {
      * {@code AbstractDungeon.effectList}, so the instrumented {@code AbstractDungeon.render} effect
      * loop DOES render a real instance (positive reach, like B07 and unlike B05/B06). It is also
      * lab-spawnable via the {@code "campfirerecall"}/{@code "recall"} aliases.
+     *
+     * <p>The newest (NRO-04 B10) member is the {@code vfx-misc-root}
+     * {@code com.megacrit.cardcrawl.vfx.FadeWipeParticle} (public NO-ARG ctor, which reads
+     * {@code AbstractDungeon.fadeColor} into the inherited {@code color} with alpha {@code 0f}).
+     * Its fields are {@code float y}, {@code float lerpTimer}, {@code float delayTimer}, an
+     * {@code AtlasRegion img} (set in the ctor to {@code ImageMaster.SCENE_TRANSITION_FADER}), and a
+     * bare {@code Texture flatImg} (set in the ctor to {@code ImageMaster.WHITE_SQUARE_IMG}); it has
+     * NO {@code x}/{@code scale} field. It is the seam's FIRST MULTI-SOURCE multi-draw kind: its
+     * native {@code render} issues NO {@code setBlendFunction} (AMBIENT), NO branch, and NO RNG, and
+     * draws TWO passes over TWO DIFFERENT image sources: pass 0 draws the instance {@code img}
+     * {@code AtlasRegion} with the 4-arg REGION overload
+     * {@code sb.draw(img, 0f, y, Settings.WIDTH, img.packedHeight)}, then pass 1 draws the instance
+     * {@code flatImg} {@code Texture} with the 4-arg TEXTURE overload
+     * {@code sb.draw(flatImg, 0f, y + img.packedHeight - Settings.scale, Settings.WIDTH,
+     * Settings.HEIGHT)}. Both draws use the effect's own {@code color}. Appended LAST after
+     * {@code CAMPFIRE_RECALL}; no new patch/bridge/console wiring; the default-off gate and
+     * per-instance token semantics are unchanged.
+     *
+     * <p><b>PRODUCTION REACH (B10, positive).</b> The claim seam's only effect observer instruments
+     * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
+     * ({@code TransientEffectContainerPatches}).
+     * {@code com.megacrit.cardcrawl.vfx.FadeWipeParticle} IS constructed by {@code MapRoomNode} and
+     * {@code SecretPortal} into {@code AbstractDungeon.topLevelEffects}, so the instrumented
+     * {@code AbstractDungeon.render} effect loop DOES reach a real instance (like B07/B08); it is
+     * also lab-spawnable via the {@code "fadewipe"}/{@code "wipe"} aliases. ({@code TopPanel} does
+     * NOT construct it; it only references the class via an {@code instanceof} check.)
      */
     public static List<String> supportedClasses() {
         return SUPPORTED_CLASSES;

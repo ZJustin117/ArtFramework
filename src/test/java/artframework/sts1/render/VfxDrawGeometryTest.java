@@ -2265,7 +2265,8 @@ public class VfxDrawGeometryTest {
                     || kind == VfxDrawGeometry.Kind.WATER_SPLASH
                     || kind == VfxDrawGeometry.Kind.BOTTOM_FOG
                     || kind == VfxDrawGeometry.Kind.MAP_CIRCLE
-                    || kind == VfxDrawGeometry.Kind.CAMPFIRE_RECALL) {
+                    || kind == VfxDrawGeometry.Kind.CAMPFIRE_RECALL
+                    || kind == VfxDrawGeometry.Kind.FADE_WIPE) {
                 continue;
             }
             assertTrue("expected additive blend for " + kind,
@@ -4107,5 +4108,71 @@ public class VfxDrawGeometryTest {
                 VfxDrawGeometry.Kind.SPOTLIGHT, 2f), EPS);
         assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.SPOTLIGHT).isEmpty());
         assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.SPOTLIGHT).isEmpty());
+    }
+
+    // --- NRO-04 B10 FadeWipeParticle: the FIRST MULTI-SOURCE multi-draw kind — pass 0 an
+    // AtlasRegion, pass 1 a bare Texture, ambient, own color, no branch/RNG ---
+
+    @Test
+    public void fadeWipeKindForMapsTheExactFqnAndFailsOpenForNearMisses() {
+        assertSame(VfxDrawGeometry.Kind.FADE_WIPE,
+                VfxDrawGeometry.kindFor(VfxClaimPolicy.FADE_WIPE));
+        assertSame(VfxDrawGeometry.Kind.FADE_WIPE,
+                VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.FadeWipeParticle"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.FadeWipeParticle2"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.FadeWipeParticle$Sub"));
+        assertNull(VfxDrawGeometry.kindFor("FadeWipeParticle"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.combat.FadeWipeParticle"));
+        assertNull(VfxDrawGeometry.kindFor("com.megacrit.cardcrawl.vfx.FadeWipe"));
+    }
+
+    @Test
+    public void multiSourceWipeIsTrueOnlyForFadeWipe() {
+        assertTrue("FADE_WIPE is the multi-source wipe kind",
+                VfxDrawGeometry.multiSourceWipe(VfxDrawGeometry.Kind.FADE_WIPE));
+        for (VfxDrawGeometry.Kind kind : VfxDrawGeometry.Kind.values()) {
+            assertEquals("multi-source wipe truth table for " + kind,
+                    kind == VfxDrawGeometry.Kind.FADE_WIPE,
+                    VfxDrawGeometry.multiSourceWipe(kind));
+        }
+        // Distinct from the OTHER multi-draw capabilities.
+        assertFalse(VfxDrawGeometry.variableLengthMultiDraw(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.multiSourceWipe(VfxDrawGeometry.Kind.FLYING_ORB));
+        assertFalse(VfxDrawGeometry.multiSourceWipe(
+                VfxDrawGeometry.Kind.STANCE_CHANGE_ABSORPTION));
+        try {
+            VfxDrawGeometry.multiSourceWipe(null);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            // expected
+        }
+    }
+
+    @Test
+    public void fadeWipeIsAmbientAndJoinsNoGuardFlipMirrorRngOrVariableLengthCapability() {
+        // Native FadeWipeParticle.render: setColor(color); sb.draw(img, 0f, y, Settings.WIDTH,
+        // img.packedHeight); sb.draw(flatImg, 0f, y + packedHeight - Settings.scale, Settings.WIDTH,
+        // Settings.HEIGHT) — AMBIENT (NO setBlendFunction), no guard, no flip/mirror, no RNG.
+        assertFalse("FADE_WIPE never calls setBlendFunction (ambient)",
+                VfxDrawGeometry.additiveBlend(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.whiteAlphaOnly(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawWithoutImage(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.nativeSkipsDrawByGuard(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.guardIsBoolean(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertNull(VfxDrawGeometry.guardFieldName(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipX(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.usesInstanceFlipY(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.usesTexturedFlipX(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorX(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.usesInstanceMirrorY(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.playerHitboxRelativeX(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.flickCoinUsesAnisotropicScale(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertEquals(1f, VfxDrawGeometry.uniformScaleMultiplier(
+                VfxDrawGeometry.Kind.FADE_WIPE, 2f), EPS);
+        assertTrue(VfxDrawGeometry.randomRanges(VfxDrawGeometry.Kind.FADE_WIPE).isEmpty());
+        assertTrue(VfxDrawGeometry.drawPassRandomRanges(VfxDrawGeometry.Kind.FADE_WIPE).isEmpty());
+        assertFalse(VfxDrawGeometry.fullScreenTexture(VfxDrawGeometry.Kind.FADE_WIPE));
+        assertFalse(VfxDrawGeometry.fullScreenTextureReadsScreenColor(
+                VfxDrawGeometry.Kind.FADE_WIPE));
     }
 }

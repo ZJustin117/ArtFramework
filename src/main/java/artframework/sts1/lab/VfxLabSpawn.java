@@ -11,6 +11,7 @@ import com.megacrit.cardcrawl.vfx.CardTrailEffect;
 import com.megacrit.cardcrawl.vfx.DeathScreenFloatyEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustBlurEffect;
 import com.megacrit.cardcrawl.vfx.ExhaustPileParticle;
+import com.megacrit.cardcrawl.vfx.FadeWipeParticle;
 import com.megacrit.cardcrawl.vfx.FallingDustEffect;
 import com.megacrit.cardcrawl.vfx.FireBurstParticleEffect;
 import com.megacrit.cardcrawl.vfx.FlameBallParticleEffect;
@@ -183,6 +184,11 @@ import java.util.function.Predicate;
  * {@code screenColor} field (NOT the inherited {@code color}), and has a public NO-ARG ctor. It is
  * production-reachable: {@code RecallOption} constructs it into {@code AbstractDungeon.effectList}.
  * The aliases are {@code "campfirerecall"}/{@code "recall"} -> {@code new CampfireRecallEffect()}.
+ *
+ * <p>The newest (NRO-04 B10) member is {@code FadeWipeParticle}, a public NO-ARG ctor that reads
+ * {@code AbstractDungeon.fadeColor} and sets the static {@code ImageMaster.SCENE_TRANSITION_FADER}
+ * region and {@code ImageMaster.WHITE_SQUARE_IMG} texture (both may be null off-game). The aliases
+ * are {@code "fadewipe"}/{@code "wipe"} -> {@code new FadeWipeParticle()}.
  *
  * <p>This helper is fail-open by contract: no game context, an unknown kind, a non-positive count,
  * or a throwing container all yield {@code 0} rather than propagating. It never throws.
@@ -445,6 +451,13 @@ public final class VfxLabSpawn {
         // behind the existing fail-open guard.
         if ("campfirerecall".equalsIgnoreCase(value) || "recall".equalsIgnoreCase(value)) {
             return VfxClaimPolicy.CAMPFIRE_RECALL;
+        }
+        // NRO-04 B10: FadeWipeParticle has a public NO-ARG ctor that reads AbstractDungeon.fadeColor
+        // into its inherited color (alpha 0f) and sets static ImageMaster art (SCENE_TRANSITION_FADER
+        // / WHITE_SQUARE_IMG) that may be null off-game, so the construct path is behind the existing
+        // fail-open guard.
+        if ("fadewipe".equalsIgnoreCase(value) || "wipe".equalsIgnoreCase(value)) {
+            return VfxClaimPolicy.FADE_WIPE;
         }
         return null;
     }
@@ -979,6 +992,13 @@ public final class VfxLabSpawn {
             // null and the ctor may throw off-game, so any failure is caught by spawn's fail-open
             // guard rather than propagating.
             return new CampfireRecallEffect();
+        }
+        if (VfxClaimPolicy.FADE_WIPE.equals(fqn)) {
+            // NRO-04 B10: FadeWipeParticle has a public NO-ARG ctor that reads AbstractDungeon.fadeColor
+            // into its inherited color (alpha 0f) and sets the static ImageMaster.SCENE_TRANSITION_FADER
+            // region and ImageMaster.WHITE_SQUARE_IMG texture, either of which may be null off-game; any
+            // failure is caught by spawn's fail-open guard rather than propagating.
+            return new FadeWipeParticle();
         }
         return null;
     }

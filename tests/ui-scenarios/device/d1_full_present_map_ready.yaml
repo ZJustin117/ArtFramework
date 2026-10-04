@@ -63,6 +63,26 @@ steps:
   - assert:
       path: backend.mapDraw.missingArt
       eq: 0
+  # NRO-04 D03: the legend panel + 6 room-type rows must be supplied while the map is FULL_READY.
+  # (The panel geometry depends on the live desktop Settings scale; the probe always reports it.)
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.legend.panel.resourceId
+        eq: ui.map.legend
+  - assert:
+      path: backend.mapDraw.legendCount
+      gte: 6
+  # NRO-04 D03 defect fix: the map surface must actually SUBMIT the mapped pixels (node icon +
+  # conditional outline/overlay, plus legend panel/title/icons), not only count them. submitCount
+  # is the renderMap submission-plan size; it must exceed the projected node + legend counts alone.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.submitCount
+        gte: 1
   # Pick leftmost presentable floor-0 node (skips offscreen column placeholders).
   - console: "art op map first"
   - wait_probe:

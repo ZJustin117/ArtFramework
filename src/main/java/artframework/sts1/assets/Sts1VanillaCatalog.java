@@ -188,7 +188,10 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.MAP_NODE_EVENT, "images/ui/map/event.png");
         put(m, ResourceIds.MAP_NODE_BOSS, "images/ui/map/boss.png");
         put(m, ResourceIds.MAP_BG_PREFIX + "act1", "images/ui/map/mapBg.png");
-        // Edges/legend are intentionally absent: these fallbacks do not claim native parity.
+        // Native Legend.render draws ImageMaster.MAP_LEGEND = images/ui/map/legend2.png (512x800);
+        // the 6 LegendItem icons reuse the MAP_NODE_* textures already mapped above.
+        put(m, ResourceIds.UI_MAP_LEGEND, "images/ui/map/legend2.png");
+        // Edges remain intentionally absent: these fallbacks do not claim native parity.
         put(m, ResourceIds.mapOutline("monster"), "images/ui/map/monsterOutline.png");
         put(m, ResourceIds.mapOutline("elite"), "images/ui/map/eliteOutline.png");
         put(m, ResourceIds.mapOutline("rest"), "images/ui/map/restOutline.png");

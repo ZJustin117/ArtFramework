@@ -19,6 +19,7 @@ import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.PresentSafety;
 import artframework.sts1.assets.Sts1HostAssets;
+import artframework.sts1.assets.Sts1VanillaCatalog;
 import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
 import artframework.sts1.patch.MapRenderPatches;
@@ -249,6 +250,322 @@ public class MapDrawPathTest {
         assertEquals(Integer.valueOf(1), m.get("count"));
         assertEquals("OBSERVE", m.get("presentLevel"));
         assertEquals("map", m.get("scene"));
+    }
+
+    @Test
+    public void legendIsOmittedWhenSettingsUnavailable() {
+        // JUnit leaves Settings.scale/xScale/yScale at their 0f defaults (no display init), so the
+        // legend must fail open and contribute ZERO items, keeping the node-only supply unchanged.
+        mapFrame();
+        setSettingsScale(0f, 0f, 0f);
+        assertTrue("legend must be omitted when Settings is unavailable",
+                MapDrawPath.legendItems().isEmpty());
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(0), probe.get("legendCount"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> legend = (Map<String, Object>) probe.get("legend");
+        assertNotNull(legend);
+        assertNull("no panel without Settings", legend.get("panel"));
+        assertTrue(((java.util.List<?>) legend.get("items")).isEmpty());
+        assertEquals("node supply must be unchanged when the legend is omitted",
+                Integer.valueOf(1), probe.get("count"));
+    }
+
+    @Test
+    public void legendMatchesNativePanelAndIconGeometryAtScaleOne() {
+        // Native Legend.render / LegendItem.render REST constants (desktop), pinned at scale=1:
+        //   X = 1670*xScale, Y = 600*yScale
+        //   panel: (X-256, Y-400, 512*scale, 800*yScale)
+        //   icon i: (ICON_X-64, Y - SPACE_Y*i + OFFSET_Y - 64, 128*scale/1.65, same)
+        //           ICON_X = 1575*xScale, SPACE_Y = 58*yScale, OFFSET_Y = 100*yScale
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            mapFrame();
+
+            List<MapDrawPath.LegendDrawItem> items = MapDrawPath.legendItems();
+            assertEquals("panel + title + 6 room rows", 8, items.size());
+
+            MapDrawPath.LegendDrawItem panel = legendById(items, "legend.panel");
+            assertNotNull(panel);
+            assertEquals(ResourceIds.UI_MAP_LEGEND, panel.resourceId);
+            assertEquals("map-legend", panel.role);
+            assertEquals(1670f - 256f, panel.bounds.x, 0.01f);
+            assertEquals(600f - 400f, panel.bounds.y, 0.01f);
+            assertEquals(512f, panel.bounds.width, 0.01f);
+            assertEquals(800f, panel.bounds.height, 0.01f);
+
+            MapDrawPath.LegendDrawItem title = legendById(items, "legend.title");
+            assertNotNull(title);
+            assertEquals("Legend", title.label);
+            assertEquals(1670f, title.bounds.x + title.bounds.width / 2f, 0.01f);
+            assertEquals(600f + 170f, title.bounds.y + title.bounds.height / 2f, 0.01f);
+
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+            String[] resources = {
+                ResourceIds.MAP_NODE_EVENT, ResourceIds.MAP_NODE_SHOP,
+                ResourceIds.MAP_NODE_TREASURE, ResourceIds.MAP_NODE_REST,
+                ResourceIds.MAP_NODE_MONSTER, ResourceIds.MAP_NODE_ELITE
+            };
+            float icon = 128f / 1.65f;
+            for (int i = 0; i < rooms.length; i++) {
+                MapDrawPath.LegendDrawItem row = legendById(items, "legend:" + rooms[i]);
+                assertNotNull("missing legend row " + rooms[i], row);
+                assertEquals(i, row.index);
+                assertEquals(resources[i], row.resourceId);
+                assertEquals("map-legend", row.role);
+                assertEquals(1575f - 64f, row.bounds.x, 0.01f);
+                assertEquals(600f - 58f * i + 100f - 64f, row.bounds.y, 0.01f);
+                assertEquals(icon, row.bounds.width, 0.01f);
+                assertEquals(icon, row.bounds.height, 0.01f);
+            }
+            assertEquals("Event", legendById(items, "legend:event").label);
+            assertEquals("Merchant", legendById(items, "legend:merchant").label);
+            assertEquals("Treasure", legendById(items, "legend:treasure").label);
+            assertEquals("Rest", legendById(items, "legend:rest").label);
+            assertEquals("Enemy", legendById(items, "legend:enemy").label);
+            assertEquals("Elite", legendById(items, "legend:elite").label);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void legendScalesWithSettings() {
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1.25f, 1.5f, 1.1f);
+            MapDrawPath.LegendDrawItem panel = legendById(MapDrawPath.legendItems(), "legend.panel");
+            assertNotNull(panel);
+            assertEquals(1670f * 1.5f - 256f, panel.bounds.x, 0.01f);
+            assertEquals(600f * 1.1f - 400f, panel.bounds.y, 0.01f);
+            assertEquals(512f * 1.25f, panel.bounds.width, 0.01f);
+            assertEquals(800f * 1.1f, panel.bounds.height, 0.01f);
+            MapDrawPath.LegendDrawItem event = legendById(MapDrawPath.legendItems(), "legend:event");
+            assertEquals(1575f * 1.5f - 64f, event.bounds.x, 0.01f);
+            assertEquals(600f * 1.1f + 100f * 1.1f - 64f, event.bounds.y, 0.01f);
+            assertEquals(128f * (1.25f / 1.65f), event.bounds.width, 0.01f);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void probeSliceExposesLegendShape() {
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            mapFrame();
+            Map<String, Object> probe = MapDrawPath.probeSlice();
+            assertEquals(Integer.valueOf(8), probe.get("legendCount"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> legend = (Map<String, Object>) probe.get("legend");
+            assertNotNull(legend);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> panel = (Map<String, Object>) legend.get("panel");
+            assertNotNull(panel);
+            assertEquals(ResourceIds.UI_MAP_LEGEND, panel.get("resourceId"));
+            assertEquals(1414f, ((Float) panel.get("x")).floatValue(), 0.01f);
+            assertEquals(200f, ((Float) panel.get("y")).floatValue(), 0.01f);
+            assertEquals(512f, ((Float) panel.get("w")).floatValue(), 0.01f);
+            assertEquals(800f, ((Float) panel.get("h")).floatValue(), 0.01f);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> rows = (java.util.List<Map<String, Object>>) legend.get("items");
+            assertEquals("panel excluded from the item list", 7, rows.size());
+            assertEquals("legend.panel", panel.get("id"));
+            assertEquals("legend:event", rows.get(1).get("id"));
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void legendCatalogMapsPanelAndIconTextures() {
+        Map<String, String> catalog = Sts1VanillaCatalog.catalog();
+        assertEquals("sts1:images/ui/map/legend2.png", catalog.get(ResourceIds.UI_MAP_LEGEND));
+        assertTrue(Sts1VanillaCatalog.isKnown(ResourceIds.UI_MAP_LEGEND));
+        // The 6 legend icon ids reuse the existing MAP_NODE_* textures (no new icon ids).
+        assertEquals("sts1:images/ui/map/event.png", catalog.get(ResourceIds.MAP_NODE_EVENT));
+        assertEquals("sts1:images/ui/map/shop.png", catalog.get(ResourceIds.MAP_NODE_SHOP));
+        assertEquals("sts1:images/ui/map/chest.png", catalog.get(ResourceIds.MAP_NODE_TREASURE));
+        assertEquals("sts1:images/ui/map/rest.png", catalog.get(ResourceIds.MAP_NODE_REST));
+        assertEquals("sts1:images/ui/map/monster.png", catalog.get(ResourceIds.MAP_NODE_MONSTER));
+        assertEquals("sts1:images/ui/map/elite.png", catalog.get(ResourceIds.MAP_NODE_ELITE));
+        // Legend room ordering matches native Legend() construction index 0..5.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            String[] expected = {
+                ResourceIds.MAP_NODE_EVENT, ResourceIds.MAP_NODE_SHOP,
+                ResourceIds.MAP_NODE_TREASURE, ResourceIds.MAP_NODE_REST,
+                ResourceIds.MAP_NODE_MONSTER, ResourceIds.MAP_NODE_ELITE
+            };
+            String[] actual = new String[6];
+            for (MapDrawPath.LegendDrawItem item : MapDrawPath.legendItems()) {
+                if (item.index >= 0 && item.index < 6) actual[item.index] = item.resourceId;
+            }
+            for (int i = 0; i < 6; i++) {
+                assertEquals(expected[i], actual[i]);
+            }
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    private static MapDrawPath.LegendDrawItem legendById(
+            List<MapDrawPath.LegendDrawItem> items, String id) {
+        for (MapDrawPath.LegendDrawItem item : items) {
+            if (id.equals(item.id)) return item;
+        }
+        return null;
+    }
+
+    private static void setSettingsScale(float scale, float xScale, float yScale) {
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(scale));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(xScale));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "yScale", Float.valueOf(yScale));
+    }
+
+    private static void setStaticField(Class<?> owner, String name, Object value) {
+        try {
+            java.lang.reflect.Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set static field " + owner + "." + name, failure);
+        }
+    }
+
+    @Test
+    public void submissionPlanSubmitsNodeIconOutlineHighlightAndLegend() {
+        // NRO-04 D03 defect fix: renderMap must SUBMIT mapped pixels, not merely count them.
+        // Three nodes exercise node-icon + outline + highlight variants:
+        //  - reachable+highlighted monster: icon + outline + highlight
+        //  - pinned shop:                    icon + highlight only (no reachable/highlighted)
+        //  - taken rest (neither):           icon only
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            Sts1HostAssets.install();
+            List<MapNodeView> nodes = Arrays.asList(
+                    new MapNodeView(1, 2, 100f, 200f, false, true, true, false,
+                            64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER),
+                    new MapNodeView(4, 5, 30f, 40f, false, false, false, true,
+                            48f, 52f, "P", "shop", ResourceIds.MAP_NODE_SHOP),
+                    new MapNodeView(3, 1, 250f, 325f, true, false, false, false,
+                            40f, 40f, "R", "rest", ResourceIds.MAP_NODE_REST));
+            publishMapFrame("map", nodes);
+
+            List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+
+            // Native order: legend paints FIRST (under), nodes paint OVER it. The legend block is the
+            // first 8 entries, then the 6 node entries.
+            assertEquals("legend block + node block", 8 + 6, plan.size());
+
+            // Legend panel (index 0, no label) + title (index 1) + 6 icon rows (2..7).
+            assertEquals("legend panel resource", ResourceIds.UI_MAP_LEGEND, plan.get(0).resourceId);
+            assertEquals("legend title", "Legend", plan.get(1).label);
+            assertEquals("Event", plan.get(2).label);
+            assertEquals("Elite", plan.get(7).label);
+            assertEquals(ResourceIds.MAP_NODE_EVENT, plan.get(2).resourceId);
+            assertEquals(ResourceIds.MAP_NODE_ELITE, plan.get(7).resourceId);
+
+            // Node submissions follow the legend, in sync z order: icon, outline, overlay.
+            String[] expectedNodeOrder = {
+                ResourceIds.MAP_NODE_MONSTER, ResourceIds.mapOutline("monster"),
+                ResourceIds.UI_MAP_HIGHLIGHT,
+                ResourceIds.MAP_NODE_SHOP, ResourceIds.UI_MAP_PIN,
+                ResourceIds.MAP_NODE_REST
+            };
+            for (int i = 0; i < expectedNodeOrder.length; i++) {
+                assertEquals("node submission " + i, expectedNodeOrder[i],
+                        plan.get(8 + i).resourceId);
+            }
+            assertEquals("node icon+outline+overlay bounds are the projected node bounds",
+                    MapDrawPath.buildFromProjection().get(0).bounds.x,
+                    plan.get(8).bounds.x, 0.01f);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void mapNodeAndLegendIdsResolveAsLogicalIds() {
+        // The submission plan keeps the LOGICAL resource id (not artSource) because
+        // drawResolvedTexture resolves via ArtFramework.assets().resolve(resourceId). Pin that the
+        // vanilla catalog actually resolves these logical ids so the map is not register-only.
+        Sts1HostAssets.install();
+        for (String id : new String[] {
+            ResourceIds.MAP_NODE_MONSTER, ResourceIds.MAP_NODE_REST,
+            ResourceIds.mapOutline("monster"), ResourceIds.UI_MAP_HIGHLIGHT,
+            ResourceIds.UI_MAP_PIN, ResourceIds.UI_MAP_LEGEND
+        }) {
+            artframework.assets.AssetResolveResult r = ArtFramework.assets().resolve(id);
+            assertTrue("logical id must resolve for map submission: " + id, r.found);
+            assertTrue("resolved source must be file-backed for: " + id,
+                    artframework.sts1.assets.Sts1AssetMaterializer.isFileBacked(r.source));
+        }
+    }
+
+    @Test
+    public void submissionPlanOmitsEmptyResourcesAndEmptyBounds() {
+        // Fail-open shape: a node with no mapped resource and invalid bounds contributes nothing,
+        // and a valid later node is still submitted (never aborted by the earlier gap).
+        Sts1HostAssets.install();
+        List<MapNodeView> nodes = Arrays.asList(
+                new MapNodeView(1, 1, 10f, 10f, false, false, false, false,
+                        0f, 0f, "", "unknown", ""),
+                new MapNodeView(2, 2, 20f, 20f, false, false, false, false,
+                        50f, 50f, "S", "shop", ResourceIds.MAP_NODE_SHOP));
+        publishMapFrame("map", nodes);
+        List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+        assertTrue("only the valid, resource-backed node is submitted",
+                containsResource(plan, ResourceIds.MAP_NODE_SHOP));
+        for (MapDrawPath.Submission s : plan) {
+            assertFalse("no empty resource id in the plan", s.resourceId.isEmpty());
+        }
+    }
+
+    private static boolean containsResource(List<MapDrawPath.Submission> plan, String resourceId) {
+        for (MapDrawPath.Submission s : plan) {
+            if (resourceId.equals(s.resourceId)) return true;
+        }
+        return false;
+    }
+
+    @Test
+    public void legendZStaysBelowNodeBandInPlanAndSync() {
+        // FINDING 1: native draws Legend.render BEFORE the nodes (nodes paint over the legend), so
+        // the legend z must sit below the node band (node icon=1, outline=2, overlay=3).
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            MapDrawPath.LegendDrawItem panel = legendById(MapDrawPath.legendItems(), "legend.panel");
+            MapDrawPath.LegendDrawItem title = legendById(MapDrawPath.legendItems(), "legend.title");
+            MapDrawPath.LegendDrawItem icon = legendById(MapDrawPath.legendItems(), "legend:event");
+            assertNotNull(panel);
+            assertNotNull(title);
+            assertNotNull(icon);
+            assertEquals("legend.panel z", 0.1f, panel.z, 0.0001f);
+            assertEquals("legend icon z", 0.15f, icon.z, 0.0001f);
+            assertEquals("legend.title z", 0.2f, title.z, 0.0001f);
+            assertTrue("legend panel below nodes", panel.z < 1f);
+            assertTrue("legend title below nodes", title.z < 1f);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
     }
 
     @Test

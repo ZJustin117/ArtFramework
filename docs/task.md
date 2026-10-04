@@ -2629,7 +2629,11 @@ FULL acceptance requires zero static unknowns and zero runtime strict-report gap
 - [x] 47.25 Map node partial pixel supply (87d750c): supplied projected map-node
       textures, symbols, overlays, row:col identity, pan/zoom geometry, evidence,
       and tests; map background, edges, legend, and full pan/zoom parity remain
-      documented gaps.
+      documented gaps. **Correction (NRO-04 D03 defect fix):** the "map node pixel
+      supply" recorded here was **probe-only** — `renderMap` registered C2 items and
+      counted them but never submitted a texture, so the FULL map rendered
+      background-only; the node/legend pixels are now actually submitted (see the
+      D03 note below).
 - [x] 47.26 D1 deploy/smoke status: device verification is blocked by adb
       shell/push timeout after `get-state=device`; no D1 success is claimed for
       this slice.
@@ -2765,6 +2769,41 @@ allocation and Young GC pressure.
       intentionally NOT replicated = documented gap; D1 evidence is an at-rest A/B. The top panel
       remains an all-or-nothing `ART_DELEGATED` surface with partial pixel supply: no new patch, no
       wholesale-gating change, default OFF; deck and map buttons remain uncovered (later slices).
+- [x] NRO-04 D03 (map legend pixel supply): `MapDrawPath` now supplies the map legend that the
+      wholesale map suppression (`MapRenderPatches`) removed — the `Legend.render` panel
+      (`ResourceIds.UI_MAP_LEGEND` -> `images/ui/map/legend2.png`, 512x800) plus a title carrier and
+      the 6 `LegendItem.render` room-type icon/label rows (EVENT/MERCHANT/TREASURE/REST/ENEMY/ELITE
+      reusing the existing `MAP_NODE_*` textures; short stable English labels since
+      `Legend.TEXT` localization is unavailable here). Geometry mirrors the verified native
+      constants: `Legend.X/Y = 1670f*xScale/600f*yScale`, panel `(X-256, Y-400, 512*scale,
+      800*yScale)`, `LegendItem.ICON_X = 1575f*xScale`, `TEXT_X = 1670f*xScale`, `SPACE_Y =
+      58f*yScale`, `OFFSET_Y = 100f*yScale`, icon `(ICON_X-64, Y - SPACE_Y*i + OFFSET_Y - 64,
+      128*scale/1.65, same)` at REST. Items sync as C2 map items (`legend.panel`, `legend.title`,
+      `legend:<room>`; role `map-legend`) exactly like the node items and are counted in the
+      recorded `drawn` evidence; the legend is omitted when `Settings` is unavailable (fail-open).
+      Documented gaps: hover icon scale (`/1.2`)/tip, controller reticle, and the legend alpha
+      fade-in (`Legend.c.a` lerp) are NOT replicated; drawn at rest/full alpha. Edges, background,
+      boss and current-node circle remain uncovered. No new patch, no wholesale-gating change.
+      **Discovered D1 defect (fixed):** the map surface registered C2 node/legend items but
+      `Sts1SurfaceRenderer.renderMap` only COUNTED them and called `recordSurfaceDrawIfPending`,
+      never submitting any texture — so a FULL map rendered background-only even though the node
+      probe reported `artFound=true`/`missingArt=0` (registration != pixel submission, invisible to
+      probe-only checks). `renderMap` now builds an ordered pure `MapDrawPath.mapSubmissionPlan()`
+      and submits each via `drawResolvedTexture`, fail-open per draw; the legend panel + 6 icons are
+      now actually drawn. **Legend layer order:** native `DungeonMap.render` draws `Legend.render`
+      BEFORE `DungeonMapScreen.render` draws the nodes, so nodes paint OVER the legend; the plan
+      therefore emits the legend block FIRST, then the node block (icon, outline when
+      `reachable||highlighted`, overlay when `pinned||highlighted`), and the synced legend z values
+      sit BELOW the node band (legend.panel z=0.1, legend icons z=0.15, legend.title z=0.2; nodes
+      stay 1/2/3). Resource value: the plan keeps the LOGICAL id (e.g. `map.node.monster`) because
+      `assets().resolve(resourceId)` resolves these catalog-mapped vanilla ids (`found=true`),
+      identical to the sibling surfaces — no `artSource` substitution needed (pinned by test
+      `mapNodeAndLegendIdsResolveAsLogicalIds`). **Evidence limitation (honest):** the renderer unit
+      test drives `renderMap` with a `null` SpriteBatch, so it proves only that `renderMap` iterates
+      the plan and records evidence — it does NOT capture an actual GL texture/font draw (no
+      batch-capture unit test, consistent with the other C2 surface renderers); the real pixel
+      submission evidence is the device `submitCount` + screenshot. Correction to the record:
+      47.25's "map node pixel supply" was **probe-only** and is now actually submitted.
 - [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
       During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
       post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a
@@ -2777,3 +2816,15 @@ allocation and Young GC pressure.
       Next: make the ECS query / surface-effects iteration in the post-native render hook
       iteration-safe under concurrent mutation (snapshot iteration or a render-side copy), with a
       bounded stress test toggling multiple C2 surfaces while rendering.
+- [ ] **Open (D03 D1 finding): map node / legend texture COLOR fidelity.** D1 visual review after the
+      map pixel-submission fix showed ART map nodes as pale/white silhouettes, whereas native draws
+      them dark. Native `MapRoomNode.render` calls `sb.setColor(...)` per state before drawing the
+      node texture (`AVAILABLE_COLOR = (0.09,0.13,0.17,1)`, `NOT_TAKEN_COLOR = (0.34,0.34,0.34,1)`,
+      `OUTLINE_COLOR = 8c8c80ff`, and an oscillating `color.a` for the current node), while
+      `Sts1SurfaceRenderer.drawResolvedTexture` submits the texture with no color set (white). The
+      map node images are light masks intended to be tinted, so ART renders them untinted. Nodes and
+      the legend are present (the blank-map defect is fixed); color/tint, the current-node
+      `MAP_CIRCLE_5` ring, edges, map background/paper panel, boss icon, and node hover/legend
+      hover+fade remain uncovered. Next: extend the map draw model + `renderMap` to carry a per-item
+      color/blend (resolved from node state) and draw the current-node ring, with a D1 A/B against
+      native.

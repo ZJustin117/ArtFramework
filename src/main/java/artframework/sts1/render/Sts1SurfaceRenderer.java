@@ -274,6 +274,16 @@ public final class Sts1SurfaceRenderer {
                 visibleItems.add(overlayId);
             }
         }
+        // NRO-04 D03 map legend: panel + title + 6 room-type icon/label rows, mirrored exactly like
+        // the node items above. The legend is omitted when Settings is unavailable. z stays BELOW
+        // the node band because native DungeonMap.render draws Legend.render before
+        // DungeonMapScreen.render draws the nodes, so nodes paint OVER the legend.
+        for (MapDrawPath.LegendDrawItem legend : MapDrawPath.legendItems()) {
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.MAP, legend.id, legend.bounds, legend.z, "map-legend",
+                    legend.resourceId, legend.label, true);
+            visibleItems.add(legend.id);
+        }
         artframework.presentation.PresentationVisuals.retainC2Items(SurfaceIds.MAP, visibleItems);
     }
 
@@ -612,17 +622,35 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Map surface: ART_DELEGATED when FULL_READY. The C2 items were synced in prepareMapVisuals
-     * and are drawn by the global RenderHosts.drawFrame pass; full native parity remains tracked
-     * as an exposed pixel-supply gap.
+     * Map surface: ART_DELEGATED when FULL_READY. Submits the legend panel + title + 6 room-type
+     * rows FIRST, then the projected node pixels (node icon, outline when reachable/highlighted,
+     * overlay when pinned/highlighted) — native {@code DungeonMap.render} draws the legend before
+     * the nodes, so nodes paint OVER the legend. All draws go through {@link #drawResolvedTexture},
+     * mirroring the sibling {@code renderEvent}/{@code renderSelect}/{@code renderTopPanel} pattern.
+     * Every draw is individually fail-open so one bad resource never aborts the map. The recorded
+     * evidence count is the number of successful {@link MapDrawPath.Submission} draws.
      */
     private static void renderMap(SpriteBatch sb) {
         int drawn = 0;
-        for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
-            if (item.bounds.width <= 0f || item.bounds.height <= 0f) continue;
-            drawn++;
-            if (item.reachable || item.highlighted) drawn++;
-            if (item.pinned || item.highlighted) drawn++;
+        artframework.core.PresentChromeStyle chrome = resolveSurfaceChrome(SurfaceIds.MAP);
+        try {
+            for (MapDrawPath.Submission item : MapDrawPath.mapSubmissionPlan()) {
+                try {
+                    drawResolvedTexture(sb, item.resourceId, item.bounds);
+                    if (!item.label.isEmpty()) {
+                        com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                                sb,
+                                com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                                item.label,
+                                item.bounds.x + item.bounds.width * 0.5f,
+                                item.bounds.y + item.bounds.height * 0.5f,
+                                colorLabel(chrome));
+                    }
+                    drawn++;
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
         }
         NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.MAP, drawn);
     }

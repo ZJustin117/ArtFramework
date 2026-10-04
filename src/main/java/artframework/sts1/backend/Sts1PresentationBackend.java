@@ -611,8 +611,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
                     if (hb instanceof com.megacrit.cardcrawl.helpers.Hitbox) {
                         com.megacrit.cardcrawl.helpers.Hitbox box =
                                 (com.megacrit.cardcrawl.helpers.Hitbox) hb;
-                        x = box.x;
-                        y = box.y;
+                        // RewardItemView.x/y are the row CENTER, not the hitbox bottom-left. Native
+                        // RewardItem moves the hitbox to (Settings.WIDTH/2, y) so box.cX/box.cY is
+                        // that center; RewardDrawPath renders rows centered on x/y, matching the
+                        // native REWARD_SCREEN_ITEM panel (x = WIDTH/2 - 232, vertical center = cY).
+                        x = box.cX;
+                        y = box.cY;
                         w = box.width;
                         h = box.height;
                     }

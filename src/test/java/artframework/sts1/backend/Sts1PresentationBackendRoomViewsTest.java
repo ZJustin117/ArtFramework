@@ -317,8 +317,10 @@ public class Sts1PresentationBackendRoomViewsTest {
         assertEquals(0, item.index);
         assertEquals("30 Gold", item.label);
         assertEquals("StubRewardScreenItem", item.kind);
-        assertEquals(5f, item.x, 0.01f);
-        assertEquals(6f, item.y, 0.01f);
+        // RewardItemView.x/y are the hitbox CENTER (native RewardItem.hb center), not bottom-left:
+        // Hitbox(5,6,100,30) => cX = 5 + 100/2 = 55, cY = 6 + 30/2 = 21.
+        assertEquals(55f, item.x, 0.01f);
+        assertEquals(21f, item.y, 0.01f);
         assertEquals(100f, item.w, 0.01f);
         assertEquals(30f, item.h, 0.01f);
     }

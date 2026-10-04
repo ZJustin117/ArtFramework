@@ -2804,6 +2804,26 @@ allocation and Young GC pressure.
       batch-capture unit test, consistent with the other C2 surface renderers); the real pixel
       submission evidence is the device `submitCount` + screenshot. Correction to the record:
       47.25's "map node pixel supply" was **probe-only** and is now actually submitted.
+- [x] NRO-04 D04 (reward screen panel/sheet pixel supply): the reward surface is suppressed wholesale
+      by `RoomRenderPatches` (`CombatRewardScreen.render`), and `RewardDrawPath`/`renderReward` painted
+      the reward ROWS but never the whole-screen panel, so rows floated on no background. Native
+      `CombatRewardScreen.renderItemReward` draws `ImageMaster.REWARD_SCREEN_SHEET`
+      (`images/ui/reward/rewardScreenSheet.png`, verified present in `$ART_STS_JAR`, 612x716) at
+      bottom-left `(Settings.WIDTH/2 - 306f, Settings.HEIGHT/2 - 46f*Settings.scale - 358f)` with size
+      `(612*xScale, 716*scale)` (verified bytecode). Added `ResourceIds.UI_REWARD_SHEET`
+      (`ui.reward.sheet`) to the minimal list and catalog-mapped it; `RewardDrawPath.sheetItem()` emits
+      the sheet FIRST at C2 z=0.5 (rows stay z=1) so it paints BEHIND the rows, using the same CENTER
+      convention as the rows (center = `(WIDTH/2 - 306 + 306*xScale, HEIGHT/2 - 46*scale - 358 +
+      358*scale)`; at scale=xScale=1, WIDTH=1920, HEIGHT=1080 → center `(960,494)`, bottom-left
+      `(654,136)`, `612x716`). `probeSlice()` gains `sheet`/`sheetCount`/`submitCount` (sheet kept out
+      of `items[]` so the public row list is unchanged); `prepareRewardVisuals` syncs it as C2 id
+      `reward.sheet` role `reward-panel`; `renderReward` draws via `drawOrder()` (sheet first; empty
+      label draws no text) and records sheet+row `submitCount`. D1 assertion added to
+      `d1_full_present_reward.yaml`. **Recorded honestly:** the reward TITLE is a separate
+      `AbstractDungeon.dynamicBanner` system (out of scope here); `UI_REWARD_PANEL ->
+      images/ui/reward/rewardList.png` is a MISSING-FILE landmine (same class as the D01
+      `cardPile.png`; consumers are the later shop/campfire slices); decoration/outline/glow and the
+      per-row icon/color are still uncovered, so full native reward parity remains pending.
 - [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
       During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
       post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a

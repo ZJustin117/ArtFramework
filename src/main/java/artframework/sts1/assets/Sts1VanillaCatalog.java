@@ -96,6 +96,13 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_SELECT_CONFIRM, "images/ui/event/enabledButton.png");
         put(m, ResourceIds.UI_SELECT_CONFIRM_DISABLED, "images/ui/event/disabledButton.png");
         put(m, ResourceIds.UI_REWARD_PANEL, "images/ui/reward/rewardList.png");
+        // NRO-04 D04 LANDMINE (recorded, not fixed here): UI_REWARD_PANEL -> rewardList.png does NOT
+        // exist in $ART_STS_JAR (same missing-file class as the D01 cardPile.png). Its consumers are
+        // the shop/campfire slices; do not reuse this target for the reward sheet.
+        // NRO-04 D04: native CombatRewardScreen.renderItemReward draws ImageMaster.REWARD_SCREEN_SHEET
+        // = images/ui/reward/rewardScreenSheet.png (verified present in $ART_STS_JAR, 612x716; a
+        // directory listing of images/ui/reward/ confirms rewardList.png is NOT present).
+        put(m, ResourceIds.UI_REWARD_SHEET, "images/ui/reward/rewardScreenSheet.png");
         put(m, ResourceIds.UI_REWARD_CARD, "images/ui/reward/normalCardReward.png");
         put(m, ResourceIds.UI_REWARD_GOLD, "images/ui/topPanel/gold.png");
         put(m, ResourceIds.UI_REWARD_RELIC, "images/ui/reward/rewardListItemPanel.png");

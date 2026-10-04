@@ -33,3 +33,14 @@ steps:
   - assert:
       path: backend.rewardDraw.suppressNativeReward
       exists: true
+  # NRO-04 D04: the reward surface must supply the whole-screen sheet/panel pixels that the
+  # wholesale suppression removes (native CombatRewardScreen.renderItemReward REWARD_SCREEN_SHEET).
+  - assert:
+      path: backend.rewardDraw.sheet.resourceId
+      eq: ui.reward.sheet
+  - assert:
+      path: backend.rewardDraw.sheetCount
+      gte: 1
+  - assert:
+      path: backend.rewardDraw.submitCount
+      gte: 1

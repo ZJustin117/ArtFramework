@@ -350,13 +350,24 @@ public final class Sts1SurfaceRenderer {
                     && !SurfaceIds.REWARD_CARD.equals(entry.surfaceId)
                     && !SurfaceIds.REWARD_BOSS_RELIC.equals(entry.surfaceId)) continue;
             Set<String> visibleItems = new LinkedHashSet<String>();
+            // NRO-04 D04: the whole-screen sheet/panel is synced (when Settings is available and the
+            // reward is available) at a LOWER z than the rows so it sits behind them. Id/role are
+            // distinct from the row items ("reward:<index>"/"reward-item").
+            RewardDrawPath.DrawItem sheet = RewardDrawPath.sheetItem();
+            if (sheet != null) {
+                artframework.presentation.PresentationVisuals.syncC2Item(
+                        entry.surfaceId, RewardDrawPath.SHEET_ITEM_ID, sheet.bounds(),
+                        RewardDrawPath.SHEET_Z, RewardDrawPath.SHEET_ROLE,
+                        sheet.resourceId, sheet.label, sheet.visible);
+                visibleItems.add(RewardDrawPath.SHEET_ITEM_ID);
+            }
             for (RewardDrawPath.DrawItem item : RewardDrawPath.buildFromProjection()) {
                 if (!item.visible) continue;
                 String itemId = "reward:" + item.index;
                 artframework.presentation.PresentationVisuals.syncC2Item(
                         entry.surfaceId, itemId,
                         new artframework.component.Rect(item.x - item.w / 2f,
-                                item.y - item.h / 2f, item.w, item.h), 1f,
+                                item.y - item.h / 2f, item.w, item.h), RewardDrawPath.ROW_Z,
                         "reward-item",
                         item.resourceId,
                         item.label, item.visible);
@@ -721,12 +732,11 @@ public final class Sts1SurfaceRenderer {
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(surfaceId);
-            for (RewardDrawPath.DrawItem item : RewardDrawPath.buildFromProjection()) {
+            for (RewardDrawPath.DrawItem item : RewardDrawPath.drawOrder()) {
                 if (!item.visible) {
                     continue;
                 }
-                artframework.component.Rect bounds = new artframework.component.Rect(
-                        item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
+                artframework.component.Rect bounds = item.bounds();
                 drawResolvedTexture(sb, item.resourceId, bounds);
                 if (!item.label.isEmpty()) {
                     com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
@@ -741,7 +751,7 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
-        NativeRenderBridge.recordSurfaceDrawIfPending(surfaceId, RewardDrawPath.materializedDrawCount());
+        NativeRenderBridge.recordSurfaceDrawIfPending(surfaceId, RewardDrawPath.drawSubmissionCount());
     }
 
     /**

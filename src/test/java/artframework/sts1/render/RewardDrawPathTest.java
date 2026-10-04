@@ -36,6 +36,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class RewardDrawPathTest {
@@ -68,6 +69,49 @@ public class RewardDrawPathTest {
                         TreasureView.empty(), ShopView.empty(), TopPanelView.empty(),
                         MonsterIntentView.empty(), null));
         ArtFramework.publishFrame(backend.currentFrame());
+    }
+
+    @Test
+    public void rewardRowGeometryTreatsViewXAsRowCenterNotBottomLeft() throws Exception {
+        // Regression guard for the D04 D1 defect: the backend publishes the native RewardItem.hb
+        // CENTER (native moves hb to (Settings.WIDTH/2, y)); RewardItemView.x/y are CENTER, so the
+        // DrawPath bounds are (x - w/2, y - h/2). With the native center x = WIDTH/2 = 960 and the
+        // native REWARD_SCREEN_ITEM width 464, bounds.x is 960 - 232 = 728 (the native panel origin
+        // WIDTH/2 - 232). If x were mistakenly a hitbox BOTTOM-LEFT the row would shift ~half a panel
+        // left (bounds.x 496), which this test rejects.
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(1920));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+
+            FakeSignalBackend backend = new FakeSignalBackend();
+            backend.installSignals();
+            float nativeCenterX = com.megacrit.cardcrawl.core.Settings.WIDTH / 2f;
+            assertEquals(960f, nativeCenterX, 0.01f);
+            RewardView reward = RewardView.of("combat", "Victory!",
+                    Arrays.asList(
+                            new RewardItemView(0, "gold", "30 Gold", "ui.reward.gold",
+                                    true, true, nativeCenterX, 540f, 464f, 98f)));
+            backend.publish(ContextFrame.ofFull(
+                    1L, 1L, "reward", null, ControlsView.empty(), MapView.empty(),
+                    EventView.empty(), SelectView.empty(), reward, RestView.empty(),
+                    TreasureView.empty(), ShopView.empty(), TopPanelView.empty(),
+                    MonsterIntentView.empty(), null));
+            ArtFramework.publishFrame(backend.currentFrame());
+
+            RewardDrawPath.DrawItem row = RewardDrawPath.buildFromProjection().get(0);
+            assertEquals("view x carries the native row CENTER", 960f, row.x, 0.01f);
+            assertEquals("bounds.x = center - w/2 = WIDTH/2 - 232", 728f, row.bounds().x, 0.01f);
+            assertEquals("row center stays WIDTH/2 (rows are horizontally centered)",
+                    960f, row.bounds().x + row.bounds().width / 2f, 0.01f);
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(previousWidth));
+        }
     }
 
     @Test
@@ -216,6 +260,138 @@ public class RewardDrawPathTest {
             assertEquals(((Float) expected.get("h")).floatValue(), bounds.rect.height, 0.01f);
             VisibilityComponent visibility = context.world().get(entity, VisibilityComponent.class);
             assertTrue(visibility.visible);
+        }
+    }
+
+    @Test
+    public void rewardSheetUsesNativeGeometryAtUnitScaleAndSortsBeforeRows() throws Exception {
+        // Native CombatRewardScreen.renderItemReward (verified bytecode) draws REWARD_SCREEN_SHEET at
+        // bottom-left (WIDTH/2 - 306, HEIGHT/2 - 46*scale - 358), size (612*xScale, 716*scale).
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT", Integer.valueOf(1080));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+            publishRewardFrame();
+
+            RewardDrawPath.DrawItem sheet = RewardDrawPath.sheetItem();
+            assertTrue("sheet is supplied when Settings is initialized and reward available",
+                    sheet != null);
+            assertEquals(ResourceIds.UI_REWARD_SHEET, sheet.resourceId);
+            assertEquals(RewardDrawPath.SHEET_KIND, sheet.kind);
+            assertEquals("", sheet.label);
+            assertTrue(sheet.visible);
+            // DrawItem x/y is the CENTER; renderer applies x - w/2, y - h/2.
+            assertEquals(960f, sheet.x, 0.01f);   // WIDTH/2 - 306 + 306*1
+            assertEquals(494f, sheet.y, 0.01f);   // HEIGHT/2 - 46*1 - 358 + 358*1
+            assertEquals(612f, sheet.w, 0.01f);
+            assertEquals(716f, sheet.h, 0.01f);
+            assertEquals("native bottom-left x = WIDTH/2 - 306", 654f, sheet.bounds().x, 0.01f);
+            assertEquals("native bottom-left y = HEIGHT/2 - 46*scale - 358", 136f,
+                    sheet.bounds().y, 0.01f);
+
+            Map<String, Object> probe = RewardDrawPath.probeSlice();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> sheetMap = (Map<String, Object>) probe.get("sheet");
+            assertNotNull("probe exposes the sheet sub-map", sheetMap);
+            assertEquals(ResourceIds.UI_REWARD_SHEET, sheetMap.get("resourceId"));
+            assertEquals(Float.valueOf(960f), sheetMap.get("x"));
+            assertEquals(Float.valueOf(494f), sheetMap.get("y"));
+            assertEquals(Integer.valueOf(1), probe.get("sheetCount"));
+            assertEquals("submitCount = sheet + visible rows", Integer.valueOf(3),
+                    probe.get("submitCount"));
+
+            List<RewardDrawPath.DrawItem> order = RewardDrawPath.drawOrder();
+            assertEquals("sheet first, then rows", 3, order.size());
+            assertEquals(RewardDrawPath.SHEET_KIND, order.get(0).kind);
+            assertEquals(RewardDrawPath.SHEET_Z, order.get(0).z, 0.01f);
+            assertTrue("sheet sorts before the rows", order.get(0).z < order.get(1).z);
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale",
+                    Float.valueOf(previousScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale",
+                    Float.valueOf(previousXScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(previousWidth));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT",
+                    Integer.valueOf(previousHeight));
+        }
+    }
+
+    @Test
+    public void rewardSheetGeometryCatchesXScaleVersusScaleMixups() throws Exception {
+        // Non-unit, xScale != scale: the bottom-left stays pinned at WIDTH/2-306 in x and
+        // HEIGHT/2-46*scale-358 in y, while the SIZE carries 612*xScale / 716*scale.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT", Integer.valueOf(1080));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1.25f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1.5f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+            publishRewardFrame();
+
+            RewardDrawPath.DrawItem sheet = RewardDrawPath.sheetItem();
+            assertTrue(sheet != null);
+            assertEquals(612f * 1.5f, sheet.w, 0.01f);
+            assertEquals(716f * 1.25f, sheet.h, 0.01f);
+            // center x carries +306*xScale; center y carries +358*scale
+            assertEquals(960f - 306f + 306f * 1.5f, sheet.x, 0.01f);
+            assertEquals(540f - 46f * 1.25f - 358f + 358f * 1.25f, sheet.y, 0.01f);
+            // bottom-left x is invariant of xScale; bottom-left y is anchored to scale
+            assertEquals(654f, sheet.bounds().x, 0.01f);
+            assertEquals(540f - 46f * 1.25f - 358f, sheet.bounds().y, 0.01f);
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale",
+                    Float.valueOf(previousScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale",
+                    Float.valueOf(previousXScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(previousWidth));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT",
+                    Integer.valueOf(previousHeight));
+        }
+    }
+
+    @Test
+    public void rewardSheetResourceMapsToExistingNativeTexture() throws Exception {
+        java.util.Map<String, String> catalog =
+                artframework.sts1.assets.Sts1VanillaCatalog.catalog();
+        assertEquals("sts1:images/ui/reward/rewardScreenSheet.png",
+                catalog.get(ResourceIds.UI_REWARD_SHEET));
+        assertTrue(artframework.sts1.assets.Sts1VanillaCatalog.isKnown(ResourceIds.UI_REWARD_SHEET));
+
+        // The mapped texture must actually EXIST in the host jar at the native 612x716 size.
+        java.net.URL url = RewardDrawPathTest.class.getClassLoader()
+                .getResource("images/ui/reward/rewardScreenSheet.png");
+        assertNotNull("rewardScreenSheet.png must exist in the host jar", url);
+        java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(url);
+        assertNotNull(img);
+        assertEquals(612, img.getWidth());
+        assertEquals(716, img.getHeight());
+    }
+
+    private static void setStaticField(Class<?> owner, String name, Object value) {
+        try {
+            java.lang.reflect.Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set static field " + owner + "." + name, failure);
         }
     }
 

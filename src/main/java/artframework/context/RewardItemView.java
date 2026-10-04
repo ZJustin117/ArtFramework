@@ -3,7 +3,14 @@ package artframework.context;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** One reward row (gold, relic, card, potion, …). */
+/**
+ * One reward row (gold, relic, card, potion, …).
+ *
+ * <p>{@code x}/{@code y} are the row CENTER (native {@code RewardItem.hb} center, which native moves
+ * to {@code (Settings.WIDTH/2, y)}), NOT the bottom-left. {@code RewardDrawPath} renders rows
+ * centered on {@code x}/{@code y}, matching the native {@code REWARD_SCREEN_ITEM} panel that is
+ * centered on {@code y}; publishing a hitbox bottom-left here shifts rows ~half a panel to the left.
+ */
 public final class RewardItemView {
 
     public final int index;

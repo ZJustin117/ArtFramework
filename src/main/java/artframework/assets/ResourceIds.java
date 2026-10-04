@@ -54,6 +54,7 @@ public final class ResourceIds {
     public static final String UI_SELECT_CONFIRM = "ui.select.confirm";
     public static final String UI_SELECT_CONFIRM_DISABLED = "ui.select.confirm.disabled";
     public static final String UI_REWARD_PANEL = "ui.reward.panel";
+    public static final String UI_REWARD_SHEET = "ui.reward.sheet";
     public static final String UI_REWARD_CARD = "ui.reward.card";
     public static final String UI_REWARD_GOLD = "ui.reward.gold";
     public static final String UI_REWARD_RELIC = "ui.reward.relic";
@@ -209,6 +210,7 @@ public final class ResourceIds {
             UI_BUTTON_CANCEL_ENABLED,
             UI_BUTTON_CANCEL_DISABLED,
             UI_REWARD_PANEL,
+            UI_REWARD_SHEET,
             UI_REWARD_ITEM_PANEL,
             UI_REWARD_CARD,
             UI_REWARD_GOLD,

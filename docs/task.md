@@ -1747,6 +1747,33 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       unchanged. Tests: `EffectRenderBandTest`, `TransientEffectContainerPatchesTest`,
       `NativeRenderBridgeTest`.
 
+- [x] NRO-04 C03 (same-layer per-band ORDERED observation sequence + interleave witness): C02 proves
+      the within-pass band ordinal is monotonic; C03 proves the SAME native band's observations are
+      recorded in native TRAVERSAL ORDER and that distinct instances never coalesce. The existing
+      `NativeRenderBridge` band state is extended (same lock, same observation-only, never-throws
+      discipline) with, for the CURRENT pass only, a bounded ordered tail (capacity 16) per real band
+      (`effectListBehind`/`effectListFront`/`topLevelFront`) of `{claimed, class}` entries appended on
+      every observation. A repeated observation of the SAME instance is never coalesced by class name:
+      every observation appends its own entry, so two distinct `LightFlareLEffect` instances appear as
+      two entries (the sequence is per-observation, not per-instance-dedup). A pass change (explicit
+      `beginEffectRenderPass()` OR a detected new pass id) clears every tail, because a tail
+      represents exactly one native `AbstractDungeon.render` traversal; beyond capacity the oldest
+      entry is dropped (bounded memory) and a per-band `sequenceTruncated` boolean is set.
+      `interleave` counts adjacent entries in the recorded (bounded) tail whose `claimed` flag
+      differs (a claimed<->native adjacency) and is documented as a witness over the bounded tail, not
+      an exhaustive transition count. `EffectRenderBand.Band#UNKNOWN` never creates a sequence entry.
+      The probe adds exactly `nativeRender.effectBands.sequence` (bandName -> ordered list of
+      `{claimed:Boolean, class:String}`, empty list when none, stable ordering),
+      `effectBands.sequenceTruncated` (bandName -> Boolean) and `effectBands.interleave` (bandName ->
+      Integer); every existing key is kept. `clearEffectBandsForTests()`/`resetForTests()` clear all
+      three. DEVICE: `tests/ui-scenarios/device/d1_render_zorder_contract.yaml` (extended in place,
+      both gate-OFF and gate-ON phases) spawns the witnesses, polls for a non-empty per-band sequence,
+      then asserts sequence key presence (`sequence.effectListBehind[0].class exists`),
+      `sequenceTruncated.effectListBehind exists`, `interleave.effectListBehind gte 0`, and
+      `orderViolations eq 0` (no exact list length/tail contents on device). This is ordering-sequence
+      evidence, explicitly NOT pixel occlusion (that remains C04). No plan/ordering-framework change,
+      no suppression permission, default-off gate unchanged. Tests: `NativeRenderBridgeTest`.
+
 - [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
         `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
         loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`

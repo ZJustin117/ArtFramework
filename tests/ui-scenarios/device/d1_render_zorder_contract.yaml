@@ -158,6 +158,38 @@ steps:
   - assert:
       path: backend.renderPlan.nativeRender.effectBands.orderViolations
       eq: 0
+  # NRO-04 C03: same-layer per-band ORDERED observation SEQUENCE. Beyond the C02 per-pass ordinal,
+  # effectBands.sequence records the ACTUAL native traversal order of the observations in the CURRENT
+  # pass: one {claimed,class} entry per observation, appended in order and NEVER coalesced by class
+  # name, so two distinct instances of one class appear as two entries. sequenceTruncated marks a
+  # bounded tail (cap 16) that dropped an oldest entry, and interleave counts adjacent
+  # claimed<->native transitions in the recorded tail (a witness over the bounded tail, not an
+  # exhaustive count). The tail is PER CURRENT PASS and cleared at every AbstractDungeon.render
+  # entry, so the D1 sequence assertion targets the reliably-populated band A tail
+  # (effectListBehind: ambient torches render every pass). Band-B observation is covered by the
+  # cumulative gate-ON `claimed.effectListFront gte 1` count (cumulative, not per-pass) — never
+  # assert a transient per-pass band-B tail on device. Exact per-band ordering and instance
+  # coalescing are pinned by the pure unit tests. Poll until the band-A tail is non-empty (a pass can
+  # momentarily be empty right after its entry clear), then assert key presence and zero violations;
+  # no exact list length and no exact tail contents.
+  - console: "art claim off"
+  - console: "art claim spawn flareL 8"
+  - console: "art claim spawn fire 8"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.sequence.effectListBehind[0].class
+        exists: true
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.sequenceTruncated.effectListBehind
+      exists: true
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.interleave.effectListBehind
+      gte: 0
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.orderViolations
+      eq: 0
   # Gate-ON phase: the real renderer is ready, so the claimed draws must land in their CORRECT
   # native bands A and B — not merely be observed.
   - console: "art claim on"
@@ -200,5 +232,25 @@ steps:
   - assert:
       path: backend.renderPlan.nativeRender.effectBands.claimedByClassCap
       gte: 0
+  # NRO-04 C03 gate-ON: the same-layer ordered sequence now carries the claimed draws interleaved with
+  # native observations of the same band, in native traversal order, and never coalesces distinct
+  # instances. Assert presence + zero violations only (no exact tail contents/length on device).
+  - console: "art claim spawn flareL 8"
+  - console: "art claim spawn fire 8"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.sequence.effectListBehind[0].class
+        exists: true
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.sequenceTruncated.effectListBehind
+      exists: true
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.interleave.effectListBehind
+      gte: 0
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.orderViolations
+      eq: 0
   - console: "art claim clear"
   - console: "art claim off"

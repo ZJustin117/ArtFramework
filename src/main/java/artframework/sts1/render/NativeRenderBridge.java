@@ -101,6 +101,41 @@ public final class NativeRenderBridge {
     private static int orderViolations;
     private static int passesObserved;
 
+    /**
+     * Bounded within-pass ORDERED observation SEQUENCE evidence (NRO-04 C03). For the CURRENT pass
+     * only, each real band keeps an append-only tail (capacity
+     * {@link #EFFECT_SEQUENCE_CAPACITY}) of every observation in native traversal order. A repeated
+     * observation of the SAME instance is NEVER coalesced by class name: every observation appends
+     * its own entry, so two distinct instances of one class (or the same instance across frames)
+     * appear as separate entries. When the pass changes
+     * ({@link #beginEffectRenderPass()} or a new pass detected) every tail is cleared, because a
+     * tail represents exactly one native {@code AbstractDungeon.render} traversal.
+     *
+     * <p>{@code EFFECT_BAND_INTERLEAVE} is the number of adjacent entries in the RECORDED (bounded)
+     * tail whose {@code claimed} flag differs (a claimed&lt;-&gt;native adjacency). It is a witness
+     * over the bounded tail, not an exhaustive count of every transition in an overflowing pass.
+     * {@code EFFECT_BAND_SEQUENCE_TRUNCATED} records that at least one oldest entry was dropped for
+     * the band during the current pass. {@link EffectRenderBand.Band#UNKNOWN} never creates a
+     * sequence entry.
+     */
+    static final int EFFECT_SEQUENCE_CAPACITY = 16;
+    private static final class EffectBandObservation {
+        final boolean claimed;
+        final String className;
+
+        EffectBandObservation(boolean claimed, String className) {
+            this.claimed = claimed;
+            this.className = className;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ArrayDeque<EffectBandObservation>[] EFFECT_BAND_SEQUENCES =
+            new ArrayDeque[EFFECT_BAND_COUNT];
+    private static final boolean[] EFFECT_BAND_SEQUENCE_TRUNCATED = new boolean[EFFECT_BAND_COUNT];
+    private static final int[] EFFECT_BAND_INTERLEAVE = new int[EFFECT_BAND_COUNT];
+    private static long sequencePassId = NO_ORDER_PASS;
+
     /** Identity plus its monotonic sequence, used to release the order entry in O(log n). */
     private static final class EffectIdState {
         final String id;
@@ -897,6 +932,9 @@ public final class NativeRenderBridge {
                 } else {
                     effectRenderPassId++;
                 }
+                // A new render pass invalidates the previous pass's bounded sequence tails.
+                sequencePassId = effectRenderPassId;
+                clearSequencesLocked();
             }
         } catch (Throwable ignored) {
             // Observation-only: never interrupt the native render path.
@@ -935,6 +973,11 @@ public final class NativeRenderBridge {
             EffectRenderBand.Band band = EffectRenderBand.classify(lineNumber);
             int bandIndex = bandIndex(band);
             synchronized (EFFECT_BANDS_LOCK) {
+                // A new pass (explicit id or the begin boundary) invalidates the current tails.
+                if (passId != sequencePassId) {
+                    sequencePassId = passId;
+                    clearSequencesLocked();
+                }
                 if (claimed) {
                     CLAIMED_EFFECT_BANDS[bandIndex]++;
                     int[] perBand = CLAIMED_BANDS_BY_CLASS.get(key);
@@ -956,6 +999,7 @@ public final class NativeRenderBridge {
                 } else {
                     NATIVE_EFFECT_BANDS[bandIndex]++;
                 }
+                recordSequenceLocked(band, bandIndex, claimed, key);
                 int rank = EffectRenderBand.rank(band);
                 if (rank >= 0) {
                     if (passId != lastOrderPassId) {
@@ -977,6 +1021,50 @@ public final class NativeRenderBridge {
     private static int bandIndex(EffectRenderBand.Band band) {
         int index = EffectRenderBand.bands().indexOf(band);
         return index < 0 ? EFFECT_BAND_COUNT - 1 : index;
+    }
+
+    /**
+     * Appends one observation to its band's bounded tail (NRO-04 C03). Every observation appends its
+     * own entry, so no entry is ever coalesced by class name. An UNKNOWN band creates no entry.
+     * Beyond {@link #EFFECT_SEQUENCE_CAPACITY} the oldest entry is dropped and the band is marked
+     * truncated. {@code interleave} is recomputed over the recorded (bounded) tail.
+     */
+    private static void recordSequenceLocked(
+            EffectRenderBand.Band band, int bandIndex, boolean claimed, String className) {
+        if (EffectRenderBand.rank(band) < 0) return;
+        ArrayDeque<EffectBandObservation> tail = EFFECT_BAND_SEQUENCES[bandIndex];
+        if (tail == null) {
+            tail = new ArrayDeque<EffectBandObservation>();
+            EFFECT_BAND_SEQUENCES[bandIndex] = tail;
+        }
+        tail.addLast(new EffectBandObservation(claimed, className));
+        while (tail.size() > EFFECT_SEQUENCE_CAPACITY) {
+            tail.removeFirst();
+            EFFECT_BAND_SEQUENCE_TRUNCATED[bandIndex] = true;
+        }
+        EFFECT_BAND_INTERLEAVE[bandIndex] = countInterleave(tail);
+    }
+
+    /** Adjacent entries whose {@code claimed} flag differs (a claimed&lt;-&gt;native adjacency). */
+    private static int countInterleave(ArrayDeque<EffectBandObservation> tail) {
+        int transitions = 0;
+        Boolean previous = null;
+        for (EffectBandObservation observation : tail) {
+            if (previous != null && previous.booleanValue() != observation.claimed) {
+                transitions++;
+            }
+            previous = Boolean.valueOf(observation.claimed);
+        }
+        return transitions;
+    }
+
+    /** Clears every per-band ordered tail/truncation/interleave for the current pass. */
+    private static void clearSequencesLocked() {
+        for (int i = 0; i < EFFECT_BAND_COUNT; i++) {
+            if (EFFECT_BAND_SEQUENCES[i] != null) EFFECT_BAND_SEQUENCES[i].clear();
+            EFFECT_BAND_SEQUENCE_TRUNCATED[i] = false;
+            EFFECT_BAND_INTERLEAVE[i] = 0;
+        }
     }
 
     private static Map<String, Integer> bandCounts(int[] counts) {
@@ -1007,8 +1095,58 @@ public final class NativeRenderBridge {
             out.put("claimedByClassOverflow", Integer.valueOf(claimedByClassOverflow));
             out.put("orderViolations", Integer.valueOf(orderViolations));
             out.put("passesObserved", Integer.valueOf(passesObserved));
+            out.put("sequence", sequenceSnapshot());
+            out.put("sequenceTruncated", sequenceTruncatedSnapshot());
+            out.put("interleave", interleaveSnapshot());
             return out;
         }
+    }
+
+    /**
+     * Stable, bounded map bandName -&gt; ordered list of {@code {claimed, class}} entries for the
+     * CURRENT pass (empty list when the band has no recorded entry). Every observation appends its
+     * own entry, so instances are never coalesced by class name.
+     */
+    private static Map<String, List<Map<String, Object>>> sequenceSnapshot() {
+        Map<String, List<Map<String, Object>>> out =
+                new LinkedHashMap<String, List<Map<String, Object>>>();
+        List<EffectRenderBand.Band> bands = EffectRenderBand.bands();
+        for (int i = 0; i < bands.size(); i++) {
+            ArrayDeque<EffectBandObservation> tail = EFFECT_BAND_SEQUENCES[i];
+            List<Map<String, Object>> entries = new ArrayList<Map<String, Object>>();
+            if (tail != null) {
+                for (EffectBandObservation observation : tail) {
+                    Map<String, Object> entry = new LinkedHashMap<String, Object>();
+                    entry.put("claimed", Boolean.valueOf(observation.claimed));
+                    entry.put("class", observation.className);
+                    entries.add(entry);
+                }
+            }
+            out.put(EffectRenderBand.name(bands.get(i)), entries);
+        }
+        return out;
+    }
+
+    /** Stable map bandName -&gt; whether the current pass dropped an oldest entry for that band. */
+    private static Map<String, Boolean> sequenceTruncatedSnapshot() {
+        Map<String, Boolean> out = new LinkedHashMap<String, Boolean>();
+        List<EffectRenderBand.Band> bands = EffectRenderBand.bands();
+        for (int i = 0; i < bands.size(); i++) {
+            out.put(EffectRenderBand.name(bands.get(i)),
+                    Boolean.valueOf(EFFECT_BAND_SEQUENCE_TRUNCATED[i]));
+        }
+        return out;
+    }
+
+    /** Stable map bandName -&gt; adjacent claimed/native transitions in the recorded (bounded) tail. */
+    private static Map<String, Integer> interleaveSnapshot() {
+        Map<String, Integer> out = new LinkedHashMap<String, Integer>();
+        List<EffectRenderBand.Band> bands = EffectRenderBand.bands();
+        for (int i = 0; i < bands.size(); i++) {
+            out.put(EffectRenderBand.name(bands.get(i)),
+                    Integer.valueOf(EFFECT_BAND_INTERLEAVE[i]));
+        }
+        return out;
     }
 
     private static void clearEffectBandsForTests() {
@@ -1022,6 +1160,8 @@ public final class NativeRenderBridge {
             lastOrderRank = -1;
             orderViolations = 0;
             passesObserved = 0;
+            sequencePassId = NO_ORDER_PASS;
+            clearSequencesLocked();
         }
     }
 

@@ -23,6 +23,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2094,17 +2095,21 @@ public class NativeRenderBridgeTest {
     @Test
     public void probeSliceEffectBandsHasTheExactKeyShape() {
         Map<String, Object> bands = effectBands();
-        // The four documented keys, plus the bounded-map diagnostic and the C02 ordering evidence.
+        // The four documented keys, plus the bounded-map diagnostic, the C02 ordering evidence, and
+        // the C03 same-layer ordered sequence evidence.
         for (String key : new String[] {
                 "native", "claimed", "claimedByClass", "claimedByClassCap",
-                "claimedByClassOverflow", "orderViolations", "passesObserved"}) {
+                "claimedByClassOverflow", "orderViolations", "passesObserved",
+                "sequence", "sequenceTruncated", "interleave"}) {
             assertTrue("missing key " + key, bands.containsKey(key));
         }
         for (Object key : bands.keySet()) {
             assertTrue("unexpected effectBands key " + key, "native".equals(key)
                     || "claimed".equals(key) || "claimedByClass".equals(key)
                     || "claimedByClassCap".equals(key) || "claimedByClassOverflow".equals(key)
-                    || "orderViolations".equals(key) || "passesObserved".equals(key));
+                    || "orderViolations".equals(key) || "passesObserved".equals(key)
+                    || "sequence".equals(key) || "sequenceTruncated".equals(key)
+                    || "interleave".equals(key));
         }
         for (String bucket : new String[] {"native", "claimed"}) {
             for (String name : new String[] {
@@ -2115,6 +2120,18 @@ public class NativeRenderBridgeTest {
             }
             assertEquals(4, ((Map<?, ?>) bands.get(bucket)).size());
         }
+        // The C03 maps are always present with one entry per band, empty when nothing was recorded.
+        for (String mapKey : new String[] {"sequence", "sequenceTruncated", "interleave"}) {
+            Map<?, ?> map = (Map<?, ?>) bands.get(mapKey);
+            assertEquals(mapKey + " must carry every band", 4, map.size());
+            for (String name : new String[] {
+                    "effectListBehind", "effectListFront", "topLevelFront", "unknown"}) {
+                assertTrue(mapKey + " missing " + name, map.containsKey(name));
+            }
+        }
+        assertTrue(sequenceOf(bands, "effectListFront").isEmpty());
+        assertEquals(Boolean.FALSE, sequenceTruncated(bands, "effectListFront"));
+        assertEquals(Integer.valueOf(0), interleave(bands, "effectListFront"));
     }
 
     @Test
@@ -2326,6 +2343,184 @@ public class NativeRenderBridgeTest {
         NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
         assertFalse(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
         assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+    }
+
+    @Test
+    public void sameLayerSequenceRecordsNativeTraversalOrderAndInterleave() {
+        // Pass 51, band effectListFront: claimed FireBurst, native X, claimed FireBurst.
+        NativeRenderBridge.recordObservedEffectBand(
+                "com.example.FireBurst", 2697, true, 51L);
+        NativeRenderBridge.recordObservedEffectBand("com.example.X", 2697, false, 51L);
+        NativeRenderBridge.recordObservedEffectBand(
+                "com.example.FireBurst", 2697, true, 51L);
+
+        Map<String, Object> bands = effectBands();
+        assertSequence(bands, "effectListFront",
+                entry(true, "com.example.FireBurst"),
+                entry(false, "com.example.X"),
+                entry(true, "com.example.FireBurst"));
+        assertEquals("claimed->native and native->claimed",
+                Integer.valueOf(2), interleave(bands, "effectListFront"));
+        // The other bands recorded nothing in this pass.
+        assertTrue(sequenceOf(bands, "effectListBehind").isEmpty());
+        assertTrue(sequenceOf(bands, "topLevelFront").isEmpty());
+        assertEquals(Integer.valueOf(0), interleave(bands, "effectListBehind"));
+    }
+
+    @Test
+    public void distinctInstancesOfTheSameClassNeverCoalesce() {
+        NativeRenderBridge.recordObservedEffectBand(
+                "com.example.Same", 2697, true, 52L);
+        NativeRenderBridge.recordObservedEffectBand(
+                "com.example.Same", 2697, true, 52L);
+
+        Map<String, Object> bands = effectBands();
+        List<Map<String, Object>> sequence = sequenceOf(bands, "effectListFront");
+        assertEquals("two distinct instances must append two entries", 2, sequence.size());
+        assertEquals(entry(true, "com.example.Same"), sequence.get(0));
+        assertEquals(entry(true, "com.example.Same"), sequence.get(1));
+        assertEquals("same claimed flag adjacency is not interleave",
+                Integer.valueOf(0), interleave(bands, "effectListFront"));
+    }
+
+    @Test
+    public void aNewPassClearsThePerBandSequenceTails() {
+        NativeRenderBridge.recordObservedEffectBand("com.example.First", 2697, true, 61L);
+        assertEquals(1, sequenceOf(effectBands(), "effectListFront").size());
+
+        // The explicit pass bump and a detected new pass both clear the current-pass tails.
+        NativeRenderBridge.recordObservedEffectBand("com.example.Second", 2697, false, 62L);
+
+        Map<String, Object> bands = effectBands();
+        List<Map<String, Object>> sequence = sequenceOf(bands, "effectListFront");
+        assertEquals("only the new pass is reflected", 1, sequence.size());
+        assertEquals(entry(false, "com.example.Second"), sequence.get(0));
+        assertEquals(Integer.valueOf(0), interleave(bands, "effectListFront"));
+        assertFalse(sequenceTruncated(bands, "effectListFront"));
+    }
+
+    @Test
+    public void beginEffectRenderPassAlsoClearsTheSequence() {
+        NativeRenderBridge.beginEffectRenderPass();
+        NativeRenderBridge.recordObservedEffectBandForClass("com.example.Keep", 2697, true);
+        assertEquals(1, sequenceOf(effectBands(), "effectListFront").size());
+
+        NativeRenderBridge.beginEffectRenderPass();
+
+        Map<String, Object> bands = effectBands();
+        assertTrue("a new render pass clears the previous pass's tail",
+                sequenceOf(bands, "effectListFront").isEmpty());
+        assertEquals(Integer.valueOf(0), interleave(bands, "effectListFront"));
+    }
+
+    @Test
+    public void sequenceTailIsBoundedAndTruncationPreservesKeptOrder() {
+        for (int i = 0; i < 20; i++) {
+            NativeRenderBridge.recordObservedEffectBand(
+                    "com.example.E" + i, 2697, i % 2 == 0, 71L);
+        }
+
+        Map<String, Object> bands = effectBands();
+        List<Map<String, Object>> sequence = sequenceOf(bands, "effectListFront");
+        assertEquals("the tail is capped", NativeRenderBridge.EFFECT_SEQUENCE_CAPACITY,
+                sequence.size());
+        assertTrue("dropping an oldest entry marks the band truncated",
+                sequenceTruncated(bands, "effectListFront"));
+        // The OLDEST 4 (E0..E3) were dropped; the kept 16 are E4..E19 in native order.
+        assertEquals(entry(true, "com.example.E4"), sequence.get(0));
+        assertEquals(entry(false, "com.example.E19"), sequence.get(sequence.size() - 1));
+        for (int i = 0; i < NativeRenderBridge.EFFECT_SEQUENCE_CAPACITY; i++) {
+            int source = i + 4;
+            assertEquals(entry(source % 2 == 0, "com.example.E" + source), sequence.get(i));
+        }
+    }
+
+    @Test
+    public void unknownBandCreatesNoSequenceEntry() {
+        NativeRenderBridge.recordObservedEffectBand(null, 1234, false, 81L);
+        NativeRenderBridge.recordObservedEffectBand(null, -1, true, 81L);
+
+        Map<String, Object> bands = effectBands();
+        for (String name : new String[] {
+                "effectListBehind", "effectListFront", "topLevelFront"}) {
+            assertTrue(name + " must stay empty for UNKNOWN observations",
+                    sequenceOf(bands, name).isEmpty());
+            assertEquals(Integer.valueOf(0), interleave(bands, name));
+        }
+        assertTrue(sequenceOf(bands, "unknown").isEmpty());
+    }
+
+    @Test
+    public void resetForTestsClearsTheSequenceState() {
+        NativeRenderBridge.recordObservedEffectBand("com.example.Seq", 2697, true, 91L);
+        NativeRenderBridge.recordObservedEffectBand("com.example.Seq", 2697, false, 91L);
+        assertFalse(sequenceOf(effectBands(), "effectListFront").isEmpty());
+
+        NativeRenderBridge.resetForTests();
+
+        Map<String, Object> bands = effectBands();
+        assertTrue(sequenceOf(bands, "effectListFront").isEmpty());
+        assertFalse(sequenceTruncated(bands, "effectListFront"));
+        assertEquals(Integer.valueOf(0), interleave(bands, "effectListFront"));
+    }
+
+    @Test
+    public void sameLayerSequenceRecordingNeverMutatesAdmission() {
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
+        AbstractGameEffect effect = supportedAuraEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertTrue(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+
+        Map<String, Object> before = NativeRenderBridge.probeSlice();
+        NativeRenderBridge.recordObservedEffectBand(effect, 2697, true);
+        NativeRenderBridge.recordObservedEffectBand(effect, 2674, false);
+
+        Map<String, Object> after = NativeRenderBridge.probeSlice();
+        for (String key : new String[] {
+                "invocationCount", "dispositionCount", "evidenceCount",
+                "pendingSurfaceInvocationCount", "orphanArtOutput",
+                "delegatedWithoutEvidence"}) {
+            assertEquals("key " + key + " must be unchanged",
+                    before.get(key), after.get(key));
+        }
+        assertEquals(before.get("transientEffects"), after.get("transientEffects"));
+        // The pending claim is still consumable exactly as before the sequence records.
+        NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+    }
+
+    private static Map<String, Object> entry(boolean claimed, String className) {
+        Map<String, Object> entry = new java.util.LinkedHashMap<String, Object>();
+        entry.put("claimed", Boolean.valueOf(claimed));
+        entry.put("class", className);
+        return entry;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> sequenceOf(
+            Map<String, Object> bands, String bandName) {
+        Map<String, Object> sequence = (Map<String, Object>) bands.get("sequence");
+        assertNotNull("effectBands.sequence must exist", sequence);
+        return (List<Map<String, Object>>) sequence.get(bandName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Boolean sequenceTruncated(Map<String, Object> bands, String bandName) {
+        return (Boolean) ((Map<String, Object>) bands.get("sequenceTruncated")).get(bandName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Integer interleave(Map<String, Object> bands, String bandName) {
+        return (Integer) ((Map<String, Object>) bands.get("interleave")).get(bandName);
+    }
+
+    private static void assertSequence(Map<String, Object> bands, String bandName,
+            Map<String, Object>... expected) {
+        assertEquals(Arrays.asList(expected), sequenceOf(bands, bandName));
     }
 
     private static Integer orderViolations() {

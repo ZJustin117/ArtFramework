@@ -25,6 +25,19 @@ public class EffectRenderBandTest {
     }
 
     @Test
+    public void rankOrdersTheThreeRealBandsAndExcludesUnknown() {
+        assertEquals(0, EffectRenderBand.rank(EffectRenderBand.Band.EFFECT_LIST_BEHIND));
+        assertEquals(1, EffectRenderBand.rank(EffectRenderBand.Band.EFFECT_LIST_FRONT));
+        assertEquals(2, EffectRenderBand.rank(EffectRenderBand.Band.TOP_LEVEL_FRONT));
+        assertEquals(-1, EffectRenderBand.rank(EffectRenderBand.Band.UNKNOWN));
+        assertEquals(-1, EffectRenderBand.rank(null));
+        // Ranks increase with the documented band probe order (A < B < C).
+        assertEquals(EffectRenderBand.Band.EFFECT_LIST_BEHIND, EffectRenderBand.bands().get(0));
+        assertEquals(EffectRenderBand.Band.EFFECT_LIST_FRONT, EffectRenderBand.bands().get(1));
+        assertEquals(EffectRenderBand.Band.TOP_LEVEL_FRONT, EffectRenderBand.bands().get(2));
+    }
+
+    @Test
     public void everyOtherLineIsUnknown() {
         assertEquals(EffectRenderBand.Band.UNKNOWN, EffectRenderBand.classify(-1));
         assertEquals(EffectRenderBand.Band.UNKNOWN, EffectRenderBand.classify(0));

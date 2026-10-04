@@ -2094,16 +2094,17 @@ public class NativeRenderBridgeTest {
     @Test
     public void probeSliceEffectBandsHasTheExactKeyShape() {
         Map<String, Object> bands = effectBands();
-        // The four documented keys, plus the required overflow diagnostic for the bounded map.
+        // The four documented keys, plus the bounded-map diagnostic and the C02 ordering evidence.
         for (String key : new String[] {
                 "native", "claimed", "claimedByClass", "claimedByClassCap",
-                "claimedByClassOverflow"}) {
+                "claimedByClassOverflow", "orderViolations", "passesObserved"}) {
             assertTrue("missing key " + key, bands.containsKey(key));
         }
         for (Object key : bands.keySet()) {
             assertTrue("unexpected effectBands key " + key, "native".equals(key)
                     || "claimed".equals(key) || "claimedByClass".equals(key)
-                    || "claimedByClassCap".equals(key) || "claimedByClassOverflow".equals(key));
+                    || "claimedByClassCap".equals(key) || "claimedByClassOverflow".equals(key)
+                    || "orderViolations".equals(key) || "passesObserved".equals(key));
         }
         for (String bucket : new String[] {"native", "claimed"}) {
             for (String name : new String[] {
@@ -2145,6 +2146,194 @@ public class NativeRenderBridgeTest {
         NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
         assertFalse(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
         assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+    }
+
+    @Test
+    public void resetForTestsClearsThePerPassOrderingState() {
+        NativeRenderBridge.recordObservedEffectBand(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2697, false, 5L);
+        NativeRenderBridge.recordObservedEffectBand(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2674, false, 5L);
+        assertEquals(Integer.valueOf(1), orderViolations());
+        assertEquals(Integer.valueOf(1), passesObserved());
+
+        NativeRenderBridge.resetForTests();
+
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(0), bands.get("orderViolations"));
+        assertEquals(Integer.valueOf(0), bands.get("passesObserved"));
+    }
+
+    @Test
+    public void monotonicWithinAPassProducesNoViolationAndOneObservedPass() {
+        // A, A, B, B, C all in pass 7: strictly non-decreasing ordinals.
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false, 7L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false, 7L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, false, 7L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, false, 7L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2802, false, 7L);
+
+        assertEquals(Integer.valueOf(0), orderViolations());
+        assertEquals(Integer.valueOf(1), passesObserved());
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(2), band(bands, "native", "effectListBehind"));
+        assertEquals(Integer.valueOf(2), band(bands, "native", "effectListFront"));
+        assertEquals(Integer.valueOf(1), band(bands, "native", "topLevelFront"));
+    }
+
+    @Test
+    public void aLowerBandAfterAHigherBandViolatesThenANewPassResets() {
+        // Pass 11: B then A -> one out-of-order step inside the pass.
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, false, 11L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false, 11L);
+        assertEquals(Integer.valueOf(1), orderViolations());
+        assertEquals(Integer.valueOf(1), passesObserved());
+
+        // Pass 12: A then B -> reset per-pass rank, still only the earlier violation counted.
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false, 12L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, false, 12L);
+        assertEquals("the violation total is cumulative, the pass state reset",
+                Integer.valueOf(1), orderViolations());
+        assertEquals(Integer.valueOf(2), passesObserved());
+    }
+
+    @Test
+    public void unknownBandIsCountedButNeverParticipatesInOrdering() {
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false, 21L);
+        NativeRenderBridge.recordObservedEffectBand(null, 1234, false, 21L); // UNKNOWN
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, false, 21L);
+
+        assertEquals(Integer.valueOf(0), orderViolations());
+        assertEquals(Integer.valueOf(1), passesObserved());
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(1), band(bands, "native", "unknown"));
+        assertEquals(Integer.valueOf(1), band(bands, "native", "effectListBehind"));
+        assertEquals(Integer.valueOf(1), band(bands, "native", "effectListFront"));
+    }
+
+    @Test
+    public void nativeAndClaimedBothAdvanceTheSameOrderingStateWhileTotalsStayIndependent() {
+        // Pass 31: native A then claimed B -> monotonic; both buckets counted independently.
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false, 31L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, true, 31L);
+        assertEquals(Integer.valueOf(0), orderViolations());
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(1), band(bands, "native", "effectListBehind"));
+        assertEquals(Integer.valueOf(0), band(bands, "native", "effectListFront"));
+        assertEquals(Integer.valueOf(1), band(bands, "claimed", "effectListFront"));
+        assertEquals(Integer.valueOf(0), band(bands, "claimed", "effectListBehind"));
+
+        // Pass 32: claimed B then native A -> crosses buckets and still violates.
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, true, 32L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false, 32L);
+        assertEquals("claimed and native share one ordinal sequence",
+                Integer.valueOf(1), orderViolations());
+        assertEquals(Integer.valueOf(2), passesObserved());
+    }
+
+    @Test
+    public void perPassBoundaryAvoidsFalseViolationAcrossRenderPasses() {
+        // The OLD lastFrameId boundary did not advance on menu/transition screens, so successive
+        // AbstractDungeon.render invocations shared one "frame" and B->A across passes was counted
+        // as a violation (a real D1 false-positive). With an explicit pass bumped at render entry,
+        // A,B | A,B is monotonic: 0 violations across 2 observed passes.
+        NativeRenderBridge.beginEffectRenderPass(); // render pass 1 (entry)
+        NativeRenderBridge.recordObservedEffectBandForClass(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2674, false);
+        NativeRenderBridge.recordObservedEffectBandForClass(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2697, false);
+        NativeRenderBridge.beginEffectRenderPass(); // render pass 2 (entry)
+        NativeRenderBridge.recordObservedEffectBandForClass(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2674, false);
+        NativeRenderBridge.recordObservedEffectBandForClass(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2697, false);
+
+        assertEquals("repeating A,B in a NEW pass is not a decrease",
+                Integer.valueOf(0), orderViolations());
+        assertEquals("each render entry is its own observed pass",
+                Integer.valueOf(2), passesObserved());
+
+        // Contrast: a genuine WITHIN-pass decrease (A then B then A inside ONE pass) is exactly 1.
+        NativeRenderBridge.resetForTests();
+        NativeRenderBridge.beginEffectRenderPass();
+        NativeRenderBridge.recordObservedEffectBandForClass(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2674, false);
+        NativeRenderBridge.recordObservedEffectBandForClass(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2697, false);
+        NativeRenderBridge.recordObservedEffectBandForClass(
+                NativeRenderBridge.UNKNOWN_EFFECT_CLASS, 2674, false);
+        assertEquals("a real within-pass decrease is still detected",
+                Integer.valueOf(1), orderViolations());
+        assertEquals(Integer.valueOf(1), passesObserved());
+    }
+
+    @Test
+    public void beginEffectRenderPassNeverThrowsAndDoesNotChangeAdmission() {
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
+        AbstractGameEffect effect = supportedAuraEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertTrue(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+
+        Map<String, Object> before = NativeRenderBridge.probeSlice();
+        // Bumping the pass boundary is observation-only and must never throw.
+        NativeRenderBridge.beginEffectRenderPass();
+        NativeRenderBridge.beginEffectRenderPass();
+
+        Map<String, Object> after = NativeRenderBridge.probeSlice();
+        for (String key : new String[] {
+                "invocationCount", "dispositionCount", "evidenceCount",
+                "pendingSurfaceInvocationCount", "orphanArtOutput",
+                "delegatedWithoutEvidence"}) {
+            assertEquals("key " + key + " must be unchanged",
+                    before.get(key), after.get(key));
+        }
+        assertEquals(before.get("transientEffects"), after.get("transientEffects"));
+        // The pending claim is still consumable exactly as before the pass bumps.
+        NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+    }
+
+    @Test
+    public void orderingEvidenceDoesNotChangeAdmission() {
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
+        AbstractGameEffect effect = supportedAuraEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertTrue(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+
+        Map<String, Object> before = NativeRenderBridge.probeSlice();
+        // Record ordering observations (including a deliberate violation) on the SAME pass.
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, false, 41L);
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false, 41L);
+        assertEquals(Integer.valueOf(1), orderViolations());
+
+        Map<String, Object> after = NativeRenderBridge.probeSlice();
+        for (String key : new String[] {
+                "invocationCount", "dispositionCount", "evidenceCount",
+                "pendingSurfaceInvocationCount", "orphanArtOutput",
+                "delegatedWithoutEvidence"}) {
+            assertEquals("key " + key + " must be unchanged",
+                    before.get(key), after.get(key));
+        }
+        assertEquals(before.get("transientEffects"), after.get("transientEffects"));
+        // The pending claim is still consumable exactly as before the ordering records.
+        NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+    }
+
+    private static Integer orderViolations() {
+        return (Integer) effectBands().get("orderViolations");
+    }
+
+    private static Integer passesObserved() {
+        return (Integer) effectBands().get("passesObserved");
     }
 
     @SuppressWarnings("unchecked")

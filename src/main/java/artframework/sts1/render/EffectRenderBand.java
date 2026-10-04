@@ -99,6 +99,26 @@ public final class EffectRenderBand {
         }
     }
 
+    /**
+     * Native within-frame draw ordinal of a band: {@code EFFECT_LIST_BEHIND = 0},
+     * {@code EFFECT_LIST_FRONT = 1}, {@code TOP_LEVEL_FRONT = 2}. {@link Band#UNKNOWN} (and a null
+     * band) return {@code -1} and are NOT ordering participants: only the three real bands define a
+     * frame's draw sequence, so an UNKNOWN observation never contributes to order evidence.
+     */
+    public static int rank(Band band) {
+        if (band == null) return -1;
+        switch (band) {
+            case EFFECT_LIST_BEHIND:
+                return 0;
+            case EFFECT_LIST_FRONT:
+                return 1;
+            case TOP_LEVEL_FRONT:
+                return 2;
+            default:
+                return -1;
+        }
+    }
+
     /** The exact probe key of a band; null maps to {@link #NAME_UNKNOWN}. */
     public static String name(Band band) {
         if (band == null) return NAME_UNKNOWN;

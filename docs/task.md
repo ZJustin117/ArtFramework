@@ -1712,6 +1712,41 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       numbers are validated by D1 (a drift shows all-UNKNOWN and fails the assertions loudly). Tests:
       `EffectRenderBandTest`, `TransientEffectContainerPatchesTest`, `NativeRenderBridgeTest`.
 
+- [x] NRO-04 C02 (per-render-pass native band-order/ordinal evidence): C01 proves a claimed effect
+      lands in the correct native band; C02 proves the WITHIN-PASS band SEQUENCE is monotonic. Pure
+      `EffectRenderBand.rank(Band)` maps the three real bands to their native draw ordinals
+      (EFFECT_LIST_BEHIND = 0, EFFECT_LIST_FRONT = 1, TOP_LEVEL_FRONT = 2) and UNKNOWN to `-1`; only
+      the three real bands participate in ordering. The existing
+      `NativeRenderBridge.recordObservedEffectBand` recorder (extended, not parallel) tracks the
+      per-pass last-seen rank plus cumulative `orderViolations`/`passesObserved`: on each observation
+      a real band whose rank is STRICTLY lower than the last real band in the SAME pass is one
+      violation; a pass change resets the per-pass rank and increments `passesObserved`; an UNKNOWN
+      observation is counted in the existing `unknown` bucket and never touches the ordering state.
+      Native and claimed observations advance the SAME ordering state (while the `native`/`claimed`
+      per-band totals stay independent). A package-visible
+      `recordObservedEffectBand(className, line, claimed, passId)` overload makes this deterministic
+      for tests; the public 3-arg signature is unchanged.
+
+      The pass boundary is an EXPLICIT render-pass counter: `NativeRenderBridge.beginEffectRenderPass()`,
+      bumped by a NEW observation-only `AbstractDungeon.render` entry `Prefix`
+      (`TransientEffectContainerPatches.ObserveEffectRenderPass`). An earlier C02 revision used the ART
+      `lastFrameId()` as the boundary, but that id does NOT advance on the menu/transition screens, so
+      successive `AbstractDungeon.render` invocations were collapsed into one "frame" and produced
+      false `orderViolations` on D1 (21, accrued menu→run→combat, then frozen) — a real defect this fix
+      removes. Within one native render traversal the three call sites are strictly sequential
+      (A→B→C), so per-PASS monotonicity is the correct invariant; the Prefix only bumps the counter,
+      never reorders/suppresses/draws pixels, never throws, and never touches
+      identity/admission/lifecycle (ModTheSpire supports multiple patch classes on one method, so it
+      coexists with the unchanged `ObserveContainerEffectRenders` ExprEditor). The probe adds exactly
+      `nativeRender.effectBands.orderViolations` and `passesObserved` (Integer); `resetForTests()`
+      clears them and resets the pass counter; recording stays observation-only. DEVICE:
+      `tests/ui-scenarios/device/d1_render_zorder_contract.yaml` (extended in place, both gate-OFF and
+      gate-ON phases) waits for `passesObserved gte 1` then asserts `orderViolations eq 0`, and now
+      passes on device. This is ordering-sequence evidence, explicitly NOT pixel occlusion (that
+      remains C04). No ordering-framework change, no suppression permission, default-off gate
+      unchanged. Tests: `EffectRenderBandTest`, `TransientEffectContainerPatchesTest`,
+      `NativeRenderBridgeTest`.
+
 - [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
         `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
         loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`

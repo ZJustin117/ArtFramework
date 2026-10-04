@@ -209,6 +209,20 @@ public class TransientEffectContainerPatchesTest {
         assertEquals(Integer.valueOf(1), band(effectBands(), "native", "effectListFront"));
     }
 
+    @Test
+    public void renderPassPrefixBumpsThePassBoundaryWithoutChangingOrdering() {
+        // The new Prefix is the observation-only render-pass boundary. It never throws and moves
+        // no per-band totals; the pass count only advances when a real band is observed in a pass.
+        TransientEffectContainerPatches.ObserveEffectRenderPass.Prefix(null, null);
+        TransientEffectContainerPatches.ObserveEffectRenderPass.Prefix(null, null);
+
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(0), bands.get("passesObserved"));
+        assertEquals(Integer.valueOf(0), bands.get("orderViolations"));
+        assertEquals(Integer.valueOf(0), band(bands, "native", "effectListBehind"));
+        assertEquals(Integer.valueOf(0), band(bands, "claimed", "effectListFront"));
+    }
+
     private static VfxArtRenderer.Adapter drawingAdapter() {
         return new VfxArtRenderer.Adapter() {
             @Override public boolean isReady(String nativeClassName) { return true; }

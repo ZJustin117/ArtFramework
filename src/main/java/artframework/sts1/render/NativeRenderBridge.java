@@ -78,6 +78,29 @@ public final class NativeRenderBridge {
             new LinkedHashMap<String, int[]>();
     private static int claimedByClassOverflow;
 
+    /**
+     * Per-RENDER-PASS within-pass band SEQUENCE evidence (NRO-04 C02). The pass boundary is an
+     * explicit counter bumped at {@code AbstractDungeon.render} ENTRY via
+     * {@link #beginEffectRenderPass()}, NOT the ART {@code lastFrameId()}: the projection frame id
+     * does not advance on menu/transition screens, which collapsed successive native render passes
+     * into one "frame" and produced false {@code orderViolations} on D1. Within one native
+     * {@code AbstractDungeon.render} invocation the three call sites are strictly sequential
+     * (A line 2674 → B line 2697 → C line 2802), so per-pass monotonicity is the correct invariant.
+     *
+     * <p>{@code lastOrderRank} is the rank of the last real band observed in
+     * {@code lastOrderPassId}; when the pass changes the per-pass rank resets and
+     * {@code passesObserved} increments. A subsequent observation whose rank is STRICTLY LOWER than
+     * the last one seen in the same pass is an {@code orderViolation}.
+     * {@link EffectRenderBand.Band#UNKNOWN} never participates: it neither resets nor advances this
+     * state.
+     */
+    private static final long NO_ORDER_PASS = Long.MIN_VALUE;
+    private static long effectRenderPassId = NO_ORDER_PASS;
+    private static long lastOrderPassId = NO_ORDER_PASS;
+    private static int lastOrderRank = -1;
+    private static int orderViolations;
+    private static int passesObserved;
+
     /** Identity plus its monotonic sequence, used to release the order entry in O(log n). */
     private static final class EffectIdState {
         final String id;
@@ -845,6 +868,11 @@ public final class NativeRenderBridge {
      * ({@link #CLAIMED_BY_CLASS_CAPACITY} distinct class names, oldest-evicted, overflow counted).
      * A null/blank class name collapses to {@link #UNKNOWN_EFFECT_CLASS}.
      *
+     * <p>Also records within-pass band SEQUENCE evidence (NRO-04 C02): both native and claimed
+     * observations advance the SAME per-render-pass ordinal state (see
+     * {@link #recordObservedEffectBand(String, int, boolean, long)}). This is ordering-sequence
+     * evidence only, NOT pixel occlusion.
+     *
      * <p>This is pure observation: it NEVER throws, never changes identity/admission/lifecycle, and
      * on any unexpected failure silently returns without touching the render path.
      */
@@ -855,15 +883,57 @@ public final class NativeRenderBridge {
     }
 
     /**
+     * Advances the per-render-pass boundary (NRO-04 C02). Called at {@code AbstractDungeon.render}
+     * ENTRY (see {@code TransientEffectContainerPatches.ObserveEffectRenderPass}); it only bumps a
+     * monotonic counter so the band-ordinal observation has a correct pass boundary. It never
+     * throws and never touches admission/identity/lifecycle or native pixels.
+     */
+    public static void beginEffectRenderPass() {
+        try {
+            synchronized (EFFECT_BANDS_LOCK) {
+                // Skip the sentinel so passes start at 0 and stay distinguishable from "none yet".
+                if (effectRenderPassId == NO_ORDER_PASS) {
+                    effectRenderPassId = 0L;
+                } else {
+                    effectRenderPassId++;
+                }
+            }
+        } catch (Throwable ignored) {
+            // Observation-only: never interrupt the native render path.
+        }
+    }
+
+    /**
      * Class-name form of {@link #recordObservedEffectBand}; package-visible so the bounded-map
-     * eviction is unit-testable without manufacturing one Java class per distinct name.
+     * eviction is unit-testable without manufacturing one Java class per distinct name. Uses the
+     * current render-pass boundary and delegates to the deterministic-pass-id overload.
      */
     static void recordObservedEffectBandForClass(
             String className, int lineNumber, boolean claimed) {
+        recordObservedEffectBand(className, lineNumber, claimed, currentEffectRenderPassId());
+    }
+
+    private static long currentEffectRenderPassId() {
+        synchronized (EFFECT_BANDS_LOCK) {
+            return effectRenderPassId;
+        }
+    }
+
+    /**
+     * Deterministic-pass-id form of {@link #recordObservedEffectBandForClass} (NRO-04 C02):
+     * package-visible so within-pass ordering evidence is unit-testable without a native render
+     * pass. In addition to the per-bucket totals, this advances the per-pass band-ordinal state: a
+     * real band whose rank is strictly lower than the last real band seen in the SAME pass is an
+     * {@code orderViolations}; a new pass resets the per-pass rank and increments
+     * {@code passesObserved}; {@link EffectRenderBand.Band#UNKNOWN} participates in neither.
+     */
+    static void recordObservedEffectBand(
+            String className, int lineNumber, boolean claimed, long passId) {
         try {
             String key = className == null || className.trim().isEmpty()
                     ? UNKNOWN_EFFECT_CLASS : className;
-            int bandIndex = bandIndex(EffectRenderBand.classify(lineNumber));
+            EffectRenderBand.Band band = EffectRenderBand.classify(lineNumber);
+            int bandIndex = bandIndex(band);
             synchronized (EFFECT_BANDS_LOCK) {
                 if (claimed) {
                     CLAIMED_EFFECT_BANDS[bandIndex]++;
@@ -885,6 +955,18 @@ public final class NativeRenderBridge {
                     perBand[bandIndex]++;
                 } else {
                     NATIVE_EFFECT_BANDS[bandIndex]++;
+                }
+                int rank = EffectRenderBand.rank(band);
+                if (rank >= 0) {
+                    if (passId != lastOrderPassId) {
+                        lastOrderPassId = passId;
+                        lastOrderRank = -1;
+                        passesObserved++;
+                    }
+                    if (lastOrderRank >= 0 && rank < lastOrderRank) {
+                        orderViolations++;
+                    }
+                    lastOrderRank = rank;
                 }
             }
         } catch (Throwable ignored) {
@@ -923,6 +1005,8 @@ public final class NativeRenderBridge {
                     new LinkedHashMap<String, Map<String, Integer>>(byClass));
             out.put("claimedByClassCap", Integer.valueOf(CLAIMED_BY_CLASS_CAPACITY));
             out.put("claimedByClassOverflow", Integer.valueOf(claimedByClassOverflow));
+            out.put("orderViolations", Integer.valueOf(orderViolations));
+            out.put("passesObserved", Integer.valueOf(passesObserved));
             return out;
         }
     }
@@ -933,6 +1017,11 @@ public final class NativeRenderBridge {
             java.util.Arrays.fill(CLAIMED_EFFECT_BANDS, 0);
             CLAIMED_BANDS_BY_CLASS.clear();
             claimedByClassOverflow = 0;
+            effectRenderPassId = NO_ORDER_PASS;
+            lastOrderPassId = NO_ORDER_PASS;
+            lastOrderRank = -1;
+            orderViolations = 0;
+            passesObserved = 0;
         }
     }
 

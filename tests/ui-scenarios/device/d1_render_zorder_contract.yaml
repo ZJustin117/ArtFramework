@@ -143,6 +143,21 @@ steps:
       assert:
         path: backend.renderPlan.nativeRender.effectBands.native.effectListFront
         gte: 1
+  # NRO-04 C02: within-render-pass band ORDINAL evidence. Within one AbstractDungeon.render pass the
+  # three call sites are strictly sequential (A rank 0 -> B rank 1 -> C rank 2); a lower ordinal
+  # after a higher one inside the SAME pass is a violation. The pass boundary is an explicit counter
+  # bumped at AbstractDungeon.render entry (NOT the ART frame id, which is stale on menu/transition
+  # screens). UNKNOWN bands never contribute. Wait for at least one observed pass first so the read
+  # cannot be premature, then require zero violations.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.passesObserved
+        gte: 1
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.orderViolations
+      eq: 0
   # Gate-ON phase: the real renderer is ready, so the claimed draws must land in their CORRECT
   # native bands A and B — not merely be observed.
   - console: "art claim on"
@@ -166,6 +181,18 @@ steps:
       assert:
         path: backend.renderPlan.nativeRender.effectBands.claimed.effectListFront
         gte: 1
+  # NRO-04 C02: the SAME ordinal state is shared by native and claimed draws, so the gate-ON phase
+  # must also show zero within-pass order violations. Poll passesObserved first (never a premature
+  # read), then assert the cumulative zero-violation invariant.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.passesObserved
+        gte: 1
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.orderViolations
+      eq: 0
   # The claimed band map exists and is bounded (key presence only; do not over-constrain unknown).
   - assert:
       path: backend.renderPlan.nativeRender.effectBands.claimed.topLevelFront

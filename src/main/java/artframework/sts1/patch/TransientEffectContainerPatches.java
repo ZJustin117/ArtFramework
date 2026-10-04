@@ -176,6 +176,33 @@ public final class TransientEffectContainerPatches {
         }
     }
 
+    /**
+     * Per-render-pass boundary for the band-ordinal observation (NRO-04 C02). This is a NEW,
+     * observation-only native patch: a {@code Prefix} at {@code AbstractDungeon.render} ENTRY that
+     * bumps {@link NativeRenderBridge#beginEffectRenderPass()} and does nothing else.
+     *
+     * <p>Design/why: {@code EffectRenderBand.rank} proves that within ONE native render traversal
+     * the three call sites are strictly sequential (A line 2674 → B line 2697 → C line 2802), so
+     * per-PASS monotonicity is the correct invariant. The earlier C02 revision used the ART
+     * {@code lastFrameId()} as the boundary, but that id does not advance on the menu/transition
+     * screens, so successive {@code AbstractDungeon.render} invocations were collapsed into one
+     * "frame" and produced false {@code orderViolations} on D1. This Prefix gives the observation
+     * an honest pass boundary instead.
+     *
+     * <p>It changes NO render behavior: it never reorders, suppresses, or draws pixels, never
+     * throws (the bridge call is itself try/caught), and never touches identity/admission/
+     * lifecycle. ModTheSpire supports multiple patch classes on one method, so this Prefix coexists
+     * with the existing {@link ObserveContainerEffectRenders} {@code @SpireInstrumentPatch}
+     * ExprEditor on the same {@code render(SpriteBatch)} method; that instrument is unchanged.
+     */
+    @SpirePatch(clz = AbstractDungeon.class, method = "render",
+            paramtypez = {SpriteBatch.class})
+    public static class ObserveEffectRenderPass {
+        public static void Prefix(AbstractDungeon __instance, SpriteBatch sb) {
+            NativeRenderBridge.beginEffectRenderPass();
+        }
+    }
+
     @SpirePatch(clz = AbstractDungeon.class, method = "render",
             paramtypez = {SpriteBatch.class})
     public static class ObserveContainerEffectRenders {

@@ -2876,6 +2876,38 @@ allocation and Young GC pressure.
       `panel.w/h >= 1`). **Honest gaps:** the per-event illustration (`img` + `EVENT_IMG_FRAME`),
       the event body text animation (`DialogWord`), and option-button hover/color states are NOT
       covered; `UI_EVENT_TITLE -> panel.png` mis-map noted (left as-is).
+- [x] NRO-04 D07 (campfire option buttons at native `CampfireUI` grid + `AbstractCampfireOption`
+      NORM_SCALE icon geometry): the rest surface is suppressed wholesale (`RoomRenderPatches` gates
+      `CampfireUI.render`) and `renderRest` painted each option as a synthetic 360x40 text row,
+      which STRETCHED the 256x256 option icon. Native `CampfireUI.renderCampfireButtons` places
+      button index `i` at `x = (i%2==0) ? WIDTH*0.416f : WIDTH*0.416f + 300f*xScale` and
+      `y = HEIGHT/2f + 180f*scale` for row 0, `- 200f*scale*(i/2) - 70f*scale` for rows >= 1
+      (integer `i/2`); `AbstractCampfireOption.render` draws the option `img` with
+      `scaleX = scaleY = scale` where the at-rest `scale = NORM_SCALE = 0.9f * Settings.scale`
+      (verified static init; `HOVER_SCALE = Settings.scale` is the hover size and is NOT
+      replicated), so the at-rest icon is `256 * 0.9 * Settings.scale = 230.4f * Settings.scale`.
+      `RestDrawPath.DrawItem` uses named constants `NATIVE_ICON = 256f` and
+      `NORM_SCALE_FACTOR = 0.9f`, carries the native button center (`centerX/centerY`, additive)
+      with top-left `x/y` and `w = h = NATIVE_ICON * NORM_SCALE_FACTOR * scale = 230.4f * scale`;
+      `buildFromProjection` uses the raw 0-based option index. `probeSlice()`
+      gains `buttonCount` + a `buttons[]` list `{id,resourceId,x,y,w,h,centerX,centerY,enabled}`
+      (public `items[]` keeps its keys, now with the native geometry plus `centerX/centerY`).
+      Option icon resources (all 256x256, present in the jar) are `sleep.png`/`smith.png`/`dig.png`/
+      `recall.png`/`toke.png`/`outline.png`, already selected by `resourceForOption`.
+      `prepareRestVisuals`/`syncRoomChromeItems` sync each option at the native bounds (role per
+      `roleForOption`); `renderRest` draws each option's 256x256 icon via `drawResolvedTexture` and
+      no longer stretches. The campfire TITLE stays TEXT ONLY: its `UI_CAMPFIRE_PANEL` resource maps
+      to the MISSING `images/ui/reward/rewardList.png` (same landmine class as `UI_REWARD_PANEL`/
+      `UI_SHOP_PANEL`), so submitting it would paint a bogus rectangle. At `scale = xScale = 1,
+      WIDTH = 1920, HEIGHT = 1080` button centers are `(798.72, 720)`, `(1098.72, 720)`,
+      `(798.72, 450)` and the at-rest icon size is `230.4x230.4`. Tests pin 1-/2-/3-button layouts
+      plus a non-unit `scale=1.25, xScale=1.5` axis-mixup case (including left-column centerX
+      independence from xScale); the D1 assertion only checks PRESENCE and POSITIVE size
+      (`backend.restDraw.buttonCount >= 1` and `backend.restDraw.buttons[0].w/h >= 1`), not exact
+      native values. **Honest gaps (NOT covered here):** the
+      hover OUTLINE (`CAMPFIRE_HOVER_BUTTON`) + hover scale/color, the option label/description
+      text, the disabled grayscale shader, the scroll variants (>6 buttons), and the campfire
+      background/title art.
 - [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
       During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
       post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a
@@ -2927,3 +2959,13 @@ allocation and Young GC pressure.
       (join remaining tokens) and (b) not leave the injected EventRoom in a render-NPE state (ensure
       `AbstractDungeon.screen`/overlay/fade and the event's dialog are fully initialized, or route
       through the native map-navigation intent `StsLabNativeNavigator.enterEventRoom`).
+- [ ] **Open (D07 D1 finding): campfire option label anchoring + title clipping + FX gap.** D1 visual
+      review of the ART rest frame confirmed the option buttons now sit at the native two-column grid
+      (correct centers/size), but showed: (a) the option labels (休息/锻造) are drawn OVER the button
+      faces, whereas native anchors each label BELOW its plate (`AbstractCampfireOption` label offset);
+      (b) the ART centered "Campfire" title text is partly hidden behind the right option plate
+      (z-order/layering), and native does not show that center string; (c) the native campfire glow/
+      flame FX is absent on the ART frame (room-scene art, not modelled). Impact is bounded (buttons
+      are correct), but label anchoring and title z-order should be fixed to match native. Next: anchor
+      option labels below the plates per `AbstractCampfireOption`, drop or reposition the centered
+      title so it is not occluded, and treat the campfire background/FX as a separate room-scene slice.

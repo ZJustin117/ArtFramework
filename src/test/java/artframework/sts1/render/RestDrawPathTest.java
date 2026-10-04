@@ -161,6 +161,203 @@ public class RestDrawPathTest {
         assertC2Line(lines.get(2));
     }
 
+    @Test
+    public void optionButtonsUseNativeCampfireGridAtUnitScale() throws Exception {
+        // Verified native CampfireUI.renderCampfireButtons geometry at scale=xScale=1,
+        // WIDTH=1920, HEIGHT=1080: BUTTON_START_X=WIDTH*0.416f=798.72, BUTTON_SPACING_X=300,
+        // BUTTON_START_Y=HEIGHT/2+180=720, BUTTON_SPACING_Y=-200, BUTTON_EXTRA_SPACING_Y=-70.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT",
+                    Integer.valueOf(1080));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+
+            publishRestFrame(); // rest + smith -> 2 options
+
+            java.util.List<RestDrawPath.DrawItem> items = RestDrawPath.buildFromProjection();
+            assertEquals(2, items.size());
+
+            // button 0: left column, top row
+            assertEquals(1920f * 0.416f, items.get(0).centerX, 0.01f); // 798.72
+            assertEquals(720f, items.get(0).centerY, 0.01f);
+            // Native at-rest icon size is NORM_SCALE = 0.9f * Settings.scale, so 256*0.9 = 230.4.
+            assertEquals(230.4f, items.get(0).w, 0.01f);
+            assertEquals(230.4f, items.get(0).h, 0.01f);
+            assertEquals(1920f * 0.416f - 115.2f, items.get(0).x, 0.01f);
+            assertEquals(720f - 115.2f, items.get(0).y, 0.01f);
+
+            // button 1: right column, top row
+            assertEquals(1920f * 0.416f + 300f, items.get(1).centerX, 0.01f); // 1098.72
+            assertEquals(720f, items.get(1).centerY, 0.01f);
+
+            Map<String, Object> probe = RestDrawPath.probeSlice();
+            assertEquals(Integer.valueOf(2), probe.get("buttonCount"));
+            @SuppressWarnings("unchecked")
+            java.util.List<Map<String, Object>> buttons =
+                    (java.util.List<Map<String, Object>>) probe.get("buttons");
+            assertEquals(2, buttons.size());
+            assertEquals("rest", buttons.get(0).get("id"));
+            assertEquals(1920f * 0.416f, ((Float) buttons.get(0).get("centerX")).floatValue(),
+                    0.01f);
+            assertEquals(720f, ((Float) buttons.get(0).get("centerY")).floatValue(), 0.01f);
+            assertEquals(230.4f, ((Float) buttons.get(0).get("w")).floatValue(), 0.01f);
+        } finally {
+            restoreSettings(previousWidth, previousHeight, previousScale, previousXScale);
+        }
+    }
+
+    @Test
+    public void optionButtonUsesNativeCampfireGridForSingleOption() throws Exception {
+        // 1 button: index 0 -> left column, top row; native at-rest size 256*0.9=230.4.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT",
+                    Integer.valueOf(1080));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+
+            publishRestFrameWith(java.util.Collections.singletonList(
+                    artframework.context.RestView.RestOptionView.of("rest", "Rest")));
+
+            java.util.List<RestDrawPath.DrawItem> items = RestDrawPath.buildFromProjection();
+            assertEquals(1, items.size());
+            assertEquals(RestDrawPath.buttonCenterX(0, 1920f, 1f), items.get(0).centerX, 0.01f);
+            assertEquals(1920f * 0.416f, items.get(0).centerX, 0.01f);
+            assertEquals(720f, items.get(0).centerY, 0.01f);
+            assertEquals(230.4f, items.get(0).w, 0.01f);
+            assertEquals(230.4f, items.get(0).h, 0.01f);
+            // top-left = center - NORM_ICON/2
+            assertEquals(1920f * 0.416f - 115.2f, items.get(0).x, 0.01f);
+            assertEquals(720f - 115.2f, items.get(0).y, 0.01f);
+            assertEquals(Integer.valueOf(1), RestDrawPath.probeSlice().get("buttonCount"));
+        } finally {
+            restoreSettings(previousWidth, previousHeight, previousScale, previousXScale);
+        }
+    }
+
+    @Test
+    public void optionButtonsUseNativeCampfireGridForThreeButtons() throws Exception {
+        // 3 buttons: index 2 wraps to the SECOND row -> row 1: y = START_Y - 200 - 70 = 450.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT",
+                    Integer.valueOf(1080));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+
+            publishRestFrameWith(java.util.Arrays.asList(
+                    artframework.context.RestView.RestOptionView.of("rest", "Rest"),
+                    artframework.context.RestView.RestOptionView.of("smith", "Smith"),
+                    artframework.context.RestView.RestOptionView.of("dig", "Dig")));
+
+            java.util.List<RestDrawPath.DrawItem> items = RestDrawPath.buildFromProjection();
+            assertEquals(3, items.size());
+            // index 2 -> left column, row 1
+            assertEquals(1920f * 0.416f, items.get(2).centerX, 0.01f);
+            assertEquals(720f - 200f - 70f, items.get(2).centerY, 0.01f); // 450
+            assertEquals("index 2 keeps the native NORM_SCALE icon size", 230.4f,
+                    items.get(2).w, 0.01f);
+        } finally {
+            restoreSettings(previousWidth, previousHeight, previousScale, previousXScale);
+        }
+    }
+
+    @Test
+    public void optionButtonsCatchScaleVersusXScaleMixups() throws Exception {
+        // scale=1.25 (icon size + y grid + y spacing) but xScale=1.5 (x spacing only), so a
+        // scale/xScale axis swap changes the expected numbers.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT",
+                    Integer.valueOf(1080));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1.25f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1.5f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+
+            publishRestFrame();
+
+            java.util.List<RestDrawPath.DrawItem> items = RestDrawPath.buildFromProjection();
+            assertEquals("icon size uses NORM_SCALE (0.9) and scale on BOTH axes",
+                    230.4f * 1.25f, items.get(0).w, 0.01f);
+            assertEquals(230.4f * 1.25f, items.get(0).h, 0.01f);
+            // right-column x spacing uses xScale, not scale
+            assertEquals(1920f * 0.416f + 300f * 1.5f, items.get(1).centerX, 0.01f);
+            // left-column x is START_X, invariant of xScale (a START_X*xScale bug would fail here)
+            assertEquals("left-column centerX stays WIDTH*0.416f, independent of xScale",
+                    1920f * 0.416f, items.get(0).centerX, 0.01f);
+            // top-row y uses scale
+            assertEquals(1080f / 2f + 180f * 1.25f, items.get(0).centerY, 0.01f);
+        } finally {
+            restoreSettings(previousWidth, previousHeight, previousScale, previousXScale);
+        }
+    }
+
+    private void publishRestFrameWith(java.util.List<RestView.RestOptionView> options) {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        artframework.context.RestView rest = artframework.context.RestView.of(options);
+        backend.publish(
+                ContextFrame.ofFull(
+                        1L, 1L, "rest", null, ControlsView.empty(), MapView.empty(),
+                        EventView.empty(), SelectView.empty(), RewardView.empty(), rest,
+                        TreasureView.empty(), ShopView.empty(), TopPanelView.empty(),
+                        MonsterIntentView.empty(), null));
+        ArtFramework.publishFrame(backend.currentFrame());
+    }
+
+    private static void restoreSettings(int width, int height, float scale, float xScale) {
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(width));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT", Integer.valueOf(height));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(scale));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(xScale));
+    }
+
+    private static void setStaticField(Class<?> owner, String name, Object value) {
+        try {
+            java.lang.reflect.Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set static field " + owner + "." + name, failure);
+        }
+    }
+
     private static void assertC2Line(RoomChromeLine line) {
         PresentationContext context = PresentationRegistry.context("c2-surfaces");
         EntityId entity = null;

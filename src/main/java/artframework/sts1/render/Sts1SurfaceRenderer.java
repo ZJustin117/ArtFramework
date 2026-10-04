@@ -804,7 +804,13 @@ public final class Sts1SurfaceRenderer {
                     continue;
                 }
                 artframework.component.Rect bounds = roomLineBounds(line, i);
-                drawResolvedTexture(sb, line.resourceId, bounds);
+                // NRO-04 D07: options are now 256*scale native campfire button icons centered on the
+                // CampfireUI grid, so draw the resolved icon at those bounds. The title stays TEXT
+                // ONLY: UI_CAMPFIRE_PANEL resolves to the missing images/ui/reward/rewardList.png
+                // landmine, so submitting it would paint a bogus rectangle (mirrors D06's title).
+                if (!"title".equals(line.id)) {
+                    drawResolvedTexture(sb, line.resourceId, bounds);
+                }
                 com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                         sb,
                         com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,

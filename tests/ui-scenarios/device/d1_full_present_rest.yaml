@@ -40,3 +40,15 @@ steps:
   - assert:
       path: backend.restDraw.count
       gte: 1
+  # NRO-04 D07: campfire option buttons use the native CampfireUI grid geometry. The probe
+  # exposes native button bounds (at-rest icon 256*0.9*scale, centered on native positions); these
+  # assertions only check PRESENCE and POSITIVE size, not exact native values.
+  - assert:
+      path: backend.restDraw.buttonCount
+      gte: 1
+  - assert:
+      path: backend.restDraw.buttons[0].w
+      gte: 1
+  - assert:
+      path: backend.restDraw.buttons[0].h
+      gte: 1

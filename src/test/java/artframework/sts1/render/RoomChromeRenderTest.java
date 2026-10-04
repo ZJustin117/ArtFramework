@@ -195,8 +195,10 @@ public class RoomChromeRenderTest {
         assertC2ItemsMatch(SurfaceIds.REST, RestDrawPath.chromeLines());
         assertC2Item(SurfaceIds.REST, "title", "rest-title",
                 ResourceIds.UI_CAMPFIRE_PANEL, "Campfire", 0);
-        assertC2Item(SurfaceIds.REST, "option:smith", "rest-smith-option",
-                ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, "Smith", 2);
+        // NRO-04 D07: rest options are now native NORM_SCALE campfire button icons (256*0.9*scale),
+        // so assert the C2 bounds against the projected chrome line rather than the old 360x40 row.
+        assertC2RestOption(SurfaceIds.REST, "option:smith", "rest-smith-option",
+                ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, "Smith");
     }
 
     @Test
@@ -443,5 +445,43 @@ public class RoomChromeRenderTest {
         assertEquals(expectedY, bounds.rect.y, 0.01f);
         assertEquals(expectedW, bounds.rect.width, 0.01f);
         assertEquals(40f, bounds.rect.height, 0.01f);
+    }
+
+    /**
+     * NRO-04 D07: rest option C2 bounds must match the native NORM_SCALE campfire button geometry
+     * (256*0.9*scale) in {@link RestDrawPath#chromeLines()}, not a synthetic text row. Asserts
+     * role/resource/text plus the exact projected bounds.
+     */
+    private static void assertC2RestOption(String surfaceId, String localId, String role,
+            String resourceId, String text) {
+        PresentationContext context = PresentationRegistry.context("c2-surfaces");
+        String scope = "sts1.visual." + surfaceId;
+        EntityId found = null;
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity != null && scope.equals(identity.key.scope)
+                    && localId.equals(identity.key.localId)) {
+                found = entity;
+                break;
+            }
+        }
+        assertNotNull("missing C2 item " + localId + " for " + surfaceId, found);
+        DrawComponent draw = context.world().get(found, DrawComponent.class);
+        assertEquals(role, draw.role);
+        assertEquals(resourceId, draw.resourceId);
+        assertEquals(text, draw.text);
+        RoomChromeLine expected = null;
+        for (RoomChromeLine line : RestDrawPath.chromeLines()) {
+            if (localId.equals(line.id)) {
+                expected = line;
+                break;
+            }
+        }
+        assertNotNull("chromeLines must project " + localId, expected);
+        BoundsComponent bounds = context.world().get(found, BoundsComponent.class);
+        assertEquals(expected.x, bounds.rect.x, 0.01f);
+        assertEquals(expected.y, bounds.rect.y, 0.01f);
+        assertEquals(expected.w, bounds.rect.width, 0.01f);
+        assertEquals(expected.h, bounds.rect.height, 0.01f);
     }
 }

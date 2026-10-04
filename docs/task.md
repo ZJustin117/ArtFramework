@@ -2753,3 +2753,27 @@ allocation and Young GC pressure.
       `(show_x + COUNT_OFFSET_X, show_y + COUNT_OFFSET_Y)` carrying the numeric count; `show_x =
       show_y = 0` confirmed from the `DrawPilePanel()` constructor bytecode. The old
       `images/ui/topPanel/cardPile.png` mapping does not exist in the jar.
+- [x] NRO-04 D02 (top-panel settings gear pixel supply): `TopPanelDrawPath` now supplies the
+      top-right settings button (`TopPanel.renderSettingsIcon`) as `top_panel.settings`
+      (`ResourceIds.UI_TOP_PANEL_SETTINGS` -> `images/ui/topPanel/settings.png`, 64x64) so it no
+      longer disappears when the top panel is FULL. Geometry mirrors the verified native constants
+      `SETTINGS_X = Settings.WIDTH - (ICON_W + TOP_RIGHT_PAD_X)`, `ICON_W = 64f*Settings.scale`,
+      `TOP_RIGHT_PAD_X = 10f*Settings.scale`, `ICON_Y = Settings.HEIGHT - ICON_W`, producing
+      `x = SETTINGS_X - 32f + 32f*scale`, `y = ICON_Y - 32f + 32f*scale`, `w = h = 64f*scale`
+      (`yFromTop = 32f - 32f*scale`). Rendered at rest state rotation 0. The native hover /
+      settings-screen GEAR SPIN (`updateSettingsButtonLogic` accumulating `settingsAngle`) is
+      intentionally NOT replicated = documented gap; D1 evidence is an at-rest A/B. The top panel
+      remains an all-or-nothing `ART_DELEGATED` surface with partial pixel supply: no new patch, no
+      wholesale-gating change, default OFF; deck and map buttons remain uncovered (later slices).
+- [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
+      During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
+      post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a
+      `LinkedHashMap` inside `PackSurfaceEffects.forSurface` -> `PresentationVisuals.effectsFor` ->
+      `syncC2Item`, called from `Sts1SurfaceRenderer.render` (the `preparePileDrawVisuals` path) from
+      `StageHost.receivePostRender` under `CardCrawlGame.render`. It was NOT reproducible (5/5 `top`
+      and 5/5 `pile_draw` on/off toggles, plus 6 rapid mixed toggles, all stayed READY with zero
+      crash markers), so it is a LATENT general toggle/render race, not a D01/D02-specific defect and
+      not specific to the top panel (the stack was the pile-draw C2 path; `top off` was coincidental).
+      Next: make the ECS query / surface-effects iteration in the post-native render hook
+      iteration-safe under concurrent mutation (snapshot iteration or a render-side copy), with a
+      bounded stress test toggling multiple C2 surfaces while rendering.

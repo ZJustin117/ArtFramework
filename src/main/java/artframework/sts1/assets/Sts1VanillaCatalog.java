@@ -159,6 +159,9 @@ public final class Sts1VanillaCatalog {
         // supply instead of silently claiming full native parity.
         put(m, ResourceIds.UI_TOP_PANEL_ASCENSION, "images/ui/topPanel/bar.png");
         put(m, ResourceIds.UI_TOP_PANEL_STATUS, "images/ui/topPanel/bar.png");
+        // Native TopPanel.renderSettingsIcon draws ImageMaster.SETTINGS_ICON
+        // (images/ui/topPanel/settings.png, 64x64) at rotation settingsAngle (0 at rest).
+        put(m, ResourceIds.UI_TOP_PANEL_SETTINGS, "images/ui/topPanel/settings.png");
     }
 
     private static void putCardFrames(Map<String, String> m) {

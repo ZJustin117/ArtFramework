@@ -74,3 +74,35 @@ steps:
       assert:
         path: backend.fullPresent.pileDraw
         eq: "OFF"
+  # Top panel (NRO-04 D02): full-present surface suppresses native TopPanel.render wholesale,
+  # so the settings gear must be re-supplied as an ART pixel item. Deck/map remain uncovered.
+  - console: "art present top on"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.topPanelDraw.capability
+        eq: FULL_READY
+  - assert:
+      path: backend.topPanelDraw.presentLevel
+      eq: FULL
+  - assert:
+      path: backend.topPanelDraw.suppressNativeTopPanel
+      eq: true
+  - assert:
+      path: backend.topPanelDraw.count
+      gte: 7
+  # Deterministic append order: bar, hp, gold, floor, ascension, status, settings.
+  - assert:
+      path: backend.topPanelDraw.items[6].id
+      eq: top_panel.settings
+  - assert:
+      path: backend.topPanelDraw.items[6].resourceId
+      eq: ui.top_panel.settings
+  - console: "art present top off"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.topPanel
+        eq: "OFF"

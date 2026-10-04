@@ -12,7 +12,32 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Top panel HUD draw description (25.9). */
+/**
+ * Top panel HUD draw description (25.9).
+ *
+ * <p>Supplies ART pixels for a full-present {@code TopPanel.render} surface. The native top panel
+ * is suppressed wholesale when FULL is active, so every HUD item that should remain visible must be
+ * re-supplied here. As of NRO-04 D02 that includes the top-right settings gear
+ * ({@code TopPanel.renderSettingsIcon}) in addition to the left-side bar/HP/gold/floor/ascension/
+ * status items; the deck and map buttons remain unsupplied (later slices).
+ *
+ * <p><b>Native settings-icon geometry (verified bytecode).</b> {@code renderSettingsIcon} draws
+ * {@code ImageMaster.SETTINGS_ICON} ({@code images/ui/topPanel/settings.png}, 64x64) via the
+ * 16-arg texture overload: origin {@code (32,32)}, size {@code 64x64}, uniform scale
+ * {@code Settings.scale}, rotation {@code settingsAngle}, source rect {@code (0,0,64,64)}. The
+ * position is {@code x = SETTINGS_X - 32f + 32f*Settings.scale},
+ * {@code y = ICON_Y - 32f + 32f*Settings.scale} with {@code ICON_W = 64f*Settings.scale},
+ * {@code TOP_RIGHT_PAD_X = 10f*Settings.scale}, {@code SETTINGS_X = Settings.WIDTH - (ICON_W +
+ * TOP_RIGHT_PAD_X)} and {@code ICON_Y = Settings.HEIGHT - ICON_W}. At rest
+ * {@code settingsAngle == 0}, so this reproduces the native draw using the existing 4-arg
+ * {@code (x, y, w, h)} path with {@code w = h = 64f*Settings.scale} and
+ * {@code yFromTop = 32f - 32f*Settings.scale}.
+ *
+ * <p><b>Documented gap.</b> The native gear SPINS when hovered or while the settings screen is
+ * open ({@code updateSettingsButtonLogic} accumulates {@code settingsAngle}). This path renders the
+ * gear at its rotation-0 rest state and does NOT replicate the hover spin; D1 evidence is an
+ * at-rest A/B.
+ */
 public final class TopPanelDrawPath {
 
     public static final class DrawItem {
@@ -91,8 +116,35 @@ public final class TopPanelDrawPath {
                     ResourceIds.UI_TOP_PANEL_ASCENSION, true, 480f, 12f, 70f, 34f));
             out.add(new DrawItem("top_panel.status", statusLabel(tv),
                     ResourceIds.UI_TOP_PANEL_STATUS, true, 570f, 12f, 180f, 34f));
+            DrawItem settings = settingsItem();
+            if (settings != null) {
+                out.add(settings);
+            }
         }
         return out;
+    }
+
+    /**
+     * Native settings-gear item (NRO-04 D02), or {@code null} when {@code Settings} is unavailable.
+     * Geometry mirrors {@code TopPanel.renderSettingsIcon} at rest ({@code settingsAngle == 0});
+     * the native hover spin is intentionally NOT replicated (documented gap).
+     */
+    private static DrawItem settingsItem() {
+        float scale;
+        float width;
+        try {
+            scale = com.megacrit.cardcrawl.core.Settings.scale;
+            width = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        } catch (Throwable t) {
+            return null;
+        }
+        float iconW = 64f * scale;
+        float topRightPadX = 10f * scale;
+        float settingsX = width - (iconW + topRightPadX);
+        float x = settingsX - 32f + 32f * scale;
+        float yFromTop = 32f - 32f * scale;
+        return new DrawItem("top_panel.settings", "", ResourceIds.UI_TOP_PANEL_SETTINGS,
+                true, x, yFromTop, iconW, iconW);
     }
 
     public static int materializedDrawCount() {

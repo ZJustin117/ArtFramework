@@ -100,6 +100,7 @@ public final class ResourceIds {
     public static final String UI_TOP_PANEL_FLOOR = "ui.top_panel.floor";
     public static final String UI_TOP_PANEL_ASCENSION = "ui.top_panel.ascension";
     public static final String UI_TOP_PANEL_STATUS = "ui.top_panel.status";
+    public static final String UI_TOP_PANEL_SETTINGS = "ui.top_panel.settings";
     public static final String UI_PILE_DRAW = "ui.pile.draw";
     public static final String UI_PILE_COUNT_CIRCLE = "ui.pile.count_circle";
     public static final String UI_PILE_DISCARD = "ui.pile.discard";
@@ -240,6 +241,7 @@ public final class ResourceIds {
             UI_TOP_PANEL_FLOOR,
             UI_TOP_PANEL_ASCENSION,
             UI_TOP_PANEL_STATUS,
+            UI_TOP_PANEL_SETTINGS,
             UI_PILE_DRAW,
             UI_PILE_COUNT_CIRCLE,
             UI_PILE_DISCARD,

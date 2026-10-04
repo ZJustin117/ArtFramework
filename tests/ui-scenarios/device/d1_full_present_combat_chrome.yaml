@@ -51,3 +51,26 @@ steps:
   - assert:
       path: backend.proceedDraw.presentLevel
       eq: FULL
+  - console: "art present pile_draw on"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.pileDraw.capability
+        eq: FULL_READY
+  - assert:
+      path: backend.pileDraw.presentLevel
+      eq: FULL
+  - assert:
+      path: backend.pileDraw.suppressNativePileDraw
+      eq: true
+  - assert:
+      path: backend.renderPlan
+      exists: true
+  - console: "art present pile_draw off"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.pileDraw
+        eq: "OFF"

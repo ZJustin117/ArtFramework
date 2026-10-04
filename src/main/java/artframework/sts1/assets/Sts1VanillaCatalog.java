@@ -250,7 +250,8 @@ public final class Sts1VanillaCatalog {
     private static void putPileSoulFamily(Map<String, String> m) {
         // Pile/soul resources are chrome overlays only. Do not use card.art.* here;
         // live AbstractCard.render remains the sole native card-pixel path.
-        put(m, ResourceIds.UI_PILE_DRAW, "images/ui/topPanel/cardPile.png");
+        put(m, ResourceIds.UI_PILE_DRAW, "images/ui/deckButton/base.png");
+        put(m, ResourceIds.UI_PILE_COUNT_CIRCLE, "images/ui/topPanel/countCircle.png");
         put(m, ResourceIds.UI_PILE_DISCARD, "images/ui/topPanel/cardPile.png");
         put(m, ResourceIds.UI_PILE_EXHAUST, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_PILE_DECK, "images/ui/reward/rewardListItemPanel.png");

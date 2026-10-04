@@ -13,6 +13,7 @@ public final class SurfaceIds {
     public static final String COMBAT_SURFACE = "sts1.combat.surface";
     public static final String COMBAT_PROCEED = "sts1.combat.proceed";
     public static final String COMBAT_ENERGY = "sts1.combat.energy";
+    public static final String COMBAT_PILE_DRAW = "sts1.combat.pile_draw";
     public static final String COMBAT_INTENTS = "sts1.combat.intents";
     public static final String COMBAT_TARGETING = "sts1.combat.targeting";
     public static final String MAP = NativeTemplateIds.MAP;
@@ -48,6 +49,7 @@ public final class SurfaceIds {
                 || COMBAT_SURFACE.equals(id)
                 || COMBAT_PROCEED.equals(id)
                 || COMBAT_ENERGY.equals(id)
+                || COMBAT_PILE_DRAW.equals(id)
                 || STANCE.equals(id)
                 || COMBAT_INTENTS.equals(id)
                 || COMBAT_TARGETING.equals(id)

@@ -57,6 +57,7 @@ public class NativeRenderLifecycleCleanupMatrixTest {
             c(SurfaceIds.COMBAT_HAND, "combat", false),
             c(SurfaceIds.COMBAT_CONTROLS, "combat", true),
             c(SurfaceIds.COMBAT_ENERGY, "combat", false),
+            c(SurfaceIds.COMBAT_PILE_DRAW, "combat", false),
             c(SurfaceIds.COMBAT_INTENTS, "combat", true),
             c(SurfaceIds.COMBAT_PROCEED, "combat", false),
             c(SurfaceIds.TOP_PANEL, "combat", true),
@@ -164,6 +165,33 @@ public class NativeRenderLifecycleCleanupMatrixTest {
         assertTrue("old pending invocation must not receive fresh surface evidence",
                 NativeRenderBridge.ledger().evidence(old.invocationId) == null);
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
+    }
+
+    @Test
+    public void panicCleanupClearsVisualsAndUnmountsEnergyAndPileDraw() {
+        resetRuntime();
+        publishFrame("combat");
+        for (String surfaceId : Arrays.asList(
+                SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_PILE_DRAW)) {
+            armFullReady(surfaceId);
+            PresentationVisuals.syncC2Item(surfaceId, "stale", Rect.ZERO, 1f,
+                    "test", "", surfaceId, true);
+            assertTrue(surfaceId + " fixture must be mounted", ArtFramework.component(surfaceId).isMounted());
+            assertFalse(surfaceId + " fixture must have a stale C2 visual",
+                    c2Draws(surfaceId).isEmpty());
+        }
+
+        PresentSafety.panic("pile-draw-panic");
+
+        assertTrue(PresentSafety.isPanic());
+        for (String surfaceId : Arrays.asList(
+                SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_PILE_DRAW)) {
+            assertFalse(surfaceId + " must unmount on panic",
+                    ArtFramework.component(surfaceId).isMounted());
+            assertTrue(surfaceId + " stale C2 visuals must clear on panic",
+                    c2Draws(surfaceId).isEmpty());
+        }
+        PresentSafety.clearPanic();
     }
 
     private static void assertLedgerReset(String surfaceId) {

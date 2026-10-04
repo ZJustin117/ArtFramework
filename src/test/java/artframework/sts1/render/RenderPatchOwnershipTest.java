@@ -48,6 +48,7 @@ public class RenderPatchOwnershipTest {
                     "CombatHandRenderPatches.java",
                     "CombatControlsRenderPatches.java",
                     "CombatEnergyRenderPatches.java",
+                    "CombatPileDrawRenderPatches.java",
                     "CombatIntentRenderPatches.java",
                     "TopPanelRenderPatches.java",
                     "ProceedButtonRenderPatches.java",
@@ -293,6 +294,7 @@ public class RenderPatchOwnershipTest {
         m.put("CombatHandRenderPatches.java", set(SurfaceIds.COMBAT_HAND));
         m.put("CombatControlsRenderPatches.java", set(SurfaceIds.COMBAT_CONTROLS));
         m.put("CombatEnergyRenderPatches.java", set(SurfaceIds.COMBAT_ENERGY));
+        m.put("CombatPileDrawRenderPatches.java", set(SurfaceIds.COMBAT_PILE_DRAW));
         m.put("CombatIntentRenderPatches.java", set(SurfaceIds.COMBAT_INTENTS));
         m.put("TopPanelRenderPatches.java", set(SurfaceIds.TOP_PANEL));
         m.put("ProceedButtonRenderPatches.java", set(SurfaceIds.COMBAT_PROCEED));

@@ -50,6 +50,7 @@ public final class PresentSurfaces {
         register(new SelectSurface(SurfaceIds.SELECT_HAND));
         register(new ProceedSurface());
         register(new EnergySurface());
+        register(new PileDrawSurface());
         register(new RewardSurface(SurfaceIds.REWARD_COMBAT));
         register(new RewardSurface(SurfaceIds.REWARD_CARD));
         register(new RewardSurface(SurfaceIds.REWARD_BOSS_RELIC));
@@ -622,6 +623,34 @@ public final class PresentSurfaces {
         }
     }
 
+    static final class PileDrawSurface extends BaseSurface {
+        PileDrawSurface() {
+            super(SurfaceIds.COMBAT_PILE_DRAW, SignalNames.SURFACE_OPENED);
+        }
+
+        @Override
+        public UiOpResult action(String name, Object... args) {
+            if ("mount_pile_draw".equals(name)) {
+                mount();
+                emit(SignalNames.SURFACE_OPENED);
+                return UiOpResult.ok("pile draw mounted");
+            }
+            if (!isMounted()) {
+                return UiOpResult.notBound("pile draw not mounted");
+            }
+            return UiOpResult.unavailable("unknown action: " + name);
+        }
+
+        @Override
+        public Map<String, Object> probeSlice() {
+            Map<String, Object> m = baseProbe(Arrays.asList("mount_pile_draw"));
+            m.put("pileDraw", artframework.sts1.render.PileDrawDrawPath.probeSlice());
+            m.put("count", Integer.valueOf(
+                    artframework.sts1.render.PileDrawDrawPath.buildFromProjection().size()));
+            return m;
+        }
+    }
+
     static final class RewardSurface extends BaseSurface {
         RewardSurface(String id) {
             super(id, SignalNames.PRESSED, SignalNames.SURFACE_OPENED, SignalNames.SURFACE_CLOSED);
@@ -1019,6 +1048,7 @@ public final class PresentSurfaces {
                 PresentSurfaces.get(SurfaceIds.COMBAT_CARD_SLOTS).mount();
                 PresentSurfaces.get(SurfaceIds.COMBAT_CONTROLS).mount();
                 PresentSurfaces.get(SurfaceIds.COMBAT_ENERGY).mount();
+                PresentSurfaces.get(SurfaceIds.COMBAT_PILE_DRAW).mount();
                 mount();
                 emit(SignalNames.SURFACE_OPENED);
                 return UiOpResult.ok("combat surfaces mounted");

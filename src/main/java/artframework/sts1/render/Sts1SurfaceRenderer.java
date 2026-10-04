@@ -91,6 +91,8 @@ public final class Sts1SurfaceRenderer {
                 renderTopPanel(sb);
             } else if (SurfaceIds.COMBAT_ENERGY.equals(e.surfaceId)) {
                 renderEnergy(sb);
+            } else if (SurfaceIds.COMBAT_PILE_DRAW.equals(e.surfaceId)) {
+                renderPileDraw(sb);
             } else if (SurfaceIds.COMBAT_INTENTS.equals(e.surfaceId)) {
                 renderIntents(sb);
             } else if (SurfaceIds.COMBAT_PROCEED.equals(e.surfaceId)) {
@@ -125,7 +127,7 @@ public final class Sts1SurfaceRenderer {
             SurfaceIds.REWARD_COMBAT, SurfaceIds.REWARD_CARD, SurfaceIds.REWARD_BOSS_RELIC,
             SurfaceIds.REST, SurfaceIds.SHOP, SurfaceIds.TREASURE, SurfaceIds.COMBAT_PROCEED,
             SurfaceIds.TOP_PANEL, SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_INTENTS,
-            SurfaceIds.COMBAT_TARGETING
+            SurfaceIds.COMBAT_PILE_DRAW, SurfaceIds.COMBAT_TARGETING
         };
         for (String sid : surfaces) {
             boolean active = false;
@@ -201,6 +203,7 @@ public final class Sts1SurfaceRenderer {
         prepareProceedVisuals(plan);
         prepareIntentVisuals(plan);
         prepareEnergyVisuals(plan);
+        preparePileDrawVisuals(plan);
         prepareTopPanelVisuals(plan);
     }
 
@@ -492,6 +495,24 @@ public final class Sts1SurfaceRenderer {
         }
         artframework.presentation.PresentationVisuals.retainC2Items(
                 SurfaceIds.COMBAT_ENERGY, visibleItems);
+    }
+
+    private static void preparePileDrawVisuals(SurfaceDrawPlan plan) {
+        if (!containsSurface(plan, SurfaceIds.COMBAT_PILE_DRAW)) return;
+        SurfaceDrawPlan.Entry entry = plan.find(SurfaceIds.COMBAT_PILE_DRAW);
+        if (entry == null || entry.mode != SurfaceDrawPlan.DrawMode.DRAW) {
+            artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_PILE_DRAW);
+            return;
+        }
+        Set<String> visibleItems = new LinkedHashSet<String>();
+        for (PileDrawDrawPath.DrawItem item : PileDrawDrawPath.buildFromProjection()) {
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.COMBAT_PILE_DRAW, item.id,
+                    item.bounds, 1f, "pile_draw", item.resourceId, item.label, item.visible);
+            visibleItems.add(item.id);
+        }
+        artframework.presentation.PresentationVisuals.retainC2Items(
+                SurfaceIds.COMBAT_PILE_DRAW, visibleItems);
     }
 
     private static void prepareTopPanelVisuals(SurfaceDrawPlan plan) {
@@ -934,6 +955,40 @@ public final class Sts1SurfaceRenderer {
             renderEnergyNumber(sb, b);
         }
         NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_ENERGY, items.size());
+    }
+
+    /**
+     * Draw-pile panel surface: ART_DELEGATED when FULL_READY. Paints the projected draw-zone
+     * resource-backed chrome and records the draw-pile evidence count; full native
+     * deck-button/animation parity remains an exposed supply gap.
+     */
+    private static void renderPileDraw(SpriteBatch sb) {
+        if (!PileDrawDrawPath.shouldSuppressNativePileDraw()) {
+            return;
+        }
+        int drawn = 0;
+        try {
+            artframework.core.PresentChromeStyle chrome =
+                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.COMBAT_PILE_DRAW);
+            for (PileDrawDrawPath.DrawItem item : PileDrawDrawPath.buildFromProjection()) {
+                if (!item.visible) {
+                    continue;
+                }
+                drawResolvedTexture(sb, item.resourceId, item.bounds);
+                if (!item.label.isEmpty()) {
+                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                            sb,
+                            com.megacrit.cardcrawl.helpers.FontHelper.turnNumFont,
+                            item.label,
+                            item.bounds.x + item.bounds.width * 0.5f,
+                            item.bounds.y + item.bounds.height * 0.5f,
+                            colorLabel(chrome));
+                }
+                drawn++;
+            }
+        } catch (Throwable ignored) {
+        }
+        NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.COMBAT_PILE_DRAW, drawn);
     }
 
     /** Native energy count drawn centered on the orb; safe without a live player. */

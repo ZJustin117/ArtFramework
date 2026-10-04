@@ -68,6 +68,7 @@ public final class Sts1RenderPipeline {
         boolean intents = mounted(SurfaceIds.COMBAT_INTENTS);
         boolean proceed = mounted(SurfaceIds.COMBAT_PROCEED);
         boolean energy = mounted(SurfaceIds.COMBAT_ENERGY);
+        boolean pileDraw = mounted(SurfaceIds.COMBAT_PILE_DRAW);
         boolean targeting = mounted(SurfaceIds.COMBAT_TARGETING);
         long policyRevision = FullPresentMode.policyRevision();
         long executorRevision = CombatInputRouter.executorRevision();
@@ -90,6 +91,7 @@ public final class Sts1RenderPipeline {
                 | (energy ? 1L << 15 : 0L)
                 | (targeting ? 1L << 16 : 0L)
                 | (overlayObserve ? 1L << 17 : 0L)
+                | (pileDraw ? 1L << 38 : 0L)
                 | readinessAndPanic;
         if (lastKey != null && lastKey.matches(frameId, policyRevision, executorRevision, scene, flags)) {
             planCacheHits++;
@@ -101,8 +103,9 @@ public final class Sts1RenderPipeline {
                         scene,
                         hand, slots, controls, map, skeleton, event, selectGrid, selectHand,
                         reward, rest, treasure, shop, topPanel, intents, proceed, energy, targeting,
+                        pileDraw,
                         overlayObserve, readinessAndPanic,
-                        (readinessAndPanic & (1L << 37)) != 0L);
+                        (readinessAndPanic & (1L << 39)) != 0L);
         lastKey = new PlanKey(frameId, policyRevision, executorRevision, scene, flags);
         return lastPlan;
     }

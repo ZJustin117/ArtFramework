@@ -2297,9 +2297,16 @@ entries:
   nativeMethod: render
   family: hud-top-panel
   pathKind: render-owner
-  surfaceId: ''
+  surfaceId: sts1.combat.pile_draw
   effectFamily: none
-  hook: ''
+  hook: artframework/sts1/patch/CombatPileDrawRenderPatches.java
+  policy: ART_DELEGATED
+  justification: Combat draw pile is an ART full-present surface; NativeRenderBridge
+    returns DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail
+    open. Delegation must close PresentationDrawEvidence or count as a strict report
+    gap; delegation is not a complete-pixel claim and current pixel supply is
+    text/bounds chrome pending full reproduction.
+  test: artframework.sts1.patch.CombatPileDrawRenderPatchesTest.fullReadySuppressesNativePileDrawRender
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.ui.panels.energypanel.render

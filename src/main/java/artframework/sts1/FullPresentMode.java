@@ -29,6 +29,7 @@ public final class FullPresentMode {
     private static PresentLevel targeting = PresentLevel.OFF;
     private static PresentLevel proceed = PresentLevel.OFF;
     private static PresentLevel energy = PresentLevel.OFF;
+    private static PresentLevel pileDraw = PresentLevel.OFF;
 
     private FullPresentMode() {}
 
@@ -98,6 +99,9 @@ public final class FullPresentMode {
         }
         if (SurfaceIds.COMBAT_ENERGY.equals(id)) {
             return energy;
+        }
+        if (SurfaceIds.COMBAT_PILE_DRAW.equals(id)) {
+            return pileDraw;
         }
         return PresentLevel.OFF;
     }
@@ -187,6 +191,11 @@ public final class FullPresentMode {
         policyRevision++;
     }
 
+    public static void setPileDrawLevel(PresentLevel level) {
+        pileDraw = level != null ? level : PresentLevel.OFF;
+        policyRevision++;
+    }
+
     public static PresentLevel eventLevel() {
         return event;
     }
@@ -229,6 +238,10 @@ public final class FullPresentMode {
 
     public static PresentLevel energyLevel() {
         return energy;
+    }
+
+    public static PresentLevel pileDrawLevel() {
+        return pileDraw;
     }
 
     /** Monotonic policy identity used only by derived render-plan caches. */
@@ -316,6 +329,11 @@ public final class FullPresentMode {
         if (SurfaceIds.COMBAT_ENERGY.equals(id)) {
             energy = v;
             policyRevision++;
+            return;
+        }
+        if (SurfaceIds.COMBAT_PILE_DRAW.equals(id)) {
+            pileDraw = v;
+            policyRevision++;
         }
     }
 
@@ -348,6 +366,7 @@ public final class FullPresentMode {
         m.put("targeting", targeting.name());
         m.put("proceed", proceed.name());
         m.put("energy", energy.name());
+        m.put("pileDraw", pileDraw.name());
         m.put("combatHandFull", Boolean.valueOf(combatHand.allowsFullPresent() && !PresentSafety.isPanic()));
         m.put("maySuppressNativeHand", Boolean.valueOf(maySuppressNative(SurfaceIds.COMBAT_HAND)));
         m.put("maySuppressNativeEvent", Boolean.valueOf(maySuppressNative(SurfaceIds.EVENT)));
@@ -372,6 +391,7 @@ public final class FullPresentMode {
         targeting = PresentLevel.OFF;
         proceed = PresentLevel.OFF;
         energy = PresentLevel.OFF;
+        pileDraw = PresentLevel.OFF;
         policyRevision = 0L;
     }
 }

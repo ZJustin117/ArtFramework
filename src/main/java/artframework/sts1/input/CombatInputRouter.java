@@ -81,7 +81,9 @@ public final class CombatInputRouter {
         if (SurfaceIds.SHOP.equals(id)) {
             return "shop".equals(scene);
         }
-        if (SurfaceIds.COMBAT_ENERGY.equals(id) || SurfaceIds.COMBAT_INTENTS.equals(id)) {
+        if (SurfaceIds.COMBAT_ENERGY.equals(id)
+                || SurfaceIds.COMBAT_PILE_DRAW.equals(id)
+                || SurfaceIds.COMBAT_INTENTS.equals(id)) {
             return "combat".equals(scene);
         }
         if (SurfaceIds.COMBAT_PROCEED.equals(id)) {
@@ -246,6 +248,7 @@ public final class CombatInputRouter {
         FullPresentCapability treasure = capability(SurfaceIds.TREASURE);
         FullPresentCapability proceed = capability(SurfaceIds.COMBAT_PROCEED);
         FullPresentCapability energy = capability(SurfaceIds.COMBAT_ENERGY);
+        FullPresentCapability pileDraw = capability(SurfaceIds.COMBAT_PILE_DRAW);
         FullPresentCapability intents = capability(SurfaceIds.COMBAT_INTENTS);
         m.put("rewardState", reward.state.name());
         m.put("rewardReason", reward.reason);
@@ -260,6 +263,8 @@ public final class CombatInputRouter {
         m.put("proceedReason", proceed.reason);
         m.put("energyState", energy.state.name());
         m.put("energyReason", energy.reason);
+        m.put("pileDrawState", pileDraw.state.name());
+        m.put("pileDrawReason", pileDraw.reason);
         m.put("intentsState", intents.state.name());
         m.put("intentsReason", intents.reason);
         m.put(

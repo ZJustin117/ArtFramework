@@ -1145,7 +1145,7 @@ public class ArtCommand extends ConsoleCommand {
     private void cmdPresent(String[] tokens, int depth) {
         if (tokens.length <= depth) {
             DevConsole.log(
-                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|targeting|proceed|energy on|off|observe|status");
+                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|targeting|proceed|energy|pile_draw on|off|observe|status");
             return;
         }
         String target = tokens[depth].toLowerCase();
@@ -1180,9 +1180,12 @@ public class ArtCommand extends ConsoleCommand {
                 && !"intents".equals(target)
                 && !"targeting".equals(target)
                 && !"proceed".equals(target)
-                && !"energy".equals(target)) {
+                && !"energy".equals(target)
+                && !"pile_draw".equals(target)
+                && !"piledraw".equals(target)
+                && !"pile".equals(target)) {
             DevConsole.log(
-                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|targeting|proceed|energy on|off|observe|status");
+                    "Usage: art present status|panic|clear-panic|combat|map|skeleton|event|select|reward|rest|treasure|shop|top|intents|targeting|proceed|energy|pile_draw on|off|observe|status");
             return;
         }
         if (tokens.length < depth + 2) {
@@ -1213,11 +1216,14 @@ public class ArtCommand extends ConsoleCommand {
             artframework.sts1.FullPresentMode.setCombatHandLevel(level);
             artframework.sts1.FullPresentMode.setCombatControlsLevel(level);
             artframework.sts1.FullPresentMode.setEnergyLevel(level);
+            artframework.sts1.FullPresentMode.setPileDrawLevel(level);
             if (level.allowsFullPresent() || level.allowsObserve()) {
                 ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE)
                         .action("mount_combat");
                 mountPresentAction(
                         artframework.context.SurfaceIds.COMBAT_ENERGY, "mount_energy", level);
+                mountPresentAction(
+                        artframework.context.SurfaceIds.COMBAT_PILE_DRAW, "mount_pile_draw", level);
             } else {
                 unmountCombatSurfaces();
             }
@@ -1299,6 +1305,12 @@ public class ArtCommand extends ConsoleCommand {
         } else if ("energy".equals(target)) {
             artframework.sts1.FullPresentMode.setEnergyLevel(level);
             mountPresentAction(artframework.context.SurfaceIds.COMBAT_ENERGY, "mount_energy", level);
+        } else if ("pile_draw".equals(target)
+                || "piledraw".equals(target)
+                || "pile".equals(target)) {
+            artframework.sts1.FullPresentMode.setPileDrawLevel(level);
+            mountPresentAction(
+                    artframework.context.SurfaceIds.COMBAT_PILE_DRAW, "mount_pile_draw", level);
         } else {
             artframework.sts1.FullPresentMode.setSkeletonLevel(level);
             artframework.core.UiComponent sk =
@@ -1405,6 +1417,11 @@ public class ArtCommand extends ConsoleCommand {
                 ArtFramework.component(artframework.context.SurfaceIds.COMBAT_ENERGY);
         if (energy != null && energy.isMounted()) {
             energy.unmount();
+        }
+        artframework.core.UiComponent pileDraw =
+                ArtFramework.component(artframework.context.SurfaceIds.COMBAT_PILE_DRAW);
+        if (pileDraw != null && pileDraw.isMounted()) {
+            pileDraw.unmount();
         }
         artframework.core.UiComponent root =
                 ArtFramework.component(artframework.context.SurfaceIds.COMBAT_SURFACE);

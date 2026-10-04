@@ -26,7 +26,8 @@ public final class SurfaceDrawPlan {
         SurfaceIds.MAP, SurfaceIds.EVENT, SurfaceIds.SELECT_GRID, SurfaceIds.SELECT_HAND,
         SurfaceIds.REWARD_COMBAT, SurfaceIds.REST, SurfaceIds.TREASURE, SurfaceIds.SHOP,
         SurfaceIds.TOP_PANEL, SurfaceIds.COMBAT_INTENTS, SurfaceIds.COMBAT_PROCEED,
-        SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_TARGETING, SurfaceIds.SKELETON,
+        SurfaceIds.COMBAT_ENERGY, SurfaceIds.COMBAT_PILE_DRAW, SurfaceIds.COMBAT_TARGETING,
+        SurfaceIds.SKELETON,
         SurfaceIds.REWARD_CARD, SurfaceIds.REWARD_BOSS_RELIC
     };
 
@@ -230,7 +231,7 @@ public final class SurfaceDrawPlan {
                 scene, handMounted, slotsMounted, controlsMounted, mapMounted, skeletonMounted,
                 eventMounted, selectGridMounted, selectHandMounted, rewardMounted, restMounted,
                 treasureMounted, shopMounted, topPanelMounted, intentsMounted, proceedMounted,
-                energyMounted, targetingMounted, overlayObserve, readinessFlags(),
+                energyMounted, targetingMounted, false, overlayObserve, readinessFlags(),
                 artframework.sts1.PresentSafety.isPanic());
     }
 
@@ -254,6 +255,7 @@ public final class SurfaceDrawPlan {
             boolean proceedMounted,
             boolean energyMounted,
             boolean targetingMounted,
+            boolean pileDrawMounted,
             boolean overlayObserve,
             long readinessFlags,
             boolean panic) {
@@ -385,6 +387,14 @@ public final class SurfaceDrawPlan {
                         overlayObserve, readinessFlags, panic));
         list.add(
                 entry(
+                        SurfaceIds.COMBAT_PILE_DRAW,
+                        PresentLayer.COMBAT_CONTROLS,
+                        FullPresentMode.pileDrawLevel(),
+                        pileDrawMounted,
+                        "combat".equals(scene),
+                        overlayObserve, readinessFlags, panic));
+        list.add(
+                entry(
                         SurfaceIds.COMBAT_INTENTS,
                         PresentLayer.COMBAT_INTENTS,
                         FullPresentMode.intentsLevel(),
@@ -487,6 +497,6 @@ public final class SurfaceDrawPlan {
      */
     static long captureReadinessAndPanic() {
         long flags = readinessFlags();
-        return artframework.sts1.PresentSafety.isPanic() ? flags | (1L << 37) : flags;
+        return artframework.sts1.PresentSafety.isPanic() ? flags | (1L << 39) : flags;
     }
 }

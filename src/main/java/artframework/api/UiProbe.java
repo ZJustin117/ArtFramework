@@ -104,6 +104,7 @@ public final class UiProbe {
         m.put("topPanelDraw", artframework.sts1.render.TopPanelDrawPath.probeSlice());
         m.put("intentDraw", artframework.sts1.render.IntentDrawPath.probeSlice());
         m.put("energyDraw", artframework.sts1.render.EnergyDrawPath.probeSlice());
+        m.put("pileDraw", artframework.sts1.render.PileDrawDrawPath.probeSlice());
         m.put("proceedDraw", artframework.sts1.render.ProceedDrawPath.probeSlice());
         m.put("entityDraw", artframework.c2.EntityDrawPath.probeSlice());
         m.put("relicPotionBlightDraw", artframework.sts1.render.Sts1RelicPotionBlightDrawPath.probeSlice());

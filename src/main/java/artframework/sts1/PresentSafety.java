@@ -248,11 +248,15 @@ public final class PresentSafety {
     }
 
     private static void removeC2SurfaceItemsForRecovery() {
+        // Sts1SurfaceRenderer.render() returns early under panic BEFORE
+        // disableInactiveSurfaceEffects runs, so panic/recovery must explicitly purge every
+        // delegated surface's C2 items here or a stale item leaks past recovery.
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_HAND);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_CARD_SLOTS);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.MAP);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_CONTROLS);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_ENERGY);
+        artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_PILE_DRAW);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_INTENTS);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.COMBAT_PROCEED);
         artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TOP_PANEL);
@@ -276,6 +280,7 @@ public final class PresentSafety {
                     SurfaceIds.COMBAT_SURFACE,
                     SurfaceIds.COMBAT_PROCEED,
                     SurfaceIds.COMBAT_ENERGY,
+                    SurfaceIds.COMBAT_PILE_DRAW,
                      SurfaceIds.COMBAT_INTENTS,
                      SurfaceIds.COMBAT_TARGETING,
                      SurfaceIds.MAP,

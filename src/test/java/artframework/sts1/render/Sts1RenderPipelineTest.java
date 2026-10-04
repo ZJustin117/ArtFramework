@@ -141,7 +141,7 @@ public class Sts1RenderPipelineTest {
         // make construction disagree with the cache key; construction must use the same packed
         // primitive sample rather than allocating or recapturing readiness.
         assertEquals(SurfaceDrawPlan.DrawMode.DRAW, plan.find(SurfaceIds.COMBAT_HAND).mode);
-        assertEquals(19, executor.reads);
+        assertEquals(20, executor.reads);
     }
 
     @Test

@@ -2739,3 +2739,17 @@ allocation and Young GC pressure.
       review, and negative inventory evidence. Equivalent pre-fix stress comparison is unavailable;
       NRM-11 closes under the user-scoped original-game performance standard with no paired
       allocation-rate improvement claim.
+
+- [x] NRO-04 D01 (draw pile panel full-present owner): registered the combat draw-pile panel
+      (`DrawPilePanel.render`) as a new ART_DELEGATED full-present surface `sts1.combat.pile_draw`
+      with `CombatPileDrawRenderPatches`, `PileDrawDrawPath` (native-authoritative draw-zone
+      geometry from `Sts1PileSoulProjection`, native `DrawPilePanel` constant fallback),
+      `PileDrawSurface`, plan/readiness wiring, `art present pile_draw` console target,
+      `backend.pileDraw` probe, NRCC manifest row, and focused JUnit. Discard pile is untouched.
+      D1 visual fix: the on-surface draw now reproduces both native layers with native textures and
+      geometry — `UI_PILE_DRAW` -> `images/ui/deckButton/base.png` (`ImageMaster.DECK_BTN_BASE`) at
+      `(show_x + DECK_X, show_y + DECK_Y)`, and `UI_PILE_COUNT_CIRCLE` ->
+      `images/ui/topPanel/countCircle.png` (`ImageMaster.DECK_COUNT_CIRCLE`) at
+      `(show_x + COUNT_OFFSET_X, show_y + COUNT_OFFSET_Y)` carrying the numeric count; `show_x =
+      show_y = 0` confirmed from the `DrawPilePanel()` constructor bytecode. The old
+      `images/ui/topPanel/cardPile.png` mapping does not exist in the jar.

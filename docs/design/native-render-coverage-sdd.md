@@ -101,6 +101,7 @@ pixel supply differs per surface and is recorded here instead of hidden:
 | Shop screen | `ShopScreen.render` | yes | enhanced partial pixel supply: merchant, gold, entry, purge, and sold-out/disabled rows use explicit ResourceIds/fallbacks with C2 geometry and texture+label drawing; card/relic/potion entries preserve known entry ResourceIds when cataloged; full merchant/shop native parity remains pending |
 | Treasure room | `TreasureRoom.render` | yes | enhanced partial pixel supply: title, closed/open chest, and relic rows use explicit ResourceIds/fallbacks with stable row geometry, texture+label drawing, and evidence count from current chrome rows; full chest/treasure native parity remains pending |
 | Cards / piles / soul | `CardGroup.render*`, `Soul.render`, `SoulGroup.render` | no | OBSERVE/OVERLAY: pile, card-group, and soul chrome is projected as dependency-neutral ids/zones/counts/bounds/resource labels and drawn as optional resource-backed overlay; live `AbstractCard.render` card pixels remain native and unpatched |
+| Draw pile panel | `DrawPilePanel.render` | yes | enhanced partial pixel supply: projected draw-zone card count, label, ResourceId, and bounds (native-authoritative from the pile projection, native `DrawPilePanel` constants as fallback), C2 item, and draw-pile evidence count; native deck-button animation/glow parity remains pending. ART_DELEGATED with exposed gap |
 
 These gaps are deliberate inventory, not silent acceptance. Until a surface
 reproduces its base pixels, its delegations keep surfacing as strict-report
@@ -194,7 +195,7 @@ The inventory explicitly includes these classes of path:
 | Kind | Examples | Why captured |
 |---|---|---|
 | Native surface | screens, dialogs, rooms, map | Surface invocation delegation |
-| Combat draw owner | player, card, controls, energy | Combat FULL present |
+| Combat draw owner | player, card, controls, energy, draw pile | Combat FULL present |
 | Relic/power owner | relics and powers | Trigger feedback and chrome |
 | Transient effect | `AbstractGameEffect` and effect subclasses | Relic/power/buff shadows and flashes |
 | Creature draw owner | creature / Spine render path | Fine-grained skeleton claim |

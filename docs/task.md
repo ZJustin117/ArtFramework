@@ -2848,6 +2848,34 @@ allocation and Young GC pressure.
       uncovered. **Landmine recorded:** `UI_SHOP_PANEL`/`UI_REWARD_PANEL`/`UI_CAMPFIRE_PANEL`/
       `UI_TREASURE_PANEL` -> `images/ui/reward/rewardList.png` DOES NOT EXIST in the jar (same class
       as D01's `cardPile.png`); consumers are reward/shop/campfire/treasure chrome — left for later.
+- [x] NRO-04 D06 (event dialog panel + title native geometry): the event surface is suppressed
+      wholesale by `EventRenderPatches` (`GenericEventDialog.render`), and `EventDrawPath` painted
+      the panel/title with a generic centered rectangle, so the dialog panel landed in the wrong
+      place at any non-default resolution/scale. Native `GenericEventDialog.render` draws
+      `AbstractDungeon.eventBackgroundImg` = `images/ui/event/panel.png` (EXISTS) via
+      `sb.draw(img, WIDTH/2f - 881.5f - 12f*xScale, EVENT_Y - 403f - 64f*scale, 881.5f, 403f, 1763f,
+      806f, xScale, scale, 0f, 0,0,1763,806, false,false)` (verified bytecode); libgdx places the
+      sprite's bottom-left at `x + originX*(1-scaleX)` and the drawn size is `(1763*xScale,
+      806*scale)`, so with `originX = 881.5 = 1763/2` the panel CENTER — the convention
+      `DrawItem.x/y` use — is `(WIDTH/2 - 12*xScale, EVENT_Y - 64*scale)` and its size is
+      `(1763*xScale, 806*scale)`.
+      `Settings.EVENT_Y` is read directly with a fail-open fallback `HEIGHT/2f - 128f*scale` (the
+      `Settings` static-init formula). The title is anchored at native
+      `TITLE_X = 570f*xScale`, `TITLE_Y = EVENT_Y + 408f*scale` (verified `GenericEventDialog`
+      bytecode) as a centered font draw. `buildFromProjection()` panel item now carries the native
+      center/size; the title item carries the native center. `probeSlice()` gains `panel`
+      `{resourceId,x,y,w,h}` + `panelCount` + `submitCount` (panel stays in `items[]`, so the public
+      item-list is unchanged; `submitCount` == `materializedDrawCount()` because the event panel is
+      already an item, unlike the D04 reward sheet). The event TITLE item is now TEXT ONLY
+      (`DrawItem.textOnly`, `renderEvent` skips `drawResolvedTexture` for it) because the title's
+      ResourceId `UI_EVENT_TITLE` is MIS-MAPPED to `images/ui/event/panel.png`; submitting it would
+      paint a bogus panel-sized rectangle. At `scale = xScale = 1, WIDTH = 1920, HEIGHT = 1080,
+      EVENT_Y = 412` the panel center is `(948, 348)` and the size is `1763x806`; title center
+      `(570, 820)`. Tests pin unit + non-unit (`scale=1.25, xScale=1.5`) geometry; D1 assertions added to
+      `d1_full_present_event.yaml` (`panelCount>=1`, `panel.resourceId eq ui.event.panel`,
+      `panel.w/h >= 1`). **Honest gaps:** the per-event illustration (`img` + `EVENT_IMG_FRAME`),
+      the event body text animation (`DialogWord`), and option-button hover/color states are NOT
+      covered; `UI_EVENT_TITLE -> panel.png` mis-map noted (left as-is).
 - [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
       During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
       post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a
@@ -2885,3 +2913,17 @@ allocation and Young GC pressure.
       retained content (a dedicated room-background phase) or to repaint the missing native UI.
       Next: confirm against a real native shop capture whether the `返回`/skip controls are actually
       occluded, then place room backdrops in a lower phase (or supply the controls).
+- [ ] **Open (D06 D1 finding): `art lab enter-event` crashes the render thread and its no-arg form is
+      an unsupported command.** `art lab enter-event` with no event id routes to
+      `StsLabNav.enterEvent("")`, `LabEventIds.normalize("")` returns `""`, and
+      `StsLabHost.enterEvent` returns `unavailable("unsupported event: ")` (the room is never opened).
+      With a supported alias (`world_of_goop` — note the console tokenizer only forwards the FIRST
+      token, so multi-word input like `World of Goop` is truncated to `World`), `StsLabHost.enterEvent`
+      injects a fresh `EventRoom` via `EventHelper.getEvent` and sets `node.room`, which then crashes
+      the next frame: `java.lang.NullPointerException at
+      com.megacrit.cardcrawl.dungeons.AbstractDungeon.render(AbstractDungeon.java:2704)`. The D06
+      scenario was changed to stay on the run's opening Neow event (a real `GenericEventDialog`
+      event) rather than use this lab path. Next: make `enter-event` (a) accept a multi-token alias
+      (join remaining tokens) and (b) not leave the injected EventRoom in a render-NPE state (ensure
+      `AbstractDungeon.screen`/overlay/fade and the event's dialog are fully initialized, or route
+      through the native map-navigation intent `StsLabNativeNavigator.enterEventRoom`).

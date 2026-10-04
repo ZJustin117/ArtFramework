@@ -706,7 +706,12 @@ public final class Sts1SurfaceRenderer {
                 try {
                     artframework.component.Rect b = new artframework.component.Rect(
                             item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
-                    drawResolvedTexture(sb, item.resourceId, b);
+                    // NRO-04 D06: the event TITLE is TEXT ONLY. Its UI_EVENT_TITLE resource is
+                    // mis-mapped to images/ui/event/panel.png, so submitting it as a texture would
+                    // paint a bogus panel-sized rectangle; skip the texture and draw the label.
+                    if (!item.textOnly) {
+                        drawResolvedTexture(sb, item.resourceId, b);
+                    }
                     if (!item.label.isEmpty()) com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                             sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont, item.label,
                             item.x, item.y, item.enabled ? colorLabel(chrome) : colorDisabled(chrome));

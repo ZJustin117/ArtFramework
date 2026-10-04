@@ -31,6 +31,13 @@ public final class EventDrawPath {
         public final String id;
         public final String resourceId;
         public final String role;
+        /**
+         * When true the renderer must NOT submit {@link #resourceId} as a texture; the item is a
+         * TEXT-only draw (label) centered on {@link #x}/{@link #y}. Used by the event TITLE, whose
+         * {@code UI_EVENT_TITLE} resource is currently mis-mapped to the panel texture (see the
+         * mis-map note in {@link #titleItem}).
+         */
+        public final boolean textOnly;
 
         public DrawItem(
                 int index,
@@ -49,6 +56,12 @@ public final class EventDrawPath {
 
         public DrawItem(String id, String resourceId, String role, int index, String label,
                 boolean visible, boolean enabled, float x, float y, float w, float h) {
+            this(id, resourceId, role, index, label, visible, enabled, x, y, w, h, false);
+        }
+
+        public DrawItem(String id, String resourceId, String role, int index, String label,
+                boolean visible, boolean enabled, float x, float y, float w, float h,
+                boolean textOnly) {
             this.id = id != null ? id : "";
             this.resourceId = resourceId != null ? resourceId : ResourceIds.UI_PANEL_DEFAULT;
             this.role = role != null ? role : "event-item";
@@ -60,6 +73,7 @@ public final class EventDrawPath {
             this.y = y;
             this.w = w;
             this.h = h;
+            this.textOnly = textOnly;
         }
 
         public Map<String, Object> toMap() {
@@ -75,6 +89,7 @@ public final class EventDrawPath {
             m.put("id", id);
             m.put("resourceId", resourceId);
             m.put("role", role);
+            m.put("textOnly", Boolean.valueOf(textOnly));
             return m;
         }
     }
@@ -88,12 +103,33 @@ public final class EventDrawPath {
     public static List<DrawItem> buildFromProjection() {
         List<DrawItem> out = new ArrayList<DrawItem>();
         EventView ev = ArtFramework.projection().event();
-        float sw = screenWidth();
-        float sh = screenHeight();
+        // NRO-04 D06: native GenericEventDialog.render geometry (verified bytecode).
+        float[] s = eventSettings();
+        float width = s[0];
+        float scale = s[2];
+        float xScale = s[3];
+        float eventY = s[4];
+        // Native panel: sb.draw(eventBackgroundImg, WIDTH/2f - 881.5f - 12f*xScale,
+        // EVENT_Y - 403f - 64f*scale, 881.5f, 403f, 1763f, 806f, xScale, scale, ...). libgdx places
+        // the sprite's bottom-left at x + originX*(1-scaleX) and the drawn size is (1763*xScale,
+        // 806*scale); with originX = 881.5 = 1763/2 the CENTER -- the convention DrawItem.x/y use --
+        // simplifies to (WIDTH/2 - 12*xScale, EVENT_Y - 64*scale).
         out.add(new DrawItem("panel", ResourceIds.UI_EVENT_PANEL, "event-panel", -1, "",
-                ev.available, true, sw * .5f, sh * .5f, sw * .64f, sh * .64f));
+                ev.available, true,
+                width * 0.5f - 12f * xScale,
+                eventY - 64f * scale,
+                1763f * xScale, 806f * scale));
+        // Native title: FontHelper.renderFontCentered(sb, losePowerFont, title, TITLE_X, TITLE_Y,
+        // titleColor, ...) with TITLE_X = 570f*xScale and TITLE_Y = EVENT_Y + 408f*scale; drawn
+        // CENTERED, so the item center is exactly (TITLE_X, TITLE_Y). The item is TEXT ONLY
+        // (textOnly=true): UI_EVENT_TITLE is currently MIS-MAPPED to images/ui/event/panel.png
+        // (the panel file), so submitting it as a texture would paint a bogus panel-sized
+        // rectangle. The item keeps id/role/ResourceId for identity + tests; renderEvent skips the
+        // texture draw for textOnly items. w/h are a sensible text box, not a native constant.
         out.add(new DrawItem("title", ResourceIds.UI_EVENT_TITLE, "event-title", -1, ev.title,
-                ev.available && !ev.title.isEmpty(), true, sw * .5f, sh * .75f, sw * .56f, 56f));
+                ev.available && !ev.title.isEmpty(), true,
+                570f * xScale, eventY + 408f * scale,
+                800f * xScale, 64f * scale, true));
         int i = 0;
         for (EventOptionView o : ev.options) {
             float y = o.y != 0f || o.h != 0f ? o.y : defaultOptionY(i, ev.optionCount());
@@ -106,6 +142,33 @@ public final class EventDrawPath {
             i++;
         }
         return out;
+    }
+
+    /**
+     * The event dialog item with id {@code "panel"}, or {@code null} when it is not visible.
+     * Convenience for {@link #probeSlice} so the native panel geometry is probe-addressable as a
+     * sub-map without changing {@code items[]} semantics.
+     */
+    public static DrawItem panelItem() {
+        for (DrawItem item : buildFromProjection()) {
+            if ("panel".equals(item.id)) return item.visible ? item : null;
+        }
+        return null;
+    }
+
+    /** Number of panel pixels {@code renderEvent} would submit ({@code 1} when visible). */
+    public static int panelCount() {
+        return panelItem() != null ? 1 : 0;
+    }
+
+    /**
+     * Number of pixels {@code renderEvent} actually submits. Unlike the D04 reward sheet (kept out
+     * of {@code items[]}), the event panel already lives in {@code items[]}, so this equals
+     * {@link #materializedDrawCount()} (every visible item is submitted). Kept as an explicit,
+     * consistently named probe field.
+     */
+    public static int submitCount() {
+        return visibleCount(buildFromProjection());
     }
 
     public static Map<String, Object> probeSlice() {
@@ -121,6 +184,21 @@ public final class EventDrawPath {
             list.add(d.toMap());
         }
         m.put("items", list);
+        // NRO-04 D06: the native panel geometry as its own sub-map (the panel stays in items[],
+        // so public item-list semantics are unchanged). x/y are the SAME CENTER convention as
+        // items[]; renderEvent's x - w/2, y - h/2 yields the native bottom-left.
+        DrawItem panel = panelItem();
+        Map<String, Object> panelMap = new LinkedHashMap<String, Object>();
+        if (panel != null) {
+            panelMap.put("resourceId", panel.resourceId);
+            panelMap.put("x", Float.valueOf(panel.x));
+            panelMap.put("y", Float.valueOf(panel.y));
+            panelMap.put("w", Float.valueOf(panel.w));
+            panelMap.put("h", Float.valueOf(panel.h));
+        }
+        m.put("panel", panelMap.isEmpty() ? null : panelMap);
+        m.put("panelCount", Integer.valueOf(panelCount()));
+        m.put("submitCount", Integer.valueOf(submitCount()));
         return m;
     }
 
@@ -134,12 +212,34 @@ public final class EventDrawPath {
         return count;
     }
 
-    private static float screenWidth() {
-        try { return com.megacrit.cardcrawl.core.Settings.WIDTH; } catch (Throwable t) { return 1920f; }
-    }
-
-    private static float screenHeight() {
-        try { return com.megacrit.cardcrawl.core.Settings.HEIGHT; } catch (Throwable t) { return 1080f; }
+    /**
+     * Live {@code Settings} values {@code {WIDTH, HEIGHT, scale, xScale, EVENT_Y}} needed by the
+     * native event formulas, each read fail-open with a safe default. {@code EVENT_Y} falls back to
+     * {@code HEIGHT/2f - 128f*scale} (the {@code Settings} static-init formula) when absent/zero.
+     */
+    private static float[] eventSettings() {
+        float width = 1920f;
+        float height = 1080f;
+        float scale = 1f;
+        float xScale = 1f;
+        float eventY = Float.NaN;
+        try {
+            float w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+            float h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+            float sc = com.megacrit.cardcrawl.core.Settings.scale;
+            float xs = com.megacrit.cardcrawl.core.Settings.xScale;
+            if (w > 0f) width = w;
+            if (h > 0f) height = h;
+            if (sc > 0f) scale = sc;
+            if (xs > 0f) xScale = xs;
+            eventY = com.megacrit.cardcrawl.core.Settings.EVENT_Y;
+        } catch (Throwable ignored) {
+            // keep the safe defaults above
+        }
+        if (Float.isNaN(eventY) || eventY <= 0f) {
+            eventY = height * 0.5f - 128f * scale;
+        }
+        return new float[] {width, height, scale, xScale, eventY};
     }
 
     private static float defaultOptionX() {

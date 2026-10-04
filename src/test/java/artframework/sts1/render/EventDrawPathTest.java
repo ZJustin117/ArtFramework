@@ -236,6 +236,123 @@ public class EventDrawPathTest {
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
     }
 
+    @Test
+    public void eventPanelUsesNativeGeometryAtUnitScale() throws Exception {
+        // Native GenericEventDialog.render (verified bytecode) draws the panel via
+        // sb.draw(eventBackgroundImg, WIDTH/2-881.5-12*xScale, EVENT_Y-403-64*scale,
+        //         881.5, 403, 1763, 806, xScale, scale, ...). DrawItem x/y is the CENTER, so the
+        // center is (WIDTH/2 - 881.5 - 12*xScale + 881.5*xScale, EVENT_Y - 403 - 64*scale + 403*scale).
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        float previousEventY = com.megacrit.cardcrawl.core.Settings.EVENT_Y;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT", Integer.valueOf(1080));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1f));
+            // Settings.EVENT_Y = HEIGHT/2 - 128*scale = 412 at 1080/1.
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "EVENT_Y", Float.valueOf(412f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+            publishEventFrame();
+
+            EventDrawPath.DrawItem panel = EventDrawPath.panelItem();
+            assertNotNull("panel is supplied while the event is available", panel);
+            assertEquals(ResourceIds.UI_EVENT_PANEL, panel.resourceId);
+            assertEquals("native center x = WIDTH/2 - 12*xScale", 948f, panel.x, 0.01f);
+            assertEquals("native center y = EVENT_Y - 64*scale at unit scale", 348f, panel.y, 0.01f);
+            assertEquals(1763f, panel.w, 0.01f);
+            assertEquals(806f, panel.h, 0.01f);
+            // renderer applies x - w/2, y - h/2 -> native bottom-left (948 - 881.5, 348 - 403).
+            assertEquals(66.5f, panel.x - panel.w / 2f, 0.01f);
+            assertEquals(-55f, panel.y - panel.h / 2f, 0.01f);
+
+            // title center = (TITLE_X, TITLE_Y) = (570*xScale, EVENT_Y + 408*scale)
+            EventDrawPath.DrawItem title = EventDrawPath.buildFromProjection().get(1);
+            assertEquals("title", title.id);
+            assertTrue("title must be text-only (no texture draw)", title.textOnly);
+            assertEquals(570f, title.x, 0.01f);
+            assertEquals(820f, title.y, 0.01f);
+
+            Map<String, Object> probe = EventDrawPath.probeSlice();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> panelMap = (Map<String, Object>) probe.get("panel");
+            assertNotNull("probe exposes the native panel sub-map", panelMap);
+            assertEquals(ResourceIds.UI_EVENT_PANEL, panelMap.get("resourceId"));
+            assertEquals(Float.valueOf(948f), panelMap.get("x"));
+            assertEquals(Float.valueOf(348f), panelMap.get("y"));
+            assertEquals(Float.valueOf(1763f), panelMap.get("w"));
+            assertEquals(Float.valueOf(806f), panelMap.get("h"));
+            assertEquals(Integer.valueOf(1), probe.get("panelCount"));
+            assertEquals("submitCount equals the visible panel-bearing item count",
+                    Integer.valueOf(EventDrawPath.materializedDrawCount()), probe.get("submitCount"));
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(previousScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(previousXScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(previousWidth));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT", Integer.valueOf(previousHeight));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "EVENT_Y", Float.valueOf(previousEventY));
+        }
+    }
+
+    @Test
+    public void eventPanelNativeGeometryCatchesXScaleVersusScaleMixups() throws Exception {
+        // Non-unit, xScale != scale: the SIZE must carry 1763*xScale / 806*scale and the center
+        // delta terms 881.5*xScale / 403*scale, while EVENT_Y uses 128*scale.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        float previousEventY = com.megacrit.cardcrawl.core.Settings.EVENT_Y;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT", Integer.valueOf(1080));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1.25f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1.5f));
+            // Settings.EVENT_Y = HEIGHT/2 - 128*scale = 540 - 160 = 380.
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "EVENT_Y", Float.valueOf(380f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+            publishEventFrame();
+
+            EventDrawPath.DrawItem panel = EventDrawPath.panelItem();
+            assertNotNull(panel);
+            assertEquals(1763f * 1.5f, panel.w, 0.01f);
+            assertEquals(806f * 1.25f, panel.h, 0.01f);
+            assertEquals(960f - 12f * 1.5f, panel.x, 0.01f);
+            assertEquals(380f - 64f * 1.25f, panel.y, 0.01f);
+            // renderer's bottom-left = center - size/2; the native origin term bakes into the
+            // center, so left = WIDTH/2 - 12*xScale - 881.5*xScale (carries xScale).
+            assertEquals(960f - 12f * 1.5f - 881.5f * 1.5f, panel.x - panel.w / 2f, 0.01f);
+
+            EventDrawPath.DrawItem title = EventDrawPath.buildFromProjection().get(1);
+            assertEquals(570f * 1.5f, title.x, 0.01f);
+            assertEquals(380f + 408f * 1.25f, title.y, 0.01f);
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(previousScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(previousXScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(previousWidth));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT", Integer.valueOf(previousHeight));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "EVENT_Y", Float.valueOf(previousEventY));
+        }
+    }
+
+    private static void setStaticField(Class<?> owner, String name, Object value) {
+        try {
+            java.lang.reflect.Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set static field " + owner + "." + name, failure);
+        }
+    }
+
     private static void invokePrepareEventVisuals(SurfaceDrawPlan plan) {
         invokePrivate("prepareEventVisuals", new Class<?>[] {SurfaceDrawPlan.class}, plan);
     }

@@ -25,15 +25,12 @@ steps:
       assert:
         path: lab.runReady
         eq: true
-  # Finish Neow first; otherwise its transient grid-select screen can survive the forced map open.
-  - console: "art lab proceed"
-  - wait_ms: 3000
-  - console: "art lab proceed"
-  - wait_ms: 3000
+  # Stay on the Neow event that the run opens into (an AbstractEvent using GenericEventDialog);
+  # do NOT advance past it. The lab's `art lab enter-event` path injects a fresh EventRoom and
+  # crashes the render thread (AbstractDungeon.render NPE), and the map-navigation intent is not
+  # wired, so the reliable real-event entry is the run's opening Neow event.
   # Observe first so StageHost publishes backend frames without suppressing native event UI.
   - console: "art present event observe"
-  # Enter a real STS event via native map navigation; lab must not directly set projection state.
-  - console: "art lab enter-event"
   - wait_probe:
       timeout_ms: 30000
       interval_ms: 500
@@ -59,3 +56,18 @@ steps:
       assert:
         path: backend.eventDraw.count
         gte: 1
+  # NRO-04 D06: the event PANEL now uses native GenericEventDialog.render geometry
+  # (center WIDTH/2-881.5-12*xScale+881.5*xScale, EVENT_Y-403-64*scale+403*scale;
+  #  size 1763*xScale x 806*scale) instead of the generic centered rectangle.
+  - assert:
+      path: backend.eventDraw.panelCount
+      gte: 1
+  - assert:
+      path: backend.eventDraw.panel.resourceId
+      eq: "ui.event.panel"
+  - assert:
+      path: backend.eventDraw.panel.w
+      gte: 1
+  - assert:
+      path: backend.eventDraw.panel.h
+      gte: 1

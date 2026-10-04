@@ -117,3 +117,61 @@ steps:
       assert:
         path: backend.verify.configuredMode
         eq: "off"
+  # --- Native local render-order band baseline (NRO-04 C01) ---
+  # The container seam replaces the three AbstractDungeon.render effect call sites in place, so
+  # band membership IS native order. backend.renderPlan.nativeRender.effectBands records WHICH
+  # native band each observed effect render (native vs claimed bucket) happened in, classified by
+  # the instrumented LineNumberTable line: effectList/renderBehind-before-room (A), effectList/
+  # front-after-room (B), topLevelEffects/above-top-panel (C). Lifetime-global counters, so the
+  # gate-OFF baseline below is asserted as gte (never absolute).
+  #
+  # Gate-OFF phase: native stays authoritative and the baseline must see BOTH effect-list bands.
+  # flareL -> LightFlareLEffect (renderBehind=true) -> band A; fire -> FireBurstParticleEffect
+  # (default renderBehind=false) -> band B.
+  - console: "art claim off"
+  - console: "art claim spawn flareL 4"
+  - console: "art claim spawn fire 4"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.native.effectListBehind
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.native.effectListFront
+        gte: 1
+  # Gate-ON phase: the real renderer is ready, so the claimed draws must land in their CORRECT
+  # native bands A and B — not merely be observed.
+  - console: "art claim on"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.ready
+        gte: 1
+  - console: "art claim spawn flareL 4"
+  - console: "art claim spawn fire 4"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.claimed.effectListBehind
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.claimed.effectListFront
+        gte: 1
+  # The claimed band map exists and is bounded (key presence only; do not over-constrain unknown).
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.claimed.topLevelFront
+      gte: 0
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.claimedByClassCap
+      gte: 0
+  - console: "art claim clear"
+  - console: "art claim off"

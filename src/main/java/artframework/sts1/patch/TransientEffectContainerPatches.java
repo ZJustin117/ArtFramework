@@ -52,6 +52,17 @@ public final class TransientEffectContainerPatches {
 
     /** Package-visible entry generated at each instrumented call site. */
     public static void observeThenRender(AbstractGameEffect effect, SpriteBatch sb) {
+        observeThenRender(effect, sb, -1);
+    }
+
+    /**
+     * Entry generated at each instrumented call site. {@code nativeLine} is the native
+     * {@code AbstractDungeon.render} LineNumberTable line of the replaced call site
+     * ({@link artframework.sts1.render.EffectRenderBand}). It is used ONLY for the observation-only
+     * native local render-order baseline (NRO-04 C01); the 2-arg overload supplies {@code -1}
+     * (UNKNOWN) for callers that do not carry a line.
+     */
+    public static void observeThenRender(AbstractGameEffect effect, SpriteBatch sb, int nativeLine) {
         RenderDisposition disposition;
         try {
             disposition = NativeRenderBridge.beginEffectRender(effect, "render");
@@ -60,11 +71,7 @@ public final class TransientEffectContainerPatches {
             disposition = RenderDisposition.failOpen(-1L, "observation_error");
         }
         if (disposition.nativeContinuation) {
-            try {
-                effect.render(sb);
-            } catch (Throwable error) {
-                NativeRenderBridge.recordEffectObservationFailure();
-            }
+            renderNativeThenRecordBand(effect, sb, nativeLine);
             return;
         }
         // Non-continuing disposition: a transient-effect claim draws here; an isolate claim stays suppressed.
@@ -92,6 +99,7 @@ public final class TransientEffectContainerPatches {
                 } catch (Throwable error) {
                     NativeRenderBridge.recordEffectObservationFailure();
                 }
+                recordObservedBand(effect, nativeLine, true);
                 return;
             }
             // Always consume the pending claim before failing open (never leave a delegated gap);
@@ -104,11 +112,33 @@ public final class TransientEffectContainerPatches {
             }
             // fall through to the native render
         } else {
-            // Isolate claim (or any other suppression): native pixels stay suppressed.
+            // Isolate claim (or any other suppression): native pixels stay suppressed, so no render
+            // happens and no band is recorded (nothing is drawn on this path).
             return;
         }
+        renderNativeThenRecordBand(effect, sb, nativeLine);
+    }
+
+    /**
+     * Runs the native render and then records its native band. The native render is attempted first
+     * and the band is recorded even when the native render throws, because the observation is that
+     * the traversal reached this native band — not that the draw succeeded. Both steps are guarded
+     * so a failure can never interrupt the container render loop.
+     */
+    private static void renderNativeThenRecordBand(
+            AbstractGameEffect effect, SpriteBatch sb, int nativeLine) {
         try {
             effect.render(sb);
+        } catch (Throwable error) {
+            NativeRenderBridge.recordEffectObservationFailure();
+        }
+        recordObservedBand(effect, nativeLine, false);
+    }
+
+    /** Observation-only band record; isolated so it can never interrupt the render path. */
+    private static void recordObservedBand(AbstractGameEffect effect, int nativeLine, boolean claimed) {
+        try {
+            NativeRenderBridge.recordObservedEffectBand(effect, nativeLine, claimed);
         } catch (Throwable error) {
             NativeRenderBridge.recordEffectObservationFailure();
         }
@@ -163,7 +193,7 @@ public final class TransientEffectContainerPatches {
                     }
                     call.replace("{"
                             + "artframework.sts1.patch.TransientEffectContainerPatches"
-                            + ".observeThenRender($0, $1);"
+                            + ".observeThenRender($0, $1, " + call.getLineNumber() + ");"
                             + "}");
                 }
             };

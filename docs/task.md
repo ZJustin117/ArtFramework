@@ -1684,6 +1684,34 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         reach real instances (like B07/B08/B10); it is also lab-spawnable via the
         `empowercircle`/`empower` aliases.
 
+- [x] NRO-04 C01 (native local render-order baseline): the effect-container seam replaces the three
+      `AbstractGameEffect.render(SpriteBatch)` call sites inside `AbstractDungeon.render` in place,
+      so native order is inherently preserved; C01 records and exposes WHICH native band each
+      observed effect render happened in, so the probe proves a claimed effect lands in the correct
+      native band rather than blindly trusting call-site replacement. Pure
+      `EffectRenderBand` classifies the three sites by their verified LineNumberTable line:
+      `2674` = `effectList`/`renderBehind==true` before `room.render` (BAND A = EFFECT_LIST_BEHIND);
+      `2697` = `effectList`/`renderBehind==false` after room/character/combat foreground (BAND B =
+      EFFECT_LIST_FRONT); `2802` = `topLevelEffects`/`renderBehind==false` above
+      `TopPanel.render`/`renderAboveTopPanel` (BAND C = TOP_LEVEL_FRONT); any other line (including
+      `-1`) = UNKNOWN. `TransientEffectContainerPatches.observeThenRender` gains a 3-arg overload
+      carrying the instrument-time line (`$0, $1, <line>`); the 2-arg overload delegates with `-1`
+      (UNKNOWN) so existing callers/tests keep compiling. The seam records the band on BOTH terminal
+      paths — the native continuation (after the native `effect.render`, recorded even when the
+      native draw throws) and a successful vfx claim draw — but NOT on the isolate-suppressed path
+      (nothing is drawn). Every record call is wrapped in its own try/catch and is observation-only:
+      `NativeRenderBridge.recordObservedEffectBand(effect, line, claimed)` never throws and never
+      changes identity/admission/lifecycle. The probe adds exactly
+      `nativeRender.effectBands = {native:{effectListBehind,effectListFront,topLevelFront,unknown},
+      claimed:{...}, claimedByClass:{"<fqn>":{...}}, claimedByClassCap}` (all Integer; the class map
+      is a bounded TreeMap snapshot, cap 32, with an overflow diagnostic); `resetForTests()` clears
+      it. DEVICE: `tests/ui-scenarios/device/d1_render_zorder_contract.yaml` (extended in place)
+      proves the gate-OFF native baseline sees bands A and B, then gate-ON proves claimed
+      `LightFlareLEffect` (band A) and `FireBurstParticleEffect` (band B) land in their native bands.
+      No new ordering framework, no suppression permission, default-off gate unchanged; the line
+      numbers are validated by D1 (a drift shows all-UNKNOWN and fails the assertions loudly). Tests:
+      `EffectRenderBandTest`, `TransientEffectContainerPatchesTest`, `NativeRenderBridgeTest`.
+
 - [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
         `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
         loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`

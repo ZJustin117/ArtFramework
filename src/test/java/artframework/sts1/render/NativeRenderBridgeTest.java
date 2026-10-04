@@ -2019,6 +2019,146 @@ public class NativeRenderBridgeTest {
         Sts1VerifyDiagnostics.setBackgroundOnly(false);
     }
 
+    @Test
+    public void recordObservedEffectBandNullEffectDoesNotThrowAndCountsUnknownClass() {
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false);
+        NativeRenderBridge.recordObservedEffectBand(null, 2802, true);
+
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(1), band(bands, "native", "effectListBehind"));
+        assertEquals(Integer.valueOf(1), band(bands, "claimed", "topLevelFront"));
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Integer>> byClass =
+                (Map<String, Map<String, Integer>>) bands.get("claimedByClass");
+        assertEquals(Integer.valueOf(1),
+                byClass.get(NativeRenderBridge.UNKNOWN_EFFECT_CLASS).get("topLevelFront"));
+    }
+
+    @Test
+    public void claimedAndNativeBucketsAreIndependent() {
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, false);
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, false);
+        NativeRenderBridge.recordObservedEffectBand(null, 2697, true);
+
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(2), band(bands, "native", "effectListFront"));
+        assertEquals(Integer.valueOf(1), band(bands, "claimed", "effectListFront"));
+        assertEquals(Integer.valueOf(0), band(bands, "native", "effectListBehind"));
+        assertEquals(Integer.valueOf(0), band(bands, "claimed", "effectListBehind"));
+        // A native observation must NOT populate the claimed per-class map.
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Integer>> byClass =
+                (Map<String, Map<String, Integer>>) bands.get("claimedByClass");
+        assertEquals(1, byClass.size());
+        assertEquals(Integer.valueOf(1),
+                byClass.get(NativeRenderBridge.UNKNOWN_EFFECT_CLASS).get("effectListFront"));
+    }
+
+    @Test
+    public void claimedByClassMapIsBoundedAndReportsOverflow() {
+        int cap = NativeRenderBridge.CLAIMED_BY_CLASS_CAPACITY;
+        int overflow = 5;
+        for (int i = 0; i < cap + overflow; i++) {
+            NativeRenderBridge.recordObservedEffectBandForClass("com.example.Effect" + i, 2674, true);
+        }
+
+        Map<String, Object> bands = effectBands();
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Integer>> byClass =
+                (Map<String, Map<String, Integer>>) bands.get("claimedByClass");
+        assertEquals("distinct classes stay at the cap", cap, byClass.size());
+        assertEquals("the cap is reported",
+                Integer.valueOf(cap), bands.get("claimedByClassCap"));
+        assertEquals("every eviction is counted",
+                Integer.valueOf(overflow), bands.get("claimedByClassOverflow"));
+        // Every call still counted in the claimed totals, independent of the bounded map.
+        assertEquals(Integer.valueOf(cap + overflow), band(bands, "claimed", "effectListBehind"));
+    }
+
+    @Test
+    public void resetForTestsClearsTheEffectBands() {
+        NativeRenderBridge.recordObservedEffectBand(null, 2674, false);
+        NativeRenderBridge.recordObservedEffectBandForClass("com.example.Effect", 2697, true);
+        NativeRenderBridge.resetForTests();
+
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(0), band(bands, "native", "effectListBehind"));
+        assertEquals(Integer.valueOf(0), band(bands, "claimed", "effectListFront"));
+        @SuppressWarnings("unchecked")
+        Map<String, Map<String, Integer>> byClass =
+                (Map<String, Map<String, Integer>>) bands.get("claimedByClass");
+        assertTrue("the per-class map is cleared", byClass.isEmpty());
+        assertEquals(Integer.valueOf(0), bands.get("claimedByClassOverflow"));
+    }
+
+    @Test
+    public void probeSliceEffectBandsHasTheExactKeyShape() {
+        Map<String, Object> bands = effectBands();
+        // The four documented keys, plus the required overflow diagnostic for the bounded map.
+        for (String key : new String[] {
+                "native", "claimed", "claimedByClass", "claimedByClassCap",
+                "claimedByClassOverflow"}) {
+            assertTrue("missing key " + key, bands.containsKey(key));
+        }
+        for (Object key : bands.keySet()) {
+            assertTrue("unexpected effectBands key " + key, "native".equals(key)
+                    || "claimed".equals(key) || "claimedByClass".equals(key)
+                    || "claimedByClassCap".equals(key) || "claimedByClassOverflow".equals(key));
+        }
+        for (String bucket : new String[] {"native", "claimed"}) {
+            for (String name : new String[] {
+                    "effectListBehind", "effectListFront", "topLevelFront", "unknown"}) {
+                assertTrue(bucket + " missing " + name,
+                        ((Map<?, ?>) bands.get(bucket)).containsKey(name));
+                assertEquals(Integer.valueOf(0), band(bands, bucket, name));
+            }
+            assertEquals(4, ((Map<?, ?>) bands.get(bucket)).size());
+        }
+    }
+
+    @Test
+    public void recordObservedEffectBandNeverMutatesAdmissionOrTheLedger() {
+        VfxDelegationGate.setActive(true);
+        VfxArtRenderer.setForTests(alwaysReadyAdapter());
+        AbstractGameEffect effect = supportedAuraEffect();
+
+        RenderDisposition disposition = NativeRenderBridge.beginEffectRender(effect, "render");
+        assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
+        assertTrue(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+
+        Map<String, Object> before = NativeRenderBridge.probeSlice();
+
+        NativeRenderBridge.recordObservedEffectBand(effect, 2697, false);
+        NativeRenderBridge.recordObservedEffectBand(effect, 2697, true);
+
+        Map<String, Object> after = NativeRenderBridge.probeSlice();
+        // Observation only: no ledger/strict counter moved.
+        for (String key : new String[] {
+                "invocationCount", "dispositionCount", "evidenceCount",
+                "pendingSurfaceInvocationCount", "orphanArtOutput",
+                "delegatedWithoutEvidence"}) {
+            assertEquals("key " + key + " must be unchanged",
+                    before.get(key), after.get(key));
+        }
+        assertEquals(before.get("transientEffects"), after.get("transientEffects"));
+        // The pending claim is still consumable exactly as before the band record.
+        NativeRenderBridge.recordEffectDraw(disposition.invocationId, 1);
+        assertFalse(NativeRenderBridge.isVfxClaimInvocation(disposition.invocationId));
+        assertEquals(Integer.valueOf(1), NativeRenderBridge.probeSlice().get("evidenceCount"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> effectBands() {
+        Object bands = NativeRenderBridge.probeSlice().get("effectBands");
+        assertNotNull("probeSlice must expose effectBands", bands);
+        return (Map<String, Object>) bands;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Integer band(Map<String, Object> bands, String bucket, String name) {
+        return (Integer) ((Map<String, Object>) bands.get(bucket)).get(name);
+    }
+
     private static VfxArtRenderer.Adapter alwaysReadyAdapter() {
         return new VfxArtRenderer.Adapter() {
             @Override public boolean isReady(String nativeClassName) { return true; }

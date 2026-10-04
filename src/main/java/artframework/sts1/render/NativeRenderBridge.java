@@ -55,6 +55,29 @@ public final class NativeRenderBridge {
     static final int EFFECT_IDS_CAPACITY = 8192;
     private static long nextEffectSeq;
 
+    /**
+     * Native local render-order baseline (NRO-04 C01): observation-only counters classifying each
+     * observed transient-effect render by the native {@code AbstractDungeon.render} call-site band
+     * it happened in. Two totals buckets (native vs claimed) plus a bounded per-class map. This is
+     * pure observation: it NEVER changes identity/admission/lifecycle and never throws.
+     */
+    private static final Object EFFECT_BANDS_LOCK = new Object();
+    /** Distinct effect classes tracked in {@link #claimedBandsByClass} before oldest-eviction. */
+    static final int CLAIMED_BY_CLASS_CAPACITY = 32;
+    /** Class-name bucket used when an observation has no (or a blank) class name. */
+    static final String UNKNOWN_EFFECT_CLASS = "<unknown>";
+    private static final int EFFECT_BAND_COUNT = EffectRenderBand.bands().size();
+    private static final int[] NATIVE_EFFECT_BANDS = new int[EFFECT_BAND_COUNT];
+    private static final int[] CLAIMED_EFFECT_BANDS = new int[EFFECT_BAND_COUNT];
+    /**
+     * Bounded per-class band attribution for the CLAIMED observations only (diagnostic; names the
+     * class whose claimed draw landed in a native band). Oldest class name is evicted beyond
+     * {@link #CLAIMED_BY_CLASS_CAPACITY}, counted by {@code claimedByClassOverflow}.
+     */
+    private static final Map<String, int[]> CLAIMED_BANDS_BY_CLASS =
+            new LinkedHashMap<String, int[]>();
+    private static int claimedByClassOverflow;
+
     /** Identity plus its monotonic sequence, used to release the order entry in O(log n). */
     private static final class EffectIdState {
         final String id;
@@ -807,6 +830,112 @@ public final class NativeRenderBridge {
         EFFECT_LEDGER.recordFailOpen();
     }
 
+    /**
+     * Observation-only native local render-order baseline (NRO-04 C01).
+     *
+     * <p>Records WHICH native {@code AbstractDungeon.render} band an observed transient-effect
+     * render happened in, as classified from the instrumented call-site line number by
+     * {@link EffectRenderBand#classify(int)}. Because the container seam replaces the three native
+     * call sites IN PLACE, band membership IS native order: a claimed draw recorded in band A/B/C
+     * proves it landed in the correct native position rather than merely trusting call-site
+     * replacement.
+     *
+     * <p>Bumps a per-bucket total for either the {@code native} (claimed=false) or {@code claimed}
+     * (claimed=true) bucket, plus, for CLAIMED observations only, a bounded per-class map
+     * ({@link #CLAIMED_BY_CLASS_CAPACITY} distinct class names, oldest-evicted, overflow counted).
+     * A null/blank class name collapses to {@link #UNKNOWN_EFFECT_CLASS}.
+     *
+     * <p>This is pure observation: it NEVER throws, never changes identity/admission/lifecycle, and
+     * on any unexpected failure silently returns without touching the render path.
+     */
+    public static void recordObservedEffectBand(
+            com.megacrit.cardcrawl.vfx.AbstractGameEffect effect, int lineNumber, boolean claimed) {
+        recordObservedEffectBandForClass(
+                effect == null ? null : effect.getClass().getName(), lineNumber, claimed);
+    }
+
+    /**
+     * Class-name form of {@link #recordObservedEffectBand}; package-visible so the bounded-map
+     * eviction is unit-testable without manufacturing one Java class per distinct name.
+     */
+    static void recordObservedEffectBandForClass(
+            String className, int lineNumber, boolean claimed) {
+        try {
+            String key = className == null || className.trim().isEmpty()
+                    ? UNKNOWN_EFFECT_CLASS : className;
+            int bandIndex = bandIndex(EffectRenderBand.classify(lineNumber));
+            synchronized (EFFECT_BANDS_LOCK) {
+                if (claimed) {
+                    CLAIMED_EFFECT_BANDS[bandIndex]++;
+                    int[] perBand = CLAIMED_BANDS_BY_CLASS.get(key);
+                    if (perBand == null
+                            && CLAIMED_BANDS_BY_CLASS.size() >= CLAIMED_BY_CLASS_CAPACITY) {
+                        java.util.Iterator<String> oldest =
+                                CLAIMED_BANDS_BY_CLASS.keySet().iterator();
+                        if (oldest.hasNext()) {
+                            oldest.next();
+                            oldest.remove();
+                            claimedByClassOverflow++;
+                        }
+                    }
+                    if (perBand == null) {
+                        perBand = new int[EFFECT_BAND_COUNT];
+                        CLAIMED_BANDS_BY_CLASS.put(key, perBand);
+                    }
+                    perBand[bandIndex]++;
+                } else {
+                    NATIVE_EFFECT_BANDS[bandIndex]++;
+                }
+            }
+        } catch (Throwable ignored) {
+            // Observation-only: never interrupt the native render path.
+        }
+    }
+
+    private static int bandIndex(EffectRenderBand.Band band) {
+        int index = EffectRenderBand.bands().indexOf(band);
+        return index < 0 ? EFFECT_BAND_COUNT - 1 : index;
+    }
+
+    private static Map<String, Integer> bandCounts(int[] counts) {
+        List<EffectRenderBand.Band> bands = EffectRenderBand.bands();
+        Map<String, Integer> m = new LinkedHashMap<String, Integer>();
+        for (int i = 0; i < bands.size(); i++) {
+            m.put(EffectRenderBand.name(bands.get(i)), Integer.valueOf(counts[i]));
+        }
+        return m;
+    }
+
+    /**
+     * Stable, bounded snapshot of the native/claimed effect-band counters and the claimed per-class
+     * attribution ({@code claimedByClass} is a TreeMap so its key order is deterministic).
+     */
+    static Map<String, Object> effectBandsProbeSlice() {
+        synchronized (EFFECT_BANDS_LOCK) {
+            Map<String, Object> out = new LinkedHashMap<String, Object>();
+            out.put("native", bandCounts(NATIVE_EFFECT_BANDS));
+            out.put("claimed", bandCounts(CLAIMED_EFFECT_BANDS));
+            Map<String, Map<String, Integer>> byClass = new TreeMap<String, Map<String, Integer>>();
+            for (Map.Entry<String, int[]> entry : CLAIMED_BANDS_BY_CLASS.entrySet()) {
+                byClass.put(entry.getKey(), bandCounts(entry.getValue()));
+            }
+            out.put("claimedByClass",
+                    new LinkedHashMap<String, Map<String, Integer>>(byClass));
+            out.put("claimedByClassCap", Integer.valueOf(CLAIMED_BY_CLASS_CAPACITY));
+            out.put("claimedByClassOverflow", Integer.valueOf(claimedByClassOverflow));
+            return out;
+        }
+    }
+
+    private static void clearEffectBandsForTests() {
+        synchronized (EFFECT_BANDS_LOCK) {
+            java.util.Arrays.fill(NATIVE_EFFECT_BANDS, 0);
+            java.util.Arrays.fill(CLAIMED_EFFECT_BANDS, 0);
+            CLAIMED_BANDS_BY_CLASS.clear();
+            claimedByClassOverflow = 0;
+        }
+    }
+
     private static void projectPendingEffects() {
         try {
             ArtFramework.executeTransientEffectProjections();
@@ -847,6 +976,9 @@ public final class NativeRenderBridge {
         out.put("transientEffects", EFFECT_LEDGER.probeSlice());
         out.put("transientEffectEntities", Integer.valueOf(EFFECT_REGISTRY.activeCount()));
         out.put("transientEffectEntityCap", Integer.valueOf(EFFECT_REGISTRY.entityCapacity()));
+        // Native local render-order baseline (NRO-04 C01): which native AbstractDungeon.render band
+        // each observed effect render (native vs claimed) happened in.
+        out.put("effectBands", effectBandsProbeSlice());
         out.put("filterScopes", FILTER_SCOPE.probeSlice());
         out.put("isolate", POLICY.probeSlice());
         out.put("backgroundOnly", BackgroundOnlyGate.probeSlice());
@@ -954,6 +1086,7 @@ public final class NativeRenderBridge {
         synchronized (STANCE_INVOCATIONS) { STANCE_INVOCATIONS.clear(); }
         synchronized (EFFECT_INVOCATIONS) { EFFECT_INVOCATIONS.clear(); }
         clearEffectIds();
+        clearEffectBandsForTests();
         synchronized (BRIDGE_LOCK) { NATIVE_CONTINUATION_FRAMES.clear(); }
         beforeTokenPublicationForTests = null;
         Sts1NativePresentationAdapter.clear();

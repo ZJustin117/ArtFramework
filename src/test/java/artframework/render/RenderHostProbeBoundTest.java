@@ -1,5 +1,7 @@
 package artframework.render;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.After;
@@ -42,6 +44,11 @@ public class RenderHostProbeBoundTest {
     @SuppressWarnings("unchecked")
     private static List<String> dupKeys(Map<String, Object> probe) {
         return (List<String>) order(probe).get("duplicateStableKeys");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> phaseCounts(Map<String, Object> probe) {
+        return (Map<String, Object>) order(probe).get("phaseCounts");
     }
 
     @Test public void belowCapEnumeratesEveryTargetAndReportsNoTruncation() {
@@ -195,6 +202,86 @@ public class RenderHostProbeBoundTest {
         assertEquals(Boolean.TRUE, probe.get("targetsTruncated"));
         assertNotNull(bySafeId(probe).get("c1_stable_panel"));
         assertEquals(null, bySafeId(probe).get("native_effect_legacy_instance"));
+    }
+
+    @Test public void phaseCountsHasOneDeterministicEntryForEveryRenderPhase() {
+        RenderHost host = new RenderHost();
+
+        Map<String, Object> first = host.probeMap();
+        Map<String, Object> second = host.probeMap();
+
+        Map<String, Object> counts = phaseCounts(first);
+        RenderPhase[] phases = RenderPhase.values();
+        assertEquals(phases.length, counts.size());
+        // Declaration order, not hash order, so probe output is deterministic.
+        List<String> keys = new ArrayList<String>(counts.keySet());
+        for (int i = 0; i < phases.length; i++) {
+            assertEquals(phases[i].name(), keys.get(i));
+            assertEquals("empty frame must report 0 for " + phases[i].name(),
+                    Integer.valueOf(0), counts.get(phases[i].name()));
+        }
+        assertEquals("phaseCounts must be stable across repeated probe calls",
+                phaseCounts(second), counts);
+    }
+
+    @Test public void phaseCountsReflectsFullOrderedSetNotJustEnumeratedItems() {
+        final int transientCount = 200;
+        RenderHost host = new RenderHost();
+        host.setMaxProbeEffectTargets(0);
+        RenderTarget nativeRetained = host.ensureTarget("native:retained", RenderTargetKind.SYNTHETIC_WINDOW);
+        nativeRetained.setOrder(RenderPhase.NATIVE_RETAINED, "native:retained");
+        RenderTarget c2 = host.ensureTarget(RenderHost.c2SurfaceTargetId("sts1.phasecounts"),
+                RenderTargetKind.C2_SURFACE);
+        assertEquals(RenderPhase.C2_CONTENT, c2.phase());
+        RenderTarget effect = host.ensureTarget("overlay:effect", RenderTargetKind.OVERLAY);
+        assertEquals(RenderPhase.ART_EFFECTS, effect.phase());
+        for (int i = 0; i < transientCount; i++) {
+            RenderTarget t = host.ensureTarget("native:effect:inst_" + i,
+                    RenderTargetKind.SYNTHETIC_WIDGET);
+            t.setOrder(RenderPhase.C1_CONTENT, "effect:inst_" + i);
+        }
+
+        Map<String, Object> probe = host.probeMap();
+
+        // The enumerated items list is capped (0 transient slots here), so it cannot carry the phase
+        // census; phaseCounts must still aggregate over ALL ordered targets.
+        assertTrue(order(probe).get("truncated").equals(Boolean.TRUE));
+        assertEquals(Integer.valueOf(1), phaseCounts(probe).get(RenderPhase.NATIVE_RETAINED.name()));
+        assertEquals(Integer.valueOf(1), phaseCounts(probe).get(RenderPhase.C2_CONTENT.name()));
+        assertEquals(Integer.valueOf(1), phaseCounts(probe).get(RenderPhase.ART_EFFECTS.name()));
+        assertEquals(Integer.valueOf(transientCount),
+                phaseCounts(probe).get(RenderPhase.C1_CONTENT.name()));
+        // Absent phases are explicitly zero, never missing or null.
+        assertEquals(Integer.valueOf(0), phaseCounts(probe).get(RenderPhase.ENTITY_CONTENT.name()));
+        assertEquals(Integer.valueOf(0), phaseCounts(probe).get(RenderPhase.ART_BACKGROUND.name()));
+        // Guides/bounds are an overlay, not a render-plan target, so VERIFY_GUIDES stays 0.
+        assertEquals(Integer.valueOf(0), phaseCounts(probe).get(RenderPhase.VERIFY_GUIDES.name()));
+        assertEquals(Integer.valueOf(transientCount + 3), order(probe).get("total"));
+    }
+
+    @Test public void phaseCountsIsIndependentOfComponentInsertionOrder() {
+        RenderHost first = new RenderHost();
+        first.ensureTarget(RenderHost.c2SurfaceTargetId("sts1.order-a"), RenderTargetKind.C2_SURFACE);
+        RenderTarget a = first.ensureTarget("native:retained", RenderTargetKind.SYNTHETIC_WINDOW);
+        a.setOrder(RenderPhase.NATIVE_RETAINED, "native:retained");
+        RenderTarget b = first.ensureTarget("overlay:effect", RenderTargetKind.OVERLAY);
+        b.setOrder(RenderPhase.ART_EFFECTS, "overlay:effect");
+
+        RenderHost second = new RenderHost();
+        RenderTarget b2 = second.ensureTarget("overlay:effect", RenderTargetKind.OVERLAY);
+        b2.setOrder(RenderPhase.ART_EFFECTS, "overlay:effect");
+        RenderTarget a2 = second.ensureTarget("native:retained", RenderTargetKind.SYNTHETIC_WINDOW);
+        a2.setOrder(RenderPhase.NATIVE_RETAINED, "native:retained");
+        second.ensureTarget(RenderHost.c2SurfaceTargetId("sts1.order-a"), RenderTargetKind.C2_SURFACE);
+
+        Map<String, Object> firstCounts = phaseCounts(first.probeMap());
+        Map<String, Object> secondCounts = phaseCounts(second.probeMap());
+        assertEquals(firstCounts, secondCounts);
+        assertEquals(phaseCounts(first.probeMap()), firstCounts);
+        assertEquals(Integer.valueOf(1), firstCounts.get(RenderPhase.NATIVE_RETAINED.name()));
+        assertEquals(Integer.valueOf(0), firstCounts.get(RenderPhase.C1_CONTENT.name()));
+        assertEquals(Integer.valueOf(1), firstCounts.get(RenderPhase.C2_CONTENT.name()));
+        assertEquals(Integer.valueOf(1), firstCounts.get(RenderPhase.ART_EFFECTS.name()));
     }
 
     @Test public void resetForTestsRestoresDefaultCap() {

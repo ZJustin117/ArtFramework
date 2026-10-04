@@ -1747,6 +1747,39 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       unchanged. Tests: `EffectRenderBandTest`, `TransientEffectContainerPatchesTest`,
       `NativeRenderBridgeTest`.
 
+- [x] NRO-04 C04a (render-order probe `phaseCounts`): capability-only aggregate so a device scenario
+      can assert which render phase families are present in one frame without relying on the bounded
+      `items[]` list. `RenderHost.probeRenderOrder()` now emits `renderOrder.phaseCounts`, a map with
+      one Integer entry for EVERY `RenderPhase` value keyed by `phase.name()`, counting ordered
+      targets in that phase over ALL ordered targets (not just the enumerated/capped items); a
+      zero-target phase maps to 0 and is never missing/null. It is a `LinkedHashMap` populated by
+      iterating the `RenderPhase` enum constants in declaration order, so the probe output is
+      deterministic. Read-only diagnostic: ordering, submission, and state are unchanged; all
+      existing `renderOrder` keys keep byte-identical behavior. Guides remain an overlay and are NOT
+      render-plan targets, so `VERIFY_GUIDES` counts 0. Enables the C04 cross-family same-frame
+      evidence scenario (device YAML is C04b). Tests: `RenderHostProbeBoundTest`.
+
+- [x] NRO-04 C04b (cross-family same-frame render-order device scenario): new
+      `tests/ui-scenarios/device/d1_render_order_mixed.yaml` (sibling of
+      `d1_render_zorder_contract.yaml`) boots a FULL combat frame and asserts cross-family
+      render-ORDER / phase evidence in ONE frame using the C04a aggregate
+      `render.renderOrder.phaseCounts` (option A: the PLAN families NATIVE_RETAINED + C2_CONTENT
+      present, C1_CONTENT key-presence only). It asserts `phaseCounts.VERIFY_GUIDES == 0` (guides
+      are an overlay, never a plan target) and `phaseCounts.ART_EFFECTS == 0` to DOCUMENT the
+      boundary explicitly — the ART effect family is drawn through the separate ArtRenderFrame /
+      overlay path and is NOT a `RenderHost` target, so it never appears in `phaseCounts`; real
+      effect-family presence is proven separately via
+      `backend.renderPlan.nativeRender.effectBands.claimed.effectListBehind/effectListFront gte 1`
+      after `art claim on` + `art claim spawn flareL 6` / `fire 6`. `render.renderOrder.monotonic
+      == true` and `duplicateStableKeys == []` are re-asserted with claimed VFX present (plus
+      `effectBands.orderViolations == 0`), and guides are proven default-off
+      (`configuredMode "off"` / `submissionStatus disabled`), ready/supported when `art verify mode
+      guides`, then fully restored to `"off"`. Visual evidence uses the supported device
+      `screenshot: true` step at the default-off frame and after guides ON. This is
+      ORDER-PROBE + screenshot evidence, explicitly NOT pixel-occlusion parity. Reuses C04a
+      `phaseCounts`; no ordering-framework change, no suppression permission, default-off gate
+      unchanged. Offline loader test: `tools/art-verify/tests/test_render_order_mixed_scenario.py`.
+
 - [x] NRO-04 C03 (same-layer per-band ORDERED observation sequence + interleave witness): C02 proves
       the within-pass band ordinal is monotonic; C03 proves the SAME native band's observations are
       recorded in native TRAVERSAL ORDER and that distinct instances never coalesce. The existing

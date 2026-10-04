@@ -871,17 +871,27 @@ public final class RenderHost {
         List<RenderTarget> ordered = orderedTargets(null);
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         Map<String, Integer> keyCounts = new LinkedHashMap<String, Integer>();
+        // One entry for EVERY RenderPhase, in declaration order, so the probe output is deterministic
+        // and a zero-target phase is explicit rather than absent.
+        Map<String, Integer> phaseCounts = new LinkedHashMap<String, Integer>();
+        for (RenderPhase phase : RenderPhase.values()) {
+            phaseCounts.put(phase.name(), Integer.valueOf(0));
+        }
         RenderOrder previous = null;
         boolean monotonic = true;
         int effectIncluded = 0;
-        // Diagnostics (monotonic/duplicates) are computed over ALL ordered targets; only the
-        // enumerated `items` list is bounded for per-instance transient-effect targets.
+        // Diagnostics (monotonic/duplicates/phaseCounts) are computed over ALL ordered targets; only
+        // the enumerated `items` list is bounded for per-instance transient-effect targets.
         for (RenderTarget target : ordered) {
             RenderOrder current = new RenderOrder(target.phase(), target.z(), target.stableKey());
             if (previous != null && RenderOrder.COMPARATOR.compare(previous, current) > 0) {
                 monotonic = false;
             }
             previous = current;
+            String phaseName = target.phase().name();
+            Integer phasePrior = phaseCounts.get(phaseName);
+            phaseCounts.put(phaseName,
+                    Integer.valueOf(phasePrior == null ? 1 : phasePrior.intValue() + 1));
             Integer prior = keyCounts.get(target.stableKey());
             keyCounts.put(target.stableKey(), Integer.valueOf(prior == null ? 1 : prior.intValue() + 1));
             if (isTransientEffectTarget(target)) {
@@ -910,6 +920,9 @@ public final class RenderHost {
         out.put("monotonic", Boolean.valueOf(monotonic));
         out.put("items", items);
         out.put("duplicateStableKeys", duplicates);
+        // Read-only aggregate over ALL ordered targets (not the bounded `items` list); one entry per
+        // RenderPhase in declaration order. Enables per-frame family presence evidence (C04).
+        out.put("phaseCounts", phaseCounts);
         out.put("total", Integer.valueOf(total));
         out.put("included", Integer.valueOf(included));
         out.put("truncated", Boolean.valueOf(included < total));

@@ -1,0 +1,206 @@
+# D1 cross-family render-ORDER / phase evidence in ONE frame (NRO-04 C04b). Sibling of
+# d1_render_zorder_contract.yaml (C01/C02/C03) and d1_full_present_combat_chrome.yaml.
+#
+# What this proves (and what it does NOT):
+#   * PLAN families present in one FULL combat frame, read from the C04a aggregate
+#     render.renderOrder.phaseCounts (one Integer per RenderPhase, computed over RenderHost
+#     ordered targets): NATIVE_RETAINED >= 1 (native boundary retained) and C2_CONTENT >= 1 (C2
+#     full-present content); C1_CONTENT is asserted as KEY PRESENCE only (gte 0) because combat may
+#     not surface C1 content. phaseCounts is used instead of the bounded `items[]` list so the
+#     evidence is not truncated.
+#   * ART_EFFECTS is asserted == 0 ON PURPOSE: the ART effect family (VFX) is drawn through the
+#     separate ArtRenderFrame / overlay path and is NOT a RenderHost plan target, so it never
+#     appears in phaseCounts by design. This key DOCUMENTS that boundary; real effect-family
+#     presence is proven separately below via backend.renderPlan.nativeRender.effectBands.claimed.*
+#     (the observed native-band seam), not via the plan aggregate.
+#   * VERIFY_GUIDES == 0: guides/bounds are an OVERLAY drawn by VerifyGuideDrawPath and gated by
+#     Sts1VerifyDiagnostics.overlayDrawEnabled (default OFF); they are never render-plan targets, so
+#     the phase count stays 0 even while a guides mode is active.
+#   * Cross-family order integrity: render.renderOrder.monotonic stays true and
+#     duplicateStableKeys stays [] with claimed VFX present AND with guides ON, and the native-band
+#     seam reports effectBands.orderViolations == 0.
+#   * Guides default-off (configuredMode "off" / submissionStatus disabled), guides mode ready and
+#     supported, then a full restore to "off".
+#
+# This is render-ORDER / phase evidence only. It is explicitly NOT a pixel-occlusion parity claim
+# (no pixel/occlusion assertion is made; native suppression is a separate capability).
+#
+# Screenshot steps: the loader/runner DOES support the `screenshot: true` device step type
+# (runner._run_step -> _harness_screenshot), so one default-off FRE frame and one guides-ON frame
+# are captured as visual evidence for the visual-reviewer. They are device-only captures, not a
+# pixel-parity gate.
+name: d1_render_order_mixed
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # --- Boot to a FULL combat frame (same shape as the sibling scenarios). ---
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  - console: "art present combat on"
+  - console: "fight Cultist"
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 1000
+      assert:
+        path: projection.scene
+        eq: combat
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.input.handState
+        eq: FULL_READY
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.handDraw.count
+        gte: 1
+  # --- Cross-family PLAN assertions at the default-off FULL frame (C04a phaseCounts). ---
+  # The resolved plan is ready, deterministic, and has no duplicate stable keys.
+  - assert:
+      path: render.renderOrder.status
+      eq: ready
+  - assert:
+      path: render.renderOrder.monotonic
+      eq: true
+  - assert:
+      path: render.renderOrder.duplicateStableKeys
+      eq: []
+  # Planned families present in this one frame: the retained native boundary and the C2
+  # full-present surface content. C1_CONTENT is key-presence only (combat may not surface C1).
+  - assert:
+      path: render.renderOrder.phaseCounts.NATIVE_RETAINED
+      gte: 1
+  - assert:
+      path: render.renderOrder.phaseCounts.C2_CONTENT
+      gte: 1
+  - assert:
+      path: render.renderOrder.phaseCounts.C1_CONTENT
+      gte: 0
+  # Guides are an overlay, never a plan target: the phase count stays 0.
+  - assert:
+      path: render.renderOrder.phaseCounts.VERIFY_GUIDES
+      eq: 0
+  # ART_EFFECTS == 0 DOCUMENTS the boundary: the effect family is drawn via the separate
+  # ArtRenderFrame/overlay path and is NOT a RenderHost plan target, so it is absent from
+  # phaseCounts BY DESIGN. Effect-family presence is proven below via effectBands.claimed.*.
+  - assert:
+      path: render.renderOrder.phaseCounts.ART_EFFECTS
+      eq: 0
+  # The C2 combat-hand surface carries its own phase metadata (plan family membership witness).
+  - assert:
+      path: render.targetsById.c2_surface_sts1_combat_hand.phase
+      eq: C2_CONTENT
+  # Visual evidence: default-off FULL frame (device-only capture).
+  - screenshot: true
+  # --- Claimed VFX family presence (the real effect-family evidence, NOT via phaseCounts). ---
+  # Gate-ON delegates the supported FQNs to the effect-band seam; flareL -> LightFlareLEffect
+  # (renderBehind=true) is band A, fire -> FireBurstParticleEffect (renderBehind=false) is band B.
+  - console: "art claim on"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 200
+      assert:
+        path: backend.renderPlan.aura.ready
+        gte: 1
+  - console: "art claim spawn flareL 6"
+  - console: "art claim spawn fire 6"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.claimed.effectListBehind
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.renderPlan.nativeRender.effectBands.claimed.effectListFront
+        gte: 1
+  # The claimed VFX must NOT break the plan order or introduce duplicate stable keys.
+  - assert:
+      path: render.renderOrder.monotonic
+      eq: true
+  - assert:
+      path: render.renderOrder.duplicateStableKeys
+      eq: []
+  # The native-band seam reports zero within-pass order violations with the claimed draws present.
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.orderViolations
+      eq: 0
+  # --- Guides toggle + restore. ---
+  # Default state: overlays off.
+  - assert:
+      path: backend.verify.configuredMode
+      eq: "off"
+  - assert:
+      path: backend.verify.submissionStatus
+      eq: disabled
+  - console: "art verify mode guides"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.configuredMode
+        eq: guides
+  - assert:
+      path: backend.verify.submissionStatus
+      eq: ready
+  - assert:
+      path: backend.verify.modeSupported
+      eq: true
+  # The guide overlay must not enter or break the plan: order stays monotonic, no duplicate keys,
+  # and VERIFY_GUIDES still counts 0 (overlay, not a plan target).
+  - assert:
+      path: render.renderOrder.monotonic
+      eq: true
+  - assert:
+      path: render.renderOrder.duplicateStableKeys
+      eq: []
+  - assert:
+      path: render.renderOrder.phaseCounts.VERIFY_GUIDES
+      eq: 0
+  # Visual evidence: guides ON frame (device-only capture).
+  - screenshot: true
+  # Returning to off must fully restore the plan diagnostics.
+  - console: "art verify mode off"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.configuredMode
+        eq: "off"
+  - assert:
+      path: render.renderOrder.status
+      eq: ready
+  - assert:
+      path: render.renderOrder.monotonic
+      eq: true
+  # --- Teardown: return native pixels to authoritative and drop queued effects. ---
+  - console: "art claim clear"
+  - console: "art claim off"

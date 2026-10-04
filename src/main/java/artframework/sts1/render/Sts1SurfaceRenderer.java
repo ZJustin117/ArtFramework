@@ -429,8 +429,18 @@ public final class Sts1SurfaceRenderer {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.SHOP);
             return;
         }
+        // NRO-04 D05: the language-specific rug background is synced at a LOWER z than the chrome
+        // rows (RUG_Z < row z) so it paints behind them. Its id/role are distinct from the rows.
+        ShopDrawPath.RugItem rug = ShopDrawPath.rugItem();
+        Set<String> keep = new LinkedHashSet<String>();
+        if (rug != null) {
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.SHOP, ShopDrawPath.RUG_ITEM_ID, rug.bounds(),
+                    ShopDrawPath.RUG_Z, ShopDrawPath.RUG_ROLE, rug.resourceId, "", true);
+            keep.add(ShopDrawPath.RUG_ITEM_ID);
+        }
         syncRoomChromeItems(
-                SurfaceIds.SHOP, ShopDrawPath.chromeLines(), "shop-title", "shop-entry");
+                SurfaceIds.SHOP, ShopDrawPath.chromeLines(), "shop-title", "shop-entry", keep);
     }
 
     /** Slice C phase 2: treasure chrome rows (title + chest/relic state) from TreasureView. */
@@ -454,7 +464,24 @@ public final class Sts1SurfaceRenderer {
             java.util.List<RoomChromeLine> lines,
             String titleRole,
             String rowRole) {
+        syncRoomChromeItems(surfaceId, lines, titleRole, rowRole,
+                java.util.Collections.<String>emptySet());
+    }
+
+    /**
+     * Shared single-column layout for room text chrome rows, retaining extra C2 ids supplied
+     * outside this loop (NRO-04 D05: the shop rug background) so they are not evicted.
+     */
+    private static void syncRoomChromeItems(
+            String surfaceId,
+            java.util.List<RoomChromeLine> lines,
+            String titleRole,
+            String rowRole,
+            Set<String> keepIds) {
         Set<String> visibleItems = new LinkedHashSet<String>();
+        if (keepIds != null) {
+            visibleItems.addAll(keepIds);
+        }
         int i = 0;
         for (RoomChromeLine line : lines) {
             if (!line.visible) {
@@ -815,6 +842,12 @@ public final class Sts1SurfaceRenderer {
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.SHOP);
+            // NRO-04 D05: rug background FIRST so it paints behind every chrome row.
+            ShopDrawPath.RugItem rug = ShopDrawPath.rugItem();
+            if (rug != null) {
+                drawResolvedTexture(sb, rug.resourceId, rug.bounds());
+                drawn++;
+            }
             int i = 0;
             for (RoomChromeLine line : ShopDrawPath.chromeLines()) {
                 if (!line.visible) {

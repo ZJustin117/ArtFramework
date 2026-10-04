@@ -141,6 +141,17 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_REWARD_TAKE_ALL, "images/ui/reward/takeAll.png");
         put(m, ResourceIds.UI_REWARD_ITEM_PANEL, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_SHOP_PANEL, "images/ui/reward/rewardList.png");
+        // NRO-04 D05 LANDMINE (recorded, not fixed here): UI_SHOP_PANEL -> rewardList.png does NOT
+        // exist in $ART_STS_JAR (same missing-file class as D01's cardPile.png and D04's
+        // UI_REWARD_PANEL). Its consumers are the reward/shop/campfire/treasure chrome; do not
+        // reuse this target as a real background.
+        // NRO-04 D05: ShopScreen.<clinit> selects rugImg from images/npcs/rug/<lang>.png by
+        // Settings.language (DEU/EPO/FIN/FRA/ITA/JPN/KOR/RUS/THA/UKR/ZHS); every other language
+        // (and ENG) falls back to eng.png. All 12 files exist in the jar at 1920x1136.
+        for (String rugLang : new String[] {"eng", "deu", "epo", "fin", "fra", "ita", "jpn",
+                "kor", "rus", "tha", "ukr", "zhs"}) {
+            put(m, ResourceIds.shopRug(rugLang), "images/npcs/rug/" + rugLang + ".png");
+        }
         put(m, ResourceIds.UI_SHOP_MERCHANT, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_SHOP_GOLD, "images/ui/topPanel/gold.png");
         put(m, ResourceIds.UI_SHOP_ENTRY_PANEL, "images/ui/reward/rewardListItemPanel.png");

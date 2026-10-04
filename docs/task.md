@@ -2824,6 +2824,30 @@ allocation and Young GC pressure.
       images/ui/reward/rewardList.png` is a MISSING-FILE landmine (same class as the D01
       `cardPile.png`; consumers are the later shop/campfire slices); decoration/outline/glow and the
       per-row icon/color are still uncovered, so full native reward parity remains pending.
+- [x] NRO-04 D05 (shop rug background pixel supply): the shop surface is suppressed wholesale by
+      `RoomRenderPatches` (`ShopScreen.render`), and `ShopDrawPath`/`renderShop` painted only ~5 text
+      rows, so the shop floated on the dimmed map room with NO rug. Native `ShopScreen.render` first
+      draws `rugImg` full-screen: `sb.draw(rugImg, 0f, rugY, Settings.WIDTH, Settings.HEIGHT)`, where
+      `rugImg` is a LANGUAGE-SPECIFIC texture chosen in `ShopScreen.<clinit>` (`images/npcs/rug/
+      <lang>.png`; DEU/EPO/FIN/FRA/ITA/JPN/KOR/RUS/THA/UKR/ZHS, default ENG->eng.png; all 12 files
+      exist in the jar at 1920x1136). Added `ResourceIds.UI_SHOP_RUG_PREFIX = "ui.shop.rug."` +
+      `ResourceIds.shopRug(language)` (`null`/empty -> `eng`) and catalog-mapped all 12
+      `shopRug(<lang>)` -> `images/npcs/rug/<lang>.png`; `ShopDrawPath.rugResourceId()` reads
+      `Settings.language.name()` lowercased, validates via `Sts1VanillaCatalog.isKnown`, and falls
+      back to `shopRug("eng")` when unknown/absent (all `Settings` reads fail-open). `rugItem()` emits
+      the full-screen item at the SETTLED rest position `x=0`, `y=Settings.HEIGHT/2f - 540f*yScale`
+      (= 0 at the default 1920x1080, scales=1), `w=Settings.WIDTH`, `h=Settings.HEIGHT`, ambient (no
+      color override). `probeSlice()` gains `rug` `{resourceId,x,y,w,h}` + `rugCount` + `submitCount`
+      (rug kept out of `items[]` so the public row list is unchanged). `prepareShopVisuals` syncs the
+      rug as C2 id `shop.rug` role `shop-background` at z `0.5` (below the row z `1`); `renderShop`
+      draws the rug FIRST so it paints behind the rows and counts it in the recorded draw evidence.
+      D1 assertions added to `d1_full_present_shop.yaml` (`rug.resourceId` exists + `contains
+      "shop.rug."` + `rugCount>=1`). **Honest gaps:** the native rug ENTRANCE SLIDE is NOT animated
+      (`open()` sets `rugY = HEIGHT`, `updateRug()` lerps to the settled value) — ART paints the rest
+      position only; merchant Spine art, entry card/relic/potion art, prices, and leave/tooltip remain
+      uncovered. **Landmine recorded:** `UI_SHOP_PANEL`/`UI_REWARD_PANEL`/`UI_CAMPFIRE_PANEL`/
+      `UI_TREASURE_PANEL` -> `images/ui/reward/rewardList.png` DOES NOT EXIST in the jar (same class
+      as D01's `cardPile.png`); consumers are reward/shop/campfire/treasure chrome — left for later.
 - [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
       During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
       post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a
@@ -2848,3 +2872,16 @@ allocation and Young GC pressure.
       hover+fade remain uncovered. Next: extend the map draw model + `renderMap` to carry a per-item
       color/blend (resolved from node state) and draw the current-node ring, with a D1 A/B against
       native.
+- [ ] **Open (D05 D1 finding): full-screen room backdrops vs native UI layering.** The D04/D05
+      full-screen sheets (reward `ui.reward.sheet`, shop rug `shop.rug.*`) are represented by
+      `REWARD_COMBAT`/`SHOP` in `RenderPhase.C2_CONTENT`, so their C2 targets submit ABOVE the
+      native-retained phase; a full-screen backdrop can therefore cover native-room UI that ART does
+      not repaint. Observed on D1: in the ART shop frame the native `返回` back banner sits under the
+      rug (native itself draws the rug inside the room, below `AbstractDungeon.render`'s
+      `renderAboveTopPanel`/overlay pass, so native UI draws on top). Also the D1 shop OFF capture was
+      the dimmed room, not a populated native shop, so no true-native baseline was obtained. Impact
+      is bounded today (shop items are ART-repainted text rows; reward title is a native banner), but
+      the general fix is to represent full-screen room-background chrome in a phase below native
+      retained content (a dedicated room-background phase) or to repaint the missing native UI.
+      Next: confirm against a real native shop capture whether the `返回`/skip controls are actually
+      occluded, then place room backdrops in a lower phase (or supply the controls).

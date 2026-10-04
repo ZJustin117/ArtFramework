@@ -40,3 +40,18 @@ steps:
   - assert:
       path: backend.shopDraw.count
       gte: 1
+  # NRO-04 D05: the shop surface must supply the rug background pixels that the wholesale
+  # suppression removes (native ShopScreen.render draws rugImg full-screen at (0, rugY)).
+  - assert:
+      path: backend.shopDraw.rug.resourceId
+      exists: true
+  - assert:
+      path: backend.shopDraw.rug.resourceId
+      contains: "shop.rug."
+  - assert:
+      path: backend.shopDraw.rugCount
+      gte: 1
+  # Submission marker: renderShop draws the rug + chrome rows through drawResolvedTexture.
+  - assert:
+      path: backend.shopDraw.submitCount
+      gte: 1

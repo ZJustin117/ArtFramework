@@ -9,10 +9,55 @@ import artframework.sts1.FullPresentMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /** Shop full-present draw description (25.7). */
 public final class ShopDrawPath {
+
+    /**
+     * NRO-04 D05: shop rug background. Native {@code ShopScreen.render} draws
+     * {@code rugImg} at {@code (0f, rugY, Settings.WIDTH, Settings.HEIGHT)}; at REST
+     * {@code rugY = Settings.HEIGHT/2f - 540f*yScale} (= 0 at the default 1080p scale). The rug
+     * sorts BELOW every text row (z {@link #RUG_Z} &lt; row z) so it paints behind them.
+     */
+    public static final String RUG_ITEM_ID = "shop.rug";
+    public static final String RUG_ROLE = "shop-background";
+    public static final float RUG_Z = 0.5f;
+    /** Row band: above the rug, matching the C2 visual z used by {@code chromeLines()}. */
+    public static final float ROW_Z = 1f;
+
+    /** NRO-04 D05 rug background item. {@code x}/{@code y} are the native bottom-left corner. */
+    public static final class RugItem {
+        public final String resourceId;
+        public final float x;
+        public final float y;
+        public final float w;
+        public final float h;
+
+        public RugItem(String resourceId, float x, float y, float w, float h) {
+            this.resourceId = resourceId != null ? resourceId : "";
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+        }
+
+        /** Native bottom-left bounds: {@code (x, y, w, h)}. */
+        public artframework.component.Rect bounds() {
+            return new artframework.component.Rect(x, y, w, h);
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("resourceId", resourceId);
+            m.put("x", Float.valueOf(x));
+            m.put("y", Float.valueOf(y));
+            m.put("w", Float.valueOf(w));
+            m.put("h", Float.valueOf(h));
+            return m;
+        }
+    }
 
     public static final class DrawItem {
         public final int index;
@@ -57,6 +102,53 @@ public final class ShopDrawPath {
                     resourceFor(e.kind, e.label, e.resourceId, e.soldOut)));
         }
         return out;
+    }
+
+    /**
+     * NRO-04 D05: language-specific rug ResourceId. Reads {@code Settings.language} (its enum
+     * {@code name()} lowercased), validates the mapped key against the vanilla catalog, and falls
+     * back to {@code shopRug("eng")} when unknown. All {@code Settings} reads fail-open to
+     * {@code eng} (the native default branch).
+     */
+    public static String rugResourceId() {
+        String language = "eng";
+        try {
+            com.megacrit.cardcrawl.core.Settings.GameLanguage lang =
+                    com.megacrit.cardcrawl.core.Settings.language;
+            if (lang != null) {
+                language = lang.name().toLowerCase(Locale.ROOT);
+            }
+        } catch (Throwable ignored) {
+            return ResourceIds.shopRug("eng");
+        }
+        String candidate = ResourceIds.shopRug(language);
+        return catalogKnows(candidate) ? candidate : ResourceIds.shopRug("eng");
+    }
+
+    /**
+     * NRO-04 D05 rug background item, or {@code null} when {@code Settings} is unavailable/not
+     * initialized (all reads fail-open).
+     *
+     * <p><b>Verified native geometry</b> ({@code ShopScreen.render} bytecode): first draw is
+     * {@code sb.draw(rugImg, 0f, rugY, Settings.WIDTH, Settings.HEIGHT)}. {@code rugY} settles at
+     * {@code Settings.HEIGHT/2f - 540f*yScale} (0 at the default 1920x1080, scales=1). The native
+     * entrance slide ({@code open()} sets {@code rugY = HEIGHT}, {@code updateRug()} lerps it to
+     * the settled value) is NOT animated by ART — a documented gap; ART paints the rest position.
+     */
+    public static RugItem rugItem() {
+        try {
+            float width = com.megacrit.cardcrawl.core.Settings.WIDTH;
+            float height = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+            float yScale = com.megacrit.cardcrawl.core.Settings.yScale;
+            if (width <= 0f || height <= 0f) {
+                return null;
+            }
+            float x = 0f;
+            float y = height / 2f - 540f * yScale;
+            return new RugItem(rugResourceId(), x, y, width, height);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     /**
@@ -115,7 +207,20 @@ public final class ShopDrawPath {
             list.add(d.toMap());
         }
         m.put("items", list);
+        // NRO-04 D05: the rug background is its own sub-map (kept out of items[] so the public row
+        // list semantics are unchanged). x/y are native bottom-left, matching native draw.
+        RugItem rug = rugItem();
+        m.put("rug", rug != null ? rug.toMap() : null);
+        m.put("rugCount", Integer.valueOf(rug != null ? 1 : 0));
+        // NRO-04 D05: number of pixels renderShop actually submits = the rug (when supplied) plus
+        // every chrome row. Kept distinct from the row-only `drawCount`/`chromeLineCount`.
+        m.put("submitCount", Integer.valueOf(rugCount() + chromeLines().size()));
         return m;
+    }
+
+    /** 1 when the rug background is supplied ({@code Settings} initialized), else 0. */
+    public static int rugCount() {
+        return rugItem() != null ? 1 : 0;
     }
 
     private static RoomChromeLine line(String id, String text, boolean enabled, String role,

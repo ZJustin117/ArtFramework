@@ -254,4 +254,176 @@ public class ShopDrawPathTest {
         }
         return null;
     }
+
+    // ---- NRO-04 D05: shop rug background ------------------------------------------------
+
+    @Test
+    public void rugResourceIdSelectsLanguageSpecificTexture() {
+        setLanguage("DEU");
+        assertEquals(ResourceIds.shopRug("deu"), ShopDrawPath.rugResourceId());
+        assertEquals("ui.shop.rug.deu", ShopDrawPath.rugResourceId());
+
+        setLanguage("ZHS");
+        assertEquals(ResourceIds.shopRug("zhs"), ShopDrawPath.rugResourceId());
+
+        // A language without a native rug file (DUT) must fall back to the eng default.
+        setLanguage("DUT");
+        assertEquals(ResourceIds.shopRug("eng"), ShopDrawPath.rugResourceId());
+
+        // Absent/unknown language also falls back to eng.
+        setLanguage(null);
+        assertEquals("ui.shop.rug.eng", ShopDrawPath.rugResourceId());
+    }
+
+    @Test
+    public void rugCatalogMapsResolveToExistingJarFiles() throws Exception {
+        java.util.Map<String, String> catalog =
+                artframework.sts1.assets.Sts1VanillaCatalog.catalog();
+        for (String lang : new String[] {"eng", "deu", "epo", "fin", "fra", "ita", "jpn",
+                "kor", "rus", "tha", "ukr", "zhs"}) {
+            String id = ResourceIds.shopRug(lang);
+            assertEquals("sts1:images/npcs/rug/" + lang + ".png", catalog.get(id));
+            assertTrue("catalog must know " + id,
+                    artframework.sts1.assets.Sts1VanillaCatalog.isKnown(id));
+            java.net.URL url = ShopDrawPathTest.class.getClassLoader()
+                    .getResource("images/npcs/rug/" + lang + ".png");
+            assertTrue(lang + ".png must exist in the host jar", url != null);
+        }
+        // The full 1920x1136 native size, pinned for the eng default.
+        java.net.URL eng = ShopDrawPathTest.class.getClassLoader()
+                .getResource("images/npcs/rug/eng.png");
+        java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(eng);
+        assertEquals(1920, img.getWidth());
+        assertEquals(1136, img.getHeight());
+    }
+
+    @Test
+    public void rugItemGeometryUsesSettledNativePosition() throws Exception {
+        int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        float yScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setStaticField("WIDTH", Integer.valueOf(1920));
+            setStaticField("HEIGHT", Integer.valueOf(1080));
+            setStaticField("yScale", Float.valueOf(1f));
+            ShopDrawPath.RugItem rug = ShopDrawPath.rugItem();
+            assertTrue(rug != null);
+            assertEquals(0f, rug.x, 0.01f);
+            assertEquals(0f, rug.y, 0.01f); // HEIGHT/2 - 540*1 = 0 at 1080p
+            assertEquals(1920f, rug.w, 0.01f);
+            assertEquals(1080f, rug.h, 0.01f);
+
+            // Non-default yScale keeps the pinned settled formula HEIGHT/2 - 540*yScale.
+            setStaticField("yScale", Float.valueOf(1.5f));
+            ShopDrawPath.RugItem scaled = ShopDrawPath.rugItem();
+            assertEquals(540f - 810f, scaled.y, 0.01f);
+
+            // Uninitialized Settings (WIDTH <= 0) fails open to no rug item.
+            setStaticField("WIDTH", Integer.valueOf(0));
+            assertTrue(ShopDrawPath.rugItem() == null);
+        } finally {
+            setStaticField("WIDTH", Integer.valueOf(w));
+            setStaticField("HEIGHT", Integer.valueOf(h));
+            setStaticField("yScale", Float.valueOf(yScale));
+        }
+    }
+
+    @Test
+    public void probeSliceExposesRugAndKeepsRowList() throws Exception {
+        publishShopFrame();
+        int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        float yScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setStaticField("WIDTH", Integer.valueOf(1920));
+            setStaticField("HEIGHT", Integer.valueOf(1080));
+            setStaticField("yScale", Float.valueOf(1f));
+            Map<String, Object> probe = ShopDrawPath.probeSlice();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> rug = (Map<String, Object>) probe.get("rug");
+            assertTrue("probe exposes the rug sub-map", rug != null);
+            assertTrue("rug resourceId must be a shop.rug.* id",
+                    String.valueOf(rug.get("resourceId")).startsWith("ui.shop.rug."));
+            assertEquals(Float.valueOf(0f), rug.get("x"));
+            assertEquals(Float.valueOf(0f), rug.get("y"));
+            assertEquals(Float.valueOf(1920f), rug.get("w"));
+            assertEquals(Float.valueOf(1080f), rug.get("h"));
+            assertEquals(Integer.valueOf(1), probe.get("rugCount"));
+            // The rug is kept out of the public row list.
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> items = (List<Map<String, Object>>) probe.get("items");
+            assertEquals(2, items.size());
+        } finally {
+            setStaticField("WIDTH", Integer.valueOf(w));
+            setStaticField("HEIGHT", Integer.valueOf(h));
+            setStaticField("yScale", Float.valueOf(yScale));
+        }
+    }
+
+    @Test
+    public void rugSyncsBelowRowsAndIsDrawnFirst() throws Exception {
+        publishShopFrame();
+        FullPresentMode.setShopLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        ArtFramework.component(SurfaceIds.SHOP).mount();
+        int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        float yScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setStaticField("WIDTH", Integer.valueOf(1920));
+            setStaticField("HEIGHT", Integer.valueOf(1080));
+            setStaticField("yScale", Float.valueOf(1f));
+            invokePrepareShop(Sts1RenderPipeline.plan());
+
+            PresentationContext context = PresentationRegistry.context("c2-surfaces");
+            EntityId rugEntity = entityFor(context, SurfaceIds.SHOP, ShopDrawPath.RUG_ITEM_ID);
+            assertTrue("missing C2 rug item", rugEntity != null);
+            DrawComponent draw = context.world().get(rugEntity, DrawComponent.class);
+            assertEquals(ShopDrawPath.RUG_ROLE, draw.role);
+            assertTrue(draw.resourceId.startsWith("ui.shop.rug."));
+            BoundsComponent rugBounds = context.world().get(rugEntity, BoundsComponent.class);
+            assertEquals(0f, rugBounds.rect.x, 0.01f);
+            assertEquals(1920f, rugBounds.rect.width, 0.01f);
+
+            // The rug z must sit BELOW every chrome row so it paints behind them.
+            EntityId title = entityFor(context, SurfaceIds.SHOP, "title");
+            BoundsComponent titleBounds = context.world().get(title, BoundsComponent.class);
+            assertTrue("rug must sort behind the chrome rows",
+                    rugBounds.z < titleBounds.z);
+        } finally {
+            setStaticField("WIDTH", Integer.valueOf(w));
+            setStaticField("HEIGHT", Integer.valueOf(h));
+            setStaticField("yScale", Float.valueOf(yScale));
+        }
+    }
+
+    private static void setLanguage(String enumName) {
+        try {
+            Class<?> langClass = Class.forName(
+                    "com.megacrit.cardcrawl.core.Settings$GameLanguage");
+            Object value = null;
+            if (enumName != null) {
+                @SuppressWarnings({"unchecked", "rawtypes"})
+                Object resolved = Enum.valueOf((Class<? extends Enum>) langClass, enumName);
+                value = resolved;
+            }
+            java.lang.reflect.Field field =
+                    com.megacrit.cardcrawl.core.Settings.class.getDeclaredField("language");
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set Settings.language=" + enumName, failure);
+        }
+    }
+
+    private static void setStaticField(String name, Object value) {
+        try {
+            java.lang.reflect.Field field =
+                    com.megacrit.cardcrawl.core.Settings.class.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set Settings." + name, failure);
+        }
+    }
 }

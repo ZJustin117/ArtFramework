@@ -1,5 +1,7 @@
 package artframework.assets;
 
+import java.util.Locale;
+
 /**
  * ResourceId conventions and minimal vanilla catalog keys (milestone 15.3).
  */
@@ -82,6 +84,7 @@ public final class ResourceIds {
     public static final String UI_SHOP_ENTRY_PANEL = "ui.shop.entry_panel";
     public static final String UI_SHOP_PURGE = "ui.shop.purge";
     public static final String UI_SHOP_SOLD_OUT = "ui.shop.sold_out";
+    public static final String UI_SHOP_RUG_PREFIX = "ui.shop.rug.";
     public static final String UI_TREASURE_PANEL = "ui.treasure.panel";
     public static final String UI_TREASURE_CHEST_CLOSED = "ui.treasure.chest.closed";
     public static final String UI_TREASURE_CHEST_OPEN = "ui.treasure.chest.open";
@@ -179,6 +182,18 @@ public final class ResourceIds {
         return UI_ROOM_SHELL_PREFIX + (kind != null && !kind.isEmpty() ? kind : "unknown");
     }
 
+    /**
+     * NRO-04 D05: shop rug background ({@code ShopScreen.rugImg}) resource id for a language
+     * token. Native {@code ShopScreen.<clinit>} selects a language-specific texture from
+     * {@code images/npcs/rug/<lang>.png} and falls back to {@code eng.png} for every language
+     * without a translation (DUT/PTB/ZHT/GRE/IND/NOR/POL/SPA/SRP/SRB/TUR/VIE/WWW). Pass the
+     * {@code Settings.GameLanguage} name; an absent/empty token yields the {@code eng} id.
+     */
+    public static String shopRug(String language) {
+        return UI_SHOP_RUG_PREFIX
+                + (language != null && !language.isEmpty() ? language.toLowerCase(Locale.ROOT) : "eng");
+    }
+
     public static boolean isValid(String resourceId) {
         if (resourceId == null || resourceId.isEmpty()) {
             return false;
@@ -234,6 +249,18 @@ public final class ResourceIds {
             UI_SHOP_ENTRY_PANEL,
             UI_SHOP_PURGE,
             UI_SHOP_SOLD_OUT,
+            shopRug("eng"),
+            shopRug("deu"),
+            shopRug("epo"),
+            shopRug("fin"),
+            shopRug("fra"),
+            shopRug("ita"),
+            shopRug("jpn"),
+            shopRug("kor"),
+            shopRug("rus"),
+            shopRug("tha"),
+            shopRug("ukr"),
+            shopRug("zhs"),
             UI_TREASURE_PANEL,
             UI_TREASURE_CHEST_CLOSED,
             UI_TREASURE_CHEST_OPEN,

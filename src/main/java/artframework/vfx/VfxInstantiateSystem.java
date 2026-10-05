@@ -35,20 +35,54 @@ public final class VfxInstantiateSystem {
                         0f, 0f, true));
 
         Map<String, EntityId> entitiesByNode = new LinkedHashMap<String, EntityId>();
+        Map<String, Integer> triggerChildrenByParent = new LinkedHashMap<String, Integer>();
+        Map<String, VfxNodeDefinition> definitionsByNodeId = new LinkedHashMap<String, VfxNodeDefinition>();
         for (int index = 0; index < definition.nodes.size(); index++) {
             VfxNodeDefinition node = definition.nodes.get(index);
             EntityId parent = node.parentId == null ? root : entitiesByNode.get(node.parentId);
             EntityId entity = world.createEntity();
             entitiesByNode.put(node.id, entity);
+            definitionsByNodeId.put(node.id, node);
             world.put(entity, VfxNodeComponent.class, new VfxNodeComponent(node.id, index, root, parent));
             world.put(entity, VfxTransformComponent.class, VfxTransformComponent.from(node));
             if (node.particleEmitter != null) {
                 world.put(entity, VfxEmitterComponent.class, VfxEmitterComponent.from(node.particleEmitter));
-                world.put(entity, VfxEmitterStateComponent.class, new VfxEmitterStateComponent(0, false));
+                // A restricted trigger child is seeded DORMANT; VfxSubEmitterSystem arms it later.
+                boolean dormant = VfxNodeDefinition.TRIGGER_ON_PARENT_COMPLETE.equals(node.emissionTrigger);
+                world.put(entity, VfxEmitterStateComponent.class, new VfxEmitterStateComponent(0, false, dormant));
                 world.put(entity, VfxParticleBufferComponent.class, VfxParticleBufferComponent.empty());
+                if (dormant) {
+                    seedSubEmitterMarker(world, entity, node, definitionsByNodeId, entitiesByNode,
+                            triggerChildrenByParent);
+                }
             }
         }
         return new VfxInstance(root, epoch);
+    }
+
+    /**
+     * Seeds the once-only dormant marker for an eligible trigger child. Enforces the restricted
+     * bounds without throwing: the parent itself must not be a trigger child (depth limited to one)
+     * and at most {@link VfxSubEmitterSystem#MAX_SUB_EMITTERS_PER_PARENT} trigger children per parent
+     * are seeded. An ineligible trigger child is left permanently dormant with no marker.
+     */
+    private static void seedSubEmitterMarker(PresentationWorld world, EntityId entity, VfxNodeDefinition node,
+            Map<String, VfxNodeDefinition> definitionsByNodeId, Map<String, EntityId> entitiesByNode,
+            Map<String, Integer> triggerChildrenByParent) {
+        if (node.parentId == null) return;
+        VfxNodeDefinition parentDefinition = definitionsByNodeId.get(node.parentId);
+        if (parentDefinition == null
+                || VfxNodeDefinition.TRIGGER_ON_PARENT_COMPLETE.equals(parentDefinition.emissionTrigger)) {
+            return;
+        }
+        int count = triggerChildrenByParent.containsKey(node.parentId)
+                ? triggerChildrenByParent.get(node.parentId).intValue() : 0;
+        if (count >= VfxSubEmitterSystem.MAX_SUB_EMITTERS_PER_PARENT) return;
+        EntityId parentEntity = entitiesByNode.get(node.parentId);
+        if (parentEntity == null) return;
+        world.put(entity, VfxSubEmitterSystem.VfxSubEmitterComponent.class,
+                new VfxSubEmitterSystem.VfxSubEmitterComponent(parentEntity));
+        triggerChildrenByParent.put(node.parentId, Integer.valueOf(count + 1));
     }
 
     private static void validateOrder(VfxSceneDefinition definition) {

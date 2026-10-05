@@ -341,7 +341,12 @@ Add capabilities in this order:
 1. `.tpsheet` to legacy libGDX atlas materialization.
 2. Angular velocity and flipbook parity improvements.
 3. `CurveXYZTexture`.
-4. Sub-emitter definitions and a `ParticleSubEmitterSystem`.
+4. Sub-emitter definitions and a `ParticleSubEmitterSystem`. **Partially done (restricted F05):** a
+   single-level, fixed-cap trigger model (`VfxNodeDefinition.emissionTrigger == "onParentComplete"`,
+   dormant child armed once by the pure `VfxSubEmitterSystem`, depth 1, `MAX_SUB_EMITTERS_PER_PARENT
+   = 4`) is implemented and unit-verified. Full STS2 sub-emitter parity (arbitrary trigger
+   conditions, nested chains, per-parent fan-out, device evidence) and a D1 sub-emitter bundle/scenario
+   remain open; there is currently NO on-device sub-emitter bundle, so this is unit-verified only.
 5. CPU approximation of turbulence.
 6. A restricted `ShaderMaterial` schema and explicit GLSL adapter.
 7. Baked flipbook fallback for unsupported shaders and screen effects.

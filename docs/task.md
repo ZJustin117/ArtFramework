@@ -2006,6 +2006,24 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 - [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,
       restricted shaders, then baked fallback.
 
+- [x] F05: restricted sub-emitter arming is implemented as a deliberately bounded model, NOT full
+      STS2 sub-emitter parity. The new optional `VfxNodeDefinition.emissionTrigger` string recognizes
+      exactly ONE value, `onParentComplete` (a dormant child emitter stays stopped until its PARENT
+      emitter has completed AND drained); absent/unknown/non-string values fail open to empty and
+      never throw. The pure `VfxSubEmitterSystem` (`VfxSystems` EFFECTS phase, before spawn/integrate)
+      arms each eligible trigger child AT MOST ONCE by clearing its initial dormant
+      `VfxEmitterStateComponent.stopped` (deterministic one-shot restart) and removing its
+      `VfxSubEmitterComponent` once-only marker, so `ParticleSpawnSystem` emits it the same tick.
+      Bounds (never throwing, just not arming): depth is limited to ONE level (a trigger child whose
+      parent is itself a trigger child is seeded permanently dormant with no marker) and a fixed
+      `MAX_SUB_EMITTERS_PER_PARENT = 4` trigger children per parent are seeded; existing total
+      node/particle caps are unchanged. Unit-verified only (no GL) in `VfxSubEmitterTest` +
+      `VfxManifestLoaderTest`. **D1 GAP (honest): there is NO on-device sub-emitter bundle/scenario**,
+      so this is unit-verified only; a future D1 sub-emitter check needs a converter-produced
+      sub-emitter bundle. The deeper STS2 runtime gaps — `.tpsheet`, full sub-emitter parity,
+      turbulence, restricted shader/bake fallback, and Spine 4.2 parity — remain open per
+      [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
+
 ### 46. Traditional ECS convergence
 
 Design: [`docs/design/traditional-ecs.md`](design/traditional-ecs.md). Entity IDs only;

@@ -82,7 +82,19 @@ public final class VfxManifestLoader {
                 optionalBoolean(transform == null ? null : transform.get("visible"), "visible"),
                 color(transform == null ? null : transform.get("modulate")),
                 color(transform == null ? null : transform.get("selfModulate")),
-                emitter(value.get("particleEmitter")));
+                emitter(value.get("particleEmitter")),
+                trigger(value.get("emissionTrigger")));
+    }
+
+    /**
+     * Reads the optional restricted sub-emitter trigger. Fail-open by design: absent, non-string, or
+     * any value other than the single recognized {@code onParentComplete} collapses to empty (none),
+     * and an unknown trigger never throws.
+     */
+    private static String trigger(Object raw) {
+        if (!(raw instanceof String)) return "";
+        return VfxNodeDefinition.TRIGGER_ON_PARENT_COMPLETE.equals(raw)
+                ? VfxNodeDefinition.TRIGGER_ON_PARENT_COMPLETE : "";
     }
 
     private static ParticleEmitterDefinition emitter(Object raw) {

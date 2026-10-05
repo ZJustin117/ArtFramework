@@ -39,11 +39,14 @@ public final class VfxSystems {
     }
 
     private static final class SimulationSystem implements EcsSystem {
+        private final VfxSubEmitterSystem subEmitters = new VfxSubEmitterSystem();
         private final ParticleSpawnSystem spawn = new ParticleSpawnSystem();
         private final ParticleIntegrateSystem integrate = new ParticleIntegrateSystem();
         private final ParticleCurveSystem curves = new ParticleCurveSystem();
         private final VfxLifecycleSystem lifecycle = new VfxLifecycleSystem();
         @Override public void run(artframework.ecs.PresentationWorld world, artframework.ecs.EcsTick tick) {
+            // Arm any eligible dormant trigger child before spawning so it emits the same tick.
+            subEmitters.run(world, tick);
             spawn.run(world, tick); integrate.run(world, tick); curves.run(world, tick); lifecycle.run(world, tick);
         }
     }

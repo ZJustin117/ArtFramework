@@ -43,6 +43,31 @@ public class VfxManifestLoaderTest {
     }
 
     @Test
+    public void parsesRecognizedEmissionTrigger() {
+        VfxSceneDefinition scene = loader.parseScene("{\"format\":\"art.sts2-vfx-scene\",\"schemaVersion\":1,\"id\":\"s\",\"duration\":0,\"capability\":\"DEGRADED\","
+                + "\"typedNodes\":[{\"id\":\"n\",\"nodePath\":\"Root/n\",\"nodeType\":\"GPUParticles2D\",\"emissionTrigger\":\"onParentComplete\","
+                + "\"particleEmitter\":{\"amount\":1}}],\"resources\":[]}");
+        assertEquals(VfxNodeDefinition.TRIGGER_ON_PARENT_COMPLETE, scene.nodes.get(0).emissionTrigger);
+    }
+
+    @Test
+    public void absentAndUnknownEmissionTriggerFailOpenToEmpty() {
+        VfxSceneDefinition absent = loader.parseScene("{\"format\":\"art.sts2-vfx-scene\",\"schemaVersion\":1,\"id\":\"s\",\"duration\":0,\"capability\":\"DEGRADED\","
+                + "\"typedNodes\":[{\"id\":\"n\",\"nodePath\":\"Root/n\",\"nodeType\":\"GPUParticles2D\",\"particleEmitter\":{\"amount\":1}}],\"resources\":[]}");
+        assertEquals("", absent.nodes.get(0).emissionTrigger);
+
+        VfxSceneDefinition unknown = loader.parseScene("{\"format\":\"art.sts2-vfx-scene\",\"schemaVersion\":1,\"id\":\"s\",\"duration\":0,\"capability\":\"DEGRADED\","
+                + "\"typedNodes\":[{\"id\":\"n\",\"nodePath\":\"Root/n\",\"nodeType\":\"GPUParticles2D\",\"emissionTrigger\":\"onSomethingElse\","
+                + "\"particleEmitter\":{\"amount\":1}}],\"resources\":[]}");
+        assertEquals("", unknown.nodes.get(0).emissionTrigger);
+
+        VfxSceneDefinition nonString = loader.parseScene("{\"format\":\"art.sts2-vfx-scene\",\"schemaVersion\":1,\"id\":\"s\",\"duration\":0,\"capability\":\"DEGRADED\","
+                + "\"typedNodes\":[{\"id\":\"n\",\"nodePath\":\"Root/n\",\"nodeType\":\"GPUParticles2D\",\"emissionTrigger\":7,"
+                + "\"particleEmitter\":{\"amount\":1}}],\"resources\":[]}");
+        assertEquals("", nonString.nodes.get(0).emissionTrigger);
+    }
+
+    @Test
     public void parsesSafeDiagnosticsPointer() {
         VfxBundleDefinition bundle = loader.parseManifest("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"
                 + "\"bundleId\":\"demo\",\"capability\":\"DEGRADED\",\"scenes\":[],\"resources\":[],"

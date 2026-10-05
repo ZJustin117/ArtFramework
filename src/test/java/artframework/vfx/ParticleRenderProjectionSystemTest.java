@@ -49,6 +49,48 @@ public class ParticleRenderProjectionSystemTest {
         assertEquals("s/n/0/1", first.draws.get(0).stableKey);
     }
 
+    @Test public void projectsPerParticleScaleAlphaRotationAndEmitterBlend() {
+        // Controlled emitter/node/particle where every composed input is != 1, so the projection's
+        // per-particle composition cannot pass by identity defaults.
+        ParticleEmitterDefinition emitter = new ParticleEmitterDefinition(1, 1f, 0f,
+                null, 0f, null, null, null, null, null, null, null, null, "MUL", 1L, "tex");
+        VfxNodeDefinition node = new VfxNodeDefinition("n", "Root/n", null, "GPUParticles2D",
+                new VfxVec2(0f, 0f), new VfxVec2(1.5f, 2f), 30f, 3f, true,
+                new VfxColor(.5f, 1f, 1f, .5f), null, emitter);
+        PresentationWorld world = new PresentationWorld("composition");
+        new VfxInstantiateSystem().instantiate(world, new VfxSceneDefinition("s", 1, 2f,
+                Collections.singletonList(node), Collections.singletonList(
+                        new VfxResourceRef("tex", "TEXTURE", "a.png", "resources/a.png", "supported")),
+                VfxCapability.SUPPORTED), 0L);
+        EntityId entity = world.query(VfxParticleBufferComponent.class).get(0);
+        world.put(entity, VfxParticleBufferComponent.class, new VfxParticleBufferComponent(
+                Collections.singletonList(new VfxParticle(0, 0f, 2f, new VfxVec2(0f, 0f),
+                        new VfxVec2(0f, 0f), 15f, 0f, 1f, 2.5f, .8f,
+                        new VfxColor(.6f, .5f, .4f, .5f)))));
+
+        new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, 0L));
+        VfxParticleDraw draw = world.get(world.entities().get(0), VfxDrawListComponent.class)
+                .value.draws.get(0);
+
+        // scaleX = composed.scaleX(1.5) * particle.scale(2.5); scaleY likewise.
+        assertEquals(3.75f, draw.scaleX, .001f);
+        assertEquals(5f, draw.scaleY, .001f);
+        // alpha = node.color.a(.5) * particle.color.a(.5) * particle.alpha(.8).
+        assertEquals(.2f, draw.alpha, .001f);
+        // color = node.color * particle.color.
+        assertEquals(.3f, draw.r, .001f);
+        assertEquals(.5f, draw.g, .001f);
+        assertEquals(.4f, draw.b, .001f);
+        // rotation = composed.rot(30) + particle.rotationDegrees(15).
+        assertEquals(45f, draw.rotationDegrees, .001f);
+        // blend comes from the ECS emitter's blendMode field, not a hardcoded default.
+        assertEquals("MUL", draw.blendMode);
+        // Ordering/identity are untouched by the per-particle composition.
+        assertEquals(RenderPhase.ART_EFFECTS, draw.renderOrder.phase);
+        assertEquals(3f, draw.zIndex, .001f);
+        assertEquals("s/n/0/0", draw.stableKey);
+    }
+
     @Test public void missingResourceOmitsOnlyProjection() {
         VfxNodeDefinition node = new VfxNodeDefinition("n", "n", null, "GPUParticles2D", null, null,
                 null, null, null, null, null, new ParticleEmitterDefinition(1, 1f, 0f, null, 0f,

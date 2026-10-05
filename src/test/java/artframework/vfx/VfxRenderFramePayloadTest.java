@@ -112,7 +112,7 @@ public class VfxRenderFramePayloadTest {
 
     @Test public void projectionSystemPublishesPayloadEntriesAlongsideDraws() {
         ParticleEmitterDefinition emitter = new ParticleEmitterDefinition(1, 1f, 0f,
-                null, 0f, null, null, null, null, null, null, null, null, null, 1L, "tex");
+                null, 0f, null, null, null, null, null, null, null, null, "AMUL", 1L, "tex");
         VfxNodeDefinition node = new VfxNodeDefinition("n", "n", null, "GPUParticles2D",
                 null, null, null, null, null, null, null, emitter);
         artframework.ecs.PresentationWorld world = new artframework.ecs.PresentationWorld("payload-frame");
@@ -134,6 +134,9 @@ public class VfxRenderFramePayloadTest {
                 artframework.render.ArtRenderContributionComponent.contributionFor(world, producerId);
         assertEquals(1, entries.size());
         assertEquals("a.png", entries.get(0).payload.resourceId());
+        // The ECS emitter's blendMode reaches the payload through the full
+        // emitter -> projection -> VfxRenderFrame.payloadEntry chain.
+        assertEquals("AMUL", entries.get(0).payload.blendMode());
         VfxDrawList draws = world.get(root, VfxDrawListComponent.class).value;
         assertEquals(1, draws.draws.size());
         assertEquals(draws.draws.get(0).stableKey, entries.get(0).stableKey);

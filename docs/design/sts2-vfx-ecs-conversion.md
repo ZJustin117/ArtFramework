@@ -300,6 +300,11 @@ Reads ECS state, sorts by node order/z-index, resolves texture regions, computes
 and emits libGDX-compatible draw data. It does not own particle simulation state and does not
 write directly into `EntityPresent`.
 
+- [x] F03: basic particle render projection pinned — per-particle scale, alpha, rotation, and the
+  ECS emitter's blend mode compose through the ECS -> projection -> payload chain (unit-pinned in
+  `ParticleRenderProjectionSystemTest`/`VfxRenderFramePayloadTest`), with a live-window D1 capture of
+  the smoke-puff in `d1_sts2_vfx_basic.yaml`; pixel parity is not claimed.
+
 This follows the existing collection → projection → system family pattern. A future host-side
 ledger/registry may be added for native VFX observation and lifecycle evidence, analogous to the
 transient-effect template, but it must not become a second presentation authority.

@@ -1975,6 +1975,20 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       then `art vfx clear` asserts `status=clear`/`liveRoots=0`. The deeper STS2 runtime gaps
       — `.tpsheet`, sub-emitter, turbulence, restricted shader/bake fallback, and Spine 4.2 parity —
       remain open per [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
+- [x] F03: the basic particle render projection's per-particle composition is now unit-pinned through
+      the ECS emitter -> `ParticleRenderProjectionSystem` -> `VfxRenderFrame.payloadEntry` chain:
+      projected `scaleX/Y == composed.scale * particle.scale`, `alpha == node.color.a *
+      particle.color.a * particle.alpha`, `rotation == composed.rot + particle.rot`, and the payload's
+      blend mode comes from the ECS emitter's `blendMode` field (all with non-identity inputs), while
+      order/`stableKey` stay unchanged. `tests/ui-scenarios/device/d1_sts2_vfx_basic.yaml` adds a
+      `screenshot: true` inside the live window (immediately after the `liveRoots`/`draws` probe and
+      before `art vfx clear`) to capture the smoke-puff while live; the final native-undisturbed
+      screenshot after clear/panic is kept. The live capture is timing-sensitive by design (a ~2s
+      one-shot bundle) and its puff visibility is advisory — the probe counters remain the authority.
+      F02 already provides the end-to-end draw proof; this does NOT claim pixel parity. The deeper
+      STS2 runtime gaps — `.tpsheet`, sub-emitter, turbulence, restricted shader/bake fallback, and
+      Spine 4.2 parity — remain open per
+      [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
 - [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,
       restricted shaders, then baked fallback.
 

@@ -80,6 +80,12 @@ steps:
   - assert:
       path: backend.renderPlan.nativeRenderStrict.accepted
       eq: true
+  # Visual capture INSIDE the live window: the wait_probe above observed `liveRoots>=1`/`draws>=1`
+  # and the asserts reuse that same captured probe, so this screenshot lands while the puff is live.
+  # The smoke-puff bundle is a ~2s one-shot, so this capture is timing-sensitive by design; the puff
+  # being visible is ADVISORY only — the probe counters above remain the authority. The final
+  # screenshot below is a separate native-undisturbed capture after clear/panic.
+  - screenshot: true
   # --- CLEAR: explicit teardown drops the graph, roots, and draws. ---
   - console: "art vfx clear"
   - wait_probe:

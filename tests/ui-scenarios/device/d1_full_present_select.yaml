@@ -47,3 +47,9 @@ steps:
   - assert:
       path: backend.selectDraw.count
       gte: 1
+  - assert:
+      path: backend.selectDraw.confirm.resourceId
+      eq: ui.select.confirm
+  - assert:
+      path: backend.selectDraw.confirm.w
+      gte: 1

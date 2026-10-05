@@ -89,12 +89,20 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_EVENT_BUTTON_DISABLED, "images/ui/event/disabledButton.png");
         put(m, ResourceIds.UI_EVENT_PANEL, "images/ui/event/panel.png");
         put(m, ResourceIds.UI_EVENT_TITLE, "images/ui/event/panel.png");
+        // NOTE (NRO-04 D09): UI_SELECT_CARD / _SELECTED / _FRAME -> "cardui/frame" is NOT a
+        // file-backed atlas resource in $ART_STS_JAR (it is the card-art atlas key, not a loose
+        // PNG), so per-card select pixels are a DOCUMENTED GAP. Do not treat these as drawable
+        // files; the confirm button below IS file-backed.
         put(m, ResourceIds.UI_SELECT_CARD, "cardui/frame");
         put(m, ResourceIds.UI_SELECT_CARD_DISABLED, "images/ui/event/disabledButton.png");
         put(m, ResourceIds.UI_SELECT_CARD_SELECTED, "cardui/frame");
         put(m, ResourceIds.UI_SELECT_CARD_FRAME, "cardui/frame");
-        put(m, ResourceIds.UI_SELECT_CONFIRM, "images/ui/event/enabledButton.png");
-        put(m, ResourceIds.UI_SELECT_CONFIRM_DISABLED, "images/ui/event/disabledButton.png");
+        // NRO-04 D09: native CardSelectConfirmButton.renderButton uses
+        // ImageMaster.REWARD_SCREEN_TAKE_BUTTON (images/ui/reward/takeAll.png) when enabled and
+        // ImageMaster.REWARD_SCREEN_TAKE_USED_BUTTON (images/ui/reward/takeAllUsed.png) when
+        // disabled. Both files exist in $ART_STS_JAR at 512x256.
+        put(m, ResourceIds.UI_SELECT_CONFIRM, "images/ui/reward/takeAll.png");
+        put(m, ResourceIds.UI_SELECT_CONFIRM_DISABLED, "images/ui/reward/takeAllUsed.png");
         put(m, ResourceIds.UI_REWARD_PANEL, "images/ui/reward/rewardList.png");
         // NRO-04 D04 LANDMINE (recorded, not fixed here): UI_REWARD_PANEL -> rewardList.png does NOT
         // exist in $ART_STS_JAR (same missing-file class as the D01 cardPile.png). Its consumers are

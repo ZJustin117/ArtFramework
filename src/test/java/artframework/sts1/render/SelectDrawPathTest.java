@@ -152,8 +152,11 @@ public class SelectDrawPathTest {
         assertTrue("confirm row must be a projected item, not an evidence constant", items.get(2).confirm);
         assertTrue(items.get(2).enabled);
         assertEquals(ResourceIds.UI_SELECT_CONFIRM, items.get(2).resourceId);
-        assertEquals(360f, items.get(2).w, 0.001f);
-        assertEquals(48f, items.get(2).h, 0.001f);
+        // NRO-04 D09 native geometry at fail-open unit scale (JUnit Settings.scale=0 -> default 1).
+        assertEquals(960f, items.get(2).x, 0.001f);
+        assertEquals(475f, items.get(2).y, 0.001f);
+        assertEquals(512f, items.get(2).w, 0.001f);
+        assertEquals(256f, items.get(2).h, 0.001f);
     }
 
     @Test
@@ -204,6 +207,110 @@ public class SelectDrawPathTest {
         assertFalse(item.enabled);
         assertEquals(ResourceIds.UI_SELECT_CARD_DISABLED, item.resourceId);
         assertEquals(ResourceIds.UI_SELECT_CARD_FRAME, item.frameResourceId);
+    }
+
+    @Test
+    public void confirmButtonUsesNativeCardSelectGeometryAndProbeSubMap() throws Exception {
+        // Native CardSelectConfirmButton.renderButton draws a 512x256 texture with centre
+        // (WIDTH/2, TAKE_Y = 475*scale) and size (512*scale, 256*scale). DrawItem x/y is CENTER.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(1920));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            publishSelectFrame();
+
+            SelectDrawPath.DrawItem confirm = SelectDrawPath.confirmItem();
+            assertNotNull(confirm);
+            assertTrue(confirm.confirm);
+            assertEquals(ResourceIds.UI_SELECT_CONFIRM, confirm.resourceId);
+            assertEquals("centre x = WIDTH/2", 960f, confirm.x, 0.001f);
+            assertEquals("centre y = 475*scale", 475f, confirm.y, 0.001f);
+            assertEquals("size w = 512*scale", 512f, confirm.w, 0.001f);
+            assertEquals("size h = 256*scale", 256f, confirm.h, 0.001f);
+            // renderer emits x - w/2, y - h/2.
+            assertEquals("native top-left x = WIDTH/2 - 256", 704f, confirm.x - confirm.w / 2f, 0.001f);
+            assertEquals("native top-left y = 475 - 128", 347f, confirm.y - confirm.h / 2f, 0.001f);
+
+            Map<String, Object> probe = SelectDrawPath.probeSlice();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> c = (Map<String, Object>) probe.get("confirm");
+            assertNotNull("probe exposes the confirm sub-map", c);
+            assertEquals(ResourceIds.UI_SELECT_CONFIRM, c.get("resourceId"));
+            assertEquals(Float.valueOf(960f), c.get("x"));
+            assertEquals(Float.valueOf(475f), c.get("y"));
+            assertEquals(Float.valueOf(512f), c.get("w"));
+            assertEquals(Float.valueOf(256f), c.get("h"));
+            assertEquals(Boolean.TRUE, c.get("enabled"));
+            assertEquals(Boolean.TRUE, c.get("visible"));
+            // Existing keys stay intact.
+            assertEquals(Boolean.TRUE, probe.get("confirmEnabled"));
+            assertEquals(Boolean.TRUE, probe.get("confirmVisible"));
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale",
+                    Float.valueOf(previousScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(previousWidth));
+        }
+    }
+
+    @Test
+    public void confirmButtonGeometryCatchesAxisMixupsAtNonUnitScale() throws Exception {
+        // Both native axes use Settings.scale; a WIDTH-only centre and a scale-only size mean
+        // WIDTH affects x but not w, and xScale must NOT leak into either.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        try {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH", Integer.valueOf(1600));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1.25f));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1.5f));
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            publishSelectFrame();
+
+            SelectDrawPath.DrawItem confirm = SelectDrawPath.confirmItem();
+            assertNotNull(confirm);
+            assertEquals("centre x follows WIDTH only", 800f, confirm.x, 0.01f);
+            assertEquals("centre y = 475*scale", 593.75f, confirm.y, 0.01f);
+            assertEquals("w uses scale, not xScale", 640f, confirm.w, 0.01f);
+            assertEquals("h uses scale, not xScale", 320f, confirm.h, 0.01f);
+        } finally {
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale",
+                    Float.valueOf(previousScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale",
+                    Float.valueOf(previousXScale));
+            setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                    Integer.valueOf(previousWidth));
+        }
+    }
+
+    @Test
+    public void confirmResourceMapsToExistingNativeTexture() throws Exception {
+        Map<String, String> catalog = artframework.sts1.assets.Sts1VanillaCatalog.catalog();
+        assertEquals("sts1:images/ui/reward/takeAll.png",
+                catalog.get(ResourceIds.UI_SELECT_CONFIRM));
+        assertEquals("sts1:images/ui/reward/takeAllUsed.png",
+                catalog.get(ResourceIds.UI_SELECT_CONFIRM_DISABLED));
+        assertTrue(artframework.sts1.assets.Sts1VanillaCatalog.isKnown(ResourceIds.UI_SELECT_CONFIRM));
+        assertTrue(artframework.sts1.assets.Sts1VanillaCatalog
+                .isKnown(ResourceIds.UI_SELECT_CONFIRM_DISABLED));
+
+        // The mapped enabled/disabled textures must EXIST in the host jar at 512x256.
+        java.net.URL enabled = SelectDrawPathTest.class.getClassLoader()
+                .getResource("images/ui/reward/takeAll.png");
+        assertNotNull("takeAll.png must exist in the host jar", enabled);
+        java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(enabled);
+        assertNotNull(img);
+        assertEquals(512, img.getWidth());
+        assertEquals(256, img.getHeight());
+        java.net.URL disabled = SelectDrawPathTest.class.getClassLoader()
+                .getResource("images/ui/reward/takeAllUsed.png");
+        assertNotNull("takeAllUsed.png must exist in the host jar", disabled);
     }
 
     @Test
@@ -405,8 +512,7 @@ public class SelectDrawPathTest {
                 surfaceId);
     }
 
-    private static void invokePrivate(String name, Class<?>[] types, Object... args) {
-        try {
+    private static void invokePrivate(String name, Class<?>[] types, Object... args) {        try {
             Method method = Sts1SurfaceRenderer.class.getDeclaredMethod(name, types);
             method.setAccessible(true);
             method.invoke(null, args);
@@ -441,5 +547,15 @@ public class SelectDrawPathTest {
             }
         }
         return out;
+    }
+
+    private static void setStaticField(Class<?> owner, String name, Object value) {
+        try {
+            java.lang.reflect.Field field = owner.getDeclaredField(name);
+            field.setAccessible(true);
+            field.set(null, value);
+        } catch (Exception failure) {
+            throw new AssertionError("could not set static field " + owner + "." + name, failure);
+        }
     }
 }

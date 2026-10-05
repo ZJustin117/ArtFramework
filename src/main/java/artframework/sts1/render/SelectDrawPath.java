@@ -125,22 +125,80 @@ public final class SelectDrawPath {
             i++;
         }
         if (sv.confirmVisible || sv.confirmEnabled) {
-            out.add(
-                    new DrawItem(
-                            "confirm",
-                            "Confirm",
-                            -1,
-                            false,
-                            sv.confirmVisible,
-                            sv.confirmEnabled,
-                            defaultConfirmX(),
-                            defaultConfirmY(),
-                            true,
-                            sv.confirmEnabled ? ResourceIds.UI_SELECT_CONFIRM
-                                    : ResourceIds.UI_SELECT_CONFIRM_DISABLED,
-                            "", 360f, 48f));
+            out.add(confirmItem());
         }
         return out;
+    }
+
+    /**
+     * The native select-screen confirm button item, or {@code null} when the confirm control is
+     * neither visible nor enabled in the current projection.
+     *
+     * <p><b>Verified native geometry</b> ({@code CardSelectConfirmButton.renderButton} bytecode):
+     * {@code TAKE_Y = 475f * Settings.scale} and the enabled/disabled draw is
+     * {@code sb.draw(texture, Settings.WIDTH/2f - 256f, TAKE_Y - 128f, 256f, 128f, 512f, 256f,
+     * Settings.scale, Settings.scale, 0f, 0, 0, 512, 256, false, false)}. With libGDX origin
+     * scaling both axes scale around the texture centre, so the rendered button CENTRE is
+     * {@code (WIDTH/2f, 475f*scale)} and its SIZE is {@code (512f*scale, 256f*scale)};
+     * {@code DrawItem.x/y} use the SAME CENTER convention as the card items, so the native
+     * top-left {@code (WIDTH/2 - 256*scale, 475*scale - 128*scale)} falls out of the renderer's
+     * {@code x - w/2, y - h/2}. At {@code scale=1, WIDTH=1920} that is centre {@code (960, 475)},
+     * size {@code 512x256}. All {@code Settings} reads fail-open (defaults {@code WIDTH=1920},
+     * {@code scale=1}) so an uninitialized host still yields native-at-unit-scale geometry.
+     */
+    public static DrawItem confirmItem() {
+        SelectView sv = ArtFramework.projection().select();
+        if (!sv.confirmVisible && !sv.confirmEnabled) {
+            return null;
+        }
+        float[] cs = confirmSettings();
+        float width = cs[0];
+        float scale = cs[1];
+        return new DrawItem(
+                "confirm",
+                "Confirm",
+                -1,
+                false,
+                sv.confirmVisible,
+                sv.confirmEnabled,
+                width * 0.5f,
+                CONFIRM_TAKE_Y * scale,
+                true,
+                sv.confirmEnabled ? ResourceIds.UI_SELECT_CONFIRM
+                        : ResourceIds.UI_SELECT_CONFIRM_DISABLED,
+                "",
+                CONFIRM_TEXTURE_W * scale,
+                CONFIRM_TEXTURE_H * scale);
+    }
+
+    /** Native {@code TAKE_Y} base (unscaled): {@code 475f * Settings.scale}. */
+    private static final float CONFIRM_TAKE_Y = 475f;
+    /** Native confirm texture draw width in pixels (unscaled): {@code 512f}. */
+    private static final float CONFIRM_TEXTURE_W = 512f;
+    /** Native confirm texture draw height in pixels (unscaled): {@code 256f}. */
+    private static final float CONFIRM_TEXTURE_H = 256f;
+
+    /**
+     * Live {@code Settings} values {@code {WIDTH, scale}} used by the native confirm geometry,
+     * fail-open to {@code {1920, 1}} when the host type is unavailable or not yet initialized
+     * (any value {@code <= 0}). Mirrors {@code RewardDrawPath.sheetSettings} fail-open, but defaults
+     * rather than declining so the confirm button is never a zero-size degenerate draw.
+     */
+    private static float[] confirmSettings() {
+        float width = 1920f;
+        float scale = 1f;
+        try {
+            float w = com.megacrit.cardcrawl.core.Settings.WIDTH;
+            float s = com.megacrit.cardcrawl.core.Settings.scale;
+            if (w > 0f) {
+                width = w;
+            }
+            if (s > 0f) {
+                scale = s;
+            }
+        } catch (Throwable ignored) {
+        }
+        return new float[] {width, scale};
     }
 
     public static Map<String, Object> probeSlice() {
@@ -156,6 +214,23 @@ public final class SelectDrawPath {
         m.put("confirmVisible", Boolean.valueOf(sv.confirmVisible));
         m.put("suppressNativeSelect", Boolean.valueOf(shouldSuppressNativeSelect()));
         m.put("presentLevel", FullPresentMode.selectLevel().name());
+        // NRO-04 D09: expose the native confirm-button geometry as its own sub-map (kept out of
+        // items[] so the public item-list semantics are unchanged). x/y use the SAME CENTER
+        // convention as items[]; the renderer's x - w/2, y - h/2 yields the native top-left.
+        DrawItem confirm = confirmItem();
+        if (confirm != null) {
+            Map<String, Object> c = new LinkedHashMap<String, Object>();
+            c.put("resourceId", confirm.resourceId);
+            c.put("x", Float.valueOf(confirm.x));
+            c.put("y", Float.valueOf(confirm.y));
+            c.put("w", Float.valueOf(confirm.w));
+            c.put("h", Float.valueOf(confirm.h));
+            c.put("enabled", Boolean.valueOf(confirm.enabled));
+            c.put("visible", Boolean.valueOf(confirm.visible));
+            m.put("confirm", c);
+        } else {
+            m.put("confirm", null);
+        }
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (DrawItem d : items) {
             list.add(d.toMap());
@@ -200,22 +275,6 @@ public final class SelectDrawPath {
             return com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.45f;
         } catch (Throwable t) {
             return 540f;
-        }
-    }
-
-    private static float defaultConfirmX() {
-        try {
-            return com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f;
-        } catch (Throwable t) {
-            return 960f;
-        }
-    }
-
-    private static float defaultConfirmY() {
-        try {
-            return com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.18f;
-        } catch (Throwable t) {
-            return 200f;
         }
     }
 }

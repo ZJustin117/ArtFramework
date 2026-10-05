@@ -2945,6 +2945,33 @@ allocation and Young GC pressure.
       remain pending. **Mis-maps recorded (left as-is):** `UI_TREASURE_CHEST_CLOSED/OPEN` -> map
       icons are TEXT-ROW ids, not the sprite; `UI_TREASURE_PANEL -> images/ui/reward/rewardList.png`
       is a MISSING-FILE landmine (same class as D01/D04/D05).
+- [x] NRO-04 D09 (select confirm button at native `CardSelectConfirmButton` geometry): the select
+      surface is wholesale-suppressed (`SelectRenderPatches` gates `GridCardSelectScreen.render`/
+      `HandCardSelectScreen.render`) and `renderSelect` already paints items via
+      `drawResolvedTexture`, but the confirm button used a generic 360x48 rectangle on
+      `images/ui/event/enabledButton.png`. Verified native bytecode
+      (`com.megacrit.cardcrawl.ui.buttons.CardSelectConfirmButton.renderButton`):
+      `TAKE_Y = 475f * Settings.scale`; the enabled draw uses
+      `ImageMaster.REWARD_SCREEN_TAKE_BUTTON` = `images/ui/reward/takeAll.png` and the disabled draw
+      uses `ImageMaster.REWARD_SCREEN_TAKE_USED_BUTTON` = `images/ui/reward/takeAllUsed.png` (both
+      files exist in `$ART_STS_JAR`, 512x256); geometry is
+      `sb.draw(texture, WIDTH/2f - 256f, TAKE_Y - 128f, 256f, 128f, 512f, 256f, scale, scale, ...)`,
+      so the button CENTRE is `(WIDTH/2f, 475f*scale)` and its SIZE is `(512f*scale, 256f*scale)`
+      (both axes use `Settings.scale`; the label is centred on the button). `SelectDrawPath` now
+      emits the confirm item at that native geometry via `confirmItem()` with fail-open `Settings`
+      reads (defaults `WIDTH=1920`, `scale=1`), keeping the `UI_SELECT_CONFIRM`/`_DISABLED`
+      resource selection and the `confirm` id/role; `probeSlice()` gains a `confirm` sub-map
+      `{resourceId,x,y,w,h,enabled,visible}` (existing `confirmEnabled`/`confirmVisible` kept).
+      Catalog maps `UI_SELECT_CONFIRM -> images/ui/reward/takeAll.png`,
+      `_DISABLED -> images/ui/reward/takeAllUsed.png`. `d1_full_present_select.yaml` asserts
+      `backend.selectDraw.confirm.resourceId eq ui.select.confirm` and `confirm.w gte 1`.
+      **Honest gaps (NOT covered):** the per-card `cardui/frame` atlas key is NOT file-backed (card
+      pixels are not supplied), so card rectangles remain a documented gap; the select
+      panel/background and tip/header are not mapped; cancel/skip buttons are not covered;
+      hover/controller states are not replicated. **Missing-file landmines recorded (not fixed):**
+      `UI_SELECT_CARD* -> cardui/frame` (atlas key, not a loose file) and
+      `UI_PANEL_DEFAULT`/`UI_REWARD_PANEL -> images/ui/reward/rewardList.png` (same class as
+      D01 `cardPile.png`).
 - [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
       During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
       post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a
@@ -3021,3 +3048,12 @@ allocation and Young GC pressure.
       scanner/ownership tests pass, but a future `--write-manifest` regeneration would revert it to
       the room hook. Next: retarget those generator maps from `TreasureRoom.render` to
       `AbstractChest.render` so regeneration is stable.
+- [ ] **Open (D09 D1 finding): select per-card frames + localized labels + panel.** D1 review of the
+      ART grid-select frame showed the confirm button is correct (native `takeAll` capsule at
+      (960,475)), but per-card pixel supply is missing: `UI_SELECT_CARD`/`_SELECTED`/`_FRAME` map to
+      `cardui/frame`, which is NOT file-backed, so card frames/art are not drawn (only floating
+      labels). The labels also show raw card IDs (`Strike_R`) instead of localized names, and the
+      select panel/background, tip/header, cancel/skip buttons, and the eye/filter control are not
+      supplied. Next: supply real card frames (native `AbstractCard.render` is the authority; either
+      delegate card pixels or map a file-backed frame resource), localize card labels from the
+      projection, and add the select panel/buttons as a follow-up slice.

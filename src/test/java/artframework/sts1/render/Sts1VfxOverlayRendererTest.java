@@ -7,13 +7,19 @@ import artframework.vfx.VfxRenderFrame;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class Sts1VfxOverlayRendererTest {
+    @After public void cleanupMaterialSupport() {
+        artframework.vfx.VfxMaterialSupport.resetForTests();
+    }
     @Test public void overlaySubmissionSortsBySharedRenderOrder() {
         VfxParticleDraw high = draw("node-b", 2, 1, 5f);
         VfxParticleDraw lowKey = draw("node-a", 1, 0, 5f);
@@ -137,6 +143,77 @@ public class Sts1VfxOverlayRendererTest {
                 com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
         assertBlend(null, com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
                 com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+    }
+
+    @Test public void supportedBlendNamesProduceUnchangedFunctionsAndCountNoRejections() {
+        // The support matrix must not change the rendered blend functions for any supported name,
+        // including a case variant that canonicalizes to the same name.
+        assertBlend("MIX", com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+                com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+        assertBlend("add", com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+                com.badlogic.gdx.graphics.GL20.GL_ONE);
+        assertBlend("mul", com.badlogic.gdx.graphics.GL20.GL_DST_COLOR,
+                com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+        assertBlend("premult_alpha", com.badlogic.gdx.graphics.GL20.GL_ONE,
+                com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> rejected = (Map<String, Integer>)
+                artframework.vfx.VfxMaterialSupport.probeSlice().get("rejected");
+        assertTrue("supported names must not be counted", rejected.isEmpty());
+    }
+
+    @Test public void unsupportedAndUnknownBlendNamesFallOpenToMixAndAreCounted() {
+        int[] mix = new int[] { com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+                com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA };
+        // SUB has no renderer mapping today: it must fall open to MIX, not throw.
+        assertBlend("SUB", mix[0], mix[1]);
+        assertBlend("UNKNOWN", mix[0], mix[1]);
+        assertBlend("", mix[0], mix[1]);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> rejected = (Map<String, Integer>)
+                artframework.vfx.VfxMaterialSupport.probeSlice().get("rejected");
+        assertEquals(Integer.valueOf(1), rejected.get("SUB"));
+        assertEquals(Integer.valueOf(1), rejected.get("(blank)"));
+        assertEquals(Integer.valueOf(1), rejected.get("UNKNOWN"));
+    }
+
+    @Test public void payloadBlendRegressionForSupportedModesIsPixelIdentical() {
+        // A payload-bearing entry for each supported mode maps to the same functions as before and
+        // never falls back; the projection payload still carries the raw emitter name.
+        for (String mode : new String[] { "MIX", "ADD", "MUL", "PREMULT_ALPHA" }) {
+            VfxParticleDraw source = draw("node", 0, 0, 0f, 0, 1, 1, 3f, 4f, mode);
+            RenderPlan.Entry entry = VfxRenderFrame.payloadEntry(source);
+            int[] blend = Sts1VfxOverlayRenderer.blendFunctions(entry.payload.blendMode());
+
+            artframework.vfx.VfxMaterialSupport.Resolution resolution =
+                    artframework.vfx.VfxMaterialSupport.resolve(mode);
+            assertTrue(mode + " must be supported", resolution.supported);
+            assertFalse(mode + " must not fall back", resolution.fallback);
+            assertEquals("raw name reaches the payload unchanged", mode, entry.payload.blendMode());
+            assertEquals("blend functions must not change for " + mode,
+                    blendRef(mode)[0], blend[0]);
+            assertEquals("blend functions must not change for " + mode,
+                    blendRef(mode)[1], blend[1]);
+        }
+    }
+
+    private static int[] blendRef(String mode) {
+        switch (mode) {
+            case "ADD":
+                return new int[] { com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+                        com.badlogic.gdx.graphics.GL20.GL_ONE };
+            case "PREMULT_ALPHA":
+                return new int[] { com.badlogic.gdx.graphics.GL20.GL_ONE,
+                        com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA };
+            case "MUL":
+                return new int[] { com.badlogic.gdx.graphics.GL20.GL_DST_COLOR,
+                        com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA };
+            default:
+                return new int[] { com.badlogic.gdx.graphics.GL20.GL_SRC_ALPHA,
+                        com.badlogic.gdx.graphics.GL20.GL_ONE_MINUS_SRC_ALPHA };
+        }
     }
 
     @Test public void payloadlessEntriesAreSkippedByThePayloadPath() {

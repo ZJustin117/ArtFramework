@@ -2006,6 +2006,24 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 - [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,
       restricted shaders, then baked fallback.
 
+- [x] F07: a single restricted VFX material/blend SUPPORT MATRIX with explicit reject + fail-open
+      fallback now exists in pure `VfxMaterialSupport`. It bounds the KNOWN STS2 blend names
+      (`MIX`, `ADD`, `SUB`, `MUL`, `PREMULT_ALPHA`): `MIX`/`ADD`/`MUL`/`PREMULT_ALPHA` are
+      SUPPORTED (canonicalized case-insensitively) and `SUB` is explicitly UNSUPPORTED. The pure
+      `resolve(name)` never throws and returns `{requested, resolved, supported, fallback}`:
+      unknown/blank/null and `SUB` resolve to the single fallback `MIX` (`supported=false`,
+      `fallback=true`); supported names resolve to their canonical form (`fallback=false`). The
+      `Sts1VfxOverlayRenderer` blend lookup is routed through the matrix as the single blend
+      authority — the resulting GL functions for every supported name are unchanged and the same
+      `MIX` fallback applies to everything else — so no pixels change and no shader path is added.
+      Rejected names are counted in a bounded (16-key) diagnostic map with an overflow counter, and
+      `VfxMaterialSupport.probeSlice()` (`{known, supported, unsupported, rejected, rejectedOverflow}`)
+      is exposed read-only, fail-open, under `backend.vfx.materials`. Unit-verified only (no GL) in
+      `VfxMaterialSupportTest` + `Sts1VfxOverlayRendererTest`. **Honest gap (OPEN):** a general
+      shader system and an STS2-equivalent shader/material bake are NOT achievable here and are NOT
+      attempted; `ShaderMaterial`/`.gdshader` remain `unsupported-known` in IR (no typed field, no
+      GL shader path). No D1 shader scenario is fabricated, and the D1 held out.
+
 - [x] F05: restricted sub-emitter arming is implemented as a deliberately bounded model, NOT full
       STS2 sub-emitter parity. The new optional `VfxNodeDefinition.emissionTrigger` string recognizes
       exactly ONE value, `onParentComplete` (a dormant child emitter stays stopped until its PARENT

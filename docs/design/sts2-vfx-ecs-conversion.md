@@ -363,7 +363,15 @@ Add capabilities in this order:
    STS2-equivalent: arbitrary `turbulence_*` source semantics, converter-produced typed turbulence
    data, and D1 device evidence remain open (the converter still diagnoses `turbulence_*` as
    `unsupported-known`, so no turbulence bundle exists).
-6. A restricted `ShaderMaterial` schema and explicit GLSL adapter.
+6. A restricted `ShaderMaterial` schema and explicit GLSL adapter. **Partially done (restricted
+   F07):** a bounded material/blend SUPPORT MATRIX + fail-open fallback now exists in the pure
+   `VfxMaterialSupport` (`MIX`/`ADD`/`MUL`/`PREMULT_ALPHA` supported, `SUB` explicitly unsupported;
+   unknown/blank/null/`SUB` resolve to `MIX`, never throw; rejected names counted in a bounded
+   diagnostic map exposed via `backend.vfx.materials`). `Sts1VfxOverlayRenderer` resolves its blend
+   through the matrix as the single blend authority with unchanged pixel results. A real shader
+   schema, a `.gdshader`/`ShaderMaterial` GLSL adapter, and an STS2-equivalent shader/bake remain
+   OPEN: `ShaderMaterial`/`.gdshader` stay `unsupported-known` IR-only with no typed field and no GL
+   shader path; no D1 shader scenario is fabricated.
 7. Baked flipbook fallback for unsupported shaders and screen effects.
 8. Only after evidence, any native-pixel delegation policy.
 

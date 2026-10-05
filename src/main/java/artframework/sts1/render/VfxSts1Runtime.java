@@ -146,6 +146,7 @@ public final class VfxSts1Runtime {
             out.put("completed", Boolean.valueOf(completed));
             out.put("error", lastError == null ? "" : lastError);
             out.put("roots", rootRows);
+            out.put("materials", artframework.vfx.VfxMaterialSupport.probeSlice());
         } catch (Throwable error) {
             out.put("status", "error");
             out.put("scene", "");
@@ -154,6 +155,7 @@ public final class VfxSts1Runtime {
             out.put("completed", Boolean.FALSE);
             out.put("error", error.getClass().getSimpleName() + ":" + String.valueOf(error.getMessage()));
             out.put("roots", rootRows);
+            out.put("materials", artframework.vfx.VfxMaterialSupport.probeSlice());
         }
         return out;
     }

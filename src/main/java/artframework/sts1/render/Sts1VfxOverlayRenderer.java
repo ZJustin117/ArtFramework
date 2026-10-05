@@ -171,13 +171,21 @@ public final class Sts1VfxOverlayRenderer {
         return Collections.unmodifiableList(ordered);
     }
 
-    /** Pure blend-mode mapping to {@code {src,dst}}; unchanged from the legacy direct path. */
+    /**
+     * Pure blend-mode mapping to {@code {src,dst}}. The name is routed through
+     * {@link artframework.vfx.VfxMaterialSupport} so the restricted support matrix is the single
+     * authority for which names map to real blend functions and which fall open to {@code MIX}.
+     * Supported names produce the exact same functions as the legacy direct path; unknown,
+     * unsupported ({@code SUB}), blank, and {@code null} names get the same {@code MIX} fallback
+     * (and are counted as rejections by the matrix). No shader path is involved.
+     */
     static int[] blendFunctions(String blendMode) {
-        if ("ADD".equals(blendMode)) {
+        String resolved = artframework.vfx.VfxMaterialSupport.resolve(blendMode).resolved;
+        if ("ADD".equals(resolved)) {
             return new int[] { GL20.GL_SRC_ALPHA, GL20.GL_ONE };
-        } else if ("PREMULT_ALPHA".equals(blendMode)) {
+        } else if ("PREMULT_ALPHA".equals(resolved)) {
             return new int[] { GL20.GL_ONE, GL20.GL_ONE_MINUS_SRC_ALPHA };
-        } else if ("MUL".equals(blendMode)) {
+        } else if ("MUL".equals(resolved)) {
             return new int[] { GL20.GL_DST_COLOR, GL20.GL_ONE_MINUS_SRC_ALPHA };
         }
         return new int[] { GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA };

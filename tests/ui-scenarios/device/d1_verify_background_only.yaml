@@ -101,6 +101,29 @@ steps:
       assert:
         path: backend.verify.backgroundOnly.uncoveredByOwner
         exists: true
+  # E02: bounded blocked world/foreground owner attribution. The blocked foreground count must
+  # resolve to at least one distinct normalized owner label, and the map must be exposed. Labels
+  # today are the bounded call-site reasons (`surface:<family>`, `skeleton:<owner>`,
+  # `effect:<class>`); do not assert a device-specific label here.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.backgroundOnly.blockedDistinct
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.backgroundOnly.blockedByOwner
+        exists: true
+  # The blocked attribution must not come at the cost of the background: keep the draw guard.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.backgroundOnly.backgroundDraw
+        gte: 1
   - screenshot: true
   - console: "art verify mode background-only off"
   - wait_probe:

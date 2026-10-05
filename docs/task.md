@@ -1845,6 +1845,20 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       (`art.post_render` from `StageHost`, `art.surface_renderer` from `Sts1SurfaceRenderer`).
       Attribution is the first E-stage step toward precise uncovered-owner reporting.
 
+- [x] NRO-04 E02 (precise blocked-owner attribution): the strict `background-only`
+      `BackgroundOnlyGate` now feeds `recordBlocked` into a bounded `LinkedHashMap<String,Long>`
+      exposed as `backend.verify.backgroundOnly.blockedByOwner` (label -> count, deterministic
+      insertion order, distinct-label cap 32), plus `blockedDistinct` (map size) and
+      `blockedOverflow` (Long) when the cap is exceeded; `blockedByOwner`/`blockedOverflow` clear in
+      the same reset path as the E01 uncovered attribution (deactivation / recovery / test reset).
+      The coarse `blockedForeground` counter and gate semantics (what gets blocked) are unchanged.
+      Names the already-blocked world/foreground owners via the unchanged call-site labels
+      (`surface:<family>` from `NativeRenderBridge` ~:176, `skeleton:<owner>` ~:418,
+      `effect:<class>` ~:650). Honest scope: this is attribution only — no new native patch; the
+      world/foreground owners are already blocked by the default-block design, so this slice only
+      makes the single-owner attribution explicit. Per-owner active isolation of a specific
+      world/foreground entry remains a later option.
+
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

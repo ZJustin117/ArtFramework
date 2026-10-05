@@ -24,6 +24,11 @@ public class BackgroundOnlyGateTest {
         return (Map<String, Long>) slice.get("uncoveredByOwner");
     }
 
+    @SuppressWarnings("unchecked")
+    private static Map<String, Long> blockedOwners(Map<String, Object> slice) {
+        return (Map<String, Long>) slice.get("blockedByOwner");
+    }
+
     @Test
     public void recordUncoveredAccumulatesPerOwnerAndDistinct() {
         BackgroundOnlyGate.setActive(true);
@@ -215,9 +220,187 @@ public class BackgroundOnlyGateTest {
         assertEquals(Long.valueOf(1L), slice.get("suppression"));
         assertEquals(Long.valueOf(1L), slice.get("blockedForeground"));
         assertEquals(Long.valueOf(1L), slice.get("unsupported"));
-        // blocked/unsupported remain counters (not attributed this slice).
+        // unsupported remains a counter (attributed in a later slice); blocked is now attributed.
         assertEquals("surface:bridge_error", slice.get("lastReason"));
         // revision increments on activation.
         assertEquals(Long.valueOf(1L), slice.get("revision"));
+    }
+
+    @Test
+    public void recordBlockedAccumulatesPerLabelAndDistinct() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        BackgroundOnlyGate.recordBlocked("skeleton:Creature");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        Map<String, Long> byOwner = blockedOwners(slice);
+        assertEquals(Long.valueOf(2L), byOwner.get("surface:hand"));
+        assertEquals(Long.valueOf(1L), byOwner.get("skeleton:Creature"));
+        assertEquals(Long.valueOf(2L), slice.get("blockedDistinct"));
+        assertEquals(Long.valueOf(3L), slice.get("blockedForeground"));
+        assertEquals(Long.valueOf(0L), slice.get("blockedOverflow"));
+        assertEquals("skeleton:Creature", slice.get("lastReason"));
+    }
+
+    @Test
+    public void blockedForegroundEqualsSumOfOwnerCountsUnderCap() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBlocked("effect:A");
+        BackgroundOnlyGate.recordBlocked("effect:B");
+        BackgroundOnlyGate.recordBlocked("effect:A");
+        BackgroundOnlyGate.recordBlocked("effect:B");
+        BackgroundOnlyGate.recordBlocked("effect:C");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        long sum = 0L;
+        for (Long v : blockedOwners(slice).values()) sum += v.longValue();
+        assertEquals(((Number) slice.get("blockedForeground")).longValue(), sum);
+    }
+
+    @Test
+    public void blockedDistinctLabelsAreBoundedAndOverflowCounts() {
+        BackgroundOnlyGate.setActive(true);
+        int cap = BackgroundOnlyGate.BLOCKED_OWNER_CAP;
+        int distinct = cap + 5;
+        for (int i = 0; i < distinct; i++) {
+            BackgroundOnlyGate.recordBlocked("owner_" + i);
+        }
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        Map<String, Long> byOwner = blockedOwners(slice);
+        assertEquals((long) cap, byOwner.size());
+        assertEquals((long) cap, ((Number) slice.get("blockedDistinct")).longValue());
+        assertEquals(5L, ((Number) slice.get("blockedOverflow")).longValue());
+        // blockedForeground still counts every call, including overflowed owners.
+        assertEquals((long) distinct, ((Number) slice.get("blockedForeground")).longValue());
+        // Existing overflowed label increments overflow, not a new key.
+        BackgroundOnlyGate.recordBlocked("owner_" + (cap + 2));
+        slice = BackgroundOnlyGate.probeSlice();
+        assertEquals((long) cap, blockedOwners(slice).size());
+        assertEquals(6L, ((Number) slice.get("blockedOverflow")).longValue());
+        assertEquals((long) (distinct + 1), ((Number) slice.get("blockedForeground")).longValue());
+    }
+
+    @Test
+    public void blockedOwnerOrderIsInsertionOrderAndRepeatsIncrement() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBlocked("first");
+        BackgroundOnlyGate.recordBlocked("second");
+        BackgroundOnlyGate.recordBlocked("first");
+
+        Map<String, Long> byOwner = blockedOwners(BackgroundOnlyGate.probeSlice());
+        List<String> order = new ArrayList<String>(byOwner.keySet());
+        assertEquals(2, order.size());
+        assertEquals("first", order.get(0));
+        assertEquals("second", order.get(1));
+        assertEquals(Long.valueOf(2L), byOwner.get("first"));
+        assertEquals(Long.valueOf(1L), byOwner.get("second"));
+    }
+
+    @Test
+    public void nullAndBlankBlockedReasonsUseBlockedFallbackLabel() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBlocked(null);
+        BackgroundOnlyGate.recordBlocked("   ");
+
+        Map<String, Long> byOwner = blockedOwners(BackgroundOnlyGate.probeSlice());
+        assertEquals(Long.valueOf(2L), byOwner.get("blocked"));
+        assertEquals(1L, ((Number) BackgroundOnlyGate.probeSlice().get("blockedDistinct")).longValue());
+    }
+
+    @Test
+    public void blockedLabelsAreTrimmed() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBlocked("  surface:hand  ");
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+
+        Map<String, Long> byOwner = blockedOwners(BackgroundOnlyGate.probeSlice());
+        assertEquals(1, byOwner.size());
+        assertEquals(Long.valueOf(2L), byOwner.get("surface:hand"));
+    }
+
+    @Test
+    public void probeSliceExposesBlockedKeysWithCorrectTypesAndKeepsE01AndExisting() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBackgroundDraw();
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        BackgroundOnlyGate.recordUncovered("art.post_render");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(slice.get("blockedByOwner") instanceof Map);
+        assertTrue(slice.get("blockedDistinct") instanceof Long);
+        assertTrue(slice.get("blockedOverflow") instanceof Long);
+        // E01 keys remain.
+        assertTrue(slice.get("uncoveredByOwner") instanceof Map);
+        assertTrue(slice.get("uncoveredDistinct") instanceof Long);
+        assertTrue(slice.get("uncoveredOverflow") instanceof Long);
+        // Pre-existing keys remain.
+        assertTrue(slice.get("blockedForeground") instanceof Long);
+        assertTrue(slice.get("uncovered") instanceof Long);
+        assertTrue(slice.get("suppression") instanceof Long);
+        assertTrue(slice.get("lastReason") instanceof String);
+    }
+
+    @Test
+    public void blockedProbeSliceReturnsCopyNotLiveMap() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        Map<String, Long> first = blockedOwners(BackgroundOnlyGate.probeSlice());
+        first.put("injected", Long.valueOf(99L));
+        Map<String, Long> second = blockedOwners(BackgroundOnlyGate.probeSlice());
+        assertFalse(second.containsKey("injected"));
+        assertNotNull(second.get("surface:hand"));
+    }
+
+    @Test
+    public void resetForTestsClearsBlockedAttribution() {
+        BackgroundOnlyGate.setActive(true);
+        for (int i = 0; i < BackgroundOnlyGate.BLOCKED_OWNER_CAP + 3; i++) {
+            BackgroundOnlyGate.recordBlocked("owner_" + i);
+        }
+        BackgroundOnlyGate.resetForTests();
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(blockedOwners(slice).isEmpty());
+        assertEquals(Long.valueOf(0L), slice.get("blockedDistinct"));
+        assertEquals(Long.valueOf(0L), slice.get("blockedOverflow"));
+        assertEquals(Long.valueOf(0L), slice.get("blockedForeground"));
+    }
+
+    @Test
+    public void clearForRecoveryClearsBlockedAttribution() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        BackgroundOnlyGate.recordBlocked("effect:A");
+        BackgroundOnlyGate.clearForRecovery();
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(blockedOwners(slice).isEmpty());
+        assertEquals(Long.valueOf(0L), slice.get("blockedOverflow"));
+        assertEquals(Long.valueOf(0L), slice.get("blockedForeground"));
+        assertEquals(Boolean.FALSE, slice.get("active"));
+    }
+
+    @Test
+    public void deactivationClearsBlockedAttributionViaCountersClear() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        BackgroundOnlyGate.setActive(false);
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(blockedOwners(slice).isEmpty());
+        assertEquals(Long.valueOf(0L), slice.get("blockedForeground"));
+        assertEquals(Long.valueOf(0L), slice.get("blockedOverflow"));
+    }
+
+    @Test
+    public void inactiveGateDoesNotRecordBlockedAttribution() {
+        BackgroundOnlyGate.setActive(false);
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(blockedOwners(slice).isEmpty());
+        assertEquals(Long.valueOf(0L), slice.get("blockedForeground"));
     }
 }

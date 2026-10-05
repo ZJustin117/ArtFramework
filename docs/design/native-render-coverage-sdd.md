@@ -314,7 +314,12 @@ family as delegated or claiming ART pixels where no pixel path exists.
 The strict `background-only` gate reports uncovered-owner attribution through a
 bounded `uncoveredByOwner` label->count map (deterministic insertion order,
 distinct-label cap 32) plus `uncoveredDistinct` and `uncoveredOverflow`, alongside
-the unchanged coarse `uncovered`/`lastReason` counters (NRO-04 E01).
+the unchanged coarse `uncovered`/`lastReason` counters (NRO-04 E01). It reports
+blocked world/foreground owner attribution through a parallel bounded
+`blockedByOwner` label->count map (deterministic insertion order, distinct-label
+cap 32) plus `blockedDistinct` and `blockedOverflow`, alongside the unchanged coarse
+`blockedForeground` counter (NRO-04 E02); labels are the default-block call-site
+reasons (`surface:<family>`, `skeleton:<owner>`, `effect:<class>`).
 
 An entry satisfies the justification contract with its own `justification`
 field or, when it inherits a family default policy, with the family's default

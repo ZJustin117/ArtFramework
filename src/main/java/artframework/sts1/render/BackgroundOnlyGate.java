@@ -7,16 +7,20 @@ import java.util.Map;
 public final class BackgroundOnlyGate {
     /** Bounded number of distinct uncovered-owner labels retained for attribution. */
     static final int UNCOVERED_OWNER_CAP = 32;
+    /** Bounded number of distinct blocked world/foreground owner labels retained for attribution. */
+    static final int BLOCKED_OWNER_CAP = 32;
 
     private static boolean active;
     private static long revision;
     private static long backgroundDraw;
     private static long backgroundSuppression;
     private static long blockedForeground;
+    private static long blockedOverflow;
     private static long unsupported;
     private static long uncovered;
     private static long uncoveredOverflow;
     private static final Map<String, Long> uncoveredByOwner = new LinkedHashMap<String, Long>();
+    private static final Map<String, Long> blockedByOwner = new LinkedHashMap<String, Long>();
     private static String lastReason = "";
 
     private BackgroundOnlyGate() {}
@@ -32,7 +36,19 @@ public final class BackgroundOnlyGate {
     public static synchronized void recordBackgroundDraw() { if (active) backgroundDraw++; }
     public static synchronized void recordBackgroundSuppression() { if (active) backgroundSuppression++; }
     public static synchronized void recordBlocked(String reason) {
-        if (active) { blockedForeground++; lastReason = reason == null ? "foreground" : reason; }
+        if (active) {
+            blockedForeground++;
+            String owner = normalizeLabel(reason, "blocked");
+            lastReason = owner;
+            Long prior = blockedByOwner.get(owner);
+            if (prior != null) {
+                blockedByOwner.put(owner, Long.valueOf(prior.longValue() + 1L));
+            } else if (blockedByOwner.size() < BLOCKED_OWNER_CAP) {
+                blockedByOwner.put(owner, Long.valueOf(1L));
+            } else {
+                blockedOverflow++;
+            }
+        }
     }
     public static synchronized void recordUnsupported(String reason) {
         if (active) { unsupported++; lastReason = reason == null ? "unsupported" : reason; }
@@ -53,9 +69,12 @@ public final class BackgroundOnlyGate {
         }
     }
     private static String normalizeOwner(String reason) {
-        if (reason == null) return "uncovered";
+        return normalizeLabel(reason, "uncovered");
+    }
+    private static String normalizeLabel(String reason, String fallback) {
+        if (reason == null) return fallback;
         String trimmed = reason.trim();
-        return trimmed.isEmpty() ? "uncovered" : trimmed;
+        return trimmed.isEmpty() ? fallback : trimmed;
     }
     public static synchronized Map<String, Object> probeSlice() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -64,6 +83,9 @@ public final class BackgroundOnlyGate {
         m.put("backgroundSuppression", Long.valueOf(backgroundSuppression));
         m.put("suppression", Long.valueOf(backgroundSuppression));
         m.put("blockedForeground", Long.valueOf(blockedForeground));
+        m.put("blockedByOwner", new LinkedHashMap<String, Long>(blockedByOwner));
+        m.put("blockedDistinct", Long.valueOf((long) blockedByOwner.size()));
+        m.put("blockedOverflow", Long.valueOf(blockedOverflow));
         m.put("unsupported", Long.valueOf(unsupported));
         m.put("uncovered", Long.valueOf(uncovered));
         m.put("uncoveredByOwner", new LinkedHashMap<String, Long>(uncoveredByOwner));
@@ -89,9 +111,11 @@ public final class BackgroundOnlyGate {
         backgroundDraw = 0L;
         backgroundSuppression = 0L;
         blockedForeground = 0L;
+        blockedOverflow = 0L;
         unsupported = 0L;
         uncovered = 0L;
         uncoveredOverflow = 0L;
         uncoveredByOwner.clear();
+        blockedByOwner.clear();
     }
 }

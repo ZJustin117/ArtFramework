@@ -85,6 +85,22 @@ steps:
       assert:
         path: backend.verify.backgroundOnly.uncovered
         gte: 1
+  # E01: bounded owner attribution. The uncovered count must resolve to at least one
+  # distinct normalized owner label, and the map must be exposed. Labels today are the
+  # bounded call-site reasons (e.g. art.post_render / art.surface_renderer); do not assert
+  # a device-specific label here.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.backgroundOnly.uncoveredDistinct
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.backgroundOnly.uncoveredByOwner
+        exists: true
   - screenshot: true
   - console: "art verify mode background-only off"
   - wait_probe:

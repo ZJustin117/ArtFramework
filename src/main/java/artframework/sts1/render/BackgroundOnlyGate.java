@@ -5,6 +5,9 @@ import java.util.Map;
 
 /** Strict verification gate: only the pre-native combat-room background is allowed. */
 public final class BackgroundOnlyGate {
+    /** Bounded number of distinct uncovered-owner labels retained for attribution. */
+    static final int UNCOVERED_OWNER_CAP = 32;
+
     private static boolean active;
     private static long revision;
     private static long backgroundDraw;
@@ -12,6 +15,8 @@ public final class BackgroundOnlyGate {
     private static long blockedForeground;
     private static long unsupported;
     private static long uncovered;
+    private static long uncoveredOverflow;
+    private static final Map<String, Long> uncoveredByOwner = new LinkedHashMap<String, Long>();
     private static String lastReason = "";
 
     private BackgroundOnlyGate() {}
@@ -33,7 +38,24 @@ public final class BackgroundOnlyGate {
         if (active) { unsupported++; lastReason = reason == null ? "unsupported" : reason; }
     }
     public static synchronized void recordUncovered(String reason) {
-        if (active) { uncovered++; lastReason = reason == null ? "uncovered" : reason; }
+        if (active) {
+            uncovered++;
+            String owner = normalizeOwner(reason);
+            lastReason = owner;
+            Long prior = uncoveredByOwner.get(owner);
+            if (prior != null) {
+                uncoveredByOwner.put(owner, Long.valueOf(prior.longValue() + 1L));
+            } else if (uncoveredByOwner.size() < UNCOVERED_OWNER_CAP) {
+                uncoveredByOwner.put(owner, Long.valueOf(1L));
+            } else {
+                uncoveredOverflow++;
+            }
+        }
+    }
+    private static String normalizeOwner(String reason) {
+        if (reason == null) return "uncovered";
+        String trimmed = reason.trim();
+        return trimmed.isEmpty() ? "uncovered" : trimmed;
     }
     public static synchronized Map<String, Object> probeSlice() {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
@@ -44,6 +66,9 @@ public final class BackgroundOnlyGate {
         m.put("blockedForeground", Long.valueOf(blockedForeground));
         m.put("unsupported", Long.valueOf(unsupported));
         m.put("uncovered", Long.valueOf(uncovered));
+        m.put("uncoveredByOwner", new LinkedHashMap<String, Long>(uncoveredByOwner));
+        m.put("uncoveredDistinct", Long.valueOf((long) uncoveredByOwner.size()));
+        m.put("uncoveredOverflow", Long.valueOf(uncoveredOverflow));
         m.put("revision", Long.valueOf(revision));
         m.put("lastReason", lastReason);
         return m;
@@ -66,5 +91,7 @@ public final class BackgroundOnlyGate {
         blockedForeground = 0L;
         unsupported = 0L;
         uncovered = 0L;
+        uncoveredOverflow = 0L;
+        uncoveredByOwner.clear();
     }
 }

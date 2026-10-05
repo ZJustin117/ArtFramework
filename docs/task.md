@@ -1835,6 +1835,16 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `unsupported/uncovered` for native world/foreground entry points not yet behind a global
       pre-native gate; do not claim pure-background success until those counters are zero.
 
+- [x] NRO-04 E01 (precise uncovered-owner attribution): the strict `background-only`
+      `BackgroundOnlyGate` now feeds `recordUncovered` into a bounded `LinkedHashMap<String,Long>`
+      exposed as `backend.verify.backgroundOnly.uncoveredByOwner` (label -> count, deterministic
+      insertion order), plus `uncoveredDistinct` (map size) and `uncoveredOverflow` (Long) when the
+      distinct-label cap (32) is exceeded. The coarse `uncovered` counter, `lastReason`, and gate
+      semantics are unchanged. Honest scope: `blockedForeground`/`unsupported` remain counters for
+      now (later E slices); the labels today are the bounded call-site reasons
+      (`art.post_render` from `StageHost`, `art.surface_renderer` from `Sts1SurfaceRenderer`).
+      Attribution is the first E-stage step toward precise uncovered-owner reporting.
+
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

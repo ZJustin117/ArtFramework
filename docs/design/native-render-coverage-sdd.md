@@ -311,6 +311,11 @@ with an explicit owner, justification, test, and `evidence: NO_PIXEL_ISOLATION`.
 This records a verification-only native-absence probe without reclassifying the
 family as delegated or claiming ART pixels where no pixel path exists.
 
+The strict `background-only` gate reports uncovered-owner attribution through a
+bounded `uncoveredByOwner` label->count map (deterministic insertion order,
+distinct-label cap 32) plus `uncoveredDistinct` and `uncoveredOverflow`, alongside
+the unchanged coarse `uncovered`/`lastReason` counters (NRO-04 E01).
+
 An entry satisfies the justification contract with its own `justification`
 field or, when it inherits a family default policy, with the family's default
 rationale (`FAMILY_DEFAULT_JUSTIFICATION` in `tools/nrcc/families.py`). Family

@@ -43,6 +43,29 @@ public class VfxManifestLoaderTest {
     }
 
     @Test
+    public void parsesSafeDiagnosticsPointer() {
+        VfxBundleDefinition bundle = loader.parseManifest("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"
+                + "\"bundleId\":\"demo\",\"capability\":\"DEGRADED\",\"scenes\":[],\"resources\":[],"
+                + "\"diagnostics\":\"diagnostics.json\"}");
+        assertEquals("diagnostics.json", bundle.diagnosticsPath);
+        assertEquals("diagnostics.json", bundle.getDiagnosticsPath());
+    }
+
+    @Test
+    public void absentDiagnosticsFailsOpenWithEmptyPath() {
+        VfxBundleDefinition bundle = loader.parseManifest("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"
+                + "\"bundleId\":\"demo\",\"capability\":\"DEGRADED\",\"scenes\":[],\"resources\":[]}");
+        assertEquals("", bundle.diagnosticsPath);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnsafeDiagnosticsPath() {
+        loader.parseManifest("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"
+                + "\"bundleId\":\"demo\",\"capability\":\"DEGRADED\",\"scenes\":[],\"resources\":[],"
+                + "\"diagnostics\":\"../../etc/passwd\"}");
+    }
+
+    @Test
     public void rejectsMalformedTextureReferences() {
         assertRejects("{\"ref\":\"SubResource\",\"id\":\"2_sr53b\"}");
         assertRejects("{\"ref\":\"Unknown\",\"id\":\"2_sr53b\"}");

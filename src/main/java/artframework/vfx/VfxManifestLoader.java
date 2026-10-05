@@ -30,7 +30,9 @@ public final class VfxManifestLoader {
                     VfxCapability.parse(string(scene, "capability"))));
         }
         List<VfxResourceRef> resources = resources(root.get("resources"));
-        return new VfxBundleDefinition(bundleId, version, capability, scenes, resources);
+        String diagnosticsPath = optionalString(root.get("diagnostics"), "diagnostics");
+        if (diagnosticsPath != null) diagnosticsPath = safePath(diagnosticsPath);
+        return new VfxBundleDefinition(bundleId, version, capability, scenes, resources, diagnosticsPath);
     }
 
     public VfxSceneDefinition parseScene(String json) {

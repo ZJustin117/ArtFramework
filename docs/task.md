@@ -1951,6 +1951,12 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       curves, gradients, flipbook data, resource hashes, diagnostics, and deterministic output.
 - [ ] Implement Java manifest loading, ECS instantiation, CPU particle systems, lifecycle cleanup,
       and libGDX render projection.
+- [x] F01: STS2 VFX manifest `diagnostics` pointer is now safely parsed via the shared path guard
+      and exposed on the bundle definition; an absent `diagnostics` field is fail-open with an empty
+      `diagnosticsPath` and does not throw. This is a gap-fill of the existing loader, NOT a new
+      loader. The deeper STS2 runtime gaps — `.tpsheet`, sub-emitter, turbulence, restricted
+      shader/bake fallback, and Spine 4.2 parity — remain open per
+      [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
 - [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,
       restricted shaders, then baked fallback.
 

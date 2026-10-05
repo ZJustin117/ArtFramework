@@ -99,6 +99,11 @@ result, not an optional log. A scene file contains the exact source text, parsed
 per-property conversion results, and typed nodes. Source paths are normalized logical paths;
 absolute filesystem paths are forbidden throughout the bundle.
 
+- [x] F01: the Java loader reads the optional manifest `diagnostics` pointer through the shared
+  path-safety guard and exposes it as `VfxBundleDefinition.diagnosticsPath`; absent is fail-open
+  empty. The deeper STS2 runtime gaps (`.tpsheet`, sub-emitter, turbulence, restricted shader/bake
+  fallback, Spine 4.2 parity) remain open.
+
 The bundle is source-preserving and suitable for later reconversion. Runtime ECS loading is
 selective: it reads only typed definitions and resource entries. Parsed IR and opaque properties
 are inspection/conversion inputs, not executable component data.

@@ -2,12 +2,24 @@
 .gradle/
 .kotlin/
 build/
+*.class
+*.jar
+!/gradle/wrapper/gradle-wrapper.jar
 /build/dev/*.jar
 /build/spine42-runtime/
 *.sts2-assets.jar
 *.iml
 .idea/
 local.properties
+
+# Extracted build JAR contents (repository root only)
+/META-INF/
+/ModTheSpire.json
+/artframework/
+/basemod/
+/layouts/
+/present-packs/
+/shaders/
 
 # OS
 .DS_Store

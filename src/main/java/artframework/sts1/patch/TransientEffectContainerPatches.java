@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpireInstrumentPatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
+import com.megacrit.cardcrawl.rewards.RewardItem;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
 import javassist.CannotCompileException;
 import javassist.expr.ExprEditor;
@@ -222,6 +223,72 @@ public final class TransientEffectContainerPatches {
                             + "artframework.sts1.patch.TransientEffectContainerPatches"
                             + ".observeThenRender($0, $1, " + call.getLineNumber() + ");"
                             + "}");
+                }
+            };
+        }
+    }
+
+    /**
+     * OBSERVATION-ONLY extension of the container effect seam (B05b) at a fourth traversal site:
+     * {@code com.megacrit.cardcrawl.rewards.RewardItem#render(SpriteBatch)} iterates its own
+     * private {@code effects} list calling {@code AbstractGameEffect.render(SpriteBatch)}. That
+     * loop is reached via {@code CombatRewardScreen.render}, NOT through
+     * {@code AbstractDungeon.render}, so the reward-screen effects (starting with
+     * {@code RewardGlowEffect}) were previously never observed or claimable.
+     *
+     * <p>This patch reuses exactly the same {@link TransientEffectContainerPatches#observeThenRender}
+     * helper as {@link ObserveContainerEffectRenders}: it replaces the single
+     * {@code AbstractGameEffect.render:(SpriteBatch)V} call with a call to the observe-then-render
+     * helper (NO {@code $_ =} and no {@code SpireReturn}), so native rendering follows the bridge
+     * disposition and observation failures fail open and never interrupt the reward render loop. It
+     * adds NO new suppression authority: the only native-absence branch is the pre-existing
+     * isolate-only disposition already governed by the {@code AbstractDungeon} entry.
+     *
+     * <p>Double-observation is impossible by construction: {@code RewardItem.effects} is a private
+     * list that is NOT {@code AbstractDungeon.effectList}/{@code topLevelEffects}, so no instance is
+     * observed twice for one draw. The native line carried here is the reward-loop call-site line,
+     * which does not match any known {@code EffectRenderBand} line, so it degrades to
+     * {@link artframework.sts1.render.EffectRenderBand.Band#UNKNOWN} — an observation record only,
+     * never order evidence. javap confirms exactly one such call site (offset 992) in the 1.0 jar.
+     */
+    @SpirePatch(clz = RewardItem.class, method = "render",
+            paramtypez = {SpriteBatch.class})
+    public static class ObserveRewardItemEffectRenders {
+        /**
+         * True iff the call is the native single-argument, void
+         * {@code AbstractGameEffect.render(SpriteBatch)} that this instrument targets. Public so
+         * the targeting predicate can be unit-tested directly without javassist fakes.
+         */
+        public static boolean isNativeEffectRenderCall(
+                String methodName, String className, String signature) {
+            return "render".equals(methodName)
+                    && "com.megacrit.cardcrawl.vfx.AbstractGameEffect".equals(className)
+                    && "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V".equals(signature);
+        }
+
+        /**
+         * The replacement body emitted at the targeted call site: the observe-then-render helper
+         * re-invokes the native {@code effect.render(sb)} under the bridge disposition. Public so
+         * tests can assert the helper call and its {@code nativeLine} argument without running the
+         * instrumentor.
+         */
+        public static String replacementBody(int line) {
+            return "{ artframework.sts1.patch.TransientEffectContainerPatches"
+                    + ".observeThenRender($0, $1, " + line + "); }";
+        }
+
+        @SpireInstrumentPatch
+        public static ExprEditor Instrument() {
+            return new ExprEditor() {
+                @Override
+                public void edit(MethodCall call) throws CannotCompileException {
+                    if (!isNativeEffectRenderCall(
+                            call.getMethodName(), call.getClassName(), call.getSignature())) {
+                        return;
+                    }
+                    // The helper re-invokes the native effect.render(sb) itself; no $proceed is used
+                    // and no SpireReturn suppression path is introduced.
+                    call.replace(replacementBody(call.getLineNumber()));
                 }
             };
         }

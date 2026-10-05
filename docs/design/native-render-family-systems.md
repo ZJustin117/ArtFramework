@@ -127,6 +127,25 @@ host-drawn particle groups that never enter the containers. Both entries default
 per-subclass hook is planned (refacter ledger `NRO-04`). Subclass families are
 covered by virtual dispatch at the container sites, not by their own patches.
 
+**B05b — reward-item effect-loop observation extension.** A fourth traversal site feeds the same
+observe chain: `com.megacrit.cardcrawl.rewards.RewardItem#render(SpriteBatch)` iterates its own
+private `effects` list calling `AbstractGameEffect.render:(SpriteBatch)V`, reached via
+`CombatRewardScreen.render` and NOT through `AbstractDungeon.render`, so reward-screen effects
+(starting with `RewardGlowEffect`, recipe B05) were previously unseen. A nested
+`@SpireInstrumentPatch` (`TransientEffectContainerPatches.ObserveRewardItemEffectRenders`) replaces
+that single call site with the **same** observe-then-render helper (no `$_ =`, no `SpireReturn`), so
+this is an observation-only extension of the container seam: the helper re-invokes the native draw
+under the bridge disposition, observation failures fail open, and **no new suppression authority**
+is introduced — the only native-absence branch remains the pre-existing isolate-only disposition
+already governed by the `AbstractDungeon` entry. Double-observation cannot occur because
+`RewardItem.effects` is not `AbstractDungeon.effectList`/`topLevelEffects`. The carried native line
+is the reward-loop call-site line, which matches no known `EffectRenderBand` line and therefore
+degrades to `Band.UNKNOWN` (an observation record only, never order evidence). `javap` on the 1.0 jar
+confirms exactly one such call site (offset `992`). The NRCC `rewards.rewarditem.render` row is now
+`OBSERVED` with an `ISOLATE_ONLY` conditional-suppression block, mirroring `AbstractDungeon#render`.
+D1 limitation: the lab has no command that constructs a real `CombatRewardScreen`, so this loop's
+observation is unit-verified only; on-device evidence is a no-regression load/probe check.
+
 The transient-effect seam additionally has a **default-off per-instance claim** (`VfxDelegationGate`
 + `VfxClaimPolicy` + the injected `VfxArtRenderer` draw seam). The seam is family-neutral and
 currently cross-family: it is claimable for the `vfx-stance-aura` FQNs (5), the

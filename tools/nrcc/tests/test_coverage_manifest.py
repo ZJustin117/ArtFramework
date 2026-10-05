@@ -816,6 +816,144 @@ class CoverageManifestTest(unittest.TestCase):
             "ART_DELEGATED", coverage_manifest.effective_policy(room)
         )
 
+    def test_regeneration_reproduces_hand_annotated_suppression_overlay(self):
+        # Close the NRCC "regeneration drops hand-annotated suppression
+        # metadata" open item: the five affected owner rows carry curated
+        # fields the static scan never emits. A full --write-manifest must
+        # reproduce them byte-for-byte via the known policy/surface/test and
+        # the bounded known_suppression overlay. Removing either the overlay
+        # or the stance/drawpile maps must fail this test.
+        handle = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+        handle.close()
+        self.paths = [handle.name]
+        report = {"paths": [
+            {
+                "nativeClass": "com.megacrit.cardcrawl.dungeons.AbstractDungeon",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "kind": "render-owner",
+                "artPatches": [
+                    {"source": "artframework/sts1/patch/TransientEffectContainerPatches.java"}
+                ],
+            },
+            {
+                "nativeClass": "com.megacrit.cardcrawl.rewards.RewardItem",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "kind": "render-owner",
+                "artPatches": [
+                    {"source": "artframework/sts1/patch/TransientEffectContainerPatches.java"}
+                ],
+            },
+            {
+                "nativeClass": "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "kind": "transient-effect",
+                "artPatches": [
+                    {"source": "artframework/sts1/patch/TransientEffectRenderPatches.java"}
+                ],
+            },
+            {
+                "nativeClass": "com.megacrit.cardcrawl.stances.AbstractStance",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "kind": "render-owner",
+                "artPatches": [
+                    {"source": "artframework/sts1/patch/StanceRenderPatches.java"}
+                ],
+            },
+            {
+                "nativeClass": "com.megacrit.cardcrawl.ui.panels.DrawPilePanel",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "kind": "render-owner",
+                "artPatches": [
+                    {"source": "artframework/sts1/patch/CombatPileDrawRenderPatches.java"}
+                ],
+            },
+        ]}
+        coverage_manifest.write_inventory_manifest(report, handle.name)
+        _data, entries = coverage_manifest.load_manifest(handle.name)
+        by_class = dict(
+            ((entry["nativeClass"], entry["nativeMethod"]), entry)
+            for entry in entries
+        )
+
+        dungeon = by_class[
+            ("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render")
+        ]
+        self.assertEqual("OBSERVED", dungeon["policy"])
+        self.assertEqual("ISOLATE_ONLY", dungeon["conditionalSuppression"])
+        self.assertEqual("NO_PIXEL_ISOLATION", dungeon["evidence"])
+        self.assertEqual(
+            "artframework/sts1/patch/TransientEffectContainerPatches.java",
+            dungeon["suppressionOwner"],
+        )
+        self.assertIn(
+            "observe-then-render helper, so the native dungeon frame",
+            dungeon["justification"],
+        )
+        self.assertEqual(
+            "artframework.sts1.render.NativeRenderBridgeTest."
+            "containerEffectRenderConsumesDelegationAndDoesNotCreateArtEvidence",
+            dungeon["suppressionTest"],
+        )
+
+        reward = by_class[("com.megacrit.cardcrawl.rewards.RewardItem", "render")]
+        self.assertEqual("ISOLATE_ONLY", reward["conditionalSuppression"])
+        self.assertEqual("NO_PIXEL_ISOLATION", reward["evidence"])
+        self.assertEqual(
+            "artframework/sts1/patch/TransientEffectContainerPatches.java",
+            reward["suppressionOwner"],
+        )
+
+        effect = by_class[
+            ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render")
+        ]
+        self.assertEqual("ISOLATE_ONLY", effect["conditionalSuppression"])
+        self.assertEqual("NO_PIXEL_ISOLATION", effect["evidence"])
+        self.assertEqual(
+            "artframework/sts1/patch/TransientEffectContainerPatches.java",
+            effect["suppressionOwner"],
+        )
+        self.assertEqual("vfx-misc-root", effect["surfaceId"])
+
+        stance = by_class[("com.megacrit.cardcrawl.stances.AbstractStance", "render")]
+        self.assertEqual("ART_DELEGATED", stance["policy"])
+        self.assertEqual("sts1.stance", stance["surfaceId"])
+        self.assertEqual(
+            "artframework.sts1.render.StanceRenderPatchMappingTest."
+            "delegateSuppressesNativeAndDropsContinuation",
+            stance["test"],
+        )
+        self.assertIn("StanceDelegationGate", stance["justification"])
+
+        pile = by_class[("com.megacrit.cardcrawl.ui.panels.DrawPilePanel", "render")]
+        self.assertEqual("ART_DELEGATED", pile["policy"])
+        self.assertEqual("sts1.combat.pile_draw", pile["surfaceId"])
+        self.assertEqual(
+            "artframework.sts1.patch.CombatPileDrawRenderPatchesTest."
+            "fullReadySuppressesNativePileDrawRender",
+            pile["test"],
+        )
+        self.assertIn("full-present surface", pile["justification"])
+
+        # The overlay is curated, not universal: an unrelated row must not
+        # gain invented suppression metadata.
+        for entry in entries:
+            if entry["nativeClass"] not in (
+                "com.megacrit.cardcrawl.dungeons.AbstractDungeon",
+                "com.megacrit.cardcrawl.rewards.RewardItem",
+                "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+            ):
+                self.assertNotIn("conditionalSuppression", entry)
+
 
 if __name__ == "__main__":
     unittest.main()

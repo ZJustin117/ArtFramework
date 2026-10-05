@@ -1440,16 +1440,41 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         `RewardItem.render`'s `AbstractGameEffect.render` call site (tracked as B05b below); until then
         the seam fails open to native there.
 
-- [ ] **B05b reward-screen effect-loop observation boundary**: instrument
+- [x] **B05b reward-screen effect-loop observation boundary**: instrument
         `com.megacrit.cardcrawl.rewards.RewardItem#render(SpriteBatch)`'s
         `AbstractGameEffect.render(SpriteBatch)` call site with the same observe-then-render pattern
         used by `TransientEffectContainerPatches` (with NRCC ownership-manifest coverage), so
         reward-screen effects — starting with `RewardGlowEffect` (B05) — are actually observed and
         claimable in production (today the seam's only observer is `AbstractDungeon.render`, so the
-        reward-screen `RewardItem.effects` loop is unseen). D1 verification requires a REAL
-        `CombatRewardScreen`; the current lab has NO reward-screen command/entry, so a headless or
-        lab-only check cannot exercise this path — that limitation must be noted in the slice's
-        evidence. Do NOT implement B05b as part of B05.
+        reward-screen `RewardItem.effects` loop is unseen). DESIGN: an observation-only extension of
+        the existing container seam — a nested `ObserveRewardItemEffectRenders`
+        `@SpireInstrumentPatch` on `RewardItem.render(SpriteBatch)` reuses the exact same
+        `TransientEffectContainerPatches.observeThenRender($0, $1, <line>)` helper (no `$_ =`, no
+        `SpireReturn`), so native rendering follows the bridge disposition and observation failures
+        fail open; no new suppression authority is introduced (the sole native-absence branch stays
+        the pre-existing isolate-only disposition already governed by the `AbstractDungeon` entry).
+        Double-observation is impossible: `RewardItem.effects` is NOT
+        `AbstractDungeon.effectList`/`topLevelEffects`, so no instance is observed twice per draw.
+        The carried line is the reward-loop call-site line, which matches no known
+        `EffectRenderBand` line and degrades to `Band.UNKNOWN` (record-only, never order evidence).
+        javap on the 1.0 jar confirms EXACTLY ONE such call site in `RewardItem.render` (offset 992,
+        `invokevirtual com/megacrit/cardcrawl/vfx/AbstractGameEffect.render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V`).
+        NRCC: the `rewards.rewarditem.render` row is updated from `surfaceId:''/hook:''`
+        inheriting `NATIVE_WITH_ART_OVERLAY` to `hook: TransientEffectContainerPatches.java`,
+        `policy: OBSERVED`, with `conditionalSuppression: ISOLATE_ONLY` and
+        `NO_PIXEL_ISOLATION` fields mirroring the `AbstractDungeon` row; a `known_policy` entry
+        (`com.megacrit.cardcrawl.rewards.RewardItem#render -> OBSERVED`), a curated justification, and
+        a curated `known_suppression` overlay keep `--write-manifest` regeneration fully stable (the
+        earlier regeneration drift was closed in the NRCC follow-up below).
+        HONEST D1 GAP — no lab command constructs a real `CombatRewardScreen`, so a device check
+        of the reward effect loop is NOT possible; D1 evidence is limited to a no-regression
+        load/probe check plus the unit tests below. This slice does NOT claim D1 verification of the
+        reward effect loop. Tests: `TransientEffectContainerPatchesTest` (predicate matches only the
+        native `render:(SpriteBatch)V` call and rejects other owner/method/overload; generated
+        replacement body contains `observeThenRender($0, $1, 992)` with no `$proceed`/`SpireReturn`;
+        the reused helper draws the native effect exactly once and fails open when the native draw
+        throws). NRCC: `python3 tools/nrcc/scan_sts_render.py ... --check-manifest` reports
+        `ok` (549/549, no errors, no ownership errors) and `tools/nrcc` unit tests stay green.
 
 - [x] NRO-04 B06 (`MapCircleEffect` joins the default-off per-instance claim seam):
         `com.megacrit.cardcrawl.vfx.MapCircleEffect` is appended LAST to
@@ -3335,15 +3360,29 @@ allocation and Young GC pressure.
       stable by a full `scan_sts_render.py --sts-jar "$ART_STS_JAR" --write-manifest <tmp>` run
       (`ART_STS_JAR` is configured in `.env.local`): the regenerated `abstractchest`/`treasureroom`/
       `treasureroomboss` rows match the committed manifest exactly (`--check-manifest` ok:true).
-- [ ] **Open (NRCC, from D08 follow-up review): regeneration drops hand-annotated suppression metadata.**
-      A full `--write-manifest` regeneration still differs from the committed manifest on exactly four
-      unrelated rows — `AbstractDungeon.render`, `AbstractStance.render`, `DrawPilePanel.render`,
-      `AbstractGameEffect.render` — each losing/simplifying hand-annotated `suppression*` /
-      `conditionalSuppression` metadata (the generator does not carry that overlay for these keys).
-      `--check-manifest` still returns ok:true, so it is not a hard failure, but a future regeneration
-      would silently drop those annotations. Next: teach `coverage_manifest.py`'s known-maps to carry
-      the suppression metadata for those four keys (mirroring the committed manifest) and extend the
-      regression test to cover them.
+- [x] **Open (NRCC, from D08 follow-up review): regeneration drops hand-annotated suppression metadata.**
+      A full `--write-manifest` regeneration still differed from the committed manifest on exactly five
+      rows — `AbstractDungeon.render`, `RewardItem.render`, `AbstractGameEffect.render` (both the
+      `(SpriteBatch)` and `(SpriteBatch;FF)` overloads), `AbstractStance.render`, and
+      `DrawPilePanel.render` — each losing/simplifying hand-annotated `suppression*` /
+      `conditionalSuppression` metadata (the generator did not carry that overlay for these keys), with
+      `AbstractDungeon.render`'s `justification` also worded differently. `--check-manifest` still
+      returned ok:true, so it was not a hard failure, but a future regeneration would silently drop
+      those annotations. **DONE:** `tools/nrcc/coverage_manifest.py` now carries the curated
+      `known_policy`/`known_surface_id`/`known_justification`/`known_test` entries for
+      `AbstractStance.render` and `DrawPilePanel.render`, and a new bounded `known_suppression` overlay
+      map for the three conditional-suppression keys; the generator's `AbstractDungeon.render`
+      `known_justification` was aligned to the committed wording (the committed manifest is the
+      authority and was NOT edited). Regression test
+      `test_coverage_manifest.CoverageManifestTest.test_regeneration_reproduces_hand_annotated_suppression_overlay`
+      builds a synthetic report of the five owner ids and fails when the suppression overlay or the
+      stance/drawpile maps are reverted (non-tautology proven). A full
+      `scan_sts_render.py --sts-jar "$ART_STS_JAR" --write-manifest <tmp>` run (`ART_STS_JAR` from
+      `.env.local`) now regenerates a manifest that is parsed-identical to the committed manifest: 0
+      differing rows out of 549 (raw diff is only PyYAML key-order/wrapping formatting, since the
+      committed file preserves hand ordering and the writer wraps at 80 columns); `--check-manifest`
+      reports `ok:true` (549/549, no errors, no ownership errors). HONEST: the suppression overlay is a
+      curated known-map, so a NEW hand annotation of this kind still needs an explicit generator entry.
 - [ ] **Open (D09 D1 finding): select per-card frames + localized labels + panel.** D1 review of the
       ART grid-select frame showed the confirm button is correct (native `takeAll` capsule at
       (960,475)), but per-card pixel supply is missing: `UI_SELECT_CARD`/`_SELECTED`/`_FRAME` map to
@@ -3353,3 +3392,17 @@ allocation and Young GC pressure.
       supplied. Next: supply real card frames (native `AbstractCard.render` is the authority; either
       delegate card pixels or map a file-backed frame resource), localize card labels from the
       projection, and add the select panel/buttons as a follow-up slice.
+- [ ] **Open (B05b D1 finding): pre-existing native effect-list ADD race in `AbstractDungeon.update`.**
+      During B05b D1 no-regression, run 1 crashed with `java.util.ConcurrentModificationException`
+      at `AbstractDungeon.update(AbstractDungeon.java:2640)` (~7 ms after an `art claim spawn torch`),
+      on the native effect-list reap/update path (`ArrayList$Itr.remove`); run 2 was clean and the
+      strict probe was `accepted=true` / `orphanArtOutput=0` / `monotonic=true`. The SAME signature is
+      recorded in repo artifacts dated 2026-09-28, long before B05b, and B05b's instrumented
+      `RewardItem.render` site was never reached (no `CombatRewardScreen`/`observeThenRender`), so it
+      is NOT attributable to B05b. Likely mechanism: the lab `art claim spawn` structurally `add`s to a
+      live `AbstractDungeon` effect list from the console thread while the update/render thread
+      iterates it — the ADD-side analogue of the NRO-04 removal race (the ECS-world CME fix does not
+      cover vanilla `AbstractDungeon.effectList`). Next: make lab `claim spawn` (and any console-thread
+      mutation of native effect lists) enqueue onto the app/render thread instead of mutating the list
+      directly, with a bounded stress test; or document `art claim spawn` as unsafe during active
+      rendering.

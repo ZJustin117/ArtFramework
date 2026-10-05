@@ -275,18 +275,25 @@ def _owner_id(native_class, native_method):
     return "sts1.inventory." + value
 
 
-def _overlay_ownership_metadata(entry, key, policy, known_justification, known_test):
+def _overlay_ownership_metadata(entry, key, policy, known_justification, known_test,
+                                suppression=None):
     """Attach curated ownership metadata to one generated entry.
 
     ART_DELEGATED entries always carry justification and test references.
     Other explicit member-level decisions carry a curated justification when
     one exists; inherited family defaults rely on the family rationale instead.
+    Curated suppression overlays are applied last so a full regeneration
+    reproduces the hand-annotated conditional-suppression fields exactly.
     """
     if policy == "ART_DELEGATED":
         entry["justification"] = known_justification.get(key, "")
         entry["test"] = known_test.get(key, "")
     elif key in known_justification:
         entry["justification"] = known_justification[key]
+    if suppression:
+        # Only keys carrying a curated overlay gain suppression fields; every
+        # other entry stays free of invented suppression metadata.
+        entry.update(suppression)
 
 
 def inventory_entries(report, existing_entries=None):
@@ -353,7 +360,12 @@ def inventory_entries(report, existing_entries=None):
         # NATIVE_PASSTHROUGH): the dungeon frame hosts an observation-only
         # instrument, and the TestGame bootstrap is out of ART scope.
         ("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render"): "OBSERVED",
+        ("com.megacrit.cardcrawl.rewards.RewardItem", "render"): "OBSERVED",
         ("com.megacrit.cardcrawl.core.TestGame", "render"): "OUT_OF_SCOPE",
+        # Explicit member-level delegation decisions inside families whose
+        # default keeps native authority.
+        ("com.megacrit.cardcrawl.stances.AbstractStance", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.ui.panels.DrawPilePanel", "render"): "ART_DELEGATED",
     }
     known_surface_id = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): "sts1.combat.hand",
@@ -378,6 +390,8 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.scenes.TheBeyondScene", "renderCombatRoomBg"): "sts1.room.background",
         ("com.megacrit.cardcrawl.scenes.TheEndingScene", "renderCombatRoomBg"): "sts1.room.background",
         ("com.megacrit.cardcrawl.vfx.AbstractGameEffect", "render"): "vfx-misc-root",
+        ("com.megacrit.cardcrawl.stances.AbstractStance", "render"): "sts1.stance",
+        ("com.megacrit.cardcrawl.ui.panels.DrawPilePanel", "render"): "sts1.combat.pile_draw",
     }
     known_justification = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): (
@@ -396,9 +410,15 @@ def inventory_entries(report, existing_entries=None):
         ),
         ("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render"): (
             "Observation-only instrument by default: artframework/sts1/patch/TransientEffectContainerPatches.java "
-            "replaces the three AbstractGameEffect.render call sites with an observe-then-render helper; "
+            "replaces the three AbstractGameEffect.render call sites with an observe-then-render helper, so "
             "the native dungeon frame and effect queue remain authoritative and nothing is suppressed unless "
-            "art verify isolate mode is active."
+            "isolate mode is active."
+        ),
+        ("com.megacrit.cardcrawl.rewards.RewardItem", "render"): (
+            "Observation-only instrument by default: artframework/sts1/patch/TransientEffectContainerPatches.java "
+            "replaces the RewardItem.effects loop AbstractGameEffect.render call site with the same "
+            "observe-then-render helper; the reward item pixels and its native effect loop remain authoritative "
+            "and nothing is suppressed unless art verify isolate mode is active."
         ),
         ("com.megacrit.cardcrawl.core.TestGame", "render"): (
             "Test harness bootstrap screen outside ART scope; never intercepted."
@@ -496,6 +516,18 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.scenes.TheEndingScene", "renderCombatRoomBg"): (
             _BACKGROUND_DELEGATED_JUSTIFICATION
         ),
+        ("com.megacrit.cardcrawl.stances.AbstractStance", "render"): (
+            "Stance pixels are delegated to ART only while the default-off StanceDelegationGate "
+            "is active AND StanceArtRenderer.isReady(), with panic/background-only/not-ready paths "
+            "failing open to native; the suppression Prefix in artframework/sts1/patch/StanceRenderPatches.java "
+            "returns Return(null) only on a DELEGATE_TO_ART disposition."
+        ),
+        ("com.megacrit.cardcrawl.ui.panels.DrawPilePanel", "render"): (
+            "Combat draw pile is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+            "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
+            "PresentationDrawEvidence or count as a strict report gap; delegation is not a complete-pixel "
+            "claim and current pixel supply is text/bounds chrome pending full reproduction."
+        ),
     }
     known_test = {
         ("com.megacrit.cardcrawl.characters.AbstractPlayer", "renderHand"): (
@@ -558,7 +590,94 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.scenes.TheEndingScene", "renderCombatRoomBg"): (
             _BACKGROUND_DELEGATED_TEST
         ),
+        ("com.megacrit.cardcrawl.stances.AbstractStance", "render"): (
+            "artframework.sts1.render.StanceRenderPatchMappingTest.delegateSuppressesNativeAndDropsContinuation"
+        ),
+        ("com.megacrit.cardcrawl.ui.panels.DrawPilePanel", "render"): (
+            "artframework.sts1.patch.CombatPileDrawRenderPatchesTest.fullReadySuppressesNativePileDrawRender"
+        ),
     }
+    # Curated conditional-suppression overlays.  These fields are hand-authored
+    # in the committed manifest; they are NOT emitted by the static scan, so a
+    # bounded known-map is the only way a full --write-manifest reproduces them.
+    # This is a curated map: a new hand annotation needs a generator entry here.
+    known_suppression = {
+        ("com.megacrit.cardcrawl.dungeons.AbstractDungeon", "render"): {
+            "conditionalSuppression": "ISOLATE_ONLY",
+            "suppressionOwner": "artframework/sts1/patch/TransientEffectContainerPatches.java",
+            "suppressionJustification": (
+                "Under art verify mode isolate only, the container helper skips effect.render(sb) for a "
+                "delegated effect invocation; the projection has no ART pixel callback, so it records "
+                "no-pixel isolation rather than draw success and fails open on panic, unknown identity, "
+                "or host error."
+            ),
+            "suppressionTest": (
+                "artframework.sts1.render.NativeRenderBridgeTest."
+                "containerEffectRenderConsumesDelegationAndDoesNotCreateArtEvidence"
+            ),
+            "evidence": "NO_PIXEL_ISOLATION",
+        },
+        ("com.megacrit.cardcrawl.rewards.RewardItem", "render"): {
+            "conditionalSuppression": "ISOLATE_ONLY",
+            "suppressionOwner": "artframework/sts1/patch/TransientEffectContainerPatches.java",
+            "suppressionJustification": (
+                "Under art verify mode isolate only, the shared container helper skips effect.render(sb) "
+                "for a delegated effect invocation; the projection has no ART pixel callback, so it "
+                "records no-pixel isolation rather than draw success and fails open on panic, unknown "
+                "identity, or host error."
+            ),
+            "suppressionTest": (
+                "artframework.sts1.render.NativeRenderBridgeTest."
+                "containerEffectRenderConsumesDelegationAndDoesNotCreateArtEvidence"
+            ),
+            "evidence": "NO_PIXEL_ISOLATION",
+        },
+        (
+            "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+            "render",
+            "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+        ): {
+            "conditionalSuppression": "ISOLATE_ONLY",
+            "suppressionOwner": "artframework/sts1/patch/TransientEffectContainerPatches.java",
+            "suppressionJustification": (
+                "Isolate-only native absence probe for the abstract single-argument overload, which "
+                "cannot carry a Spire Prefix; suppression is performed at the AbstractDungeon call site "
+                "in artframework/sts1/patch/TransientEffectContainerPatches.java. Effect projection has "
+                "no ART pixel callback, so it records no-pixel isolation rather than draw success."
+            ),
+            "suppressionTest": (
+                "artframework.sts1.render.NativeRenderBridgeTest."
+                "containerEffectRenderConsumesDelegationAndDoesNotCreateArtEvidence"
+            ),
+            "evidence": "NO_PIXEL_ISOLATION",
+        },
+        (
+            "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+            "render",
+            "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;FF)V",
+        ): {
+            "conditionalSuppression": "ISOLATE_ONLY",
+            "suppressionOwner": "artframework/sts1/patch/TransientEffectRenderPatches.java",
+            "suppressionJustification": (
+                "Isolate-only native absence probe; effect projection has no ART pixel callback, so it "
+                "records no-pixel isolation rather than draw success."
+            ),
+            "suppressionTest": (
+                "artframework.sts1.render.NativeRenderBridgeTest."
+                "isolateSuppressesKnownEffectAndAllowRestoresNativeContinuation"
+            ),
+            "evidence": "NO_PIXEL_ISOLATION",
+        },
+    }
+
+    def _suppression_overlay(path, legacy_key):
+        descriptor = path.get("nativeDescriptor")
+        if descriptor:
+            qualified = (legacy_key[0], legacy_key[1], descriptor)
+            if qualified in known_suppression:
+                return known_suppression[qualified]
+        return known_suppression.get(legacy_key)
+
     result = []
     for path in sorted(
         report.get("paths", []),
@@ -566,6 +685,7 @@ def inventory_entries(report, existing_entries=None):
     ):
         key = path_key(path)
         legacy_key = legacy_path_key(path)
+        suppression = _suppression_overlay(path, legacy_key)
         existing_entry = existing.get(key)
         if existing_entry is None:
             existing_entry = existing.get(legacy_key)
@@ -579,7 +699,10 @@ def inventory_entries(report, existing_entries=None):
             if path.get("nativeDescriptor"):
                 entry["nativeDescriptor"] = path.get("nativeDescriptor")
                 entry["nativeMethodDescriptor"] = path.get("nativeMethodDescriptor")
-            _overlay_ownership_metadata(entry, legacy_key, policy, known_justification, known_test)
+            _overlay_ownership_metadata(
+                entry, legacy_key, policy, known_justification, known_test,
+                suppression,
+            )
             if legacy_key in known_surface_id:
                 entry["surfaceId"] = known_surface_id[legacy_key]
             result.append(entry)
@@ -603,7 +726,10 @@ def inventory_entries(report, existing_entries=None):
             # Family-default resolutions stay unwritten so inheritance remains
             # live; explicit decisions are recorded on the entry.
             entry["policy"] = policy
-        _overlay_ownership_metadata(entry, legacy_key, policy, known_justification, known_test)
+        _overlay_ownership_metadata(
+            entry, legacy_key, policy, known_justification, known_test,
+            suppression,
+        )
         result.append(entry)
     current_keys = set(path_key(path) for path in report.get("paths", []))
     current_legacy_keys = set(legacy_path_key(path) for path in report.get("paths", []))

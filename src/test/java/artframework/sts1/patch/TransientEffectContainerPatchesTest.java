@@ -13,6 +13,7 @@ import org.junit.Test;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -207,6 +208,60 @@ public class TransientEffectContainerPatchesTest {
         // The patch class itself must expose the 3-arg entry the instrument targets.
         TransientEffectContainerPatches.observeThenRender(new RecordingEffect(), null, 2697);
         assertEquals(Integer.valueOf(1), band(effectBands(), "native", "effectListFront"));
+    }
+
+    // --- B05b: reward-item effect-loop observation extension ---
+
+    @Test
+    public void rewardItemPredicateMatchesOnlyTheNativeEffectRenderCall() {
+        // The predicate must match exactly the native AbstractGameEffect.render:(SpriteBatch)V call
+        // the RewardItem.effects loop dispatches on.
+        assertTrue(TransientEffectContainerPatches.ObserveRewardItemEffectRenders
+                .isNativeEffectRenderCall("render",
+                        "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+                        "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V"));
+        // Reject a different owner, method, and overload descriptor.
+        assertFalse(TransientEffectContainerPatches.ObserveRewardItemEffectRenders
+                .isNativeEffectRenderCall("render",
+                        "com.megacrit.cardcrawl.potions.AbstractPotion",
+                        "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V"));
+        assertFalse(TransientEffectContainerPatches.ObserveRewardItemEffectRenders
+                .isNativeEffectRenderCall("update",
+                        "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+                        "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V"));
+        assertFalse(TransientEffectContainerPatches.ObserveRewardItemEffectRenders
+                .isNativeEffectRenderCall("render",
+                        "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+                        "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;Lcom/badlogic/gdx/graphics/Color;)V"));
+    }
+
+    @Test
+    public void rewardItemReplacementBodyCarriesTheObserveThenRenderHelperAndLine() {
+        String body = TransientEffectContainerPatches.ObserveRewardItemEffectRenders
+                .replacementBody(992);
+        assertEquals("{ artframework.sts1.patch.TransientEffectContainerPatches"
+                + ".observeThenRender($0, $1, 992); }", body);
+        // No $proceed / SpireReturn suppression path is emitted; the helper re-invokes native draw.
+        assertFalse(body.contains("$proceed"));
+        assertFalse(body.contains("SpireReturn"));
+    }
+
+    @Test
+    public void rewardItemObserveThenRenderDrawsNativeExactlyOnceAndFailsOpen() {
+        // The reused helper must keep the native draw exactly once (no double render) and must not
+        // block later effects when the native draw throws.
+        RecordingEffect effect = new RecordingEffect();
+        TransientEffectContainerPatches.observeThenRender(effect, null, 992);
+        assertEquals("the reward-loop native render is kept exactly once", 1, effect.drawCount);
+
+        NativeRenderBridge.resetForTests();
+        ThrowingEffect failing = new ThrowingEffect();
+        RecordingEffect following = new RecordingEffect();
+        TransientEffectContainerPatches.observeThenRender(failing, null, 992);
+        TransientEffectContainerPatches.observeThenRender(following, null, 992);
+        assertEquals(1, following.drawCount);
+        assertEquals(Integer.valueOf(1),
+                NativeRenderBridge.effectLedger().probeSlice().get("failOpen"));
     }
 
     @Test

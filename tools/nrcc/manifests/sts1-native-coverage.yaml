@@ -980,7 +980,14 @@ entries:
   pathKind: render-owner
   surfaceId: ''
   effectFamily: none
-  hook: ''
+  hook: artframework/sts1/patch/TransientEffectContainerPatches.java
+  policy: OBSERVED
+  justification: 'Observation-only instrument by default: artframework/sts1/patch/TransientEffectContainerPatches.java replaces the RewardItem.effects loop AbstractGameEffect.render call site with the same observe-then-render helper; the reward item pixels and its native effect loop remain authoritative and nothing is suppressed unless art verify isolate mode is active.'
+  conditionalSuppression: ISOLATE_ONLY
+  suppressionOwner: artframework/sts1/patch/TransientEffectContainerPatches.java
+  suppressionJustification: 'Under art verify mode isolate only, the shared container helper skips effect.render(sb) for a delegated effect invocation; the projection has no ART pixel callback, so it records no-pixel isolation rather than draw success and fails open on panic, unknown identity, or host error.'
+  suppressionTest: artframework.sts1.render.NativeRenderBridgeTest.containerEffectRenderConsumesDelegationAndDoesNotCreateArtEvidence
+  evidence: NO_PIXEL_ISOLATION
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rewards.chests.abstractchest.render

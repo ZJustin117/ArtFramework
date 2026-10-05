@@ -256,6 +256,44 @@ public class VfxSts1RuntimeTest {
     }
 
     @Test
+    public void probeSliceExposesDocumentedKeysForLoadedRoot() throws Exception {
+        Path root = Files.createTempDirectory("art-vfx-probe");
+        Files.write(root.resolve("manifest.json"), ("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"
+                + "\"bundleId\":\"b\",\"capability\":\"DEGRADED\",\"scenes\":[{\"id\":\"default\","
+                + "\"path\":\"scene.json\",\"capability\":\"DEGRADED\"}],\"resources\":[]}").getBytes(UTF8));
+        Files.write(root.resolve("scene.json"), ("{\"format\":\"art.sts2-vfx-scene\",\"schemaVersion\":1,"
+                + "\"id\":\"default\",\"duration\":5,\"capability\":\"DEGRADED\",\"typedNodes\":[{\"id\":\"n\","
+                + "\"nodePath\":\"Root/n\",\"parentId\":null,\"nodeType\":\"GPUParticles2D\","
+                + "\"particleEmitter\":{\"amount\":3,\"lifetime\":2}}],\"resources\":[]}").getBytes(UTF8));
+        VfxSts1Runtime.load(root.toString(), null);
+        new artframework.vfx.ParticleSpawnSystem().run(ArtEcs.world(), new EcsTick(0f, 1L));
+
+        java.util.Map<String, Object> slice = VfxSts1Runtime.probeSlice();
+        assertEquals("loaded", slice.get("status"));
+        assertEquals("default", slice.get("scene"));
+        assertEquals(1, slice.get("liveRoots"));
+        assertEquals(Boolean.FALSE, slice.get("completed"));
+        java.util.List<?> roots = (java.util.List<?>) slice.get("roots");
+        assertEquals(1, roots.size());
+        java.util.Map<?, ?> row = (java.util.Map<?, ?>) roots.get(0);
+        assertEquals("default", row.get("sceneId"));
+        assertEquals(1L, row.get("epoch"));
+        assertEquals(1, row.get("emitterCount"));
+        assertEquals(0, row.get("stoppedCount"));
+        assertEquals(3, row.get("liveParticleCount"));
+    }
+
+    @Test
+    public void probeSliceIsFailOpenEmptyWhenNoLiveRoot() {
+        java.util.Map<String, Object> slice = VfxSts1Runtime.probeSlice();
+        assertEquals("clear", slice.get("status"));
+        assertEquals(0, slice.get("liveRoots"));
+        assertEquals(0, slice.get("draws"));
+        assertEquals(Boolean.FALSE, slice.get("completed"));
+        assertTrue(((java.util.List<?>) slice.get("roots")).isEmpty());
+    }
+
+    @Test
     public void hostRecreationClearsLoadedGraphAndHostResources() throws Exception {
         Path root = Files.createTempDirectory("art-vfx-recreate");
         Files.write(root.resolve("manifest.json"), ("{\"format\":\"art.sts2-vfx-bundle\",\"schemaVersion\":1,"

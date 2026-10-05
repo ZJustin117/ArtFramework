@@ -287,6 +287,13 @@ Translates Godot one-shot/lifetime behavior into component state. It marks compl
 removes expired particles, and destroys the VFX entity graph on completion, scene epoch change,
 or host recreation.
 
+- [x] Single-emitter lifecycle (F02): create -> fixed-step/seeded update -> explicit stop (no
+  respawn; in-flight particles age out) -> deterministic restart from the unchanged seed -> cleanup.
+  Stop/restart are pure component transforms (`VfxEmitterStateComponent.stopped` + `VfxEmitterControl`);
+  the read-only `backend.vfx` probe and `d1_sts2_vfx_basic.yaml` assert the lifecycle without
+  disturbing native. The deeper gaps (`.tpsheet`, sub-emitter, turbulence, restricted shader/bake
+  fallback, Spine 4.2 parity) remain open.
+
 ### `ParticleRenderProjectionSystem`
 
 Reads ECS state, sorts by node order/z-index, resolves texture regions, computes flipbook frame,

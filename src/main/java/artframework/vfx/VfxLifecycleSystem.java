@@ -38,7 +38,9 @@ public final class VfxLifecycleSystem implements EcsSystem {
             if (!node.rootEntity.equals(root) || !world.has(entity, VfxEmitterStateComponent.class)) continue;
             VfxEmitterStateComponent state = world.get(entity, VfxEmitterStateComponent.class);
             VfxParticleBufferComponent particles = world.get(entity, VfxParticleBufferComponent.class);
-            if (!state.emissionComplete || particles == null || !particles.particles.isEmpty()) return false;
+            // A stopped emitter is done emitting, but its in-flight particles must still drain first.
+            boolean doneEmitting = state.emissionComplete || state.stopped;
+            if (!doneEmitting || particles == null || !particles.particles.isEmpty()) return false;
         }
         return true;
     }

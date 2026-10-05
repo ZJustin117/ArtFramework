@@ -15,7 +15,8 @@ public final class ParticleSpawnSystem implements EcsSystem {
         for (EntityId entity : world.query(VfxEmitterComponent.class,
                 VfxEmitterStateComponent.class, VfxParticleBufferComponent.class)) {
             VfxEmitterStateComponent state = world.get(entity, VfxEmitterStateComponent.class);
-            if (state.emissionComplete) continue;
+            // A stopped emitter never spawns or respawns; already-emitted particles age out elsewhere.
+            if (state.stopped || state.emissionComplete) continue;
             VfxEmitterComponent emitter = world.get(entity, VfxEmitterComponent.class);
             List<VfxParticle> particles = new ArrayList<VfxParticle>(emitter.amount);
             for (int index = 0; index < emitter.amount; index++) particles.add(spawn(emitter, index));

@@ -152,12 +152,20 @@ public class ArtCommand extends ConsoleCommand {
 
     private void cmdVfx(String[] tokens, int depth) {
         String action = tokens.length > depth ? tokens[depth].toLowerCase() : "status";
+        // The raw ART_VFX line is retained for device probes that parse it, while a structured
+        // ART_COMMAND envelope (matching every other `art` command) lets the art-verify runner
+        // resolve command freshness without the 3s fallback stall. The envelope `command` must be
+        // the full effective command (arguments included) to match the runner's console line.
+        String command = vfxCommand(tokens, depth);
         try {
             if ("status".equals(action)) {
-                logVfx(artframework.sts1.render.VfxSts1Runtime.statusLine());
+                String line = artframework.sts1.render.VfxSts1Runtime.statusLine();
+                logVfx(line);
+                commandResult(command, "OK", line);
             } else if ("clear".equals(action)) {
                 artframework.sts1.render.VfxSts1Runtime.clear();
                 logVfx("ART_VFX clear status=clear");
+                commandResult(command, "OK", "clear status=clear");
             } else if ("load".equals(action) && tokens.length > depth + 1) {
                 int remaining = tokens.length - (depth + 2);
                 String scene = null;
@@ -174,17 +182,34 @@ public class ArtCommand extends ConsoleCommand {
                     originY = Float.parseFloat(tokens[depth + 4]);
                 } else if (remaining != 0) {
                     logVfx("ART_VFX error=usage: art vfx load <bundle-dir> [scene-id] [x y]");
+                    commandResult(command, "ERROR", "usage: art vfx load <bundle-dir> [scene-id] [x y]");
                     return;
                 }
                 artframework.sts1.render.VfxSts1Runtime.load(tokens[depth + 1], scene, originX, originY);
-                logVfx(artframework.sts1.render.VfxSts1Runtime.statusLine());
+                String line = artframework.sts1.render.VfxSts1Runtime.statusLine();
+                logVfx(line);
+                commandResult(command, "OK", line);
             } else {
                 logVfx("ART_VFX error=usage: art vfx status|load <bundle-dir> [scene-id] [x y]|clear");
+                commandResult(command, "ERROR",
+                        "usage: art vfx status|load <bundle-dir> [scene-id] [x y]|clear");
             }
         } catch (Throwable error) {
             artframework.sts1.render.VfxSts1Runtime.recordError(error);
-            logVfx("ART_VFX error=" + error.getClass().getSimpleName() + ":" + String.valueOf(error.getMessage()));
+            String line = "ART_VFX error=" + error.getClass().getSimpleName()
+                    + ":" + String.valueOf(error.getMessage());
+            logVfx(line);
+            commandResult(command, "ERROR", line);
         }
+    }
+
+    /** Full {@code art vfx ...} console line (arguments included), matching the runner's command. */
+    private static String vfxCommand(String[] tokens, int depth) {
+        StringBuilder command = new StringBuilder("art vfx");
+        for (int i = depth; i < tokens.length; i++) {
+            command.append(' ').append(tokens[i]);
+        }
+        return command.toString();
     }
 
     /** Parsed {@code art stance ...} request; pure so the console switch is testable without a game. */

@@ -8,9 +8,13 @@ import artframework.render.ArtRenderFrameAggregationSystem;
 import artframework.vfx.ParticleRenderProjectionSystem;
 import artframework.vfx.VfxBundleDefinition;
 import artframework.vfx.VfxDrawListComponent;
+import artframework.vfx.VfxEmitterComponent;
+import artframework.vfx.VfxEmitterStateComponent;
 import artframework.vfx.VfxInstance;
 import artframework.vfx.VfxInstantiateSystem;
 import artframework.vfx.VfxManifestLoader;
+import artframework.vfx.VfxNodeComponent;
+import artframework.vfx.VfxParticleBufferComponent;
 import artframework.vfx.VfxSceneDefinition;
 import artframework.vfx.VfxSceneResourcesComponent;
 import artframework.vfx.VfxSceneRuntimeComponent;
@@ -27,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -113,6 +118,68 @@ public final class VfxSts1Runtime {
             if (draw != null && draw.value != null && !draw.value.draws.isEmpty()) return true;
         }
         return false;
+    }
+
+    /**
+     * Read-only, fail-open VFX probe slice for UI verification. Mirrors {@link #statusLine()} but
+     * returns structured roots with per-emitter counts. Never throws; on error returns an empty
+     * slice carrying the failure in {@code error}.
+     */
+    public static synchronized Map<String, Object> probeSlice() {
+        Map<String, Object> out = new LinkedHashMap<String, Object>();
+        List<Map<String, Object>> rootRows = new ArrayList<Map<String, Object>>();
+        try {
+            List<EntityId> liveRoots = ArtEcs.world().query(VfxSceneRuntimeComponent.class);
+            pruneRoots(liveRoots);
+            int draws = 0;
+            for (EntityId root : liveRoots) {
+                VfxDrawListComponent draw = ArtEcs.world().get(root, VfxDrawListComponent.class);
+                if (draw != null && draw.value != null) draws += draw.value.draws.size();
+                rootRows.add(rootRow(root));
+            }
+            boolean completed = sceneId != null && liveRoots.isEmpty();
+            String status = completed ? "completed" : (sceneId == null ? "clear" : "loaded");
+            out.put("status", status);
+            out.put("scene", sceneId == null ? "" : sceneId);
+            out.put("liveRoots", Integer.valueOf(liveRoots.size()));
+            out.put("draws", Integer.valueOf(draws));
+            out.put("completed", Boolean.valueOf(completed));
+            out.put("error", lastError == null ? "" : lastError);
+            out.put("roots", rootRows);
+        } catch (Throwable error) {
+            out.put("status", "error");
+            out.put("scene", "");
+            out.put("liveRoots", Integer.valueOf(0));
+            out.put("draws", Integer.valueOf(0));
+            out.put("completed", Boolean.FALSE);
+            out.put("error", error.getClass().getSimpleName() + ":" + String.valueOf(error.getMessage()));
+            out.put("roots", rootRows);
+        }
+        return out;
+    }
+
+    private static Map<String, Object> rootRow(EntityId root) {
+        VfxSceneRuntimeComponent runtime = ArtEcs.world().get(root, VfxSceneRuntimeComponent.class);
+        int emitters = 0;
+        int stopped = 0;
+        int liveParticles = 0;
+        for (EntityId entity : ArtEcs.world().query(VfxNodeComponent.class, VfxEmitterStateComponent.class)) {
+            if (!root.equals(ArtEcs.world().get(entity, VfxNodeComponent.class).rootEntity)) continue;
+            if (!ArtEcs.world().has(entity, VfxEmitterComponent.class)) continue;
+            emitters++;
+            VfxEmitterStateComponent state = ArtEcs.world().get(entity, VfxEmitterStateComponent.class);
+            if (state != null && state.stopped) stopped++;
+            VfxParticleBufferComponent particles =
+                    ArtEcs.world().get(entity, VfxParticleBufferComponent.class);
+            if (particles != null) liveParticles += particles.particles.size();
+        }
+        Map<String, Object> row = new LinkedHashMap<String, Object>();
+        row.put("sceneId", runtime == null ? "" : runtime.sceneId);
+        row.put("epoch", Long.valueOf(runtime == null ? 0L : runtime.instantiatedEpoch));
+        row.put("emitterCount", Integer.valueOf(emitters));
+        row.put("stoppedCount", Integer.valueOf(stopped));
+        row.put("liveParticleCount", Integer.valueOf(liveParticles));
+        return row;
     }
 
     public static synchronized void recordError(Throwable error) {

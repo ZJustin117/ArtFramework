@@ -1,0 +1,126 @@
+# D1: STS2 VFX single-emitter lifecycle through the dev console (load -> live -> clear).
+#
+# Proves the explicit single-emitter lifecycle seam end-to-end on device without disturbing
+# native pixels:
+#   * load:      `art vfx load <bundle>` instantiates one converted VFX graph. The `backend.vfx`
+#                probe slice reports `status=loaded`, `liveRoots>=1`, and one root row with its
+#                emitter/particle counts.
+#   * live:      the ART overlay projects draws while the game stays READY.
+#   * clear:     `art vfx clear` drops the graph; the probe reports `status=clear`, `liveRoots=0`,
+#                `draws=0`.
+#   * panic:     `art present panic lab` then `art present clear-panic` plus a final `art vfx clear`
+#                must leave the game READY with native undisturbed
+#                (`nativeRenderStrict.accepted eq true`, `orphanArtOutput eq 0`).
+#
+# ONE-SHOT WINDOW: the smoke-puff bundle is a one-shot ~2s effect, so the live window is short.
+# The load probe therefore waits on `liveRoots gte 1` with a SHORT timeout and reads `status`,
+# `completed`, and `draws` from that SAME captured probe (no extra `art probe` round trip that
+# could land after completion). There is intentionally NO `wait_ms` hold before the load asserts.
+# `art vfx load|clear` now publish a structured `ART_COMMAND {sequence,...}` envelope, so the
+# art-verify runner resolves freshness immediately instead of stalling on its 3s fallback.
+#
+# BUNDLE PATH: `${ART_STS2_BUNDLE}` is bound by the leading `set:` step to the on-device bundle
+# directory produced by the converter (the F01 smoke-puff bundle). The art-verify runner only
+# interpolates scenario variables for console commands, so retarget the device by editing that
+# `set:` value. If the bundle is absent on device, `art vfx load` fails open and the load asserts
+# below report the failure rather than a false pass.
+name: d1_sts2_vfx_basic
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # On-device VFX bundle emitted by tools/sts2-converter (override per device here).
+  - set:
+      ART_STS2_BUNDLE: /sdcard/Android/data/io.stamethyst/files/sts/art-vfx/smoke-puff
+  - wait_ms: 15000
+  # --- READY: fresh menu + a live run frame before loading any ART VFX. ---
+  - console: "art lab ensure-fresh-menu"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # --- LOAD / LIVE: instantiate one graph and catch its short live window. The wait_probe's
+  #     captured probe is reused by the following asserts, so no extra round trip can miss it. ---
+  - console: "art vfx load ${ART_STS2_BUNDLE}"
+  - wait_probe:
+      timeout_ms: 3000
+      interval_ms: 100
+      assert:
+        path: backend.vfx.liveRoots
+        gte: 1
+  - assert:
+      path: backend.vfx.status
+      eq: loaded
+  - assert:
+      path: backend.vfx.completed
+      eq: false
+  - assert:
+      path: backend.vfx.draws
+      gte: 1
+  - assert:
+      path: backend.renderPlan.nativeRenderStrict.accepted
+      eq: true
+  # --- CLEAR: explicit teardown drops the graph, roots, and draws. ---
+  - console: "art vfx clear"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 200
+      assert:
+        path: backend.vfx.status
+        eq: clear
+  - probe: all
+  - assert:
+      path: backend.vfx.liveRoots
+      eq: 0
+  - assert:
+      path: backend.vfx.draws
+      eq: 0
+  # --- PANIC / RECOVERY: native must return to authoritative with no orphan ART output. ---
+  - console: "art present panic lab"
+  - wait_ms: 600
+  - probe: all
+  - assert:
+      path: backend.safety.panic
+      eq: true
+  - console: "art present clear-panic"
+  - wait_ms: 400
+  - probe: all
+  - assert:
+      path: backend.safety.panic
+      eq: false
+  - console: "art vfx clear"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 200
+      assert:
+        path: backend.vfx.status
+        eq: clear
+  - probe: all
+  - assert:
+      path: backend.renderPlan.nativeRenderStrict.accepted
+      eq: true
+  - assert:
+      path: backend.renderPlan.nativeRender.orphanArtOutput
+      eq: 0
+  - screenshot: true
+  - console: "art vfx clear"

@@ -1957,6 +1957,24 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       loader. The deeper STS2 runtime gaps — `.tpsheet`, sub-emitter, turbulence, restricted
       shader/bake fallback, and Spine 4.2 parity — remain open per
       [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
+- [x] F02: single-emitter lifecycle is now explicit and harness-assertable: create -> fixed-step/seeded
+      update -> stop (no respawn; in-flight particles still age out and the graph still cleans up)
+      -> restart (deterministic re-emission from the unchanged seed) -> cleanup, implemented in the
+      pure `ParticleSpawnSystem`/`VfxLifecycleSystem` with `VfxEmitterStateComponent.stopped` and
+      `VfxEmitterControl`. A read-only `backend.vfx` probe slice
+      (`{status, scene, liveRoots, draws, completed, error, roots:[{sceneId, epoch, emitterCount,
+      stoppedCount, liveParticleCount}]}`) joins the existing `statusLine`/`hasLiveDraws` data and is
+      fail-open empty on error. `tests/ui-scenarios/device/d1_sts2_vfx_basic.yaml` covers
+      load -> live -> clear -> panic/recovery without disturbing native. F02 gate fix: `art vfx`
+      (`status|load|clear`) now also publishes the structured `ART_COMMAND {sequence,status,
+      command,message}` envelope that other `art` commands emit, so the art-verify runner resolves
+      command freshness immediately instead of stalling on its 3s fallback; the raw `ART_VFX` line
+      is unchanged for device probes. The scenario was aligned to the one-shot ~2s smoke-puff
+      bundle: a short-timeout (3000ms) wait on `backend.vfx.liveRoots gte 1` reuses its captured
+      probe for `status=loaded`/`completed=false`/`draws gte 1` with no intervening `wait_ms` hold,
+      then `art vfx clear` asserts `status=clear`/`liveRoots=0`. The deeper STS2 runtime gaps
+      — `.tpsheet`, sub-emitter, turbulence, restricted shader/bake fallback, and Spine 4.2 parity —
+      remain open per [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
 - [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,
       restricted shaders, then baked fallback.
 

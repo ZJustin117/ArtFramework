@@ -11,6 +11,7 @@ import org.junit.Test;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
@@ -220,33 +221,78 @@ public class AuraCommandTest {
     public void vfxLoadStillRoutesToTheSts2BundleRuntime() {
         // `load` is the pre-existing STS2 bundle-runtime action, not the claim seam.
         dispatch("vfx", "load");
-        String line = lastLine();
-        assertNotNull(line);
-        assertTrue("expected the bundle-runtime usage error, was: " + line,
-                line.startsWith("ART_VFX error="));
+        assertTrue("expected the bundle-runtime usage error, was: " + firstLineWithPrefix("ART_VFX"),
+                firstLineWithPrefix("ART_VFX").startsWith("ART_VFX error="));
+        // ...and the structured envelope the art-verify runner needs for a fresh sequence.
+        Map<String, Object> command = lastCommand();
+        assertNotNull("art vfx must publish an ART_COMMAND envelope", command);
+        assertEquals("ERROR", command.get("status"));
+        assertEquals("art vfx load", command.get("command"));
     }
 
     @Test
     public void vfxStatusRoutesToTheBundleRuntimeAndNotTheClaimSeam() {
         // Regression: `art vfx status` must report bundle-runtime state, never claim-seam state.
         dispatch("vfx", "status");
-        String line = lastLine();
+        String line = firstLineWithPrefix("ART_VFX");
         assertNotNull(line);
         assertFalse("art vfx status must not report claim state, was: " + line,
                 line.startsWith("ART_CLAIM"));
         assertTrue("art vfx status must remain the bundle-runtime status, was: " + line,
                 line.startsWith("ART_VFX"));
+        Map<String, Object> command = lastCommand();
+        assertNotNull("art vfx status must publish an ART_COMMAND envelope", command);
+        assertEquals("OK", command.get("status"));
+        assertEquals("art vfx status", command.get("command"));
+        assertTrue("expected statusLine in message, was: " + command.get("message"),
+                String.valueOf(command.get("message")).contains("status="));
     }
 
     @Test
     public void vfxClearRoutesToTheBundleRuntimeAndNotTheClaimSeam() {
         dispatch("vfx", "clear");
-        String line = lastLine();
+        String line = firstLineWithPrefix("ART_VFX");
         assertNotNull(line);
         assertFalse("art vfx clear must not report claim state, was: " + line,
                 line.startsWith("ART_CLAIM"));
         assertTrue("art vfx clear must remain the bundle-runtime clear, was: " + line,
                 line.startsWith("ART_VFX"));
+        Map<String, Object> command = lastCommand();
+        assertNotNull("art vfx clear must publish an ART_COMMAND envelope", command);
+        assertEquals("OK", command.get("status"));
+        assertEquals("art vfx clear", command.get("command"));
+    }
+
+    @Test
+    public void vfxLoadWithBundlePublishesFullCommandEnvelope() {
+        // The runner matches the exact full console line, so the envelope command must include
+        // the bundle argument. A nonexistent bundle fails open with an ERROR envelope, which is
+        // exactly what the runner needs to resolve the step instead of stalling.
+        dispatch("vfx", "load", "/nonexistent/art-vfx-bundle");
+        Map<String, Object> command = lastCommand();
+        assertNotNull(command);
+        assertEquals("art vfx load /nonexistent/art-vfx-bundle", command.get("command"));
+        assertEquals("ERROR", command.get("status"));
+    }
+
+    /** Newest ART_COMMAND envelope parsed from the DevConsole buffer, or null. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> lastCommand() {
+        for (String line : DevConsole.log) {
+            if (line != null && line.startsWith("ART_COMMAND ")) {
+                Object parsed = artframework.component.MiniJson.parse(line.substring("ART_COMMAND ".length()));
+                return parsed instanceof Map ? (Map<String, Object>) parsed : null;
+            }
+        }
+        return null;
+    }
+
+    /** First buffered line starting with {@code prefix} (buffer is newest-first). */
+    private static String firstLineWithPrefix(String prefix) {
+        for (String line : DevConsole.log) {
+            if (line != null && line.startsWith(prefix)) return line;
+        }
+        return null;
     }
 
     private static String lastLine() {

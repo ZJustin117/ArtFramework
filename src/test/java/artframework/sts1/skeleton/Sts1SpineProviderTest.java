@@ -1,5 +1,6 @@
 package artframework.sts1.skeleton;
 
+import artframework.skeleton.SkeletonHandle;
 import org.junit.After;
 import org.junit.Test;
 
@@ -67,6 +68,50 @@ public class Sts1SpineProviderTest {
             assertTrue(error.getMessage().contains("reflection call setTrackTime failed"));
             assertTrue(error.getMessage().contains("track API unavailable"));
         }
+    }
+
+    @Test
+    public void spine42TrackControlFailsOpenWhenTrackEntryMissing() throws Exception {
+        Sts1Spine42Provider provider = new Sts1Spine42Provider("missing.ShadedSkeleton");
+        SkeletonHandle handle = handleWithState(new MissingTrackEntryState());
+
+        assertEquals(0f, provider.trackTime(handle, 0), 0f);
+        assertEquals(0f, provider.animationEnd(handle, 0), 0f);
+    }
+
+    @Test
+    public void spine42TrackControlReportsRealValuesWhenTrackEntryExists() throws Exception {
+        Sts1Spine42Provider provider = new Sts1Spine42Provider("missing.ShadedSkeleton");
+        SkeletonHandle handle = handleWithState(new TrackEntryState());
+
+        assertEquals(1.25f, provider.trackTime(handle, 0), 0f);
+        assertEquals(2f, provider.animationEnd(handle, 0), 0f);
+    }
+
+    private static SkeletonHandle handleWithState(Object state) throws Exception {
+        Class<?> runtimeClass = Class.forName(
+                "artframework.sts1.skeleton.Sts1Spine42Provider$RuntimeInstance");
+        java.lang.reflect.Constructor<?> constructor = runtimeClass.getDeclaredConstructor(
+                com.badlogic.gdx.graphics.g2d.TextureAtlas.class,
+                Object.class, Object.class, Object.class);
+        constructor.setAccessible(true);
+        Object instance = constructor.newInstance(null, new Object(), new Object(), state);
+        return new SkeletonHandle(Sts1Spine42Provider.ID, "d1_ironclad", instance);
+    }
+
+    /** Loaded rig state whose primary track has no TrackEntry (getCurrent returns null). */
+    public static class MissingTrackEntryState {
+        public Object getCurrent(int trackId) { return null; }
+    }
+
+    /** Loaded rig state with a live TrackEntry reporting a real time and end. */
+    public static class TrackEntryState {
+        public Object getCurrent(int trackId) { return new TrackEntry(); }
+    }
+
+    public static class TrackEntry {
+        public float getTrackTime() { return 1.25f; }
+        public float getAnimationEnd() { return 2f; }
     }
 
     @Test

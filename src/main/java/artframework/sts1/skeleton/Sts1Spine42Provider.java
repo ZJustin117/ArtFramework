@@ -223,6 +223,9 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
 
     @Override
     public float animationEnd(SkeletonHandle handle, int trackId) {
+        if (instance(handle) == null) {
+            return 0f;
+        }
         Object value = invokeTrack(handle, trackId, "getAnimationEnd");
         return value instanceof Number ? ((Number) value).floatValue() : 0f;
     }
@@ -732,7 +735,11 @@ public final class Sts1Spine42Provider implements SkeletonCommandProvider, Skele
         try {
             Object entry = i.state.getClass().getMethod("getCurrent", int.class).invoke(i.state, trackId);
             if (entry == null) {
-                throw new IllegalStateException("spine42 track control unavailable: track " + trackId + " has no TrackEntry");
+                // Fail open: a loaded rig can expose a valid SkeletonHandle but no AnimationState
+                // TrackEntry (for example immediately after load, before the first setAnimation).
+                // Returning the safe sentinel instead of throwing keeps probe/publication paths
+                // from aborting on one handle's transient state.
+                return null;
             }
             Class<?>[] types = args.length == 0
                     ? new Class<?>[0]

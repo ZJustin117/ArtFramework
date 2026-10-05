@@ -1,4 +1,12 @@
-# D1: animation command smoke on the loaded developer rig.
+# D1: Spine 4.2 animation command smoke, animation switch, and
+# frozen-time resume determinism on the loaded developer rig.
+#
+# DETERMINISM ONLY, NOT PIXEL PARITY: the resume check freezes the idle_loop pose,
+# samples the render-path deformed-vertex signature
+# (`backend.skeleton.drawEvidence.vertexSignature`), unfreezes, re-seeks to time 0,
+# re-freezes, and requires an IDENTICAL signature. No screenshot or pixel gate is used
+# (see F08 in docs/design/spine42-present.md: a crop pixel compare on D1 bleeds the
+# animating native background and is not deterministic).
 name: d1_spine42_animation
 schemaVersion: 1
 mode: device
@@ -22,6 +30,13 @@ steps:
   - assert:
       path: backend.skeleton.live.d1_ironclad.currentAnimation
       eq: idle_loop
+  # LOOP PERSISTENCE — DOCUMENTED GAP, NOT ASSERTED HERE.
+  # `art skeleton dev play` hardcodes loop=false (ArtCommand.java) and `currentAnimation`
+  # reads getCurrent(0).getAnimation().getName(), which is independent of track time. So a
+  # `seek 10.0` -> `currentAnimation eq idle_loop` check cannot distinguish a looping clip
+  # from an ended one: it is tautological and has been REMOVED. Clip-looping is not exposed
+  # through the `art skeleton dev play` path, so loop persistence is not verifiable here.
+  # ANIMATION SWITCH: existing one-shot play, then switch back to idle_loop.
   - console: "art skeleton dev play d1_ironclad attack"
   - wait_ms: 500
   - probe: all
@@ -31,9 +46,56 @@ steps:
   - assert:
       path: backend.skeleton.live.d1_ironclad.currentAnimation
       eq: attack
+  - console: "art skeleton dev play d1_ironclad idle_loop"
+  - wait_ms: 500
+  - probe: all
+  - assert:
+      path: backend.skeleton.live.d1_ironclad.currentAnimation
+      eq: idle_loop
+  # Keep the existing bone-transform assert.
   - console: "art skeleton dev bone d1_ironclad root"
   - wait_ms: 300
   - probe: all
   - assert:
       path: backend.skeleton.lastBoneTransform.x
       exists: true
+  # RESUME DETERMINISM: freeze at time 0 and sample the deformed-vertex signature, unfreeze and
+  # let the clip move, then freeze at time 0 again; the same frozen time must resume to an
+  # IDENTICAL vertex signature. The wait_probe is bounded so a lagging render cannot race.
+  - console: "art skeleton dev seek d1_ironclad 0.0"
+  - wait_ms: 200
+  - console: "art skeleton dev freeze d1_ironclad"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.drawEvidence.count
+        gte: 1
+  - probe: all
+  - capture:
+      path: backend.skeleton.drawEvidence.vertexSignature
+      var: frozenA
+  - assert:
+      path: backend.skeleton.drawEvidence.vertexSignature
+      exists: true
+  - console: "art skeleton dev unfreeze d1_ironclad"
+  - wait_ms: 500
+  - console: "art skeleton dev seek d1_ironclad 0.0"
+  - wait_ms: 200
+  - console: "art skeleton dev freeze d1_ironclad"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.drawEvidence.count
+        gte: 1
+  # Refresh WITHOUT unfreezing, then sample the re-frozen pose.
+  - probe: all
+  - capture:
+      path: backend.skeleton.drawEvidence.vertexSignature
+      var: frozenB
+  # `eq_var` compares the live probe path against the pre-unfreeze captured var, so it references
+  # frozenA; comparing against frozenB (same probe refresh) would be a tautology.
+  - assert:
+      path: backend.skeleton.drawEvidence.vertexSignature
+      eq_var: frozenA

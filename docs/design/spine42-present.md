@@ -107,6 +107,25 @@ because that crop bleeds ~20% animating NATIVE background (measured 20.0% / 16.6
 242818 differing pixels / 0.117 ratio vs a 0.01 limit, and the paired native golden
 (`ART_SPINE42_REFERENCE_PNG`) remains developer-local and unset.
 
+**Animation & recovery consistency (F09, 2026-10): DONE on D1 (state/determinism only).**
+`tests/ui-scenarios/device/d1_spine42_animation.yaml` verifies animation switch (`play attack` ->
+`play idle_loop`) and frozen-time resume determinism (`seek 0.0` + `freeze`, `capture` the
+deformed-vertex signature as `frozenA`, `unfreeze` + re-`seek 0.0` + `freeze`, then `eq_var:
+frozenA`). Loop persistence is NOT asserted: `art skeleton dev play` hardcodes `loop=false` and
+`currentAnimation` reads `getCurrent(0).getAnimation().getName()` independently of track time, so
+`seek 10.0 -> currentAnimation` cannot distinguish a looping from an ended clip (documented gap in
+the scenario). `tests/ui-scenarios/device/d1_spine42_lifecycle.yaml` verifies unload/reload,
+panic recovery + reload, and host rebuild (`art lab host-recreate` -> `backend.safety
+.recreationCount gte 1` -> bridge `onHostRecreated()` drops developer handles -> clean re-load).
+**Probe resilience fix:** a loaded rig with a valid `SkeletonHandle` but no AnimationState
+TrackEntry used to make `Sts1Spine42Provider` track-control calls throw, which `ProbePublisher`
+swallowed, so `art probe` published nothing and `wait_probe` timed out. Track control now fails
+open (`trackTime` -> `0f`, `animationEnd` -> `false`/`0`, no throw when `track 0 has no TrackEntry`),
+and `Sts1SkeletonBridge.probeSlice()` guards each handle's optional provider queries so one handle
+cannot abort probe publication.
+These are state/determinism consistency checks; they do NOT compare ART against native pixels.
+**Native-reference pixel parity (including attachment/clip/blend) remains OPEN** under 47.35 above.
+
 The comparison input is a screenshot of the rendered fixture, not a probe claim or a CPU vertex
 report. Before comparison, crop both images to the same documented rectangle in pixel coordinates;
 the crops must have identical dimensions. Record the crop rectangle, full image dimensions, color

@@ -2083,6 +2083,38 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       the prior recorded native-reference run failed at 242818 px / 0.117 ratio vs a 0.01 limit
       (documented gap); attachment/clip/blend parity is likewise OPEN.
 
+- [x] F09: Spine 4.2 animation & recovery consistency on D1 (state/determinism only, no pixel gate).
+      PROBE RESILIENCE DEFECT FIXED: a loaded rig with a valid `SkeletonHandle` but no AnimationState
+      TrackEntry (`Sts1Spine42Provider.invokeTrack` called `command.trackTime`/`command.animationEnd`
+      on `probeSlice()`) previously threw `IllegalStateException`, `ProbePublisher.publishFull()`
+      swallowed it, and `art probe` published NOTHING (no fresh `ART_PROBE`) so `wait_probe` timed
+      out. Fix is two-layer: (1) provider track-control calls now FAIL OPEN (`trackTime` -> `0f`,
+      `animationEnd` -> `false`/`0`) when `track 0 has no TrackEntry`; (2) `Sts1SkeletonBridge
+      .probeSlice()` assembles each handle's optional provider queries behind per-handle guards so
+      one handle's exception cannot abort the `drawEvidence`/`live` map — the probe still publishes
+      with all handles present. `tests/ui-scenarios/device/d1_spine42_animation.yaml` keeps the load
+      -> `play idle_loop` -> `play attack` -> `bone root` smoke and the animation switch, removes the
+      TAUTOLOGICAL loop-persistence assert (`seek 10.0` -> `currentAnimation eq idle_loop`; `art
+      skeleton dev play` hardcodes `loop=false` and `currentAnimation` is track-time-independent, so
+      it cannot distinguish a looping from an ended clip) — LOOP PERSISTENCE IS NOT VERIFIABLE via
+      the dev play command (documented gap in the scenario), and keeps RESUME DETERMINISM (`seek 0.0`
+      + `freeze`, bounded `wait_probe` `drawEvidence.count gte 1`, `capture` `backend.skeleton
+      .drawEvidence.vertexSignature` as `frozenA`, then `unfreeze` + `seek 0.0` + `freeze` again with
+      a second bounded wait and `assert {path: backend.skeleton.drawEvidence.vertexSignature, eq_var:
+      frozenA}` — the same frozen time resumes to an IDENTICAL deformed-vertex signature).
+      `tests/ui-scenarios/device/d1_spine42_lifecycle.yaml` (34 steps, unchanged) keeps load -> stop
+      -> panic -> clear-panic and adds: UNLOAD/RELOAD (stop -> `liveCount 0` -> load -> bounded
+      `wait_probe liveCount eq 1`, `providerId eq spine42`, `lastError eq ""`); PANIC RECOVERY +
+      RELOAD (panic -> `liveCount 0` -> clear-panic -> load -> bounded `liveCount eq 1`, clean
+      provider); HOST REBUILD (`art lab host-recreate` -> `PresentSafety.requestHostRecreation`;
+      bounded `wait_probe backend.safety.recreationCount gte 1`, then the skeleton bridge's
+      `onHostRecreated()` drops developer handles so bounded `liveCount eq 0`, `lastError eq ""`,
+      then clean re-load, then `stop` -> `liveCount 0`). Recovery (unload/reload, panic+clear+reload,
+      `art lab host-recreate` with `backend.safety.recreationCount`) is verified. All lag-prone state
+      uses bounded `wait_probe`, not bare asserts. **Native-reference pixel parity remains OPEN /
+      developer-gated on `ART_SPINE42_REFERENCE_PNG` (47.35)**; no `compare_screenshot` pixel gate
+      was added.
+
 ### 46. Traditional ECS convergence
 
 Design: [`docs/design/traditional-ecs.md`](design/traditional-ecs.md). Entity IDs only;

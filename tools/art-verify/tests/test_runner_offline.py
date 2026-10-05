@@ -27,6 +27,8 @@ LIGHTWAVE_EFFECTS = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f15_lightwav
 LIGHTWAVE_COVERAGE = ROOT / "tests" / "ui-scenarios" / "fixtures" / "f19_lightwave_component_coverage.yaml"
 DEVICE = ROOT / "tests" / "ui-scenarios" / "smoke" / "s1_mod_loaded.yaml"
 SPINE42_SCREENSHOT = ROOT / "tests" / "ui-scenarios" / "device" / "d1_spine42_screenshot.yaml"
+SPINE42_ANIMATION = ROOT / "tests" / "ui-scenarios" / "device" / "d1_spine42_animation.yaml"
+SPINE42_LIFECYCLE = ROOT / "tests" / "ui-scenarios" / "device" / "d1_spine42_lifecycle.yaml"
 D1_AURA_CLAIM = ROOT / "tests" / "ui-scenarios" / "device" / "d1_aura_claim.yaml"
 
 
@@ -240,6 +242,111 @@ class RunnerOfflineTest(unittest.TestCase):
         )
         self.assertEqual(True, steps[36]["screenshot"])
         self.assertEqual(37, len(steps))
+        self.assertFalse(any("compare_screenshot" in step for step in steps))
+
+    def test_spine42_animation_scenario_covers_loop_switch_and_resume_determinism(self):
+        sc = load_scenario(SPINE42_ANIMATION)
+        steps = sc["steps"]
+        # F09: animation switch and frozen-time resume determinism. No pixel gate. Clip looping is
+        # NOT verifiable here (dev play hardcodes loop=false; currentAnimation is track-time
+        # independent), so no loop-persistence assertion is present.
+        self.assertNotIn("ART_SPINE42_REFERENCE_PNG", sc["require"]["env"])
+        self.assertNotIn("ART_SPINE42_CROP", sc["require"]["env"])
+        self.assertEqual(38, len(steps))
+        # Animation switch out then back.
+        self.assertEqual("art skeleton dev play d1_ironclad attack", steps[9]["console"])
+        self.assertEqual(
+            {"path": "backend.skeleton.live.d1_ironclad.currentAnimation", "eq": "attack"},
+            steps[13]["assert"],
+        )
+        self.assertEqual("art skeleton dev play d1_ironclad idle_loop", steps[14]["console"])
+        self.assertEqual(
+            {"path": "backend.skeleton.live.d1_ironclad.currentAnimation", "eq": "idle_loop"},
+            steps[17]["assert"],
+        )
+        # Existing bone transform assert retained.
+        self.assertEqual({"path": "backend.skeleton.lastBoneTransform.x", "exists": True}, steps[21]["assert"])
+        # Resume determinism: freeze at 0, capture signature, unfreeze, re-seek 0, re-freeze,
+        # and require an IDENTICAL re-rendered vertex signature.
+        self.assertEqual("art skeleton dev seek d1_ironclad 0.0", steps[22]["console"])
+        self.assertEqual("art skeleton dev freeze d1_ironclad", steps[24]["console"])
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.count", "gte": 1},
+            steps[25]["wait_probe"]["assert"],
+        )
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.vertexSignature", "var": "frozenA"},
+            steps[27]["capture"],
+        )
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.vertexSignature", "exists": True},
+            steps[28]["assert"],
+        )
+        self.assertEqual("art skeleton dev unfreeze d1_ironclad", steps[29]["console"])
+        self.assertEqual("art skeleton dev seek d1_ironclad 0.0", steps[31]["console"])
+        self.assertEqual("art skeleton dev freeze d1_ironclad", steps[33]["console"])
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.count", "gte": 1},
+            steps[34]["wait_probe"]["assert"],
+        )
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.vertexSignature", "var": "frozenB"},
+            steps[36]["capture"],
+        )
+        # eq_var must reference frozenA (the pre-unfreeze sample), not the same-probe frozenB.
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.vertexSignature", "eq_var": "frozenA"},
+            steps[37]["assert"],
+        )
+        self.assertFalse(any("compare_screenshot" in step for step in steps))
+
+    def test_spine42_lifecycle_scenario_covers_reload_panic_recovery_and_host_rebuild(self):
+        sc = load_scenario(SPINE42_LIFECYCLE)
+        steps = sc["steps"]
+        # F09: unload/reload, panic recovery + reload, host rebuild. No pixel gate.
+        self.assertNotIn("ART_SPINE42_REFERENCE_PNG", sc["require"]["env"])
+        self.assertNotIn("ART_SPINE42_CROP", sc["require"]["env"])
+        self.assertEqual(34, len(steps))
+        # Unload then reload the same rig.
+        self.assertEqual("art skeleton dev stop d1_ironclad", steps[4]["console"])
+        self.assertEqual({"path": "backend.skeleton.liveCount", "eq": 0}, steps[7]["assert"])
+        self.assertEqual(
+            "art skeleton dev load d1_ironclad animations/characters/ironclad/ironclad.atlas animations/characters/ironclad/ironclad.skel",
+            steps[8]["console"],
+        )
+        self.assertEqual(
+            {"path": "backend.skeleton.liveCount", "eq": 1}, steps[9]["wait_probe"]["assert"]
+        )
+        self.assertEqual({"path": "backend.skeleton.providerId", "eq": "spine42"}, steps[10]["assert"])
+        self.assertEqual({"path": "backend.skeleton.lastError", "eq": ""}, steps[11]["assert"])
+        # Panic drops the skeleton, clear-panic + reload restores it.
+        self.assertEqual("art present panic spine42-lifecycle", steps[14]["console"])
+        self.assertEqual({"path": "backend.skeleton.liveCount", "eq": 0}, steps[17]["assert"])
+        self.assertEqual("art present clear-panic", steps[18]["console"])
+        self.assertEqual(
+            {"path": "backend.skeleton.liveCount", "eq": 1}, steps[21]["wait_probe"]["assert"]
+        )
+        self.assertEqual({"path": "backend.skeleton.lastError", "eq": ""}, steps[23]["assert"])
+        # Host rebuild: `art lab host-recreate` (dispatched by cmdLab), recreation admitted, the
+        # developer handle is dropped (liveCount 0) and the rig re-loads clean.
+        self.assertEqual("art lab host-recreate", steps[24]["console"])
+        self.assertEqual(
+            {"path": "backend.safety.recreationCount", "gte": 1},
+            steps[25]["wait_probe"]["assert"],
+        )
+        self.assertEqual(
+            {"path": "backend.skeleton.liveCount", "eq": 0}, steps[26]["wait_probe"]["assert"]
+        )
+        self.assertEqual({"path": "backend.skeleton.lastError", "eq": ""}, steps[27]["assert"])
+        self.assertEqual(
+            {"path": "backend.skeleton.liveCount", "eq": 1}, steps[30]["wait_probe"]["assert"]
+        )
+        self.assertEqual({"path": "backend.skeleton.lastError", "eq": ""}, steps[31]["assert"])
+        # Ends clean.
+        self.assertEqual("art skeleton dev stop d1_ironclad", steps[32]["console"])
+        self.assertEqual(
+            {"path": "backend.skeleton.liveCount", "eq": 0}, steps[33]["wait_probe"]["assert"]
+        )
         self.assertFalse(any("compare_screenshot" in step for step in steps))
 
     def test_wait_probe_checks_fixture_without_sleep(self):

@@ -6,6 +6,7 @@ import artframework.c2.EntityKind;
 import artframework.c2.EntitySlot;
 import artframework.context.SurfaceIds;
 import artframework.skeleton.FakeSkeletonProvider;
+import artframework.skeleton.BoneTransform;
 import artframework.skeleton.SkeletonHandle;
 import artframework.skeleton.SkeletonProvider;
 import artframework.skeleton.SkeletonPresentationFrames;
@@ -122,6 +123,24 @@ public class Sts1SkeletonBridgeTest {
         Sts1SkeletonBridge.renderAll(new Object(), 0.25f);
 
         assertTrue(fake.applied("hero"));
+    }
+
+    @Test
+    public void probeSliceStaysPublishedWhenOneHandleTrackQueriesThrow() {
+        ThrowingTrackProvider provider = new ThrowingTrackProvider();
+        ArtFramework.skeletons().register(provider);
+        Sts1SkeletonBridge.setProviderId(ThrowingTrackProvider.ID);
+        Sts1SkeletonBridge.play("d1_ironclad", "", "");
+
+        java.util.Map<?, ?> probe = Sts1SkeletonBridge.probeSlice();
+
+        assertEquals(Integer.valueOf(1), probe.get("liveCount"));
+        java.util.Map<?, ?> live = (java.util.Map<?, ?>) probe.get("live");
+        java.util.Map<?, ?> handle = (java.util.Map<?, ?>) live.get("d1_ironclad");
+        assertNotNull("handle must remain present after a provider query failure", handle);
+        assertEquals("throwing-anim", handle.get("currentAnimation"));
+        assertEquals(Float.valueOf(0f), handle.get("trackTime"));
+        assertEquals(Float.valueOf(0f), handle.get("animationEnd"));
     }
 
     @Test
@@ -491,6 +510,54 @@ public class Sts1SkeletonBridgeTest {
 
         @Override public boolean renderAtNativeSlot(SkeletonHandle handle, Object batch) {
             throw new AssertionError("renderer failure");
+        }
+    }
+
+    /** Command provider whose optional track queries throw; probe assembly must stay resilient. */
+    private static final class ThrowingTrackProvider implements artframework.skeleton.SkeletonCommandProvider {
+        private static final String ID = "throwing-track";
+
+        @Override public String id() { return ID; }
+
+        @Override public SkeletonHandle load(SkeletonSource source) {
+            return new SkeletonHandle(ID, source.skeletonId, source);
+        }
+
+        @Override public void unload(SkeletonHandle handle) {
+            if (handle != null) handle.markDisposed();
+        }
+
+        @Override public boolean hasAnimation(SkeletonHandle handle, String animationId) { return true; }
+
+        @Override public void setAnimation(SkeletonHandle handle, int trackId, String animationId, boolean loop) {}
+
+        @Override public void addAnimation(SkeletonHandle handle, int trackId, String animationId,
+                boolean loop, float delaySeconds) {}
+
+        @Override public String currentAnimation(SkeletonHandle handle, int trackId) {
+            return "throwing-anim";
+        }
+
+        @Override public void setMix(SkeletonHandle handle, String from, String to, float seconds) {}
+
+        @Override public void setTimeScale(SkeletonHandle handle, int trackId, float scale) {}
+
+        @Override public void setTrackTime(SkeletonHandle handle, int trackId, float seconds) {}
+
+        @Override public float trackTime(SkeletonHandle handle, int trackId) {
+            throw new IllegalStateException("transient track query failure");
+        }
+
+        @Override public float animationEnd(SkeletonHandle handle, int trackId) {
+            throw new IllegalStateException("transient track query failure");
+        }
+
+        @Override public void update(SkeletonHandle handle, float deltaSeconds) {}
+
+        @Override public void apply(SkeletonHandle handle) {}
+
+        @Override public BoneTransform boneTransform(SkeletonHandle handle, String boneName) {
+            return new BoneTransform(0f, 0f, 0f, 1f, 1f);
         }
     }
 }

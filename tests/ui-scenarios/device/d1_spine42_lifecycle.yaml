@@ -1,4 +1,5 @@
-# D1: developer skeleton stop and panic cleanup.
+# D1: Spine 4.2 developer skeleton unload/reload, panic recovery + reload, and host-rebuild
+# state consistency. State-only: no screenshot or pixel gate is used here.
 name: d1_spine42_lifecycle
 schemaVersion: 1
 mode: device
@@ -19,6 +20,29 @@ steps:
   - assert:
       path: backend.skeleton.liveCount
       eq: 0
+  # UNLOAD/RELOAD: reload the same rig after an unload and confirm the provider comes back clean.
+  - console: "art skeleton dev load d1_ironclad animations/characters/ironclad/ironclad.atlas animations/characters/ironclad/ironclad.skel"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.liveCount
+        eq: 1
+  - assert:
+      path: backend.skeleton.providerId
+      eq: spine42
+  - assert:
+      path: backend.skeleton.lastError
+      eq: ""
+  - console: "art skeleton dev stop d1_ironclad"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.liveCount
+        eq: 0
+  # PANIC RECOVERY + RELOAD: panic drops live skeletons (stopAll); clearing panic and reloading
+  # must restore a clean provider state.
   - console: "art present panic spine42-lifecycle"
   - wait_ms: 300
   - probe: all
@@ -26,3 +50,59 @@ steps:
       path: backend.skeleton.liveCount
       eq: 0
   - console: "art present clear-panic"
+  - wait_ms: 300
+  - console: "art skeleton dev load d1_ironclad animations/characters/ironclad/ironclad.atlas animations/characters/ironclad/ironclad.skel"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.liveCount
+        eq: 1
+  - assert:
+      path: backend.skeleton.providerId
+      eq: spine42
+  - assert:
+      path: backend.skeleton.lastError
+      eq: ""
+  # HOST REBUILD: `art lab host-recreate` requests host cache recreation; the skeleton bridge
+  # recreates provider bindings from ECS and drops developer handle bindings. The recreation is
+  # dispatched to the app thread, so `recreationCount` is asserted first, then the developer
+  # liveCount settles to 0 (the bridge stops all live handles) with a bounded wait.
+  - console: "art lab host-recreate"
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 1000
+      assert:
+        path: backend.safety.recreationCount
+        gte: 1
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 1000
+      assert:
+        path: backend.skeleton.liveCount
+        eq: 0
+  - assert:
+      path: backend.skeleton.lastError
+      eq: ""
+  - assert:
+      path: backend.skeleton.providerId
+      eq: spine42
+  # RE-LOADABLE AFTER RECREATE: the developer bundle survives the rebuild, so the rig loads clean.
+  - console: "art skeleton dev load d1_ironclad animations/characters/ironclad/ironclad.atlas animations/characters/ironclad/ironclad.skel"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.liveCount
+        eq: 1
+  - assert:
+      path: backend.skeleton.lastError
+      eq: ""
+  # Finish clean: stop the developer rig and confirm no live handles remain.
+  - console: "art skeleton dev stop d1_ironclad"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.skeleton.liveCount
+        eq: 0

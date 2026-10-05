@@ -769,9 +769,11 @@ public final class Sts1SkeletonBridge {
             SkeletonProvider liveProvider = ArtFramework.skeletons().get(entry.getValue().providerId);
             if (liveProvider instanceof SkeletonCommandProvider) {
                 SkeletonCommandProvider command = (SkeletonCommandProvider) liveProvider;
-                item.put("currentAnimation", command.currentAnimation(entry.getValue(), 0));
-                item.put("trackTime", Float.valueOf(command.trackTime(entry.getValue(), 0)));
-                item.put("animationEnd", Float.valueOf(command.animationEnd(entry.getValue(), 0)));
+                // Per-handle resilience: a single handle with unexpected provider state must not
+                // abort the whole probe. Each optional query gets a safe sentinel on failure.
+                item.put("currentAnimation", safeCurrentAnimation(command, entry.getValue()));
+                item.put("trackTime", Float.valueOf(safeTrackTime(command, entry.getValue())));
+                item.put("animationEnd", Float.valueOf(safeAnimationEnd(command, entry.getValue())));
             }
             live.put(entry.getKey(), item);
         }
@@ -781,8 +783,8 @@ public final class Sts1SkeletonBridge {
             SkeletonProvider firstProvider = ArtFramework.skeletons().get(first.providerId);
             if (firstProvider instanceof SkeletonCommandProvider) {
                 SkeletonCommandProvider command = (SkeletonCommandProvider) firstProvider;
-                m.put("currentAnimation", command.currentAnimation(first, 0));
-                m.put("trackTime", Float.valueOf(command.trackTime(first, 0)));
+                m.put("currentAnimation", safeCurrentAnimation(command, first));
+                m.put("trackTime", Float.valueOf(safeTrackTime(command, first)));
             }
         }
         SkeletonProvider p = ArtFramework.skeletons().get(providerId);
@@ -822,6 +824,30 @@ public final class Sts1SkeletonBridge {
         nativeClaimAttempts = 0;
         nativeClaimReleases = 0;
         duplicateNativeClaims = 0;
+    }
+
+    private static String safeCurrentAnimation(SkeletonCommandProvider provider, SkeletonHandle handle) {
+        try {
+            return provider.currentAnimation(handle, 0);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static float safeTrackTime(SkeletonCommandProvider provider, SkeletonHandle handle) {
+        try {
+            return provider.trackTime(handle, 0);
+        } catch (Throwable ignored) {
+            return 0f;
+        }
+    }
+
+    private static float safeAnimationEnd(SkeletonCommandProvider provider, SkeletonHandle handle) {
+        try {
+            return provider.animationEnd(handle, 0);
+        } catch (Throwable ignored) {
+            return 0f;
+        }
     }
 
     private static void trimEvents() {

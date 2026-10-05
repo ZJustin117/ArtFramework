@@ -9,6 +9,8 @@ public final class BackgroundOnlyGate {
     static final int UNCOVERED_OWNER_CAP = 32;
     /** Bounded number of distinct blocked world/foreground owner labels retained for attribution. */
     static final int BLOCKED_OWNER_CAP = 32;
+    /** Bounded number of distinct unsupported owner labels retained for attribution. */
+    static final int UNSUPPORTED_OWNER_CAP = 32;
 
     private static boolean active;
     private static long revision;
@@ -17,10 +19,12 @@ public final class BackgroundOnlyGate {
     private static long blockedForeground;
     private static long blockedOverflow;
     private static long unsupported;
+    private static long unsupportedOverflow;
     private static long uncovered;
     private static long uncoveredOverflow;
     private static final Map<String, Long> uncoveredByOwner = new LinkedHashMap<String, Long>();
     private static final Map<String, Long> blockedByOwner = new LinkedHashMap<String, Long>();
+    private static final Map<String, Long> unsupportedByOwner = new LinkedHashMap<String, Long>();
     private static String lastReason = "";
 
     private BackgroundOnlyGate() {}
@@ -51,7 +55,19 @@ public final class BackgroundOnlyGate {
         }
     }
     public static synchronized void recordUnsupported(String reason) {
-        if (active) { unsupported++; lastReason = reason == null ? "unsupported" : reason; }
+        if (active) {
+            unsupported++;
+            String owner = normalizeLabel(reason, "unsupported");
+            lastReason = owner;
+            Long prior = unsupportedByOwner.get(owner);
+            if (prior != null) {
+                unsupportedByOwner.put(owner, Long.valueOf(prior.longValue() + 1L));
+            } else if (unsupportedByOwner.size() < UNSUPPORTED_OWNER_CAP) {
+                unsupportedByOwner.put(owner, Long.valueOf(1L));
+            } else {
+                unsupportedOverflow++;
+            }
+        }
     }
     public static synchronized void recordUncovered(String reason) {
         if (active) {
@@ -87,6 +103,9 @@ public final class BackgroundOnlyGate {
         m.put("blockedDistinct", Long.valueOf((long) blockedByOwner.size()));
         m.put("blockedOverflow", Long.valueOf(blockedOverflow));
         m.put("unsupported", Long.valueOf(unsupported));
+        m.put("unsupportedByOwner", new LinkedHashMap<String, Long>(unsupportedByOwner));
+        m.put("unsupportedDistinct", Long.valueOf((long) unsupportedByOwner.size()));
+        m.put("unsupportedOverflow", Long.valueOf(unsupportedOverflow));
         m.put("uncovered", Long.valueOf(uncovered));
         m.put("uncoveredByOwner", new LinkedHashMap<String, Long>(uncoveredByOwner));
         m.put("uncoveredDistinct", Long.valueOf((long) uncoveredByOwner.size()));
@@ -113,9 +132,11 @@ public final class BackgroundOnlyGate {
         blockedForeground = 0L;
         blockedOverflow = 0L;
         unsupported = 0L;
+        unsupportedOverflow = 0L;
         uncovered = 0L;
         uncoveredOverflow = 0L;
         uncoveredByOwner.clear();
         blockedByOwner.clear();
+        unsupportedByOwner.clear();
     }
 }

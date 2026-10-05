@@ -117,6 +117,22 @@ steps:
       assert:
         path: backend.verify.backgroundOnly.blockedByOwner
         exists: true
+  # E03: bounded unsupported-owner attribution for the black-screen/overlay/unknown entry paths
+  # (`surface:unknown_owner`, `surface:bridge_error`, `skeleton:unclaimed`,
+  # `skeleton:renderer_unavailable`, `effect:identity_unavailable`). The `unsupported` counter may
+  # legitimately be 0 in a clean combat frame, so assert the KEY is present, not a positive count.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.backgroundOnly.unsupportedDistinct
+        exists: true
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.backgroundOnly.unsupportedByOwner
+        exists: true
   # The blocked attribution must not come at the cost of the background: keep the draw guard.
   - wait_probe:
       timeout_ms: 10000

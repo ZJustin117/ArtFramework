@@ -29,6 +29,11 @@ public class BackgroundOnlyGateTest {
         return (Map<String, Long>) slice.get("blockedByOwner");
     }
 
+    @SuppressWarnings("unchecked")
+    private static Map<String, Long> unsupportedOwners(Map<String, Object> slice) {
+        return (Map<String, Long>) slice.get("unsupportedByOwner");
+    }
+
     @Test
     public void recordUncoveredAccumulatesPerOwnerAndDistinct() {
         BackgroundOnlyGate.setActive(true);
@@ -402,5 +407,216 @@ public class BackgroundOnlyGateTest {
         Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
         assertTrue(blockedOwners(slice).isEmpty());
         assertEquals(Long.valueOf(0L), slice.get("blockedForeground"));
+    }
+
+    @Test
+    public void recordUnsupportedAccumulatesPerLabelAndDistinct() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUnsupported("surface:unknown_owner");
+        BackgroundOnlyGate.recordUnsupported("surface:unknown_owner");
+        BackgroundOnlyGate.recordUnsupported("skeleton:unclaimed");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        Map<String, Long> byOwner = unsupportedOwners(slice);
+        assertEquals(Long.valueOf(2L), byOwner.get("surface:unknown_owner"));
+        assertEquals(Long.valueOf(1L), byOwner.get("skeleton:unclaimed"));
+        assertEquals(Long.valueOf(2L), slice.get("unsupportedDistinct"));
+        assertEquals(Long.valueOf(3L), slice.get("unsupported"));
+        assertEquals(Long.valueOf(0L), slice.get("unsupportedOverflow"));
+        assertEquals("skeleton:unclaimed", slice.get("lastReason"));
+    }
+
+    @Test
+    public void unsupportedEqualsSumOfOwnerCountsUnderCap() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUnsupported("effect:identity_unavailable");
+        BackgroundOnlyGate.recordUnsupported("surface:bridge_error");
+        BackgroundOnlyGate.recordUnsupported("effect:identity_unavailable");
+        BackgroundOnlyGate.recordUnsupported("skeleton:renderer_unavailable");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        long sum = 0L;
+        for (Long v : unsupportedOwners(slice).values()) sum += v.longValue();
+        assertEquals(((Number) slice.get("unsupported")).longValue(), sum);
+    }
+
+    @Test
+    public void unsupportedDistinctLabelsAreBoundedAndOverflowCounts() {
+        BackgroundOnlyGate.setActive(true);
+        int cap = BackgroundOnlyGate.UNSUPPORTED_OWNER_CAP;
+        int distinct = cap + 5;
+        for (int i = 0; i < distinct; i++) {
+            BackgroundOnlyGate.recordUnsupported("owner_" + i);
+        }
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        Map<String, Long> byOwner = unsupportedOwners(slice);
+        assertEquals((long) cap, byOwner.size());
+        assertEquals((long) cap, ((Number) slice.get("unsupportedDistinct")).longValue());
+        assertEquals(5L, ((Number) slice.get("unsupportedOverflow")).longValue());
+        // unsupported still counts every call, including overflowed owners.
+        assertEquals((long) distinct, ((Number) slice.get("unsupported")).longValue());
+        // Existing overflowed label increments overflow, not a new key.
+        BackgroundOnlyGate.recordUnsupported("owner_" + (cap + 2));
+        slice = BackgroundOnlyGate.probeSlice();
+        assertEquals((long) cap, unsupportedOwners(slice).size());
+        assertEquals(6L, ((Number) slice.get("unsupportedOverflow")).longValue());
+        assertEquals((long) (distinct + 1), ((Number) slice.get("unsupported")).longValue());
+    }
+
+    @Test
+    public void unsupportedOwnerOrderIsInsertionOrderAndRepeatsIncrement() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUnsupported("first");
+        BackgroundOnlyGate.recordUnsupported("second");
+        BackgroundOnlyGate.recordUnsupported("first");
+
+        Map<String, Long> byOwner = unsupportedOwners(BackgroundOnlyGate.probeSlice());
+        List<String> order = new ArrayList<String>(byOwner.keySet());
+        assertEquals(2, order.size());
+        assertEquals("first", order.get(0));
+        assertEquals("second", order.get(1));
+        assertEquals(Long.valueOf(2L), byOwner.get("first"));
+        assertEquals(Long.valueOf(1L), byOwner.get("second"));
+    }
+
+    @Test
+    public void nullAndBlankUnsupportedReasonsUseUnsupportedFallbackLabel() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUnsupported(null);
+        BackgroundOnlyGate.recordUnsupported("   ");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        Map<String, Long> byOwner = unsupportedOwners(slice);
+        assertEquals(Long.valueOf(2L), byOwner.get("unsupported"));
+        assertEquals(1L, ((Number) slice.get("unsupportedDistinct")).longValue());
+        assertEquals("unsupported", slice.get("lastReason"));
+    }
+
+    @Test
+    public void unsupportedLabelsAreTrimmed() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUnsupported("  surface:bridge_error  ");
+        BackgroundOnlyGate.recordUnsupported("surface:bridge_error");
+
+        Map<String, Long> byOwner = unsupportedOwners(BackgroundOnlyGate.probeSlice());
+        assertEquals(1, byOwner.size());
+        assertEquals(Long.valueOf(2L), byOwner.get("surface:bridge_error"));
+    }
+
+    @Test
+    public void probeSliceExposesUnsupportedKeysWithCorrectTypesAndKeepsE01AndE02() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBackgroundDraw();
+        BackgroundOnlyGate.recordUnsupported("surface:unknown_owner");
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        BackgroundOnlyGate.recordUncovered("art.post_render");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(slice.get("unsupportedByOwner") instanceof Map);
+        assertTrue(slice.get("unsupportedDistinct") instanceof Long);
+        assertTrue(slice.get("unsupportedOverflow") instanceof Long);
+        // E01 keys remain.
+        assertTrue(slice.get("uncoveredByOwner") instanceof Map);
+        assertTrue(slice.get("uncoveredDistinct") instanceof Long);
+        assertTrue(slice.get("uncoveredOverflow") instanceof Long);
+        // E02 keys remain.
+        assertTrue(slice.get("blockedByOwner") instanceof Map);
+        assertTrue(slice.get("blockedDistinct") instanceof Long);
+        assertTrue(slice.get("blockedOverflow") instanceof Long);
+        // Pre-existing keys remain.
+        assertTrue(slice.get("unsupported") instanceof Long);
+        assertTrue(slice.get("blockedForeground") instanceof Long);
+        assertTrue(slice.get("uncovered") instanceof Long);
+        assertTrue(slice.get("suppression") instanceof Long);
+        assertTrue(slice.get("lastReason") instanceof String);
+    }
+
+    @Test
+    public void unsupportedProbeSliceReturnsCopyNotLiveMap() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUnsupported("surface:unknown_owner");
+        Map<String, Long> first = unsupportedOwners(BackgroundOnlyGate.probeSlice());
+        first.put("injected", Long.valueOf(99L));
+        Map<String, Long> second = unsupportedOwners(BackgroundOnlyGate.probeSlice());
+        assertFalse(second.containsKey("injected"));
+        assertNotNull(second.get("surface:unknown_owner"));
+    }
+
+    @Test
+    public void resetForTestsClearsUnsupportedAttribution() {
+        BackgroundOnlyGate.setActive(true);
+        for (int i = 0; i < BackgroundOnlyGate.UNSUPPORTED_OWNER_CAP + 3; i++) {
+            BackgroundOnlyGate.recordUnsupported("owner_" + i);
+        }
+        BackgroundOnlyGate.resetForTests();
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(unsupportedOwners(slice).isEmpty());
+        assertEquals(Long.valueOf(0L), slice.get("unsupportedDistinct"));
+        assertEquals(Long.valueOf(0L), slice.get("unsupportedOverflow"));
+        assertEquals(Long.valueOf(0L), slice.get("unsupported"));
+    }
+
+    @Test
+    public void clearForRecoveryClearsUnsupportedAttribution() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUnsupported("surface:unknown_owner");
+        BackgroundOnlyGate.recordUnsupported("skeleton:unclaimed");
+        BackgroundOnlyGate.clearForRecovery();
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(unsupportedOwners(slice).isEmpty());
+        assertEquals(Long.valueOf(0L), slice.get("unsupportedOverflow"));
+        assertEquals(Long.valueOf(0L), slice.get("unsupported"));
+        assertEquals(Boolean.FALSE, slice.get("active"));
+    }
+
+    @Test
+    public void deactivationClearsUnsupportedAttributionViaCountersClear() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUnsupported("surface:unknown_owner");
+        BackgroundOnlyGate.setActive(false);
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(unsupportedOwners(slice).isEmpty());
+        assertEquals(Long.valueOf(0L), slice.get("unsupported"));
+        assertEquals(Long.valueOf(0L), slice.get("unsupportedOverflow"));
+    }
+
+    @Test
+    public void inactiveGateDoesNotRecordUnsupportedAttribution() {
+        BackgroundOnlyGate.setActive(false);
+        BackgroundOnlyGate.recordUnsupported("surface:unknown_owner");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(unsupportedOwners(slice).isEmpty());
+        assertEquals(Long.valueOf(0L), slice.get("unsupported"));
+    }
+
+    @Test
+    public void unsupportedAttributionDoesNotChangeGateSemantics() {
+        BackgroundOnlyGate.resetForTests();
+        assertFalse(BackgroundOnlyGate.isActive());
+
+        BackgroundOnlyGate.recordUnsupported("surface:bridge_error");
+        assertEquals(0, unsupportedOwners(BackgroundOnlyGate.probeSlice()).size());
+
+        BackgroundOnlyGate.setActive(true);
+        assertTrue(BackgroundOnlyGate.isActive());
+        BackgroundOnlyGate.recordBackgroundDraw();
+        BackgroundOnlyGate.recordBackgroundSuppression();
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        BackgroundOnlyGate.recordUnsupported("effect:identity_unavailable");
+        BackgroundOnlyGate.recordUnsupported("effect:identity_unavailable");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertEquals(Long.valueOf(1L), slice.get("backgroundDraw"));
+        assertEquals(Long.valueOf(1L), slice.get("backgroundSuppression"));
+        assertEquals(Long.valueOf(1L), slice.get("blockedForeground"));
+        assertEquals(Long.valueOf(2L), slice.get("unsupported"));
+        assertEquals(Long.valueOf(2L), unsupportedOwners(slice).get("effect:identity_unavailable"));
+        assertEquals("effect:identity_unavailable", slice.get("lastReason"));
+        assertEquals(Long.valueOf(1L), slice.get("revision"));
     }
 }

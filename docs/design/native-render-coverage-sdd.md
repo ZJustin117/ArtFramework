@@ -319,7 +319,15 @@ blocked world/foreground owner attribution through a parallel bounded
 `blockedByOwner` label->count map (deterministic insertion order, distinct-label
 cap 32) plus `blockedDistinct` and `blockedOverflow`, alongside the unchanged coarse
 `blockedForeground` counter (NRO-04 E02); labels are the default-block call-site
-reasons (`surface:<family>`, `skeleton:<owner>`, `effect:<class>`).
+reasons (`surface:<family>`, `skeleton:<owner>`, `effect:<class>`). It reports
+unsupported-owner attribution through a third parallel bounded
+`unsupportedByOwner` label->count map (deterministic insertion order, distinct-label
+cap 32) plus `unsupportedDistinct` and `unsupportedOverflow`, alongside the unchanged
+coarse `unsupported` counter (NRO-04 E03); labels are the black-screen/overlay/unknown
+call-site reasons (`surface:unknown_owner`, `surface:bridge_error`, `skeleton:unclaimed`,
+`skeleton:renderer_unavailable`, `effect:identity_unavailable`). The three per-owner
+maps together give precise attribution across the uncovered, blocked, and unsupported
+entry paths without changing the gate decision.
 
 An entry satisfies the justification contract with its own `justification`
 field or, when it inherits a family default policy, with the family's default

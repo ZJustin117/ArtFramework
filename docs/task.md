@@ -1859,6 +1859,20 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       makes the single-owner attribution explicit. Per-owner active isolation of a specific
       world/foreground entry remains a later option.
 
+- [x] NRO-04 E03 (precise unsupported-owner attribution): the strict `background-only`
+      `BackgroundOnlyGate` now feeds `recordUnsupported` into a bounded `LinkedHashMap<String,Long>`
+      exposed as `backend.verify.backgroundOnly.unsupportedByOwner` (label -> count, deterministic
+      insertion order, distinct-label cap 32), plus `unsupportedDistinct` (map size) and
+      `unsupportedOverflow` (Long) when the cap is exceeded; `unsupportedByOwner`/`unsupportedOverflow`
+      clear in the same reset path as the E01/E02 attribution (deactivation / recovery / test reset).
+      The coarse `unsupported` counter and gate semantics are unchanged. This completes the THREE
+      bounded per-owner attribution maps — `uncoveredByOwner` (E01), `blockedByOwner` (E02), and
+      `unsupportedByOwner` (E03) — with their `*Distinct`/`*Overflow` keys, covering the
+      black-screen/overlay/text/unknown entry paths via the unchanged call-site labels
+      (`surface:unknown_owner`, `surface:bridge_error`, `skeleton:unclaimed`,
+      `skeleton:renderer_unavailable`, `effect:identity_unavailable`). Honest scope: attribution only —
+      no new native patch. Per-owner ACTIVE isolation of a specific overlay remains a later option.
+
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

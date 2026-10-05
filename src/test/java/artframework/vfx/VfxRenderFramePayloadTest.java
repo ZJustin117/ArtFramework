@@ -63,6 +63,38 @@ public class VfxRenderFramePayloadTest {
         assertEquals(payload.sourceX(), again.payload.sourceX(), 0f);
     }
 
+    @Test public void mapsFlipbookCellBoundariesFirstLastAndLargeFrame() {
+        // 4x2 = 8-frame sheet. First frame is the top-left cell; the last valid frame is the
+        // bottom-right cell. A frame index beyond the sheet keeps its own (clamped) cell because
+        // payloadEntry clamps to >= 0 and derives col/row by modulo; callers pass an in-range frame.
+        RenderPixelPayload first = VfxRenderFrame.payloadEntry(draw("n", 0, 0f, 0, 4, 2, "MIX")).payload;
+        assertEquals(0, first.flipbookFrame());
+        assertEquals(0f, first.sourceX(), 0f);
+        assertEquals(0f, first.sourceY(), 0f);
+        assertEquals(0.25f, first.sourceWidth(), 0f);
+        assertEquals(0.5f, first.sourceHeight(), 0f);
+
+        RenderPixelPayload last = VfxRenderFrame.payloadEntry(draw("n", 0, 0f, 7, 4, 2, "MIX")).payload;
+        assertEquals(7, last.flipbookFrame());
+        assertEquals(0.75f, last.sourceX(), 0f);
+        assertEquals(0.5f, last.sourceY(), 0f);
+        assertEquals(0.25f, last.sourceWidth(), 0f);
+        assertEquals(0.5f, last.sourceHeight(), 0f);
+    }
+
+    @Test public void sourceRectStaysInsideUnitSquareAcrossEveryFrame() {
+        // Every frame of a 4x2 sheet maps to a non-negative UV rect fully inside [0,1]: no column
+        // or row overflow even at the last cell.
+        for (int frame = 0; frame < 8; frame++) {
+            RenderPixelPayload payload =
+                    VfxRenderFrame.payloadEntry(draw("n", 0, 0f, frame, 4, 2, "MIX")).payload;
+            assertTrue(payload.sourceX() >= 0f);
+            assertTrue(payload.sourceY() >= 0f);
+            assertTrue(payload.sourceX() + payload.sourceWidth() <= 1f + 1e-6f);
+            assertTrue(payload.sourceY() + payload.sourceHeight() <= 1f + 1e-6f);
+        }
+    }
+
     @Test public void frameEntriesFollowExistingDrawOrderAndAreImmutable() {
         VfxParticleDraw high = draw("z-node", 0, 9f, 0, 1, 1, "MIX");
         VfxParticleDraw low = draw("a-node", 0, -1f, 0, 1, 1, "MIX");

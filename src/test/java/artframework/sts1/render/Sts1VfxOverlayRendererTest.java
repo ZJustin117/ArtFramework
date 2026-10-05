@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class Sts1VfxOverlayRendererTest {
     @Test public void overlaySubmissionSortsBySharedRenderOrder() {
@@ -77,6 +78,52 @@ public class Sts1VfxOverlayRendererTest {
         assertEquals(legacy.sourceX, payload.sourceX);
         assertEquals(legacy.sourceY, payload.sourceY);
         assertEquals("x = centre - tw/2", legacy.x, payload.x, 0f);
+    }
+
+    @Test public void overlaySourceRectPinsFirstAndLastCellsAndAgreesWithPayload() {
+        // 4x2 sheet on a 96x64 texture -> 24x32 cells.
+        VfxParticleDraw first = draw("node", 0, 0, 0f, 0, 4, 2, 48f, 32f, "MIX");
+        Sts1VfxOverlayRenderer.DrawParams firstParams = Sts1VfxOverlayRenderer.params(first, 96, 64);
+        assertEquals(0, firstParams.sourceX);
+        assertEquals(0, firstParams.sourceY);
+        assertEquals(24, firstParams.sourceWidth);
+        assertEquals(32, firstParams.sourceHeight);
+
+        // Last valid frame 7 -> column 3, row 1; the rect stays inside the texture.
+        VfxParticleDraw last = draw("node", 0, 0, 0f, 7, 4, 2, 48f, 32f, "MIX");
+        Sts1VfxOverlayRenderer.DrawParams lastParams = Sts1VfxOverlayRenderer.params(last, 96, 64);
+        assertEquals(72, lastParams.sourceX);
+        assertEquals(32, lastParams.sourceY);
+        assertEquals(24, lastParams.sourceWidth);
+        assertEquals(32, lastParams.sourceHeight);
+        assertTrue(lastParams.sourceX + lastParams.sourceWidth <= 96);
+        assertTrue(lastParams.sourceY + lastParams.sourceHeight <= 64);
+
+        // The projection payload's normalized rect maps to the same integer cell (sheet divides
+        // evenly), so the payload authority and the legacy draw path agree on the same frame.
+        RenderPlan.Entry entry = VfxRenderFrame.payloadEntry(last);
+        assertEquals(0.75f, entry.payload.sourceX(), 0f);
+        assertEquals(0.5f, entry.payload.sourceY(), 0f);
+        assertEquals(0.25f, entry.payload.sourceWidth(), 0f);
+        assertEquals(0.5f, entry.payload.sourceHeight(), 0f);
+        Sts1VfxOverlayRenderer.DrawParams payload =
+                Sts1VfxOverlayRenderer.params(entry.payload, 96, 64);
+        assertEquals(lastParams.sourceX, payload.sourceX);
+        assertEquals(lastParams.sourceY, payload.sourceY);
+        assertEquals((int) (entry.payload.sourceX() * 96), lastParams.sourceX);
+        assertEquals((int) (entry.payload.sourceY() * 64), lastParams.sourceY);
+    }
+
+    @Test public void overlaySourceRectStaysInsideTextureAcrossEveryFlipbookFrame() {
+        // Every in-range frame maps to a non-negative integer rect fully inside the texture.
+        for (int frame = 0; frame < 8; frame++) {
+            VfxParticleDraw source = draw("node", 0, 0, 0f, frame, 4, 2, 0f, 0f, "MIX");
+            Sts1VfxOverlayRenderer.DrawParams params =
+                    Sts1VfxOverlayRenderer.params(source, 96, 64);
+            assertTrue(params.sourceX >= 0 && params.sourceY >= 0);
+            assertTrue(params.sourceX + params.sourceWidth <= 96);
+            assertTrue(params.sourceY + params.sourceHeight <= 64);
+        }
     }
 
     @Test public void blendFunctionMappingIsStable() {

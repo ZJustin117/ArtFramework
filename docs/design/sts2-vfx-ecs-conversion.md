@@ -304,6 +304,11 @@ write directly into `EntityPresent`.
   ECS emitter's blend mode compose through the ECS -> projection -> payload chain (unit-pinned in
   `ParticleRenderProjectionSystemTest`/`VfxRenderFramePayloadTest`), with a live-window D1 capture of
   the smoke-puff in `d1_sts2_vfx_basic.yaml`; pixel parity is not claimed.
+- [x] F04: flipbook frame-index + atlas mapping pinned (first frame / negative-age clamp,
+  intermediate frame, non-loop LAST-frame clamp, loop wrap at `age*speed == frameCount` and beyond,
+  and large-dt in-range/UV-bounded) through the projection payload and the STS1 overlay integer rect
+  in `ParticleRenderProjectionSystemTest`/`VfxRenderFramePayloadTest`/`Sts1VfxOverlayRendererTest`;
+  `.tpsheet` region materialization remains open.
 
 This follows the existing collection → projection → system family pattern. A future host-side
 ledger/registry may be added for native VFX observation and lifecycle evidence, analogous to the

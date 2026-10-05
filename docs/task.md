@@ -1989,6 +1989,20 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       STS2 runtime gaps — `.tpsheet`, sub-emitter, turbulence, restricted shader/bake fallback, and
       Spine 4.2 parity — remain open per
       [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
+- [x] F04: the flipbook frame-index and atlas-mapping boundary coverage is now unit-pinned through the
+      ECS emitter -> `ParticleRenderProjectionSystem` -> `VfxRenderFrame.payloadEntry` chain and the
+      STS1 overlay integer source rect: age 0 (and negative age) -> frame 0 with the `(0,0)` cell; an
+      intermediate frame -> exact frame index + exact `sourceX/Y/W/H`; a NON-loop overshoot
+      (`age*speed >= frameCount`) -> clamped to the LAST frame `frameCount-1` at the final cell; a
+      LOOP wrap (`age*speed == frameCount` and `2*frameCount+1`) -> frame 0 and frame 1; and a very
+      large `dt` keeps the frame in `[0, frameCount-1]` with the normalized src rect inside `[0,1]`
+      and the overlay integer rect inside the texture. The mapping is derived from the bundle's
+      hFrames/vFrames; the separate `.tpsheet` region-materialization gap is NOT addressed here and
+      remains open. Focused no-GL JUnit only; no per-frame D1 visual compare is claimed (the
+      smoke-puff scene's flipbook emitter is not UV-asserted by the scenario), so the D1 per-frame
+      visual compare is a documented gap, not a faked assertion. The deeper STS2 runtime gaps —
+      `.tpsheet`, sub-emitter, turbulence, restricted shader/bake fallback, and Spine 4.2 parity —
+      remain open per [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
 - [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,
       restricted shaders, then baked fallback.
 

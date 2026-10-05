@@ -7,12 +7,14 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import static org.junit.Assert.*;
 import artframework.render.ArtRenderFrame;
 import artframework.render.ArtRenderFrameAggregationSystem;
 import artframework.render.ArtRenderContributionComponent;
 import artframework.render.RenderPhase;
 import artframework.render.RenderPlan;
+import artframework.render.RenderPixelPayload;
 
 public class ParticleRenderProjectionSystemTest {
     @Test public void projectsCompositionOrderingAndFlipbookWithoutMutation() {
@@ -166,6 +168,77 @@ public class ParticleRenderProjectionSystemTest {
         new ArtRenderFrameAggregationSystem().run(world, new EcsTick(0f, 3L));
         assertEquals(0, world.query(ArtRenderContributionComponent.class).size());
         assertTrue(artframework.render.ArtRenderFrameComponent.read(world).entries().isEmpty());
+    }
+
+    @Test public void flipbookBoundariesFirstLastLoopWrapAndLargeDt() {
+        // One 4x2 = 8-frame sheet. Non-loop and loop emitters share the same grid so the same ages
+        // can be compared; speed is 2.0 fps ((min+max)/2), so age == frame/2.
+        VfxFlipbookDefinition clampSheet = new VfxFlipbookDefinition(4, 2, false, 2f, 2f);
+        VfxFlipbookDefinition loopSheet = new VfxFlipbookDefinition(4, 2, true, 2f, 2f);
+
+        // First frame: age 0 -> frame 0 (first cell).
+        assertProjectedFrame("f0", clampSheet, 0f, 0, 0f, 0f);
+        // Negative age must clamp to the first frame, not go negative.
+        assertProjectedFrame("neg", clampSheet, -5f, 0, 0f, 0f);
+        // Intermediate frame 5 on a 4-wide grid -> column 1, row 1.
+        assertProjectedFrame("mid", clampSheet, 2.5f, 5, 0.25f, 0.5f);
+        // NON-loop overshoot: age*speed = 40 >= frameCount(8) -> clamp to the last frame 7 (col 3,
+        // row 1), never out of bounds.
+        assertProjectedFrame("clamp", clampSheet, 20f, 7, 0.75f, 0.5f);
+        // LOOP exact boundary: age*speed == frameCount -> frame 0 (col 0, row 0).
+        assertProjectedFrame("loop-edge", loopSheet, 4f, 0, 0f, 0f);
+        // LOOP overshoot past the boundary wraps: 2*8 + 1 = 17 -> frame 1 (col 1, row 0) even for a
+        // very large age*speed.
+        assertProjectedFrame("loop-wrap", loopSheet, 8.5f, 1, 0.25f, 0f);
+        // LARGE dt stays in [0, frameCount-1] and in the [0,1] UV square for both modes.
+        for (VfxFlipbookDefinition sheet : Arrays.asList(clampSheet, loopSheet)) {
+            for (float age : new float[] {1e4f, 1e8f, 1e20f}) {
+                VfxParticleDraw draw = projectSingleParticle(age, sheet);
+                assertTrue("frame in range for age " + age,
+                        draw.flipbookFrame >= 0 && draw.flipbookFrame <= 7);
+                RenderPixelPayload payload = VfxRenderFrame.payloadEntry(draw).payload;
+                assertTrue(payload.sourceX() >= 0f && payload.sourceX() <= 1f);
+                assertTrue(payload.sourceY() >= 0f && payload.sourceY() <= 1f);
+                assertTrue(payload.sourceWidth() > 0f && payload.sourceWidth() <= 1f);
+                assertTrue(payload.sourceHeight() > 0f && payload.sourceHeight() <= 1f);
+            }
+        }
+    }
+
+    /** Pins both the projected frame index AND the normalized payload src rect of one particle. */
+    private static void assertProjectedFrame(String scene, VfxFlipbookDefinition sheet,
+            float age, int expectedFrame, float expectedSrcX, float expectedSrcY) {
+        VfxParticleDraw draw = projectSingleParticle(scene, age, sheet);
+        assertEquals("frame " + scene, expectedFrame, draw.flipbookFrame);
+        RenderPixelPayload payload = VfxRenderFrame.payloadEntry(draw).payload;
+        assertEquals("frame field " + scene, expectedFrame, payload.flipbookFrame());
+        assertEquals("srcX " + scene, expectedSrcX, payload.sourceX(), .0001f);
+        assertEquals("srcY " + scene, expectedSrcY, payload.sourceY(), .0001f);
+        assertEquals("srcW " + scene, 0.25f, payload.sourceWidth(), .0001f);
+        assertEquals("srcH " + scene, 0.5f, payload.sourceHeight(), .0001f);
+    }
+
+    private static VfxParticleDraw projectSingleParticle(float age, VfxFlipbookDefinition sheet) {
+        return projectSingleParticle("boundary", age, sheet);
+    }
+
+    private static VfxParticleDraw projectSingleParticle(String scene, float age,
+            VfxFlipbookDefinition sheet) {
+        ParticleEmitterDefinition emitter = new ParticleEmitterDefinition(1, 1f, 0f,
+                null, 0f, null, null, null, null, null, null, null, sheet, null, 1L, "tex");
+        VfxNodeDefinition node = new VfxNodeDefinition("n", "n", null, "GPUParticles2D",
+                null, null, null, null, null, null, null, emitter);
+        PresentationWorld world = new PresentationWorld("flipbook-" + scene);
+        new VfxInstantiateSystem().instantiate(world, new VfxSceneDefinition(scene, 1, 1f,
+                Collections.singletonList(node), Collections.singletonList(
+                        new VfxResourceRef("tex", "TEXTURE", "a.png", "a.png", "supported")),
+                VfxCapability.SUPPORTED), 0L);
+        EntityId entity = world.query(VfxParticleBufferComponent.class).get(0);
+        world.put(entity, VfxParticleBufferComponent.class, new VfxParticleBufferComponent(
+                Collections.singletonList(new VfxParticle(0, age, 1f, new VfxVec2(0f, 0f),
+                        new VfxVec2(0f, 0f), 0f, 0f, 1f, 1f, 1f, null))));
+        new ParticleRenderProjectionSystem().run(world, new EcsTick(0f, 0L));
+        return world.get(world.entities().get(0), VfxDrawListComponent.class).value.draws.get(0);
     }
 
     private static VfxDrawList drawList(PresentationWorld world, EntityId root) {

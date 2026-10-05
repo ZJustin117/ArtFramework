@@ -339,7 +339,7 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.screens.CombatRewardScreen", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.rooms.CampfireUI", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.shop.ShopScreen", "render"): "ART_DELEGATED",
-        ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): "ART_DELEGATED",
+        ("com.megacrit.cardcrawl.rewards.chests.AbstractChest", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): "ART_DELEGATED",
         ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): "ART_DELEGATED",
         # Native room backgrounds: only the four concrete scene overrides are suppression owners;
@@ -370,7 +370,7 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.screens.CombatRewardScreen", "render"): "sts1.reward.combat",
         ("com.megacrit.cardcrawl.rooms.CampfireUI", "render"): "sts1.rest",
         ("com.megacrit.cardcrawl.shop.ShopScreen", "render"): "sts1.shop",
-        ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): "sts1.treasure",
+        ("com.megacrit.cardcrawl.rewards.chests.AbstractChest", "render"): "sts1.treasure",
         ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): "sts1.combat.proceed",
         ("com.megacrit.cardcrawl.ui.panels.TopPanel", "render"): "sts1.top_panel",
         ("com.megacrit.cardcrawl.scenes.TheBottomScene", "renderCombatRoomBg"): "sts1.room.background",
@@ -464,10 +464,13 @@ def inventory_entries(report, existing_entries=None):
             "PresentationDrawEvidence or count as a strict report gap; item sync and base pixels are "
             "incomplete."
         ),
-        ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): (
-            "Treasure room is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
+        ("com.megacrit.cardcrawl.rewards.chests.AbstractChest", "render"): (
+            "Treasure chest is an ART full-present surface; NativeRenderBridge returns DELEGATE_TO_ART "
             "only when FULL_READY and panic or unknown owners fail open. Delegation must close "
-            "PresentationDrawEvidence or count as a strict report gap; chest and item sync are absent."
+            "PresentationDrawEvidence or count as a strict report gap; delegation is not a complete-pixel "
+            "claim, and the chest sprite is supplied in D08 while the open animation/glow/background "
+            "remain pending. The room renderer itself is not suppressed, so AbstractRoom.render still "
+            "draws the player sprite."
         ),
         ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): (
             "Proceed button is an ART combat-controls extension surface; NativeRenderBridge returns "
@@ -534,8 +537,8 @@ def inventory_entries(report, existing_entries=None):
         ("com.megacrit.cardcrawl.shop.ShopScreen", "render"): (
             "artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeShopRender"
         ),
-        ("com.megacrit.cardcrawl.rooms.TreasureRoom", "render"): (
-            "artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeTreasureRender"
+        ("com.megacrit.cardcrawl.rewards.chests.AbstractChest", "render"): (
+            "artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeTreasureChestRender"
         ),
         ("com.megacrit.cardcrawl.ui.buttons.ProceedButton", "render"): (
             "artframework.sts1.render.ProceedButtonRenderPatchesTest.fullReadySuppressesNativeProceedButtonRender"

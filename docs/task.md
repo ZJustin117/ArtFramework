@@ -3302,13 +3302,30 @@ allocation and Young GC pressure.
       Next: lay the room title/status text rows out without overlap (or drop the synthetic status row),
       and consider tinting the chest sprite toward native. (The chest is the right sprite at the right
       place; this is polish.)
-- [ ] **Open (D08 follow-up, tooling): NRCC generator still points treasure at the room hook.**
+- [x] **Open (D08 follow-up, tooling): NRCC generator still points treasure at the room hook.**
       `tools/nrcc/coverage_manifest.py` doc-maps (`known_policy`/`known_surface_id`/
       `known_justification`/`known_test`) still map `TreasureRoom.render -> sts1.treasure/ART_DELEGATED`.
       The committed manifest was hand-retargeted to `AbstractChest.render` (D08 fix) and the
       scanner/ownership tests pass, but a future `--write-manifest` regeneration would revert it to
       the room hook. Next: retarget those generator maps from `TreasureRoom.render` to
-      `AbstractChest.render` so regeneration is stable.
+      `AbstractChest.render` so regeneration is stable. **DONE:** all four maps retargeted to
+      `("com.megacrit.cardcrawl.rewards.chests.AbstractChest", "render")`; the room entry now resolves
+      to the `room-shells` family default (native). Regression test
+      `test_coverage_manifest.CoverageManifestTest.test_regeneration_retargets_treasure_delegation_to_abstract_chest`
+      writes a synthetic manifest with both paths and fails on generator revert; `known_test` uses the
+      real `RoomRenderPatchesTest.fullReadySuppressesNativeTreasureChestRender`. Regeneration verified
+      stable by a full `scan_sts_render.py --sts-jar "$ART_STS_JAR" --write-manifest <tmp>` run
+      (`ART_STS_JAR` is configured in `.env.local`): the regenerated `abstractchest`/`treasureroom`/
+      `treasureroomboss` rows match the committed manifest exactly (`--check-manifest` ok:true).
+- [ ] **Open (NRCC, from D08 follow-up review): regeneration drops hand-annotated suppression metadata.**
+      A full `--write-manifest` regeneration still differs from the committed manifest on exactly four
+      unrelated rows — `AbstractDungeon.render`, `AbstractStance.render`, `DrawPilePanel.render`,
+      `AbstractGameEffect.render` — each losing/simplifying hand-annotated `suppression*` /
+      `conditionalSuppression` metadata (the generator does not carry that overlay for these keys).
+      `--check-manifest` still returns ok:true, so it is not a hard failure, but a future regeneration
+      would silently drop those annotations. Next: teach `coverage_manifest.py`'s known-maps to carry
+      the suppression metadata for those four keys (mirroring the committed manifest) and extend the
+      regression test to cover them.
 - [ ] **Open (D09 D1 finding): select per-card frames + localized labels + panel.** D1 review of the
       ART grid-select frame showed the confirm button is correct (native `takeAll` capsule at
       (960,475)), but per-card pixel supply is missing: `UI_SELECT_CARD`/`_SELECTED`/`_FRAME` map to

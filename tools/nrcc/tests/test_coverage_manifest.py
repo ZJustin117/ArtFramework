@@ -770,5 +770,52 @@ class CoverageManifestTest(unittest.TestCase):
         )
 
 
+    def test_regeneration_retargets_treasure_delegation_to_abstract_chest(self):
+        # NRO-04 D08 follow-up: treasure delegation is owned by
+        # AbstractChest.render (surface family sts1.treasure); the room-shell
+        # TreasureRoom.render must stay native. Reverting the generator maps
+        # away from AbstractChest.render must fail this test.
+        handle = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+        handle.close()
+        self.paths = [handle.name]
+        report = {"paths": [
+            {
+                "nativeClass": "com.megacrit.cardcrawl.rewards.chests.AbstractChest",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "kind": "render-owner",
+                "artPatches": [
+                    {"source": "artframework/sts1/patch/TreasureChestRenderPatches.java"}
+                ],
+            },
+            {
+                "nativeClass": "com.megacrit.cardcrawl.rooms.TreasureRoom",
+                "nativeMethod": "render",
+                "nativeDescriptor": "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "nativeMethodDescriptor": "render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V",
+                "kind": "native-surface",
+            },
+        ]}
+        coverage_manifest.write_inventory_manifest(report, handle.name)
+        _data, entries = coverage_manifest.load_manifest(handle.name)
+        by_class = dict(
+            ((entry["nativeClass"], entry["nativeMethod"]), entry)
+            for entry in entries
+        )
+        chest = by_class[("com.megacrit.cardcrawl.rewards.chests.AbstractChest", "render")]
+        self.assertEqual("sts1.treasure", chest["surfaceId"])
+        self.assertEqual("ART_DELEGATED", coverage_manifest.effective_policy(chest))
+        self.assertEqual(
+            "artframework/sts1/patch/TreasureChestRenderPatches.java",
+            chest["hook"],
+        )
+        room = by_class[("com.megacrit.cardcrawl.rooms.TreasureRoom", "render")]
+        self.assertEqual("", room.get("surfaceId", ""))
+        self.assertNotEqual(
+            "ART_DELEGATED", coverage_manifest.effective_policy(room)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

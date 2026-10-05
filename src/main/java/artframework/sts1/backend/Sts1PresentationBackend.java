@@ -704,9 +704,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
             if (room == null || !(room instanceof com.megacrit.cardcrawl.rooms.TreasureRoom)) {
                 return TreasureView.empty();
             }
-            // G6: prefer the live chest state; fall back to a closed chest while unreadable.
+            // G6: prefer the live chest state; fall back to a closed MEDIUM chest while unreadable.
             TreasureView live = liveTreasureView(room);
-            return live != null ? live : TreasureView.closed();
+            return live != null ? live
+                    : TreasureView.closed(ResourceIds.chestSprite("medium", false));
         } catch (Throwable t) {
             return TreasureView.empty();
         }
@@ -714,9 +715,16 @@ public final class Sts1PresentationBackend implements SignalBackend {
 
     /**
      * G6 soft-read of the live {@code TreasureRoom} chest. Returns {@code null} (caller falls
-     * back to a closed chest) when the chest is unreadable; never throws. After the chest opens,
-     * STS grants the relic to the room rewards, so the first relic reward supplies the projected
-     * label/resourceId. Read-only reflection, no host mutation.
+     * back to a closed medium chest) when the chest is unreadable; never throws. After the chest
+     * opens, STS grants the relic to the room rewards, so the first relic reward supplies the
+     * projected label/resourceId.
+     *
+     * <p>NRO-04 D08: the ACTUAL {@code AbstractChest} sprite ResourceId is projected from the
+     * chest class simple name ({@code SmallChest}/{@code MediumChest}/{@code LargeChest}/
+     * {@code BossChest} -&gt; {@code small}/{@code medium}/{@code large}/{@code boss}) plus the
+     * {@code isOpen} flag: closed -&gt; {@code images/npcs/<kind>Chest.png}; open -&gt;
+     * {@code <kind>ChestOpened.png}. An unknown/unreadable class fails open to a medium CLOSED
+     * chest and never throws.
      */
     static TreasureView liveTreasureView(Object room) {
         try {
@@ -727,14 +735,44 @@ public final class Sts1PresentationBackend implements SignalBackend {
             if (chest == null) {
                 return null;
             }
-            if (!booleanValue(chest, "isOpen", false)) {
-                return TreasureView.closed();
+            boolean open = booleanValue(chest, "isOpen", false);
+            String chestResourceId = chestResource(chest);
+            if (!open) {
+                return TreasureView.closed(chestResourceId);
             }
             String[] relic = openRelicProjection(room);
-            return TreasureView.opened(relic[0], relic[1]);
+            return TreasureView.opened(relic[0], relic[1], chestResourceId);
         } catch (Throwable t) {
             return null;
         }
+    }
+
+    /**
+     * NRO-04 D08: live chest class simple name to catalog kind. Unknown/unreadable -&gt;
+     * {@code "medium"} so the fail-open resource is {@code images/npcs/mediumChest.png}.
+     */
+    public static String chestKind(Object chest) {
+        if (chest == null) {
+            return "medium";
+        }
+        String simple = chest.getClass().getSimpleName();
+        if (simple.contains("Small")) return "small";
+        if (simple.contains("Medium")) return "medium";
+        if (simple.contains("Large")) return "large";
+        if (simple.contains("Boss")) return "boss";
+        return "medium";
+    }
+
+    /**
+     * NRO-04 D08: the projected chest sprite ResourceId for a live chest object, from its class
+     * simple name (kind) and its readable {@code isOpen} flag (default {@code false} -&gt; closed).
+     * Unknown/unreadable class or an unreadable {@code isOpen} fail open to a medium CLOSED chest.
+     * Pure/read-only and never throws.
+     */
+    public static String chestResource(Object chest) {
+        String kind = chestKind(chest);
+        boolean open = chest != null && booleanValue(chest, "isOpen", false);
+        return ResourceIds.chestSprite(kind, open);
     }
 
     /** First relic reward granted to the room after the chest opened, as {label, resourceId}. */

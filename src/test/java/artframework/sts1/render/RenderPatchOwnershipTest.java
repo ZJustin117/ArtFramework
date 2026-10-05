@@ -55,6 +55,7 @@ public class RenderPatchOwnershipTest {
                     "EventRenderPatches.java",
                     "SelectRenderPatches.java",
                     "RoomRenderPatches.java",
+                    "TreasureChestRenderPatches.java",
                     "MapRenderPatches.java",
                     "SkeletonRenderPatches.java",
                     "TransientEffectRenderPatches.java",
@@ -301,7 +302,10 @@ public class RenderPatchOwnershipTest {
         m.put("EventRenderPatches.java", set(SurfaceIds.EVENT));
         m.put("SelectRenderPatches.java", set(SurfaceIds.SELECT_GRID, SurfaceIds.SELECT_HAND));
         m.put("RoomRenderPatches.java", set(SurfaceIds.REWARD_COMBAT, SurfaceIds.REST,
-                SurfaceIds.SHOP, SurfaceIds.TREASURE));
+                SurfaceIds.SHOP));
+        // NRO-04 D08 regression fix: treasure is now gated at AbstractChest.render (not the room),
+        // so the player sprite drawn by AbstractRoom.render survives.
+        m.put("TreasureChestRenderPatches.java", set(SurfaceIds.TREASURE));
         m.put("MapRenderPatches.java", set(SurfaceIds.MAP));
         m.put("SkeletonRenderPatches.java", set(SurfaceIds.SKELETON));
         m.put("StanceRenderPatches.java", set(SurfaceIds.STANCE));

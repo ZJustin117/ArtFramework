@@ -9,9 +9,14 @@ import artframework.sts1.render.NativeRenderBridge;
 import artframework.sts1.render.RenderDisposition;
 
 /**
- * Gates native room UI draw. When a reward/rest/shop/treasure surface is FULL + mounted + matching
+ * Gates native room UI draw. When a reward/rest/shop surface is FULL + mounted + matching
  * scene, ART suppresses the original renderer and paints the room through synced C2 items.
  * Otherwise the native renderer continues unchanged.
+ *
+ * <p>NRO-04 D08: the treasure surface is NOT gated here. {@code TreasureRoom.render} calls
+ * {@code chest.render} then {@code super.render}; suppressing the room would also remove
+ * {@code AbstractRoom.render} (the player sprite). Treasure now suppresses only
+ * {@code AbstractChest.render} ({@link TreasureChestRenderPatches}).
  */
 public final class RoomRenderPatches {
 
@@ -65,20 +70,8 @@ public final class RoomRenderPatches {
         }
     }
 
-    @SpirePatch(
-            clz = com.megacrit.cardcrawl.rooms.TreasureRoom.class,
-            method = "render",
-            paramtypez = {com.badlogic.gdx.graphics.g2d.SpriteBatch.class})
-    public static class ObserveNativeTreasureRender {
-        public static SpireReturn<Void> Prefix(
-                com.megacrit.cardcrawl.rooms.TreasureRoom __instance,
-                com.badlogic.gdx.graphics.g2d.SpriteBatch sb) {
-            RenderDisposition disposition = NativeRenderBridge.beginSurface(
-                    "sts1.treasure", "com.megacrit.cardcrawl.rooms.TreasureRoom", "render",
-                    __instance != null ? String.valueOf(System.identityHashCode(__instance)) : "");
-            return disposition.nativeContinuation
-                    ? SpireReturn.Continue()
-                    : SpireReturn.Return(null);
-        }
-    }
+    // NRO-04 D08 regression fix: the treasure room is NOT suppressed here. Suppressing
+    // TreasureRoom.render also suppressed AbstractRoom.render, which draws the player sprite via
+    // AbstractDungeon.player.render. ART owns only AbstractChest.render now (see
+    // TreasureChestRenderPatches), so the room continues and the player is preserved.
 }

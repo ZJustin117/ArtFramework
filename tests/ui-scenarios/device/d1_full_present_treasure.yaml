@@ -31,6 +31,20 @@ steps:
       assert:
         path: projection.scene
         eq: treasure
+  # NRO-04 D08: check the actual AbstractChest sprite IMMEDIATELY after the scene wait. The lab
+  # treasure room auto-advances to the map, so a late probe is flaky; this minimizes the window.
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: backend.treasureDraw.chestCount
+        gte: 1
+  - assert:
+      path: backend.treasureDraw.chest.resourceId
+      exists: true
+  - assert:
+      path: backend.treasureDraw.chest.resourceId
+      contains: chest
   - assert:
       path: backend.fullPresent.treasure
       eq: FULL

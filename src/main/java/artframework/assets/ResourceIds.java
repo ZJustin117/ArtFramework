@@ -86,6 +86,10 @@ public final class ResourceIds {
     public static final String UI_SHOP_SOLD_OUT = "ui.shop.sold_out";
     public static final String UI_SHOP_RUG_PREFIX = "ui.shop.rug.";
     public static final String UI_TREASURE_PANEL = "ui.treasure.panel";
+    public static final String UI_TREASURE_CHEST_PREFIX = "ui.treasure.chest.";
+    // NRO-04 D08 MIS-MAP (recorded, not fixed here): UI_TREASURE_CHEST_CLOSED/OPEN are TEXT-ROW ids
+    // mapped to the map ICONS images/ui/map/chest.png and chestOutline.png. They are NOT the
+    // AbstractChest sprite; the real chest sprite uses chestSprite(kind, opened) below.
     public static final String UI_TREASURE_CHEST_CLOSED = "ui.treasure.chest.closed";
     public static final String UI_TREASURE_CHEST_OPEN = "ui.treasure.chest.open";
     public static final String UI_TREASURE_RELIC = "ui.treasure.relic";
@@ -194,6 +198,17 @@ public final class ResourceIds {
                 + (language != null && !language.isEmpty() ? language.toLowerCase(Locale.ROOT) : "eng");
     }
 
+    /**
+     * NRO-04 D08: the {@code AbstractChest} sprite ResourceId for a chest kind. Native chest
+     * classes map to {@code small/medium/large/boss}; {@code opened} selects the
+     * {@code <kind>ChestOpened.png} counterpart. A null/empty kind yields {@code medium}
+     * (the fail-open default the backend/draw path use).
+     */
+    public static String chestSprite(String kind, boolean opened) {
+        String safe = kind != null && !kind.isEmpty() ? kind : "medium";
+        return UI_TREASURE_CHEST_PREFIX + safe + (opened ? ".opened" : "");
+    }
+
     public static boolean isValid(String resourceId) {
         if (resourceId == null || resourceId.isEmpty()) {
             return false;
@@ -264,6 +279,14 @@ public final class ResourceIds {
             UI_TREASURE_PANEL,
             UI_TREASURE_CHEST_CLOSED,
             UI_TREASURE_CHEST_OPEN,
+            chestSprite("small", false),
+            chestSprite("small", true),
+            chestSprite("medium", false),
+            chestSprite("medium", true),
+            chestSprite("large", false),
+            chestSprite("large", true),
+            chestSprite("boss", false),
+            chestSprite("boss", true),
             UI_TREASURE_RELIC,
             UI_TOP_PANEL_BAR,
             UI_TOP_PANEL_HP,

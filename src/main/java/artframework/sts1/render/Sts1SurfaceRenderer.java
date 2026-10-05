@@ -453,9 +453,20 @@ public final class Sts1SurfaceRenderer {
             artframework.presentation.PresentationVisuals.removeC2Items(SurfaceIds.TREASURE);
             return;
         }
+        // NRO-04 D08: the actual AbstractChest sprite is synced at a LOWER z than the chrome rows
+        // (CHEST_Z < row z) so it paints behind them; id/role are distinct from the text rows.
+        TreasureDrawPath.ChestItem chest = TreasureDrawPath.chestItem();
+        Set<String> keep = new LinkedHashSet<String>();
+        if (chest != null) {
+            artframework.presentation.PresentationVisuals.syncC2Item(
+                    SurfaceIds.TREASURE, TreasureDrawPath.CHEST_ITEM_ID, chest.bounds(),
+                    TreasureDrawPath.CHEST_Z, TreasureDrawPath.CHEST_ROLE,
+                    chest.resourceId, "", true);
+            keep.add(TreasureDrawPath.CHEST_ITEM_ID);
+        }
         syncRoomChromeItems(
                 SurfaceIds.TREASURE, TreasureDrawPath.chromeLines(),
-                "treasure-title", "treasure-item");
+                "treasure-title", "treasure-item", keep);
     }
 
     /** Shared single-column layout for room text chrome rows. */
@@ -882,8 +893,10 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Treasure surface: ART_DELEGATED when FULL_READY. Paints minimal text chrome projected from
-     * TreasureView and records the drawn-row count; chest art remains an exposed supply gap.
+     * Treasure surface: ART_DELEGATED when FULL_READY. Paints the actual {@code AbstractChest}
+     * sprite FIRST (behind), then the minimal text chrome projected from TreasureView, and records
+     * the submitted pixel count (chest sprite + rows). Chest animation/glow/background remain an
+     * exposed supply gap.
      */
     private static void renderTreasure(SpriteBatch sb) {
         if (!TreasureDrawPath.shouldSuppressNativeTreasure()) {
@@ -893,6 +906,12 @@ public final class Sts1SurfaceRenderer {
         try {
             artframework.core.PresentChromeStyle chrome =
                     artframework.core.PresentResolve.chromeForSurface(SurfaceIds.TREASURE);
+            // NRO-04 D08: chest sprite FIRST so it paints behind every text row.
+            TreasureDrawPath.ChestItem chest = TreasureDrawPath.chestItem();
+            if (chest != null) {
+                drawResolvedTexture(sb, chest.resourceId, chest.bounds());
+                drawn++;
+            }
             int i = 0;
             for (RoomChromeLine line : TreasureDrawPath.chromeLines()) {
                 if (!line.visible) {
@@ -900,13 +919,15 @@ public final class Sts1SurfaceRenderer {
                 }
                 artframework.component.Rect bounds = roomLineBounds(line, i);
                 drawResolvedTexture(sb, line.resourceId, bounds);
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                        sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                        line.text,
-                        bounds.x + bounds.width * 0.5f,
-                        bounds.y + bounds.height * 0.54f,
-                        line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                if (!line.text.isEmpty()) {
+                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                            sb,
+                            com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                            line.text,
+                            bounds.x + bounds.width * 0.5f,
+                            bounds.y + bounds.height * 0.54f,
+                            line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                }
                 i++;
                 drawn++;
             }

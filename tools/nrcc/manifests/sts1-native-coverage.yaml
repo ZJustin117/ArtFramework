@@ -988,9 +988,17 @@ entries:
   nativeMethod: render
   family: shop-rewards-chests
   pathKind: render-owner
-  surfaceId: ''
+  surfaceId: sts1.treasure
   effectFamily: none
-  hook: ''
+  hook: artframework/sts1/patch/TreasureChestRenderPatches.java
+  policy: ART_DELEGATED
+  justification: Treasure chest is an ART full-present surface; NativeRenderBridge returns
+    DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail open. Delegation
+    must close PresentationDrawEvidence or count as a strict report gap; delegation is not a
+    complete-pixel claim, and the chest sprite is supplied in D08 while the open
+    animation/glow/background remain pending. The room renderer itself is not suppressed, so
+    AbstractRoom.render still draws the player sprite.
+  test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeTreasureChestRender
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.abstractroom.render
@@ -1054,15 +1062,9 @@ entries:
   nativeMethod: render
   family: room-shells
   pathKind: native-surface
-  surfaceId: sts1.treasure
+  surfaceId: ''
   effectFamily: none
-  hook: artframework/sts1/patch/RoomRenderPatches.java
-  policy: ART_DELEGATED
-  justification: Treasure room is an ART full-present surface; NativeRenderBridge
-    returns DELEGATE_TO_ART only when FULL_READY and panic or unknown owners fail
-    open. Delegation must close PresentationDrawEvidence or count as a strict report
-    gap; chest and item sync are absent.
-  test: artframework.sts1.render.RoomRenderPatchesTest.fullReadySuppressesNativeTreasureRender
+  hook: ''
   nativeDescriptor: (Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
   nativeMethodDescriptor: render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V
 - ownerId: sts1.inventory.com.megacrit.cardcrawl.rooms.treasureroomboss.render

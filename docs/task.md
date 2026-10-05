@@ -2908,6 +2908,43 @@ allocation and Young GC pressure.
       hover OUTLINE (`CAMPFIRE_HOVER_BUTTON`) + hover scale/color, the option label/description
       text, the disabled grayscale shader, the scroll variants (>6 buttons), and the campfire
       background/title art.
+- [x] NRO-04 D08 (treasure chest sprite at native `AbstractChest` geometry): the treasure surface was
+      suppressed wholesale and `renderTreasure`
+      painted text rows, but the actual chest sprite (`AbstractChest.render`) was neither projected
+      nor drawn, and the existing chest mappings were wrong (`UI_TREASURE_CHEST_CLOSED ->
+      images/ui/map/chest.png`, `..._OPEN -> chestOutline.png`). Native `AbstractChest.render` draws
+      a 512x512 texture with center `(Settings.WIDTH/2f + 348f*scale, AbstractDungeon.floorY +
+      192f*scale)` and size `512*scale x 512*scale` (at-rest rotation 0; the `rotation=180f` open
+      animation is NOT modelled). When `isOpen` and an `openedImg` exists, native draws
+      `openedImg`; at rest it draws `img`. Added `ResourceIds.chestSprite(kind, opened)` ->
+      `ui.treasure.chest.<kind>[.opened]`; catalog maps the 8 ids to the EXISTING jar files
+      `images/npcs/<kind>Chest.png` / `<kind>ChestOpened.png` (all 512x512) for
+      `SmallChest/MediumChest/LargeChest/BossChest` -> `small/medium/large/boss`.
+      `Sts1PresentationBackend.liveTreasureView` now projects the sprite from the live chest class
+      simple name + `isOpen` (unknown/unreadable -> medium CLOSED; never throws), carried on a new
+      `TreasureView.chestResourceId`. `TreasureDrawPath.chestItem()` emits the sprite FIRST at C2
+      z=0.5 (rows stay z=1) behind the text rows, with the native CENTER convention
+      (`chestItemAt` pure geometry: at `scale=1, WIDTH=1920, floorY=y` center `(1308, y+192)`, size
+      `512x512`); `probeSlice()` gains `chest`/`chestCount`/`submitCount` (chest kept out of the row
+      list). `prepareTreasureVisuals` syncs it as C2 id `treasure.chest.sprite` role
+      `treasure-chest-sprite`; `renderTreasure` draws it first via `drawResolvedTexture` and an empty
+      row label draws no text. D1 assertions added to `d1_full_present_treasure.yaml`
+      (`chestCount>=1`, `chest.resourceId` exists/contains `chest`, checked IMMEDIATELY after the
+      scene wait because the lab treasure room auto-advances to the map and a late probe is flaky).
+      **Regression fix (D1 finding):** the treasure suppression was moved OFF
+      `TreasureRoom.render` (`RoomRenderPatches`) and onto `AbstractChest.render` (new
+      `TreasureChestRenderPatches`, surface family still `sts1.treasure`). Suppressing the whole
+      room also removed `AbstractRoom.render`, which draws `AbstractDungeon.player.render` (the
+      swordsman sprite) in non-event rooms, so the PLAYER disappeared from the treasure room and ART
+      supplied no player. The room now renders natively (player + tips) and ART owns only the chest
+      draw; the chest sprite is still supplied by ART. Manifest rows moved accordingly
+      (`AbstractChest.render` -> `sts1.treasure`/`ART_DELEGATED`; `TreasureRoom.render` -> no hook).
+      **Honest gaps (NOT covered):**
+      the open ANIMATION (native `rotation=180f`/glow), hover additive highlight, chest shine
+      particles, the chest-room background, and the relic-get panel (that is the D04 reward surface)
+      remain pending. **Mis-maps recorded (left as-is):** `UI_TREASURE_CHEST_CLOSED/OPEN` -> map
+      icons are TEXT-ROW ids, not the sprite; `UI_TREASURE_PANEL -> images/ui/reward/rewardList.png`
+      is a MISSING-FILE landmine (same class as D01/D04/D05).
 - [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
       During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
       post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a
@@ -2969,3 +3006,18 @@ allocation and Young GC pressure.
       are correct), but label anchoring and title z-order should be fixed to match native. Next: anchor
       option labels below the plates per `AbstractCampfireOption`, drop or reposition the centered
       title so it is not occluded, and treat the campfire background/FX as a separate room-scene slice.
+- [ ] **Open (D08 D1 finding): room full-present text-chrome overlap + chest palette.** D1 visual review
+      of the ART treasure frame showed the static `Treasure` title line and the `Chest closed` status
+      line colliding/overlapping (garbled `Chest=closed`), a legibility defect; it is the D-series
+      room text chrome (not the D08 chest sprite, which is correct). Also the ART chest sprite reads
+      pale/desaturated vs the native dark-wood + gold palette, and the native shine glint is absent.
+      Next: lay the room title/status text rows out without overlap (or drop the synthetic status row),
+      and consider tinting the chest sprite toward native. (The chest is the right sprite at the right
+      place; this is polish.)
+- [ ] **Open (D08 follow-up, tooling): NRCC generator still points treasure at the room hook.**
+      `tools/nrcc/coverage_manifest.py` doc-maps (`known_policy`/`known_surface_id`/
+      `known_justification`/`known_test`) still map `TreasureRoom.render -> sts1.treasure/ART_DELEGATED`.
+      The committed manifest was hand-retargeted to `AbstractChest.render` (D08 fix) and the
+      scanner/ownership tests pass, but a future `--write-manifest` regeneration would revert it to
+      the room hook. Next: retarget those generator maps from `TreasureRoom.render` to
+      `AbstractChest.render` so regeneration is stable.

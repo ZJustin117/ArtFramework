@@ -151,30 +151,56 @@ public class RoomRenderPatchesTest {
         assertSurfaceGate(SurfaceIds.REWARD_CARD, "reward");
         assertSurfaceGate(SurfaceIds.REWARD_BOSS_RELIC, "reward");
         assertSurfaceGate(SurfaceIds.REST, "rest");
+        // NRO-04 D08 regression fix: TREASURE is no longer gated at the room level; the shared
+        // NativeRenderBridge surface-gate contract still covers the surface id (now exercised by
+        // AbstractChest.render via TreasureChestRenderPatches).
         assertSurfaceGate(SurfaceIds.TREASURE, "treasure");
     }
 
     @Test
-    public void fullReadySuppressesNativeTreasureRender() {
+    public void fullReadySuppressesNativeTreasureChestRender() {
         publishTreasureFrame();
         FullPresentMode.setTreasureLevel(PresentLevel.FULL);
         CombatInputRouter.setExecutor(new RecordingIntentExecutor());
 
         SpireReturn<Void> result =
-                RoomRenderPatches.ObserveNativeTreasureRender.Prefix(null, null);
+                artframework.sts1.patch.TreasureChestRenderPatches
+                        .ObserveNativeTreasureChestRender.Prefix(null, null);
 
-        assertTrue("FULL + mounted + treasure + ready executor must suppress TreasureRoom.render",
+        assertTrue("FULL + mounted + treasure + ready executor must suppress AbstractChest.render",
                 result.isPresent());
     }
 
     @Test
-    public void offContinuesNativeTreasureRender() {
+    public void offContinuesNativeTreasureChestRender() {
         publishTreasureFrame();
 
         SpireReturn<Void> result =
-                RoomRenderPatches.ObserveNativeTreasureRender.Prefix(null, null);
+                artframework.sts1.patch.TreasureChestRenderPatches
+                        .ObserveNativeTreasureChestRender.Prefix(null, null);
 
-        assertFalse("OFF must let TreasureRoom.render continue", result.isPresent());
+        assertFalse("OFF must let AbstractChest.render continue", result.isPresent());
+    }
+
+    @Test
+    public void treasureRoomRenderIsNeverSuppressedSoPlayerSurvives() throws Exception {
+        // NRO-04 D08 regression fix: suppressing TreasureRoom.render also removed
+        // AbstractRoom.render (AbstractDungeon.player.render). The room patch must not target
+        // TreasureRoom at all; only the chest render is gated.
+        String text = new String(java.nio.file.Files.readAllBytes(
+                java.nio.file.Paths.get("src/main/java/artframework/sts1/patch/RoomRenderPatches.java")),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertFalse("RoomRenderPatches must not patch TreasureRoom.render (player loss)",
+                text.replace(" ", "").contains("clz=com.megacrit.cardcrawl.rooms.TreasureRoom.class"));
+        assertFalse("the removed treasure room patch must be gone",
+                text.contains("ObserveNativeTreasureRender"));
+
+        String chestPatch = new String(java.nio.file.Files.readAllBytes(
+                java.nio.file.Paths.get(
+                        "src/main/java/artframework/sts1/patch/TreasureChestRenderPatches.java")),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue("chest patch must target AbstractChest.render",
+                chestPatch.contains("AbstractChest.class") && chestPatch.contains("method = \"render\""));
     }
 
     private void publishRewardFrame() {

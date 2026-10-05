@@ -158,8 +158,19 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.UI_SHOP_PURGE, "images/ui/event/enabledButton.png");
         put(m, ResourceIds.UI_SHOP_SOLD_OUT, "images/ui/event/disabledButton.png");
         put(m, ResourceIds.UI_TREASURE_PANEL, "images/ui/reward/rewardList.png");
+        // NRO-04 D08 MIS-MAP (recorded, not fixed here): UI_TREASURE_CHEST_CLOSED/OPEN are the
+        // treasure TEXT-ROW chest-state ids and resolve to the map ICONS; they are NOT the
+        // AbstractChest sprite (see the chestSprite mappings below).
         put(m, ResourceIds.UI_TREASURE_CHEST_CLOSED, "images/ui/map/chest.png");
         put(m, ResourceIds.UI_TREASURE_CHEST_OPEN, "images/ui/map/chestOutline.png");
+        // NRO-04 D08: the ACTUAL AbstractChest sprite textures (all 512x512, verified present in
+        // $ART_STS_JAR). Chest classes SmallChest/MediumChest/LargeChest/BossChest -> small/
+        // medium/large/boss; AbstractChest.render draws img when closed and openedImg when open.
+        for (String kind : new String[] {"small", "medium", "large", "boss"}) {
+            put(m, ResourceIds.chestSprite(kind, false), "images/npcs/" + kind + "Chest.png");
+            put(m, ResourceIds.chestSprite(kind, true),
+                    "images/npcs/" + kind + "ChestOpened.png");
+        }
         put(m, ResourceIds.UI_TREASURE_RELIC, "images/ui/reward/rewardListItemPanel.png");
         put(m, ResourceIds.UI_ROOM_SHELL_EVENT, "images/ui/event/panel.png");
         put(m, ResourceIds.UI_ROOM_SHELL_NEOW, "images/ui/event/panel.png");

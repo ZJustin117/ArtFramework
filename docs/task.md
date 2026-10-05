@@ -2023,6 +2023,22 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       sub-emitter bundle. The deeper STS2 runtime gaps — `.tpsheet`, full sub-emitter parity,
       turbulence, restricted shader/bake fallback, and Spine 4.2 parity — remain open per
       [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
+- [x] F06: optional restricted turbulence acceleration added to the pure CPU integrator as a
+      deliberately bounded, seed-deterministic APPROXIMATION — explicitly NOT STS2 runtime-equivalent.
+      `VfxEmitterComponent.turbulenceStrength` (float, default 0f) is immutable, clamped to a finite
+      `[0, MAX_TURBULENCE_STRENGTH=100000]` range (NaN -> 0), and carried through a new
+      `VfxEmitterComponent.from(definition, strength)` overload; the existing single-arg `from(...)`
+      keeps 0, so no existing bundle/test changes. When positive, `ParticleIntegrateSystem` adds a
+      rotating sinusoidal (curl-like) acceleration derived from `randomSeed` + `spawnIndex` + `age`
+      (same splitmix hash channels as `ParticleSpawnSystem`) and clamped per-axis velocity/position to
+      finite bounds; when 0 the integration is BYTE-IDENTICAL to the gravity-only Euler step. The term
+      is physics-only and does NOT enter the render projection. Unit-verified only (no GL) in
+      `VfxTurbulenceTest` + the unchanged `VfxRuntimeTest`. **D1 GAP (honest): the converter still
+      routes `turbulence_*` to `unsupported-known` diagnostics and emits NO typed turbulence field,
+      so there is NO turbulence bundle/scenario**; a future D1 turbulence check needs a
+      converter-produced turbulence bundle. The deeper STS2 runtime gaps — `.tpsheet`, sub-emitter,
+      STS2-equivalent turbulence, restricted shader/bake fallback, and Spine 4.2 parity — remain open
+      per [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
 
 ### 46. Traditional ECS convergence
 

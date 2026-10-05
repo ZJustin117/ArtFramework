@@ -274,7 +274,15 @@ rotation, scale, and color. The first implementation is CPU-based and bounded.
 ### `ParticleIntegrateSystem`
 
 Advances position, velocity, rotation, and age using the frame delta. The baseline supports
-gravity and linear motion; turbulence and collision remain explicit future systems.
+gravity and linear motion. An **optional restricted turbulence approximation (F06)** is now
+implemented here: when `VfxEmitterComponent.turbulenceStrength > 0`, a bounded, seed-deterministic
+rotating sinusoidal (curl-like) acceleration derived from `randomSeed + spawnIndex + age` is added
+and per-axis velocity/position are clamped to finite bounds. This is a deliberately bounded CPU
+APPROXIMATION, NOT STS2-runtime-equivalent turbulence; the default strength is 0, which keeps the
+integration byte-identical to the gravity-only Euler step. The converter still routes `turbulence_*`
+to `unsupported-known` and emits no typed turbulence field, so there is currently no
+converter-produced turbulence bundle (unit-verified only). Particle collision remains an explicit
+future system.
 
 ### `ParticleCurveSystem`
 
@@ -347,7 +355,14 @@ Add capabilities in this order:
    = 4`) is implemented and unit-verified. Full STS2 sub-emitter parity (arbitrary trigger
    conditions, nested chains, per-parent fan-out, device evidence) and a D1 sub-emitter bundle/scenario
    remain open; there is currently NO on-device sub-emitter bundle, so this is unit-verified only.
-5. CPU approximation of turbulence.
+5. CPU approximation of turbulence. **Partially done (restricted F06):** an optional bounded,
+   seed-deterministic rotating sinusoidal acceleration in `ParticleIntegrateSystem`
+   (`VfxEmitterComponent.turbulenceStrength`, default 0, finite-clamped) is implemented and
+   unit-verified in `VfxTurbulenceTest`; zero strength is byte-identical to the gravity-only Euler
+   path and the term stays out of the render projection. This is an APPROXIMATION, NOT
+   STS2-equivalent: arbitrary `turbulence_*` source semantics, converter-produced typed turbulence
+   data, and D1 device evidence remain open (the converter still diagnoses `turbulence_*` as
+   `unsupported-known`, so no turbulence bundle exists).
 6. A restricted `ShaderMaterial` schema and explicit GLSL adapter.
 7. Baked flipbook fallback for unsupported shaders and screen effects.
 8. Only after evidence, any native-pixel delegation policy.

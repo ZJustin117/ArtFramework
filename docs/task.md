@@ -2058,6 +2058,31 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       STS2-equivalent turbulence, restricted shader/bake fallback, and Spine 4.2 parity — remain open
       per [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
 
+- [x] F08: frozen-pose GL DETERMINISM on D1 via identical re-rendered vertex signature, NOT
+      native-reference pixel parity. `tests/ui-scenarios/device/d1_spine42_screenshot.yaml` keeps
+      the full load -> `art present skeleton on` -> `art skeleton dev load/play/seek/freeze`
+      sequence and every prior panel/skeleton assert (providerId `spine42`, liveCount 1,
+      lastError "", present[4] id/mounted, `render.targetsById.c2_surface_sts1_skeleton.enabled`),
+      plus fixed-pose evidence from confirmed probe keys (`drawEvidence.handle=d1_ironclad`,
+      `.kind=standalone-art`, `.path=renderAll->provider.render`, `live.d1_ironclad.currentAnimation=
+      idle_loop`). The intermittent `drawEvidence.count == 0` is now handled by a bounded
+      `wait_probe` (timeout 10000ms / interval 500ms) that retries until `count gte 1`. The gate is
+      frozen-pose determinism: `capture` the render-path deformed-vertex signature
+      (`backend.skeleton.drawEvidence.vertexSignature`, from
+      `Sts1Spine42Provider.lastRenderVertexSignature`) as `sig1`, assert it `exists`, wait 250ms with
+      NO unfreeze, `probe: all` to refresh, then require the refreshed value `eq_var: sig1`. The two
+      `screenshot: true` captures remain as advisory visual-reviewer evidence only. The
+      `ART_SPINE42_REFERENCE_PNG` / `ART_SPINE42_CROP` requires are removed. **The earlier pixel
+      gate (`compare_screenshot: {against: previous_capture}`, crop `[860,330,220,300]`) was removed
+      because that crop bleeds ~20% animating NATIVE background (player/Cultist idle, torch, hand):
+      the comparable run measured 20.0% / 16.6% crop change (13200 / 10975 px) far over the intended
+      limits, while the ART pose itself was provably stable — `vertexSignature` was BYTE-IDENTICAL
+      across both captures (`de235afb6f46c550`; `drawEvidence.count` 675 both times).** The pixel
+      crop cannot isolate the skeleton from the live scene, so it is not restored. **Native-reference
+      pixel parity is NOT achieved and remains OPEN, developer-gated on `ART_SPINE42_REFERENCE_PNG`**:
+      the prior recorded native-reference run failed at 242818 px / 0.117 ratio vs a 0.01 limit
+      (documented gap); attachment/clip/blend parity is likewise OPEN.
+
 ### 46. Traditional ECS convergence
 
 Design: [`docs/design/traditional-ecs.md`](design/traditional-ecs.md). Entity IDs only;
@@ -2673,6 +2698,16 @@ core presentation contracts.
 - [x] 44.12 D1 resource status/load/animation/lifecycle scenario skeletons
 - [x] 44.13 D1 data-path evidence: source-patched runtime loads a real 4.2 `.skel`, animates,
       reports a bone transform, and cleans lifecycle state; pixel renderer intentionally deferred
+- [x] 44.14 Frozen-pose GL determinism (F08): `tests/ui-scenarios/device/d1_spine42_screenshot.yaml`
+      renders the frozen idle_loop pose and verifies determinism via an identical re-rendered
+      `backend.skeleton.drawEvidence.vertexSignature` (`capture` var `sig1` -> bounded wait with no
+      unfreeze -> `probe: all` -> `eq_var: sig1`), with the intermittent `drawEvidence.count == 0`
+      handled by a retrying `wait_probe`. The two `screenshot: true` steps are advisory visual
+      evidence only. The prior pixel gate was removed: its crop bled ~20% animating native
+      background (20.0% / 16.6% measured) while the frozen pose itself was byte-stable
+      (`vertexSignature de235afb6f46c550` identical). **Native-reference pixel parity (47.35) is NOT
+      achieved** — the prior recorded native-reference run failed at 242818 px / 0.117 ratio vs a
+      0.01 limit — and stays OPEN, developer-gated on `ART_SPINE42_REFERENCE_PNG`.
 
 ### 45. Unified Presentation Entity Runtime
 

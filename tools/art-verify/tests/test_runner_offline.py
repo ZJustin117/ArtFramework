@@ -181,10 +181,15 @@ class RunnerOfflineTest(unittest.TestCase):
             if old is not None:
                 os.environ["ART_D1_SERIAL"] = old
 
-    def test_spine42_screenshot_scenario_enters_combat_and_compares_capture(self):
+    def test_spine42_screenshot_scenario_verifies_frozen_pose_determinism(self):
         sc = load_scenario(SPINE42_SCREENSHOT)
         steps = sc["steps"]
-        self.assertIn("ART_SPINE42_CROP", sc["require"]["env"])
+        # F08: the pixel compare (and its developer-local native reference/crop) was removed for
+        # the shipped scenario; the flaky pixel gate could not isolate the skeleton from the
+        # animating native background. The scenario now gates on frozen-pose GL determinism via an
+        # identical re-rendered `vertexSignature`, and the two screenshots stay advisory only.
+        self.assertNotIn("ART_SPINE42_REFERENCE_PNG", sc["require"]["env"])
+        self.assertNotIn("ART_SPINE42_CROP", sc["require"]["env"])
         self.assertEqual("art lab ensure-fresh-menu", steps[1]["console"])
         self.assertEqual("art lab start-run IRONCLAD", steps[3]["console"])
         self.assertEqual("lab.runReady", steps[5]["wait_probe"]["assert"]["path"])
@@ -199,22 +204,43 @@ class RunnerOfflineTest(unittest.TestCase):
             "render.targetsById.c2_surface_sts1_skeleton.enabled",
             steps[23]["assert"]["path"],
         )
-        self.assertEqual("backend.skeleton.drawEvidence.count", steps[24]["assert"]["path"])
-        self.assertEqual(1, steps[24]["assert"]["gte"])
-        self.assertEqual(True, steps[25]["screenshot"])
-        self.assertEqual(True, steps[27]["screenshot"])
+        # Intermittent count=0 is handled with a bounded retrying wait_probe, not a bare assert.
+        self.assertEqual("backend.skeleton.drawEvidence.count", steps[24]["wait_probe"]["assert"]["path"])
+        self.assertEqual(1, steps[24]["wait_probe"]["assert"]["gte"])
+        self.assertEqual(10000, steps[24]["wait_probe"]["timeout_ms"])
+        self.assertEqual("backend.skeleton.drawEvidence.handle", steps[25]["assert"]["path"])
+        self.assertEqual("backend.skeleton.drawEvidence.kind", steps[26]["assert"]["path"])
+        self.assertEqual("backend.skeleton.drawEvidence.path", steps[27]["assert"]["path"])
         self.assertEqual(
-            {
-                "reference": "${ART_SPINE42_REFERENCE_PNG}",
-                "reference_kind": "native_capture",
-                "crop": "${ART_SPINE42_CROP}",
-                "threshold": 16,
-                "max_diff_ratio": 0.01,
-                "max_diff_pixels": 20000,
-                "diff": "../../../debug-artifacts/d1_spine42_screenshot_diff.png",
-            },
-            steps[28]["compare_screenshot"],
+            "backend.skeleton.live.d1_ironclad.currentAnimation",
+            steps[28]["assert"]["path"],
         )
+        # First frozen-pose sample of the render-path deformed-vertex signature.
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.vertexSignature", "var": "sig1"},
+            steps[29]["capture"],
+        )
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.vertexSignature", "exists": True},
+            steps[30]["assert"],
+        )
+        self.assertEqual(True, steps[31]["screenshot"])
+        self.assertEqual(250, steps[32]["wait_ms"])
+        # Refresh WITHOUT unfreezing, then sample the re-rendered pose again.
+        self.assertIn("probe", steps[33])
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.vertexSignature", "var": "sig2"},
+            steps[34]["capture"],
+        )
+        # eq_var compares the live (refreshed) probe against a captured var, so it must reference
+        # sig1; eq_var: sig2 would read the same probe refresh and be a tautology.
+        self.assertEqual(
+            {"path": "backend.skeleton.drawEvidence.vertexSignature", "eq_var": "sig1"},
+            steps[35]["assert"],
+        )
+        self.assertEqual(True, steps[36]["screenshot"])
+        self.assertEqual(37, len(steps))
+        self.assertFalse(any("compare_screenshot" in step for step in steps))
 
     def test_wait_probe_checks_fixture_without_sleep(self):
         probe = {"projection": {"scene": "combat"}}

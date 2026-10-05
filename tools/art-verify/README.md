@@ -55,9 +55,14 @@ are resolved relative to the scenario file; absolute paths are used as-is. A who
 is also supported and resolves only that environment variable; an unset key fails while reporting its key
 name, never its value. `crop` also accepts a whole-value `${ENV_KEY}` whose value must be `X,Y,W,H`; an unset
 or malformed key fails with its key name and crop configuration. Literal four-integer list crops remain supported.
-Spine42 uses `ART_SPINE42_REFERENCE_PNG` and requires `ART_SPINE42_CROP`; `ART_SPINE42_DIFF_PNG` is optional when a
-developer wants to override the diff output path. Missing files, invalid config, size mismatches, and limit
-violations fail the step. Reference images are developer-local and must not be committed.
-Use `tests/ui-scenarios/device/d1_spine42_screenshot.yaml` for a Spine42 `idle_loop` capture. Reference PNGs
-for comparison must be paired native captures from the same fixed frozen state (`reference_kind: native_capture`);
-the scenario captures ART output and does not generate or claim native pixels.
+A developer-local NATIVE pixel-parity compare may use `ART_SPINE42_REFERENCE_PNG` (with `ART_SPINE42_CROP`)
+as the `reference`; `ART_SPINE42_DIFF_PNG` is optional when a developer wants to override the diff output
+path. Missing files, invalid config, size mismatches, and limit violations fail the step. Reference images
+are developer-local and must not be committed.
+Use `tests/ui-scenarios/device/d1_spine42_screenshot.yaml` for a Spine42 `idle_loop` capture; it verifies
+FROZEN-POSE GL DETERMINISM by capturing the re-rendered deformed-vertex signature
+(`backend.skeleton.drawEvidence.vertexSignature`) and asserting the refreshed value equals the first sample
+(`eq_var: sig1`) with no unfreeze between samples — it does NOT require the reference env keys
+(native-reference pixel parity is an OPEN, developer-gated gap). A reference-based compare
+must use a paired native capture from the same fixed frozen state (`reference_kind: native_capture`); the
+scenario itself captures only ART output and does not generate or claim native pixels.

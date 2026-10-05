@@ -91,6 +91,22 @@ approved by the developer running the check and remains outside the repository; 
 copied into tests, or included in a release artifact. Both paths must use the same viewport,
 camera/scale, origin, clear color, texture filtering, blend mode, and device orientation.
 
+**Status (F08, 2026-10): native-reference pixel parity is NOT achieved and 47.35 remains OPEN.**
+Determinism of the frozen pose IS verified, but via a vertex signature rather than a pixel compare:
+`tests/ui-scenarios/device/d1_spine42_screenshot.yaml` freezes the idle_loop pose, `capture`s the
+render-path deformed-vertex signature (`backend.skeleton.drawEvidence.vertexSignature`, from
+`Sts1Spine42Provider.lastRenderVertexSignature`), waits a bounded interval with no unfreeze,
+refreshes the probe, and requires the re-rendered pose to produce the SAME signature
+(`eq_var: sig1`). In the recorded run that signature was byte-identical across both samples
+(`de235afb6f46c550`, `drawEvidence.count` 675 each time). This is a deterministic-consistency check
+only — it does not compare ART against native pixels and does not satisfy 47.35. The earlier pixel
+gate (`compare_screenshot: {against: previous_capture}`, crop `[860,330,220,300]`) was removed
+because that crop bleeds ~20% animating NATIVE background (measured 20.0% / 16.6% crop change,
+13200 / 10975 px) and cannot isolate the skeleton from the live scene. Native-reference parity
+(including attachment/clip/blend) remains OPEN: the last recorded native-reference attempt failed at
+242818 differing pixels / 0.117 ratio vs a 0.01 limit, and the paired native golden
+(`ART_SPINE42_REFERENCE_PNG`) remains developer-local and unset.
+
 The comparison input is a screenshot of the rendered fixture, not a probe claim or a CPU vertex
 report. Before comparison, crop both images to the same documented rectangle in pixel coordinates;
 the crops must have identical dimensions. Record the crop rectangle, full image dimensions, color

@@ -71,8 +71,8 @@ Env (device):
 | `ART_AMETHYST_TOOLS_DIR` | Optional tools path |
 | `ART_GAME_PROBE_PORT` | Default 9099 |
 | `ART_UI_VERIFY_OUT_DIR` | Optional result JSON dir |
-| `ART_SPINE42_REFERENCE_PNG` | Required local reference PNG for `d1_spine42_screenshot` |
-| `ART_SPINE42_CROP` | Required `X,Y,W,H` crop for `d1_spine42_screenshot`; set for the device orientation/capture geometry |
+| `ART_SPINE42_REFERENCE_PNG` | Optional developer-local reference PNG for a NATIVE pixel-parity `compare_screenshot`; NOT required by the shipped `d1_spine42_screenshot` (which verifies frozen-pose determinism via `vertexSignature` + `eq_var`) |
+| `ART_SPINE42_CROP` | Optional `X,Y,W,H` crop for a reference-based `compare_screenshot`; NOT required by the shipped `d1_spine42_screenshot` |
 | `ART_SPINE42_DIFF_PNG` | Optional local diff PNG path when used by a screenshot scenario |
 
 Device probe: `art probe` console → scrape `ART_PROBE` from device `sts/latest.log` if console body is only `ok`.
@@ -154,11 +154,16 @@ reference and diff paths from the scenario file, and also accepts a whole-path `
 invalid crop key reports that key and its configuration error. `max_diff_pixels` / `max_diff_ratio` bound the
 comparison from above (similarity), while `min_diff_pixels` / `min_diff_ratio` bound it from below (minimum
 required change); the step fails with a distinct message when the measured difference is below the configured
-minimums. The Spine42 scenario requires
-`ART_SPINE42_REFERENCE_PNG` and orientation-specific `ART_SPINE42_CROP`; `ART_SPINE42_DIFF_PNG` is optional
-for scenarios that want to configure diff output. Its `reference_kind: native_capture` is recorded in the
-comparison result: the developer-local reference must be a paired native capture from the same fixed frozen
-state, while the scenario itself captures only ART output and does not generate native pixels. The step records
+minimums. The shipped `d1_spine42_screenshot` scenario verifies FROZEN-POSE GL DETERMINISM: with the
+pose frozen (`freeze`, never unfrozen) it `capture`s the render-path deformed-vertex signature
+(`backend.skeleton.drawEvidence.vertexSignature`) as `sig1`, waits a bounded interval, refreshes the
+probe (`probe: all`), and requires the re-rendered pose to produce the identical signature
+(`assert: {path: backend.skeleton.drawEvidence.vertexSignature, eq_var: sig1}`). It does
+NOT require `ART_SPINE42_REFERENCE_PNG`/`ART_SPINE42_CROP`. A developer-local NATIVE pixel-parity compare
+(`reference: ${ART_SPINE42_REFERENCE_PNG}` and orientation-specific `${ART_SPINE42_CROP}`, ideally with
+`reference_kind: native_capture`) is optional and remains an OPEN, developer-gated gap; when used, the
+developer-local reference must be a paired native capture from the same fixed frozen state, while the
+scenario itself captures only ART output and does not generate native pixels. The step records
 metrics and artifacts in the result JSON and fails on missing/invalid inputs, size mismatch, or configured
 limits. Do not commit reference images.
 

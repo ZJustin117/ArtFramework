@@ -18,6 +18,12 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -194,5 +200,98 @@ public class PackSurfaceEffectsTest {
 
         assertEquals(700f, RenderStateEcs.surfaceState(SurfaceIds.EVENT).bounds.width, 0.01f);
         assertFalse(RenderStateEcs.surfaceState(SurfaceIds.EVENT).enabled);
+    }
+
+    /**
+     * Deterministic CONTRACT test: after an entity is removed, the surface readers tolerate the
+     * absent id (empty results) and never throw. This only pins the absent-entity contract — the
+     * entity is destroyed before the read, so {@code query} already returns empty and this does NOT
+     * exercise the concurrent race. The CONCURRENT coverage (destroy racing between a public
+     * {@code query} returning an id and the per-entity read) lives in
+     * {@link #forSurfaceIsSafeUnderConcurrentMutation()}.
+     */
+    @Test
+    public void forSurfaceToleratesRemovedEntity() {
+        PresentationWorld world = new PresentationWorld("surface-race");
+        EntityId entity = world.createEntity();
+        world.put(entity, PackSurfaceEffectsComponent.class, new PackSurfaceEffectsComponent(
+                "mod.race", Collections.singletonMap(
+                        SurfaceIds.EVENT, Collections.singletonList(
+                                new EffectDecl("race-fx", Collections.<String, Object>emptyMap())))));
+        assertFalse(PackSurfaceEffects.forSurface(world, "mod.race", SurfaceIds.EVENT).isEmpty());
+
+        world.destroyEntity(entity);
+
+        // The entity is absent, so the readers must report nothing and tolerate the missing id.
+        assertTrue(PackSurfaceEffects.forSurface(world, "mod.race", SurfaceIds.EVENT).isEmpty());
+        assertFalse(PackSurfaceEffects.hasContribution(world, "mod.race"));
+        assertTrue(PackSurfaceEffects.surfaceIds(world, "mod.race").isEmpty());
+    }
+
+    /**
+     * Stress the real read path (query + get) against concurrent structural mutation of the same
+     * world. Before the snapshot-safe query and destroyed-entity skip this threw
+     * ConcurrentModificationException / "unknown entity".
+     */
+    @Test
+    public void forSurfaceIsSafeUnderConcurrentMutation() throws Exception {
+        final PresentationWorld world = new PresentationWorld("surface-stress");
+        final int stable = 8;
+        for (int i = 0; i < stable; i++) {
+            EntityId id = world.createEntity();
+            world.put(id, PackSurfaceEffectsComponent.class, component("mod.stress", "stress-fx"));
+        }
+        final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
+        final CountDownLatch start = new CountDownLatch(1);
+        Thread writer = new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    start.await();
+                    for (int i = 0; i < 60000; i++) {
+                        EntityId id = world.createEntity();
+                        world.put(id, PackSurfaceEffectsComponent.class,
+                                component("mod.stress", "stress-fx"));
+                        world.destroyEntity(id);
+                    }
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }
+        });
+        Thread reader = new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    start.await();
+                    for (int i = 0; i < 60000; i++) {
+                        List<EffectDecl> effects =
+                                PackSurfaceEffects.forSurface(world, "mod.stress", SurfaceIds.EVENT);
+                        assertTrue(effects.size() >= stable);
+                        for (int j = 0; j < effects.size(); j++) {
+                            assertEquals("stress-fx", effects.get(j).id);
+                        }
+                        assertTrue(PackSurfaceEffects.hasContribution(world, "mod.stress"));
+                        PackSurfaceEffects.surfaceIds(world, "mod.stress");
+                    }
+                } catch (Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }
+        });
+        writer.start();
+        reader.start();
+        start.countDown();
+        writer.join(TimeUnit.SECONDS.toMillis(30));
+        reader.join(TimeUnit.SECONDS.toMillis(30));
+        assertFalse("threads did not finish in time", writer.isAlive() || reader.isAlive());
+        if (failure.get() != null) {
+            throw new AssertionError("concurrent surface read threw", failure.get());
+        }
+    }
+
+    private static PackSurfaceEffectsComponent component(String packId, String effectId) {
+        Map<String, List<EffectDecl>> bySurface = new LinkedHashMap<String, List<EffectDecl>>();
+        bySurface.put(SurfaceIds.EVENT, Collections.singletonList(
+                new EffectDecl(effectId, Collections.<String, Object>emptyMap())));
+        return new PackSurfaceEffectsComponent(packId, bySurface);
     }
 }

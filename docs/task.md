@@ -3233,7 +3233,7 @@ allocation and Young GC pressure.
       `UI_SELECT_CARD* -> cardui/frame` (atlas key, not a loose file) and
       `UI_PANEL_DEFAULT`/`UI_REWARD_PANEL -> images/ui/reward/rewardList.png` (same class as
       D01 `cardPile.png`).
-- [ ] **Open (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
+- [x] **FIXED (D01/D02 D1 finding): render-thread concurrency race in `PresentationVisuals.syncC2Item`.**
       During D01/D02 device work one `java.util.ConcurrentModificationException` was observed in the
       post-native render hook: `PresentationWorld.query(PresentationWorld.java)` iterating a
       `LinkedHashMap` inside `PackSurfaceEffects.forSurface` -> `PresentationVisuals.effectsFor` ->
@@ -3242,9 +3242,27 @@ allocation and Young GC pressure.
       and 5/5 `pile_draw` on/off toggles, plus 6 rapid mixed toggles, all stayed READY with zero
       crash markers), so it is a LATENT general toggle/render race, not a D01/D02-specific defect and
       not specific to the top panel (the stack was the pile-draw C2 path; `top off` was coincidental).
-      Next: make the ECS query / surface-effects iteration in the post-native render hook
-      iteration-safe under concurrent mutation (snapshot iteration or a render-side copy), with a
-      bounded stress test toggling multiple C2 surfaces while rendering.
+      **Fix:** the ECS query / surface-effects iteration in the post-native render hook is now
+      iteration-safe under concurrent mutation. `PresentationWorld` keeps a lock-free creation-order
+      index (`ConcurrentSkipListMap<Long,EntityId>` keyed by the monotonic `EntityId.value()`) whose
+      weakly consistent iterator never throws CME; `query`/`entities` iterate that instead of the
+      live `LinkedHashMap` entry/key iterator, so a concurrent
+      `createEntity`/`destroyEntity`/`clear`/`close` on the game thread cannot throw CME and never
+      yields stale ids. `getIfPresent` is a NON-THROWING per-entity lookup used by
+      `PackSurfaceEffects` (`forSurface`/`hasContribution`/`surfaceIds`) so that if an entity is
+      destroyed BETWEEN the public `query(...)` returning an id and that per-entity read, the read
+      returns null/skips instead of throwing `IllegalArgumentException("unknown entity")`/NPE. The
+      `PresentationWorld` null/contains guards on the query paths are only cheap defensive safety
+      nets; the CME prevention is the weakly-consistent skip-list iteration, not the guards.
+      `PresentationContext.entities()` is on the
+      same render path (via `PresentationVisuals.retainC2Items`/`removeC2Items`) and got the same
+      skip-list index. Note the naive "copy the entry set" snapshot (`new ArrayList<>(entrySet())`)
+      is NOT safe — `ArrayList(Collection)` calls `toArray()`, which iterates the live map and still
+      throws CME (verified) — hence the concurrent index. This addresses the CME symptom path and
+      introduces NO global locking: the world is otherwise still thread-confined and the render
+      thread never blocks. Bounded concurrent stress tests in `PresentationWorldTest` and
+      `PackSurfaceEffectsTest` (proven non-tautological: both fail with CME / "unknown entity" when
+      the safe path is reverted).
 - [ ] **Open (D03 D1 finding): map node / legend texture COLOR fidelity.** D1 visual review after the
       map pixel-submission fix showed ART map nodes as pale/white silhouettes, whereas native draws
       them dark. Native `MapRoomNode.render` calls `sb.setColor(...)` per state before drawing the

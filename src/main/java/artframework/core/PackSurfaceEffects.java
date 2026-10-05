@@ -24,8 +24,11 @@ public final class PackSurfaceEffects {
         }
         List<EffectDecl> result = new ArrayList<EffectDecl>();
         for (EntityId entity : world.query(PackSurfaceEffectsComponent.class)) {
+            // getIfPresent is non-throwing: if another thread destroyed the entity between query()
+            // and this read it returns null and the entity is skipped (a null component too).
             PackSurfaceEffectsComponent contribution =
-                    world.get(entity, PackSurfaceEffectsComponent.class);
+                    world.getIfPresent(entity, PackSurfaceEffectsComponent.class);
+            if (contribution == null) continue;
             if (packId != null && !packId.equals(contribution.packId)) continue;
             result.addAll(contribution.forSurface(surfaceId));
         }
@@ -40,7 +43,9 @@ public final class PackSurfaceEffects {
     public static boolean hasContribution(PresentationWorld world, String packId) {
         if (world == null || packId == null || packId.isEmpty()) return false;
         for (EntityId entity : world.query(PackSurfaceEffectsComponent.class)) {
-            if (packId.equals(world.get(entity, PackSurfaceEffectsComponent.class).packId)) return true;
+            PackSurfaceEffectsComponent contribution =
+                    world.getIfPresent(entity, PackSurfaceEffectsComponent.class);
+            if (contribution != null && packId.equals(contribution.packId)) return true;
         }
         return false;
     }
@@ -54,7 +59,8 @@ public final class PackSurfaceEffects {
         Set<String> result = new LinkedHashSet<String>();
         for (EntityId entity : world.query(PackSurfaceEffectsComponent.class)) {
             PackSurfaceEffectsComponent contribution =
-                    world.get(entity, PackSurfaceEffectsComponent.class);
+                    world.getIfPresent(entity, PackSurfaceEffectsComponent.class);
+            if (contribution == null) continue;
             if (packId != null && !packId.equals(contribution.packId)) continue;
             result.addAll(contribution.surfaceIds());
         }

@@ -60,6 +60,24 @@ steps:
       assert:
         path: backend.verify.background.variant
         eq: checker
+  # E05: four-act background coverage contract. The background family patch targets all four
+  # concrete scenes (`TheBottomScene`/`TheCityScene`/`TheBeyondScene`/`TheEndingScene`), exposed as
+  # the static `patchedScenes` coverage list; the ART draw itself is act-agnostic (no act/room
+  # argument). This asserts the CONTRACT only. D1 device evidence today is act-1/Bottom only: the
+  # run below reaches the Bottom scene, and there is no lab act-jump, so City/Beyond/Ending are
+  # patched but NOT device-verified here.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.patchedScenes
+        exists: true
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.patchedScenes
+        contains: TheBottomScene
   - wait_probe:
       timeout_ms: 10000
       interval_ms: 250

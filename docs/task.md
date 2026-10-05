@@ -1910,6 +1910,21 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       suppressed — those are still drawn natively and NOT intercepted, and remain a separate,
       larger pending slice. Do not read `strictAccepted == true` as "strict zero native residue".
 
+- [x] NRO-04 E05 (explicit, honestly scoped four-act background coverage): the background family
+      `sts1.room.background` is supplied act-agnostically by `BackgroundRenderGate` (full-screen
+      checker/grid/solid drawn with no act/room/scene argument), and `BackgroundRenderPatches`
+      patch-targets all four concrete scene overrides of `AbstractScene.renderCombatRoomBg`
+      (`TheBottomScene`, `TheCityScene`, `TheBeyondScene`, `TheEndingScene`). The coverage is now
+      EXPLICIT: `BackgroundRenderGate.PATCHED_SCENES` is a STATIC list of the four patched scene
+      simple names and is exposed as the probe key `backend.verify.background.patchedScenes` (with
+      all prior keys unchanged); a focused test reflects each patch class's `@SpirePatch(clz=...)`
+      and fails if the target set is not EXACTLY those four, and a draw test proves the same
+      full-screen quad count for every patched scene (act-agnostic). HONEST SCOPE: this records patch
+      TARGET coverage, NOT device verification. D1 device evidence is act-1/Bottom ONLY via
+      `d1_verify_background_only.yaml` (now asserting the `patchedScenes` key exists and contains
+      `TheBottomScene`); City/Beyond/Ending are patched but NOT device-verified because there is no
+      lab act-jump — an open gap, not a claim. No per-act "verified" flag was faked.
+
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

@@ -3,7 +3,10 @@ package artframework.sts1.render;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -14,6 +17,17 @@ import java.util.Map;
 public final class BackgroundRenderGate {
 
     public static final String BACKGROUND_FAMILY = "sts1.room.background";
+
+    /**
+     * The concrete scene classes the background family patch targets, as simple class names. This is
+     * the STATIC coverage contract — the four concrete overrides of
+     * {@code AbstractScene.renderCombatRoomBg(SpriteBatch)} that {@code BackgroundRenderPatches}
+     * attaches Prefixes to. It is deliberately NOT a claim of device verification: only the act-1
+     * Bottom scene is exercised by {@code d1_verify_background_only.yaml} today; City/Beyond/Ending
+     * are patched but have no deterministic lab act-jump and are NOT device-verified.
+     */
+    public static final List<String> PATCHED_SCENES = Collections.unmodifiableList(
+            Arrays.asList("TheBottomScene", "TheCityScene", "TheBeyondScene", "TheEndingScene"));
 
     public enum Variant {
         OFF,
@@ -229,6 +243,7 @@ public final class BackgroundRenderGate {
         m.put("artOwnsBackgroundRequested", Boolean.valueOf(artOwnsBackground()));
         m.put("artDrawCount", Long.valueOf(artDrawCount));
         m.put("nativeFallbackCount", Long.valueOf(nativeFallbackCount));
+        m.put("patchedScenes", PATCHED_SCENES);
         return m;
     }
 

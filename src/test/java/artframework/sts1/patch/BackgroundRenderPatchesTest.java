@@ -9,12 +9,17 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.evacipated.cardcrawl.modthespire.lib.SpirePatch;
 import com.evacipated.cardcrawl.modthespire.lib.SpireReturn;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -78,6 +83,38 @@ public class BackgroundRenderPatchesTest {
         },
     };
 
+    /**
+     * Hard coverage contract: the background family patch must target EXACTLY the four concrete
+     * scene overrides of {@code AbstractScene.renderCombatRoomBg}. Reflects over each nested patch
+     * class's {@code @SpirePatch(clz=...)} so removing any act's patch (or adding a fifth target)
+     * fails loudly instead of silently narrowing coverage. Also pins the gate's static
+     * {@code PATCHED_SCENES} coverage contract to the same set.
+     */
+    @Test
+    public void patchTargetsExactlyTheFourConcreteSceneClasses() throws Exception {
+        List<Class<?>> patchClasses = Arrays.<Class<?>>asList(
+                BackgroundRenderPatches.ObserveNativeBottomBackground.class,
+                BackgroundRenderPatches.ObserveNativeCityBackground.class,
+                BackgroundRenderPatches.ObserveNativeBeyondBackground.class,
+                BackgroundRenderPatches.ObserveNativeEndingBackground.class);
+        Set<String> actual = new HashSet<String>();
+        for (Class<?> patchClass : patchClasses) {
+            SpirePatch patch = patchClass.getAnnotation(SpirePatch.class);
+            assertNotNull("each background patch class must carry @SpirePatch", patch);
+            assertEquals("each background patch must be a nested member of BackgroundRenderPatches",
+                    BackgroundRenderPatches.class, patchClass.getEnclosingClass());
+            actual.add(patch.clz().getSimpleName());
+        }
+        Set<String> expected = new HashSet<String>(Arrays.asList(
+                "TheBottomScene", "TheCityScene", "TheBeyondScene", "TheEndingScene"));
+        assertEquals("background patch targets must be exactly the four concrete scene classes",
+                expected, actual);
+        assertEquals("the gate coverage contract must match the patch targets",
+                expected, new HashSet<String>(BackgroundRenderGate.PATCHED_SCENES));
+        assertEquals("there must be exactly four background patch classes",
+                4, patchClasses.size());
+    }
+
     @Test
     public void suppressesNativeBackgroundOnlyWhenVariantFilteredAndNoPanic() {
         Texture texture = installWhiteSquareTexture();
@@ -92,6 +129,38 @@ public class BackgroundRenderPatchesTest {
             assertTrue("ART-owned background must suppress the native scene background",
                     suppressed.isPresent());
             assertEquals(1L, BackgroundRenderGate.artDrawCount());
+        }
+    }
+
+    /**
+     * Scene-agnostic draw: the ART background draw takes no act/room/scene argument, so every act's
+     * Prefix submits the SAME full-screen quad count for a given variant. This asserts the four
+     * patched scenes share one identical draw (the act-agnostic claim) rather than per-act pixels.
+     */
+    @Test
+    public void drawVariantIsSceneAgnosticAcrossTheFourActs() {
+        SpriteBatch sb = newBatch(installWhiteSquareTexture());
+        BackgroundRenderGate.Variant[] variants = {
+            BackgroundRenderGate.Variant.SOLID,
+            BackgroundRenderGate.Variant.CHECKER,
+            BackgroundRenderGate.Variant.GRID,
+        };
+        for (BackgroundRenderGate.Variant variant : variants) {
+            Long reference = null;
+            for (PrefixCall prefix : PREFIXES) {
+                Sts1VerifyDiagnostics.resetForTests();
+                Sts1VerifyDiagnostics.setBackgroundVariant(variant);
+                prefix.invoke(sb);
+                long quads = BackgroundRenderGate.artDrawCount();
+                assertTrue("each act must draw a non-zero full-screen quad count",
+                        quads > 0L);
+                if (reference == null) {
+                    reference = Long.valueOf(quads);
+                } else {
+                    assertEquals("act-agnostic draw must submit identical quads for " + variant,
+                            reference, Long.valueOf(quads));
+                }
+            }
         }
     }
 

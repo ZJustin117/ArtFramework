@@ -12,7 +12,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -230,6 +234,57 @@ public class BackgroundRenderGateTest {
         assertEquals(Boolean.FALSE, probe.get("artOwnsBackgroundRequested"));
         assertEquals(Long.valueOf(0L), probe.get("artDrawCount"));
         assertEquals(Long.valueOf(0L), probe.get("nativeFallbackCount"));
+    }
+
+    /**
+     * The coverage contract is a STATIC list of the four patched concrete scene classes, exposed as
+     * the honest {@code patchedScenes} probe key. It records patch TARGET coverage only and is not a
+     * device-verification claim; device evidence today is the act-1 Bottom scene only.
+     */
+    @Test
+    public void patchedScenesProbeExposesTheFourSceneCoverageContract() {
+        List<String> expected = Arrays.asList(
+                "TheBottomScene", "TheCityScene", "TheBeyondScene", "TheEndingScene");
+        assertEquals(expected, BackgroundRenderGate.PATCHED_SCENES);
+
+        Map<String, Object> probe = BackgroundRenderGate.probeSlice();
+        assertTrue("patchedScenes probe key must be exposed", probe.containsKey("patchedScenes"));
+        Object value = probe.get("patchedScenes");
+        assertTrue("patchedScenes must be a list", value instanceof List);
+        assertEquals("patchedScenes must contain exactly the four patched scenes",
+                new HashSet<String>(expected), new HashSet<String>((List<String>) value));
+        // Stability: a fresh probe slice repeats the same static contract.
+        assertEquals(value, BackgroundRenderGate.probeSlice().get("patchedScenes"));
+    }
+
+    /**
+     * The ART background draw takes no act/room/scene argument: for a given variant the exact same
+     * full-screen quad count is produced regardless of which patched scene would call it. This is
+     * the act-agnostic draw contract behind the four-scene coverage.
+     */
+    @Test
+    public void backgroundDrawIsActAgnosticForEveryVariant() {
+        Texture texture = installWhiteSquareTexture();
+        SpriteBatch sb = newBatch(texture);
+        long solid = recordedQuads(sb, BackgroundRenderGate.Variant.SOLID);
+        long checker = recordedQuads(sb, BackgroundRenderGate.Variant.CHECKER);
+        long grid = recordedQuads(sb, BackgroundRenderGate.Variant.GRID);
+
+        // Re-running any variant is deterministic and input-free beyond the variant; re-measure and
+        // require identical counts so a future act/scene parameter would break this loudly.
+        assertEquals(solid, recordedQuads(sb, BackgroundRenderGate.Variant.SOLID));
+        assertEquals(checker, recordedQuads(sb, BackgroundRenderGate.Variant.CHECKER));
+        assertEquals(grid, recordedQuads(sb, BackgroundRenderGate.Variant.GRID));
+        assertTrue(solid > 0L && checker > 0L && grid > 0L);
+    }
+
+    private static long recordedQuads(SpriteBatch sb, BackgroundRenderGate.Variant variant) {
+        // Do NOT reinstall the texture here: the batch's lastTexture must stay bound to the single
+        // installed white-square double or the no-GL draw double fails open.
+        Sts1VerifyDiagnostics.resetForTests();
+        BackgroundRenderGate.setVariant(variant);
+        assertTrue(BackgroundRenderGate.renderSelectedVariant(sb));
+        return BackgroundRenderGate.artDrawCount();
     }
 
     @Test

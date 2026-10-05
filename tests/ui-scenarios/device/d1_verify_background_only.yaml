@@ -32,7 +32,14 @@ steps:
       assert:
         path: lab.runReady
         eq: true
-  - console: "art present combat on"
+  # The strict-acceptance block below must run with NO ART draw output pending. `art present combat
+  # observe` mounts the combat surfaces ONLY in observe level: it keeps the authority frame published
+  # (so `projection.scene == combat`) and keeps the patched native entry points owning the frame, but
+  # `FullPresentCapability` resolves each surface to OBSERVING, so `Sts1RenderPipeline.plan()` has an
+  # empty `drawOrder()` (no ART plan entries). Blocked-foreground evidence is still produced by the
+  # native combat renderer's patched entry points (hand/controls/energy/pile) and by the scene effects
+  # (torches/flares), which route through the blocked seams independently of any mounted surface.
+  - console: "art present combat observe"
   - console: "fight Cultist"
   - wait_probe:
       timeout_ms: 30000
@@ -79,22 +86,27 @@ steps:
       assert:
         path: backend.verify.submissionStatus
         eq: unsupported
+  # E04: ART-OUTPUT strictness. This strict block runs with `art present combat observe`, so the
+  # surfaces are mounted for observation only and `Sts1RenderPipeline.plan()` emits NO ART draw
+  # entries. The post-render uncovered marker is recorded only when genuine ART-OWNED output is
+  # pending, so a frame whose only host targets are retained NATIVE scene boundaries reports ZERO
+  # uncovered (zero ART submission / zero ART pass leaks) and passes strict ART-output acceptance.
+  # This does NOT claim native world/foreground suppression: the player, monster, hand cards, and
+  # terrain are still drawn natively and are NOT intercepted (a separate, larger slice).
   - wait_probe:
       timeout_ms: 10000
       interval_ms: 250
       assert:
         path: backend.verify.backgroundOnly.uncovered
-        gte: 1
-  # E01: bounded owner attribution. The uncovered count must resolve to at least one
-  # distinct normalized owner label, and the map must be exposed. Labels today are the
-  # bounded call-site reasons (e.g. art.post_render / art.surface_renderer); do not assert
-  # a device-specific label here.
+        eq: 0
   - wait_probe:
       timeout_ms: 10000
       interval_ms: 250
       assert:
-        path: backend.verify.backgroundOnly.uncoveredDistinct
-        gte: 1
+        path: backend.verify.backgroundOnly.strictAccepted
+        eq: true
+  # E01: bounded owner attribution. The uncovered map must remain exposed even when the count is
+  # zero (no owner labels during a clean frame); do not assert a device-specific label here.
   - wait_probe:
       timeout_ms: 10000
       interval_ms: 250

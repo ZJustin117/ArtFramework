@@ -28,9 +28,12 @@ import artframework.ecs.EntityId;
 import artframework.presentation.HostBindingComponent;
 import artframework.presentation.NodePropertiesComponent;
 import artframework.presentation.PresentationRegistry;
+import artframework.render.EffectBinding;
 import artframework.render.RenderHost;
 import artframework.render.RenderHosts;
+import artframework.render.RenderPhase;
 import artframework.render.RenderTarget;
+import artframework.render.RenderTargetKind;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -301,15 +304,22 @@ public final class StageHost
         if (!ready) {
             return;
         }
-        if (artframework.sts1.render.BackgroundOnlyGate.isActive()) {
-            artframework.sts1.render.BackgroundOnlyGate.recordUncovered("art.post_render");
-            return;
-        }
+        // The draw guard below stays exactly as before (any host target counts). The background-only
+        // uncovered marker, however, is recorded only when genuine ART-OWNED output is pending:
+        // retained NATIVE scene-boundary targets (`native:*` at NATIVE_RETAINED with no ART effect
+        // bindings, ~350 on device) are native pixels ART does not draw and must not count.
         boolean hasStage = stage != null && !actors.isEmpty();
-        boolean hasFx = RenderHosts.get().bindingCount() > 0 || RenderHosts.get().targetCount() > 0;
+        boolean hasHostDraw = RenderHosts.get().bindingCount() > 0 || RenderHosts.get().targetCount() > 0;
         boolean hasPresentDraw = !artframework.sts1.render.Sts1RenderPipeline.plan().drawOrder().isEmpty();
         boolean hasVfxDraw = artframework.sts1.render.VfxSts1Runtime.hasLiveDraws();
-        if (!hasStage && !hasFx && !hasPresentDraw && !hasVfxDraw) {
+        if (artframework.sts1.render.BackgroundOnlyGate.isActive()) {
+            boolean artOwnedOutput = hasStage || hasPresentDraw || hasVfxDraw || hasArtOwnedHostOutput();
+            if (artOwnedOutput) {
+                artframework.sts1.render.BackgroundOnlyGate.recordUncovered("art.post_render");
+            }
+            return;
+        }
+        if (!hasStage && !hasHostDraw && !hasPresentDraw && !hasVfxDraw) {
             return;
         }
         // End batch: capture game FB, draw C1 FX *under* scene2d (so labels stay readable),
@@ -336,6 +346,68 @@ public final class StageHost
         RenderHosts.get().drawC1LightwaveBorders(sb);
         artframework.sts1.render.Sts1SurfaceRenderer.render(sb);
         RenderHosts.get().drawFrame(sb, true, artframework.render.RenderHost.kindsOverUi());
+    }
+
+    /**
+     * True when the render host holds ART-OWNED output to submit, excluding purely retained NATIVE
+     * scene-boundary targets and native-only entity-present chrome slots.
+     *
+     * <p>Retained-native entries projected for unpatched native world/effect owners
+     * ({@code "native:" + stableKey}, {@link RenderPhase#NATIVE_RETAINED}, no ART effect bindings)
+     * are native pixels ART does not draw, so they must not count. Entity-present slots
+     * ({@link RenderTargetKind#ENTITY_SLOT}, phase {@code ENTITY_CONTENT}) are likewise excluded
+     * unless backed by an active ART entity surface: when {@code FullPresentMode.skeletonLevel()}
+     * allows full present the entity/skeleton pixels are ART-drawn, otherwise the slot counts only
+     * when it resolves a real ART or icon resource (the host {@link RenderTarget} does not carry the
+     * resource, so it is read from the pure {@link artframework.c2.EntityDrawPath} description keyed
+     * by the same {@code "c2:entity:" + slotId}). Everything else (C1 window/widget, C2 surface/item,
+     * full-frame, verify guides, ART background/effects) counts, as does any enabled ART effect
+     * binding on a retained target.
+     */
+    private static boolean hasArtOwnedHostOutput() {
+        RenderHost host = RenderHosts.get();
+        boolean entitySurfaceActive =
+                artframework.sts1.FullPresentMode.skeletonLevel().allowsFullPresent();
+        java.util.Set<String> artEntitySlots =
+                entitySurfaceActive ? null : artBearingEntitySlots();
+        for (String id : host.listTargetIds()) {
+            RenderTarget target = host.getTarget(id);
+            if (target == null) {
+                continue;
+            }
+            if (target.kind == RenderTargetKind.ENTITY_SLOT
+                    && !entitySurfaceActive
+                    && (artEntitySlots == null || !artEntitySlots.contains(id))) {
+                // Native-only entity-present anchor (empty ART resource, entity surface inactive):
+                // ART submits no pixels for it, so it is not pending ART output.
+                continue;
+            }
+            if (target.phase() != RenderPhase.NATIVE_RETAINED) {
+                return true;
+            }
+            for (EffectBinding binding : host.effectsOf(id)) {
+                if (binding != null && binding.isEnabled()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Host target ids ({@code "c2:entity:" + slotId}) whose entity slot resolves ART/icon pixels. */
+    private static java.util.Set<String> artBearingEntitySlots() {
+        java.util.Set<String> out = new java.util.HashSet<String>();
+        try {
+            for (artframework.c2.EntityDrawPath.DrawItem item :
+                    artframework.c2.EntityDrawPath.buildFromPresent()) {
+                if (item.artFound || item.iconFound) {
+                    out.add("c2:entity:" + item.slotId);
+                }
+            }
+        } catch (Throwable ignored) {
+            // Best-effort: an unreadable entity description leaves the slots excluded.
+        }
+        return out;
     }
 
     @Override

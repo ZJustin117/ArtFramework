@@ -595,6 +595,63 @@ public class BackgroundOnlyGateTest {
     }
 
     @Test
+    public void strictAcceptedTrueWhenAllMapsAndCountersClean() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordBackgroundDraw();
+        BackgroundOnlyGate.recordBlocked("surface:hand");
+        BackgroundOnlyGate.recordUnsupported("surface:bridge_error");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertEquals(Boolean.TRUE, slice.get("strictAccepted"));
+    }
+
+    @Test
+    public void strictAcceptedFalseWhenUncoveredPositive() {
+        BackgroundOnlyGate.setActive(true);
+        BackgroundOnlyGate.recordUncovered("art.post_render");
+
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertEquals(Boolean.FALSE, slice.get("strictAccepted"));
+    }
+
+    @Test
+    public void strictAcceptedFalseWhenAnyOverflowPositive() {
+        BackgroundOnlyGate.setActive(true);
+        for (int i = 0; i < BackgroundOnlyGate.UNCOVERED_OWNER_CAP + 1; i++) {
+            BackgroundOnlyGate.recordUncovered("u_" + i);
+        }
+        Map<String, Object> uncoveredSlice = BackgroundOnlyGate.probeSlice();
+        assertEquals(Boolean.FALSE, uncoveredSlice.get("strictAccepted"));
+
+        BackgroundOnlyGate.resetForTests();
+        BackgroundOnlyGate.setActive(true);
+        for (int i = 0; i < BackgroundOnlyGate.BLOCKED_OWNER_CAP + 1; i++) {
+            BackgroundOnlyGate.recordBlocked("b_" + i);
+        }
+        Map<String, Object> blockedSlice = BackgroundOnlyGate.probeSlice();
+        assertEquals(Boolean.FALSE, blockedSlice.get("strictAccepted"));
+
+        BackgroundOnlyGate.resetForTests();
+        BackgroundOnlyGate.setActive(true);
+        for (int i = 0; i < BackgroundOnlyGate.UNSUPPORTED_OWNER_CAP + 1; i++) {
+            BackgroundOnlyGate.recordUnsupported("s_" + i);
+        }
+        Map<String, Object> unsupportedSlice = BackgroundOnlyGate.probeSlice();
+        // unsupportedOverflow is deliberately not part of strict ART-output acceptance.
+        assertEquals(Boolean.TRUE, unsupportedSlice.get("strictAccepted"));
+    }
+
+    @Test
+    public void strictAcceptedKeyHasCorrectTypeAndDoesNotDisturbExistingKeys() {
+        Map<String, Object> slice = BackgroundOnlyGate.probeSlice();
+        assertTrue(slice.get("strictAccepted") instanceof Boolean);
+        assertTrue(slice.get("uncovered") instanceof Long);
+        assertTrue(slice.get("uncoveredOverflow") instanceof Long);
+        assertTrue(slice.get("blockedOverflow") instanceof Long);
+        assertTrue(slice.get("unsupportedOverflow") instanceof Long);
+    }
+
+    @Test
     public void unsupportedAttributionDoesNotChangeGateSemantics() {
         BackgroundOnlyGate.resetForTests();
         assertFalse(BackgroundOnlyGate.isActive());

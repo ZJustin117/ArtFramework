@@ -110,6 +110,14 @@ public final class BackgroundOnlyGate {
         m.put("uncoveredByOwner", new LinkedHashMap<String, Long>(uncoveredByOwner));
         m.put("uncoveredDistinct", Long.valueOf((long) uncoveredByOwner.size()));
         m.put("uncoveredOverflow", Long.valueOf(uncoveredOverflow));
+        // Strict ART-output acceptance: no uncovered marker (zero pending ART output) and no
+        // attributable/unexpected overflow in any bounded-owner map. This deliberately covers
+        // only ART output submission/leaks, NOT native world/foreground residue (player/monster/
+        // hand/terrain) which remains a separate, later coverage slice.
+        boolean strictAccepted = uncovered == 0L
+                && uncoveredOverflow == 0L
+                && blockedOverflow == 0L;
+        m.put("strictAccepted", Boolean.valueOf(strictAccepted));
         m.put("revision", Long.valueOf(revision));
         m.put("lastReason", lastReason);
         return m;

@@ -1873,6 +1873,43 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `skeleton:renderer_unavailable`, `effect:identity_unavailable`). Honest scope: attribution only —
       no new native patch. Per-owner ACTIVE isolation of a specific overlay remains a later option.
 
+- [x] NRO-04 E04 (precise post-render uncovered marker + strict ART-output acceptance): in strict
+      `background-only` mode the `StageHost.receivePostRender` uncovered marker is now recorded ONLY
+      when genuine **ART-OWNED** output is pending. The predicate is
+      `hasStage || hasPresentDraw || hasVfxDraw || hasArtOwnedHostOutput()`, where `hasStage` is the
+      C1 scene2d stage, `hasPresentDraw` is a non-empty `Sts1RenderPipeline.plan().drawOrder()`
+      (ART plan entries), `hasVfxDraw` is `VfxSts1Runtime.hasLiveDraws()`, and
+      `hasArtOwnedHostOutput()` scans `RenderHost.listTargetIds()` and counts a target only when its
+      `RenderPhase` is not `NATIVE_RETAINED`, or when it carries an enabled ART effect binding. It
+      also excludes native-only entity-present slots: an `ENTITY_SLOT` target (phase
+      `ENTITY_CONTENT`, e.g. `c2:entity:sts1.native.skeleton/<key>`) counts only when
+      `FullPresentMode.skeletonLevel().allowsFullPresent()` (entity/skeleton pixels are ART-drawn) or
+      when the pure `EntityDrawPath.buildFromPresent()` description for that `c2:entity:<slotId>`
+      resolves a real art or icon resource (`artFound || iconFound`); a slot with an empty ART
+      resource under an inactive entity surface is native anchor chrome ART does not draw. The
+      previous `hasFx` term (`bindingCount() > 0 || targetCount() > 0`) was removed because on device
+      with no mounted ART overlay the host still holds ~350 RETAINED NATIVE scene-effect targets
+      (`native:<stableKey>` at phase `NATIVE_RETAINED`, `bindingCount == 0`), which are native pixels
+      ART does not draw — "any render target exists" is NOT "ART output pending". The marker is
+      computed BEFORE the background-only early return; the early return (no ART pixels while
+      background-only is active) is unchanged, the unconditional draw-guard path when background-only
+      is INACTIVE is byte-for-byte unchanged, and a genuine ART leak (plan entry / VFX / C1 widget /
+      enabled ART binding) still records `art.post_render`.
+      `BackgroundOnlyGate.probeSlice()` also exposes a Boolean `strictAccepted` =
+      `uncovered == 0 && uncoveredOverflow == 0 && blockedOverflow == 0` (a background-only-specific
+      predicate over the `background-only` gate counters `uncovered`/`uncoveredOverflow`/
+      `blockedOverflow`, not the `NativeRenderBridge.strictReport().accepted` predicate, which is
+      computed over different counters); every existing key is unchanged. The device
+      acceptance `d1_verify_background_only.yaml` now asserts `uncovered eq 0` +
+      `strictAccepted eq true` while `art present combat observe` keeps `projection.scene == combat`
+      published (observe mounts the surfaces without any ART plan draw entries; blocked-foreground
+      evidence still comes from the patched native combat entry points and scene effects), replacing
+      the old `uncovered gte 1`/`uncoveredDistinct gte 1`.
+      HONEST SCOPE: this is ART-OUTPUT strictness only (zero ART submission / zero ART pass leaks).
+      It does NOT claim native world/foreground residue (player, monster, hand cards, terrain) is
+      suppressed — those are still drawn natively and NOT intercepted, and remain a separate,
+      larger pending slice. Do not read `strictAccepted == true` as "strict zero native residue".
+
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

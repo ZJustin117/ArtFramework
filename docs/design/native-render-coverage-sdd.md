@@ -329,6 +329,30 @@ call-site reasons (`surface:unknown_owner`, `surface:bridge_error`, `skeleton:un
 maps together give precise attribution across the uncovered, blocked, and unsupported
 entry paths without changing the gate decision.
 
+The strict `background-only` slice also reports a Boolean `strictAccepted`, a
+background-only-specific predicate defined as
+`uncovered == 0 && uncoveredOverflow == 0 && blockedOverflow == 0` (NRO-04 E04). It is
+computed over the `background-only` gate counters and is deliberately NOT the
+`NativeRenderBridge.strictReport().accepted` predicate, which is computed over a
+different counter set. Its honest meaning is ART-OUTPUT strictness only: zero ART output
+submission and zero unattributed/overflowed ART pass leaks. The
+`StageHost.receivePostRender` uncovered marker is recorded only when genuine **ART-OWNED**
+output is pending — its predicate counts a host render target only when its `RenderPhase`
+is not `NATIVE_RETAINED` (or it carries an enabled ART effect binding), so the hundreds of
+retained native scene-boundary targets on device (`native:<stableKey>` at
+`NATIVE_RETAINED`, `bindingCount == 0`) are excluded. It additionally excludes native-only
+entity-present slots: an `ENTITY_SLOT` target counts only when the entity/skeleton surface
+is at `FULL`, or when its pure `EntityDrawPath` description resolves a real art/icon
+resource; an empty-resource anchor under an inactive entity surface is native chrome, not
+ART pixels. A combat frame with no ART draw output (for example `art present combat
+observe`, which publishes `projection.scene` but emits no ART plan entries) reports
+`uncovered == 0` and `strictAccepted == true`. It does
+NOT assert suppression of native world/foreground residue — the player, monster, hand
+cards, and terrain are still drawn natively and are not intercepted, so native-world
+coverage remains an open, larger gap. `strictAccepted` must not be read as "strict zero
+native residue", and `unsupportedOverflow` is deliberately excluded from the acceptance
+predicate.
+
 An entry satisfies the justification contract with its own `justification`
 field or, when it inherits a family default policy, with the family's default
 rationale (`FAMILY_DEFAULT_JUSTIFICATION` in `tools/nrcc/families.py`). Family

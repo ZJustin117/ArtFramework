@@ -53,6 +53,23 @@ steps:
   - assert:
       path: backend.selectDraw.confirm.w
       gte: 1
+  # D09 follow-up: the confirm label is the LIVE native button text
+  # (`CardSelectConfirmButton.buttonText` / `GridSelectConfirmButton.buttonText`), so on a Chinese
+  # device it is localized (e.g. 确认) and must NOT equal the English fallback literal "Confirm"
+  # (that literal is only ART's fallback when the native label is unavailable). Do not hardcode a
+  # language: assert presence, non-empty, and that the fallback was not used.
+  - assert:
+      path: backend.selectDraw.confirm.label
+      exists: true
+  - assert:
+      path: backend.selectDraw.confirm.label
+      neq: ""
+  - assert:
+      path: backend.selectDraw.confirm.label
+      neq: "Confirm"
+  - capture:
+      path: backend.selectDraw.confirm.label
+      var: select_confirm_label
   # D09: card labels use the localized AbstractCard.name (CardView.title), not the raw card id.
   # The projection already carries the localized title; assert the drawn label exists and is
   # non-empty (raw-id fallback only applies when a title is genuinely absent).

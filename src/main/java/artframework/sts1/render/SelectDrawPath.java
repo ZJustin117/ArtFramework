@@ -174,6 +174,7 @@ public final class SelectDrawPath {
         return new DrawItem(
                 "confirm",
                 "Confirm",
+                resolvedConfirmLabel(sv),
                 -1,
                 false,
                 sv.confirmVisible,
@@ -186,6 +187,19 @@ public final class SelectDrawPath {
                 "",
                 CONFIRM_TEXTURE_W * scale,
                 CONFIRM_TEXTURE_H * scale);
+    }
+
+    /**
+     * Resolved confirm-button label: the projection's LIVE localized {@link SelectView#confirmLabel}
+     * when non-blank, else the neutral English {@code "Confirm"} fallback. The fallback (rather than
+     * an empty string) keeps the confirm item's drawn text non-degenerate on an English host and
+     * mirrors the previous hardcoded literal exactly when no localized label is projected.
+     */
+    public static String resolvedConfirmLabel(SelectView sv) {
+        if (sv != null && sv.confirmLabel != null && !sv.confirmLabel.trim().isEmpty()) {
+            return sv.confirmLabel;
+        }
+        return "Confirm";
     }
 
     /** Native {@code TAKE_Y} base (unscaled): {@code 475f * Settings.scale}. */
@@ -244,6 +258,7 @@ public final class SelectDrawPath {
             c.put("h", Float.valueOf(confirm.h));
             c.put("enabled", Boolean.valueOf(confirm.enabled));
             c.put("visible", Boolean.valueOf(confirm.visible));
+            c.put("label", confirm.label);
             m.put("confirm", c);
         } else {
             m.put("confirm", null);

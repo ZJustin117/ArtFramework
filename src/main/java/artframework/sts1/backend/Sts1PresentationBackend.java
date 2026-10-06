@@ -1568,7 +1568,8 @@ public final class Sts1PresentationBackend implements SignalBackend {
         boolean confirmVisible = gcs.confirmButton != null;
         boolean confirmEnabled =
                 gcs.confirmButton != null && gcs.confirmButton.hb != null;
-        return SelectView.grid(pool, selected, confirmEnabled, confirmVisible);
+        return SelectView.grid(
+                pool, selected, confirmEnabled, confirmVisible, readConfirmLabel(gcs, "confirmButton"));
     }
 
     private static SelectView readHandSelect(HandCardSelectScreen hcs) {
@@ -1605,7 +1606,60 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
         boolean confirmVisible = true;
         boolean confirmEnabled = !selected.isEmpty() || !pool.isEmpty();
-        return SelectView.hand(pool, selected, confirmEnabled, confirmVisible);
+        return SelectView.hand(
+                pool, selected, confirmEnabled, confirmVisible, readConfirmLabel(hcs, "button"));
+    }
+
+    /**
+     * LIVE localized confirm-button label for a select screen. Reads the native confirm button's
+     * own {@code buttonText} field — the exact string the button paints via
+     * {@code FontHelper.renderFontCentered} — then falls back to the confirm-label UIStrings
+     * {@code TEXT[0]}, and finally to {@code ""}. Never throws (fail-open).
+     *
+     * <p>Verified native sources: {@code GridCardSelectScreen.confirmButton}
+     * ({@code GridSelectConfirmButton}) is constructed as {@code new GridSelectConfirmButton(TEXT[0])}
+     * from {@code GridCardSelectScreen.uiStrings} ("GridCardSelectScreen"), so the grid fallback is
+     * the screen's own {@code TEXT[0]}. {@code HandCardSelectScreen.button} is a no-arg
+     * {@code CardSelectConfirmButton} whose {@code buttonText} defaults to
+     * {@code CardSelectConfirmButton.TEXT[0]} ("Confirm Button" UIStrings) — NOT the hand screen's
+     * {@code TEXT[0]} (a selection message) — so the hand fallback reads the button class's own
+     * {@code TEXT[0]} first.
+     */
+    private static String readConfirmLabel(Object screen, String buttonField) {
+        try {
+            Object button = softField(screen.getClass(), screen, buttonField);
+            if (button != null) {
+                String text = stringValue(button, "buttonText");
+                if (text != null && !text.isEmpty()) {
+                    return text;
+                }
+                String classText = firstText(button.getClass());
+                if (classText != null && !classText.isEmpty()) {
+                    return classText;
+                }
+            }
+            if ("confirmButton".equals(buttonField)) {
+                String screenText = firstText(screen.getClass());
+                if (screenText != null && !screenText.isEmpty()) {
+                    return screenText;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return "";
+    }
+
+    /** Soft-read a class's static {@code TEXT} string-array first element; empty when absent. */
+    private static String firstText(Class<?> clz) {
+        try {
+            Object text = softField(clz, null, "TEXT");
+            if (text instanceof String[] && ((String[]) text).length > 0) {
+                String first = ((String[]) text)[0];
+                return first != null ? first : "";
+            }
+        } catch (Throwable ignored) {
+        }
+        return "";
     }
 
     private static Object softField(Class<?> clz, Object inst, String name) {

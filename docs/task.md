@@ -3532,8 +3532,20 @@ allocation and Young GC pressure.
       no exact trigger was pinned.
 - [ ] **Open (D09 follow-up D1 finding): select text localization.** The localized card
       labels (D09 follow-up) are confirmed (`Strike_R`->`打击`, `Defend_R`->`防御`, `Bash`->`痛击`,
-      `AscendersBane`->`进阶之灾`). Separately, the visual review observed unlocalized text on the
-      select screen: an English `Generic` string at top-center and the English `Confirm` button label,
-      amid otherwise-Chinese UI. Next: check whether `Generic`/`Confirm` are native (English-data)
-      assets or leaked placeholders. (Per-card card-frame pixels remain the separately-logged
-      `cardui/frame` non-file-backed gap.)
+      `AscendersBane`->`进阶之灾`). **Confirm button label is now LOCALIZED:** the backend reads the
+      LIVE native confirm-button text — `GridCardSelectScreen.confirmButton.buttonText`
+      (`GridSelectConfirmButton`, constructed `new GridSelectConfirmButton(TEXT[0])` from the screen's
+      own UIStrings) / `HandCardSelectScreen.button.buttonText` (`CardSelectConfirmButton`, defaults
+      to the `"Confirm Button"` UIStrings `TEXT[0]`) — via the soft-reflection helper, falls back to
+      the confirm-label UIStrings `TEXT[0]`, and fails open to `""`. `SelectView.confirmLabel`
+      carries it (empty default; new overloads keep the 4-arg `grid`/`hand` factories
+      source-compatible); `SelectDrawPath` resolves the confirm `DrawItem.label` to `confirmLabel`
+      when non-blank else the neutral `"Confirm"` fallback, `renderSelect` draws `item.label` for the
+      confirm row (the `item.confirm ? "Confirm" :` special-case is dropped), and `probeSlice()`
+      exposes `confirm.label`. `d1_full_present_select.yaml` asserts `confirm.label` exists,
+      is non-empty, and is `neq "Confirm"` (the English fallback literal) on the Chinese D1 device.
+      **REMAINING OPEN:** the English `Generic` string at top-center is still unlocalized (its source
+      is not yet pinned — likely a native English-data asset or a leaked placeholder; needs a
+      separate read), and per-card card-frame pixels remain the separately-logged `cardui/frame`
+      non-file-backed gap (per-card frames/art, select panel/background, tip/header, cancel/skip
+      buttons, and eye/filter control also remain unsupplied).

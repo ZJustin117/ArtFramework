@@ -215,6 +215,80 @@ public class SelectDrawPathTest {
     }
 
     @Test
+    public void localizedConfirmLabelOverridesFallbackInItemAndProbe() {
+        publishSelectFrame(
+                SelectView.grid(
+                        Collections.singletonList(
+                                CardView.builder(new CardRef("g1", "Strike_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(0)
+                                        .build()),
+                        Collections.singletonList("g1"),
+                        true,
+                        true,
+                        "确认"));
+
+        SelectDrawPath.DrawItem confirm = SelectDrawPath.confirmItem();
+        assertNotNull(confirm);
+        assertTrue("the localized label must land on the confirm DrawItem", confirm.confirm);
+        assertEquals("确认", confirm.label);
+        // The raw-id field stays the neutral literal, not the localized text.
+        assertEquals("Confirm", confirm.cardId);
+        assertFalse("localized label must differ from the neutral fallback literal",
+                "Confirm".equals(confirm.label));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> c = (Map<String, Object>) SelectDrawPath.probeSlice().get("confirm");
+        assertNotNull(c);
+        assertEquals("确认", c.get("label"));
+    }
+
+    @Test
+    public void blankOrAbsentConfirmLabelFallsBackToNeutralLiteral() {
+        // confirmLabel explicitly blank.
+        publishSelectFrame(
+                SelectView.grid(
+                        Collections.singletonList(
+                                CardView.builder(new CardRef("g1", "Strike_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(0)
+                                        .build()),
+                        Collections.singletonList("g1"),
+                        true,
+                        true,
+                        "   "));
+
+        SelectDrawPath.DrawItem blank = SelectDrawPath.confirmItem();
+        assertNotNull(blank);
+        assertEquals("Confirm", blank.label);
+
+        // No confirm label supplied at all (the 4-arg factory path).
+        publishSelectFrame();
+        SelectDrawPath.DrawItem absent = SelectDrawPath.confirmItem();
+        assertNotNull(absent);
+        assertEquals("Confirm", absent.label);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> c = (Map<String, Object>) SelectDrawPath.probeSlice().get("confirm");
+        assertNotNull(c);
+        assertEquals("Confirm", c.get("label"));
+    }
+
+    @Test
+    public void selectViewDefaultsConfirmLabelToEmptyWhenNotThreaded() {
+        assertEquals("", SelectView.grid(null, null, false, false).confirmLabel);
+        assertEquals("", SelectView.hand(null, null, false, false).confirmLabel);
+        assertEquals("", SelectView.empty().confirmLabel);
+        assertEquals(
+                "确认",
+                SelectView.hand(null, null, false, false, "确认").confirmLabel);
+        assertEquals(
+                "confirmLabel is exposed on the projection map",
+                "确认",
+                SelectView.grid(null, null, false, false, "确认").toMap().get("confirmLabel"));
+    }
+
+    @Test
     public void projectionCarriesHandCardsAndDisabledConfirmState() {
         publishSelectFrame(
                 SelectView.hand(

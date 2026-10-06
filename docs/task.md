@@ -3233,6 +3233,33 @@ allocation and Young GC pressure.
       hover OUTLINE (`CAMPFIRE_HOVER_BUTTON`) + hover scale/color, the option label/description
       text, the disabled grayscale shader, the scroll variants (>6 buttons), and the campfire
       background/title art.
+- [x] NRO-04 D07 follow-up (campfire option label anchoring + synthetic title removal): a D1 visual
+      review found ART's campfire option labels overlapped the option icons and a centered synthetic
+      "Campfire" title was occluded/garbled. Re-read the native source: `AbstractCampfireOption.render`
+      draws the option icon at `hb.cX-128, hb.cY-128` (256x256, center `hb.cX,hb.cY`) and the LABEL with
+      `FontHelper.renderFontCenteredTopAligned(sb, FontHelper.topPanelInfoFont, this.label, this.hb.cX,
+      this.hb.cY - 60f*Settings.scale - 50f*Settings.scale*(this.scale/Settings.scale), usable ?
+      Settings.GOLD_COLOR : Color.LIGHT_GRAY)`; at rest `scale = NORM_SCALE = 0.9f*Settings.scale`, so the
+      label TOP Y = `hb.cY - 105f*Settings.scale` and X = `hb.cX` (centered, TOP-ALIGNED). `CampfireUI.render`
+      draws NO campfire site title (only `renderFire`, `AbstractDungeon.player.render`, bubbles,
+      `bubbleMsg`, `renderCampfireButtons`, the scrollbar, and the touch confirm button), so the ART
+      synthetic "Campfire" title was NOT native and is REMOVED. `RestDrawPath` gains a documented
+      `LABEL_OFFSET_Y = 105f` constant and `labelOffsetY()` (`LABEL_OFFSET_Y * Settings.scale`, fail-open);
+      `DrawItem` carries `labelAnchorX = centerX` and `labelAnchorY = centerY - LABEL_OFFSET_Y*scale`;
+      `probeSlice()` gains `hasTitle` (false) plus per-button `labelAnchorX`/`labelAnchorY` (public
+      `items[]` keeps every key, now including both anchors). `renderRest` drops the title draw and the
+      old centered `renderFontCentered(..., bounds.y + bounds.height*0.54f)` label, drawing each option's
+      icon via `drawResolvedTexture` and its label via
+      `FontHelper.renderFontCenteredTopAligned(sb, FontHelper.topPanelInfoFont, text, centerX,
+      centerY - 105f*scale, enabled ? Settings.GOLD_COLOR : Color.LIGHT_GRAY)` so it sits BELOW the icon.
+      Tests pin the native anchor formula at unit scale (`(798.72, 720) -> labelAnchorY 615`) and at
+      `scale=1.25` (`centerY 765 -> 633.75`), plus `hasTitle == false` and the reduced draw counts
+      (2 options / 7-option mix). `d1_full_present_rest.yaml` asserts `hasTitle` falsey and, because
+      `lt` is unsupported, captures `buttons[0].labelAnchorY` and asserts `buttons[0].centerY gt_var`
+      it. **Honest gaps (NOT covered here):** campfire background/flame FX (separate room-scene slice),
+      the option DESCRIPTION text (native draws it at fixed `950f*xScale, HEIGHT/2f + 20f*scale`; not
+      carried by `RestView.RestOptionView`/`RoomChromeLine`), the hover OUTLINE/scale/color + tip, the
+      disabled grayscale shader, scroll variants (>6 buttons), and the touch confirm button.
 - [x] NRO-04 D08 (treasure chest sprite at native `AbstractChest` geometry): the treasure surface was
       suppressed wholesale and `renderTreasure`
       painted text rows, but the actual chest sprite (`AbstractChest.render`) was neither projected

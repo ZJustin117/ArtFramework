@@ -51,6 +51,13 @@ steps:
   - assert:
       path: backend.treasureDraw.suppressNativeTreasure
       eq: true
+  # NRO-04 D08 follow-up: verified native TreasureRoom.render draws NO "Treasure" title and NO
+  # "Chest closed/opened" status text, so those synthetic rows were removed. The CLOSED state
+  # projects ZERO chrome rows (chest sprite only); an opened chest projects at most the single
+  # relic row. Assert the reduced count here (the chest geometry asserts above remain).
+  - assert:
+      path: backend.treasureDraw.chromeLineCount
+      lte: 1
   - assert:
       path: backend.treasureDraw.drawCount
-      gte: 1
+      lte: 1

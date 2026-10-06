@@ -142,22 +142,19 @@ public class RoomChromeRenderTest {
     @Test
     public void treasureChromeLinesReflectChestState() {
         publishFrame("treasure", RestView.empty(), TreasureView.closed(), ShopView.empty());
+        // D08 follow-up: verified native TreasureRoom draws no title/status text, so the CLOSED
+        // state projects no chrome rows.
         List<RoomChromeLine> closedLines = TreasureDrawPath.chromeLines();
-        assertEquals(2, closedLines.size());
-        assertEquals("Treasure", closedLines.get(0).text);
-        assertEquals("chest", closedLines.get(1).id);
-        assertEquals("Chest closed", closedLines.get(1).text);
-        assertTrue(closedLines.get(1).enabled);
+        assertEquals(0, closedLines.size());
 
         publishFrame("treasure", RestView.empty(),
                 TreasureView.opened("Bag of Marbles", "relic.Bag of Marbles"), ShopView.empty());
         List<RoomChromeLine> openLines = TreasureDrawPath.chromeLines();
-        assertEquals(3, openLines.size());
-        assertEquals("chest", openLines.get(1).id);
-        assertEquals(ResourceIds.UI_TREASURE_CHEST_OPEN, openLines.get(1).resourceId);
-        assertEquals("relic", openLines.get(2).id);
-        assertEquals("Bag of Marbles", openLines.get(2).text);
-        assertEquals(ResourceIds.UI_TREASURE_RELIC, openLines.get(2).resourceId);
+        // Exactly one relic row; no synthetic "Chest open" status row.
+        assertEquals(1, openLines.size());
+        assertEquals("relic", openLines.get(0).id);
+        assertEquals("Bag of Marbles", openLines.get(0).text);
+        assertEquals(ResourceIds.UI_TREASURE_RELIC, openLines.get(0).resourceId);
         assertEquals(Integer.valueOf(openLines.size()),
                 TreasureDrawPath.probeSlice().get("chromeLineCount"));
     }
@@ -261,9 +258,32 @@ public class RoomChromeRenderTest {
 
         Sts1SurfaceRenderer.prepareTreasureVisuals(plan);
 
+        // D08 follow-up: closed state has no chrome rows, so no chrome C2 items are materialized
+        // (the chest sprite is synced separately and is absent when Settings is unavailable here).
         assertC2ItemsMatch(SurfaceIds.TREASURE, TreasureDrawPath.chromeLines());
-        assertC2Item(SurfaceIds.TREASURE, "chest", "treasure-chest",
-                ResourceIds.UI_TREASURE_CHEST_CLOSED, "Chest closed", 1);
+        assertTrue("no synthetic chest/title row in the closed state",
+                !hasC2Item(SurfaceIds.TREASURE, "chest") && !hasC2Item(SurfaceIds.TREASURE, "title"));
+
+        // Opened state materializes exactly the single relic row.
+        publishFrame("treasure", RestView.empty(),
+                TreasureView.opened("Bag of Marbles", "relic.Bag of Marbles"), ShopView.empty());
+        Sts1SurfaceRenderer.prepareTreasureVisuals(Sts1RenderPipeline.plan());
+        assertC2ItemsMatch(SurfaceIds.TREASURE, TreasureDrawPath.chromeLines());
+        assertC2Item(SurfaceIds.TREASURE, "relic", "treasure-relic",
+                ResourceIds.UI_TREASURE_RELIC, "Bag of Marbles", 0);
+    }
+
+    private static boolean hasC2Item(String surfaceId, String localId) {
+        PresentationContext context = PresentationRegistry.context("c2-surfaces");
+        String scope = "sts1.visual." + surfaceId;
+        for (EntityId entity : context.entities()) {
+            NodeIdentityComponent identity = context.world().get(entity, NodeIdentityComponent.class);
+            if (identity != null && scope.equals(identity.key.scope)
+                    && localId.equals(identity.key.localId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Test
@@ -358,7 +378,10 @@ public class RoomChromeRenderTest {
 
     @Test
     public void treasureEvidenceRecordsRealRowCount() {
-        publishFrame("treasure", RestView.empty(), TreasureView.closed(), ShopView.empty());
+        // D08 follow-up: the CLOSED state has no chrome rows, so use the OPENED state (one relic
+        // row) to prove the evidence count follows the live projected rows.
+        publishFrame("treasure", RestView.empty(),
+                TreasureView.opened("Bag of Marbles", "relic.Bag of Marbles"), ShopView.empty());
         fullReady(SurfaceIds.TREASURE);
 
         RenderDisposition disposition = NativeRenderBridge.beginSurface(
@@ -366,7 +389,7 @@ public class RoomChromeRenderTest {
         assertEquals(RenderDisposition.Mode.DELEGATE_TO_ART, disposition.mode);
 
         int rows = TreasureDrawPath.chromeLines().size();
-        assertTrue(rows > 0);
+        assertEquals(1, rows);
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TREASURE, rows);
 
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);

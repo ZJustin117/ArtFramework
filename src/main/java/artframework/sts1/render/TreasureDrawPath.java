@@ -64,9 +64,18 @@ public final class TreasureDrawPath {
     }
 
     /**
-     * Pure projection of the current TreasureView into paintable rows: a title row plus the live
-     * chest state (closed / opened with relic label when projected). Empty while the view is
-     * unavailable so the renderer never invents pixels.
+     * Pure projection of the current TreasureView into paintable rows.
+     *
+     * <p><b>Verified native truth:</b> {@code TreasureRoom.render} is only
+     * {@code if (chest != null) chest.render(sb); super.render(sb);} — it draws NO room title and NO
+     * "Chest closed"/"Chest open" status text, and {@code AbstractChest.render} draws the chest
+     * sprite alone. The earlier synthetic {@code "title"} ({@code "Treasure"}) and {@code "chest"}
+     * status rows were ART inventions that overlapped each other; they were removed (D08 follow-up).
+     * The CLOSED state therefore projects NO chrome rows — the chest sprite is the whole supply. When
+     * the chest is open a single {@code relic} row carries the reward label/panel; native itself
+     * reveals the relic through the separate relic-get panel (the D04 reward surface), so this row is
+     * ART's minimal stand-in, not a native room draw. Empty while the view is unavailable so the
+     * renderer never invents pixels.
      */
     public static java.util.List<RoomChromeLine> chromeLines() {
         java.util.List<RoomChromeLine> out = new java.util.ArrayList<RoomChromeLine>();
@@ -74,23 +83,11 @@ public final class TreasureDrawPath {
         if (!tv.available) {
             return out;
         }
-        out.add(line("title", "Treasure", true, "treasure-title",
-                ResourceIds.UI_TREASURE_PANEL, 0));
         if (tv.chestOpen) {
-            out.add(line("chest", "Chest open", false, "treasure-chest",
-                    ResourceIds.UI_TREASURE_CHEST_OPEN, 1));
-            out.add(line(
-                    "relic",
-                    tv.relicLabel.isEmpty() ? "Chest opened" : tv.relicLabel,
-                    true,
-                    "treasure-relic",
-                    resourceForRelic(tv.relicResourceId),
-                    2));
-        } else {
-            out.add(line("chest", "Chest closed", tv.canOpen, "treasure-chest",
-                    tv.canOpen ? ResourceIds.UI_TREASURE_CHEST_CLOSED
-                            : ResourceIds.UI_EVENT_BUTTON_DISABLED,
-                    1));
+            // One row only (row 0). An empty projected label draws no text rather than inventing a
+            // synthetic "Chest opened"/status string.
+            out.add(line("relic", tv.relicLabel, true, "treasure-relic",
+                    resourceForRelic(tv.relicResourceId), 0));
         }
         return out;
     }
@@ -201,7 +198,7 @@ public final class TreasureDrawPath {
             String resourceId, int row) {
         float x = defaultX();
         float y = defaultY(row);
-        float w = "title".equals(id) ? 420f : 360f;
+        float w = 360f;
         float h = 40f;
         return new RoomChromeLine(id, text, enabled, true, role, resourceId,
                 x - w / 2f, y - h / 2f, w, h);

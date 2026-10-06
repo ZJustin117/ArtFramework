@@ -901,9 +901,12 @@ public final class Sts1SurfaceRenderer {
 
     /**
      * Treasure surface: ART_DELEGATED when FULL_READY. Paints the actual {@code AbstractChest}
-     * sprite FIRST (behind), then the minimal text chrome projected from TreasureView, and records
-     * the submitted pixel count (chest sprite + rows). Chest animation/glow/background remain an
-     * exposed supply gap.
+     * sprite (D08, geometry unchanged) and then at most ONE relic chrome row when the chest is
+     * open. Native {@code TreasureRoom.render} draws no room title/status text and
+     * {@code AbstractChest.render} draws only the sprite, so the closed state submits the sprite
+     * alone (no synthetic title/status rows — removed to fix the D1 overlap); the open-state relic
+     * label is ART's minimal stand-in for the native relic-get panel (D04 reward surface). Chest
+     * animation/glow/background remain an exposed supply gap.
      */
     private static void renderTreasure(SpriteBatch sb) {
         if (!TreasureDrawPath.shouldSuppressNativeTreasure()) {

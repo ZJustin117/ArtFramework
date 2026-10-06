@@ -67,8 +67,10 @@ public class TreasureDrawPathTest {
         assertEquals(Boolean.FALSE, probe.get("chestOpen"));
         assertEquals(Boolean.TRUE, probe.get("canOpen"));
         assertEquals(Boolean.FALSE, probe.get("suppressNativeTreasure"));
-        assertEquals(Integer.valueOf(2), probe.get("chromeLineCount"));
-        assertEquals(Integer.valueOf(2), probe.get("drawCount"));
+        // NRO-04 D08 follow-up: native TreasureRoom draws no title/status text, so the CLOSED state
+        // projects no chrome rows at all (the chest sprite is the entire supply).
+        assertEquals(Integer.valueOf(0), probe.get("chromeLineCount"));
+        assertEquals(Integer.valueOf(0), probe.get("drawCount"));
     }
 
     @Test
@@ -93,11 +95,10 @@ public class TreasureDrawPathTest {
     }
 
     @Test
-    public void treasureRowsUseChestAndRelicResources() {
+    public void treasureRowsUseRelicResourceOnlyWhenOpen() {
         publishTreasureFrame();
-        assertEquals(ResourceIds.UI_TREASURE_PANEL, TreasureDrawPath.chromeLines().get(0).resourceId);
-        assertEquals(ResourceIds.UI_TREASURE_CHEST_CLOSED,
-                TreasureDrawPath.chromeLines().get(1).resourceId);
+        // Closed: no synthetic title/status rows (native draws neither).
+        assertTrue(TreasureDrawPath.chromeLines().isEmpty());
 
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
@@ -108,11 +109,12 @@ public class TreasureDrawPathTest {
                 TopPanelView.empty(), MonsterIntentView.empty(), null));
         ArtFramework.publishFrame(backend.currentFrame());
 
-        assertEquals(3, TreasureDrawPath.chromeLines().size());
-        assertEquals(ResourceIds.UI_TREASURE_CHEST_OPEN,
-                TreasureDrawPath.chromeLines().get(1).resourceId);
+        // Open: exactly one relic row, no synthetic chest-status row.
+        assertEquals(1, TreasureDrawPath.chromeLines().size());
+        assertEquals("relic", TreasureDrawPath.chromeLines().get(0).id);
+        assertEquals("Bag of Marbles", TreasureDrawPath.chromeLines().get(0).text);
         assertEquals(ResourceIds.UI_TREASURE_RELIC,
-                TreasureDrawPath.chromeLines().get(2).resourceId);
+                TreasureDrawPath.chromeLines().get(0).resourceId);
     }
 
     @Test
@@ -125,11 +127,11 @@ public class TreasureDrawPathTest {
         invokePrepareTreasure(Sts1RenderPipeline.plan());
 
         List<RoomChromeLine> lines = TreasureDrawPath.chromeLines();
-        assertEquals(ResourceIds.UI_TREASURE_CHEST_OPEN, lines.get(1).resourceId);
-        assertFalse(lines.get(1).enabled);
+        // D08 follow-up: opened projects exactly one relic row (no title/chest-status rows).
+        assertEquals(1, lines.size());
+        assertEquals("relic", lines.get(0).id);
+        assertTrue(lines.get(0).enabled);
         assertC2Line(SurfaceIds.TREASURE, lines.get(0));
-        assertC2Line(SurfaceIds.TREASURE, lines.get(1));
-        assertC2Line(SurfaceIds.TREASURE, lines.get(2));
     }
 
     @Test
@@ -143,12 +145,16 @@ public class TreasureDrawPathTest {
 
         publishTreasureFrame();
         invokePrepareTreasure(Sts1RenderPipeline.plan());
-        assertTrue(hasC2Line(SurfaceIds.TREASURE, "chest"));
+        // Closed state projects no chrome rows, so the stale relic item (and any synthetic
+        // title/chest-status item) must be evicted; only the chest sprite remains.
         assertFalse(hasC2Line(SurfaceIds.TREASURE, "relic"));
+        assertFalse(hasC2Line(SurfaceIds.TREASURE, "chest"));
+        assertFalse(hasC2Line(SurfaceIds.TREASURE, "title"));
 
         RenderDisposition disposition = NativeRenderBridge.beginSurface(
                 SurfaceIds.TREASURE, "native.Treasure", "render", "test");
         int chromeRows = TreasureDrawPath.chromeLines().size();
+        assertEquals(0, chromeRows);
         NativeRenderBridge.recordSurfaceDraw(SurfaceIds.TREASURE, chromeRows);
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertEquals(chromeRows, evidence.drawCount);

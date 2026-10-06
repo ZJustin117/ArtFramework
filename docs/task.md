@@ -3410,14 +3410,27 @@ allocation and Young GC pressure.
       are correct), but label anchoring and title z-order should be fixed to match native. Next: anchor
       option labels below the plates per `AbstractCampfireOption`, drop or reposition the centered
       title so it is not occluded, and treat the campfire background/FX as a separate room-scene slice.
-- [ ] **Open (D08 D1 finding): room full-present text-chrome overlap + chest palette.** D1 visual review
+- [x] **DONE (D08 follow-up): room full-present treasure text-chrome overlap.** D1 visual review
       of the ART treasure frame showed the static `Treasure` title line and the `Chest closed` status
-      line colliding/overlapping (garbled `Chest=closed`), a legibility defect; it is the D-series
-      room text chrome (not the D08 chest sprite, which is correct). Also the ART chest sprite reads
-      pale/desaturated vs the native dark-wood + gold palette, and the native shine glint is absent.
-      Next: lay the room title/status text rows out without overlap (or drop the synthetic status row),
-      and consider tinting the chest sprite toward native. (The chest is the right sprite at the right
-      place; this is polish.)
+      line colliding/overlapping (garbled `Chest=closed`). Verified native truth
+      (`TreasureRoom.render` is only `if (chest != null) chest.render(sb); super.render(sb);`;
+      `AbstractChest.render` draws the sprite alone): the room draws NO "Treasure" title and NO
+      "Chest closed/opened" status text, so both were ART inventions. Removed the synthetic `title`
+      row and the synthetic `chest` status row from `TreasureDrawPath.chromeLines()`: the CLOSED
+      state now projects ZERO chrome rows (chest sprite only = the D08 deliverable) and the OPENED
+      state projects only the single `relic` row (anchored to its own row 0); its label uses the
+      projected `relicLabel` and is empty (no text) when absent instead of a synthetic
+      `"Chest opened"` string. `renderTreasure` is unchanged geometrically (chest sprite first) and
+      now draws at most that one row, so the overlap is gone. `probeSlice()`/`materializedDrawCount`
+      semantics follow the reduced rows; `TreasureDrawPathTest`/`RoomChromeRenderTest` assert closed
+      = 0 rows / open = 1 relic row (chest-sprite geometry asserts kept);
+      `d1_full_present_treasure.yaml` now asserts `chromeLineCount`/`drawCount` `lte: 1`.
+      **Honest remaining gaps:** the chest-open animation/glow (`rotation=180f`), the hover additive
+      highlight, the chest shine particles (`ChestShineEffect`/`SpookyChestEffect`), the chest-room
+      background, and the relic-get panel (the D04 reward surface) remain pending. The chest sprite
+      still reads pale/desaturated vs the native dark-wood + gold palette; it is the right sprite at
+      the right place, but any tint/palette correction is left as a separate polish item (no tint is
+      applied by ART).
 - [x] **Open (D08 follow-up, tooling): NRCC generator still points treasure at the room hook.**
       `tools/nrcc/coverage_manifest.py` doc-maps (`known_policy`/`known_surface_id`/
       `known_justification`/`known_test`) still map `TreasureRoom.render -> sts1.treasure/ART_DELEGATED`.

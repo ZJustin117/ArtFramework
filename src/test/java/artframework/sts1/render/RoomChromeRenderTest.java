@@ -74,7 +74,7 @@ public class RoomChromeRenderTest {
     }
 
     @Test
-    public void restChromeLinesProjectTitleAndOptions() {
+    public void restChromeLinesProjectOptionsWithoutSyntheticTitle() {
         publishFrame("rest",
                 RestView.of(Arrays.asList(
                         new RestView.RestOptionView("rest", "Rest", true, true),
@@ -83,23 +83,21 @@ public class RoomChromeRenderTest {
 
         List<RoomChromeLine> lines = RestDrawPath.chromeLines();
 
-        assertEquals(3, lines.size());
-        assertEquals("title", lines.get(0).id);
-        assertEquals("Campfire", lines.get(0).text);
+        // NRO-04 D07 follow-up: verified native CampfireUI.render draws NO campfire site title, so
+        // no synthetic "Campfire" title row is emitted (it would occlude the centered options).
+        assertEquals(2, lines.size());
+        assertEquals("option:rest", lines.get(0).id);
+        assertEquals("Rest", lines.get(0).text);
         assertTrue(lines.get(0).enabled);
-        assertEquals("rest-title", lines.get(0).role);
-        assertEquals(ResourceIds.UI_CAMPFIRE_PANEL, lines.get(0).resourceId);
-        assertEquals("option:rest", lines.get(1).id);
-        assertEquals("Rest", lines.get(1).text);
-        assertTrue(lines.get(1).enabled);
-        assertEquals(ResourceIds.UI_CAMPFIRE_REST_OPTION, lines.get(1).resourceId);
-        assertEquals("option:smith", lines.get(2).id);
-        assertEquals("Smith", lines.get(2).text);
-        assertTrue("projected availability must reach the chrome row", !lines.get(2).enabled);
-        assertEquals("rest-smith-option", lines.get(2).role);
-        assertEquals(ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, lines.get(2).resourceId);
+        assertEquals(ResourceIds.UI_CAMPFIRE_REST_OPTION, lines.get(0).resourceId);
+        assertEquals("option:smith", lines.get(1).id);
+        assertEquals("Smith", lines.get(1).text);
+        assertTrue("projected availability must reach the chrome row", !lines.get(1).enabled);
+        assertEquals("rest-smith-option", lines.get(1).role);
+        assertEquals(ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, lines.get(1).resourceId);
         assertEquals(Integer.valueOf(lines.size()), RestDrawPath.probeSlice().get("chromeLineCount"));
         assertEquals(Integer.valueOf(lines.size()), RestDrawPath.probeSlice().get("drawCount"));
+        assertEquals(Boolean.FALSE, RestDrawPath.probeSlice().get("hasTitle"));
         assertEquals(ResourceIds.UI_CAMPFIRE_DIG_OPTION,
                 RestDrawPath.resourceForOption("dig", "Dig", true));
         assertEquals(ResourceIds.UI_CAMPFIRE_RECALL_OPTION,
@@ -193,10 +191,9 @@ public class RoomChromeRenderTest {
         Sts1SurfaceRenderer.prepareRestVisuals(plan);
 
         assertC2ItemsMatch(SurfaceIds.REST, RestDrawPath.chromeLines());
-        assertC2Item(SurfaceIds.REST, "title", "rest-title",
-                ResourceIds.UI_CAMPFIRE_PANEL, "Campfire", 0);
-        // NRO-04 D07: rest options are now native NORM_SCALE campfire button icons (256*0.9*scale),
-        // so assert the C2 bounds against the projected chrome line rather than the old 360x40 row.
+        // NRO-04 D07 follow-up: no synthetic title row; both rows are native option icons.
+        assertC2RestOption(SurfaceIds.REST, "option:rest", "rest-option",
+                ResourceIds.UI_CAMPFIRE_REST_OPTION, "Rest");
         assertC2RestOption(SurfaceIds.REST, "option:smith", "rest-smith-option",
                 ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, "Smith");
     }
@@ -302,8 +299,8 @@ public class RoomChromeRenderTest {
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
         assertEquals(rows, evidence.drawCount);
-        assertEquals("rest evidence must carry title + live options row count",
-                3, evidence.drawCount);
+        assertEquals("rest evidence must carry the live options row count",
+                2, evidence.drawCount);
         assertEquals(Integer.valueOf(0),
                 NativeRenderBridge.strictReport().get("orphanArtOutput"));
     }
@@ -326,8 +323,8 @@ public class RoomChromeRenderTest {
 
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
-        assertEquals("hidden options leave only the visible campfire panel/title row",
-                1, evidence.drawCount);
+        assertEquals("hidden options leave no visible campfire chrome rows",
+                0, evidence.drawCount);
         assertEquals(Integer.valueOf(rows), RestDrawPath.probeSlice().get("drawCount"));
     }
 

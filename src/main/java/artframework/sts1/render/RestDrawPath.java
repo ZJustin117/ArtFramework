@@ -22,6 +22,17 @@ public final class RestDrawPath {
      * replicated. So the at-rest icon is {@code NATIVE_ICON * 0.9f * scale = 230.4f * scale}.
      */
     static final float NORM_SCALE_FACTOR = 0.9f;
+    /**
+     * Native option LABEL anchor delta BELOW the icon center. Verified in
+     * {@code AbstractCampfireOption.render}:
+     * {@code FontHelper.renderFontCenteredTopAligned(sb, FontHelper.topPanelInfoFont, this.label,
+     * this.hb.cX, this.hb.cY - 60f*Settings.scale - 50f*Settings.scale*(this.scale/Settings.scale))}.
+     * At rest {@code this.scale = NORM_SCALE = 0.9f*Settings.scale}, so the factor is 0.9 and the
+     * top-aligned anchor sits {@code 60 + 50*0.9 = 105f * Settings.scale} BELOW {@code hb.cY}; the
+     * label X is {@code hb.cX} (icon center, centered). Hover ({@code this.scale -> Settings.scale})
+     * would move it to {@code 110f*scale}; not replicated.
+     */
+    static final float LABEL_OFFSET_Y = 105f;
 
     public static final class DrawItem {
         public final String id;
@@ -38,6 +49,12 @@ public final class RestDrawPath {
         /** Native {@code AbstractCampfireOption.hb} center for this button index. */
         public final float centerX;
         public final float centerY;
+        /**
+         * Native option LABEL anchor: X = icon center X, Y top-aligned at
+         * {@code centerY - LABEL_OFFSET_Y*Settings.scale} ({@code renderFontCenteredTopAligned}).
+         */
+        public final float labelAnchorX;
+        public final float labelAnchorY;
         /** 0-based native campfire button index (even -> left column, odd -> right column). */
         public final int buttonIndex;
 
@@ -75,6 +92,8 @@ public final class RestDrawPath {
             this.y = cy - size / 2f;
             this.centerX = cx;
             this.centerY = cy;
+            this.labelAnchorX = cx;
+            this.labelAnchorY = cy - LABEL_OFFSET_Y * scale;
         }
 
         public Map<String, Object> toMap() {
@@ -91,6 +110,8 @@ public final class RestDrawPath {
             m.put("h", Float.valueOf(h));
             m.put("centerX", Float.valueOf(centerX));
             m.put("centerY", Float.valueOf(centerY));
+            m.put("labelAnchorX", Float.valueOf(labelAnchorX));
+            m.put("labelAnchorY", Float.valueOf(labelAnchorY));
             return m;
         }
     }
@@ -137,6 +158,22 @@ public final class RestDrawPath {
         return new float[] {1920f, 1080f, 1f, 1f};
     }
 
+    /**
+     * The resolved native option label Y offset BELOW the icon center: {@code LABEL_OFFSET_Y *
+     * Settings.scale} (fail-open to {@code LABEL_OFFSET_Y} at scale=1). Kept here so the renderer
+     * uses the native formula rather than a per-call magic number.
+     */
+    public static float labelOffsetY() {
+        try {
+            float scale = com.megacrit.cardcrawl.core.Settings.scale;
+            if (scale > 0f) {
+                return LABEL_OFFSET_Y * scale;
+            }
+        } catch (Throwable ignored) {
+        }
+        return LABEL_OFFSET_Y;
+    }
+
     public static boolean shouldSuppressNativeRest() {
         return Sts1RenderPipeline.plan().shouldSuppressNative(SurfaceIds.REST);
     }
@@ -152,8 +189,13 @@ public final class RestDrawPath {
     }
 
     /**
-     * Pure projection of the current RestView into paintable rows: a title row plus one row per
-     * visible option. Empty while the view is unavailable so the renderer never invents pixels.
+     * Pure projection of the current RestView into paintable rows: one row per visible option.
+     * Empty while the view is unavailable so the renderer never invents pixels.
+     *
+     * <p>No synthetic title row: verified native {@code CampfireUI.render} draws NO campfire site
+     * title (only fire, the player, bubbles, {@code bubbleMsg}, the option buttons, the scrollbar,
+     * and the touch confirm button). The previous ART-only {@code "Campfire"} title was therefore
+     * not native and is dropped (it also occluded the centered options).
      */
     public static List<RoomChromeLine> chromeLines() {
         List<RoomChromeLine> out = new ArrayList<RoomChromeLine>();
@@ -161,8 +203,6 @@ public final class RestDrawPath {
         if (!rest.available) {
             return out;
         }
-        out.add(line("title", "Campfire", true, "rest-title",
-                ResourceIds.UI_CAMPFIRE_PANEL, 0));
         for (DrawItem item : buildFromProjection()) {
             if (!item.visible) continue;
             out.add(new RoomChromeLine("option:" + item.id, item.label, item.enabled,
@@ -203,6 +243,9 @@ public final class RestDrawPath {
         // index -> left column, odd -> right). Exposed separately so the device probe can assert
         // native button geometry without changing the public items[] semantics.
         m.put("buttonCount", Integer.valueOf(items.size()));
+        // NRO-04 D07 follow-up: verified native CampfireUI.render draws NO campfire site title, so
+        // ART emits no synthetic title chrome row. Exposed so the device probe can assert it.
+        m.put("hasTitle", Boolean.FALSE);
         List<Map<String, Object>> buttons = new ArrayList<Map<String, Object>>();
         for (DrawItem d : items) {
             Map<String, Object> b = new LinkedHashMap<String, Object>();
@@ -214,6 +257,10 @@ public final class RestDrawPath {
             b.put("h", Float.valueOf(d.h));
             b.put("centerX", Float.valueOf(d.centerX));
             b.put("centerY", Float.valueOf(d.centerY));
+            // Native option label anchor (renderFontCenteredTopAligned): X = icon centerX,
+            // TOP-aligned Y = centerY - 105*scale (at rest), i.e. BELOW the icon center.
+            b.put("labelAnchorX", Float.valueOf(d.labelAnchorX));
+            b.put("labelAnchorY", Float.valueOf(d.labelAnchorY));
             b.put("enabled", Boolean.valueOf(d.enabled));
             buttons.add(b);
         }
@@ -243,25 +290,5 @@ public final class RestDrawPath {
 
     private static boolean matches(String value, String needle) {
         return value != null && value.toLowerCase(java.util.Locale.ROOT).contains(needle);
-    }
-
-    private static RoomChromeLine line(String id, String text, boolean enabled, String role,
-            String resourceId, int row) {
-        float x = defaultX();
-        float y = defaultY(row);
-        float w = "title".equals(id) ? 420f : 360f;
-        float h = 40f;
-        return new RoomChromeLine(id, text, enabled, true, role, resourceId,
-                x - w / 2f, y - h / 2f, w, h);
-    }
-
-    private static float defaultX() {
-        try { return com.megacrit.cardcrawl.core.Settings.WIDTH * 0.5f; }
-        catch (Throwable t) { return 960f; }
-    }
-
-    private static float defaultY(int row) {
-        try { return com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.66f - row * 40f; }
-        catch (Throwable t) { return 712.8f - row * 40f; }
     }
 }

@@ -52,3 +52,19 @@ steps:
   - assert:
       path: backend.restDraw.buttons[0].h
       gte: 1
+  # NRO-04 D07 follow-up: native CampfireUI.render draws NO campfire site title, so ART emits none.
+  - assert:
+      path: backend.restDraw.hasTitle
+      falsey: true
+  # NRO-04 D07 follow-up: the option label is anchored BELOW the icon center per native
+  # AbstractCampfireOption.render (renderFontCenteredTopAligned at hb.cY - 105f*scale), so
+  # labelAnchorY < centerY. `lt` is unsupported, so capture the anchor and assert centerY > it.
+  - capture:
+      path: backend.restDraw.buttons[0].labelAnchorY
+      var: labelAnchorY0
+  - assert:
+      path: backend.restDraw.buttons[0].centerY
+      gt_var: labelAnchorY0
+  - assert:
+      path: backend.restDraw.buttons[0].labelAnchorX
+      gte: 1

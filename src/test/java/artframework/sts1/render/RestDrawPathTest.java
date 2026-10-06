@@ -81,8 +81,10 @@ public class RestDrawPathTest {
         assertEquals(Integer.valueOf(2), probe.get("count"));
         assertEquals("drawCount must come from visible chrome rows, not raw options",
                 probe.get("chromeLineCount"), probe.get("drawCount"));
-        assertEquals(Integer.valueOf(3), probe.get("drawCount"));
+        assertEquals(Integer.valueOf(2), probe.get("drawCount"));
         assertEquals(Boolean.FALSE, probe.get("suppressNativeRest"));
+        // NRO-04 D07 follow-up: native CampfireUI.render draws no campfire site title.
+        assertEquals(Boolean.FALSE, probe.get("hasTitle"));
     }
 
     @Test
@@ -105,21 +107,21 @@ public class RestDrawPathTest {
         ArtFramework.publishFrame(backend.currentFrame());
 
         java.util.List<RoomChromeLine> lines = RestDrawPath.chromeLines();
-        assertEquals(8, lines.size());
-        assertEquals(ResourceIds.UI_CAMPFIRE_PANEL, lines.get(0).resourceId);
-        assertEquals(ResourceIds.UI_CAMPFIRE_REST_OPTION, lines.get(1).resourceId);
-        assertEquals(ResourceIds.UI_CAMPFIRE_SMITH_OPTION, lines.get(2).resourceId);
-        assertEquals(ResourceIds.UI_CAMPFIRE_DIG_OPTION, lines.get(3).resourceId);
-        assertEquals(ResourceIds.UI_CAMPFIRE_RECALL_OPTION, lines.get(4).resourceId);
-        assertEquals(ResourceIds.UI_CAMPFIRE_TOKE_OPTION, lines.get(5).resourceId);
-        assertEquals(ResourceIds.UI_CAMPFIRE_OTHER_OPTION, lines.get(6).resourceId);
-        assertEquals(ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, lines.get(7).resourceId);
-        assertEquals("rest-dig-option", lines.get(3).role);
-        assertEquals("rest-recall-option", lines.get(4).role);
-        assertEquals("rest-toke-option", lines.get(5).role);
-        assertEquals("rest-other-option", lines.get(6).role);
-        assertTrue(!lines.get(7).enabled);
-        assertEquals(Integer.valueOf(8), RestDrawPath.probeSlice().get("drawCount"));
+        // NRO-04 D07 follow-up: no synthetic title row (native CampfireUI.render draws none).
+        assertEquals(7, lines.size());
+        assertEquals(ResourceIds.UI_CAMPFIRE_REST_OPTION, lines.get(0).resourceId);
+        assertEquals(ResourceIds.UI_CAMPFIRE_SMITH_OPTION, lines.get(1).resourceId);
+        assertEquals(ResourceIds.UI_CAMPFIRE_DIG_OPTION, lines.get(2).resourceId);
+        assertEquals(ResourceIds.UI_CAMPFIRE_RECALL_OPTION, lines.get(3).resourceId);
+        assertEquals(ResourceIds.UI_CAMPFIRE_TOKE_OPTION, lines.get(4).resourceId);
+        assertEquals(ResourceIds.UI_CAMPFIRE_OTHER_OPTION, lines.get(5).resourceId);
+        assertEquals(ResourceIds.UI_CAMPFIRE_DISABLED_OPTION, lines.get(6).resourceId);
+        assertEquals("rest-dig-option", lines.get(2).role);
+        assertEquals("rest-recall-option", lines.get(3).role);
+        assertEquals("rest-toke-option", lines.get(4).role);
+        assertEquals("rest-other-option", lines.get(5).role);
+        assertTrue(!lines.get(6).enabled);
+        assertEquals(Integer.valueOf(7), RestDrawPath.probeSlice().get("drawCount"));
     }
 
     @Test
@@ -158,7 +160,6 @@ public class RestDrawPathTest {
         java.util.List<RoomChromeLine> lines = RestDrawPath.chromeLines();
         assertC2Line(lines.get(0));
         assertC2Line(lines.get(1));
-        assertC2Line(lines.get(2));
     }
 
     @Test
@@ -326,6 +327,92 @@ public class RestDrawPathTest {
         } finally {
             restoreSettings(previousWidth, previousHeight, previousScale, previousXScale);
         }
+    }
+
+    @Test
+    public void optionLabelsAnchorBelowTheIconCenterPerNativeFormula() throws Exception {
+        // NRO-04 D07 follow-up: native AbstractCampfireOption.render draws the label with
+        // FontHelper.renderFontCenteredTopAligned(..., hb.cX,
+        //     hb.cY - 60f*scale - 50f*scale*(scale/scale), ...) -> at rest
+        //     hb.cY - 105f*scale, TOP-ALIGNED, X = hb.cX. So labelAnchorX = icon centerX and
+        // labelAnchorY = centerY - 105*scale (BELOW the icon center).
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        setUnitScale();
+        try {
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+
+            publishRestFrame(); // rest + smith -> buttons 0 (left) and 1 (right), row 0
+
+            java.util.List<RestDrawPath.DrawItem> items = RestDrawPath.buildFromProjection();
+            assertEquals(2, items.size());
+
+            float expectedAnchorY = 720f - 105f; // centerY(720) - 105*scale(1)
+            assertEquals("label X is the icon center",
+                    items.get(0).centerX, items.get(0).labelAnchorX, 0.01f);
+            assertEquals(expectedAnchorY, items.get(0).labelAnchorY, 0.01f);
+            assertTrue("label anchor must be BELOW the icon center",
+                    items.get(0).labelAnchorY < items.get(0).centerY);
+            assertEquals(items.get(1).centerX, items.get(1).labelAnchorX, 0.01f);
+            assertEquals(expectedAnchorY, items.get(1).labelAnchorY, 0.01f);
+
+            Map<String, Object> probe = RestDrawPath.probeSlice();
+            assertEquals(Boolean.FALSE, probe.get("hasTitle"));
+            @SuppressWarnings("unchecked")
+            java.util.List<Map<String, Object>> buttons =
+                    (java.util.List<Map<String, Object>>) probe.get("buttons");
+            assertEquals(2, buttons.size());
+            assertEquals(expectedAnchorY,
+                    ((Float) buttons.get(0).get("labelAnchorY")).floatValue(), 0.01f);
+            assertEquals(((Float) buttons.get(0).get("centerX")).floatValue(),
+                    ((Float) buttons.get(0).get("labelAnchorX")).floatValue(), 0.01f);
+        } finally {
+            restoreSettings(previousWidth, previousHeight, previousScale, previousXScale);
+        }
+    }
+
+    @Test
+    public void optionLabelAnchorScalesWithNativeScale() throws Exception {
+        // scale=1.25: anchorY = centerY - 105*1.25.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        int previousWidth = com.megacrit.cardcrawl.core.Settings.WIDTH;
+        int previousHeight = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                Integer.valueOf(1920));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT",
+                Integer.valueOf(1080));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1.25f));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1.5f));
+        try {
+            ArtFramework.resetForTests();
+            Sts1RenderPipeline.resetForTests();
+            FullPresentMode.resetForTests();
+            CombatInputRouter.resetForTests();
+
+            publishRestFrame();
+
+            java.util.List<RestDrawPath.DrawItem> items = RestDrawPath.buildFromProjection();
+            float centerY = 1080f / 2f + 180f * 1.25f; // 765
+            assertEquals(centerY - 105f * 1.25f, items.get(0).labelAnchorY, 0.01f);
+            assertTrue(items.get(0).labelAnchorY < items.get(0).centerY);
+        } finally {
+            restoreSettings(previousWidth, previousHeight, previousScale, previousXScale);
+        }
+    }
+
+    private static void setUnitScale() {
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "WIDTH",
+                Integer.valueOf(1920));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "HEIGHT",
+                Integer.valueOf(1080));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "scale", Float.valueOf(1f));
+        setStaticField(com.megacrit.cardcrawl.core.Settings.class, "xScale", Float.valueOf(1f));
     }
 
     private void publishRestFrameWith(java.util.List<RestView.RestOptionView> options) {

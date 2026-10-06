@@ -799,38 +799,44 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Rest surface: ART_DELEGATED when FULL_READY. Paints resource-backed campfire chrome
+     * Rest surface: ART_DELEGATED when FULL_READY. Paints resource-backed campfire option icons
      * projected from RestView and records the current visible chrome-row count; campfire base
      * animation/native parity remains an exposed supply gap.
+     *
+     * <p>Verified native {@code CampfireUI.render} draws NO campfire site title, so ART emits no
+     * synthetic title row. Each option LABEL is anchored natively: X = option icon center X,
+     * TOP-ALIGNED Y = icon center Y minus {@code RestDrawPath.LABEL_OFFSET_Y * Settings.scale}
+     * (mirrors {@code AbstractCampfireOption.render}'s
+     * {@code FontHelper.renderFontCenteredTopAligned(..., hb.cX, hb.cY - 105f*scale, ...)}), with
+     * native colors ({@code Settings.GOLD_COLOR} usable / {@code Color.LIGHT_GRAY} disabled) so it
+     * sits BELOW the icon instead of occluding it.
      */
     private static void renderRest(SpriteBatch sb) {
         if (!RestDrawPath.shouldSuppressNativeRest()) {
             return;
         }
         try {
-            artframework.core.PresentChromeStyle chrome =
-                    artframework.core.PresentResolve.chromeForSurface(SurfaceIds.REST);
-            int i = 0;
+            int drawn = 0;
             for (RoomChromeLine line : RestDrawPath.chromeLines()) {
                 if (!line.visible) {
                     continue;
                 }
-                artframework.component.Rect bounds = roomLineBounds(line, i);
-                // NRO-04 D07: options are now 256*scale native campfire button icons centered on the
-                // CampfireUI grid, so draw the resolved icon at those bounds. The title stays TEXT
-                // ONLY: UI_CAMPFIRE_PANEL resolves to the missing images/ui/reward/rewardList.png
-                // landmine, so submitting it would paint a bogus rectangle (mirrors D06's title).
-                if (!"title".equals(line.id)) {
-                    drawResolvedTexture(sb, line.resourceId, bounds);
-                }
-                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                artframework.component.Rect bounds = roomLineBounds(line, drawn);
+                drawResolvedTexture(sb, line.resourceId, bounds);
+                // Native label anchor from the option's own center (never a copied magic number):
+                // X = centerX, top-aligned Y = centerY - LABEL_OFFSET_Y*scale (native formula).
+                float labelX = bounds.x + bounds.width * 0.5f;
+                float labelY = bounds.y + bounds.height * 0.5f
+                        - RestDrawPath.labelOffsetY();
+                com.megacrit.cardcrawl.helpers.FontHelper.renderFontCenteredTopAligned(
                         sb,
-                        com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                        com.megacrit.cardcrawl.helpers.FontHelper.topPanelInfoFont,
                         line.text,
-                        bounds.x + bounds.width * 0.5f,
-                        bounds.y + bounds.height * 0.54f,
-                        line.enabled ? colorLabel(chrome) : colorDisabled(chrome));
-                i++;
+                        labelX,
+                        labelY,
+                        line.enabled ? com.megacrit.cardcrawl.core.Settings.GOLD_COLOR
+                                : Color.LIGHT_GRAY);
+                drawn++;
             }
         } catch (Throwable ignored) {
         }

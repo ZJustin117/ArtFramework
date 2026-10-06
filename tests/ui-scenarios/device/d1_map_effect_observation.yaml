@@ -1,0 +1,110 @@
+# D1: the map effect path is observed/claimed through the CONTAINER seam.
+#
+# B06b finding: there is NO separate map-screen AbstractGameEffect.render call site. MapRoomNode
+# adds `new MapCircleEffect(...)` to AbstractDungeon.topLevelEffects (decompiled MapRoomNode:224,
+# 263), so the map effect is rendered by the `topLevelEffects` loop INSIDE AbstractDungeon.render,
+# which TransientEffectContainerPatches.ObserveContainerEffectRenders already instruments
+# (band topLevelFront, native line 2802). B06b added NO new patch; this scenario proves the seam
+# reaches the real map effect while the map is open.
+#
+# Determinism: selecting a floor-0 node adds a MapCircleEffect to AbstractDungeon.topLevelEffects
+# (and, when not FAST_MODE, a FadeWipeParticle); both are claim-supported kinds (B06/B10). Their
+# render is observed by the container loop. With the default-off per-instance claim gate ON
+# (`art aura on`) and those kinds supported/ready, the seam CLAIMS the instances, so
+# `backend.renderPlan.aura.draws` strictly increases and
+# `backend.renderPlan.nativeRender.effectBands.claimed.topLevelFront` becomes non-zero. Only
+# topLevelEffects map-node effects are claim-supported while the map is open, so the strict delta is
+# attributable to the map effect path rendered through the container seam. `draws` is a
+# process-lifetime counter (never reset outside tests), so this scenario uses captured baselines +
+# delta, never an absolute value.
+name: d1_map_effect_observation
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Leave Neow/event so first-floor map nodes become selectable (room COMPLETE).
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  # STS MapRoomNode first-pick requires currRoom.phase == COMPLETE.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # Mount first: StageHost publishes native frames while a present surface is active (the map is
+  # lab-reachable this way). Full-present map suppresses DungeonMapScreen.render but NOT the
+  # topLevelEffects loop inside AbstractDungeon.render, which is the seam this scenario exercises.
+  - console: "art present map on"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.available
+        eq: true
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: map
+  # The per-instance claim gate is independent of full present; turn it ON so a real map
+  # MapCircleEffect is CLAIMED (and drawn by ART) rather than merely observed.
+  - console: "art aura on"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.renderPlan.aura.gate
+        eq: true
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.renderPlan.aura.ready
+        gte: 1
+  # Baselines: draws is lifetime-global; the claimed topLevelFront band total likewise persists.
+  - probe: all
+  - capture:
+      path: backend.renderPlan.aura.draws
+      var: map_effect_draws_before
+  - capture:
+      path: backend.renderPlan.nativeRender.effectBands.claimed.topLevelFront
+      var: map_effect_claimed_tlf_before
+  # Selecting a floor-0 node adds a MapCircleEffect to AbstractDungeon.topLevelEffects; the
+  # container seam observes (and, gate ON, claims) it there.
+  - console: "art op map first"
+  # A strict draw delta is the deterministic proof the seam reached the real map effect instance.
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: backend.renderPlan.aura.draws
+        gt_var: map_effect_draws_before
+  - probe: all
+  # The claimed topLevelFront band must have advanced over its captured baseline (the map effect
+  # renders in the topLevelEffects loop; UNKNOWN/other bands do not count here).
+  - assert:
+      path: backend.renderPlan.nativeRender.effectBands.claimed.topLevelFront
+      gt_var: map_effect_claimed_tlf_before
+  # Teardown: return native pixels to authoritative.
+  - console: "art aura clear"
+  - console: "art aura off"

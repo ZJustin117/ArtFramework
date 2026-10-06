@@ -3,6 +3,7 @@ package artframework.sts1.patch;
 import artframework.api.ArtFramework;
 import artframework.sts1.render.NativeRenderBridge;
 import artframework.sts1.render.VfxArtRenderer;
+import artframework.sts1.render.VfxClaimPolicy;
 import artframework.sts1.render.VfxDelegationGate;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
@@ -276,6 +277,76 @@ public class TransientEffectContainerPatchesTest {
         assertEquals(Integer.valueOf(0), bands.get("orderViolations"));
         assertEquals(Integer.valueOf(0), band(bands, "native", "effectListBehind"));
         assertEquals(Integer.valueOf(0), band(bands, "claimed", "effectListFront"));
+    }
+
+    // --- B06b: the map effect path is already covered by the container seam ---
+
+    @Test
+    public void containerRenderPredicateMatchesOnlyTheNativeEffectRenderCall() {
+        // The container instrument (which covers the AbstractDungeon topLevelEffects loop that
+        // renders map MapCircleEffect instances) must match exactly the native
+        // AbstractGameEffect.render:(SpriteBatch)V descriptor and reject every other.
+        assertTrue(TransientEffectContainerPatches.ObserveContainerEffectRenders
+                .isNativeEffectRenderCall("render",
+                        "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+                        "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V"));
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectRenders
+                .isNativeEffectRenderCall("update",
+                        "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+                        "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V"));
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectRenders
+                .isNativeEffectRenderCall("render",
+                        "com.megacrit.cardcrawl.vfx.MapCircleEffect",
+                        "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V"));
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectRenders
+                .isNativeEffectRenderCall("render",
+                        "com.megacrit.cardcrawl.vfx.AbstractGameEffect",
+                        "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;F)V"));
+        assertFalse(TransientEffectContainerPatches.ObserveContainerEffectRenders
+                .isNativeEffectRenderCall(null, null, null));
+    }
+
+    @Test
+    public void mapCircleEffectIsClaimSeamSupportedAndKindMapped() {
+        // The container seam claims via VfxClaimPolicy.supports / VfxDrawGeometry.kindFor, so the
+        // map effect path stays claimable while the map is open (B06 + B06b).
+        assertTrue(VfxClaimPolicy.supports(com.megacrit.cardcrawl.vfx.MapCircleEffect.class.getName()));
+        assertTrue(VfxClaimPolicy.supportedClasses()
+                .contains(VfxClaimPolicy.MAP_CIRCLE));
+        assertEquals(artframework.sts1.render.VfxDrawGeometry.Kind.MAP_CIRCLE,
+                artframework.sts1.render.VfxDrawGeometry.kindFor(VfxClaimPolicy.MAP_CIRCLE));
+    }
+
+    @Test
+    public void containerReplacementBodyCarriesTheObserveThenRenderHelperAndTopLevelLine() {
+        // Mirror of the reward-body test: the container instrument's generated replacement for the
+        // topLevelEffects call site (the map effect's native band, line 2802) must call the
+        // observe-then-render helper with that line and emit no suppression path.
+        assertEquals(
+                "the topLevelEffects line is classified as the topLevelFront band",
+                2802, artframework.sts1.render.EffectRenderBand.LINE_TOP_LEVEL_FRONT);
+        String body = TransientEffectContainerPatches.ObserveContainerEffectRenders
+                .replacementBody(artframework.sts1.render.EffectRenderBand.LINE_TOP_LEVEL_FRONT);
+        assertTrue("the helper must be invoked with the observed line",
+                body.contains(".observeThenRender($0, $1, 2802)"));
+        assertFalse("no $proceed suppression path is emitted", body.contains("$proceed"));
+        assertFalse("no SpireReturn suppression path is emitted", body.contains("SpireReturn"));
+    }
+
+    @Test
+    public void topLevelEffectObservationLandsInTheTopLevelFrontBand() {
+        // A map-screen MapCircleEffect is added to AbstractDungeon.topLevelEffects, whose call site
+        // in AbstractDungeon.render carries LINE_TOP_LEVEL_FRONT. Observing that line classifies the
+        // render into the topLevelFront native band, so the container seam is the map effect path.
+        RecordingEffect effect = new RecordingEffect();
+        TransientEffectContainerPatches.observeThenRender(
+                effect, null, artframework.sts1.render.EffectRenderBand.LINE_TOP_LEVEL_FRONT);
+
+        assertEquals("the native draw is kept exactly once", 1, effect.drawCount);
+        Map<String, Object> bands = effectBands();
+        assertEquals(Integer.valueOf(1), band(bands, "native", "topLevelFront"));
+        assertEquals(Integer.valueOf(0), band(bands, "native", "effectListFront"));
+        assertEquals(Integer.valueOf(0), band(bands, "native", "effectListBehind"));
     }
 
     private static VfxArtRenderer.Adapter drawingAdapter() {

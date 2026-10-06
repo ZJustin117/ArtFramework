@@ -656,15 +656,20 @@ public final class VfxClaimPolicy {
      * new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
      * unchanged.
      *
-     * <p><b>Production reach (B06 boundary).</b> The claim seam's only effect observer instruments
-     * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
-     * ({@code TransientEffectContainerPatches}). {@code MapCircleEffect} is owned by the MAP screen
-     * ({@code MapRoomNode}/{@code DungeonMapScreen}), whose effect loop the seam does NOT instrument,
-     * so real map-screen {@code MapCircleEffect} instances are NOT yet observed or claimed. On-device
-     * B06 is reachable only via the lab spawn into the {@code AbstractDungeon} effect queues, and the
-     * parity/claim path is unit-verified; on the map screen the seam fails open to native. Claiming a
-     * real map-screen instance requires instrumenting the map-screen effect render call site (a
-     * separate boundary slice tracked as B06b).
+     * <p><b>Production reach (B06 boundary; CORRECTED by B06b).</b> The claim seam's only effect
+     * observer instruments {@code AbstractDungeon.render}'s direct
+     * {@code AbstractGameEffect.render} call sites ({@code TransientEffectContainerPatches}). The
+     * original note here claimed {@code MapCircleEffect} was owned by the MAP screen
+     * ({@code MapRoomNode}/{@code DungeonMapScreen}) with an effect loop the seam does NOT instrument,
+     * so real map-screen instances were "NOT yet observed or claimed". That was WRONG. There is no
+     * separate map-screen effect-render call site: {@code MapRoomNode} adds
+     * {@code new MapCircleEffect(...)} directly to {@code AbstractDungeon.topLevelEffects}, whose
+     * render loop IS one of the three {@code AbstractDungeon.render} sites instrumented by
+     * {@code TransientEffectContainerPatches.ObserveContainerEffectRenders} (band {@code topLevelFront},
+     * native line 2802). Real map-screen {@code MapCircleEffect} instances are therefore observed and
+     * claimable through the existing container seam, with NO separate map-screen instrument existing or
+     * needed. B06 is also reachable on-device via the lab spawn into the {@code AbstractDungeon} effect
+     * queues, and its parity/claim path is unit-verified.
      *
      * <p>The newest (NRO-04 B07) member is the {@code vfx-misc-root} {@code SpotlightEffect}
      * (public NO-ARG ctor, which sets {@code duration = 3f} and {@code color = new Color(1f, 1f,

@@ -575,13 +575,19 @@ package artframework.sts1.render;
  * new patch/bridge/console wiring; the default-off gate and per-instance token semantics are
  * unchanged.
  *
- * <p><b>B06 production reach.</b> The claim seam's only effect observer instruments
+ * <p><b>B06 production reach (CORRECTED by B06b).</b> The claim seam's only effect observer instruments
  * {@code AbstractDungeon.render}'s direct {@code AbstractGameEffect.render} call sites
- * ({@code TransientEffectContainerPatches}). {@code MapCircleEffect} is owned by the MAP screen
- * ({@code MapRoomNode}/{@code DungeonMapScreen}), whose effect loop the seam does NOT instrument, so
- * real map-screen instances are NOT observed/claimed; B06 is reachable on-device only via the lab
- * spawn and fails open to native on the map screen. Claiming a real map-screen instance requires
- * instrumenting the map-screen effect render call site (tracked as B06b).
+ * ({@code TransientEffectContainerPatches}). The original note here claimed {@code MapCircleEffect}
+ * was owned by the MAP screen ({@code MapRoomNode}/{@code DungeonMapScreen}) with an effect loop the
+ * seam does NOT instrument, so real map-screen instances were "NOT observed/claimed" and claiming one
+ * "requires instrumenting the map-screen effect render call site (tracked as B06b)". That was WRONG.
+ * There is no separate map-screen effect-render call site: {@code MapRoomNode} adds
+ * {@code new MapCircleEffect(...)} directly to {@code AbstractDungeon.topLevelEffects}, whose render
+ * loop IS one of the three {@code AbstractDungeon.render} sites instrumented by
+ * {@code TransientEffectContainerPatches.ObserveContainerEffectRenders} (band {@code topLevelFront},
+ * native line 2802). Real map-screen instances are therefore observed and claimable through the
+ * existing container seam, with NO separate map-screen instrument existing or needed. B06 is also
+ * reachable on-device via the lab spawn.
  *
  * <p>The newest (NRO-04 B07) member is the {@code vfx-misc-root} {@code SpotlightEffect}
  * ({@link Kind#SPOTLIGHT}): a FULL-SCREEN bare static-{@code Texture} kind with NO own per-effect

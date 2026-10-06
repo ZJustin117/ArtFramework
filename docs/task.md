@@ -1511,15 +1511,14 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
         rotation fails open), `VfxDelegationSeamTest`/`Sts1VfxRendererBindingTest` (readiness +
         appended-last order + texture-kind), `VfxLabSpawnTest` (alias -> FQN + capturing factory). No
         new patch/bridge/console wiring; the default-off gate is unchanged.
-        PRODUCTION REACH (B06 boundary): the claim seam's only effect observer instruments
-        `AbstractDungeon.render`'s direct `AbstractGameEffect.render` call sites
-        (`TransientEffectContainerPatches`). `MapCircleEffect` is owned by the MAP screen
-        (`MapRoomNode`/`DungeonMapScreen`), whose effect loop the seam does NOT instrument. Real
-        map-screen `MapCircle` instances are therefore NOT yet observed/claimed; B06 is reachable
-        on-device only via the lab spawn into the `AbstractDungeon` effect queues, and its
-        parity/claim path is unit-verified. On the map screen the seam fails open to native.
-        Claiming a real map-screen instance requires instrumenting the map-screen effect render call
-        site (tracked as B06b below); until then the seam fails open to native there.
+        PRODUCTION REACH (B06 boundary, CORRECTED by B06b): the claim seam's only effect observer
+        instruments `AbstractDungeon.render`'s direct `AbstractGameEffect.render` call sites
+        (`TransientEffectContainerPatches`). The original claim here that `MapCircleEffect`'s
+        map-screen effect loop is NOT instrumented was WRONG: `MapRoomNode` adds `MapCircleEffect`
+        directly to `AbstractDungeon.topLevelEffects`, whose loop IS one of the three instrumented
+        `AbstractDungeon.render` sites, so real map-screen `MapCircle` instances ARE observed and
+        claimable (see B06b below). B06 remains reachable on-device via the lab spawn too, and its
+        parity/claim path is unit-verified.
 
 - [x] NRO-04 B07 (`SpotlightEffect` joins the default-off per-instance claim seam):
         `com.megacrit.cardcrawl.vfx.SpotlightEffect` is appended LAST to
@@ -1832,13 +1831,53 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       evidence, explicitly NOT pixel occlusion (that remains C04). No plan/ordering-framework change,
       no suppression permission, default-off gate unchanged. Tests: `NativeRenderBridgeTest`.
 
-- [ ] **B06b map-screen effect-loop observation boundary**: instrument the map screen's
-        `AbstractGameEffect.render(SpriteBatch)` call site (`MapRoomNode`/`DungeonMapScreen` effect
-        loop) with the same observe-then-render pattern used by `TransientEffectContainerPatches`
-        (with NRCC ownership-manifest coverage), so map-screen effects — starting with
-        `MapCircleEffect` (B06) — are actually observed and claimable in production (today the seam's
-        only observer is `AbstractDungeon.render`, so the map-screen effect loop is unseen). D1
-        verification requires a REAL map screen. Do NOT implement B06b as part of B06.
+- [x] **B06b map-screen effect-loop observation boundary**: HONEST FINDING — there is NO MAP-screen
+        `AbstractGameEffect.render(SpriteBatch)` call site to instrument. `javap -c -p` on the
+        shipped 1.0 jar finds ZERO `invokevirtual
+        com/megacrit/cardcrawl/vfx/AbstractGameEffect.render:(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V`
+        in `com.megacrit.cardcrawl.map.MapRoomNode` or `com.megacrit.cardcrawl.screens.DungeonMapScreen`
+        (nor anywhere in the `com.megacrit.cardcrawl.map` package). This scope is deliberately NOT
+        universal: several OTHER `com.megacrit.cardcrawl.screens` classes DO invoke
+        `AbstractGameEffect.render(SpriteBatch)` — `CombatRewardScreen.render` (whose `RewardItem.effects`
+        loop is the B05b slice), `VictoryScreen.render`, `DoorUnlockScreen.render`,
+        `options.OptionsPanel.render`, and `select.BossRelicSelectScreen.render`. Those non-map screen
+        effect-render sites are OUT OF SCOPE for B06b and are NOT covered by this slice (B05b covers
+        only the reward loop; the others remain un-instrumented and fail open to native). The decompiled
+        reference confirms `MapRoomNode.java:224,263` add `new MapCircleEffect(...)` to
+        `AbstractDungeon.topLevelEffects`, not to any map-screen-scoped list. That loop is inside
+        `AbstractDungeon.render(SpriteBatch)`, which
+        `TransientEffectContainerPatches.ObserveContainerEffectRenders` already instruments (its three
+        sites are the two `effectList` loops and the `topLevelEffects` loop, band `topLevelFront` /
+        native line `2802`). Map-screen effects (`MapCircleEffect`, and `FadeWipeParticle` when not
+        FAST_MODE) are therefore ALREADY observed and claimable through the existing container seam;
+        B06's earlier "PRODUCTION REACH (B06 boundary)" note ("the seam's only observer ... does NOT
+        instrument the map effect loop") was WRONG and is corrected here. NO patch was added
+        (a redundant/inert instrument is explicitly rejected). This slice adds: (1) a
+        NON-TAUTOLOGICAL regression test grounded in real code — `TransientEffectContainerPatchesTest`
+        now exercises the extracted `ObserveContainerEffectRenders.isNativeEffectRenderCall`
+        predicate (matches only the native `render:(SpriteBatch)V` descriptor, rejects the
+        `MapCircleEffect` owner, other methods, and the 3-arg overload) and proves an observation at
+        `EffectRenderBand.LINE_TOP_LEVEL_FRONT` lands in the `topLevelFront` native band, plus a
+        `VfxClaimPolicy.supports(MapCircleEffect)` / `supportedClasses().contains(MAP_CIRCLE)` /
+        `VfxDrawGeometry.kindFor -> Kind.MAP_CIRCLE` seam-claim assertion (the B06 mapping is
+        unchanged); and (2) a D1 scenario
+        [`tests/ui-scenarios/device/d1_map_effect_observation.yaml`](../tests/ui-scenarios/device/d1_map_effect_observation.yaml)
+        that opens the map (`art present map on`, the lab-reachable path), turns the claim gate on,
+        captures baselines, selects a floor-0 node (`art op map first`, which adds the
+        `topLevelEffects` map effects) and asserts a STRICT delta on
+        `backend.renderPlan.aura.draws` plus a strict delta on the claimed
+        `backend.renderPlan.nativeRender.effectBands.claimed.topLevelFront` band (the map effect's
+        native band), with a matching offline loader test
+        (`tools/art-verify/tests/test_map_effect_observation_scenario.py`). DEVICE EVIDENCE: the
+        scenario was run live via `python3 tools/art-verify/run.py` (the runner elected device mode
+        because the D1 env keys were set and the connector daemon was reachable) and PASSED all 26
+        steps — a real confirmation, not a stub: `backend.renderPlan.aura.draws` advanced
+        303869 -> 307204 and the
+        claimed `backend.renderPlan.nativeRender.effectBands.claimed.topLevelFront` band advanced
+        0 -> 18 after `art op map first`, while the map was open under `art present map on`. The
+        reward-loop analogy stands: B05b instrumented a genuine separate call site
+        (`RewardItem.render`, offset 992) because the reward loop is NOT `AbstractDungeon.render`;
+        the map loop IS `AbstractDungeon.render`, so no instrument is needed.
 
 - [ ] Design and implement deterministic ART render z-order extraction/submission, preserving ECS
       system order and defining the native boundary for visual-verification backgrounds. See

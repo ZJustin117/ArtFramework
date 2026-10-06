@@ -146,6 +146,28 @@ confirms exactly one such call site (offset `992`). The NRCC `rewards.rewarditem
 D1 limitation: the lab has no command that constructs a real `CombatRewardScreen`, so this loop's
 observation is unit-verified only; on-device evidence is a no-regression load/probe check.
 
+**B06b — map effect path (already covered; no separate instrument).** There is NO MAP-screen
+`AbstractGameEffect.render:(SpriteBatch)V` call site. `javap` on the 1.0 jar finds none in
+`com.megacrit.cardcrawl.map.MapRoomNode` or `com.megacrit.cardcrawl.screens.DungeonMapScreen` (nor
+anywhere in the `com.megacrit.cardcrawl.map` package), and the decompiled `MapRoomNode.update()` adds
+`new MapCircleEffect(...)` directly to `AbstractDungeon.topLevelEffects` (MapRoomNode.java:224,263).
+That `topLevelEffects` loop IS one of the three `AbstractDungeon.render` sites the container seam
+already instruments (band `topLevelFront`, native line `2802`), so map effects — `MapCircleEffect`
+(recipe B06) and `FadeWipeParticle` (B10) — are observed and claimable with **no new patch**. Unlike
+B05b (which instrumented a genuine separate site, `RewardItem.render`, because the reward loop is not
+`AbstractDungeon.render`), the map loop is the container loop, so a redundant/inert instrument is
+explicitly rejected. **This scope is deliberately map-only, not universal.** Other
+`com.megacrit.cardcrawl.screens` classes DO have their own `AbstractGameEffect.render:(SpriteBatch)V`
+call sites — `CombatRewardScreen.render` (whose `RewardItem.effects` loop is the B05b slice),
+`VictoryScreen.render`, `DoorUnlockScreen.render`, `options.OptionsPanel.render`, and
+`select.BossRelicSelectScreen.render`. Those non-map screen effect-render sites are **out of scope for
+B06b and are NOT covered by this slice** (B05b covers only the reward loop; the others remain
+un-instrumented and fail open to native). B06b ships a regression test proving the seam covers the map
+path plus the D1 scenario
+[`tests/ui-scenarios/device/d1_map_effect_observation.yaml`](../../tests/ui-scenarios/device/d1_map_effect_observation.yaml)
+(strict `aura.draws` / claimed `topLevelFront` band deltas after `art op map first`). NRCC rows are
+unchanged.
+
 The transient-effect seam additionally has a **default-off per-instance claim** (`VfxDelegationGate`
 + `VfxClaimPolicy` + the injected `VfxArtRenderer` draw seam). The seam is family-neutral and
 currently cross-family: it is claimable for the `vfx-stance-aura` FQNs (5), the

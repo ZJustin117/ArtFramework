@@ -21,6 +21,16 @@ import javassist.expr.MethodCall;
  * helper. Native rendering follows the bridge disposition; observation failures fail open and
  * never interrupt drawing.
  *
+ * <p><b>B06b (map effect path).</b> There is NO separate map-screen
+ * {@code AbstractGameEffect.render(SpriteBatch)} call site: {@code javap} on the 1.0 jar finds
+ * none in {@code MapRoomNode} or {@code DungeonMapScreen}, and the decompiled
+ * {@code MapRoomNode.update()} adds {@code new MapCircleEffect(...)} directly to
+ * {@code AbstractDungeon.topLevelEffects}. The map effect is therefore rendered by the
+ * {@code topLevelEffects} loop instrumented by {@link ObserveContainerEffectRenders} (band
+ * {@link artframework.sts1.render.EffectRenderBand#LINE_TOP_LEVEL_FRONT}) — already observed and
+ * claimable. B06b adds NO patch and NO new suppression authority; it adds a regression test proving
+ * the container seam covers the map path plus a D1 map-observation scenario.
+ *
  * <p>Effect completion is observed by BOTH paths now:
  * <ul>
  *   <li>the class-level {@code AbstractGameEffect#update()} Postfix in
@@ -207,22 +217,50 @@ public final class TransientEffectContainerPatches {
     @SpirePatch(clz = AbstractDungeon.class, method = "render",
             paramtypez = {SpriteBatch.class})
     public static class ObserveContainerEffectRenders {
+        /**
+         * True iff the call is the native single-argument, void
+         * {@code AbstractGameEffect.render(SpriteBatch)} that this instrument targets. Public so the
+         * targeting predicate can be unit-tested directly (the test package differs) without
+         * javassist fakes. This is the SAME descriptor the B05b reward-loop extension matches.
+         *
+         * <p>The three {@code AbstractDungeon.render} call sites this covers are the two
+         * {@code effectList} loops and the {@code topLevelEffects} loop. The last one is the MAP
+         * effect path: {@code MapRoomNode} adds {@code MapCircleEffect} to
+         * {@code AbstractDungeon.topLevelEffects}, so map-screen effects are observed here with no
+         * separate map-screen instrument (B06b).
+         */
+        public static boolean isNativeEffectRenderCall(
+                String methodName, String className, String signature) {
+            return "render".equals(methodName)
+                    && "com.megacrit.cardcrawl.vfx.AbstractGameEffect".equals(className)
+                    && "(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V".equals(signature);
+        }
+
+        /**
+         * The replacement body emitted at each targeted call site: the observe-then-render helper
+         * re-invokes the native {@code effect.render(sb)} under the bridge disposition. The
+         * {@code nativeLine} classifies the native band ({@link
+         * artframework.sts1.render.EffectRenderBand}); the {@code topLevelEffects} loop carries
+         * {@link artframework.sts1.render.EffectRenderBand#LINE_TOP_LEVEL_FRONT}. Public so tests can
+         * assert the helper call and its line argument without running the instrumentor.
+         */
+        public static String replacementBody(int line) {
+            return "{ artframework.sts1.patch.TransientEffectContainerPatches"
+                    + ".observeThenRender($0, $1, " + line + "); }";
+        }
+
         @SpireInstrumentPatch
         public static ExprEditor Instrument() {
             return new ExprEditor() {
                 @Override
                 public void edit(MethodCall call) throws CannotCompileException {
-                    if (!"render".equals(call.getMethodName())
-                            || !"com.megacrit.cardcrawl.vfx.AbstractGameEffect"
-                                    .equals(call.getClassName())
-                            || !"(Lcom/badlogic/gdx/graphics/g2d/SpriteBatch;)V"
-                                    .equals(call.getSignature())) {
+                    if (!isNativeEffectRenderCall(
+                            call.getMethodName(), call.getClassName(), call.getSignature())) {
                         return;
                     }
-                    call.replace("{"
-                            + "artframework.sts1.patch.TransientEffectContainerPatches"
-                            + ".observeThenRender($0, $1, " + call.getLineNumber() + ");"
-                            + "}");
+                    // The helper re-invokes the native effect.render(sb) itself; no $proceed is used
+                    // and no SpireReturn suppression path is introduced.
+                    call.replace(replacementBody(call.getLineNumber()));
                 }
             };
         }

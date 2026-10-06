@@ -83,6 +83,37 @@ steps:
       assert:
         path: backend.mapDraw.submitCount
         gte: 1
+  # NRO-04 D03: node/outline tint fidelity. The resolved colors must equal the VERIFIED native
+  # MapRoomNode constants (AVAILABLE=0.09,0.13,0.17 -> 17212bff; NOT_TAKEN=0.34,0.34,0.34 ->
+  # 575757ff; OUTLINE=8c8c80ff; highlight=(0.9,0.9,0.9,1) -> e6e6e6ff), derived from the state
+  # predicates, so nodes are no longer submitted at white.
+  - assert:
+      path: backend.mapDraw.colorSamples.takenColorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapDraw.colorSamples.availableColorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapDraw.colorSamples.untakenColorHex
+      eq: "575757ff"
+  - assert:
+      path: backend.mapDraw.colorSamples.outlineColorHex
+      eq: "8c8c80ff"
+  - assert:
+      path: backend.mapDraw.colorSamples.highlightColorHex
+      eq: "e6e6e6ff"
+  # Each projected node must carry a resolved native tint that is NOT white. The color rule
+  # (taken || available -> 0.09/0.13/0.17, else 0.34/0.34/0.34) never yields r=g=b=1.0, so a
+  # deterministic node cannot be white; the component assert proves non-white rather than presence.
+  - assert:
+      path: backend.mapDraw.items[0].color
+      exists: true
+  - assert:
+      path: backend.mapDraw.items[0].color.r
+      neq: 1.0
+  - assert:
+      path: backend.mapDraw.items[0].colorHex
+      neq: "ffffffff"
   # Pick leftmost presentable floor-0 node (skips offscreen column placeholders).
   - console: "art op map first"
   - wait_probe:

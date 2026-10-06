@@ -108,8 +108,201 @@ public class MapDrawPathTest {
     }
 
     @Test
-    public void hitTestFindsNode() {
-        mapFrame();
+    public void resolvedNodeAndOutlineColorsMatchNativeConstantsByState() {
+        // D03: derive the tint from the projected state inputs, not a copied constant, and pin the
+        // result against the VERIFIED native MapRoomNode constants
+        // (AVAILABLE=(0.09,0.13,0.17,1), NOT_TAKEN=(0.34,0.34,0.34,1),
+        //  OUTLINE=8c8c80ff=(0.549,0.549,0.502,1), highlight=(0.9,0.9,0.9,1)).
+        Sts1HostAssets.install();
+        List<MapNodeView> nodes = Arrays.asList(
+                // taken (available false): must resolve to AVAILABLE.
+                new MapNodeView(3, 1, 10f, 10f, true, false, true, false,
+                        false, false, 64f, 64f, "R", "rest", ResourceIds.MAP_NODE_REST),
+                // untaken + available: must resolve to AVAILABLE.
+                new MapNodeView(2, 2, 20f, 20f, false, false, true, false,
+                        true, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER),
+                // untaken + unavailable: must resolve to NOT_TAKEN.
+                new MapNodeView(1, 3, 30f, 30f, false, false, false, false,
+                        false, false, 64f, 64f, "E", "elite", ResourceIds.MAP_NODE_ELITE),
+                // highlighted + unavailable: node resolves to NOT_TAKEN, outline to highlight.
+                new MapNodeView(0, 4, 40f, 40f, false, true, true, false,
+                        false, false, 80f, 80f, "S", "shop", ResourceIds.MAP_NODE_SHOP));
+        publishMapFrame("map", nodes);
+        List<MapDrawPath.DrawItem> items = MapDrawPath.buildFromProjection();
+        assertEquals(4, items.size());
+
+        assertColor("taken -> AVAILABLE", MapDrawPath.AVAILABLE_COLOR, items.get(0));
+        assertColor("available-untaken -> AVAILABLE", MapDrawPath.AVAILABLE_COLOR, items.get(1));
+        assertColor("untaken-unavailable -> NOT_TAKEN", MapDrawPath.NOT_TAKEN_COLOR, items.get(2));
+        assertColor("untaken-unavailable -> NOT_TAKEN (highlighted outline)",
+                MapDrawPath.NOT_TAKEN_COLOR, items.get(3));
+
+        // Outline: highlighted (index 3) uses the 0.9 highlight color; the rest use OUTLINE.
+        for (int i = 0; i < 3; i++) {
+            assertEquals("outline color index " + i, MapDrawPath.OUTLINE_COLOR[0], items.get(i).outlineR, 0.001f);
+            assertEquals(MapDrawPath.OUTLINE_COLOR[1], items.get(i).outlineG, 0.001f);
+            assertEquals(MapDrawPath.OUTLINE_COLOR[2], items.get(i).outlineB, 0.001f);
+        }
+        assertEquals("highlighted outline r", 0.9f, items.get(3).outlineR, 0.001f);
+        assertEquals("highlighted outline g", 0.9f, items.get(3).outlineG, 0.001f);
+        assertEquals("highlighted outline b", 0.9f, items.get(3).outlineB, 0.001f);
+    }
+
+    private static void assertColor(
+            String label, float[] expected, MapDrawPath.DrawItem item) {
+        assertEquals(label + " r", expected[0], item.nodeR, 0.001f);
+        assertEquals(label + " g", expected[1], item.nodeG, 0.001f);
+        assertEquals(label + " b", expected[2], item.nodeB, 0.001f);
+        assertEquals(label + " a", expected[3], item.nodeA, 0.001f);
+    }
+
+    @Test
+    public void currentNodeFlagDrivesRingSubmissionAtAvailableColor() {
+        Sts1HostAssets.install();
+        List<MapNodeView> nodes = Collections.singletonList(
+                new MapNodeView(5, 2, 100f, 200f, false, false, true, false,
+                        true, true, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER));
+        publishMapFrame("map", nodes);
+        MapDrawPath.DrawItem item = MapDrawPath.buildFromProjection().get(0);
+        assertTrue("current flag must project", item.currentNode);
+        assertEquals(Boolean.TRUE, item.toMap().get("currentNode"));
+
+        List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+        assertTrue("current node must submit the MAP_CIRCLE_5 ring",
+                containsResource(plan, ResourceIds.UI_MAP_CIRCLE_5));
+        MapDrawPath.Submission ring = null;
+        for (MapDrawPath.Submission s : plan) {
+            if (ResourceIds.UI_MAP_CIRCLE_5.equals(s.resourceId)) ring = s;
+        }
+        assertNotNull(ring);
+        assertEquals(MapDrawPath.AVAILABLE_COLOR[0], ring.r, 0.001f);
+        assertEquals(MapDrawPath.AVAILABLE_COLOR[1], ring.g, 0.001f);
+        assertEquals(MapDrawPath.AVAILABLE_COLOR[2], ring.b, 0.001f);
+
+        // Non-current node must NOT submit a ring.
+        publishMapFrame("map", Collections.singletonList(
+                new MapNodeView(5, 2, 100f, 200f, false, false, true, false,
+                        true, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER)));
+        assertFalse(containsResource(MapDrawPath.mapSubmissionPlan(), ResourceIds.UI_MAP_CIRCLE_5));
+    }
+
+    @Test
+    public void legacyMapShapeRoundTripsAvailableAndCurrent() {
+        // FINDING E: the legacy map-shaped ContextFrame path (coerceMap) must not drop the D03
+        // available/current fields, otherwise a round-tripped available node would render grey.
+        Sts1HostAssets.install();
+        Map<String, Object> rawMap = new LinkedHashMap<String, Object>();
+        rawMap.put("viewportWidth", Integer.valueOf(800));
+        rawMap.put("viewportHeight", Integer.valueOf(600));
+        List<Map<String, Object>> nodes = new java.util.ArrayList<Map<String, Object>>();
+        Map<String, Object> n = new LinkedHashMap<String, Object>();
+        n.put("row", Integer.valueOf(0));
+        n.put("col", Integer.valueOf(1));
+        n.put("taken", Boolean.FALSE);
+        n.put("highlighted", Boolean.FALSE);
+        n.put("available", Boolean.TRUE);
+        n.put("current", Boolean.TRUE);
+        n.put("symbol", "R");
+        n.put("roomKind", "rest");
+        n.put("resourceId", ResourceIds.MAP_NODE_REST);
+        nodes.add(n);
+        rawMap.put("nodes", nodes);
+        ContextFrame frame =
+                new ContextFrame(9L, 3L, "map", null,
+                        new LinkedHashMap<String, Object>(), rawMap, true, null);
+        MapNodeView view = frame.mapView.find(0, 1);
+        assertNotNull(view);
+        assertTrue("available must round-trip through coerceMap", view.available);
+        assertTrue("current must round-trip through coerceMap", view.current);
+
+        // Absent fields must default false (graceful), not throw.
+        Map<String, Object> n2 = new LinkedHashMap<String, Object>();
+        n2.put("row", Integer.valueOf(1));
+        n2.put("col", Integer.valueOf(1));
+        n2.put("roomKind", "monster");
+        n2.put("resourceId", ResourceIds.MAP_NODE_MONSTER);
+        List<Map<String, Object>> nodes2 = new java.util.ArrayList<Map<String, Object>>();
+        nodes2.add(n2);
+        Map<String, Object> rawMap2 = new LinkedHashMap<String, Object>();
+        rawMap2.put("nodes", nodes2);
+        ContextFrame frame2 =
+                new ContextFrame(10L, 4L, "map", null,
+                        new LinkedHashMap<String, Object>(), rawMap2, true, null);
+        assertFalse(frame2.mapView.find(1, 1).available);
+        assertFalse(frame2.mapView.find(1, 1).current);
+    }
+
+    @Test
+    public void nativeRingPredicateIsTakenOrCurrent() {
+        // D03/native parity: MapRoomNode.render draws MAP_CIRCLE_5 when
+        // `taken || (firstRoomChosen && curr)`. A TAKEN non-current node MUST submit a ring; a plain
+        // untaken/unavailable non-current node MUST NOT.
+        Sts1HostAssets.install();
+        publishMapFrame("map", Collections.singletonList(
+                new MapNodeView(1, 1, 10f, 10f, true, false, false, false,
+                        false, false, 64f, 64f, "R", "rest", ResourceIds.MAP_NODE_REST)));
+        MapDrawPath.DrawItem taken = MapDrawPath.buildFromProjection().get(0);
+        assertTrue("taken node", taken.taken);
+        assertFalse("taken node is not the current node", taken.currentNode);
+        List<MapDrawPath.Submission> takenPlan = MapDrawPath.mapSubmissionPlan();
+        assertTrue("taken non-current node MUST submit the MAP_CIRCLE_5 ring",
+                containsResource(takenPlan, ResourceIds.UI_MAP_CIRCLE_5));
+
+        publishMapFrame("map", Collections.singletonList(
+                new MapNodeView(1, 1, 10f, 10f, false, false, false, false,
+                        false, false, 64f, 64f, "R", "rest", ResourceIds.MAP_NODE_REST)));
+        MapDrawPath.DrawItem plain = MapDrawPath.buildFromProjection().get(0);
+        assertFalse("plain node", plain.taken);
+        assertFalse("plain node is not the current node", plain.currentNode);
+        assertFalse("plain untaken/unavailable node MUST NOT submit a ring",
+                containsResource(MapDrawPath.mapSubmissionPlan(), ResourceIds.UI_MAP_CIRCLE_5));
+    }
+
+    @Test
+    public void probeNodeColorMatchesNativeConstantForUntaken() {
+        // The probe-visible color the D1 scenario asserts on: an untaken/unavailable node reports
+        // NOT_TAKEN (0.34,0.34,0.34,1).
+        Sts1HostAssets.install();
+        MapNodeView n = new MapNodeView(1, 1, 50f, 50f, false, false, true, false,
+                false, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER);
+        publishMapFrame("map", Collections.singletonList(n));
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) probe.get("items");
+        assertEquals(1, items.size());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> color = (Map<String, Object>) items.get(0).get("color");
+        assertNotNull(color);
+        assertEquals(Boolean.FALSE, items.get(0).get("available"));
+        assertEquals(0.34f, ((Float) color.get("r")).floatValue(), 0.001f);
+        assertEquals(0.34f, ((Float) color.get("g")).floatValue(), 0.001f);
+        assertEquals(0.34f, ((Float) color.get("b")).floatValue(), 0.001f);
+        assertEquals(1f, ((Float) color.get("a")).floatValue(), 0.001f);
+    }
+
+    @Test
+    public void colorSamplesDeriveNativeConstantsFromStatePredicates() {
+        // D03: the pure probe samples must equal the VERIFIED native constants, derived from the
+        // state predicates (taken/available/highlighted), computed here independently.
+        Sts1HostAssets.install();
+        publishMapFrame("map", Collections.<MapNodeView>emptyList());
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> samples = (Map<String, Object>) probe.get("colorSamples");
+        assertNotNull(samples);
+        // native AVAILABLE_COLOR = (0.09,0.13,0.17,1)
+        assertEquals("17212bff", samples.get("availableColorHex"));
+        assertEquals("17212bff", samples.get("takenColorHex"));
+        // native NOT_TAKEN_COLOR = (0.34,0.34,0.34,1)
+        assertEquals("575757ff", samples.get("untakenColorHex"));
+        // native OUTLINE_COLOR = 8c8c80ff
+        assertEquals("8c8c80ff", samples.get("outlineColorHex"));
+        // native highlight = (0.9,0.9,0.9,1)
+        assertEquals("e6e6e6ff", samples.get("highlightColorHex"));
+    }
+
+    @Test
+    public void hitTestFindsNode() {        mapFrame();
         MapDrawPath.DrawItem hit = MapDrawPath.hitTest(100f, 200f, 30f);
         assertNotNull(hit);
         assertEquals(1, hit.row);
@@ -227,8 +420,8 @@ public class MapDrawPathTest {
         invokeRenderMap();
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
-        assertEquals("map evidence count must come from current projected nodes/overlays",
-                5, evidence.drawCount);
+        assertEquals("map evidence count must come from current projected nodes/overlays/rings",
+                6, evidence.drawCount);
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
     }
@@ -447,10 +640,10 @@ public class MapDrawPathTest {
     @Test
     public void submissionPlanSubmitsNodeIconOutlineHighlightAndLegend() {
         // NRO-04 D03 defect fix: renderMap must SUBMIT mapped pixels, not merely count them.
-        // Three nodes exercise node-icon + outline + highlight variants:
+        // Three nodes exercise node-icon + outline + highlight + ring variants:
         //  - reachable+highlighted monster: icon + outline + highlight
         //  - pinned shop:                    icon + highlight only (no reachable/highlighted)
-        //  - taken rest (neither):           icon only
+        //  - taken rest (neither):           icon + MAP_CIRCLE_5 ring (native `taken || curr`)
         float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
         float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
         float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
@@ -469,8 +662,9 @@ public class MapDrawPathTest {
             List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
 
             // Native order: legend paints FIRST (under), nodes paint OVER it. The legend block is the
-            // first 8 entries, then the 6 node entries.
-            assertEquals("legend block + node block", 8 + 6, plan.size());
+            // first 8 entries, then the 7 node entries (icon/outline/overlay per node + the
+            // taken-node MAP_CIRCLE_5 ring).
+            assertEquals("legend block + node block", 8 + 7, plan.size());
 
             // Legend panel (index 0, no label) + title (index 1) + 6 icon rows (2..7).
             assertEquals("legend panel resource", ResourceIds.UI_MAP_LEGEND, plan.get(0).resourceId);
@@ -485,7 +679,7 @@ public class MapDrawPathTest {
                 ResourceIds.MAP_NODE_MONSTER, ResourceIds.mapOutline("monster"),
                 ResourceIds.UI_MAP_HIGHLIGHT,
                 ResourceIds.MAP_NODE_SHOP, ResourceIds.UI_MAP_PIN,
-                ResourceIds.MAP_NODE_REST
+                ResourceIds.MAP_NODE_REST, ResourceIds.UI_MAP_CIRCLE_5
             };
             for (int i = 0; i < expectedNodeOrder.length; i++) {
                 assertEquals("node submission " + i, expectedNodeOrder[i],
@@ -508,7 +702,7 @@ public class MapDrawPathTest {
         for (String id : new String[] {
             ResourceIds.MAP_NODE_MONSTER, ResourceIds.MAP_NODE_REST,
             ResourceIds.mapOutline("monster"), ResourceIds.UI_MAP_HIGHLIGHT,
-            ResourceIds.UI_MAP_PIN, ResourceIds.UI_MAP_LEGEND
+            ResourceIds.UI_MAP_PIN, ResourceIds.UI_MAP_LEGEND, ResourceIds.UI_MAP_CIRCLE_5
         }) {
             artframework.assets.AssetResolveResult r = ArtFramework.assets().resolve(id);
             assertTrue("logical id must resolve for map submission: " + id, r.found);

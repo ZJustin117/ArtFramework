@@ -102,6 +102,7 @@ public final class ResourceIds {
     public static final String UI_MAP_HIGHLIGHT = "ui.map.highlight";
     public static final String UI_MAP_PIN = "ui.map.pin";
     public static final String UI_MAP_LEGEND = "ui.map.legend";
+    public static final String UI_MAP_CIRCLE_5 = "ui.map.circle5";
     public static final String UI_MAP_OUTLINE_PREFIX = "ui.map.outline.";
     public static final String UI_TOP_PANEL_BAR = "ui.top_panel.bar";
     public static final String UI_TOP_PANEL_GOLD = "ui.top_panel.gold";
@@ -318,6 +319,7 @@ public final class ResourceIds {
              UI_MAP_HIGHLIGHT,
              UI_MAP_PIN,
              UI_MAP_LEGEND,
+             UI_MAP_CIRCLE_5,
              cardArt("Strike_R"),
             cardArt("Defend_R"),
             cardArt("Strike_G"),

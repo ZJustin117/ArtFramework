@@ -228,6 +228,9 @@ public final class Sts1VanillaCatalog {
         // Native Legend.render draws ImageMaster.MAP_LEGEND = images/ui/map/legend2.png (512x800);
         // the 6 LegendItem icons reuse the MAP_NODE_* textures already mapped above.
         put(m, ResourceIds.UI_MAP_LEGEND, "images/ui/map/legend2.png");
+        // Native current-node ring ImageMaster.MAP_CIRCLE_5 = images/ui/map/circle5.png (verified in
+        // desktop-1.0.jar; 192x192). Drawn at native geometry for the current node (D03).
+        put(m, ResourceIds.UI_MAP_CIRCLE_5, "images/ui/map/circle5.png");
         // Edges remain intentionally absent: these fallbacks do not claim native parity.
         put(m, ResourceIds.mapOutline("monster"), "images/ui/map/monsterOutline.png");
         put(m, ResourceIds.mapOutline("elite"), "images/ui/map/eliteOutline.png");

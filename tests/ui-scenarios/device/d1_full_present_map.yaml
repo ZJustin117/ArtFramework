@@ -35,3 +35,10 @@ steps:
   - assert:
       path: backend.mapDraw.presentLevel
       eq: "OBSERVE"
+  # NRO-04 D03: node/outline tint fidelity against the VERIFIED native MapRoomNode constants.
+  - assert:
+      path: backend.mapDraw.colorSamples.untakenColorHex
+      eq: "575757ff"
+  - assert:
+      path: backend.mapDraw.colorSamples.outlineColorHex
+      eq: "8c8c80ff"

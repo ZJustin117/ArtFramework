@@ -21,6 +21,38 @@ public final class MapDrawPath {
 
     private static final MapPanZoom PAN = new MapPanZoom();
 
+    /**
+     * Native {@code MapRoomNode} tint constants (VERIFIED decompiled {@code MapRoomNode.java}
+     * ~:37-40): {@code AVAILABLE_COLOR = (0.09,0.13,0.17,1)}, {@code NOT_TAKEN_COLOR =
+     * (0.34,0.34,0.34,1)}, {@code OUTLINE_COLOR = Color.valueOf("8c8c80ff")} =
+     * (0.549,0.549,0.502,1), highlight {@code (0.9,0.9,0.9,1)}. The pure draw path mirrors the
+     * numbers rather than importing STS classes.
+     */
+    public static final float[] AVAILABLE_COLOR = {0.09f, 0.13f, 0.17f, 1f};
+    public static final float[] NOT_TAKEN_COLOR = {0.34f, 0.34f, 0.34f, 1f};
+    public static final float[] OUTLINE_COLOR = {0x8c / 255f, 0x8c / 255f, 0x80 / 255f, 1f};
+    public static final float[] HIGHLIGHT_COLOR = {0.9f, 0.9f, 0.9f, 1f};
+
+    /** Native node tint: {@code taken || available ? AVAILABLE_COLOR : NOT_TAKEN_COLOR}. */
+    static float[] nodeColor(boolean taken, boolean available) {
+        return taken || available ? AVAILABLE_COLOR : NOT_TAKEN_COLOR;
+    }
+
+    /** Native outline tint: {@code highlighted ? (0.9,0.9,0.9,1) : OUTLINE_COLOR}. */
+    static float[] outlineColor(boolean highlighted) {
+        return highlighted ? HIGHLIGHT_COLOR : OUTLINE_COLOR;
+    }
+
+    /**
+     * Current-node / taken-node ring geometry (native {@code MAP_CIRCLE_5} draw): the 192px ring is
+     * drawn centered on the node, so relative to the 128px native node texture the projected ring
+     * box is {@code nodeBox * RING_SIZE / NODE_TEXTURE_SIZE}. The native
+     * {@code (nodeScale*0.95+0.2)*Settings.scale} factor is NOT applied because the projection does
+     * not expose the live per-node scale (documented gap).
+     */
+    public static final float RING_SIZE = 192f;
+    public static final float NODE_TEXTURE_SIZE = 128f;
+
     public static final class DrawItem {
         public final int row;
         public final int col;
@@ -30,6 +62,7 @@ public final class MapDrawPath {
         public final boolean highlighted;
         public final boolean reachable;
         public final boolean pinned;
+        public final boolean available;
         public final String symbol;
         public final String roomKind;
         public final String resourceId;
@@ -42,6 +75,28 @@ public final class MapDrawPath {
         public final boolean outlineFound;
         public final boolean highlightFound;
         public final Rect bounds;
+        /**
+         * Resolved native node tint (D03): {@code taken || available ? AVAILABLE_COLOR :
+         * NOT_TAKEN_COLOR}, as r/g/b/a.
+         */
+        public final float nodeR;
+        public final float nodeG;
+        public final float nodeB;
+        public final float nodeA;
+        /**
+         * Resolved native outline tint (D03): {@code highlighted ? (0.9,0.9,0.9,1) : OUTLINE_COLOR}
+         * (native {@code OUTLINE_COLOR = Color.valueOf("8c8c80ff")}), as r/g/b/a.
+         */
+        public final float outlineR;
+        public final float outlineG;
+        public final float outlineB;
+        public final float outlineA;
+        /**
+         * Native current-node flag (D03): {@code AbstractDungeon.firstRoomChosen &&
+         * AbstractDungeon.getCurrMapNode() == node}. The renderer draws the {@code MAP_CIRCLE_5}
+         * ring when {@code taken || currentNode} (native {@code MapRoomNode.render} predicate).
+         */
+        public final boolean currentNode;
 
         public DrawItem(
                 int row,
@@ -63,6 +118,8 @@ public final class MapDrawPath {
                 String highlightSource,
                 boolean outlineFound,
                 boolean highlightFound,
+                boolean available,
+                boolean current,
                 Rect bounds) {
             this.row = row;
             this.col = col;
@@ -72,6 +129,7 @@ public final class MapDrawPath {
             this.highlighted = highlighted;
             this.reachable = reachable;
             this.pinned = pinned;
+            this.available = available;
             this.symbol = symbol;
             this.roomKind = roomKind;
             this.resourceId = resourceId;
@@ -84,6 +142,22 @@ public final class MapDrawPath {
             this.outlineFound = outlineFound;
             this.highlightFound = highlightFound;
             this.bounds = bounds;
+            // Native MapRoomNode.render color resolution (D03):
+            //   outline: highlighted ? (0.9,0.9,0.9,1) : OUTLINE_COLOR (8c8c80ff)
+            //   node:    taken ? AVAILABLE_COLOR : this.color
+            // `this.color` is AVAILABLE_COLOR for available/reachable nodes and NOT_TAKEN_COLOR
+            // otherwise; the backend exposes that as `available` (node.color == AVAILABLE_COLOR).
+            float[] node = nodeColor(taken, available);
+            this.nodeR = node[0];
+            this.nodeG = node[1];
+            this.nodeB = node[2];
+            this.nodeA = node[3];
+            float[] outline = outlineColor(highlighted);
+            this.outlineR = outline[0];
+            this.outlineG = outline[1];
+            this.outlineB = outline[2];
+            this.outlineA = outline[3];
+            this.currentNode = current;
         }
 
         public Map<String, Object> toMap() {
@@ -96,6 +170,7 @@ public final class MapDrawPath {
             m.put("highlighted", Boolean.valueOf(highlighted));
             m.put("reachable", Boolean.valueOf(reachable));
             m.put("pinned", Boolean.valueOf(pinned));
+            m.put("available", Boolean.valueOf(available));
             m.put("symbol", symbol);
             m.put("roomKind", roomKind);
             m.put("resourceId", resourceId);
@@ -107,8 +182,22 @@ public final class MapDrawPath {
             m.put("highlightSource", highlightSource);
             m.put("outlineFound", Boolean.valueOf(outlineFound));
             m.put("highlightFound", Boolean.valueOf(highlightFound));
-            Map<String, Object> geometry = new LinkedHashMap<String, Object>();
-            geometry.put("x", Float.valueOf(bounds.x));
+            Map<String, Object> nodeColor = new LinkedHashMap<String, Object>();
+            nodeColor.put("r", Float.valueOf(nodeR));
+            nodeColor.put("g", Float.valueOf(nodeG));
+            nodeColor.put("b", Float.valueOf(nodeB));
+            nodeColor.put("a", Float.valueOf(nodeA));
+            m.put("color", nodeColor);
+            Map<String, Object> outlineColor = new LinkedHashMap<String, Object>();
+            outlineColor.put("r", Float.valueOf(outlineR));
+            outlineColor.put("g", Float.valueOf(outlineG));
+            outlineColor.put("b", Float.valueOf(outlineB));
+            outlineColor.put("a", Float.valueOf(outlineA));
+            m.put("outlineColor", outlineColor);
+            m.put("currentNode", Boolean.valueOf(currentNode));
+            m.put("colorHex", hex(nodeR, nodeG, nodeB, nodeA));
+            m.put("outlineColorHex", hex(outlineR, outlineG, outlineB, outlineA));
+            Map<String, Object> geometry = new LinkedHashMap<String, Object>();            geometry.put("x", Float.valueOf(bounds.x));
             geometry.put("y", Float.valueOf(bounds.y));
             geometry.put("width", Float.valueOf(bounds.width));
             geometry.put("height", Float.valueOf(bounds.height));
@@ -229,7 +318,7 @@ public final class MapDrawPath {
                     art.found || art.fallback ? art.source : "", art.found, outlineId, highlightId,
                     outline.found || outline.fallback ? outline.source : "",
                     highlight.found || highlight.fallback ? highlight.source : "",
-                    outline.found, highlight.found, bounds));
+                    outline.found, highlight.found, n.available, n.current, bounds));
         }
         return out;
     }
@@ -330,11 +419,27 @@ public final class MapDrawPath {
         public final String resourceId;
         public final Rect bounds;
         public final String label;
+        /** Native paint role: {@code legend|node|outline|overlay|ring|plain}. */
+        public final String role;
+        public final float r;
+        public final float g;
+        public final float b;
+        public final float a;
 
         public Submission(String resourceId, Rect bounds, String label) {
+            this(resourceId, bounds, label, "plain", 1f, 1f, 1f, 1f);
+        }
+
+        public Submission(String resourceId, Rect bounds, String label, String role,
+                float r, float g, float b, float a) {
             this.resourceId = resourceId != null ? resourceId : "";
             this.bounds = bounds;
             this.label = label != null ? label : "";
+            this.role = role != null ? role : "plain";
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.a = a;
         }
     }
 
@@ -359,12 +464,28 @@ public final class MapDrawPath {
             if (item.bounds == null || item.bounds.width <= 0f || item.bounds.height <= 0f) {
                 continue;
             }
-            addSubmission(out, item.resourceId, item.bounds, "");
+            addSubmission(out, item.resourceId, item.bounds, "", "node",
+                    item.nodeR, item.nodeG, item.nodeB, item.nodeA);
             if (item.reachable || item.highlighted) {
-                addSubmission(out, item.outlineResourceId, item.bounds, "");
+                addSubmission(out, item.outlineResourceId, item.bounds, "", "outline",
+                        item.outlineR, item.outlineG, item.outlineB, item.outlineA);
             }
             if (item.pinned || item.highlighted) {
-                addSubmission(out, item.highlightResourceId, item.bounds, "");
+                addSubmission(out, item.highlightResourceId, item.bounds, "", "overlay",
+                        1f, 1f, 1f, 1f);
+            }
+            if (item.taken || item.currentNode) {
+                // Native MapRoomNode.render (D03): MAP_CIRCLE_5 ring at AVAILABLE_COLOR when
+                // `taken || (firstRoomChosen && curr)`, centered on the node, size
+                // 192/128 × the projected node box (the 192 vs native 128 node texture ratio).
+                // Documented gap: the live native (nodeScale*0.95+0.2)*Settings.scale factor is not
+                // applied (the projection exposes no per-node scale).
+                float ringW = item.bounds.width * (RING_SIZE / NODE_TEXTURE_SIZE);
+                float ringH = item.bounds.height * (RING_SIZE / NODE_TEXTURE_SIZE);
+                Rect ring = new Rect(item.screenX - ringW * 0.5f, item.screenY - ringH * 0.5f,
+                        ringW, ringH);
+                addSubmission(out, ResourceIds.UI_MAP_CIRCLE_5, ring, "", "ring",
+                        AVAILABLE_COLOR[0], AVAILABLE_COLOR[1], AVAILABLE_COLOR[2], AVAILABLE_COLOR[3]);
             }
         }
         return out;
@@ -372,12 +493,25 @@ public final class MapDrawPath {
 
     private static void addSubmission(
             List<Submission> out, String resourceId, Rect bounds, String label) {
+        addSubmission(out, resourceId, bounds, label, "plain", 1f, 1f, 1f, 1f);
+    }
+
+    private static void addSubmission(
+            List<Submission> out,
+            String resourceId,
+            Rect bounds,
+            String label,
+            String role,
+            float r,
+            float g,
+            float b,
+            float a) {
         boolean hasResource = resourceId != null && !resourceId.isEmpty();
         boolean hasLabel = label != null && !label.isEmpty();
         if (!hasResource && !hasLabel) {
             return;
         }
-        out.add(new Submission(resourceId, bounds, label));
+        out.add(new Submission(resourceId, bounds, label, role, r, g, b, a));
     }
 
     public static DrawItem hitTest(float screenX, float screenY, float radius) {
@@ -395,6 +529,20 @@ public final class MapDrawPath {
             }
         }
         return best;
+    }
+
+    /** Returns an 8-hex-digit RGBA string (device-probe friendly). */
+    static String hex(float r, float g, float b, float a) {
+        return String.format("%02x%02x%02x%02x", channel(r), channel(g), channel(b), channel(a));
+    }
+
+    static String hex(float[] rgba) {
+        return hex(rgba[0], rgba[1], rgba[2], rgba[3]);
+    }
+
+    private static int channel(float v) {
+        int i = Math.round(Math.max(0f, Math.min(1f, v)) * 255f);
+        return i;
     }
 
     public static Map<String, Object> probeSlice() {
@@ -441,6 +589,15 @@ public final class MapDrawPath {
         legendMap.put("items", legendList);
         m.put("legend", legendMap);
         m.put("legendCount", Integer.valueOf(legend.size()));
+        // D03: pure color-resolution samples derived from the state predicates (not a copied
+        // constant). The D1 scenario asserts these against the VERIFIED native MapRoomNode values.
+        Map<String, Object> samples = new LinkedHashMap<String, Object>();
+        samples.put("takenColorHex", hex(nodeColor(true, false)));
+        samples.put("availableColorHex", hex(nodeColor(false, true)));
+        samples.put("untakenColorHex", hex(nodeColor(false, false)));
+        samples.put("outlineColorHex", hex(outlineColor(false)));
+        samples.put("highlightColorHex", hex(outlineColor(true)));
+        m.put("colorSamples", samples);
         return m;
     }
 

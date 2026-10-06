@@ -445,6 +445,7 @@ public final class ContextFrame {
                     continue;
                 }
                 Map<String, Object> m = (Map<String, Object>) row;
+                boolean highlighted = boolVal(m.get("highlighted"), false);
                 nodes.add(
                         new MapNodeView(
                                 intVal(m.get("row"), 0),
@@ -452,7 +453,13 @@ public final class ContextFrame {
                                 floatVal(m.get("x"), 0f),
                                 floatVal(m.get("y"), 0f),
                                 boolVal(m.get("taken"), false),
-                                boolVal(m.get("highlighted"), false),
+                                highlighted,
+                                boolVal(m.get("reachable"), true),
+                                boolVal(m.get("pinned"), false),
+                                boolVal(m.get("available"), false),
+                                boolVal(m.get("current"), false),
+                                floatVal(m.get("width"), highlighted ? 80f : 64f),
+                                floatVal(m.get("height"), highlighted ? 80f : 64f),
                                 str(m.get("symbol")),
                                 str(m.get("roomKind")),
                                 str(m.get("resourceId"))));

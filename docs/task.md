@@ -3327,18 +3327,25 @@ allocation and Young GC pressure.
       thread never blocks. Bounded concurrent stress tests in `PresentationWorldTest` and
       `PackSurfaceEffectsTest` (proven non-tautological: both fail with CME / "unknown entity" when
       the safe path is reverted).
-- [ ] **Open (D03 D1 finding): map node / legend texture COLOR fidelity.** D1 visual review after the
-      map pixel-submission fix showed ART map nodes as pale/white silhouettes, whereas native draws
-      them dark. Native `MapRoomNode.render` calls `sb.setColor(...)` per state before drawing the
-      node texture (`AVAILABLE_COLOR = (0.09,0.13,0.17,1)`, `NOT_TAKEN_COLOR = (0.34,0.34,0.34,1)`,
-      `OUTLINE_COLOR = 8c8c80ff`, and an oscillating `color.a` for the current node), while
-      `Sts1SurfaceRenderer.drawResolvedTexture` submits the texture with no color set (white). The
-      map node images are light masks intended to be tinted, so ART renders them untinted. Nodes and
-      the legend are present (the blank-map defect is fixed); color/tint, the current-node
-      `MAP_CIRCLE_5` ring, edges, map background/paper panel, boss icon, and node hover/legend
-      hover+fade remain uncovered. Next: extend the map draw model + `renderMap` to carry a per-item
-      color/blend (resolved from node state) and draw the current-node ring, with a D1 A/B against
-      native.
+- [x] **NRO-04 D03 (map node texture COLOR fidelity + current-node ring).** Map nodes and their
+      outlines now carry the resolved native tint instead of being submitted at WHITE. `MapNodeView`
+      gained `available` (native `MapRoomNode.color == AVAILABLE_COLOR`, compared r/g/b) and
+      `current` (`AbstractDungeon.firstRoomChosen && getCurrMapNode() == node`); `Sts1PresentationBackend
+      .mapFrame` populates both (fail-open false). `MapDrawPath.DrawItem` resolves
+      `nodeColor = taken || available ? AVAILABLE(0.09,0.13,0.17,1) : NOT_TAKEN(0.34,0.34,0.34,1)` and
+      `outlineColor = highlighted ? (0.9,0.9,0.9,1) : OUTLINE(8c8c80ff)`, exposed in probe as
+      `color`/`outlineColor`/`colorHex`/`outlineColorHex`/`currentNode` plus `colorSamples`.
+      `Sts1SurfaceRenderer.drawResolvedTexture` gained a tint overload (`sb.setColor` before draw,
+      restore WHITE after; 3-arg delegates with 1,1,1,1) and `renderMap` draws the outline/node with
+      those colors and the `ui.map.circle5` (`ImageMaster.MAP_CIRCLE_5`, `images/ui/map/circle5.png`,
+      verified in `desktop-1.0.jar`) ring at AVAILABLE_COLOR under the native predicate
+      `taken || currentNode`. D1 scenario asserts `colorSamples` = native constants and that a node
+      color is not white. **Honest gaps:** legend hover scale/tip, legend alpha fade-in, map edges,
+      map background/paper panel, boss icon, node hover FX, mobile scaling, and the native oscillating
+      alpha for the current node are NOT replicated; the ring is drawn at the projected node-box scale
+      (192/128 ratio) rather than the live native `(nodeScale*0.95+0.2)*Settings.scale` factor because
+      the projection exposes no per-node scale. D1 A/B (native map OFF vs ART map ON node darkness) is
+      the parent's task.
 - [ ] **Open (D05 D1 finding): full-screen room backdrops vs native UI layering.** The D04/D05
       full-screen sheets (reward `ui.reward.sheet`, shop rug `shop.rug.*`) are represented by
       `REWARD_COMBAT`/`SHOP` in `RenderPhase.C2_CONTENT`, so their C2 targets submit ABOVE the
@@ -3445,3 +3452,15 @@ allocation and Young GC pressure.
       mutation of native effect lists) enqueue onto the app/render thread instead of mutating the list
       directly, with a bounded stress test; or document `art claim spawn` as unsafe during active
       rendering.
+- [ ] **Open (D03 D1 finding): ART map lacks the native parchment background + localized legend.**
+      D1 A/B confirmed the D03 node/outline TINT is native-matched (probe: available/taken
+      `17212bff`, untaken `575757ff`, outline `8c8c80ff`, `ffffffff` count = 0), BUT the visual review
+      shows the ART map still reads light-on-dark because ART does not draw the native opaque
+      parchment map background — the dimmed scene bleeds through, so the 0.34-grey nodes look pale
+      against the dark ground whereas native paints them dark-on-light. The ART legend panel is also
+      white with English labels vs the native bluish Chinese legend. Also no drawn current-node ring
+      was observable in the fresh-map scenario (no taken node, `firstRoomChosen` false), so the ring
+      is unit-verified only. Next: supply the map background/paper panel pixel layer (so the tint
+      reads dark-on-light like native), localize the legend labels, and add a D1 map state that
+      actually has a taken/current node to visually confirm the `MAP_CIRCLE_5` ring. (Remaining D03
+      gaps also include map edges, boss icon, node hover FX, and mobile scaling.)

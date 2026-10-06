@@ -319,6 +319,51 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
     }
 
+    /**
+     * Native {@code MapRoomNode.color == AVAILABLE_COLOR} means the node is available/reachable and
+     * native tints its texture with {@code AVAILABLE_COLOR} (dark) rather than the untaken grey.
+     * Native sets {@code this.color = AVAILABLE_COLOR.cpy()} for reachable/current/hovered nodes and
+     * {@code NOT_TAKEN_COLOR.cpy()} otherwise (VERIFIED decompiled {@code MapRoomNode
+     * .update()}/~:235-277). Compare the r/g/b components (libGDX {@code Color.equals} is not
+     * guaranteed component-wise here) and fail open to false.
+     */
+    private static boolean isAvailable(MapRoomNode node) {
+        try {
+            if (node == null || node.color == null) {
+                return false;
+            }
+            com.badlogic.gdx.graphics.Color available = MapRoomNode.AVAILABLE_COLOR;
+            if (available == null) {
+                return false;
+            }
+            return close(node.color.r, available.r)
+                    && close(node.color.g, available.g)
+                    && close(node.color.b, available.b);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Native current-node ring gate: {@code AbstractDungeon.firstRoomChosen &&
+     * AbstractDungeon.getCurrMapNode() == this} (VERIFIED decompiled {@code MapRoomNode.render}
+     * ~:387). The {@code taken} branch of the native ring predicate is handled by the draw path
+     * ({@code taken || currentNode}). Guard exceptions and fail open to false.
+     */
+    private static boolean isCurrent(MapRoomNode node) {
+        try {
+            return node != null
+                    && AbstractDungeon.firstRoomChosen
+                    && node.equals(AbstractDungeon.getCurrMapNode());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean close(float a, float b) {
+        return Math.abs(a - b) <= 0.002f;
+    }
+
     private ContextFrame mapFrame() {
         List<MapNodeView> nodes = new ArrayList<MapNodeView>();
         if (AbstractDungeon.map != null) {
@@ -341,6 +386,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     y,
                                     node.taken,
                                     node.highlighted,
+                                    true,
+                                    false,
+                                    isAvailable(node),
+                                    isCurrent(node),
+                                    node.highlighted ? 80f : 64f,
+                                    node.highlighted ? 80f : 64f,
                                     node.getRoomSymbol(Boolean.FALSE),
                                     kind,
                                     ResourceIds.mapNode(kind)));

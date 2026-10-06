@@ -685,7 +685,8 @@ public final class Sts1SurfaceRenderer {
         try {
             for (MapDrawPath.Submission item : MapDrawPath.mapSubmissionPlan()) {
                 try {
-                    drawResolvedTexture(sb, item.resourceId, item.bounds);
+                    drawResolvedTexture(sb, item.resourceId, item.bounds,
+                            item.r, item.g, item.b, item.a);
                     if (!item.label.isEmpty()) {
                         com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                                 sb,
@@ -1000,6 +1001,22 @@ public final class Sts1SurfaceRenderer {
 
     private static void drawResolvedTexture(
             SpriteBatch sb, String resourceId, artframework.component.Rect bounds) {
+        drawResolvedTexture(sb, resourceId, bounds, 1f, 1f, 1f, 1f);
+    }
+
+    /**
+     * D03: resolve and draw with a per-draw tint (native {@code sb.setColor} semantics). Sets the
+     * batch color before {@code sb.draw} and restores {@link Color#WHITE} afterwards so sibling
+     * draws are unaffected. Fail-open on any bad input; restores white in a finally block.
+     */
+    private static void drawResolvedTexture(
+            SpriteBatch sb,
+            String resourceId,
+            artframework.component.Rect bounds,
+            float r,
+            float g,
+            float b,
+            float a) {
         if (sb == null || bounds == null || bounds.width <= 0f || bounds.height <= 0f
                 || resourceId == null || resourceId.isEmpty()) {
             return;
@@ -1010,9 +1027,15 @@ public final class Sts1SurfaceRenderer {
             com.badlogic.gdx.graphics.Texture texture =
                     artframework.sts1.assets.Sts1AssetMaterializer.resolveTexture(result);
             if (texture != null) {
+                sb.setColor(r, g, b, a);
                 sb.draw(texture, bounds.x, bounds.y, bounds.width, bounds.height);
             }
         } catch (Throwable ignored) {
+        } finally {
+            try {
+                sb.setColor(Color.WHITE);
+            } catch (Throwable ignored) {
+            }
         }
     }
 

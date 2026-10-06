@@ -137,20 +137,31 @@ public final class StsLabNativeNavigator {
             return SignalDecision.stopRejected("unsupported select: " + selectKind);
         }
         try {
-            if (com.megacrit.cardcrawl.dungeons.AbstractDungeon.player == null) {
-                return SignalDecision.stopRejected("run not ready");
+            boolean playerPresent =
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.player != null;
+            int deckSize = 0;
+            int handSize = 0;
+            if (playerPresent) {
+                com.megacrit.cardcrawl.characters.AbstractPlayer player =
+                        com.megacrit.cardcrawl.dungeons.AbstractDungeon.player;
+                deckSize = safeSize(player.masterDeck);
+                handSize = safeSize(player.hand);
+            }
+            SignalDecision gate =
+                    enterSelectGate(
+                            playerPresent, currentScreenName(), normalized, deckSize, handSize);
+            if (gate != null) {
+                return gate;
             }
             final com.megacrit.cardcrawl.characters.AbstractPlayer player =
                     com.megacrit.cardcrawl.dungeons.AbstractDungeon.player;
             if ("grid".equals(normalized)) {
-                if (player.masterDeck == null || player.masterDeck.group.isEmpty()) {
-                    return SignalDecision.stopRejected("master deck is empty");
-                }
                 final com.megacrit.cardcrawl.cards.CardGroup group =
-                        new com.megacrit.cardcrawl.cards.CardGroup(
-                                player.masterDeck,
-                                com.megacrit.cardcrawl.cards.CardGroup.CardGroupType.UNSPECIFIED);
-                post(new Runnable() {
+                        snapshotDeck(player.masterDeck);
+                if (group.group.isEmpty()) {
+                    return SignalDecision.stopRejected("master deck snapshot empty");
+                }
+                postObserved("grid select open", new Runnable() {
                     @Override
                     public void run() {
                         com.megacrit.cardcrawl.screens.select.GridCardSelectScreen screen =
@@ -163,10 +174,7 @@ public final class StsLabNativeNavigator {
                 });
                 return SignalDecision.stopHandled("grid select scheduled cards=" + group.group.size());
             }
-            if (player.hand == null || player.hand.group.isEmpty()) {
-                return SignalDecision.stopRejected("hand is empty");
-            }
-            post(new Runnable() {
+            postObserved("hand select open", new Runnable() {
                 @Override
                 public void run() {
                     com.megacrit.cardcrawl.screens.select.HandCardSelectScreen screen =
@@ -179,20 +187,129 @@ public final class StsLabNativeNavigator {
             });
             return SignalDecision.stopHandled("hand select scheduled cards=" + player.hand.group.size());
         } catch (Throwable t) {
-            return SignalDecision.stopRejected(
-                    t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName());
+            LabNavigationSignals.recordError("enter-select " + normalized, t);
+            return SignalDecision.stopRejected("enter-select " + normalized + ": " + describe(t));
         }
     }
 
-    private static void post(Runnable runnable) {
+    /**
+     * Pure pre-schedule gate for {@code enter-select}. Returns {@code null} when the open may be
+     * scheduled, otherwise the terminal decision. Kept STS-free so it is unit-testable headlessly.
+     *
+     * <p>The already-open check runs first: re-opening a select screen that is already up is the
+     * most likely transient NPE source, so it is reported as handled instead of a nested open().
+     */
+    static SignalDecision enterSelectGate(
+            boolean playerPresent,
+            String currentScreenName,
+            String normalized,
+            int deckSize,
+            int handSize) {
+        if (!playerPresent) {
+            return SignalDecision.stopRejected("run not ready");
+        }
+        if (selectScreenOpen(currentScreenName, normalized)) {
+            return SignalDecision.stopHandled("already selecting");
+        }
+        if ("grid".equals(normalized)) {
+            if (deckSize <= 0) {
+                return SignalDecision.stopRejected("master deck is empty");
+            }
+        } else if (handSize <= 0) {
+            return SignalDecision.stopRejected("hand is empty");
+        }
+        return null;
+    }
+
+    /** Pure screen-name check: the requested native select screen is already the current screen. */
+    static boolean selectScreenOpen(String currentScreenName, String normalized) {
+        if (currentScreenName == null) {
+            return false;
+        }
+        if ("grid".equals(normalized)) {
+            return "GRID".equals(currentScreenName);
+        }
+        return "HAND_SELECT".equals(currentScreenName);
+    }
+
+    private static String currentScreenName() {
+        try {
+            com.megacrit.cardcrawl.dungeons.AbstractDungeon.CurrentScreen current =
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.screen;
+            return current != null ? current.name() : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static int safeSize(com.megacrit.cardcrawl.cards.CardGroup group) {
+        try {
+            return group != null && group.group != null ? group.group.size() : 0;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
+    /**
+     * Deep copy of a deck for a select screen. Each card is copied defensively: a null or
+     * uncopyable entry is recorded via {@link LabNavigationSignals} instead of failing the whole
+     * command with a bare NPE, and skipped from the snapshot.
+     */
+    private static com.megacrit.cardcrawl.cards.CardGroup snapshotDeck(
+            com.megacrit.cardcrawl.cards.CardGroup source) {
+        com.megacrit.cardcrawl.cards.CardGroup copy =
+                new com.megacrit.cardcrawl.cards.CardGroup(
+                        com.megacrit.cardcrawl.cards.CardGroup.CardGroupType.UNSPECIFIED);
+        if (source == null || source.group == null) {
+            return copy;
+        }
+        for (com.megacrit.cardcrawl.cards.AbstractCard card : source.group) {
+            if (card == null) {
+                LabNavigationSignals.recordError(
+                        "deck copy", new NullPointerException("null card in deck"));
+                continue;
+            }
+            try {
+                copy.group.add(card.makeSameInstanceOf());
+            } catch (Throwable t) {
+                LabNavigationSignals.recordError("deck copy " + card.cardID, t);
+            }
+        }
+        return copy;
+    }
+
+    private static String describe(Throwable t) {
+        String message = t.getMessage();
+        return t.getClass().getSimpleName()
+                + (message != null && !message.isEmpty() ? " (" + message + ")" : "");
+    }
+
+    /**
+     * Posts work to the app thread, wrapping it so an app-thread failure is recorded on the lab
+     * navigation status channel ({@link LabNavigationSignals}) instead of surfacing as an uncaught
+     * crash or a silently swallowed error. Falls back to inline execution when no app is attached.
+     */
+    static void postObserved(String context, Runnable runnable) {
+        final Runnable observed =
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            runnable.run();
+                        } catch (Throwable t) {
+                            LabNavigationSignals.recordError(context, t);
+                        }
+                    }
+                };
         try {
             if (com.badlogic.gdx.Gdx.app != null) {
-                com.badlogic.gdx.Gdx.app.postRunnable(runnable);
+                com.badlogic.gdx.Gdx.app.postRunnable(observed);
                 return;
             }
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            LabNavigationSignals.recordError(context + " post", t);
         }
-        runnable.run();
+        observed.run();
     }
 
     private static com.megacrit.cardcrawl.rooms.AbstractRoom currentRoom() {

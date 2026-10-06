@@ -3515,15 +3515,25 @@ allocation and Young GC pressure.
       reads dark-on-light like native), add a D1 map state that actually has a taken/current node to
       visually confirm the `MAP_CIRCLE_5` ring, and close the remaining D03 gaps (map edges, boss
       icon, node hover FX, mobile scaling, ring `(nodeScale*0.95+0.2)*Settings.scale` factor).
-- [ ] **Open (D09 follow-up D1 finding): `art lab enter-select` intermittent NPE + select text localization.**
-      D1 runs of the select scenario: 3/4 passed; run 2 failed with a `NullPointerException` at the
-      `art lab enter-select grid` step (`StsLabNativeNavigator.enterSelect` swallowed the exception
-      type), i.e. BEFORE any selectDraw/label output — a transient lab-navigation flake, not a label
-      regression (runs 3/4 passed back-to-back in the identical prior state). The localized card
+- [x] **Hardened (D09 follow-up D1 finding): `art lab enter-select` intermittent NPE.** D1 runs of
+      the select scenario: 3/4 passed; run 2 failed with a `NullPointerException` at the
+      `art lab enter-select grid` step (`command_log.status=ERROR, message=NullPointerException`),
+      i.e. BEFORE any selectDraw/label output — a transient lab-navigation flake, not a label
+      regression (runs 3/4 passed back-to-back in the identical prior state). Defensive hardening:
+      `StsLabNativeNavigator.enterSelect` now (a) refuses to re-open a select screen that is already
+      the current screen (`AbstractDungeon.screen` GRID/HAND_SELECT) and returns
+      `stopHandled("already selecting")` instead of scheduling a nested `open()`; (b) copies the
+      master deck card-by-card, recording any null/uncopyable entry instead of failing the whole
+      command; (c) wraps every posted app-thread Runnable so a failure is recorded on a lab status
+      channel (`LabNavigationSignals.lastError`/`errorCount`, surfaced by `art lab status` /
+      `art lab dump` as `lastNavError`/`navErrorCount`) rather than surfacing as an uncaught app
+      crash; and (d) includes the real cause class + message in the outer rejection. The NPE was
+      transient and unreproduced, so this is defensive hardening, NOT a confirmed root-cause fix;
+      no exact trigger was pinned.
+- [ ] **Open (D09 follow-up D1 finding): select text localization.** The localized card
       labels (D09 follow-up) are confirmed (`Strike_R`->`打击`, `Defend_R`->`防御`, `Bash`->`痛击`,
       `AscendersBane`->`进阶之灾`). Separately, the visual review observed unlocalized text on the
       select screen: an English `Generic` string at top-center and the English `Confirm` button label,
-      amid otherwise-Chinese UI. Next: harden `art lab enter-select` against the transient NPE (retry
-      or fail with the real cause), and check whether `Generic`/`Confirm` are native (English-data)
+      amid otherwise-Chinese UI. Next: check whether `Generic`/`Confirm` are native (English-data)
       assets or leaked placeholders. (Per-card card-frame pixels remain the separately-logged
       `cardui/frame` non-file-backed gap.)

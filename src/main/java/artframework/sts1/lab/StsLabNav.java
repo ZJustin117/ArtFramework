@@ -25,6 +25,7 @@ public final class StsLabNav {
         recipes = new StsLabRecipes(host);
         LabRecipeRunner.resetForTests();
         StsLabNativeNavigator.resetForTests();
+        LabNavigationSignals.resetErrorsForTests();
     }
 
     public static LabHost host() {

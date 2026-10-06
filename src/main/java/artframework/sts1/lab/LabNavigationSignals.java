@@ -12,7 +12,43 @@ public final class LabNavigationSignals {
     public static final String REQUEST = "lab/navigation/request";
     public static final String SOURCE = "art.lab";
 
+    private static String lastError = "";
+    private static int errorCount;
+
     private LabNavigationSignals() {}
+
+    /**
+     * Records a lab-navigation failure so it stays observable even when it happens on the app
+     * thread inside a posted runnable. Surfaced by {@code art lab status} / {@code art lab dump}
+     * through {@link LabRecipeRunner#statusMap()}.
+     */
+    public static synchronized void recordError(String context, Throwable error) {
+        if (error == null) {
+            return;
+        }
+        errorCount++;
+        String prefix = context != null && !context.isEmpty() ? context + ": " : "";
+        String message = error.getMessage();
+        lastError =
+                prefix
+                        + error.getClass().getSimpleName()
+                        + (message != null && !message.isEmpty() ? ": " + message : "");
+    }
+
+    /** Most recent lab-navigation failure, or the empty string. */
+    public static synchronized String lastError() {
+        return lastError;
+    }
+
+    /** Number of lab-navigation failures recorded since the last reset. */
+    public static synchronized int errorCount() {
+        return errorCount;
+    }
+
+    public static synchronized void resetErrorsForTests() {
+        lastError = "";
+        errorCount = 0;
+    }
 
     public static UiOpResult dispatch(LabNavigationIntent intent) {
         if (intent == null || intent.name.isEmpty()) {

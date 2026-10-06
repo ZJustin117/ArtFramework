@@ -58,6 +58,8 @@ public final class LabRecipeRunner {
         m.put("status", lastStatus);
         m.put("message", lastMessage);
         m.put("characterId", characterId);
+        m.put("lastNavError", LabNavigationSignals.lastError());
+        m.put("navErrorCount", Integer.valueOf(LabNavigationSignals.errorCount()));
         if (seed != null) {
             m.put("seed", seed);
         }

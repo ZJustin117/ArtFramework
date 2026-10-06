@@ -3098,8 +3098,9 @@ allocation and Young GC pressure.
       wholesale map suppression (`MapRenderPatches`) removed — the `Legend.render` panel
       (`ResourceIds.UI_MAP_LEGEND` -> `images/ui/map/legend2.png`, 512x800) plus a title carrier and
       the 6 `LegendItem.render` room-type icon/label rows (EVENT/MERCHANT/TREASURE/REST/ENEMY/ELITE
-      reusing the existing `MAP_NODE_*` textures; short stable English labels since
-      `Legend.TEXT` localization is unavailable here). Geometry mirrors the verified native
+      reusing the existing `MAP_NODE_*` textures; labels are localized from the native
+      `CardCrawlGame.languagePack.getUIString("Legend").TEXT` UIStrings — see the D03 follow-up
+      below — with the English names only as the fail-open fallback). Geometry mirrors the verified native
       constants: `Legend.X/Y = 1670f*xScale/600f*yScale`, panel `(X-256, Y-400, 512*scale,
       800*yScale)`, `LegendItem.ICON_X = 1575f*xScale`, `TEXT_X = 1670f*xScale`, `SPACE_Y =
       58f*yScale`, `OFFSET_Y = 100f*yScale`, icon `(ICON_X-64, Y - SPACE_Y*i + OFFSET_Y - 64,
@@ -3503,13 +3504,17 @@ allocation and Young GC pressure.
       `17212bff`, untaken `575757ff`, outline `8c8c80ff`, `ffffffff` count = 0), BUT the visual review
       shows the ART map still reads light-on-dark because ART does not draw the native opaque
       parchment map background — the dimmed scene bleeds through, so the 0.34-grey nodes look pale
-      against the dark ground whereas native paints them dark-on-light. The ART legend panel is also
-      white with English labels vs the native bluish Chinese legend. Also no drawn current-node ring
-      was observable in the fresh-map scenario (no taken node, `firstRoomChosen` false), so the ring
-      is unit-verified only. Next: supply the map background/paper panel pixel layer (so the tint
-      reads dark-on-light like native), localize the legend labels, and add a D1 map state that
-      actually has a taken/current node to visually confirm the `MAP_CIRCLE_5` ring. (Remaining D03
-      gaps also include map edges, boss icon, node hover FX, and mobile scaling.)
+      against the dark ground whereas native paints them dark-on-light. **Localized legend labels
+      (D03 follow-up, done):** the legend title and 6 room labels are no longer hardcoded English in
+      the pure draw path — `MapView` carries an optional `LegendLabels` (title + 6 labels) filled by
+      `Sts1PresentationBackend.mapFrame()` via soft reflection on
+      `CardCrawlGame.languagePack.getUIString("Legend").TEXT` (`TEXT[0/3/6/9/12/15]` +
+      `TEXT[18]`, VERIFIED native `Legend.java`), fail-open to the existing English defaults; the
+      resolved text is exposed in the probe (`legendTitle`/`legendLabels`) and the `LegendDrawItem` /
+      submission-plan labels. Next: supply the map background/paper panel pixel layer (so the tint
+      reads dark-on-light like native), add a D1 map state that actually has a taken/current node to
+      visually confirm the `MAP_CIRCLE_5` ring, and close the remaining D03 gaps (map edges, boss
+      icon, node hover FX, mobile scaling, ring `(nodeScale*0.95+0.2)*Settings.scale` factor).
 - [ ] **Open (D09 follow-up D1 finding): `art lab enter-select` intermittent NPE + select text localization.**
       D1 runs of the select scenario: 3/4 passed; run 2 failed with a `NullPointerException` at the
       `art lab enter-select grid` step (`StsLabNativeNavigator.enterSelect` swallowed the exception

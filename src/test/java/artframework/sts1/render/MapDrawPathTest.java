@@ -28,6 +28,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -638,6 +639,118 @@ public class MapDrawPathTest {
     }
 
     @Test
+    public void localizedLegendTextFlowsIntoItemsProbeAndSubmissionPlan() {
+        // NRO-04 D03 follow-up: a projection carrying native-localized Legend UIStrings must drive
+        // the resolved legend text (not the English defaults). Expected values are derived from the
+        // input projection, not a copied constant.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            Sts1HostAssets.install();
+            String title = "LGD-TITLE";
+            List<String> labels = new ArrayList<String>();
+            for (int i = 0; i < 6; i++) {
+                labels.add("LGD-" + i);
+            }
+            publishMapFrame("map", projectedNodes(),
+                    new MapView.LegendLabels(title, labels));
+
+            List<MapDrawPath.LegendDrawItem> items = MapDrawPath.legendItems();
+            MapDrawPath.LegendDrawItem titleItem = legendById(items, "legend.title");
+            assertNotNull(titleItem);
+            assertEquals("localized title must reach legend.title", title, titleItem.label);
+
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+            for (int i = 0; i < rooms.length; i++) {
+                MapDrawPath.LegendDrawItem row = legendById(items, "legend:" + rooms[i]);
+                assertNotNull("missing legend row " + rooms[i], row);
+                assertEquals("localized label " + i + " must reach the LegendDrawItem",
+                        labels.get(i), row.label);
+            }
+
+            Map<String, Object> probe = MapDrawPath.probeSlice();
+            assertEquals(title, probe.get("legendTitle"));
+            @SuppressWarnings("unchecked")
+            List<String> probeLabels = (List<String>) probe.get("legendLabels");
+            assertEquals(labels, probeLabels);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> legend = (Map<String, Object>) probe.get("legend");
+            assertEquals(title, legend.get("title"));
+            assertEquals(labels, legend.get("labels"));
+
+            // The submission plan carries the localized labels/labels-only title in native order.
+            List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+            assertEquals(title, plan.get(1).label);
+            for (int i = 0; i < labels.size(); i++) {
+                assertEquals(labels.get(i), plan.get(2 + i).label);
+            }
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void emptyOrPartialLegendLabelsFallBackToEnglishAsWholeSet() {
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            Sts1HostAssets.install();
+            String[] defaults = {"Event", "Merchant", "Treasure", "Rest", "Enemy", "Elite"};
+
+            // Absent legend (legacy 3-arg MapView): must equal the English defaults.
+            publishMapFrame("map", projectedNodes());
+            assertLegendEquals(MapDrawPath.legendItems(), "Legend", defaults);
+
+            // Explicit empty legend value: still the English defaults.
+            publishMapFrame("map", projectedNodes(), MapView.LegendLabels.empty());
+            assertLegendEquals(MapDrawPath.legendItems(), "Legend", defaults);
+            Map<String, Object> probe = MapDrawPath.probeSlice();
+            assertEquals("Legend", probe.get("legendTitle"));
+
+            // ALL-OR-NOTHING: an incomplete localized set (blank + null + short) must make the WHOLE
+            // legend English — localized event + English rest (mixed languages) is forbidden.
+            publishMapFrame("map", projectedNodes(),
+                    new MapView.LegendLabels("", Arrays.asList("LOC-0", "", null, "LOC-3")));
+            assertLegendEquals(MapDrawPath.legendItems(), "Legend", defaults);
+            Map<String, Object> partialProbe = MapDrawPath.probeSlice();
+            assertEquals("Legend", partialProbe.get("legendTitle"));
+            assertEquals(Arrays.asList(defaults),
+                    (List<String>) partialProbe.get("legendLabels"));
+            assertFalse("partial set must not keep the localized event label in the probe",
+                    ((List<String>) partialProbe.get("legendLabels")).contains("LOC-0"));
+
+            // A complete set WITH a localized title is used in full (no mixed languages).
+            List<String> complete = Arrays.asList(
+                    "LOC-0", "LOC-1", "LOC-2", "LOC-3", "LOC-4", "LOC-5");
+            publishMapFrame("map", projectedNodes(),
+                    new MapView.LegendLabels("LOC-TITLE", complete));
+            assertLegendEquals(MapDrawPath.legendItems(), "LOC-TITLE",
+                    complete.toArray(new String[0]));
+
+            // A complete label set but a BLANK title must also fall the whole legend back to English
+            // (never a localized label set under an English title, or vice versa).
+            publishMapFrame("map", projectedNodes(),
+                    new MapView.LegendLabels("", complete));
+            assertLegendEquals(MapDrawPath.legendItems(), "Legend", defaults);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    private static void assertLegendEquals(
+            List<MapDrawPath.LegendDrawItem> items, String title, String[] labels) {
+        assertEquals(title, legendById(items, "legend.title").label);
+        String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+        for (int i = 0; i < rooms.length; i++) {
+            assertEquals(labels[i], legendById(items, "legend:" + rooms[i]).label);
+        }
+    }
+
+    @Test
     public void submissionPlanSubmitsNodeIconOutlineHighlightAndLegend() {
         // NRO-04 D03 defect fix: renderMap must SUBMIT mapped pixels, not merely count them.
         // Three nodes exercise node-icon + outline + highlight + ring variants:
@@ -873,6 +986,11 @@ public class MapDrawPathTest {
     }
 
     private static void publishMapFrame(String scene, List<MapNodeView> nodes) {
+        publishMapFrame(scene, nodes, null);
+    }
+
+    private static void publishMapFrame(
+            String scene, List<MapNodeView> nodes, MapView.LegendLabels legend) {
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
         backend.publish(
@@ -882,7 +1000,7 @@ public class MapDrawPathTest {
                         scene,
                         Collections.<artframework.context.CardView>emptyList(),
                         ControlsView.empty(),
-                        new MapView(nodes, 1920, 1080),
+                        new MapView(nodes, 1920, 1080, legend),
                         new ViewportView(1920, 1080, 1920, 1080)));
         ArtFramework.publishFrame(backend.currentFrame());
     }

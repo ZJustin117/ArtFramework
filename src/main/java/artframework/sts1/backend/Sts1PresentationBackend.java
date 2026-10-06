@@ -364,6 +364,47 @@ public final class Sts1PresentationBackend implements SignalBackend {
         return Math.abs(a - b) <= 0.002f;
     }
 
+    /**
+     * Soft-read of the native {@code Legend} UIStrings (NRO-04 D03 follow-up). Native
+     * {@code Legend} reads {@code CardCrawlGame.languagePack.getUIString("Legend").TEXT} with room
+     * labels at {@code TEXT[0/3/6/9/12/15]} (event/merchant/treasure/rest/enemy/elite) and the
+     * panel title at {@code TEXT[18]} (VERIFIED decompiled {@code Legend.java} ~:28-40,110-146).
+     * Reflection so the pure draw path keeps no STS import and the backend never hard-links the
+     * localization class. Returns {@code null} (callers fail open to the English defaults) when the
+     * language pack, the UIStrings, or the {@code TEXT} array is unavailable; index bounds and null
+     * entries are guarded.
+     */
+    private static MapView.LegendLabels readLegendLabels() {
+        try {
+            Class<?> gameClass = Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame");
+            Object languagePack = softField(gameClass, null, "languagePack");
+            if (languagePack == null) {
+                return null;
+            }
+            java.lang.reflect.Method getUIString =
+                    languagePack.getClass().getMethod("getUIString", String.class);
+            Object uiStrings = getUIString.invoke(languagePack, "Legend");
+            if (uiStrings == null) {
+                return null;
+            }
+            Object textObj = softField(uiStrings.getClass(), uiStrings, "TEXT");
+            if (!(textObj instanceof String[])) {
+                return null;
+            }
+            String[] text = (String[]) textObj;
+            int[] labelIndex = {0, 3, 6, 9, 12, 15};
+            List<String> labels = new ArrayList<String>(labelIndex.length);
+            for (int i = 0; i < labelIndex.length; i++) {
+                int idx = labelIndex[i];
+                labels.add(idx >= 0 && idx < text.length && text[idx] != null ? text[idx] : "");
+            }
+            String title = 18 < text.length && text[18] != null ? text[18] : "";
+            return new MapView.LegendLabels(title, labels);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     private ContextFrame mapFrame() {
         List<MapNodeView> nodes = new ArrayList<MapNodeView>();
         if (AbstractDungeon.map != null) {
@@ -400,7 +441,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
         int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
         int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
-        MapView map = new MapView(nodes, w, h);
+        MapView map = new MapView(nodes, w, h, readLegendLabels());
         ViewportView viewport = new ViewportView(w, h, w, h);
         return new ContextFrame(
                 frameId,

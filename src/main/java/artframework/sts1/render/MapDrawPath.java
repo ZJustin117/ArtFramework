@@ -258,6 +258,11 @@ public final class MapDrawPath {
     private static final String[] LEGEND_ROOM_IDS = {
         "event", "merchant", "treasure", "rest", "enemy", "elite"
     };
+    /**
+     * English fallback labels (native {@code Legend} default locale). The projection may carry the
+     * live localized {@code Legend} UIStrings; when it does, those labels win (see
+     * {@link #legendLabels()} / {@link #legendTitle()}).
+     */
     private static final String[] LEGEND_ROOM_LABELS = {
         "Event", "Merchant", "Treasure", "Rest", "Enemy", "Elite"
     };
@@ -351,6 +356,94 @@ public final class MapDrawPath {
     }
 
     /**
+     * Projected localized legend value or {@code null} when the map projection carries none
+     * (fail-open). The draw path never imports STS classes; the backend fills
+     * {@link MapView#legend} from the native {@code Legend} UIStrings.
+     */
+    private static MapView.LegendLabels projectedLegend() {
+        try {
+            MapView mv = ArtFramework.projection().map();
+            if (mv == null || mv.legend == null || mv.legend.isEmpty()) {
+                return null;
+            }
+            return mv.legend;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Resolved legend text (NRO-04 D03 follow-up, all-or-nothing). Native {@code Legend} always
+     * supplies a complete title + 6 labels, so ART consumes the localized set only when the
+     * projection carries a non-blank title AND all 6 labels non-blank; any incomplete/blank value
+     * falls the WHOLE legend back to the English defaults, so a partial/malformed localization can
+     * never produce a mixed-language legend. Returns {@code null} when the projection is
+     * unavailable or incomplete (callers use the English defaults).
+     */
+    private static ResolvedLegend resolvedLegend() {
+        MapView.LegendLabels legend = projectedLegend();
+        if (legend == null) {
+            return null;
+        }
+        String title = legend.title;
+        if (title == null || title.trim().isEmpty() || legend.size() < LEGEND_ROOM_LABELS.length) {
+            return null;
+        }
+        List<String> labels = new ArrayList<String>(LEGEND_ROOM_LABELS.length);
+        for (int i = 0; i < LEGEND_ROOM_LABELS.length; i++) {
+            String localized = legend.label(i);
+            if (localized == null || localized.trim().isEmpty()) {
+                return null;
+            }
+            labels.add(localized);
+        }
+        return new ResolvedLegend(title, labels);
+    }
+
+    /** A complete resolved legend (localized set when all 7 values are present, else null). */
+    private static final class ResolvedLegend {
+        final String title;
+        final List<String> labels;
+
+        ResolvedLegend(String title, List<String> labels) {
+            this.title = title;
+            this.labels = labels;
+        }
+    }
+
+    /** Resolved legend panel title: the localized value when the whole set is present, else English. */
+    public static String legendTitle() {
+        ResolvedLegend resolved = resolvedLegend();
+        return resolved != null ? resolved.title : LEGEND_TITLE;
+    }
+
+    /**
+     * Resolved room label at {@code index} (0..5, native {@code TEXT[0/3/6/9/12/15]} order). The
+     * full localized set is used only when complete; otherwise the English defaults are used for all
+     * indices (no mixed languages). Index-guarded and fail-open.
+     */
+    public static String legendLabel(int index) {
+        if (index < 0 || index >= LEGEND_ROOM_LABELS.length) {
+            return "";
+        }
+        ResolvedLegend resolved = resolvedLegend();
+        return resolved != null ? resolved.labels.get(index) : LEGEND_ROOM_LABELS[index];
+    }
+
+    /** Resolved room labels in native legend order (complete localized set or English defaults). */
+    public static List<String> legendLabels() {
+        ResolvedLegend resolved = resolvedLegend();
+        if (resolved != null) {
+            return new ArrayList<String>(resolved.labels);
+        }
+        List<String> out = new ArrayList<String>(LEGEND_ROOM_LABELS.length);
+        for (int i = 0; i < LEGEND_ROOM_LABELS.length; i++) {
+            out.add(LEGEND_ROOM_LABELS[i]);
+        }
+        return out;
+    }
+
+    /**
      * NRO-04 D03 map legend items: native {@code Legend.render} panel + title and the 6
      * {@code LegendItem.render} room-type icon rows, at REST (non-hovered, desktop). Returns an
      * empty list when {@code Settings} is unavailable so the renderer never invents pixels.
@@ -385,7 +478,7 @@ public final class MapDrawPath {
         // C2 text carrier centered on (X, Y + 170f*yScale) where the text X is LegendItem.TEXT_X
         // (documented approximation).
         float textX = LEGEND_ITEM_TEXT_X * xScale;
-        out.add(new LegendDrawItem("legend.title", -1, LEGEND_TITLE, "",
+        out.add(new LegendDrawItem("legend.title", -1, legendTitle(), "",
                 "map-legend", 0.2f,
                 new Rect(textX - 160f * scale, y + 170f * yScale - 20f * yScale,
                         320f * scale, 40f * yScale)));
@@ -395,7 +488,7 @@ public final class MapDrawPath {
             Rect bounds = new Rect(LEGEND_ITEM_ICON_X * xScale - 64f,
                     y - (LEGEND_ITEM_SPACE_Y * yScale) * i + (LEGEND_ITEM_OFFSET_Y * yScale) - 64f,
                     icon, icon);
-            out.add(new LegendDrawItem("legend:" + room, i, LEGEND_ROOM_LABELS[i],
+            out.add(new LegendDrawItem("legend:" + room, i, legendLabel(i),
                     legendIconResource(room), "map-legend", 0.15f, bounds));
         }
         return out;
@@ -587,8 +680,14 @@ public final class MapDrawPath {
         }
         legendMap.put("panel", panel);
         legendMap.put("items", legendList);
+        // NRO-04 D03 follow-up: the RESOLVED legend text (localized when the projection carries the
+        // native `Legend` UIStrings, else the English defaults) so the D1 scenario can assert it.
+        legendMap.put("title", legendTitle());
+        legendMap.put("labels", legendLabels());
         m.put("legend", legendMap);
         m.put("legendCount", Integer.valueOf(legend.size()));
+        m.put("legendTitle", legendTitle());
+        m.put("legendLabels", legendLabels());
         // D03: pure color-resolution samples derived from the state predicates (not a copied
         // constant). The D1 scenario asserts these against the VERIFIED native MapRoomNode values.
         Map<String, Object> samples = new LinkedHashMap<String, Object>();

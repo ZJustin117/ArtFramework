@@ -74,6 +74,32 @@ steps:
   - assert:
       path: backend.mapDraw.legendCount
       gte: 6
+  # NRO-04 D03 follow-up: the legend text must be LOCALIZED from the native Legend UIStrings
+  # (CardCrawlGame.languagePack.getUIString("Legend").TEXT[0/3/6/9/12/15] + TEXT[18]), not the
+  # English fallback. Assert presence + at least one non-empty label; do NOT hardcode a language.
+  - assert:
+      path: backend.mapDraw.legendTitle
+      exists: true
+  - assert:
+      path: backend.mapDraw.legendLabels
+      exists: true
+  - assert:
+      path: backend.mapDraw.legendLabels[0]
+      neq: ""
+  - capture:
+      path: backend.mapDraw.legendTitle
+      var: legend_resolved_title
+  - capture:
+      path: backend.mapDraw.legendLabels[0]
+      var: legend_resolved_label_0
+  # The resolved text must reach the per-item drawables too (legend.items[0] is the title row,
+  # legend.items[1] the first room row), not merely the probe arrays.
+  - assert:
+      path: backend.mapDraw.legend.items[0].label
+      eq_var: legend_resolved_title
+  - assert:
+      path: backend.mapDraw.legend.items[1].label
+      eq_var: legend_resolved_label_0
   # NRO-04 D03 defect fix: the map surface must actually SUBMIT the mapped pixels (node icon +
   # conditional outline/overlay, plus legend panel/title/icons), not only count them. submitCount
   # is the renderMap submission-plan size; it must exceed the projected node + legend counts alone.

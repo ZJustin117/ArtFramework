@@ -495,6 +495,131 @@ public final class MapDrawPath {
     }
 
     /**
+     * One native map parchment background drawable (D03 map background follow-up). The rects mirror
+     * native {@code DungeonMap.renderNormalMap} / {@code renderMapCenters} / {@code renderMapBlender}
+     * non-mobile draws ({@code mapTop}, {@code mapMid}, {@code mapBot}, then {@code mapBlend}×2), all
+     * tinted with the live {@code baseMapColor} alpha (white RGB).
+     */
+    public static final class BackgroundDrawItem {
+        public final String id;
+        public final String resourceId;
+        public final Rect bounds;
+        public final float alpha;
+
+        public BackgroundDrawItem(String id, String resourceId, Rect bounds, float alpha) {
+            this.id = id != null ? id : "";
+            this.resourceId = resourceId != null ? resourceId : "";
+            this.bounds = bounds != null ? bounds : Rect.ZERO;
+            this.alpha = alpha;
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("id", id);
+            m.put("resourceId", resourceId);
+            m.put("x", Float.valueOf(bounds.x));
+            m.put("y", Float.valueOf(bounds.y));
+            m.put("w", Float.valueOf(bounds.width));
+            m.put("h", Float.valueOf(bounds.height));
+            m.put("alpha", Float.valueOf(alpha));
+            return m;
+        }
+    }
+
+    /**
+     * Native map parchment background draws in native ORDER (D03 map background follow-up). Native
+     * {@code DungeonMap.renderNormalMap} (VERIFIED desktop-1.0.jar bytecode, non-mobile branch):
+     * {@code top} (after {@code renderMapCenters} draws {@code mid}), then {@code bot}, then
+     * {@code renderMapBlender} draws {@code blend}×2; all five use {@code baseMapColor} (white RGB +
+     * the live fade alpha). Rects are the raw native {@code SpriteBatch.draw(tex, x, y, w, h)} values,
+     * derived from the projected {@link MapView.MapBackground}:
+     * <ul>
+     *   <li>top:   {@code (0, h + offsetY + mapOffsetY, width, 1080*scale)}</li>
+     *   <li>mid:   {@code (0, offsetY + mapOffsetY, width, 1080*scale)}</li>
+     *   <li>bot:   {@code (0, -mapMidDist + offsetY + mapOffsetY + 1, width, 1080*scale)}</li>
+     *   <li>blend A: {@code (0, offsetY + mapOffsetY + 800*scale, width, blendH)}</li>
+     *   <li>blend B: {@code (0, offsetY + mapOffsetY - 220*scale, width, blendH)}</li>
+     * </ul>
+     * For the final act ({@link MapView.MapBackground#finalAct}) native takes {@code renderFinalActMap},
+     * which draws ONLY {@code top} then {@code bot} — no {@code mid} and no {@code blend} strips (its
+     * {@code renderMapBlender} {@code "TheEnding"} guard skips them); this method emits just those two
+     * (same rects/formulas), preserving native order. Fail-open: an empty list when the projection
+     * carries no background (native fields unavailable), so the map supply is unchanged and the
+     * renderer never invents pixels.
+     */
+    public static List<BackgroundDrawItem> backgroundItems() {
+        List<BackgroundDrawItem> out = new ArrayList<BackgroundDrawItem>();
+        MapView.MapBackground bg = projectedBackground();
+        if (bg == null) {
+            return out;
+        }
+        float width = bg.width;
+        float h1080 = 1080f * bg.scale;
+        float base = bg.offsetY + bg.mapOffsetY;
+        out.add(new BackgroundDrawItem("map.bg.top", ResourceIds.MAP_BG_TOP,
+                new Rect(0f, bg.h + base, width, h1080), bg.alpha));
+        if (bg.finalAct) {
+            // Native renderFinalActMap (non-mobile): top, then bot — nothing else.
+            out.add(new BackgroundDrawItem("map.bg.bot", ResourceIds.MAP_BG_BOT,
+                    new Rect(0f, -bg.mapMidDist + base + 1f, width, h1080), bg.alpha));
+            return out;
+        }
+        out.add(new BackgroundDrawItem("map.bg.mid", ResourceIds.MAP_BG_MID,
+                new Rect(0f, base, width, h1080), bg.alpha));
+        out.add(new BackgroundDrawItem("map.bg.bot", ResourceIds.MAP_BG_BOT,
+                new Rect(0f, -bg.mapMidDist + base + 1f, width, h1080), bg.alpha));
+        out.add(new BackgroundDrawItem("map.bg.blend.a", ResourceIds.MAP_BG_BLEND,
+                new Rect(0f, base + 800f * bg.scale, width, bg.blendH), bg.alpha));
+        out.add(new BackgroundDrawItem("map.bg.blend.b", ResourceIds.MAP_BG_BLEND,
+                new Rect(0f, base - 220f * bg.scale, width, bg.blendH), bg.alpha));
+        return out;
+    }
+
+    /** Projected native map background, or {@code null} when absent (fail-open). */
+    private static MapView.MapBackground projectedBackground() {
+        try {
+            MapView mv = ArtFramework.projection().map();
+            return mv != null ? mv.background : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Full native map paint order exactly as the renderer submits it (D03 layering fix). The opaque
+     * parchment background is the BOTTOM layer — the renderer draws it in
+     * {@code Sts1SurfaceRenderer.render} immediately BEFORE the C2 band, then {@code renderMap} draws
+     * the legend and the node band on top. This method returns the ordered layer keys:
+     * {@code bg:<id>} first, then {@code legend:<id>}, then the node band
+     * ({@code node:r:c}, {@code outline:r:c}, {@code overlay:r:c}, {@code ring:r:c}). Pure: derived
+     * from {@link #backgroundItems()}, {@link #legendItems()} and the node projection, so a test can
+     * prove the background sits strictly below the legend/nodes without a SpriteBatch.
+     */
+    public static List<String> paintOrder() {
+        List<String> out = new ArrayList<String>();
+        for (BackgroundDrawItem bg : backgroundItems()) {
+            out.add("bg:" + bg.id);
+        }
+        for (LegendDrawItem legend : legendItems()) {
+            out.add("legend:" + legend.id);
+        }
+        for (DrawItem item : buildFromProjection()) {
+            String key = item.row + ":" + item.col;
+            out.add("node:" + key);
+            if (item.reachable || item.highlighted) {
+                out.add("outline:" + key);
+            }
+            if (item.pinned || item.highlighted) {
+                out.add("overlay:" + key);
+            }
+            if (item.taken || item.currentNode) {
+                out.add("ring:" + key);
+            }
+        }
+        return out;
+    }
+
+    /**
      * Ordered pure submission plan for the map surface (NRO-04 D03 defect fix): exactly what
      * {@code Sts1SurfaceRenderer.renderMap} draws, in native paint order (legend first, then the
      * node band on top: node icon=1, outline=2, overlay=3). Each entry is a
@@ -667,6 +792,17 @@ public final class MapDrawPath {
         // conditional outline/overlay, plus legend panel/title/icons). Distinct from `count`, which
         // is the projected node count. This is the probe-visible submission evidence.
         m.put("submitCount", Integer.valueOf(mapSubmissionPlan().size()));
+        // D03 map background follow-up: the native parchment background layer that ART now supplies
+        // (mapTop/mapMid/mapBot + mapBlend×2). Empty when the projection carries no background.
+        List<Map<String, Object>> backgroundList = new ArrayList<Map<String, Object>>();
+        for (BackgroundDrawItem bg : backgroundItems()) {
+            backgroundList.add(bg.toMap());
+        }
+        m.put("background", backgroundList);
+        m.put("backgroundCount", Integer.valueOf(backgroundList.size()));
+        // D03 layering fix: the full paint order, background strictly below legend/nodes. Exposed so
+        // the D1 scenario and unit tests can assert the layering that fixes the node wash-out.
+        m.put("paintOrder", paintOrder());
         List<LegendDrawItem> legend = legendItems();
         Map<String, Object> legendMap = new LinkedHashMap<String, Object>();
         Map<String, Object> panel = null;

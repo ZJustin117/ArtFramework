@@ -405,6 +405,72 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
     }
 
+    /**
+     * Read the LIVE native map parchment background geometry (D03 map background follow-up). Native
+     * {@code DungeonMap.renderNormalMap} supplies the {@code mapTop/mapMid/mapBot/mapBlend} layers at
+     * live scroll/offset positions and the {@code baseMapColor} fade alpha; ART omits it, so the node
+     * tint reads light-on-dark. Mirrors the native bytecode (VERIFIED desktop-1.0.jar):
+     * {@code DungeonMapScreen.offsetY} (live scroll), {@code DungeonMap.mapMidDist} (computed by
+     * {@code calculateMapSize}: {@code Settings.MAP_DST_Y*16f - 1380f*scale} for normal acts,
+     * {@code Settings.MAP_DST_Y*4f - 1380f*scale} for {@code "TheEnding"}), {@code mapOffsetY =
+     * mapMidDist - 120f*scale}, {@code H = 1020f*scale}, {@code BLEND_H = 512f*scale}, and
+     * {@code baseMapColor.a}. It also carries {@code finalAct} ({@code AbstractDungeon.id.equals(
+     * "TheEnding")}) so the draw path can select the native {@code renderFinalActMap} background
+     * ({@code top}+{@code bot} only). Reflection so the pure draw path keeps no STS import; FAIL-OPEN
+     * to {@code null} on any missing field/throw (never throws).
+     */
+    private static MapView.MapBackground readMapBackground() {
+        try {
+            float scale = com.megacrit.cardcrawl.core.Settings.scale;
+            int width = com.megacrit.cardcrawl.core.Settings.WIDTH;
+            int height = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+            if (scale <= 0f || width <= 0) {
+                return null;
+            }
+            float offsetY = com.megacrit.cardcrawl.screens.DungeonMapScreen.offsetY;
+            boolean finalAct = false;
+            try {
+                finalAct = "TheEnding".equals(
+                        com.megacrit.cardcrawl.dungeons.AbstractDungeon.id);
+            } catch (Throwable ignored) {
+            }
+            Object map = softField(
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.class, null, "dungeonMapScreen");
+            Object dungeonMap = map != null ? softField(map.getClass(), map, "map") : null;
+            float mapMidDist = Float.NaN;
+            if (dungeonMap != null) {
+                Object mid = softField(dungeonMap.getClass(), dungeonMap, "mapMidDist");
+                if (mid instanceof Number) {
+                    mapMidDist = ((Number) mid).floatValue();
+                }
+            }
+            if (Float.isNaN(mapMidDist) || mapMidDist == 0f) {
+                // Fallback: recompute native DungeonMap.calculateMapSize().
+                float dst = com.megacrit.cardcrawl.core.Settings.MAP_DST_Y;
+                float factor = finalAct ? 4f : 16f;
+                mapMidDist = dst * factor - 1380f * scale;
+            }
+            float alpha = 1f;
+            if (dungeonMap != null) {
+                Object color = softField(dungeonMap.getClass(), dungeonMap, "baseMapColor");
+                if (color != null) {
+                    Object a = softField(color.getClass(), color, "a");
+                    if (a instanceof Number) {
+                        alpha = ((Number) a).floatValue();
+                    }
+                }
+            }
+            float mapOffsetY = mapMidDist - 120f * scale;
+            float h = 1020f * scale;
+            float blendH = 512f * scale;
+            return new MapView.MapBackground(
+                    mapMidDist, mapOffsetY, offsetY, scale, width, height, h, blendH, alpha,
+                    finalAct);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     private ContextFrame mapFrame() {
         List<MapNodeView> nodes = new ArrayList<MapNodeView>();
         if (AbstractDungeon.map != null) {
@@ -441,7 +507,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
         int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
         int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
-        MapView map = new MapView(nodes, w, h, readLegendLabels());
+        MapView map = new MapView(nodes, w, h, readLegendLabels(), readMapBackground());
         ViewportView viewport = new ViewportView(w, h, w, h);
         return new ContextFrame(
                 frameId,

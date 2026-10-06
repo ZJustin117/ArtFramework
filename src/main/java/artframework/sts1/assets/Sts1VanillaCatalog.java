@@ -231,6 +231,13 @@ public final class Sts1VanillaCatalog {
         // Native current-node ring ImageMaster.MAP_CIRCLE_5 = images/ui/map/circle5.png (verified in
         // desktop-1.0.jar; 192x192). Drawn at native geometry for the current node (D03).
         put(m, ResourceIds.UI_MAP_CIRCLE_5, "images/ui/map/circle5.png");
+        // Native map parchment background layers (D03 map background follow-up): native
+        // DungeonMap.renderNormalMap draws ImageMaster.MAP_TOP/MAP_MID/MAP_BOT and the mapBlend
+        // strip. All four files verified present in desktop-1.0.jar.
+        put(m, ResourceIds.MAP_BG_TOP, "images/ui/map/mapTop.png");
+        put(m, ResourceIds.MAP_BG_MID, "images/ui/map/mapMid.png");
+        put(m, ResourceIds.MAP_BG_BOT, "images/ui/map/mapBot.png");
+        put(m, ResourceIds.MAP_BG_BLEND, "images/ui/map/mapBlend.png");
         // Edges remain intentionally absent: these fallbacks do not claim native parity.
         put(m, ResourceIds.mapOutline("monster"), "images/ui/map/monsterOutline.png");
         put(m, ResourceIds.mapOutline("elite"), "images/ui/map/eliteOutline.png");

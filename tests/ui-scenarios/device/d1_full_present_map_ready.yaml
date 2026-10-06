@@ -109,6 +109,34 @@ steps:
       assert:
         path: backend.mapDraw.submitCount
         gte: 1
+  # D03 map background follow-up: ART now supplies the native parchment background
+  # (DungeonMap.renderNormalMap mapTop/mapMid/mapBot + mapBlend×2) at native rects with the live
+  # baseMapColor alpha, so the node tint reads dark-on-light like native. The projection must carry
+  # the live background geometry (5 ordered drawables); alpha is the live fade value.
+  - assert:
+      path: backend.mapDraw.background
+      exists: true
+  - assert:
+      path: backend.mapDraw.backgroundCount
+      eq: 5
+  - assert:
+      path: backend.mapDraw.background[0].id
+      eq: map.bg.top
+  - assert:
+      path: backend.mapDraw.background[1].id
+      eq: map.bg.mid
+  - assert:
+      path: backend.mapDraw.background[2].id
+      eq: map.bg.bot
+  - assert:
+      path: backend.mapDraw.background[3].resourceId
+      eq: map.bg.blend
+  - assert:
+      path: backend.mapDraw.background[4].resourceId
+      eq: map.bg.blend
+  - assert:
+      path: backend.mapDraw.background[0].alpha
+      gte: 0
   # NRO-04 D03: node/outline tint fidelity. The resolved colors must equal the VERIFIED native
   # MapRoomNode constants (AVAILABLE=0.09,0.13,0.17 -> 17212bff; NOT_TAKEN=0.34,0.34,0.34 ->
   # 575757ff; OUTLINE=8c8c80ff; highlight=(0.9,0.9,0.9,1) -> e6e6e6ff), derived from the state

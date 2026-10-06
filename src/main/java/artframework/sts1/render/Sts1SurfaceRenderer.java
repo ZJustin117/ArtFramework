@@ -61,6 +61,16 @@ public final class Sts1SurfaceRenderer {
         }
         prepareSurfaceVisuals(plan);
         artframework.render.RenderProjectionQueue.projectActiveSurfaces(activeSurfaces);
+        // NRO-04 D03 map background layering fix: the native parchment background is the BOTTOM map
+        // layer (native DungeonMap.render normal-map draws mapTop/mapMid/mapBot/mapBlend BEFORE
+        // Legend.render, and DungeonMapScreen.render draws the nodes AFTER). Paint it here, under the
+        // C2 item/surface band and under renderMap's legend+node submissions, so the opaque parchment
+        // can never wash out the node/edge pixels. The C2 item path carries only bounds + effect
+        // attachments (no texture paint), so the background cannot be expressed as a C2 item; drawing
+        // it immediately before the C2 band is the exact equivalent of native background-first order.
+        if (containsSurface(plan, SurfaceIds.MAP)) {
+            renderMapBackground(sb);
+        }
         RenderHosts.get().drawFrame(sb, true, RenderHost.kindsC2UnderPresent());
         for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
             prepareSurfaceChrome(sb, e.surfaceId);
@@ -671,13 +681,44 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
+     * Native map parchment background (D03 map background follow-up), drawn as the BOTTOM map layer.
+     * {@code mapTop/mapMid/mapBot + mapBlend×2} at native rects with the live {@code baseMapColor}
+     * alpha (white RGB), mirroring native {@code DungeonMap.renderNormalMap}/{@code renderMapCenters}/
+     * {@code renderMapBlender} order. Called from {@link #render} immediately BEFORE the C2 band so the
+     * opaque parchment is under the legend (drawn by {@link #renderMap}'s submission plan) and the
+     * nodes — matching native background -> legend -> nodes order and preventing the wash-out where
+     * the background painted over the node pixels. Every draw is fail-open; nothing else is recorded
+     * here because {@link #renderMap} owns the surface evidence count.
+     *
+     * <p><b>Documented gap.</b> The {@code baseMapColor} fade-in alpha is applied per draw
+     * ({@code bg.alpha}); the C2 item path carries no color/alpha, so the fade is not mirrored in C2
+     * item state (settled alpha is 1.0, so the D1 parity frame is unaffected).
+     */
+    private static void renderMapBackground(SpriteBatch sb) {
+        try {
+            for (MapDrawPath.BackgroundDrawItem bg : MapDrawPath.backgroundItems()) {
+                try {
+                    drawResolvedTexture(sb, bg.resourceId, bg.bounds, 1f, 1f, 1f, bg.alpha);
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
      * Map surface: ART_DELEGATED when FULL_READY. Submits the legend panel + title + 6 room-type
-     * rows FIRST, then the projected node pixels (node icon, outline when reachable/highlighted,
-     * overlay when pinned/highlighted) — native {@code DungeonMap.render} draws the legend before
-     * the nodes, so nodes paint OVER the legend. All draws go through {@link #drawResolvedTexture},
-     * mirroring the sibling {@code renderEvent}/{@code renderSelect}/{@code renderTopPanel} pattern.
-     * Every draw is individually fail-open so one bad resource never aborts the map. The recorded
-     * evidence count is the number of successful {@link MapDrawPath.Submission} draws.
+     * rows, then the projected node pixels (node icon, outline when reachable/highlighted, overlay
+     * when pinned/highlighted) — native {@code DungeonMap.render} draws the legend before
+     * {@code DungeonMapScreen.render} draws the nodes, so nodes paint OVER the legend. All draws go
+     * through {@link #drawResolvedTexture}, mirroring the sibling {@code renderEvent}/
+     * {@code renderSelect}/{@code renderTopPanel} pattern. Every draw is individually fail-open so
+     * one bad resource never aborts the map. The recorded evidence count is the number of successful
+     * submissions (legend + node/outline/overlay/ring draws).
+     *
+     * <p>The native parchment background is drawn EARLIER, by {@link #renderMapBackground} inside
+     * {@link #render} immediately before the C2 band, so it stays under the legend/nodes instead of
+     * painting over them (D03 layering fix). It is deliberately NOT drawn here.
      */
     private static void renderMap(SpriteBatch sb) {
         int drawn = 0;

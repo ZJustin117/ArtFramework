@@ -3512,22 +3512,49 @@ allocation and Young GC pressure.
       and no crash; the game stayed alive/responsive, `orphanArtOutput=0` throughout, and
       `nativeRenderStrict.accepted` settled `true` after `art claim clear`. (The pre-existing D03 map
       background gap and other open items are unaffected by this slice.)
-- [ ] **Open (D03 D1 finding): ART map lacks the native parchment background + localized legend.**
+- [ ] **Open (D03 D1 finding): ART map parchment background — NOW SUPPLIED (under the node layer); axis remaining gaps.**
       D1 A/B confirmed the D03 node/outline TINT is native-matched (probe: available/taken
-      `17212bff`, untaken `575757ff`, outline `8c8c80ff`, `ffffffff` count = 0), BUT the visual review
-      shows the ART map still reads light-on-dark because ART does not draw the native opaque
-      parchment map background — the dimmed scene bleeds through, so the 0.34-grey nodes look pale
-      against the dark ground whereas native paints them dark-on-light. **Localized legend labels
-      (D03 follow-up, done):** the legend title and 6 room labels are no longer hardcoded English in
-      the pure draw path — `MapView` carries an optional `LegendLabels` (title + 6 labels) filled by
-      `Sts1PresentationBackend.mapFrame()` via soft reflection on
-      `CardCrawlGame.languagePack.getUIString("Legend").TEXT` (`TEXT[0/3/6/9/12/15]` +
-      `TEXT[18]`, VERIFIED native `Legend.java`), fail-open to the existing English defaults; the
-      resolved text is exposed in the probe (`legendTitle`/`legendLabels`) and the `LegendDrawItem` /
-      submission-plan labels. Next: supply the map background/paper panel pixel layer (so the tint
-      reads dark-on-light like native), add a D1 map state that actually has a taken/current node to
-      visually confirm the `MAP_CIRCLE_5` ring, and close the remaining D03 gaps (map edges, boss
-      icon, node hover FX, mobile scaling, ring `(nodeScale*0.95+0.2)*Settings.scale` factor).
+      `17212bff`, untaken `575757ff`, outline `8c8c80ff`, `ffffffff` count = 0). A first cut of the
+      background painted it in `renderMap` AFTER the C2/`renderMap` node band, so the opaque parchment
+      washed the nodes out (central-grid dark-pixel fraction native `0.0790` -> ART `0.0565`).
+      **Layering fix (this slice, done):** the background is now the BOTTOM map layer — `render()`
+      paints it (`renderMapBackground`) immediately BEFORE the C2 band, then `renderMap` paints the
+      legend and node band on top, matching native background -> `Legend.render` -> nodes order; the
+      background draw was removed from `renderMap` so it is never double-drawn over the nodes.
+      `MapDrawPath.paintOrder()` / the probe `paintOrder` expose `bg:*` strictly below `legend:*`/`node:*`
+      (unit-tested). **Map background (this slice, done):** ART supplies the native parchment layer.
+      `MapView.MapBackground` carries the LIVE
+      native geometry/alpha — `DungeonMapScreen.offsetY` (live scroll), `DungeonMap.mapMidDist`
+      (soft-read, fallback computed from `Settings.MAP_DST_Y*{16|4} - 1380f*scale` with the
+      `"TheEnding"` branch), `baseMapColor.a`, `Settings.scale/WIDTH/HEIGHT` — filled by
+      `Sts1PresentationBackend.readMapBackground()` (soft reflection, FAIL-OPEN to `null`).
+      `MapDrawPath.backgroundItems()` derives the 5 native rects in native order (non-mobile
+      `DungeonMap.renderNormalMap`/`renderMapCenters`/`renderMapBlender`): top `(0, H+offsetY+mapOffsetY,
+      W, 1080*scale)`, mid `(0, offsetY+mapOffsetY, W, 1080*scale)`, bot `(0, -mapMidDist+offsetY+
+      mapOffsetY+1, W, 1080*scale)`, blend A `(0, offsetY+mapOffsetY+800*scale, W, BLEND_H)`, blend B
+      `(0, offsetY+mapOffsetY-220*scale, W, BLEND_H)` (H=1020*scale, BLEND_H=512*scale), all white RGB
+      + the live fade alpha; ids `map.bg.{top,mid,bot,blend}` map to `images/ui/map/{mapTop,mapMid,
+      mapBot,mapBlend}.png` (VERIFIED present in the jar). **Final act:** `MapBackground.finalAct`
+      (from `AbstractDungeon.id.equals("TheEnding")`) selects the native `renderFinalActMap` background
+      — ONLY `top` then `bot` (no `mid`; `renderMapBlender` is a no-op for `"TheEnding"`), so the
+      final-act output is 2 items, not 5. `probeSlice()` exposes `background`/`backgroundCount` and the
+      full `paintOrder`; `d1_full_present_map_ready.yaml` asserts the 5 items + `top`/`mid`/`bot`/`blend`
+      ids + alpha. Because the background paints as the frame's bottom map layer (not a
+      `mapSubmissionPlan()` entry), `renderMap`'s surface evidence count is now legend + node
+      submissions only (background excluded). **Documented gap:** the `baseMapColor` fade-in alpha is
+      applied per background draw, but the C2 item path carries no color/alpha, so the background could
+      not be expressed as a C2 item; the settled alpha is 1.0, so D1 parity is unaffected.
+      **Localized legend labels (D03 follow-up, done):** the legend title and 6 room labels are no
+      longer hardcoded English in the pure draw path — `MapView` carries an optional `LegendLabels`
+      (title + 6 labels) filled by `Sts1PresentationBackend.mapFrame()` via soft reflection on
+      `CardCrawlGame.languagePack.getUIString("Legend").TEXT` (`TEXT[0/3/6/9/12/15]` + `TEXT[18]`,
+      VERIFIED native `Legend.java`), fail-open to the existing English defaults; the resolved text is
+      exposed in the probe (`legendTitle`/`legendLabels`) and the `LegendDrawItem` / submission-plan
+      labels. **Remaining D03 gaps (honest, not full parity):** legend hover/tip/alpha-fade, map
+      edges, boss icon, node hover FX, mobile scaling, ring `(nodeScale*0.95+0.2)*Settings.scale`
+      factor, native oscillating alpha, a D1 map state with a taken/current node to visually confirm
+      the `MAP_CIRCLE_5` ring, and native pan/zoom parity all remain open. Next: add that D1
+      taken/current-node state and close the remaining gaps above.
 - [x] **Hardened (D09 follow-up D1 finding): `art lab enter-select` intermittent NPE.** D1 runs of
       the select scenario: 3/4 passed; run 2 failed with a `NullPointerException` at the
       `art lab enter-select grid` step (`command_log.status=ERROR, message=NullPointerException`),
@@ -3562,3 +3589,16 @@ allocation and Young GC pressure.
       separate read), and per-card card-frame pixels remain the separately-logged `cardui/frame`
       non-file-backed gap (per-card frames/art, select panel/background, tip/header, cancel/skip
       buttons, and eye/filter control also remain unsupplied).
+- [ ] **Open (D03 map-node wash): nodes render pale despite native tint and correct paint order.**
+      D03 now supplies the native parchment background (`mapTop`/`mapMid`/`mapBot`/`mapBlend` at the
+      native rects, drawn UNDER the node/legend band; probe `paintOrder` = bg → legend → node;
+      parchment matches native away from nodes). BUT a D1 A/B shows the map node silhouettes still
+      render pale (~0.53 grey) where native is dark (~0.35 navy), and the node layer is washed out
+      regardless of the background: the layering fix changed the frame by only RMSE 0.004, i.e. the
+      wash is PRE-EXISTING and NOT caused by the background. The node colour IS submitted at the
+      native tint (`575757ff`/`17212bff`), so the cause is a separate node-draw path — NOT yet pinned.
+      Next: trace the actual map node draw (does `renderMap`+`mapSubmissionPlan` run, and what texture
+      resolves for `map.node.*`, and how the stretch to ~250px vs native 128px source affects it),
+      then make nodes read dark-on-parchment like native. (Other remaining D03 gaps: legend hover/
+      fade, map edges, boss icon, node hover FX, mobile scaling, ring scale factor, a taken/current
+      ring D1 state.)

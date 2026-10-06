@@ -977,6 +977,260 @@ public class MapDrawPathTest {
         assertEquals(1f, MapDrawPath.panZoom().zoom(), 0.01f);
     }
 
+    @Test
+    public void backgroundItemsMatchNativeRectsAndOrder() {
+        // D03 map background follow-up: derive the five native parchment draw rects from the
+        // VERIFIED native formulas (non-mobile DungeonMap.renderNormalMap/renderMapCenters/
+        // renderMapBlender), computed here independently from the controlled MapBackground inputs.
+        float scale = 1.25f;
+        float offsetY = 123f;
+        float mapMidDist = 777f;
+        MapView.MapBackground bg = new MapView.MapBackground(
+                mapMidDist,
+                mapMidDist - 120f * scale,
+                offsetY,
+                scale,
+                1920,
+                1080,
+                1020f * scale,
+                512f * scale,
+                0.4f);
+        publishMapFrameWithBackground("map", projectedNodes(), bg);
+
+        List<MapDrawPath.BackgroundDrawItem> items = MapDrawPath.backgroundItems();
+        assertEquals("top, mid, bot, blend A, blend B", 5, items.size());
+
+        float w = 1920f;
+        float h1080 = 1080f * scale;
+        float base = offsetY + (mapMidDist - 120f * scale);
+        // order + rects, derived from the same inputs (not copied constants)
+        assertBackground(items.get(0), "map.bg.top", ResourceIds.MAP_BG_TOP,
+                0f, 1020f * scale + base, w, h1080, 0.4f);
+        assertBackground(items.get(1), "map.bg.mid", ResourceIds.MAP_BG_MID,
+                0f, base, w, h1080, 0.4f);
+        assertBackground(items.get(2), "map.bg.bot", ResourceIds.MAP_BG_BOT,
+                0f, -mapMidDist + base + 1f, w, h1080, 0.4f);
+        assertBackground(items.get(3), "map.bg.blend.a", ResourceIds.MAP_BG_BLEND,
+                0f, base + 800f * scale, w, 512f * scale, 0.4f);
+        assertBackground(items.get(4), "map.bg.blend.b", ResourceIds.MAP_BG_BLEND,
+                0f, base - 220f * scale, w, 512f * scale, 0.4f);
+    }
+
+    @Test
+    public void backgroundItemsCarryLiveAlphaAndSplitOnTheBlendTexture() {
+        // Distinct alpha proves the draw path carries the LIVE baseMapColor.a, not a constant; the
+        // blend strip is drawn TWICE (native renderMapBlender) sharing one texture id.
+        MapView.MapBackground bg = new MapView.MapBackground(
+                1000f, 1000f - 120f, 0f, 1f, 1280, 720, 1020f, 512f, 0.31f);
+        publishMapFrameWithBackground("map", projectedNodes(), bg);
+        List<MapDrawPath.BackgroundDrawItem> items = MapDrawPath.backgroundItems();
+        assertEquals(5, items.size());
+        for (MapDrawPath.BackgroundDrawItem item : items) {
+            assertEquals(0.31f, item.alpha, 0.0001f);
+        }
+        int blendCount = 0;
+        for (MapDrawPath.BackgroundDrawItem item : items) {
+            if (ResourceIds.MAP_BG_BLEND.equals(item.resourceId)) blendCount++;
+        }
+        assertEquals("blend strips A and B share the blend texture", 2, blendCount);
+    }
+
+    @Test
+    public void backgroundItemsFailOpenWhenProjectionHasNoBackground() {
+        // No native background fields readable -> the MapView carries none -> ZERO background
+        // drawables (map supply unchanged, renderer never invents pixels).
+        publishMapFrame("map", projectedNodes());
+        assertTrue(MapDrawPath.backgroundItems().isEmpty());
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(0), probe.get("backgroundCount"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> background = (List<Map<String, Object>>) probe.get("background");
+        assertNotNull(background);
+        assertTrue(background.isEmpty());
+    }
+
+    @Test
+    public void backgroundProbeExposesRectAndAlphaAndIdsResolveToRealFiles() {
+        MapView.MapBackground bg = new MapView.MapBackground(
+                500f, 500f - 120f, 10f, 1f, 1920, 1080, 1020f, 512f, 0.75f);
+        publishMapFrameWithBackground("map", projectedNodes(), bg);
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(5), probe.get("backgroundCount"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> background = (List<Map<String, Object>>) probe.get("background");
+        assertEquals(5, background.size());
+        Map<String, Object> top = background.get(0);
+        assertEquals("map.bg.top", top.get("id"));
+        assertEquals(ResourceIds.MAP_BG_TOP, top.get("resourceId"));
+        assertEquals(0.75f, ((Float) top.get("alpha")).floatValue(), 0.0001f);
+        assertEquals(1920f, ((Float) top.get("w")).floatValue(), 0.0001f);
+        assertEquals(1020f + 10f + 380f, ((Float) top.get("y")).floatValue(), 0.01f);
+
+        // Every background id must map to a real file-backed source (not register-only).
+        Sts1HostAssets.install();
+        for (String id : new String[] {
+            ResourceIds.MAP_BG_TOP, ResourceIds.MAP_BG_MID,
+            ResourceIds.MAP_BG_BOT, ResourceIds.MAP_BG_BLEND
+        }) {
+            artframework.assets.AssetResolveResult r = ArtFramework.assets().resolve(id);
+            assertTrue("background id must resolve: " + id, r.found);
+            assertTrue("background id must be file-backed: " + id,
+                    artframework.sts1.assets.Sts1AssetMaterializer.isFileBacked(r.source));
+        }
+        Map<String, String> catalog = Sts1VanillaCatalog.catalog();
+        assertEquals("sts1:images/ui/map/mapTop.png", catalog.get(ResourceIds.MAP_BG_TOP));
+        assertEquals("sts1:images/ui/map/mapMid.png", catalog.get(ResourceIds.MAP_BG_MID));
+        assertEquals("sts1:images/ui/map/mapBot.png", catalog.get(ResourceIds.MAP_BG_BOT));
+        assertEquals("sts1:images/ui/map/mapBlend.png", catalog.get(ResourceIds.MAP_BG_BLEND));
+    }
+
+    @Test
+    public void backgroundItemsFinalActEmitsOnlyTopAndBot() {
+        // Native renderFinalActMap (AbstractDungeon.id=="TheEnding", non-mobile) draws ONLY top then
+        // bot — no mid and no blend strips (renderMapBlender is a no-op for the final act). Derive the
+        // expected rects from the same controlled inputs and compare against the normal 5-item output.
+        float scale = 1.25f;
+        float offsetY = 123f;
+        float mapMidDist = 777f;
+        float mapOffsetY = mapMidDist - 120f * scale;
+        MapView.MapBackground finalAct = new MapView.MapBackground(
+                mapMidDist, mapOffsetY, offsetY, scale, 1920, 1080,
+                1020f * scale, 512f * scale, 0.4f, true);
+        assertTrue("finalAct flag must be carried", finalAct.finalAct);
+        assertEquals(Boolean.TRUE, finalAct.toMap().get("finalAct"));
+        publishMapFrameWithBackground("map", projectedNodes(), finalAct);
+
+        List<MapDrawPath.BackgroundDrawItem> items = MapDrawPath.backgroundItems();
+        assertEquals("final act: top then bot only", 2, items.size());
+        float w = 1920f;
+        float h1080 = 1080f * scale;
+        float base = offsetY + mapOffsetY;
+        assertBackground(items.get(0), "map.bg.top", ResourceIds.MAP_BG_TOP,
+                0f, 1020f * scale + base, w, h1080, 0.4f);
+        assertBackground(items.get(1), "map.bg.bot", ResourceIds.MAP_BG_BOT,
+                0f, -mapMidDist + base + 1f, w, h1080, 0.4f);
+        for (MapDrawPath.BackgroundDrawItem item : items) {
+            assertFalse("final act must omit mid", ResourceIds.MAP_BG_MID.equals(item.resourceId));
+            assertFalse("final act must omit blend", ResourceIds.MAP_BG_BLEND.equals(item.resourceId));
+        }
+
+        // The NORMAL-act projection over the SAME inputs emits the full 5 (top/mid/bot/blendA/blendB)
+        // and the shared top/bot rects are identical to the final-act output.
+        MapView.MapBackground normal = new MapView.MapBackground(
+                mapMidDist, mapOffsetY, offsetY, scale, 1920, 1080,
+                1020f * scale, 512f * scale, 0.4f, false);
+        publishMapFrameWithBackground("map", projectedNodes(), normal);
+        List<MapDrawPath.BackgroundDrawItem> normalItems = MapDrawPath.backgroundItems();
+        assertEquals(5, normalItems.size());
+        assertEquals(items.get(0).bounds.y, normalItems.get(0).bounds.y, 0.01f);
+        assertEquals(items.get(1).bounds.y, normalItems.get(2).bounds.y, 0.01f);
+        // Probe reflects the final-act shape too.
+        publishMapFrameWithBackground("map", projectedNodes(), finalAct);
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(2), probe.get("backgroundCount"));
+    }
+
+    @Test
+    public void paintOrderPutsBackgroundBelowLegendAndNodes() {
+        // D03 layering fix: the opaque parchment background must be the BOTTOM map layer so it cannot
+        // wash out the node/edge pixels. With a live background, a legend (Settings available) and two
+        // projected nodes, the model-level paint order must be strictly bg -> legend -> node band.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            MapView.MapBackground bg = new MapView.MapBackground(
+                    777f, 777f - 120f, 0f, 1f, 1920, 1080, 1020f, 512f, 1f);
+            publishMapFrameWithBackground("map", projectedNodes(), bg);
+
+            List<String> order = MapDrawPath.paintOrder();
+            assertFalse("paint order must be non-empty", order.isEmpty());
+
+            int firstLegend = -1;
+            int firstNode = -1;
+            int lastBg = -1;
+            for (int i = 0; i < order.size(); i++) {
+                String key = order.get(i);
+                if (key.startsWith("bg:")) lastBg = i;
+                if (key.startsWith("legend:") && firstLegend < 0) firstLegend = i;
+                if (key.startsWith("node:") && firstNode < 0) firstNode = i;
+            }
+            assertTrue("background items must be present", lastBg >= 0);
+            assertTrue("legend items must be present", firstLegend >= 0);
+            assertTrue("node items must be present", firstNode >= 0);
+            assertTrue("background must paint below the legend", lastBg < firstLegend);
+            assertTrue("background must paint below the nodes", lastBg < firstNode);
+            assertTrue("legend must paint below the nodes", firstLegend < firstNode);
+
+            // The order must be EXACTLY backgroundItems() ids, then legendItems() ids, then the node
+            // band — derived from the same sources, not a copied constant list.
+            List<String> expected = new ArrayList<String>();
+            for (MapDrawPath.BackgroundDrawItem item : MapDrawPath.backgroundItems()) {
+                expected.add("bg:" + item.id);
+            }
+            for (MapDrawPath.LegendDrawItem item : MapDrawPath.legendItems()) {
+                expected.add("legend:" + item.id);
+            }
+            for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
+                String key = item.row + ":" + item.col;
+                expected.add("node:" + key);
+                if (item.reachable || item.highlighted) expected.add("outline:" + key);
+                if (item.pinned || item.highlighted) expected.add("overlay:" + key);
+                if (item.taken || item.currentNode) expected.add("ring:" + key);
+            }
+            assertEquals(expected, order);
+
+            // Probe exposes the same order (device-visible evidence).
+            @SuppressWarnings("unchecked")
+            List<String> probed = (List<String>) MapDrawPath.probeSlice().get("paintOrder");
+            assertEquals(order, probed);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void renderMapSubmissionPlanExcludesBackgroundSoItIsNotDoubleDrawn() {
+        // The background is painted separately (bottom layer) by renderMapBackground; renderMap's own
+        // submission plan (legend + node band) must contain NO background resource, or the opaque
+        // parchment would be re-drawn on top of the nodes.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            MapView.MapBackground bg = new MapView.MapBackground(
+                    777f, 777f - 120f, 0f, 1f, 1920, 1080, 1020f, 512f, 1f);
+            publishMapFrameWithBackground("map", projectedNodes(), bg);
+            assertFalse("fixture must carry a background", MapDrawPath.backgroundItems().isEmpty());
+
+            Set<String> backgroundResources = new LinkedHashSet<String>();
+            for (MapDrawPath.BackgroundDrawItem item : MapDrawPath.backgroundItems()) {
+                backgroundResources.add(item.resourceId);
+            }
+            for (MapDrawPath.Submission submission : MapDrawPath.mapSubmissionPlan()) {
+                assertFalse("renderMap must not submit the background resource "
+                                + submission.resourceId + " over the nodes",
+                        backgroundResources.contains(submission.resourceId));
+            }
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    private static void assertBackground(
+            MapDrawPath.BackgroundDrawItem item, String id, String resourceId,
+            float x, float y, float w, float h, float alpha) {
+        assertEquals(id, item.id);
+        assertEquals(resourceId, item.resourceId);
+        assertEquals(x, item.bounds.x, 0.01f);
+        assertEquals(y, item.bounds.y, 0.01f);
+        assertEquals(w, item.bounds.width, 0.01f);
+        assertEquals(h, item.bounds.height, 0.01f);
+        assertEquals(alpha, item.alpha, 0.0001f);
+    }
+
     private static List<MapNodeView> projectedNodes() {
         return Arrays.asList(
                 new MapNodeView(1, 2, 100f, 200f, false, true,
@@ -987,6 +1241,22 @@ public class MapDrawPathTest {
 
     private static void publishMapFrame(String scene, List<MapNodeView> nodes) {
         publishMapFrame(scene, nodes, null);
+    }
+
+    private static void publishMapFrameWithBackground(
+            String scene, List<MapNodeView> nodes, MapView.MapBackground background) {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                ContextFrame.of(
+                        1L,
+                        1L,
+                        scene,
+                        Collections.<artframework.context.CardView>emptyList(),
+                        ControlsView.empty(),
+                        new MapView(nodes, 1920, 1080, null, background),
+                        new ViewportView(1920, 1080, 1920, 1080)));
+        ArtFramework.publishFrame(backend.currentFrame());
     }
 
     private static void publishMapFrame(

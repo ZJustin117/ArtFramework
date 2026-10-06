@@ -104,6 +104,15 @@ public final class ResourceIds {
     public static final String UI_MAP_LEGEND = "ui.map.legend";
     public static final String UI_MAP_CIRCLE_5 = "ui.map.circle5";
     public static final String UI_MAP_OUTLINE_PREFIX = "ui.map.outline.";
+    /**
+     * Native map parchment background layers (D03 map background follow-up): native
+     * {@code DungeonMap.renderNormalMap} draws {@code ImageMaster.MAP_TOP/MAP_MID/MAP_BOT} plus the
+     * {@code mapBlend} strip. These ids map to the real {@code images/ui/map/*.png} files.
+     */
+    public static final String MAP_BG_TOP = "map.bg.top";
+    public static final String MAP_BG_MID = "map.bg.mid";
+    public static final String MAP_BG_BOT = "map.bg.bot";
+    public static final String MAP_BG_BLEND = "map.bg.blend";
     public static final String UI_TOP_PANEL_BAR = "ui.top_panel.bar";
     public static final String UI_TOP_PANEL_GOLD = "ui.top_panel.gold";
     public static final String UI_TOP_PANEL_HP = "ui.top_panel.hp";
@@ -320,6 +329,10 @@ public final class ResourceIds {
              UI_MAP_PIN,
              UI_MAP_LEGEND,
              UI_MAP_CIRCLE_5,
+             MAP_BG_TOP,
+             MAP_BG_MID,
+             MAP_BG_BOT,
+             MAP_BG_BLEND,
              cardArt("Strike_R"),
             cardArt("Defend_R"),
             cardArt("Strike_G"),

@@ -48,11 +48,102 @@ public final class MapView {
         }
     }
 
+    /**
+     * Native map parchment background geometry for one present frame (D03 map background
+     * follow-up). Native {@code DungeonMap.renderNormalMap} draws four textures ({@code mapTop/}
+     * {@code mapMid}/{@code mapBot}/{@code mapBlend}) at live scroll/offset positions with the
+     * {@code baseMapColor} fade alpha; ART omitted this layer, so the node tint read light-on-dark.
+     * This value carries the LIVE native numbers across the projection without importing any STS
+     * type. The backend fills it fail-open ({@code null} when a native field is unavailable), and
+     * the pure draw path ({@code MapDrawPath.backgroundItems()}) derives the native draw rects from
+     * these inputs.
+     */
+    public static final class MapBackground {
+        /** Native {@code DungeonMap.mapMidDist} (live, or computed from {@code Settings.MAP_DST_Y}). */
+        public final float mapMidDist;
+        /** Native {@code DungeonMap.mapOffsetY} = {@code mapMidDist - 120*scale}. */
+        public final float mapOffsetY;
+        /** Native {@code DungeonMapScreen.offsetY} (live scroll). */
+        public final float offsetY;
+        /** Native {@code Settings.scale}. */
+        public final float scale;
+        /** Native {@code Settings.WIDTH} (background draw width). */
+        public final int width;
+        /** Native {@code Settings.HEIGHT} (viewport height, informational). */
+        public final int height;
+        /** Native {@code DungeonMap.H} = {@code 1020*scale}. */
+        public final float h;
+        /** Native {@code DungeonMap.BLEND_H} = {@code 512*scale}. */
+        public final float blendH;
+        /** Native {@code baseMapColor.a} fade alpha (0..1). */
+        public final float alpha;
+        /**
+         * True when {@code AbstractDungeon.id.equals("TheEnding")}: native {@code DungeonMap} takes
+         * the {@code renderFinalActMap} branch, which draws ONLY {@code top} then {@code bot} (no
+         * {@code mid}) and {@code renderMapBlender} is a no-op for the final act (its
+         * {@code "TheEnding"} guard skips the two {@code blend} strips). Fail-open false.
+         */
+        public final boolean finalAct;
+
+        public MapBackground(
+                float mapMidDist,
+                float mapOffsetY,
+                float offsetY,
+                float scale,
+                int width,
+                int height,
+                float h,
+                float blendH,
+                float alpha) {
+            this(mapMidDist, mapOffsetY, offsetY, scale, width, height, h, blendH, alpha, false);
+        }
+
+        public MapBackground(
+                float mapMidDist,
+                float mapOffsetY,
+                float offsetY,
+                float scale,
+                int width,
+                int height,
+                float h,
+                float blendH,
+                float alpha,
+                boolean finalAct) {
+            this.mapMidDist = mapMidDist;
+            this.mapOffsetY = mapOffsetY;
+            this.offsetY = offsetY;
+            this.scale = scale;
+            this.width = width;
+            this.height = height;
+            this.h = h;
+            this.blendH = blendH;
+            this.alpha = alpha;
+            this.finalAct = finalAct;
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("mapMidDist", Float.valueOf(mapMidDist));
+            m.put("mapOffsetY", Float.valueOf(mapOffsetY));
+            m.put("offsetY", Float.valueOf(offsetY));
+            m.put("scale", Float.valueOf(scale));
+            m.put("width", Integer.valueOf(width));
+            m.put("height", Integer.valueOf(height));
+            m.put("h", Float.valueOf(h));
+            m.put("blendH", Float.valueOf(blendH));
+            m.put("alpha", Float.valueOf(alpha));
+            m.put("finalAct", Boolean.valueOf(finalAct));
+            return m;
+        }
+    }
+
     public final List<MapNodeView> nodes;
     public final int viewportWidth;
     public final int viewportHeight;
     /** Localized legend text, or {@link LegendLabels#empty()} when unavailable (fail-open). */
     public final LegendLabels legend;
+    /** Native map background geometry, or {@code null} when unavailable (fail-open). */
+    public final MapBackground background;
 
     public MapView(List<MapNodeView> nodes, int viewportWidth, int viewportHeight) {
         this(nodes, viewportWidth, viewportHeight, null);
@@ -60,6 +151,15 @@ public final class MapView {
 
     public MapView(
             List<MapNodeView> nodes, int viewportWidth, int viewportHeight, LegendLabels legend) {
+        this(nodes, viewportWidth, viewportHeight, legend, null);
+    }
+
+    public MapView(
+            List<MapNodeView> nodes,
+            int viewportWidth,
+            int viewportHeight,
+            LegendLabels legend,
+            MapBackground background) {
         if (nodes == null || nodes.isEmpty()) {
             this.nodes = Collections.emptyList();
         } else {
@@ -68,6 +168,7 @@ public final class MapView {
         this.viewportWidth = Math.max(0, viewportWidth);
         this.viewportHeight = Math.max(0, viewportHeight);
         this.legend = legend != null ? legend : LegendLabels.empty();
+        this.background = background;
     }
 
     public static MapView empty() {

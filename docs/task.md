@@ -3485,20 +3485,33 @@ allocation and Young GC pressure.
       the eye/filter control are not supplied. Next: supply real card frames (native
       `AbstractCard.render` is the authority; either delegate card pixels or map a file-backed frame
       resource) and add the select panel/buttons as a follow-up slice.
-- [ ] **Open (B05b D1 finding): pre-existing native effect-list ADD race in `AbstractDungeon.update`.**
-      During B05b D1 no-regression, run 1 crashed with `java.util.ConcurrentModificationException`
-      at `AbstractDungeon.update(AbstractDungeon.java:2640)` (~7 ms after an `art claim spawn torch`),
-      on the native effect-list reap/update path (`ArrayList$Itr.remove`); run 2 was clean and the
-      strict probe was `accepted=true` / `orphanArtOutput=0` / `monotonic=true`. The SAME signature is
-      recorded in repo artifacts dated 2026-09-28, long before B05b, and B05b's instrumented
-      `RewardItem.render` site was never reached (no `CombatRewardScreen`/`observeThenRender`), so it
-      is NOT attributable to B05b. Likely mechanism: the lab `art claim spawn` structurally `add`s to a
-      live `AbstractDungeon` effect list from the console thread while the update/render thread
-      iterates it — the ADD-side analogue of the NRO-04 removal race (the ECS-world CME fix does not
-      cover vanilla `AbstractDungeon.effectList`). Next: make lab `claim spawn` (and any console-thread
-      mutation of native effect lists) enqueue onto the app/render thread instead of mutating the list
-      directly, with a bounded stress test; or document `art claim spawn` as unsafe during active
-      rendering.
+- [x] **B05b D1 finding: native effect-list ADD race in `AbstractDungeon.update` — append now
+      marshaled onto the game thread.** During B05b D1 no-regression, run 1 crashed with
+      `java.util.ConcurrentModificationException` at `AbstractDungeon.update(AbstractDungeon.java:2640)`
+      (~7 ms after an `art claim spawn torch`), on the native effect-list reap/update path
+      (`ArrayList$Itr.remove`); run 2 was clean and the strict probe was `accepted=true` /
+      `orphanArtOutput=0` / `monotonic=true`. The SAME signature is recorded in repo artifacts dated
+      2026-09-28, long before B05b, and B05b's instrumented `RewardItem.render` site was never reached,
+      so it is NOT attributable to B05b. HONEST: the crash itself was transient/unreproduced (run 2
+      clean); the mechanism at the time was the lab `art claim spawn` structurally `add`ing to a live
+      `AbstractDungeon` effect list (`effectsQueue`) from the console thread while the update/render
+      thread iterates it — the ADD-side analogue of the NRO-04 removal race. The canonical fix is now
+      in `VfxLabSpawn.DungeonQueue.add`: the structural `AbstractDungeon.effectsQueue.add(effect)` is
+      POSTED onto the game/render thread via `Gdx.app.postRunnable(...)` (mirroring the
+      `StsLabNativeNavigator.postObserved` pattern), so it can never run concurrently with
+      `AbstractDungeon.update()`'s iteration/drain; the effect is still constructed inline and only the
+      list append is deferred by at most one frame (acceptable for a lab spawn). A small injectable
+      `PostRunner` seam (`setPostRunnerForTests`) lets tests assert the append is posted rather than
+      applied inline; when no runner/app is present the append fails open to the previous guarded
+      direct append (never throws) and `add` returns true once the append is SCHEDULED. Scope audit:
+      `retireMatching`/`clear` were already race-safe (they only write `isDone`, no structural
+      mutation) and are unchanged; a full scan of `VfxLabSpawn` confirms `DungeonQueue.add` is the ONLY
+      path that structurally mutates a live native list — no other console-thread mutating path exists
+      in this helper. CONFIRMED ON D1: a bounded stress of **70 rapid `art claim spawn` calls** (two
+      bursts, 10+ kinds, 150-200ms spacing) during live combat produced **0 `ConcurrentModificationException`**
+      and no crash; the game stayed alive/responsive, `orphanArtOutput=0` throughout, and
+      `nativeRenderStrict.accepted` settled `true` after `art claim clear`. (The pre-existing D03 map
+      background gap and other open items are unaffected by this slice.)
 - [ ] **Open (D03 D1 finding): ART map lacks the native parchment background + localized legend.**
       D1 A/B confirmed the D03 node/outline TINT is native-matched (probe: available/taken
       `17212bff`, untaken `575757ff`, outline `8c8c80ff`, `ffffffff` count = 0), BUT the visual review

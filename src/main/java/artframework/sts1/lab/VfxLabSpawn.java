@@ -3,6 +3,7 @@ package artframework.sts1.lab;
 import artframework.sts1.render.VfxClaimPolicy;
 import artframework.sts1.render.VfxDrawGeometry;
 import artframework.sts1.render.VfxInitContract;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.vfx.AbstractGameEffect;
@@ -219,6 +220,34 @@ public final class VfxLabSpawn {
     };
 
     private static volatile EffectFactory factoryOverride;
+
+    private static volatile PostRunner postRunnerOverride;
+
+    private static volatile LiveAppender appenderOverride;
+
+    /**
+     * Production append into the live {@code AbstractDungeon.effectsQueue}; runs on the game thread
+     * when posted. Fail-open: a missing game context or a throwing container drops the append.
+     */
+    private static final LiveAppender DEFAULT_APPENDER = new LiveAppender() {
+        @Override
+        public boolean append(AbstractGameEffect effect) {
+            try {
+                if (AbstractDungeon.effectsQueue != null) {
+                    AbstractDungeon.effectsQueue.add(effect);
+                    return true;
+                }
+            } catch (Throwable error) {
+                // No game context: drop the append rather than throw.
+            }
+            return false;
+        }
+    };
+
+    private static LiveAppender currentAppender() {
+        LiveAppender appender = appenderOverride;
+        return appender != null ? appender : DEFAULT_APPENDER;
+    }
 
     private VfxLabSpawn() {}
 
@@ -479,7 +508,11 @@ public final class VfxLabSpawn {
 
     /** Test seam: the effect-queue surface this helper writes to and scans. */
     public interface Queue {
-        /** Appends the effect; returns true only when it was actually stored. */
+        /**
+         * Schedules the effect for storage; returns true once the append is accepted (the live sink
+         * posts it onto the game thread, so storage may complete on a later frame) and false when it
+         * was declined or no game context exists. Never throws.
+         */
         boolean add(AbstractGameEffect effect);
 
         /**
@@ -494,6 +527,24 @@ public final class VfxLabSpawn {
         AbstractGameEffect create(String fqn) throws Exception;
     }
 
+    /**
+     * Test seam: how a deferred append is marshaled onto the game/render thread. The production path
+     * uses {@code Gdx.app.postRunnable}; a test implementation can capture the {@link Runnable} and
+     * assert the append was posted rather than performed inline.
+     */
+    public interface PostRunner {
+        void post(Runnable runnable);
+    }
+
+    /**
+     * Test seam: the guarded structural append into the live native effect queue. Isolated so a
+     * headless test can drive the post/fallback behavior without triggering the
+     * {@link AbstractDungeon} static initializer (which needs a live game context).
+     */
+    interface LiveAppender {
+        boolean append(AbstractGameEffect effect);
+    }
+
     static void setQueueForTests(Queue queue) {
         queueOverride = queue;
     }
@@ -502,15 +553,32 @@ public final class VfxLabSpawn {
         factoryOverride = factory;
     }
 
+    static void setPostRunnerForTests(PostRunner runner) {
+        postRunnerOverride = runner;
+    }
+
+    static void setAppenderForTests(LiveAppender appender) {
+        appenderOverride = appender;
+    }
+
+    /** Returns the live default sink so a test can drive its append/retire behavior directly. */
+    static Queue defaultQueueForTests() {
+        return DEFAULT_QUEUE;
+    }
+
     static void resetForTests() {
         queueOverride = null;
         factoryOverride = null;
+        postRunnerOverride = null;
+        appenderOverride = null;
     }
 
     /**
-     * Builds {@code count} effects of {@code kind} and appends them to the queue. Returns the number
-     * actually queued; {@code 0} (never throws) for a null/unknown kind, {@code count <= 0}, a
-     * missing game context, or a container that drops/throws on the append.
+     * Builds {@code count} effects of {@code kind} and queues them. Returns the number actually
+     * accepted (scheduled); {@code 0} (never throws) for a null/unknown kind, {@code count <= 0}, a
+     * missing game context, or a container that drops/throws on the append. In the live game the
+     * append is posted onto the game/render thread, so a successful count means the append was
+     * SCHEDULED, not necessarily applied on the same frame.
      */
     public static int spawn(String kind, int count) {
         String fqn = classNameFor(kind);
@@ -1044,15 +1112,44 @@ public final class VfxLabSpawn {
             if (effect == null) {
                 return false;
             }
-            try {
-                if (AbstractDungeon.effectsQueue != null) {
-                    AbstractDungeon.effectsQueue.add(effect);
-                    return true;
+            // The native containers are plain ArrayLists drained/iterated by AbstractDungeon.update()
+            // on the game thread, so a direct append from the console thread can race that iteration.
+            // Marshal the structural append onto the game/render thread; construction stays inline
+            // and only the list add is deferred by (at most) one frame — acceptable for a lab spawn.
+            // Returns true once the append is SCHEDULED.
+            return postAppend(effect) || currentAppender().append(effect);
+        }
+
+        private static boolean postAppend(final AbstractGameEffect effect) {
+            final Runnable append = new Runnable() {
+                @Override
+                public void run() {
+                    currentAppender().append(effect);
                 }
-            } catch (Throwable error) {
-                // No game context: drop the append rather than throw.
+            };
+            PostRunner runner = postRunnerOverride;
+            if (runner == null) {
+                try {
+                    if (Gdx.app == null) {
+                        return false;
+                    }
+                } catch (Throwable error) {
+                    return false;
+                }
+                try {
+                    Gdx.app.postRunnable(append);
+                    return true;
+                } catch (Throwable error) {
+                    // No app / postRunnable rejected: fall back to the guarded direct append.
+                    return false;
+                }
             }
-            return false;
+            try {
+                runner.post(append);
+                return true;
+            } catch (Throwable error) {
+                return false;
+            }
         }
 
         @Override

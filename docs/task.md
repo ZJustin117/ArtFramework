@@ -3469,15 +3469,21 @@ allocation and Young GC pressure.
       committed file preserves hand ordering and the writer wraps at 80 columns); `--check-manifest`
       reports `ok:true` (549/549, no errors, no ownership errors). HONEST: the suppression overlay is a
       curated known-map, so a NEW hand annotation of this kind still needs an explicit generator entry.
-- [ ] **Open (D09 D1 finding): select per-card frames + localized labels + panel.** D1 review of the
+- [ ] **Open (D09 D1 finding): select per-card frames + panel.** D1 review of the
       ART grid-select frame showed the confirm button is correct (native `takeAll` capsule at
       (960,475)), but per-card pixel supply is missing: `UI_SELECT_CARD`/`_SELECTED`/`_FRAME` map to
       `cardui/frame`, which is NOT file-backed, so card frames/art are not drawn (only floating
-      labels). The labels also show raw card IDs (`Strike_R`) instead of localized names, and the
-      select panel/background, tip/header, cancel/skip buttons, and the eye/filter control are not
-      supplied. Next: supply real card frames (native `AbstractCard.render` is the authority; either
-      delegate card pixels or map a file-backed frame resource), localize card labels from the
-      projection, and add the select panel/buttons as a follow-up slice.
+      labels). **Localized card labels are now DONE:** `SelectDrawPath.DrawItem` carries a `label`
+      resolved from the projection's localized `CardView.title` (`AbstractCard.name`) with a raw-`cardId`
+      fallback when the title is empty, `renderSelect` draws `item.label`, and `toMap()`/the probe
+      expose `label` alongside the raw `cardId` (kept for identity/resource selection).
+      `d1_full_present_select.yaml` asserts the item data `label` exists and is non-empty; the
+      renderer also exposes `backend.selectDraw.items[*].label`. **REMAINING OPEN:** per-card
+      card-frame pixels (`UI_SELECT_CARD*`/`_FRAME -> cardui/frame` is still NOT file-backed, so card
+      frames/art are not drawn), the select panel/background, tip/header, cancel/skip buttons, and
+      the eye/filter control are not supplied. Next: supply real card frames (native
+      `AbstractCard.render` is the authority; either delegate card pixels or map a file-backed frame
+      resource) and add the select panel/buttons as a follow-up slice.
 - [ ] **Open (B05b D1 finding): pre-existing native effect-list ADD race in `AbstractDungeon.update`.**
       During B05b D1 no-regression, run 1 crashed with `java.util.ConcurrentModificationException`
       at `AbstractDungeon.update(AbstractDungeon.java:2640)` (~7 ms after an `art claim spawn torch`),
@@ -3504,3 +3510,15 @@ allocation and Young GC pressure.
       reads dark-on-light like native), localize the legend labels, and add a D1 map state that
       actually has a taken/current node to visually confirm the `MAP_CIRCLE_5` ring. (Remaining D03
       gaps also include map edges, boss icon, node hover FX, and mobile scaling.)
+- [ ] **Open (D09 follow-up D1 finding): `art lab enter-select` intermittent NPE + select text localization.**
+      D1 runs of the select scenario: 3/4 passed; run 2 failed with a `NullPointerException` at the
+      `art lab enter-select grid` step (`StsLabNativeNavigator.enterSelect` swallowed the exception
+      type), i.e. BEFORE any selectDraw/label output — a transient lab-navigation flake, not a label
+      regression (runs 3/4 passed back-to-back in the identical prior state). The localized card
+      labels (D09 follow-up) are confirmed (`Strike_R`->`打击`, `Defend_R`->`防御`, `Bash`->`痛击`,
+      `AscendersBane`->`进阶之灾`). Separately, the visual review observed unlocalized text on the
+      select screen: an English `Generic` string at top-center and the English `Confirm` button label,
+      amid otherwise-Chinese UI. Next: harden `art lab enter-select` against the transient NPE (retry
+      or fail with the real cause), and check whether `Generic`/`Confirm` are native (English-data)
+      assets or leaked placeholders. (Per-card card-frame pixels remain the separately-logged
+      `cardui/frame` non-file-backed gap.)

@@ -19,7 +19,14 @@ public final class SelectDrawPath {
 
     public static final class DrawItem {
         public final String instanceId;
+        /** Raw card id (e.g. {@code Strike_R}); identity/resource selection only. */
         public final String cardId;
+        /**
+         * Localized card name (the projection's {@link CardView#title}) used for the drawn text,
+         * resolved to the raw {@link #cardId} when the title is null/empty. Never used for
+         * identity or resource selection.
+         */
+        public final String label;
         public final int slot;
         public final boolean selected;
         public final boolean visible;
@@ -41,7 +48,7 @@ public final class SelectDrawPath {
                 float x,
                 float y,
                 boolean confirm) {
-            this(instanceId, cardId, slot, selected, visible, true, x, y,
+            this(instanceId, cardId, cardId, slot, selected, visible, true, x, y,
                     confirm, confirm ? ResourceIds.UI_SELECT_CONFIRM : ResourceIds.UI_SELECT_CARD,
                     confirm ? "" : ResourceIds.UI_SELECT_CARD_FRAME, 250f, 350f);
         }
@@ -49,8 +56,16 @@ public final class SelectDrawPath {
         public DrawItem(String instanceId, String cardId, int slot, boolean selected,
                 boolean visible, boolean enabled, float x, float y, boolean confirm,
                 String resourceId, String frameResourceId, float w, float h) {
+            this(instanceId, cardId, cardId, slot, selected, visible, enabled, x, y, confirm,
+                    resourceId, frameResourceId, w, h);
+        }
+
+        public DrawItem(String instanceId, String cardId, String label, int slot, boolean selected,
+                boolean visible, boolean enabled, float x, float y, boolean confirm,
+                String resourceId, String frameResourceId, float w, float h) {
             this.instanceId = instanceId != null ? instanceId : "";
             this.cardId = cardId != null ? cardId : "";
+            this.label = label != null && !label.isEmpty() ? label : this.cardId;
             this.slot = slot;
             this.selected = selected;
             this.visible = visible;
@@ -68,6 +83,7 @@ public final class SelectDrawPath {
             Map<String, Object> m = new LinkedHashMap<String, Object>();
             m.put("instanceId", instanceId);
             m.put("cardId", cardId);
+            m.put("label", label);
             m.put("slot", Integer.valueOf(slot));
             m.put("selected", Boolean.valueOf(selected));
             m.put("visible", Boolean.valueOf(visible));
@@ -111,6 +127,7 @@ public final class SelectDrawPath {
                     new DrawItem(
                             c.ref.instanceId,
                             c.ref.cardId,
+                            c.title,
                             c.slotIndex,
                             selected,
                             c.pose == null || c.pose.visible,

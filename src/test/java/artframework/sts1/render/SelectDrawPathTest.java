@@ -160,6 +160,61 @@ public class SelectDrawPathTest {
     }
 
     @Test
+    public void localizedTitleBecomesLabelWhileCardIdStaysRaw() {
+        publishSelectFrame(
+                SelectView.grid(
+                        Collections.singletonList(
+                                CardView.builder(new CardRef("g1", "Strike_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(0)
+                                        .title("打击")
+                                        .build()),
+                        Collections.singletonList("g1"),
+                        true,
+                        true));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+
+        assertEquals("raw id must stay for identity/resource selection", "Strike_R", item.cardId);
+        assertEquals("label must carry the localized title", "打击", item.label);
+        assertFalse("label must differ from the raw id here", item.cardId.equals(item.label));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows =
+                (List<Map<String, Object>>) SelectDrawPath.probeSlice().get("items");
+        assertEquals("Strike_R", rows.get(0).get("cardId"));
+        assertEquals("打击", rows.get(0).get("label"));
+    }
+
+    @Test
+    public void emptyTitleFallsBackToRawCardIdAsLabel() {
+        publishSelectFrame(
+                SelectView.grid(
+                        Collections.singletonList(
+                                CardView.builder(new CardRef("g1", "Strike_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(0)
+                                        .title("")
+                                        .build()),
+                        Collections.singletonList("g1"),
+                        true,
+                        true));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+
+        assertEquals("Strike_R", item.label);
+        assertEquals("Strike_R", item.cardId);
+    }
+
+    @Test
+    public void confirmItemKeepsNeutralLabelFromRawId() {
+        publishSelectFrame();
+        SelectDrawPath.DrawItem confirm = SelectDrawPath.confirmItem();
+        assertNotNull(confirm);
+        assertTrue(confirm.confirm);
+        assertEquals("Confirm", confirm.label);
+    }
+
+    @Test
     public void projectionCarriesHandCardsAndDisabledConfirmState() {
         publishSelectFrame(
                 SelectView.hand(

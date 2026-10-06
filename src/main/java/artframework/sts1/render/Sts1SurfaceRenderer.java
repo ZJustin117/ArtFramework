@@ -755,7 +755,7 @@ public final class Sts1SurfaceRenderer {
                     }
                     com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                             sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                            item.confirm ? "Confirm" : item.cardId, item.x, item.y,
+                            item.confirm ? "Confirm" : item.label, item.x, item.y,
                             item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
                 } catch (Throwable ignored) { }
             }

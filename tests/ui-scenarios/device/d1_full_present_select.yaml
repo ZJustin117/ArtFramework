@@ -53,3 +53,15 @@ steps:
   - assert:
       path: backend.selectDraw.confirm.w
       gte: 1
+  # D09: card labels use the localized AbstractCard.name (CardView.title), not the raw card id.
+  # The projection already carries the localized title; assert the drawn label exists and is
+  # non-empty (raw-id fallback only applies when a title is genuinely absent).
+  - assert:
+      path: backend.selectDraw.items[0].cardId
+      exists: true
+  - assert:
+      path: backend.selectDraw.items[0].label
+      exists: true
+  - assert:
+      path: backend.selectDraw.items[0].label
+      neq: ""

@@ -3662,3 +3662,22 @@ allocation and Young GC pressure.
       (the reviewer may have misread, or there may be a bounds/draw nuance). Next: capture a
       frozen-seed native-vs-ART map pair and check the top-HUD region + the legend icon column rects
       specifically; classify (a)/(b) as known-gap vs real defect before changing anything.
+
+### 49. Scenario hygiene / order-independence
+
+- [x] **V01: map device scenarios self-reset their own surface (start+end).** The flake was a
+      leftover full-present map surface at the junction between the two map device scenarios:
+      `d1_full_present_map.yaml` set `art present map observe` and `d1_full_present_map_ready.yaml`
+      set `art present map on`, and neither turned map presentation off, so whichever ran second
+      inherited the other's OBSERVE/FULL level (the OBSERVE scenario could see `FULL`). Both
+      scenarios now issue an idempotent leading `art present map off` (before fresh-menu / before the
+      first `start-run`) and an idempotent terminal `art present map off` (map_ready places its
+      cleanup AFTER the final `art op map first` navigation is observed so it cannot disturb the
+      `projection.scene neq map` assertion). Each reset is proven with `wait_probe` on
+      `backend.fullPresent.map eq "OFF"` (the real contract: `FullPresentMode.map.name()`, and
+      `art present map off` -> `setMapLevel(PresentLevel.OFF)` -> `"OFF"`). The change is
+      additions-only and no existing assertion was weakened or removed; on that basis the scenarios
+      are EXPECTED to be order-independent, but that expectation is not yet device-verified.
+      **PENDING EVIDENCE:** the actual D1 A→B and B→A runs (device, sequential) have NOT been
+      executed, so order-independence is not yet proven. This is a scenario-hygiene fix — **NOT** an
+      assertion relaxation.

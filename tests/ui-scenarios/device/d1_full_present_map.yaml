@@ -1,4 +1,9 @@
 # Device: enable map OBSERVE/FULL after start-run (often lands on map or neow).
+# V01 order-independence (scenario hygiene): this scenario now clears its OWN map surface
+# (`art present map off`) at both start and end, so running it before/after
+# d1_full_present_map_ready leaves no leftover OBSERVE/FULL map surface at the junction.
+# `backend.fullPresent.map` is FullPresentMode.map.name() (OFF|OBSERVE|FULL), so `off` yields "OFF".
+# This is a hygiene fix only — no assertion was weakened or removed.
 name: d1_full_present_map
 schemaVersion: 1
 mode: device
@@ -9,6 +14,15 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
+  # Idempotent leading reset: clear any map surface left by a prior scenario before fresh-menu.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
   - console: "art lab ensure-fresh-menu"
   - wait_ms: 8000
   - console: "art lab start-run IRONCLAD"
@@ -42,3 +56,12 @@ steps:
   - assert:
       path: backend.mapDraw.colorSamples.outlineColorHex
       eq: "8c8c80ff"
+  # Idempotent terminal cleanup: leave the device without a map surface for the next scenario.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"

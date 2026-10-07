@@ -1,4 +1,10 @@
 # D1: open the active run map, let ART fully present it, then submit an ART map intent.
+# V01 order-independence (scenario hygiene): this scenario now clears its OWN map surface
+# (`art present map off`) at both start (before the first start-run) and end (after the final
+# `art op map first` navigation is observed), so it no longer depends on, or leaves behind, an
+# OBSERVE/FULL map surface from a neighbouring scenario. `backend.fullPresent.map` is
+# FullPresentMode.map.name() (OFF|OBSERVE|FULL), so `off` yields "OFF". No assertion was
+# weakened or removed.
 name: d1_full_present_map_ready
 schemaVersion: 1
 mode: device
@@ -9,6 +15,15 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
+  # Idempotent leading reset: clear any map surface left by a prior scenario before start-run.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
   - console: "art lab start-run IRONCLAD"
   - wait_probe:
       timeout_ms: 45000
@@ -197,3 +212,13 @@ steps:
       assert:
         path: projection.scene
         neq: map
+  # Terminal cleanup placed AFTER the navigation is observed so it cannot disturb the
+  # `projection.scene neq map` assertion above; the scene has already left the map here.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"

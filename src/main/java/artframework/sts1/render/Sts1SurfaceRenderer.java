@@ -959,13 +959,27 @@ public final class Sts1SurfaceRenderer {
                     drawResolvedTexture(sb, item.resourceId, item.bounds,
                             item.r, item.g, item.b, item.a);
                     if (!item.label.isEmpty()) {
-                        com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                                sb,
-                                com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                                item.label,
-                                item.bounds.x + item.bounds.width * 0.5f,
-                                item.bounds.y + item.bounds.height * 0.5f,
-                                colorLabel(chrome));
+                        if (item.labelLeftAligned) {
+                            // V04 native LegendItem.render label: LEFT-TOP aligned in the TEXT
+                            // column at (TEXT_X - 50*scale, rowY + 13*yScale), drawn with
+                            // panelNameFont and the c2 tint (AVAILABLE_COLOR) — NOT centered on the
+                            // icon box.
+                            FontHelper.renderFontLeftTopAligned(
+                                    sb,
+                                    FontHelper.panelNameFont,
+                                    item.label,
+                                    item.labelX,
+                                    item.labelTopY,
+                                    new Color(item.r, item.g, item.b, item.a));
+                        } else {
+                            FontHelper.renderFontCentered(
+                                    sb,
+                                    FontHelper.buttonLabelFont,
+                                    item.label,
+                                    item.bounds.x + item.bounds.width * 0.5f,
+                                    item.bounds.y + item.bounds.height * 0.5f,
+                                    colorLabel(chrome));
+                        }
                     }
                     drawn++;
                 } catch (Throwable ignored) {

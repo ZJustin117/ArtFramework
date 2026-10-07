@@ -549,6 +549,199 @@ public class MapDrawPathTest {
     }
 
     @Test
+    public void legendRoomIconsCarryAvailableColorTintNotWhite() {
+        // V04 real visual defect: the 6 legend room icons were drawn with the generic WHITE tint, so
+        // they were invisible on the light parchment. Native Legend.render computes
+        // c2 = (MapRoomNode.AVAILABLE_COLOR.r/g/b, c.a) and sets it before each LegendItem.render, so
+        // every room row (icon AND label) must resolve to (0.09,0.13,0.17), NOT white.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            mapFrame();
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+            for (String room : rooms) {
+                MapDrawPath.LegendDrawItem row =
+                        legendById(MapDrawPath.legendItems(), "legend:" + room);
+                assertNotNull("missing legend room row " + room, row);
+                assertTrue("room row must be label-left-aligned", row.labelLeftAligned);
+                assertEquals("room " + room + " r", MapDrawPath.AVAILABLE_COLOR[0], row.r, 0.001f);
+                assertEquals("room " + room + " g", MapDrawPath.AVAILABLE_COLOR[1], row.g, 0.001f);
+                assertEquals("room " + room + " b", MapDrawPath.AVAILABLE_COLOR[2], row.b, 0.001f);
+                assertEquals("room " + room + " a", 1f, row.a, 0.001f);
+                // Non-white proof (native AVAILABLE rgb is never 1): the pre-fix white tint would
+                // read ffffffff and fail this assertion.
+                assertFalse("room icon tint must not be white",
+                        row.r == 1f && row.g == 1f && row.b == 1f);
+                assertEquals("17212bff", row.toMap().get("colorHex"));
+            }
+            // Panel/title keep the neutral theme draw (no c2 tint).
+            MapDrawPath.LegendDrawItem panel =
+                    legendById(MapDrawPath.legendItems(), "legend.panel");
+            assertNotNull(panel);
+            assertEquals(1f, panel.r, 0.001f);
+            assertEquals(1f, panel.g, 0.001f);
+            assertEquals(1f, panel.b, 0.001f);
+            assertFalse("the title is not a left-aligned room row",
+                    legendById(MapDrawPath.legendItems(), "legend.title").labelLeftAligned);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void legendLabelsUseNativeLeftAlignedTextColumnNotIconCenter() {
+        // V04: native LegendItem.render draws the label LEFT-TOP aligned at
+        // (TEXT_X - 50*scale, Legend.Y - SPACE_Y*index + OFFSET_Y + 13*yScale), NOT centered on the
+        // 128px icon box (the ART defect put the label in the icon column). Expected values are
+        // derived here from the VERIFIED native constants TEXT_X=1670, SPACE_Y=58, OFFSET_Y=100.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            mapFrame();
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+            for (int i = 0; i < rooms.length; i++) {
+                MapDrawPath.LegendDrawItem row =
+                        legendById(MapDrawPath.legendItems(), "legend:" + rooms[i]);
+                assertNotNull(row);
+                float expectedX = 1670f - 50f;
+                float expectedTopY = 600f - 58f * i + 100f + 13f;
+                assertEquals("room " + i + " label x", expectedX, row.labelX, 0.01f);
+                assertEquals("room " + i + " label top y", expectedTopY, row.labelTopY, 0.01f);
+                float iconCenterX = row.bounds.x + row.bounds.width * 0.5f;
+                assertFalse("label must NOT be centered in the icon column for " + rooms[i],
+                        Math.abs(row.labelX - iconCenterX) < 0.01f);
+                assertTrue("native text column sits right of the icon box center",
+                        row.labelX > iconCenterX);
+            }
+
+            // Scale dependence: with scale=1.25, xScale=1.5, yScale=1.1 the label is
+            // (1670*1.5 - 50*1.25, 600*1.1 - 58*1.1*i + 100*1.1 + 13*1.1) — derived, not copied.
+            setSettingsScale(1.25f, 1.5f, 1.1f);
+            MapDrawPath.LegendDrawItem scaled =
+                    legendById(MapDrawPath.legendItems(), "legend:event");
+            assertNotNull(scaled);
+            assertEquals(1670f * 1.5f - 50f * 1.25f, scaled.labelX, 0.01f);
+            assertEquals(600f * 1.1f + 100f * 1.1f + 13f * 1.1f, scaled.labelTopY, 0.01f);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void legendIconScaleReproducesNativeDesktopRestBranch() {
+        // The native LegendItem.render scale is a STATE branch (desktop rest /1.65, desktop hover
+        // /1.2, mobile hover /1, mobile rest /1.3), NOT a per-row scale. ART draws the desktop REST
+        // state, so EVERY row is 128*scale/1.65. The brief's "per-row branch" read is corrected here
+        // against the decompiled bytecode.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1.25f, 1f, 1f);
+            mapFrame();
+            float expected = 128f * (1.25f / 1.65f);
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+            for (String room : rooms) {
+                MapDrawPath.LegendDrawItem row =
+                        legendById(MapDrawPath.legendItems(), "legend:" + room);
+                assertNotNull(row);
+                assertEquals("room " + room + " icon width", expected, row.bounds.width, 0.01f);
+                assertEquals("room " + room + " icon height", expected, row.bounds.height, 0.01f);
+                assertEquals("room " + room + " iconScale", expected, row.iconScale, 0.01f);
+            }
+            // The REST branch must not be the HOVER branch (they differ by 1.65/1.2).
+            assertFalse("rest icon scale must not equal the hover scale",
+                    Math.abs(expected - 128f * (1.25f / 1.2f)) < 0.01f);
+            assertEquals(1.25f / 1.2f, MapDrawPath.legendIconScaleHover(1.25f), 0.0001f);
+            assertEquals(1.25f / 1.65f, MapDrawPath.legendIconScale(1.25f), 0.0001f);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void mapSubmissionPlanLegendRowsCarryC2TintAndLeftAlignedLabel() {
+        // V04: the renderMap submission plan must carry the native c2 tint + left-aligned label
+        // geometry for the 6 room rows (2..7), so renderMap can draw them without centering the label
+        // in the icon box. Order/content is unchanged (panel, title, then 6 rows).
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            Sts1HostAssets.install();
+            publishMapFrame("map", projectedNodes());
+            List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+
+            assertEquals(ResourceIds.UI_MAP_LEGEND, plan.get(0).resourceId);
+            assertFalse("legend panel label is centered", plan.get(0).labelLeftAligned);
+            assertEquals("Legend", plan.get(1).label);
+            assertFalse("legend title label is centered", plan.get(1).labelLeftAligned);
+
+            for (int i = 0; i < 6; i++) {
+                MapDrawPath.Submission row = plan.get(2 + i);
+                assertTrue("legend row " + i + " must be left-aligned", row.labelLeftAligned);
+                assertFalse("legend row " + i + " label present", row.label.isEmpty());
+                assertEquals(MapDrawPath.AVAILABLE_COLOR[0], row.r, 0.001f);
+                assertEquals(MapDrawPath.AVAILABLE_COLOR[1], row.g, 0.001f);
+                assertEquals(MapDrawPath.AVAILABLE_COLOR[2], row.b, 0.001f);
+                assertEquals(1f, row.a, 0.001f);
+                assertFalse("legend row tint must not be white",
+                        row.r == 1f && row.g == 1f && row.b == 1f);
+                assertEquals(1670f - 50f, row.labelX, 0.01f);
+                assertEquals(600f - 58f * i + 100f + 13f, row.labelTopY, 0.01f);
+            }
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void probeExposesLegendIconTintAndLabelPlacement() {
+        // V04 device-visible evidence: backend.mapDraw.legend.items[i] must expose the resolved
+        // AVAILABLE_COLOR c2 tint (non-white) and the left-aligned label geometry for each room row.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            mapFrame();
+            Map<String, Object> probe = MapDrawPath.probeSlice();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> legend = (Map<String, Object>) probe.get("legend");
+            assertNotNull(legend);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> rows = (List<Map<String, Object>>) legend.get("items");
+            // items[0] is the title; items[1..6] are the 6 room rows (panel excluded).
+            assertEquals(7, rows.size());
+            assertEquals("Legend", rows.get(0).get("label"));
+            assertEquals(Boolean.FALSE, rows.get(0).get("labelLeftAligned"));
+
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+            for (int i = 0; i < rooms.length; i++) {
+                Map<String, Object> row = rows.get(1 + i);
+                assertEquals("legend:" + rooms[i], row.get("id"));
+                assertEquals("17212bff", row.get("colorHex"));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> color = (Map<String, Object>) row.get("color");
+                assertEquals(0.09f, ((Float) color.get("r")).floatValue(), 0.001f);
+                assertEquals(0.13f, ((Float) color.get("g")).floatValue(), 0.001f);
+                assertEquals(0.17f, ((Float) color.get("b")).floatValue(), 0.001f);
+                assertEquals(Boolean.TRUE, row.get("labelLeftAligned"));
+                assertEquals(1670f - 50f, ((Float) row.get("labelX")).floatValue(), 0.01f);
+                assertEquals(600f - 58f * i + 100f + 13f,
+                        ((Float) row.get("labelTopY")).floatValue(), 0.01f);
+            }
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
     public void probeSliceExposesLegendShape() {
         float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
         float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;

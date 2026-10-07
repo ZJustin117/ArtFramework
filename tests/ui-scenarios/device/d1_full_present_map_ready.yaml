@@ -5,6 +5,12 @@
 # OBSERVE/FULL map surface from a neighbouring scenario. `backend.fullPresent.map` is
 # FullPresentMode.map.name() (OFF|OBSERVE|FULL), so `off` yields "OFF". No assertion was
 # weakened or removed.
+# V04 follow-up order-independence: it now also resets the RUN state to a fresh menu
+# (`art lab ensure-fresh-menu` + wait, mirroring `d1_full_present_map.yaml`) before start-run, so
+# running it after a scenario that left a live room (e.g. `d1_map_hud_retention`/a prior map
+# navigation) cannot flake the initial map/menu state. `art lab start-run` internally calls
+# ensure-fresh-menu too, but making the reset explicit and observable removes the dependency on a
+# predecessor's run state.
 name: d1_full_present_map_ready
 schemaVersion: 1
 mode: device
@@ -15,7 +21,7 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
-  # Idempotent leading reset: clear any map surface left by a prior scenario before start-run.
+  # Idempotent leading reset: clear any map surface left by a prior scenario before fresh-menu.
   - console: "art present map off"
   - wait_ms: 800
   - wait_probe:
@@ -24,6 +30,10 @@ steps:
       assert:
         path: backend.fullPresent.map
         eq: "OFF"
+  # Order-independence reset (mirrors `d1_full_present_map.yaml`): return to a fresh menu so the run
+  # state does not depend on a predecessor having left a live room.
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
   - console: "art lab start-run IRONCLAD"
   - wait_probe:
       timeout_ms: 45000
@@ -115,6 +125,60 @@ steps:
   - assert:
       path: backend.mapDraw.legend.items[1].label
       eq_var: legend_resolved_label_0
+  # V04: the legend room ICONS were drawn with the generic WHITE tint and were therefore invisible
+  # on the light parchment. Native Legend.render sets c2 = (MapRoomNode.AVAILABLE_COLOR.r/g/b,
+  # Legend.c.a) = (0.09,0.13,0.17, alpha) before every LegendItem.render, so each of the 6 room rows
+  # (legend.items[1..6]; items[0] is the title) must resolve to that tint, NOT white. Each room row
+  # must also carry the native LEFT-TOP aligned label placement (LegendItem.render:
+  # renderFontLeftTopAligned at TEXT_X - 50*scale), not a label centered in the icon column.
+  - assert:
+      path: backend.mapDraw.legend.items[0].labelLeftAligned
+      eq: false
+  - assert:
+      path: backend.mapDraw.legend.items[1].colorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapDraw.legend.items[1].colorHex
+      neq: "ffffffff"
+  - assert:
+      path: backend.mapDraw.legend.items[1].labelLeftAligned
+      eq: true
+  - assert:
+      path: backend.mapDraw.legend.items[1].label
+      neq: ""
+  - assert:
+      path: backend.mapDraw.legend.items[2].colorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapDraw.legend.items[2].labelLeftAligned
+      eq: true
+  - assert:
+      path: backend.mapDraw.legend.items[3].colorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapDraw.legend.items[3].labelLeftAligned
+      eq: true
+  - assert:
+      path: backend.mapDraw.legend.items[4].colorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapDraw.legend.items[4].labelLeftAligned
+      eq: true
+  - assert:
+      path: backend.mapDraw.legend.items[5].colorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapDraw.legend.items[5].labelLeftAligned
+      eq: true
+  - assert:
+      path: backend.mapDraw.legend.items[6].colorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapDraw.legend.items[6].labelLeftAligned
+      eq: true
+  - assert:
+      path: backend.mapDraw.legend.items[6].label
+      neq: ""
   # NRO-04 D03 defect fix: the map surface must actually SUBMIT the mapped pixels (node icon +
   # conditional outline/overlay, plus legend panel/title/icons), not only count them. submitCount
   # is the renderMap submission-plan size; it must exceed the projected node + legend counts alone.

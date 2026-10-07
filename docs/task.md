@@ -3707,19 +3707,72 @@ allocation and Young GC pressure.
       `hp=0, count=0`; so `count eq 0` and non-zero hp are mutually exclusive and the scenario asserts
       the HUD-data keys PRESENT instead. The scenario ran 36/36 twice on D1 (see the D1 CONFIRMED note
       above).
-- [ ] **Open (D03 D1 finding) — part (a) RESOLVED by V03; part (b) is the V04 target: legend glyph column.**
-      The D03 map-edges A/B visual review (ART map present ON vs native OFF) noted: (a) the ART map
-      frame's top HUD looked largely absent relative to native. **(a) is now FIXED and D1-CONFIRMED by V03**
-      (see the V03 entry above): the delegated MAP band is drawn at the native map point (`TopPanel.render`
-      entry) instead of the post-native overlay, so the native `topPanel.render` HUD is retained; an
-      independent native-vs-ART capture of the map FULL frame shows the full HUD band (HP 68/75, gold,
-      potions, energy, clock, floor) matching native. (b) the legend's glyph column reads missing; the ART
-      legend DOES submit the 6 room-icon draws (`legendIconResource`: event/merchant->shop/treasure/rest/
-      enemy->monster/elite, all mapped to real `images/ui/map/*.png`), yet the independent reviewer again
-      saw text-only legend rows on the ART FULL frame while native shows glyphs — so this is a REAL
-      unresolved visual gap to diagnose in **V04** (draw path vs bounds vs catalog resolution), not a
-      misread. Next: capture a frozen-seed native-vs-ART pair and inspect the legend icon column rects +
-      resolved resources specifically before changing anything.
+- [x] **V04: legend room icons were invisible + labels mis-positioned (FIXED; D1 visual PENDING).**
+      **Defect (confirmed real by an independent reviewer + objective crops):** native shows a dark
+      icon column plus text; ART showed NO icons and labels sitting in the icon column. **Root cause
+      (read from the decompiled `Legend.java`/`LegendItem.java`, not re-derived):** the ART
+      `MapDrawPath.legendItems()` room rows were tinted by the generic submission path, i.e. WHITE,
+      so the `images/ui/map/*.png` icons vanished on the light parchment; and
+      `Sts1SurfaceRenderer.renderMap()` drew the label `renderFontCentered(buttonLabelFont, label,
+      iconBoxCenterX, iconBoxCenterY)` — centered in the ICON column instead of the native text
+      column. **Fix:** each room row now carries the native `c2 = (MapRoomNode.AVAILABLE_COLOR.r/g/b,
+      Legend.c.a)` = (0.09,0.13,0.17, alpha; 1.0 at rest, documented) as its icon+label tint, and the
+      renderer draws the label with `FontHelper.renderFontLeftTopAligned(panelNameFont, label, TEXT_X
+      - 50*scale, Y - SPACE_Y*index + OFFSET_Y + 13*yScale, c2)`. Geometry: `ICON_X =
+      1575*xScale`, `TEXT_X = 1670*xScale`, `SPACE_Y = 58*yScale`, `OFFSET_Y = 100*yScale` (desktop).
+      **CORRECTION to the V04 brief:** the brief's "per-row icon scale branch" is wrong — the four
+      native `LegendItem.render` scale values are HOVER/PLATFORM STATES (desktop-rest `/1.65f`,
+      desktop-hover `/1.2f`, mobile-hover `/1f`, mobile-rest `/1.3f`), NOT six per-row scales. ART
+      draws the desktop REST state, so every row is `128*scale/1.65f` (`MapDrawPath.legendIconScale`).
+      **Mapping CONFIRMED correct (unchanged):** `MAP_NODE_SHOP == images/ui/map/shop.png == native
+      ImageMaster.MAP_NODE_MERCHANT` and `MAP_NODE_MONSTER == images/ui/map/monster.png == native
+      ImageMaster.MAP_NODE_ENEMY`; `event/treasure/rest/elite` match too. **`submitCount`/`paintOrder`
+      unchanged:** the plan still emits panel, title, then the 6 rows (same resources/order/count),
+      only the row tint + label placement fields changed; the legend band stays strictly below nodes
+      (`paintOrder` bg -> edge -> legend -> node). **Tests:** `MapDrawPathTest` +5
+      (`legendRoomIconsCarryAvailableColorTintNotWhite`,
+      `legendLabelsUseNativeLeftAlignedTextColumnNotIconCenter`,
+      `legendIconScaleReproducesNativeDesktopRestBranch`,
+      `mapSubmissionPlanLegendRowsCarryC2TintAndLeftAlignedLabel`,
+      `probeExposesLegendIconTintAndLabelPlacement`); `d1_full_present_map_ready.yaml` asserts each
+      room row's `legend.items[i].colorHex == "17212bff"` (non-white) + `labelLeftAligned true` +
+      `label neq ""` (additions only, nothing weakened). **Regression proof:** reverting the row tint
+      to WHITE fails `legendRoomIconsCarryAvailableColorTintNotWhite` (`expected:<0.09> but
+      was:<1.0>`), `mapSubmissionPlanLegendRowsCarryC2TintAndLeftAlignedLabel`, and
+      `probeExposesLegendIconTintAndLabelPlacement` (`expected:<[17212b]ff> but was:<[ffffff]ff>`).
+      **D1 CONFIRMED (objective + visual).** `d1_full_present_map_ready.yaml` ran 73/73 twice on the
+      deployed jar (`sha256 e0a78ce3…b30e9f`): every `legend.items[1..6].colorHex == "17212bff"`
+      (nonzero AVAILABLE tint, never `ffffffff`) with `labelLeftAligned true` and non-empty localized
+      labels; `items[0]` (title) stayed `ffffffff`/`false`. A same-state native-vs-ART capture showed the
+      ART legend now has a dark icon column at the same x (≈1520–1590) as native with labels in the same
+      column (x≈1600+); the independent visual reviewer returned RESOLVED (dark icon column beside each
+      of the 6 labels, matching native; no missing/doubled/misplaced icon or label; no corruption).
+      No-regression: `legendCount 8`, `backgroundCount 5`, `edgeCount ≥1`, `paintOrder` bg<edge<legend<node,
+      `orphanArtOutput=0`.
+      **Residual (honest):** legend hover icon scale (`/1.2`) + hover tip, the controller
+      reticle, and the legend alpha fade-in (`Legend.c.a` lerp) remain unimplemented (M05/M06); this
+      path draws the desktop REST state at settled alpha 1.0 (the projection carries no legend alpha).
+      **Scenario order-independence (V04 follow-up):** `d1_map_hud_retention.yaml` now resets to a
+      fresh menu (`art lab ensure-fresh-menu` + wait, mirroring `d1_full_present_map.yaml`) AFTER its
+      leading `art present map off` reset and immediately BEFORE its `art lab start-run`, so the D1 run
+      is order-independent; the observed single
+      flake (step 16 `projection.scene eq map`, actual `combat`, right after
+      `d1_full_present_map_ready`) was a device-state ordering issue, not the V04 legend change.
+      `d1_full_present_map_ready.yaml` got the same explicit fresh-menu reset for the same reason
+      (steps: retention 38, map_ready 75).
+- [ ] **Open (V04 D1 harness finding): ECS `unknown entity` crash on rapid map surface unmount/remount.**
+      During the V04 D1 capture, an extra bounded off→on remount probe crashed the game with
+      `java.lang.IllegalArgumentException: unknown entity: 4644` at
+      `artframework.ecs.PresentationWorld.requireEntity` ← `PresentationVisuals.removeC2Items` ←
+      `Sts1SurfaceRenderer.prepareRestVisuals` (device `…/sts/latest.log` ~lines 543/580). The lab
+      recovered (`art-lab ready` → READY). All V04 steps had already passed; this is a SEPARATE
+      lifecycle-robustness defect exposed by rapid map unmount/remount (the removal of a stale C2 item
+      whose backing ECS entity was already reaped), NOT the V04 legend change. Classified as a
+      lifecycle/capacity robustness item for the N02/R02 territory: `removeC2Items`/`requireEntity`
+      must fail-open on an already-reaped entity (the C2 sync path should tolerate a missing entity on
+      teardown/remount, mirroring the fail-open `getIfPresent` rule). Needs a focused repro +
+      fail-open fix, then extend the existing `d1_full_present_lifecycle.yaml` (already present) with
+      the rapid uncovered/remount case before changing anything.
 
 ### 49. Scenario hygiene / order-independence
 

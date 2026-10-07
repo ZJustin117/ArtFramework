@@ -218,9 +218,41 @@ public final class MapDrawPath {
         public final String role;
         public final float z;
         public final Rect bounds;
+        /**
+         * Resolved native c2 tint for the room-row ICON and LABEL (V04): native
+         * {@code Legend.render} computes {@code c2 = (MapRoomNode.AVAILABLE_COLOR.r/g/b, c.a)} =
+         * (0.09, 0.13, 0.17, legendAlpha), sets it once ({@code sb.setColor(c2)}) and passes it to
+         * {@code LegendItem.render}. The panel and title keep the existing white/theme draws, so they
+         * carry the neutral default (1,1,1,1).
+         */
+        public final float r;
+        public final float g;
+        public final float b;
+        public final float a;
+        /**
+         * Native per-STATE icon scale (V04): a room row carries {@code legendIconScale(false,false,
+         * scale) = scale/1.65f} at the desktop REST state ART draws. Panel/title (no icon) carry 0.
+         */
+        public final float iconScale;
+        /** Native label LEFT edge x (V04): {@code TEXT_X*xScale - 50f*scale}; 0 for panel/title. */
+        public final float labelX;
+        /** Native label TOP y (V04): {@code rowY + 13f*yScale}; 0 for panel/title. */
+        public final float labelTopY;
+        /**
+         * True for the 6 room rows (V04): the label is drawn LEFT-TOP aligned at
+         * ({@link #labelX}, {@link #labelTopY}) — NOT centered on the icon box — matching native
+         * {@code FontHelper.renderFontLeftTopAligned}.
+         */
+        public final boolean labelLeftAligned;
 
         public LegendDrawItem(String id, int index, String label, String resourceId, String role,
                 float z, Rect bounds) {
+            this(id, index, label, resourceId, role, z, bounds, 1f, 1f, 1f, 1f, 0f, 0f, 0f, false);
+        }
+
+        public LegendDrawItem(String id, int index, String label, String resourceId, String role,
+                float z, Rect bounds, float r, float g, float b, float a, float iconScale,
+                float labelX, float labelTopY, boolean labelLeftAligned) {
             this.id = id != null ? id : "";
             this.index = index;
             this.label = label != null ? label : "";
@@ -228,6 +260,14 @@ public final class MapDrawPath {
             this.role = role != null ? role : "";
             this.z = z;
             this.bounds = bounds != null ? bounds : Rect.ZERO;
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.a = a;
+            this.iconScale = iconScale;
+            this.labelX = labelX;
+            this.labelTopY = labelTopY;
+            this.labelLeftAligned = labelLeftAligned;
         }
 
         public Map<String, Object> toMap() {
@@ -240,6 +280,17 @@ public final class MapDrawPath {
             m.put("y", Float.valueOf(bounds.y));
             m.put("w", Float.valueOf(bounds.width));
             m.put("h", Float.valueOf(bounds.height));
+            Map<String, Object> color = new LinkedHashMap<String, Object>();
+            color.put("r", Float.valueOf(r));
+            color.put("g", Float.valueOf(g));
+            color.put("b", Float.valueOf(b));
+            color.put("a", Float.valueOf(a));
+            m.put("color", color);
+            m.put("colorHex", hex(r, g, b, a));
+            m.put("iconScale", Float.valueOf(iconScale));
+            m.put("labelX", Float.valueOf(labelX));
+            m.put("labelTopY", Float.valueOf(labelTopY));
+            m.put("labelLeftAligned", Boolean.valueOf(labelLeftAligned));
             return m;
         }
     }
@@ -254,6 +305,25 @@ public final class MapDrawPath {
     private static final float LEGEND_ITEM_TEXT_X = 1670f;
     private static final float LEGEND_ITEM_SPACE_Y = 58f;   // desktop
     private static final float LEGEND_ITEM_OFFSET_Y = 100f; // desktop
+    /**
+     * Native {@code LegendItem.render} label offset from {@code TEXT_X} (V04):
+     * {@code TEXT_X - 50f*Settings.scale} (desktop + mobile).
+     */
+    private static final float LEGEND_ITEM_LABEL_DX = 50f;
+    /**
+     * Native {@code LegendItem.render} label y offset below the item row (V04):
+     * {@code rowY + 13f*Settings.yScale}.
+     */
+    private static final float LEGEND_ITEM_LABEL_DY = 13f;
+    /**
+     * Native desktop REST icon scale divisor (V04): {@code Settings.scale / 1.65f}. VERIFIED
+     * decompiled {@code LegendItem.render}: {@code !mobile && !hb.hovered} branch. The other three
+     * native divisors are the HOVER states ({@code desktop-hover /1.2f}, {@code mobile-hover /1f},
+     * {@code mobile-rest /1.3f}), not per-row scales; ART renders the REST state.
+     */
+    private static final float LEGEND_ICON_REST_DIVISOR = 1.65f;
+    /** Native desktop HOVER icon scale divisor (V04, documented gap: hover not yet replicated). */
+    private static final float LEGEND_ICON_HOVER_DIVISOR = 1.2f;
 
     private static final String[] LEGEND_ROOM_IDS = {
         "event", "merchant", "treasure", "rest", "enemy", "elite"
@@ -444,20 +514,67 @@ public final class MapDrawPath {
     }
 
     /**
+     * Native {@code LegendItem.render} c2 tint (V04): the legend reuses
+     * {@code MapRoomNode.AVAILABLE_COLOR} rgb with the legend panel's live alpha
+     * ({@code Legend.c.a}, which fades to 1 at rest). ART draws the settled rest state, and the
+     * projection carries no legend alpha, so the alpha is the documented rest value 1.0.
+     */
+    public static float[] legendTint() {
+        return new float[] {
+            AVAILABLE_COLOR[0], AVAILABLE_COLOR[1], AVAILABLE_COLOR[2], 1f
+        };
+    }
+
+    /**
+     * Native per-STATE icon scale divisor (V04), VERIFIED decompiled {@code LegendItem.render}:
+     * <ul>
+     *   <li>desktop rest: {@code Settings.scale / 1.65f}</li>
+     *   <li>desktop hover: {@code Settings.scale / 1.2f}</li>
+     *   <li>mobile rest: {@code Settings.scale / 1.3f}</li>
+     *   <li>mobile hover: {@code Settings.scale}</li>
+     * </ul>
+     * ART renders the desktop rest state, so {@link #legendIconScale(float)} returns {@code
+     * scale/1.65f}. The four native values are HOVER/PLATFORM states, NOT six per-row scales (the
+     * earlier V04 brief's "per-row branches" read is corrected here against the bytecode).
+     */
+    public static float legendIconScale(float scale) {
+        return scale / LEGEND_ICON_REST_DIVISOR;
+    }
+
+    /** Native desktop HOVER icon scale ({@code scale/1.2f}); icon bounds helper for future hover. */
+    public static float legendIconScaleHover(float scale) {
+        return scale / LEGEND_ICON_HOVER_DIVISOR;
+    }
+
+    /** Native label LEFT x (V04): {@code TEXT_X*xScale - 50f*scale}. */
+    public static float legendLabelX(float xScale, float scale) {
+        return LEGEND_ITEM_TEXT_X * xScale - LEGEND_ITEM_LABEL_DX * scale;
+    }
+
+    /** Native label TOP y (V04): {@code Y*yScale - SPACE_Y*yScale*index + OFFSET_Y*yScale + 13f*yScale}. */
+    public static float legendLabelTopY(float yScale, int index) {
+        return LEGEND_Y * yScale - (LEGEND_ITEM_SPACE_Y * yScale) * index
+                + (LEGEND_ITEM_OFFSET_Y * yScale) + LEGEND_ITEM_LABEL_DY * yScale;
+    }
+
+    /**
      * NRO-04 D03 map legend items: native {@code Legend.render} panel + title and the 6
      * {@code LegendItem.render} room-type icon rows, at REST (non-hovered, desktop). Returns an
      * empty list when {@code Settings} is unavailable so the renderer never invents pixels.
      *
-     * <p>Verified native geometry: panel {@code sb.draw(MAP_LEGEND, X-256f, Y-400f, 256f, 400f,
-     * 512f, 800f, Settings.scale, Settings.yScale, 0f, ...)} with {@code X = 1670f*Settings.xScale}
-     * and {@code Y = 600f*Settings.yScale}; icon {@code sb.draw(img, ICON_X-64f,
-     * Y - SPACE_Y*index + OFFSET_Y - 64f, 64f, 64f, 128f, 128f, Settings.scale/1.65f,
-     * Settings.scale/1.65f, ...)} with {@code ICON_X = 1575f*Settings.xScale},
-     * {@code SPACE_Y = 58f*Settings.yScale} and {@code OFFSET_Y = 100f*Settings.yScale} (desktop).
+     * <p>Verified native geometry (V04, decompiled {@code Legend.java} / {@code LegendItem.java}):
+     * panel {@code sb.draw(MAP_LEGEND, X-256f, Y-400f, 256f, 400f, 512f, 800f, Settings.scale,
+     * Settings.yScale, 0f, ...)} with {@code X = 1670f*Settings.xScale} and
+     * {@code Y = 600f*Settings.yScale}; icon {@code sb.draw(img, ICON_X-64f, Y - SPACE_Y*index +
+     * OFFSET_Y - 64f, 64f, 64f, 128f, 128f, Settings.scale/1.65f, Settings.scale/1.65f, ...)} with
+     * {@code ICON_X = 1575f*Settings.xScale}, {@code SPACE_Y = 58f*Settings.yScale} and
+     * {@code OFFSET_Y = 100f*Settings.yScale} (desktop). Both the icon and the label are tinted with
+     * {@code c2 = (AVAILABLE_COLOR.rgb, Legend.c.a)}; the LABEL is left-top aligned at
+     * {@code TEXT_X - 50f*scale}, {@code rowY + 13f*yScale}, NOT centered on the icon box.
      *
-     * <p><b>Documented gaps.</b> Hover icon scale ({@code /1.2}) and its tip, the controller
-     * reticle, and the legend alpha fade-in ({@code Legend.c.a} lerp) are NOT replicated; this path
-     * draws the rest state at full alpha.
+     * <p><b>Documented gaps.</b> Hover icon scale ({@code /1.2}), hover tip, the controller reticle,
+     * and the legend alpha fade-in ({@code Legend.c.a} lerp) are NOT replicated; this path draws the
+     * desktop REST state at settled full alpha (=1).
      */
     public static List<LegendDrawItem> legendItems() {
         List<LegendDrawItem> out = new ArrayList<LegendDrawItem>();
@@ -470,6 +587,7 @@ public final class MapDrawPath {
         float yScale = s[2];
         float x = LEGEND_X * xScale;
         float y = LEGEND_Y * yScale;
+        float[] tint = legendTint();
         out.add(new LegendDrawItem("legend.panel", -1, "", ResourceIds.UI_MAP_LEGEND,
                 "map-legend", 0.1f,
                 new Rect(x - 256f, y - 400f,
@@ -482,14 +600,16 @@ public final class MapDrawPath {
                 "map-legend", 0.2f,
                 new Rect(textX - 160f * scale, y + 170f * yScale - 20f * yScale,
                         320f * scale, 40f * yScale)));
+        float icon = 128f * legendIconScale(scale);
         for (int i = 0; i < LEGEND_ROOM_IDS.length && i < LEGEND_ROOM_LABELS.length; i++) {
             String room = LEGEND_ROOM_IDS[i];
-            float icon = 128f * (scale / 1.65f);
             Rect bounds = new Rect(LEGEND_ITEM_ICON_X * xScale - 64f,
                     y - (LEGEND_ITEM_SPACE_Y * yScale) * i + (LEGEND_ITEM_OFFSET_Y * yScale) - 64f,
                     icon, icon);
             out.add(new LegendDrawItem("legend:" + room, i, legendLabel(i),
-                    legendIconResource(room), "map-legend", 0.15f, bounds));
+                    legendIconResource(room), "map-legend", 0.15f, bounds,
+                    tint[0], tint[1], tint[2], tint[3], icon,
+                    legendLabelX(xScale, scale), legendLabelTopY(yScale, i), true));
         }
         return out;
     }
@@ -773,13 +893,29 @@ public final class MapDrawPath {
         public final float g;
         public final float b;
         public final float a;
+        /**
+         * V04: true when the label is drawn LEFT-TOP aligned at ({@code labelX}, {@code labelTopY})
+         * (the 6 native {@code LegendItem} rows) instead of centered in {@link #bounds}. Panel/title
+         * and node submissions keep the centered draw (false).
+         */
+        public final boolean labelLeftAligned;
+        /** V04: native label LEFT x for {@link #labelLeftAligned} submits; 0 otherwise. */
+        public final float labelX;
+        /** V04: native label TOP y for {@link #labelLeftAligned} submits; 0 otherwise. */
+        public final float labelTopY;
 
         public Submission(String resourceId, Rect bounds, String label) {
-            this(resourceId, bounds, label, "plain", 1f, 1f, 1f, 1f);
+            this(resourceId, bounds, label, "plain", 1f, 1f, 1f, 1f, false, 0f, 0f);
         }
 
         public Submission(String resourceId, Rect bounds, String label, String role,
                 float r, float g, float b, float a) {
+            this(resourceId, bounds, label, role, r, g, b, a, false, 0f, 0f);
+        }
+
+        public Submission(String resourceId, Rect bounds, String label, String role,
+                float r, float g, float b, float a, boolean labelLeftAligned,
+                float labelX, float labelTopY) {
             this.resourceId = resourceId != null ? resourceId : "";
             this.bounds = bounds;
             this.label = label != null ? label : "";
@@ -788,6 +924,9 @@ public final class MapDrawPath {
             this.g = g;
             this.b = b;
             this.a = a;
+            this.labelLeftAligned = labelLeftAligned;
+            this.labelX = labelX;
+            this.labelTopY = labelTopY;
         }
     }
 
@@ -811,7 +950,15 @@ public final class MapDrawPath {
             if (legend.bounds == null || legend.bounds.width <= 0f || legend.bounds.height <= 0f) {
                 continue;
             }
-            addSubmission(out, legend.resourceId, legend.bounds, legend.label);
+            // V04: the 6 room rows carry the native c2 (AVAILABLE_COLOR) tint + left-top label
+            // placement; the panel/title keep the neutral white/centered draw.
+            if (legend.labelLeftAligned) {
+                addSubmission(out, legend.resourceId, legend.bounds, legend.label, legend.role,
+                        legend.r, legend.g, legend.b, legend.a, true,
+                        legend.labelX, legend.labelTopY);
+            } else {
+                addSubmission(out, legend.resourceId, legend.bounds, legend.label);
+            }
         }
         for (DrawItem item : buildFromProjection()) {
             if (item.bounds == null || item.bounds.width <= 0f || item.bounds.height <= 0f) {
@@ -861,12 +1008,29 @@ public final class MapDrawPath {
             float g,
             float b,
             float a) {
+        addSubmission(out, resourceId, bounds, label, role, r, g, b, a, false, 0f, 0f);
+    }
+
+    private static void addSubmission(
+            List<Submission> out,
+            String resourceId,
+            Rect bounds,
+            String label,
+            String role,
+            float r,
+            float g,
+            float b,
+            float a,
+            boolean labelLeftAligned,
+            float labelX,
+            float labelTopY) {
         boolean hasResource = resourceId != null && !resourceId.isEmpty();
         boolean hasLabel = label != null && !label.isEmpty();
         if (!hasResource && !hasLabel) {
             return;
         }
-        out.add(new Submission(resourceId, bounds, label, role, r, g, b, a));
+        out.add(new Submission(resourceId, bounds, label, role, r, g, b, a,
+                labelLeftAligned, labelX, labelTopY));
     }
 
     public static DrawItem hitTest(float screenX, float screenY, float radius) {

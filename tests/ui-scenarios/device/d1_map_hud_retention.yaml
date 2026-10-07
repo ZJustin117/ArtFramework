@@ -1,5 +1,13 @@
 # D1: V03 HUD-retention contract on the map FULL frame.
 #
+# Order-independence (V04 follow-up): this scenario now resets the run state to a fresh menu
+# (`art lab ensure-fresh-menu` + a wait, mirroring `d1_full_present_map.yaml`) AFTER its leading
+# `art present map off` reset and immediately BEFORE its `art lab start-run`, so it no longer depends on whether a predecessor scenario left a
+# live room (e.g. `d1_full_present_map_ready` ends by navigating `art op map first` INTO a live
+# room). This fixes the observed single flake at the `projection.scene eq map` step (actual
+# `combat`) — a device-state ordering issue, not a V04 legend regression. No assertion was weakened
+# or removed.
+#
 # Guards the V03 fix: while ART fully presents the MAP surface (native DungeonMapScreen.render is
 # suppressed), the native top-panel HUD must stay authoritative — it is drawn by the un-suppressed
 # native TopPanel.render AFTER ART's map band, so it lands on top instead of being covered by the
@@ -35,7 +43,7 @@ require:
     - STS_CONNECTOR_PORT
     - SLAY_THE_AMETHYST_ROOT
 steps:
-  # Idempotent leading reset: clear any map surface left by a prior scenario before start-run.
+  # Idempotent leading reset: clear any map surface left by a prior scenario before fresh-menu.
   - console: "art present map off"
   - wait_ms: 800
   - wait_probe:
@@ -44,6 +52,11 @@ steps:
       assert:
         path: backend.fullPresent.map
         eq: "OFF"
+  # Order-independence reset (mirrors `d1_full_present_map.yaml`): return to a fresh menu so the run
+  # state does not depend on a predecessor having left a live room. `art lab start-run` below arms its
+  # own async recipe, so this is an explicit, observable reset before it.
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
   - console: "art lab start-run IRONCLAD"
   - wait_probe:
       timeout_ms: 45000

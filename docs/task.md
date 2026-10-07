@@ -3625,3 +3625,16 @@ allocation and Young GC pressure.
       pins the per-node order and that the outline/fill rects are equal. (Remaining D03 gaps are
       unrelated: legend hover/fade, map edges, boss icon, node hover FX, mobile scaling, ring scale
       factor, a taken/current ring D1 state.)
+- [ ] **Open (D03 D1 finding): ART map frame HUD appears absent + legend glyph column unconfirmed.**
+      The D03 map-edges A/B visual review (ART map present ON vs native OFF) noted: (a) the ART map
+      frame's top HUD looks largely absent relative to native (native shows HP 68/75, gold, potions,
+      energy, timer, floor; ART shows only the player name + right-side buttons) — this is likely the
+      full-present suppression of the top panel while the map surface is up, NOT a map-background/edge
+      defect, but it is a visible discrepancy worth confirming against the native map screen; and
+      (b) the legend's glyph column reads missing. On (b): the ART legend DOES submit the 6
+      room-icon draws (`legendIconResource`: event/merchant->shop/treasure/rest/enemy->monster/elite,
+      all mapped to real `images/ui/map/*.png`), so the icons are supplied and render via
+      `mapSubmissionPlan`; verify on-device whether they actually paint at the legend item bounds
+      (the reviewer may have misread, or there may be a bounds/draw nuance). Next: capture a
+      frozen-seed native-vs-ART map pair and check the top-HUD region + the legend icon column rects
+      specifically; classify (a)/(b) as known-gap vs real defect before changing anything.

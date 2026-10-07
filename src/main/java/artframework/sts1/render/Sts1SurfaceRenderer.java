@@ -23,7 +23,39 @@ import java.util.Set;
  */
 public final class Sts1SurfaceRenderer {
 
+    /**
+     * V03: projection-frame id of the last delegated MAP band paint. {@link Long#MIN_VALUE} means
+     * "none yet". Keying the once-guard on the projection frame id (not a plain boolean) makes the
+     * band idempotent within one frame while still repainting on the next frame.
+     */
+    private static long mapBandDrawnFrameId = Long.MIN_VALUE;
+    /** Test seam: successful/attempted MAP band paints since the last reset. */
+    private static int mapBandDrawCount;
+    /** Test seam: when non-null, replaces the real band paint so fail-open is provable. */
+    private static Runnable mapBandDrawOverrideForTests;
+    /**
+     * Test seam: when non-null, every resource the map band would submit (background, then edges,
+     * then legend/node submissions) is appended here in draw order, without needing real textures.
+     */
+    private static java.util.List<String> mapBandDrawLogForTests;
+
     private Sts1SurfaceRenderer() {}
+
+    /** Test seam: the ordered resource ids the map band draws (background -> edges -> submissions). */
+    static java.util.List<String> mapBandDrawLogForTests() {
+        return mapBandDrawLogForTests;
+    }
+
+    /** Test seam: enables the ordered submission recorder for the current test. */
+    static void recordMapBandDrawsForTests() {
+        mapBandDrawLogForTests = new java.util.ArrayList<String>();
+    }
+
+    private static void recordMapBandResource(String resourceId) {
+        if (mapBandDrawLogForTests != null) {
+            mapBandDrawLogForTests.add(resourceId == null ? "" : resourceId);
+        }
+    }
 
     public static boolean shouldSuppressNativeHand() {
         return Sts1RenderPipeline.shouldSuppressNativeHand();
@@ -61,16 +93,12 @@ public final class Sts1SurfaceRenderer {
         }
         prepareSurfaceVisuals(plan);
         artframework.render.RenderProjectionQueue.projectActiveSurfaces(activeSurfaces);
-        // NRO-04 D03 map background layering fix: the native parchment background is the BOTTOM map
-        // layer (native DungeonMap.render normal-map draws mapTop/mapMid/mapBot/mapBlend BEFORE
-        // Legend.render, and DungeonMapScreen.render draws the nodes AFTER). Paint it here, under the
-        // C2 item/surface band and under renderMap's legend+node submissions, so the opaque parchment
-        // can never wash out the node/edge pixels. The C2 item path carries only bounds + effect
-        // attachments (no texture paint), so the background cannot be expressed as a C2 item; drawing
-        // it immediately before the C2 band is the exact equivalent of native background-first order.
-        if (containsSurface(plan, SurfaceIds.MAP)) {
-            renderMapBackground(sb);
-        }
+        // V03: the delegated MAP band (parchment background + legend/nodes/edges) is NO LONGER drawn
+        // here. It is drawn at the native map point inside {@link #drawMapBandAtNativePoint}, hooked
+        // at {@code TopPanel.render} entry — i.e. exactly where native {@code DungeonMapScreen.render}
+        // was skipped — so the native HUD drawn afterwards by {@code TopPanel.render} lands ON TOP.
+        // See docs/design/render-z-order.md sections 6/12. Drawing it here (post-native) is what
+        // covered the top HUD.
         RenderHosts.get().drawFrame(sb, true, RenderHost.kindsC2UnderPresent());
         for (SurfaceDrawPlan.Entry e : plan.drawOrder()) {
             prepareSurfaceChrome(sb, e.surfaceId);
@@ -79,7 +107,14 @@ public final class Sts1SurfaceRenderer {
             } else if (SurfaceIds.COMBAT_CONTROLS.equals(e.surfaceId)) {
                 renderControls(sb);
             } else if (SurfaceIds.MAP.equals(e.surfaceId)) {
-                renderMap(sb);
+                // V03: the delegated MAP band is drawn at the native map point this frame (see
+                // drawMapBandAtNativePoint); the post-native loop draws it only when the top panel is
+                // itself ART-suppressed (no native HUD to cover). Both routes go through the SAME
+                // shared once-guarded method so the FULL band (parchment background + renderMap
+                // submissions) is drawn exactly once, whichever site runs first.
+                if (postNativeDrawsSurface(plan, e.surfaceId)) {
+                    drawMapBandPostNative(sb);
+                }
             } else if (SurfaceIds.EVENT.equals(e.surfaceId)) {
                 renderEvent(sb);
             } else if (SurfaceIds.SELECT_GRID.equals(e.surfaceId)
@@ -128,6 +163,184 @@ public final class Sts1SurfaceRenderer {
         // ART_EFFECTS is the final ART-owned band. It remains outside the native stage.draw()
         // boundary and is submitted after C2/entity content according to RenderPhase.rank.
         VfxSts1Runtime.render(sb);
+    }
+
+    /**
+     * V03: draws the delegated MAP band (parchment background + legend/nodes/edges) at the NATIVE
+     * map point, i.e. at {@code TopPanel.render} entry the moment just before the native HUD body —
+     * reproducing native {@code AbstractDungeon.render}'s {@code dungeonMapScreen.render(sb)} then
+     * {@code topPanel.render(sb)} order. The native map family ({@code DungeonMapScreen.render}) was
+     * skipped by ART, so ART's map pixels must land here; the native top-panel HUD drawn afterwards
+     * therefore paints ON TOP of the map instead of being covered by it (the pre-V03 post-native
+     * overlay covered the HUD because {@code receivePostRender} runs after {@code topPanel.render}).
+     * See docs/design/render-z-order.md sections 6/12.
+     *
+     * <p>Called from {@code TopPanelRenderPatches.ObserveNativeTopPanelRender.Prefix} at the
+     * {@code TopPanel.render} entry. This is the native-point route; the post-native route for the
+     * same frame is {@link #drawMapBandPostNative}. Both delegate to the one shared
+     * {@link #drawMapBandOnce} so the FULL band (background included) is painted exactly once.
+     */
+    public static void drawMapBandAtNativePoint(SpriteBatch sb) {
+        if (!shouldDrawMapBandAtNativePoint(Sts1RenderPipeline.plan())) {
+            return;
+        }
+        drawMapBandOnce(sb);
+    }
+
+    /**
+     * V03: the post-native route for the same delegated MAP band, used when the native-point route
+     * did not run (top panel itself ART-suppressed, so there is no native HUD to sit under). It
+     * draws the same FULL band via {@link #drawMapBandOnce} (parchment background + {@code renderMap}
+     * submissions, identical content/order to the native-point route) so the map is never painted
+     * without its background.
+     */
+    static void drawMapBandPostNative(SpriteBatch sb) {
+        if (!shouldDrawMapBandPostNative(Sts1RenderPipeline.plan())) {
+            return;
+        }
+        drawMapBandOnce(sb);
+    }
+
+    /**
+     * Pure decision seam for the post-native route: draw the band here only when ART actually
+     * delegated the map's pixels this frame. The routing (native-point vs post-native) is decided by
+     * {@link #postNativeDrawsMapBand}; this guards the raw draw against being reached when the map is
+     * not delegated at all (e.g. OFF/OBSERVE/unmounted).
+     */
+    static boolean shouldDrawMapBandPostNative(SurfaceDrawPlan plan) {
+        return plan != null && plan.shouldSuppressNative(SurfaceIds.MAP);
+    }
+
+    /**
+     * The single shared "draw the delegated MAP band exactly once for this projected frame" method
+     * used by BOTH the native-point and post-native routes. It draws the parchment background first
+     * (so it stays under the legend/nodes) then the {@code renderMap} submissions, and is idempotent
+     * per frame (see {@link #claimMapBandDrawForFrame}), so whichever route runs first paints the
+     * complete band and the later route is a no-op — the map can never be double-drawn or left
+     * without a background.
+     *
+     * <p><b>Fail-open.</b> The whole band, including the once-guard and the batch-state restore, is
+     * wrapped in {@code try/catch(Throwable)} so any failure leaves the native caller to continue and
+     * never throws out of the band (nor out of the {@code TopPanel.render} patch).
+     *
+     * <p><b>Batch state.</b> The band runs inside the native render pass at {@code TopPanel.render}
+     * entry (and post-native), so it must not leak batch state into the native HUD/gradient draws
+     * that follow. The batch {@link SpriteBatch#getColor() color} is snapshotted at entry and
+     * restored in a {@code finally}; {@link #drawResolvedTexture} additionally restores
+     * {@code Color.WHITE} per draw. FontHelper's {@code renderFontCentered} mutates the shared
+     * {@code BitmapFont}'s color (via {@code BitmapFont.setColor}) but not the batch color, so the
+     * font tint is not captured here — see the residual note in docs/design/render-z-order.md §12.6.
+     */
+    private static void drawMapBandOnce(SpriteBatch sb) {
+        if (sb == null) {
+            return;
+        }
+        if (artframework.sts1.PresentSafety.isPanic()) {
+            return;
+        }
+        if (BackgroundOnlyGate.isActive()) {
+            return;
+        }
+        Runnable override = mapBandDrawOverrideForTests;
+        long frameId = ArtFramework.projection().lastFrameId();
+        // Snapshot the batch color so the band can never tint the native HUD/gradient draws that
+        // follow. getColor() returns the live Color, so copy it.
+        Color previousColor = null;
+        try {
+            previousColor = new Color(sb.getColor());
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (!claimMapBandDrawForFrame(frameId)) {
+                return;
+            }
+            if (override != null) {
+                override.run();
+                return;
+            }
+            renderMapBackground(sb);
+            renderMap(sb);
+        } catch (Throwable ignored) {
+            // Fail-open: a map-band failure must never block the native top-panel body.
+        } finally {
+            try {
+                if (previousColor != null) {
+                    sb.setColor(previousColor);
+                } else {
+                    sb.setColor(Color.WHITE);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /**
+     * Pure decision seam: draw the native-point map band only when ART actually delegated the map's
+     * pixels this frame (FULL + mounted + map scene + ready executor) AND the top panel itself is NOT
+     * ART-suppressed — i.e. the native {@code TopPanel.render} body will run and its HUD must land on
+     * top of the map. If the top panel is itself suppressed the native HUD is not drawn, so there is
+     * nothing for the band to sit under and the band is drawn post-native instead (see
+     * {@link #postNativeDrawsMapBand}).
+     */
+    static boolean shouldDrawMapBandAtNativePoint(SurfaceDrawPlan plan) {
+        return plan != null
+                && plan.shouldSuppressNative(SurfaceIds.MAP)
+                && !plan.shouldSuppressNative(SurfaceIds.TOP_PANEL);
+    }
+
+    /**
+     * Pure routing seam: the post-native loop draws the MAP band only when it was NOT already drawn
+     * at the native map point. This keeps the map painted exactly once in every combination —
+     * native-point when the top panel is native-continuing (the covered-HUD case this fix targets),
+     * post-native when the top panel is itself ART-suppressed (no native HUD to cover).
+     */
+    static boolean postNativeDrawsMapBand(SurfaceDrawPlan plan) {
+        return !shouldDrawMapBandAtNativePoint(plan);
+    }
+
+    /**
+     * Pure routing seam for the post-native surface loop: every surface is still drawn post-native
+     * EXCEPT the delegated MAP band, which is routed by {@link #postNativeDrawsMapBand}. Every other
+     * surface keeps its previous post-native draw unchanged.
+     */
+    static boolean postNativeDrawsSurface(SurfaceDrawPlan plan, String surfaceId) {
+        if (SurfaceIds.MAP.equals(surfaceId)) {
+            return postNativeDrawsMapBand(plan);
+        }
+        return true;
+    }
+
+    /**
+     * Pure once-per-frame guard. Returns {@code true} for the first call in a given projected
+     * {@code frameId} and {@code false} for every later call in the same frame, so the band can never
+     * double-draw if the native map point is entered more than once. Kept side-effect free apart from
+     * the guard/counter so it is directly unit-testable.
+     */
+    static boolean claimMapBandDrawForFrame(long frameId) {
+        if (mapBandDrawnFrameId == frameId) {
+            return false;
+        }
+        mapBandDrawnFrameId = frameId;
+        mapBandDrawCount++;
+        return true;
+    }
+
+    /** Test seam: resets the once-per-frame guard and counters. */
+    static void resetMapBandGuardForTests() {
+        mapBandDrawnFrameId = Long.MIN_VALUE;
+        mapBandDrawCount = 0;
+        mapBandDrawOverrideForTests = null;
+        mapBandDrawLogForTests = null;
+    }
+
+    /** Test seam: observation of how many times the native-point map band was attempted. */
+    static int mapBandDrawCountForTests() {
+        return mapBandDrawCount;
+    }
+
+    /** Test seam: replaces the real band paint so fail-open can be proven without a SpriteBatch. */
+    static void setMapBandDrawOverrideForTests(Runnable override) {
+        mapBandDrawOverrideForTests = override;
     }
 
     private static void disableInactiveSurfaceEffects(SurfaceDrawPlan plan) {
@@ -684,11 +897,12 @@ public final class Sts1SurfaceRenderer {
      * Native map parchment background (D03 map background follow-up), drawn as the BOTTOM map layer.
      * {@code mapTop/mapMid/mapBot + mapBlend×2} at native rects with the live {@code baseMapColor}
      * alpha (white RGB), mirroring native {@code DungeonMap.renderNormalMap}/{@code renderMapCenters}/
-     * {@code renderMapBlender} order. Called from {@link #render} immediately BEFORE the C2 band so the
-     * opaque parchment is under the legend (drawn by {@link #renderMap}'s submission plan) and the
-     * nodes — matching native background -> legend -> nodes order and preventing the wash-out where
-     * the background painted over the node pixels. Every draw is fail-open; nothing else is recorded
-     * here because {@link #renderMap} owns the surface evidence count.
+     * {@code renderMapBlender} order. Called from {@link #drawMapBandAtNativePoint} (at the native
+     * map point) immediately BEFORE {@link #renderMap} so the opaque parchment is under the legend
+     * (drawn by {@link #renderMap}'s submission plan) and the nodes — matching native background ->
+     * legend -> nodes order and preventing the wash-out where the background painted over the node
+     * pixels. Every draw is fail-open; nothing else is recorded here because {@link #renderMap} owns
+     * the surface evidence count.
      *
      * <p><b>Documented gap.</b> The {@code baseMapColor} fade-in alpha is applied per draw
      * ({@code bg.alpha}); the C2 item path carries no color/alpha, so the fade is not mirrored in C2
@@ -697,6 +911,7 @@ public final class Sts1SurfaceRenderer {
     private static void renderMapBackground(SpriteBatch sb) {
         try {
             for (MapDrawPath.BackgroundDrawItem bg : MapDrawPath.backgroundItems()) {
+                recordMapBandResource(bg.resourceId);
                 try {
                     drawResolvedTexture(sb, bg.resourceId, bg.bounds, 1f, 1f, 1f, bg.alpha);
                 } catch (Throwable ignored) {
@@ -717,8 +932,9 @@ public final class Sts1SurfaceRenderer {
      * submissions (legend + node/outline/overlay/ring draws).
      *
      * <p>The native parchment background is drawn EARLIER, by {@link #renderMapBackground} inside
-     * {@link #render} immediately before the C2 band, so it stays under the legend/nodes instead of
-     * painting over them (D03 layering fix). It is deliberately NOT drawn here.
+     * {@link #drawMapBandAtNativePoint} (at the native map point) immediately before the node band,
+     * so it stays under the legend/nodes instead of painting over them (D03 layering fix). It is
+     * deliberately NOT drawn here.
      */
     private static void renderMap(SpriteBatch sb) {
         int drawn = 0;
@@ -728,6 +944,7 @@ public final class Sts1SurfaceRenderer {
         // parchment earlier in render(); here the edges paint right after it (under legend/nodes) and
         // before mapSubmissionPlan, matching paintOrder()'s `bg -> edge -> legend -> node` bands.
         for (MapDrawPath.EdgeDrawItem edge : MapDrawPath.edgeItems()) {
+            recordMapBandResource(edge.resourceId);
             try {
                 drawResolvedTexture(sb, edge.resourceId, edge.bounds,
                         edge.r, edge.g, edge.b, edge.a, edge.rotationDegrees);
@@ -737,6 +954,7 @@ public final class Sts1SurfaceRenderer {
         }
         try {
             for (MapDrawPath.Submission item : MapDrawPath.mapSubmissionPlan()) {
+                recordMapBandResource(item.resourceId);
                 try {
                     drawResolvedTexture(sb, item.resourceId, item.bounds,
                             item.r, item.g, item.b, item.a);

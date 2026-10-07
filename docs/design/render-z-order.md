@@ -209,6 +209,15 @@ The host integration must expose a verified pre-native draw point, or draw the b
 native family has been skipped. If neither is available, the mode must report `unsupported` rather
 than pretending that the background is underneath native content.
 
+This is the rule the delegated MAP surface follows (V03). Native `AbstractDungeon.render` runs the
+screen-specific `dungeonMapScreen.render(sb)` for `CurrentScreen.MAP` and only afterwards
+`topPanel.render(sb)`. ART suppresses `DungeonMapScreen.render` and repaints the map, but the
+general ART submission boundary is post-native (`receivePostRender` runs after `topPanel.render`),
+so repainting the opaque map parchment in the post-native overlay covered the native HUD. The fix
+draws the delegated map band at the native map point instead — the `TopPanel.render` entry, i.e.
+where the native map family was skipped — so the native top-panel HUD that draws afterwards lands on
+top. See §12.6.
+
 Native filtering remains family- and invocation-specific. It must reuse the existing
 `NativeRenderBridge` disposition/ledger rules and fail open for unknown, unclaimed, panic, or
 host-failure cases. Z-order does not grant permission to suppress native pixels.
@@ -582,3 +591,68 @@ Rules:
 
 `art verify mode background` now reports `ready` (background capability is `PRE_NATIVE`): the
 variant is settable, `modeSupported()` is true, and `submissionStatus()` is `ready`.
+
+### 12.6 Delegated MAP band at the native map point (implemented, V03)
+
+Decompiled native `AbstractDungeon.render(SpriteBatch)` order (the part that matters here):
+the `CurrentScreen.MAP` switch draws `dungeonMapScreen.render(sb)` and only LATER draws
+`topPanel.render(sb)`. Natively the HUD therefore lands ON TOP of the map. ART suppresses
+`DungeonMapScreen.render` (`MapRenderPatches`, `NativeRenderBridge.beginSurface("sts1.map", …)`)
+and repainted the whole map (parchment `mapTop/mapMid/mapBot/mapBlend` + edges + legend + nodes)
+from `Sts1SurfaceRenderer.render(sb)`, which `StageHost.receivePostRender` calls AFTER native
+`topPanel.render` — so the full-width opaque parchment (alpha 1.0) painted OVER the native HUD.
+The D1 probe confirmed this is not a top-panel gate problem: when the map is up,
+`backend.fullPresent.topPanel = OFF`, `suppressNativeTopPanel = false`, `topPanelDraw.count = 0`
+(the top panel is NOT suppressed; the HUD is drawn natively and then covered).
+
+Fix (following the §6 rule: "draw the background after a native family has been skipped"): the
+delegated map band is drawn at the NATIVE map point — the `TopPanel.render` entry — not in
+`post_native_overlay`:
+
+- The band is drawn through ONE shared method, `Sts1SurfaceRenderer.drawMapBandOnce(sb)`: the
+  parchment background (`renderMapBackground`) followed by the legend/node/edge submissions
+  (`renderMap`), i.e. the same items/order the pre-V03 post-native path used to draw. Both routes
+  call it, so whichever runs first paints the complete band and the other is a no-op.
+- Route A (native map point): `drawMapBandAtNativePoint(sb)` is invoked from the existing
+  `TopPanel.render` Prefix in `artframework/sts1/patch/TopPanelRenderPatches.java`
+  (`ObserveNativeTopPanelRender.Prefix`) BEFORE the native HUD body runs, reproducing native
+  "screen-specific map, then topPanel" order, so the native HUD lands on top.
+- Route B (post-native): `drawMapBandPostNative(sb)` is invoked from the post-native `render(sb)`
+  surface loop only when Route A did not own this frame (top panel itself ART-suppressed, so there is
+  no native HUD to cover). It draws the SAME full band via the shared method, including the parchment
+  background — a defect review caught that routing the band post-native while calling only
+  `renderMap` would have painted the map with NO background (`map on` + `top on`).
+- Guards: the band is drawn only when the map surface is actually delegated this frame
+  (`shouldSuppressNative(MAP)` — FULL + mounted + map scene + ready executor), the top panel is NOT
+  itself ART-suppressed on Route A, and no panic / background-only gate is active. It is idempotent
+  within one projected frame via the once-per-frame guard
+  (`claimMapBandDrawForFrame(lastFrameId)`), so a repeated `TopPanel.render` entry, or a native-point
+  entry followed by the post-native loop in the same frame, can never double-draw.
+- FAIL-OPEN: the whole band draw is wrapped in `try/catch(Throwable)`; any failure leaves the native
+  top-panel body to continue unchanged and never throws out of the patch. The once-guard is claimed
+  BEFORE the draw, so a failure is never retried within the same frame.
+- Exactly-once routing: `postNativeDrawsSurface(plan, MAP)` draws the map band post-native only when
+  the native point did NOT (`postNativeDrawsMapBand`). In the targeted case (top panel
+  native-continuing, `backend.fullPresent.topPanel = OFF`) the band is drawn once at the native point
+  and skipped post-native; when the top panel is itself suppressed the band is drawn once post-native.
+  The map is never lost and never double-drawn, and its parchment background is always included.
+  Every other surface keeps its previous post-native draw unchanged.
+- Batch state: the band runs inside the native render pass (`TopPanel.render` entry), so
+  `drawMapBandOnce` snapshots `SpriteBatch.getColor()` at entry and RESTORES it in a `finally`, and
+  `drawResolvedTexture` restores `Color.WHITE` per draw — so the band cannot tint the native
+  HUD/gradient draws that follow. This batch-color snapshot/restore is unit-tested.
+  **Residual (not fully verified):** `FontHelper.renderFontCentered` mutates the shared
+  `BitmapFont`'s color (via `BitmapFont.setColor`) but not the batch color; the band does not capture
+  or restore the font tint. Full batch/font-state parity (blend funcs, the shared font color, and the
+  draw inside the live native batch) is D1-pending.
+- The D1 HUD-retention capture on the map FULL frame is PENDING (verified separately).
+
+Focused proof (`Sts1SurfaceRendererMapPointTest`): the delegated map draws at the native point and
+NOT post-native; OFF/OBSERVE/unmounted draw nothing; a suppressed top panel routes the band to
+post-native AND that post-native band includes the parchment background with the same content/order
+as the native-point band (the regression guard for the omitted-background defect); the two routes
+share the once-guard so native-then-post-native in one frame paints exactly ONE complete band
+(background included); the once-per-frame guard claims exactly one draw and a same-frame retry is a
+no-op; a band exception does not propagate and blocks a same-frame retry; the band restores the batch
+color; and the band resource content/order equals the previous post-native draw (`backgroundItems` →
+`edgeItems` → `mapSubmissionPlan`).

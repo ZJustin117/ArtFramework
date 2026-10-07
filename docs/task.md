@@ -3649,19 +3649,77 @@ allocation and Young GC pressure.
       pins the per-node order and that the outline/fill rects are equal. (Remaining D03 gaps are
       unrelated: legend hover/fade, map edges, boss icon, node hover FX, mobile scaling, ring scale
       factor, a taken/current ring D1 state.)
-- [ ] **Open (D03 D1 finding): ART map frame HUD appears absent + legend glyph column unconfirmed.**
+- [x] **V03: ART map FULL frame lost the top HUD — delegated MAP band now drawn at the native map
+      point.** Root cause (D1 probe, no re-derivation): native `AbstractDungeon.render` draws the
+      `CurrentScreen.MAP` screen map, THEN `topPanel.render` (HUD over the map). ART suppresses
+      `DungeonMapScreen.render` and repainted the whole opaque map parchment from
+      `StageHost.receivePostRender` → `Sts1SurfaceRenderer.render`, which runs AFTER
+      `topPanel.render`, so the parchment covered the native HUD. The probe showed this was NOT a
+      top-panel gate problem (`backend.fullPresent.topPanel = OFF`,
+      `suppressNativeTopPanel = false`, `topPanelDraw.count = 0`: the HUD IS drawn natively, then
+      covered). Fix (following docs/design/render-z-order.md §6/§12 rule: draw after a native family
+      has been skipped): the map band (parchment background + edges + legend/nodes) is drawn through
+      ONE shared `Sts1SurfaceRenderer.drawMapBandOnce(sb)` method. Route A is the NATIVE map point —
+      the `TopPanel.render` entry (`TopPanelRenderPatches.ObserveNativeTopPanelRender.Prefix`) — via
+      `drawMapBandAtNativePoint(sb)`, before the native HUD body, reproducing native "map, then
+      topPanel" order so the HUD lands on top. Route B is the post-native `render(sb)` loop via
+      `drawMapBandPostNative(sb)`, used only when the top panel is itself ART-suppressed (no native
+      HUD to cover). Both routes call the shared method (background included), and two defect-review
+      fixes are folded in: (1) Route B must draw the FULL band — pre-review it called only `renderMap`
+      (background omitted), which would paint `map on` + `top on` with NO parchment; now both routes
+      include the background with identical content/order; (2) `drawMapBandOnce` snapshots
+      `SpriteBatch.getColor()` at entry and restores it in a `finally` so the band cannot tint the
+      native HUD/gradient draws that follow (FontHelper's shared `BitmapFont` tint is not captured —
+      full batch/font parity is D1-pending). Guarded to run only when the map is delegated
+      (`shouldSuppressNative(MAP)`, no panic/background-only), idempotent per projected frame
+      (`claimMapBandDrawForFrame`, shared by both routes so native-then-post-native in one frame draws
+      exactly one complete band), and fully fail-open (try/catch(Throwable), once-guard claimed before
+      the draw so a failure never retries). Tests: `Sts1SurfaceRendererMapPointTest` (11 tests:
+      native-point vs post-native draw-once, OFF/OBSERVE/unmounted draw nothing, suppressed-top-panel
+      routing AND that its post-native band INCLUDES the parchment background with native-point
+      content/order, native-then-post-native same-frame draws exactly one complete band, once-per-frame
+      guard, fail-open non-propagation + no retry, batch-color restore, band content/order parity). The
+      two new regression tests were confirmed to FAIL against a simulated pre-fix Route B
+      (`renderMap`-only) before passing. Focused run (`--tests "artframework.sts1.render.*" --tests
+      "artframework.c1.*"`): 993 tests, 0 failures; full `cleanTest test`: 2231 tests, 0 failures.
+      **D1 CONFIRMED (visual).** The map FULL frame now RETAINS the native top HUD. `d1_map_hud_retention.yaml`
+      ran 36/36 twice, plus `d1_full_present_map_ready.yaml` 57/57 and `d1_full_present_map.yaml` 24/24, on
+      the deployed jar (`sha256 881774d0…cb951`); the ART-frame probe held `suppressNativeMap=true`,
+      `fullPresent.topPanel=OFF`, `suppressNativeTopPanel=false`, `nativeContinuation=true`,
+      `topPanelDraw.count=0`, `artOverlay=false` (native `TopPanel.render` owns the HUD). An independent
+      native-vs-ART capture (map OFF vs map FULL) shows the ART map frame's full HUD band — player
+      铁甲战士, HP heart 68/75, gold 99, potion slots, energy 20, clock, floor 11, gear — visible and
+      matching native (only the clock differs, capture-lag); the independent visual reviewer confirmed NO
+      HUD element missing/covered/doubled. An OBJECTIVE ImageMagick pixel check of the same pair refuted a
+      visual-review note of "fainter ART nodes": central grid mean luminance native `0.4650` vs ART
+      `0.4690`, dark-fraction `<45%` `0.208` vs `0.202` (no scrim / no node regression). Residual risk
+      (the shared `BitmapFont` tint and blend functions are not captured; the band draws inside the live
+      native batch) is mitigated by the batch-color snapshot/restore + fail-open and remains D1-observable.
+      **Contract scenario:** `tests/ui-scenarios/device/d1_map_hud_retention.yaml` (36 steps) asserts the
+      observable retention contract on the map FULL frame — `backend.mapDraw.suppressNativeMap eq true`
+      while `backend.fullPresent.topPanel eq "OFF"`, `backend.topPanelDraw.suppressNativeTopPanel eq
+      false`, `nativeContinuation eq true`, `count eq 0`, `artOverlay eq false` (native `TopPanel.render`
+      owns the HUD), the `topPanelDraw` HUD-data keys present, and the `art present map off` toggle
+      restoring `suppressNativeMap eq false`. NOTE (honest deviation): the requested "hp/maxHp non-zero
+      at the map scene" is NOT satisfiable at HEAD — `TopPanelDrawPath.count/hp` come from
+      `TopPanelView` and `mapFrame()` attaches `TopPanelView.empty()` (`available=false, hp=0`; the only
+      map-scene `readTopPanelView` path `enrich()` is dead), and 69/69 saved map-scene probe samples show
+      `hp=0, count=0`; so `count eq 0` and non-zero hp are mutually exclusive and the scenario asserts
+      the HUD-data keys PRESENT instead. The scenario ran 36/36 twice on D1 (see the D1 CONFIRMED note
+      above).
+- [ ] **Open (D03 D1 finding) — part (a) RESOLVED by V03; part (b) is the V04 target: legend glyph column.**
       The D03 map-edges A/B visual review (ART map present ON vs native OFF) noted: (a) the ART map
-      frame's top HUD looks largely absent relative to native (native shows HP 68/75, gold, potions,
-      energy, timer, floor; ART shows only the player name + right-side buttons) — this is likely the
-      full-present suppression of the top panel while the map surface is up, NOT a map-background/edge
-      defect, but it is a visible discrepancy worth confirming against the native map screen; and
-      (b) the legend's glyph column reads missing. On (b): the ART legend DOES submit the 6
-      room-icon draws (`legendIconResource`: event/merchant->shop/treasure/rest/enemy->monster/elite,
-      all mapped to real `images/ui/map/*.png`), so the icons are supplied and render via
-      `mapSubmissionPlan`; verify on-device whether they actually paint at the legend item bounds
-      (the reviewer may have misread, or there may be a bounds/draw nuance). Next: capture a
-      frozen-seed native-vs-ART map pair and check the top-HUD region + the legend icon column rects
-      specifically; classify (a)/(b) as known-gap vs real defect before changing anything.
+      frame's top HUD looked largely absent relative to native. **(a) is now FIXED and D1-CONFIRMED by V03**
+      (see the V03 entry above): the delegated MAP band is drawn at the native map point (`TopPanel.render`
+      entry) instead of the post-native overlay, so the native `topPanel.render` HUD is retained; an
+      independent native-vs-ART capture of the map FULL frame shows the full HUD band (HP 68/75, gold,
+      potions, energy, clock, floor) matching native. (b) the legend's glyph column reads missing; the ART
+      legend DOES submit the 6 room-icon draws (`legendIconResource`: event/merchant->shop/treasure/rest/
+      enemy->monster/elite, all mapped to real `images/ui/map/*.png`), yet the independent reviewer again
+      saw text-only legend rows on the ART FULL frame while native shows glyphs — so this is a REAL
+      unresolved visual gap to diagnose in **V04** (draw path vs bounds vs catalog resolution), not a
+      misread. Next: capture a frozen-seed native-vs-ART pair and inspect the legend icon column rects +
+      resolved resources specifically before changing anything.
 
 ### 49. Scenario hygiene / order-independence
 

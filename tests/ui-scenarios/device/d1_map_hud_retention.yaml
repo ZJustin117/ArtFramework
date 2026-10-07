@@ -1,0 +1,166 @@
+# D1: V03 HUD-retention contract on the map FULL frame.
+#
+# Guards the V03 fix: while ART fully presents the MAP surface (native DungeonMapScreen.render is
+# suppressed), the native top-panel HUD must stay authoritative — it is drawn by the un-suppressed
+# native TopPanel.render AFTER ART's map band, so it lands on top instead of being covered by the
+# post-native map overlay. This scenario asserts the observable proof of that ownership split:
+# the map surface is delegated while the TOP PANEL is NOT, so ART supplies no top-panel pixels to
+# cover the native HUD.
+#
+# Clause 3 note (honest deviation — see docs/task.md V03). The parent contract also asked for
+# `backend.topPanelDraw.hp`/`maxHp` to be present AND NON-ZERO at the map scene. That is NOT
+# satisfiable with the current backend and would FAIL on device:
+#   * `TopPanelDrawPath.probeSlice()` takes hp/maxHp/floor/statusText from
+#     `ArtFramework.projection().topPanel()` (a `TopPanelView`), and its `count`/`items` come from
+#     `buildFromProjection()`, which emits items ONLY when `TopPanelView.available`
+#     (`TopPanelDrawPath.java` ~103-106, ~158-180).
+#   * `Sts1PresentationBackend.mapFrame()` builds its ContextFrame through the 10-arg ctor, which
+#     sets `topPanelView = TopPanelView.empty()` (available=false, hp=0); the only map-scene
+#     `readTopPanelView()` path (`enrich()`) has NO callers.
+#   * Saved D1 evidence agrees: 69/69 map-scene probe samples show
+#     `available=false, hp=0, maxHp=0, count=0` (freshest:
+#     debug-artifacts/art-verify/d03-run3/d1_full_present_map_ready.json, step 12).
+# So `count eq 0` (asserted below) and "hp non-zero" are mutually exclusive. The native HUD content
+# is drawn from native `AbstractDungeon.player` state by the native renderer and is deliberately NOT
+# mirrored into the map-scene ART projection. This scenario therefore asserts those probe keys are
+# PRESENT (the probe always exposes them) rather than non-zero, and proves the retention contract via
+# the top-panel ownership flags. Asserting non-zero would require a backend change (out of scope).
+name: d1_map_hud_retention
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # Idempotent leading reset: clear any map surface left by a prior scenario before start-run.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  # Player assignment can precede the completed embark fade; only continue from a live dungeon.
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Leave Neow/event so first-floor map nodes become selectable (room COMPLETE).
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  # STS MapRoomNode first-pick requires currRoom.phase == COMPLETE.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  # A pending lab room transition is not a legal target for ART's map bridge.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # Mount first: StageHost publishes native frames while a present surface is active.
+  - console: "art present map on"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.available
+        eq: true
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: map
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.renderPlan.entries[0].effectiveState
+        eq: FULL_READY
+  # Clause 1: ART owns the map pixels (native DungeonMapScreen.render suppressed).
+  # backend.mapDraw.suppressNativeMap -> MapDrawPath.probeSlice() -> shouldSuppressNativeMap().
+  - assert:
+      path: backend.mapDraw.suppressNativeMap
+      eq: true
+  # Clause 2: the TOP PANEL is NOT ART-suppressed while the map is up, so the native
+  # TopPanel.render body runs and draws the HUD on top of the ART map band.
+  # backend.fullPresent.topPanel -> FullPresentMode.probeSlice() ("map"|"topPanel" = level.name()).
+  - assert:
+      path: backend.fullPresent.topPanel
+      eq: "OFF"
+  # backend.topPanelDraw.suppressNativeTopPanel -> TopPanelDrawPath.shouldSuppressNativeTopPanel().
+  - assert:
+      path: backend.topPanelDraw.suppressNativeTopPanel
+      eq: false
+  # backend.topPanelDraw.nativeContinuation -> NativeRenderBridge.nativeContinuationForSurface(
+  # TOP_PANEL); true proves the native TopPanel.render call retained pixel authority this frame.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.topPanelDraw.nativeContinuation
+        eq: true
+  # ART supplies ZERO top-panel pixels (count = buildFromProjection().size()), so nothing ART draws
+  # can cover the native HUD; and no ART overlay pixel item is emitted for the top panel.
+  - assert:
+      path: backend.topPanelDraw.count
+      eq: 0
+  # backend.topPanelDraw.artOverlay -> TopPanelDrawPath.shouldDrawArtOverlay().
+  - assert:
+      path: backend.topPanelDraw.artOverlay
+      eq: false
+  # Clause 3: the probe exposes the native HUD data keys (TopPanelDrawPath.probeSlice() always
+  # writes them). Value assertions are intentionally NOT non-zero here — see the header note: the
+  # map-scene top-panel projection is empty by design (available=false, hp=0), and the native HUD is
+  # drawn from native player state, not from this ART projection.
+  - assert:
+      path: backend.topPanelDraw.hp
+      exists: true
+  - assert:
+      path: backend.topPanelDraw.maxHp
+      exists: true
+  - assert:
+      path: backend.topPanelDraw.floor
+      exists: true
+  - assert:
+      path: backend.topPanelDraw.available
+      exists: true
+  - assert:
+      path: backend.topPanelDraw.statusText
+      exists: true
+  # Toggle: turning the map surface off restores native map ownership of its pixels.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.suppressNativeMap
+        eq: false
+  # Idempotent terminal cleanup: leave the device without a map surface for the next scenario.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"

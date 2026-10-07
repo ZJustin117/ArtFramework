@@ -787,10 +787,12 @@ public class MapDrawPathTest {
             assertEquals(ResourceIds.MAP_NODE_EVENT, plan.get(2).resourceId);
             assertEquals(ResourceIds.MAP_NODE_ELITE, plan.get(7).resourceId);
 
-            // Node submissions follow the legend, in sync z order: icon, outline, overlay.
+            // Node submissions follow the legend, in sync z order: outline, node icon, overlay.
+            // Native MapRoomNode.render draws the OUTLINE before the FILL (both at the same node
+            // box), so the fill covers the outline center (D03 wash fix).
             String[] expectedNodeOrder = {
-                ResourceIds.MAP_NODE_MONSTER, ResourceIds.mapOutline("monster"),
-                ResourceIds.UI_MAP_HIGHLIGHT,
+                ResourceIds.mapOutline("monster"),
+                ResourceIds.MAP_NODE_MONSTER, ResourceIds.UI_MAP_HIGHLIGHT,
                 ResourceIds.MAP_NODE_SHOP, ResourceIds.UI_MAP_PIN,
                 ResourceIds.MAP_NODE_REST, ResourceIds.UI_MAP_CIRCLE_5
             };
@@ -798,9 +800,75 @@ public class MapDrawPathTest {
                 assertEquals("node submission " + i, expectedNodeOrder[i],
                         plan.get(8 + i).resourceId);
             }
-            assertEquals("node icon+outline+overlay bounds are the projected node bounds",
-                    MapDrawPath.buildFromProjection().get(0).bounds.x,
-                    plan.get(8).bounds.x, 0.01f);
+
+            // Outline precedes fill for the reachable node, and both use the SAME projected rect —
+            // the precondition that lets the fill cover the outline's center (native order).
+            MapDrawPath.DrawItem first = MapDrawPath.buildFromProjection().get(0);
+            MapDrawPath.Submission outline001 = plan.get(8);
+            MapDrawPath.Submission fill001 = plan.get(9);
+            assertEquals("outline role", "outline", outline001.role);
+            assertEquals("fill role", "node", fill001.role);
+            assertEquals("outline then fill", ResourceIds.mapOutline("monster"),
+                    outline001.resourceId);
+            assertEquals("fill resource", ResourceIds.MAP_NODE_MONSTER, fill001.resourceId);
+            assertEquals("outline bounds x", first.bounds.x, outline001.bounds.x, 0.01f);
+            assertEquals("outline bounds y", first.bounds.y, outline001.bounds.y, 0.01f);
+            assertEquals("outline bounds w", first.bounds.width, outline001.bounds.width, 0.01f);
+            assertEquals("outline bounds h", first.bounds.height, outline001.bounds.height, 0.01f);
+            assertEquals("fill bounds x", first.bounds.x, fill001.bounds.x, 0.01f);
+            assertEquals("outline/fill rects must be equal (fill covers outline center)",
+                    outline001.bounds.x, fill001.bounds.x, 0.01f);
+            assertEquals(outline001.bounds.y, fill001.bounds.y, 0.01f);
+            assertEquals(outline001.bounds.width, fill001.bounds.width, 0.01f);
+            assertEquals(outline001.bounds.height, fill001.bounds.height, 0.01f);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void submissionPlanPaintsReachableNodeOutlineBeforeFillAtSameRect() {
+        // D03 "map nodes render pale" root cause: native MapRoomNode.render draws the OUTLINE
+        // (getMapImgOutline) BEFORE the node FILL (getMapImg) at the SAME node box, so the fill
+        // covers the outline center and only the outline edges show. The plan must match that order
+        // for a reachable node (else the ~0.53 grey outline paints over the fill and washes it).
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            Sts1HostAssets.install();
+            // reachable=true → outline submitted; not highlighted/pinned/taken/current → no overlay/ring.
+            List<MapNodeView> nodes = Collections.singletonList(
+                    new MapNodeView(2, 3, 100f, 200f, false, false, true, false,
+                            64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER));
+            publishMapFrame("map", nodes);
+
+            List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+            // Only the legend block precedes this node, so the node's two entries are the last two.
+            MapDrawPath.Submission outline = plan.get(plan.size() - 2);
+            MapDrawPath.Submission fill = plan.get(plan.size() - 1);
+
+            assertEquals("outline resource", ResourceIds.mapOutline("monster"), outline.resourceId);
+            assertEquals("outline role", "outline", outline.role);
+            assertEquals("fill resource", ResourceIds.MAP_NODE_MONSTER, fill.resourceId);
+            assertEquals("fill role", "node", fill.role);
+
+            // Same rect: this is what lets the fill cover the outline's center (native behavior).
+            assertEquals("outline/fill x equal", outline.bounds.x, fill.bounds.x, 0.001f);
+            assertEquals("outline/fill y equal", outline.bounds.y, fill.bounds.y, 0.001f);
+            assertEquals("outline/fill w equal", outline.bounds.width, fill.bounds.width, 0.001f);
+            assertEquals("outline/fill h equal", outline.bounds.height, fill.bounds.height, 0.001f);
+
+            // Native tints unchanged: outline = OUTLINE_COLOR grey (0.549,0.549,0.502), fill = node
+            // tint (NOT_TAKEN 0.34 grey when unavailable). The reorder must not alter colors.
+            assertEquals("outline r", MapDrawPath.OUTLINE_COLOR[0], outline.r, 0.001f);
+            assertEquals("outline g", MapDrawPath.OUTLINE_COLOR[1], outline.g, 0.001f);
+            assertEquals("outline b", MapDrawPath.OUTLINE_COLOR[2], outline.b, 0.001f);
+            assertEquals("fill uses the node tint (not outline grey)",
+                    MapDrawPath.buildFromProjection().get(0).nodeR, fill.r, 0.001f);
+            assertEquals(MapDrawPath.buildFromProjection().get(0).nodeG, fill.g, 0.001f);
+            assertEquals(MapDrawPath.buildFromProjection().get(0).nodeB, fill.b, 0.001f);
         } finally {
             setSettingsScale(previousScale, previousXScale, previousYScale);
         }
@@ -1163,8 +1231,26 @@ public class MapDrawPathTest {
             assertTrue("background must paint below the nodes", lastBg < firstNode);
             assertTrue("legend must paint below the nodes", firstLegend < firstNode);
 
+            // Per-node order: the reachable node (projectedNodes() node 0 is reachable+highlighted)
+            // must list its `outline:r:c` BEFORE its `node:r:c` (native MapRoomNode.render order).
+            String reachableKey = null;
+            for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
+                if (item.reachable || item.highlighted) {
+                    reachableKey = item.row + ":" + item.col;
+                    break;
+                }
+            }
+            assertNotNull("fixture must carry a reachable node", reachableKey);
+            int outlineIdx = order.indexOf("outline:" + reachableKey);
+            int nodeIdx = order.indexOf("node:" + reachableKey);
+            assertTrue("reachable node must emit an outline", outlineIdx >= 0);
+            assertTrue("node band entry must be present", nodeIdx >= 0);
+            assertTrue("outline must precede node for node " + reachableKey,
+                    outlineIdx < nodeIdx);
+
             // The order must be EXACTLY backgroundItems() ids, then legendItems() ids, then the node
-            // band — derived from the same sources, not a copied constant list.
+            // band — derived from the same sources, not a copied constant list. The per-node roles
+            // mirror mapSubmissionPlan(): outline (when reachable/highlighted) BEFORE node.
             List<String> expected = new ArrayList<String>();
             for (MapDrawPath.BackgroundDrawItem item : MapDrawPath.backgroundItems()) {
                 expected.add("bg:" + item.id);
@@ -1174,8 +1260,8 @@ public class MapDrawPathTest {
             }
             for (MapDrawPath.DrawItem item : MapDrawPath.buildFromProjection()) {
                 String key = item.row + ":" + item.col;
-                expected.add("node:" + key);
                 if (item.reachable || item.highlighted) expected.add("outline:" + key);
+                expected.add("node:" + key);
                 if (item.pinned || item.highlighted) expected.add("overlay:" + key);
                 if (item.taken || item.currentNode) expected.add("ring:" + key);
             }

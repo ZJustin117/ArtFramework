@@ -3589,16 +3589,20 @@ allocation and Young GC pressure.
       separate read), and per-card card-frame pixels remain the separately-logged `cardui/frame`
       non-file-backed gap (per-card frames/art, select panel/background, tip/header, cancel/skip
       buttons, and eye/filter control also remain unsupplied).
-- [ ] **Open (D03 map-node wash): nodes render pale despite native tint and correct paint order.**
-      D03 now supplies the native parchment background (`mapTop`/`mapMid`/`mapBot`/`mapBlend` at the
+- [x] **Resolved (D03 map-node wash): root cause was the node fill/outline submission order.**
+      D03 supplies the native parchment background (`mapTop`/`mapMid`/`mapBot`/`mapBlend` at the
       native rects, drawn UNDER the node/legend band; probe `paintOrder` = bg → legend → node;
-      parchment matches native away from nodes). BUT a D1 A/B shows the map node silhouettes still
-      render pale (~0.53 grey) where native is dark (~0.35 navy), and the node layer is washed out
-      regardless of the background: the layering fix changed the frame by only RMSE 0.004, i.e. the
-      wash is PRE-EXISTING and NOT caused by the background. The node colour IS submitted at the
-      native tint (`575757ff`/`17212bff`), so the cause is a separate node-draw path — NOT yet pinned.
-      Next: trace the actual map node draw (does `renderMap`+`mapSubmissionPlan` run, and what texture
-      resolves for `map.node.*`, and how the stretch to ~250px vs native 128px source affects it),
-      then make nodes read dark-on-parchment like native. (Other remaining D03 gaps: legend hover/
-      fade, map edges, boss icon, node hover FX, mobile scaling, ring scale factor, a taken/current
-      ring D1 state.)
+      parchment matches native away from nodes) and that stays correct. The D1 A/B pale nodes
+      (~0.53 grey) were a SUBMISSION-ORDER defect, not a tint/texture gap: native `MapRoomNode.render`
+      draws the OUTLINE (`this.room.getMapImgOutline()`, decompiled ~:370/372) BEFORE the node FILL
+      (`this.room.getMapImg()`, ~:383/385), both at the SAME node box, so the fill covers the
+      outline's center and only the outline edges remain. `MapDrawPath.mapSubmissionPlan()` submitted
+      the FILL first and the OUTLINE second at the same `item.bounds`; because the projection defaults
+      `reachable=true` the outline is submitted for EVERY node, so the grey `OUTLINE_COLOR`
+      (`0.549,0.549,0.502`) painted OVER each node fill (native tint `0.34`/`0.09`) and every node
+      read as a pale ~0.53 outline silhouette (ART ~0.53 vs native ~0.35). Fix (bounded, colors and
+      geometry UNCHANGED): per node the plan now submits outline FIRST, then fill, then overlay, then
+      ring — the native order. `MapDrawPathTest.submissionPlanPaintsReachableNodeOutlineBeforeFillAtSameRect`
+      pins the per-node order and that the outline/fill rects are equal. (Remaining D03 gaps are
+      unrelated: legend hover/fade, map edges, boss icon, node hover FX, mobile scaling, ring scale
+      factor, a taken/current ring D1 state.)

@@ -590,10 +590,13 @@ public final class MapDrawPath {
      * parchment background is the BOTTOM layer — the renderer draws it in
      * {@code Sts1SurfaceRenderer.render} immediately BEFORE the C2 band, then {@code renderMap} draws
      * the legend and the node band on top. This method returns the ordered layer keys:
-     * {@code bg:<id>} first, then {@code legend:<id>}, then the node band
-     * ({@code node:r:c}, {@code outline:r:c}, {@code overlay:r:c}, {@code ring:r:c}). Pure: derived
+     * {@code bg:<id>} first, then {@code legend:<id>}, then the node band in the corrected native
+     * per-node submission order: {@code outline:r:c} (when {@code reachable || highlighted}) BEFORE
+     * {@code node:r:c}, then {@code overlay:r:c}, then {@code ring:r:c} — matching
+     * {@link #mapSubmissionPlan()} and native {@code MapRoomNode.render}, which draws the outline
+     * before the fill. Pure: derived
      * from {@link #backgroundItems()}, {@link #legendItems()} and the node projection, so a test can
-     * prove the background sits strictly below the legend/nodes without a SpriteBatch.
+     * prove the background sits strictly below the legend/nodes and the outline sits below the fill.
      */
     public static List<String> paintOrder() {
         List<String> out = new ArrayList<String>();
@@ -605,10 +608,12 @@ public final class MapDrawPath {
         }
         for (DrawItem item : buildFromProjection()) {
             String key = item.row + ":" + item.col;
-            out.add("node:" + key);
+            // Native MapRoomNode.render draws the OUTLINE before the FILL (both at the same node
+            // box), so the fill covers the outline center — mirror that order here (D03 wash fix).
             if (item.reachable || item.highlighted) {
                 out.add("outline:" + key);
             }
+            out.add("node:" + key);
             if (item.pinned || item.highlighted) {
                 out.add("overlay:" + key);
             }
@@ -622,7 +627,8 @@ public final class MapDrawPath {
     /**
      * Ordered pure submission plan for the map surface (NRO-04 D03 defect fix): exactly what
      * {@code Sts1SurfaceRenderer.renderMap} draws, in native paint order (legend first, then the
-     * node band on top: node icon=1, outline=2, overlay=3). Each entry is a
+     * node band on top: outline, then node icon, then overlay; native {@code MapRoomNode.render}
+     * draws the outline before the fill). Each entry is a
      * {@code (resourceId, bounds, label)} triple.
      *
      * <p>Resource selection mirrors the projector: {@link DrawItem#resourceId} is the logical id
@@ -663,12 +669,17 @@ public final class MapDrawPath {
 
     /**
      * Builds the ordered map submission plan. Legend panel/title/icon entries are emitted FIRST,
-     * then the node entries (node icon, then outline when {@code reachable || highlighted}, then
-     * overlay when {@code pinned || highlighted}) — matching native {@code DungeonMap.render}, which
-     * draws {@code Legend.render} before {@code DungeonMapScreen.render} draws the nodes, so nodes
-     * paint OVER the legend. Node/legend internal order is preserved. Entries with neither a resource
-     * id nor a label are omitted so the renderer never submits a no-op; the legend title is
-     * label-only (no native texture).
+     * then the node entries (outline when {@code reachable || highlighted} FIRST, then the node
+     * icon, then overlay when {@code pinned || highlighted}) — matching native
+     * {@code DungeonMap.render}, which draws {@code Legend.render} before {@code DungeonMapScreen.render}
+     * draws the nodes, so nodes paint OVER the legend. Node/legend internal order is preserved.
+     *
+     * <p>D03 wash fix: native {@code MapRoomNode.render} draws the OUTLINE
+     * ({@code this.room.getMapImgOutline()}) BEFORE the node FILL ({@code this.room.getMapImg()}) at the
+     * SAME node box, so the fill covers the outline's center and only the outline edges remain visible.
+     * The plan submits the outline FIRST for the same reason (D03 A/B: node read ~0.53 grey outline
+     * when the fill was painted first). Entries with neither a resource id nor a label are omitted so
+     * the renderer never submits a no-op; the legend title is label-only (no native texture).
      */
     public static List<Submission> mapSubmissionPlan() {
         List<Submission> out = new ArrayList<Submission>();
@@ -682,12 +693,14 @@ public final class MapDrawPath {
             if (item.bounds == null || item.bounds.width <= 0f || item.bounds.height <= 0f) {
                 continue;
             }
-            addSubmission(out, item.resourceId, item.bounds, "", "node",
-                    item.nodeR, item.nodeG, item.nodeB, item.nodeA);
+            // Native order (MapRoomNode.render ~:370 vs ~:383): outline FIRST, then node fill, both
+            // at item.bounds, so the fill covers the outline center (leaving only the outline edges).
             if (item.reachable || item.highlighted) {
                 addSubmission(out, item.outlineResourceId, item.bounds, "", "outline",
                         item.outlineR, item.outlineG, item.outlineB, item.outlineA);
             }
+            addSubmission(out, item.resourceId, item.bounds, "", "node",
+                    item.nodeR, item.nodeG, item.nodeB, item.nodeA);
             if (item.pinned || item.highlighted) {
                 addSubmission(out, item.highlightResourceId, item.bounds, "", "overlay",
                         1f, 1f, 1f, 1f);

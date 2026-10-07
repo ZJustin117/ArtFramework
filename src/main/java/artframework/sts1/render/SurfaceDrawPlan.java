@@ -232,10 +232,20 @@ public final class SurfaceDrawPlan {
                 eventMounted, selectGridMounted, selectHandMounted, rewardMounted, restMounted,
                 treasureMounted, shopMounted, topPanelMounted, intentsMounted, proceedMounted,
                 energyMounted, targetingMounted, false, overlayObserve, readinessFlags(),
-                artframework.sts1.PresentSafety.isPanic());
+                artframework.sts1.PresentSafety.isPanic(), true);
     }
 
-    /** Builds from one readiness/panic sample supplied by the render pipeline. */
+    /**
+     * Builds from one readiness/panic sample supplied by the render pipeline.
+     *
+     * <p>{@code mapUsable} is the G5 native-continuation guard for the delegated MAP surface: when
+     * the map projection is unusable (no presentable nodes), the map surface is NOT FULL_READY even
+     * when policy is FULL + mounted + in the map scene, so the native {@code DungeonMapScreen.render}
+     * continues and ART never suppresses the map onto an empty pixel supply. It is folded into the
+     * map entry's scene-readiness input, so the capability resolver keeps its fixed reason vocabulary.
+     * The legacy shorthand {@link #build} overloads pass {@code true} to preserve their pure
+     * registry/API contract; the live pipeline passes the sampled projection usability.
+     */
     static SurfaceDrawPlan buildFromSnapshot(
             String scene,
             boolean handMounted,
@@ -258,7 +268,8 @@ public final class SurfaceDrawPlan {
             boolean pileDrawMounted,
             boolean overlayObserve,
             long readinessFlags,
-            boolean panic) {
+            boolean panic,
+            boolean mapUsable) {
         List<Entry> list = new ArrayList<Entry>();
         list.add(
                 entry(
@@ -266,7 +277,7 @@ public final class SurfaceDrawPlan {
                         PresentLayer.MAP,
                         FullPresentMode.mapLevel(),
                         mapMounted,
-                        "map".equals(scene),
+                        "map".equals(scene) && mapUsable,
                         overlayObserve, readinessFlags, panic));
         boolean roomScene =
                 "reward".equals(scene)

@@ -18,6 +18,7 @@ import org.junit.runners.Parameterized;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -110,8 +111,17 @@ public class NativeRenderDelegatedEvidenceCorrelationParameterizedTest {
     private void publishFrame() {
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
+        // G5 guard: the delegated MAP surface is FULL_READY only when its projection is usable
+        // (>=1 presentable node). The MAP parameterization therefore publishes a usable map; the
+        // other surfaces keep the empty map view.
+        MapView map = "map".equals(scene)
+                ? new MapView(Collections.singletonList(
+                        new artframework.context.MapNodeView(1, 1, 100f, 200f, false, true,
+                                "M", "monster", artframework.assets.ResourceIds.MAP_NODE_MONSTER)),
+                        1920, 1080)
+                : MapView.empty();
         backend.publish(ContextFrame.of(41L, 7L, scene, Arrays.asList(),
-                ControlsView.combat(3, 1, 0, 0, 0, true, true), MapView.empty(), null));
+                ControlsView.combat(3, 1, 0, 0, 0, true, true), map, null));
         ArtFramework.publishFrame(backend.currentFrame());
     }
 

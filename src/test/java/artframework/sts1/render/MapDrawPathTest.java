@@ -322,6 +322,62 @@ public class MapDrawPathTest {
         assertFalse(MapDrawPath.shouldSuppressNativeMap());
     }
 
+    /**
+     * G5 native-continuation guard (V05). The failure mode under test is "read nothing -> blank map
+     * -> still suppress native": when the map projection is UNUSABLE (no presentable nodes) while the
+     * surface is otherwise FULL + mounted + in the map scene, ART must NOT suppress the native
+     * {@code DungeonMapScreen.render}. Derived from the production rule
+     * ({@code Sts1RenderPipeline.mapProjectionUsable()}), not restated: the map is ready only when the
+     * projection carries >= 1 node. Here the projection is {@code MapView.empty()}, so
+     * {@code mapSubmissionPlan()} is empty and the native patch must Continue.
+     */
+    @Test
+    public void unusableEmptyMapProjectionKeepsNativeMapInsteadOfSuppressing() {
+        resetRuntime();
+        Sts1HostAssets.install();
+        publishMapFrame("map", Collections.<MapNodeView>emptyList());
+        ArtFramework.component(SurfaceIds.MAP).mount();
+        FullPresentMode.setMapLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+
+        // Empty projection => map not usable => no delegation, native continues.
+        assertFalse("empty map projection must NOT suppress native map",
+                MapDrawPath.shouldSuppressNativeMap());
+        assertTrue("empty map projection contributes no submissions (nothing to draw)",
+                MapDrawPath.mapSubmissionPlan().isEmpty());
+        assertFalse("map patch must continue native render for an empty projection",
+                mapPrefix().isPresent());
+        assertNoDelegatedCoverage();
+
+        // Positive control: the SAME fixture with a usable projection DOES suppress native, proving
+        // the guard keys on projection usability (not merely scene/mount/executor).
+        publishMapFrame("map", projectedNodes());
+        assertTrue("usable map projection must suppress native map",
+                MapDrawPath.shouldSuppressNativeMap());
+    }
+
+    /**
+     * G5 degeneracy note (V05): {@code MapNodeView} normalizes a non-positive width/height to 64f
+     * ({@code MapNodeView} ~:100), so a "nodes present but zero-size bounds" projection is not a
+     * reachable state through the normal backend; the only unusable projection is the empty one
+     * (covered above). This pins the normalization so a future zero-size node cannot silently be
+     * treated as an unusable map (which would wrongly keep native while ART still has node pixels).
+     */
+    @Test
+    public void zeroSizeMapNodeIsNormalizedSoItRemainsAUsableNode() {
+        Sts1HostAssets.install();
+        MapNodeView n = new MapNodeView(0, 0, 5f, 5f, false, false, true, false, 0f, 0f,
+                "M", "monster", ResourceIds.MAP_NODE_MONSTER);
+        assertEquals("non-positive width must normalize to a positive node size", 64f, n.width, 0.01f);
+        assertEquals("non-positive height must normalize to a positive node size", 64f, n.height, 0.01f);
+        publishMapFrame("map", Collections.singletonList(n));
+        ArtFramework.component(SurfaceIds.MAP).mount();
+        FullPresentMode.setMapLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+        assertTrue("a node-carrying projection is usable and delegates the map",
+                MapDrawPath.shouldSuppressNativeMap());
+    }
+
     @Test
     public void mapPatchSuppressesOnlyWhenFullMountedSceneAndExecutorReady() {
         assertContinuesWithoutDelegation(Scenario.OFF);

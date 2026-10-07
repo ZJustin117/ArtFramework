@@ -1,0 +1,136 @@
+# D1: V05 G5 native-continuation contract for the delegated MAP surface.
+#
+# G5 contract: when the map projection/resources/host path FAILS, the native map must CONTINUE —
+# ART must never do "read nothing -> blank map -> still suppress native". The production rule is
+# `Sts1RenderPipeline.mapProjectionUsable()` (>= 1 presentable projected node), folded into the MAP
+# surface's FULL_READY admission so an unusable projection falls back to native continuation.
+#
+# HONEST TRIGGER LIMIT. The empty/unusable-projection path (the actual failure) CANNOT be triggered
+# safely on device: the only way to empty `ArtFramework.projection().map()` is to make the backend's
+# native read empty (e.g. `AbstractDungeon.map=null`) WHILE the native map screen is open, which also
+# breaks the NATIVE renderer the scenario is trying to prove continues — so the observation would be
+# meaningless (and likely crashes the game). No probe/console seam exposes "empty the ART map
+# projection while native stays valid". The unusable-projection fail-open is therefore covered by the
+# FOCUSED UNIT tests instead:
+#   * `MapDrawPathTest.unusableEmptyMapProjectionKeepsNativeMapInsteadOfSuppressing`
+#   * `Sts1RenderPipelineTest.mapSurfaceIsNotReadyForUnusableProjectionButReadyForUsable`
+#   * `MapDrawPathTest.zeroSizeMapNodeIsNormalizedSoItRemainsAUsableNode`
+#
+# This scenario therefore asserts the POSITIVE, device-triggerable half of the same contract:
+#   1. a USABLE projection (nodeCount >= 1) admits MAP as FULL_READY and suppresses native (the
+#      precondition the guard requires — it must not block a real map);
+#   2. `art present map off` restores native map ownership (suppressNativeMap false), i.e. native
+#      continuation is the resolved disposition whenever ART is not fully presenting the surface.
+#
+# Order-independence (mirrors the sibling map scenarios): leading + terminal `art present map off`
+# resets, and an explicit fresh-menu reset before start-run, so this scenario neither depends on nor
+# leaves a map surface for a neighbour.
+name: d1_map_fail_open
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # Idempotent leading reset: clear any map surface left by a prior scenario before fresh-menu.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  # Order-independence reset: return to a fresh menu so the run state does not depend on a
+  # predecessor having left a live room.
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab start-run IRONCLAD"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Leave Neow/event so first-floor map nodes become selectable (room COMPLETE).
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  # STS MapRoomNode first-pick requires currRoom.phase == COMPLETE.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  # A pending lab room transition is not a legal target for ART's map bridge.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # Mount first: StageHost publishes native frames while a present surface is active.
+  - console: "art present map on"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.available
+        eq: true
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: map
+  # Clause 1 (G5 precondition): a USABLE projection (>= 1 presentable node) is admitted. This is the
+  # exact input `Sts1RenderPipeline.mapProjectionUsable()` keys on; nodeCount 0 would instead force
+  # native continuation (unit-covered, not fabricatable here).
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: backend.mapView.nodeCount
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.renderPlan.entries[0].effectiveState
+        eq: FULL_READY
+  - assert:
+      path: backend.mapDraw.suppressNativeMap
+      eq: true
+  - assert:
+      path: backend.mapDraw.count
+      gte: 1
+  - assert:
+      path: backend.mapDraw.submitCount
+      gte: 1
+  # Clause 2 (native continuation): turning the map surface off restores native map ownership.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.suppressNativeMap
+        eq: false
+  # Idempotent terminal cleanup: leave the device without a map surface for the next scenario.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"

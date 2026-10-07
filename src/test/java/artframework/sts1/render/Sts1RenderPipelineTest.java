@@ -21,6 +21,7 @@ import org.junit.After;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -233,6 +234,43 @@ public class Sts1RenderPipelineTest {
         assertEquals("FULL_FALLBACK_NATIVE", hand.effectiveState.name());
         assertEquals("executor_unavailable", hand.reason);
         assertFalse(hand.suppressNative);
+    }
+
+    /**
+     * G5 native-continuation guard (V05): the delegated MAP surface is admitted (FULL_READY) only
+     * when the map projection is USABLE (>= 1 presentable node). With an empty projection the surface
+     * falls back to native (NOT suppressed) even though policy is FULL, it is mounted, the scene is
+     * map, and the executor is ready; with a node-carrying projection it becomes FULL_READY.
+     */
+    @Test
+    public void mapSurfaceIsNotReadyForUnusableProjectionButReadyForUsable() {
+        publishMapScene(Collections.<artframework.context.MapNodeView>emptyList());
+        ArtFramework.component(SurfaceIds.MAP).mount();
+        FullPresentMode.setMapLevel(PresentLevel.FULL);
+        CombatInputRouter.setExecutor(new RecordingIntentExecutor());
+
+        SurfaceDrawPlan.Entry unusable = Sts1RenderPipeline.plan().find(SurfaceIds.MAP);
+        assertFalse("empty map projection must NOT be FULL_READY", unusable.suppressNative);
+        assertFalse(unusable.mode == SurfaceDrawPlan.DrawMode.DRAW);
+        assertEquals("FULL_FALLBACK_NATIVE", unusable.effectiveState.name());
+
+        // A usable projection (one presentable node) flips MAP to FULL_READY/DRAW.
+        publishMapScene(Collections.singletonList(
+                new artframework.context.MapNodeView(1, 1, 100f, 200f, false, true,
+                        "M", "monster", artframework.assets.ResourceIds.MAP_NODE_MONSTER)));
+        ArtFramework.component(SurfaceIds.MAP).mount();
+        SurfaceDrawPlan.Entry usable = Sts1RenderPipeline.plan().find(SurfaceIds.MAP);
+        assertEquals(SurfaceDrawPlan.DrawMode.DRAW, usable.mode);
+        assertEquals("FULL_READY", usable.effectiveState.name());
+        assertTrue(usable.suppressNative);
+    }
+
+    private void publishMapScene(java.util.List<artframework.context.MapNodeView> nodes) {
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(ContextFrame.of(1L, 1L, "map", null, ControlsView.empty(),
+                new MapView(nodes, 1920, 1080), null));
+        ArtFramework.publishFrame(backend.currentFrame());
     }
 
     @Test

@@ -73,6 +73,10 @@ public final class Sts1RenderPipeline {
         long policyRevision = FullPresentMode.policyRevision();
         long executorRevision = CombatInputRouter.executorRevision();
         long readinessAndPanic = SurfaceDrawPlan.captureReadinessAndPanic();
+        // G5: fold the map projection's usability into the same-frame cache identity so an unusable
+        // projection (empty node set) rebuilds the plan to native fallback instead of returning a
+        // retained FULL_READY map plan. This mirrors the readiness/panic sample being part of the key.
+        boolean mapUsable = mapProjectionUsable();
         long flags = (hand ? 1L : 0L)
                 | (slots ? 1L << 1 : 0L)
                 | (controls ? 1L << 2 : 0L)
@@ -92,6 +96,7 @@ public final class Sts1RenderPipeline {
                 | (targeting ? 1L << 16 : 0L)
                 | (overlayObserve ? 1L << 17 : 0L)
                 | (pileDraw ? 1L << 38 : 0L)
+                | (mapUsable ? 1L << 40 : 0L)
                 | readinessAndPanic;
         if (lastKey != null && lastKey.matches(frameId, policyRevision, executorRevision, scene, flags)) {
             planCacheHits++;
@@ -105,9 +110,27 @@ public final class Sts1RenderPipeline {
                         reward, rest, treasure, shop, topPanel, intents, proceed, energy, targeting,
                         pileDraw,
                         overlayObserve, readinessAndPanic,
-                        (readinessAndPanic & (1L << 39)) != 0L);
+                        (readinessAndPanic & (1L << 39)) != 0L,
+                        mapUsable);
         lastKey = new PlanKey(frameId, policyRevision, executorRevision, scene, flags);
         return lastPlan;
+    }
+
+    /**
+     * G5 native-continuation guard for the delegated MAP surface: the map projection is USABLE only
+     * when it carries at least one presentable node. An empty/degenerate projection (e.g.
+     * {@code AbstractDungeon.map == null} between acts, or a backend read that yields no nodes) must
+     * NOT be admitted as FULL_READY, because suppressing the native {@code DungeonMapScreen.render}
+     * would then leave ART with no map pixels at all. Fail-open to {@code false} on any read error so
+     * a broken projection resolves to native continuation.
+     */
+    static boolean mapProjectionUsable() {
+        try {
+            artframework.context.MapView mv = ArtFramework.projection().map();
+            return mv != null && mv.nodeCount() > 0;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     public static boolean shouldDrawHand() {

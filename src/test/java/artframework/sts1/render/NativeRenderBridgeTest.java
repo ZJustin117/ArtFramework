@@ -954,9 +954,18 @@ public class NativeRenderBridgeTest {
     private void assertFullSurfaceDelegates(String surfaceId, String scene) {
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
+        // G5 guard: the delegated MAP surface is FULL_READY only when its projection is usable
+        // (>=1 presentable node); an empty map projection keeps native. Supply a usable map for the
+        // MAP case so this delegation-contract fixture is not testing the unusable-projection path.
+        MapView map = SurfaceIds.MAP.equals(surfaceId)
+                ? new MapView(java.util.Collections.singletonList(
+                        new artframework.context.MapNodeView(1, 1, 100f, 200f, false, true,
+                                "M", "monster", artframework.assets.ResourceIds.MAP_NODE_MONSTER)),
+                        1920, 1080)
+                : MapView.empty();
         backend.publish(
                 ContextFrame.of(
-                        1L, 1L, scene, null, ControlsView.empty(), MapView.empty(), null));
+                        1L, 1L, scene, null, ControlsView.empty(), map, null));
         ArtFramework.publishFrame(backend.currentFrame());
         FullPresentMode.setLevel(surfaceId, PresentLevel.FULL);
         ArtFramework.component(surfaceId).mount();

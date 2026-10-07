@@ -3772,7 +3772,66 @@ allocation and Young GC pressure.
       must fail-open on an already-reaped entity (the C2 sync path should tolerate a missing entity on
       teardown/remount, mirroring the fail-open `getIfPresent` rule). Needs a focused repro +
       fail-open fix, then extend the existing `d1_full_present_lifecycle.yaml` (already present) with
-      the rapid uncovered/remount case before changing anything.
+      the rapid uncovered/remount case before changing anything. **Still open — the V05 slice below is
+      unrelated to this item.**
+
+- [x] **V05: no-pixel / unsupported takeover safety for the delegated MAP surface (G5).**
+      **Audit findings (read from the code).**
+      1. MAP readiness (`SurfaceDrawPlan.isReady`/`entry` ~:472/~:435, consumed by `Sts1RenderPipeline.plan()`):
+         BEFORE V05 it required only policy-level FULL + mounted + `"map".equals(scene)` + executor-ready
+         — it did NOT require the map projection to be USABLE. So a FULL + mounted map surface in the
+         map scene with a ready executor became FULL_READY even when `ArtFramework.projection().map()`
+         carried no nodes, and `suppressNative` was set → native suppression with no ART pixels.
+      2. `MapDrawPath.shouldSuppressNativeMap()` (:365) delegated to the plan; `buildFromProjection()`
+         (:369) returns an EMPTY list when the projection has no nodes, `mapSubmissionPlan()` (:947)
+         emits only legend items (often also empty off-`Settings`), `backgroundItems()` (:670),
+         `edgeItems()` (:783), `legendItems()` (:579) all fail-open to empty. So with an empty
+         projection `renderMap` would draw essentially nothing WHILE native was suppressed → the
+         "read nothing → blank map → still suppress native" defect was REAL and reachable.
+      3. `Sts1SurfaceRenderer.drawMapBandAtNativePoint`/`drawMapBandPostNative`/`drawMapBandOnce`
+         (:183/:197/:234) gate on `entry.mode==DRAW && entry.suppressNative` (via
+         `shouldSuppressNative(MAP)`); the band itself is fail-open (try/catch) but the SUPPRESSION
+         decision was NOT gated on usable pixels. `NativeRenderBridge.beginSurface` (:152) likewise
+         only downgrades on panic/unknown-owner/filter, never on an empty map.
+      4. A missing/invalid map resource (e.g. `map.bg.*` texture) is handled PER DRAW
+         (`drawResolvedTexture` wrapped in try/catch, one bad resource never aborts the band —
+         `renderMap` :939 / `renderMapBackground` :911), and a backend `readMap*` exception fails open
+         to empty (`mapFrame()` :474, `readMapBackground` :422, `readMapEdges` :539 all `catch(Throwable)`),
+         but BEFORE V05 that empty projection did NOT keep native — it still suppressed. That missing
+         link was the defect.
+      **Fix (one, map-scoped).** `Sts1RenderPipeline.mapProjectionUsable()` (new) = the projected map
+      carries >= 1 node (`mv != null && mv.nodeCount() > 0`, fail-open `false` on any read error). It
+      is threaded through the plan (new `mapUsable` parameter on `SurfaceDrawPlan.buildFromSnapshot`;
+      the legacy `build` shorthand passes `true` to keep its pure registry/API contract) and folded
+      into the MAP entry's scene-readiness input (`"map".equals(scene) && mapUsable`), so an unusable
+      projection resolves to `FULL_FALLBACK_NATIVE`/`scene_unavailable` and the native
+      `DungeonMapScreen.render` continues. Usability is also folded into the same-frame plan cache
+      identity (`1L << 40` in `plan()` flags), mirroring the readiness/panic sample, so a mid-frame
+      projection change cannot return a stale FULL_READY map plan. No broad gating change; only the map
+      surface is affected.
+      **Tests.** `MapDrawPathTest.unusableEmptyMapProjectionKeepsNativeMapInsteadOfSuppressing`
+      (empty projection → no suppression + no submissions + patch Continues + `assertNoDelegatedCoverage`),
+      `MapDrawPathTest.zeroSizeMapNodeIsNormalizedSoItRemainsAUsableNode` (a zero-size node is
+      normalized to 64f by `MapNodeView`, so a degenerate-bounds node stays a USABLE node),
+      `Sts1RenderPipelineTest.mapSurfaceIsNotReadyForUnusableProjectionButReadyForUsable` (MAP
+      `FULL_FALLBACK_NATIVE` for an empty projection, `FULL_READY`/`DRAW` for a usable one). Two existing
+      fixtures that paired MAP FULL with `MapView.empty()` (`NativeRenderBridgeTest.mapAndRoomSurfacesDelegateInFullMode`,
+      `NativeRenderDelegatedEvidenceCorrelationParameterizedTest`) now publish a usable map for the MAP
+      case so they still pin their delegation contract; no assertion was weakened.
+      **Scenario.** `tests/ui-scenarios/device/d1_map_fail_open.yaml` (31 steps). HONEST TRIGGER LIMIT:
+      the empty-projection failure CANNOT be produced safely on device (it would require breaking the
+      native map the scenario proves continues, and no probe/console seam exposes it), so the scenario
+      asserts the device-triggerable POSITIVE contract — a usable projection (`backend.mapView.nodeCount >= 1`)
+      is admitted FULL_READY with `suppressNativeMap true`, and `art present map off` restores native
+      continuation (`suppressNativeMap false`). The unusable-projection fail-open is unit-covered.
+      **Verify.** Focused `cleanTest test --tests "artframework.sts1.render.*" --tests "artframework.sts1.backend.*" --tests "artframework.context.*"`:
+      1086 tests, 0 failures; full `cleanTest test`: 2239 tests, 0 failures. Scenario loads offline (31 steps).
+      **Residual (honest).** The guard keys on node COUNT, not geometry: a projection with nodes whose
+      projected bounds are degenerate is treated as usable (correct here, since `MapNodeView`
+      normalizes non-positive sizes to 64f — pinned by the zero-size test). A genuinely usable-count
+      projection whose per-resource textures are ALL missing still delegates (per-draw fail-open resolves
+      native resources via HostAssets; a wholly missing map resource set remains an exposed supply gap,
+      not a native-continuation trigger). D1 not executed (no deploy in this slice).
 
 ### 49. Scenario hygiene / order-independence
 

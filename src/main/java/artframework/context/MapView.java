@@ -137,6 +137,82 @@ public final class MapView {
         }
     }
 
+    /**
+     * One native map connection dot (D03 map edges). Native {@code com.megacrit.cardcrawl.vfx.MapDot}
+     * stores a PRIVATE {@code x}/{@code y}/{@code rotation}, jittered ONCE at edge-construction time
+     * via {@code MathUtils.random}; ART must read those stored values rather than recompute the
+     * jitter (recomputing would not reproduce it). These are the dot LOCAL coords BEFORE the native
+     * {@code +DungeonMapScreen.offsetY + 172*scale} offset.
+     */
+    public static final class MapDotView {
+        public final float x;
+        public final float y;
+        public final float rotation;
+
+        public MapDotView(float x, float y, float rotation) {
+            this.x = x;
+            this.y = y;
+            this.rotation = rotation;
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("x", Float.valueOf(x));
+            m.put("y", Float.valueOf(y));
+            m.put("rotation", Float.valueOf(rotation));
+            return m;
+        }
+    }
+
+    /**
+     * One native map edge (D03 map edges): {@code com.megacrit.cardcrawl.map.MapEdge} carries a
+     * public {@code color} (default {@code DISABLED_COLOR=(0,0,0,0.25)}; {@code markAsTaken()} swaps
+     * it to {@code MapRoomNode.AVAILABLE_COLOR}) and a PRIVATE {@code ArrayList<MapDot> dots}
+     * computed ONCE in the ctor. Native {@code MapEdge.render} sets {@code sb.setColor(color)} then
+     * renders each dot, so this value carries the edge color (r/g/b/a) plus the resolved dot draws.
+     */
+    public static final class MapEdgeView {
+        public final float r;
+        public final float g;
+        public final float b;
+        public final float a;
+        public final List<MapDotView> dots;
+
+        public MapEdgeView(float r, float g, float b, float a, List<MapDotView> dots) {
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.a = a;
+            if (dots == null || dots.isEmpty()) {
+                this.dots = Collections.emptyList();
+            } else {
+                this.dots = Collections.unmodifiableList(new ArrayList<MapDotView>(dots));
+            }
+        }
+
+        /** Fail-open default edge: native {@code DISABLED_COLOR} (0,0,0,0.25), no dots. */
+        public static MapEdgeView empty() {
+            return new MapEdgeView(0f, 0f, 0f, 0.25f, null);
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            Map<String, Object> color = new LinkedHashMap<String, Object>();
+            color.put("r", Float.valueOf(r));
+            color.put("g", Float.valueOf(g));
+            color.put("b", Float.valueOf(b));
+            color.put("a", Float.valueOf(a));
+            m.put("color", color);
+            m.put("dotCount", Integer.valueOf(dots.size()));
+            List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
+            for (MapDotView d : dots) {
+                list.add(d.toMap());
+            }
+            m.put("dots", list);
+            return m;
+        }
+    }
+
     public final List<MapNodeView> nodes;
     public final int viewportWidth;
     public final int viewportHeight;
@@ -144,6 +220,11 @@ public final class MapView {
     public final LegendLabels legend;
     /** Native map background geometry, or {@code null} when unavailable (fail-open). */
     public final MapBackground background;
+    /**
+     * Native map connection edges (D03 map edges), or an empty list when unavailable (fail-open).
+     * Each edge carries its resolved color + the native stored (jittered) dot draws.
+     */
+    public final List<MapEdgeView> edges;
 
     public MapView(List<MapNodeView> nodes, int viewportWidth, int viewportHeight) {
         this(nodes, viewportWidth, viewportHeight, null);
@@ -160,6 +241,16 @@ public final class MapView {
             int viewportHeight,
             LegendLabels legend,
             MapBackground background) {
+        this(nodes, viewportWidth, viewportHeight, legend, background, null);
+    }
+
+    public MapView(
+            List<MapNodeView> nodes,
+            int viewportWidth,
+            int viewportHeight,
+            LegendLabels legend,
+            MapBackground background,
+            List<MapEdgeView> edges) {
         if (nodes == null || nodes.isEmpty()) {
             this.nodes = Collections.emptyList();
         } else {
@@ -169,6 +260,11 @@ public final class MapView {
         this.viewportHeight = Math.max(0, viewportHeight);
         this.legend = legend != null ? legend : LegendLabels.empty();
         this.background = background;
+        if (edges == null || edges.isEmpty()) {
+            this.edges = Collections.emptyList();
+        } else {
+            this.edges = Collections.unmodifiableList(new ArrayList<MapEdgeView>(edges));
+        }
     }
 
     public static MapView empty() {
@@ -203,6 +299,12 @@ public final class MapView {
             list.add(n.toMap());
         }
         m.put("nodes", list);
+        m.put("edgeCount", Integer.valueOf(edges.size()));
+        List<Map<String, Object>> edgeList = new ArrayList<Map<String, Object>>();
+        for (MapEdgeView e : edges) {
+            edgeList.add(e.toMap());
+        }
+        m.put("edges", edgeList);
         return m;
     }
 }

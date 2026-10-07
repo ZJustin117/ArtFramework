@@ -507,7 +507,8 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
         int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
         int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
-        MapView map = new MapView(nodes, w, h, readLegendLabels(), readMapBackground());
+        MapView map = new MapView(
+                nodes, w, h, readLegendLabels(), readMapBackground(), readMapEdges());
         ViewportView viewport = new ViewportView(w, h, w, h);
         return new ContextFrame(
                 frameId,
@@ -520,6 +521,116 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 SelectView.empty(),
                 true,
                 viewport);
+    }
+
+    /**
+     * Read the LIVE native map connection edges (D03 map edges). Native
+     * {@code MapRoomNode.render} begins with {@code for (MapEdge edge : this.edges) edge.render(sb)}
+     * and {@code MapEdge.render} does {@code sb.setColor(this.color); for (MapDot d : this.dots)
+     * d.render(sb)} (VERIFIED desktop-1.0.jar bytecode). {@code MapEdge} carries a PUBLIC
+     * {@code color} and a PRIVATE {@code ArrayList<MapDot> dots} whose {@code x}/{@code y}/
+     * {@code rotation} are jittered ONCE at construction time by {@code MathUtils.random}, so ART
+     * MUST read those STORED values (recomputing would not reproduce the jitter). All reads are soft
+     * reflection; FAIL-OPEN to an empty list on any missing field/throw (never throws). Each edge is
+     * DEDUPLICATED by REFERENCE identity of its dot-list object (falling back to src/dst when the
+     * dots list is unreadable) so an edge object shared across two endpoint nodes is emitted ONCE
+     * rather than painting double dots.
+     */
+    private static List<MapView.MapEdgeView> readMapEdges() {
+        List<MapView.MapEdgeView> out = new ArrayList<MapView.MapEdgeView>();
+        try {
+            java.util.ArrayList<java.util.ArrayList<MapRoomNode>> map = AbstractDungeon.map;
+            if (map == null) {
+                return out;
+            }
+            // REFERENCE-IDENTITY dedup: an IdentityHashMap-backed set keys on the dot-list OBJECT,
+            // so two distinct edge objects can never collide (unlike a 32-bit identityHashCode).
+            java.util.Set<Object> seenDotLists = java.util.Collections.newSetFromMap(
+                    new java.util.IdentityHashMap<Object, Boolean>());
+            java.util.Set<String> seenEndpoints = new java.util.HashSet<String>();
+            for (List<MapRoomNode> row : map) {
+                if (row == null) {
+                    continue;
+                }
+                for (MapRoomNode node : row) {
+                    if (node == null) {
+                        continue;
+                    }
+                    Object edgesObj = softField(node.getClass(), node, "edges");
+                    if (!(edgesObj instanceof List)) {
+                        continue;
+                    }
+                    for (Object rawEdge : (List<?>) edgesObj) {
+                        if (rawEdge == null) {
+                            continue;
+                        }
+                        try {
+                            MapView.MapEdgeView edge = readMapEdge(rawEdge);
+                            if (edge == null || edge.dots.isEmpty()) {
+                                continue;
+                            }
+                            Object dotsObj = softField(rawEdge.getClass(), rawEdge, "dots");
+                            String endpoint = edgeDedupKey(rawEdge);
+                            boolean duplicate;
+                            if (dotsObj instanceof List) {
+                                duplicate = !seenDotLists.add(dotsObj);
+                                // Distinct edge objects between the same endpoints (parallel edges)
+                                // are still emitted; only the SAME shared edge is deduplicated.
+                            } else {
+                                duplicate = !seenEndpoints.add(endpoint);
+                            }
+                            if (duplicate) {
+                                continue;
+                            }
+                            out.add(edge);
+                        } catch (Throwable ignored) {
+                            // One broken edge must not hide the remaining native edges.
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+            return new ArrayList<MapView.MapEdgeView>();
+        }
+        return out;
+    }
+
+    /** Read one native {@code MapEdge}: color (r/g/b/a) + each dot's stored x/y/rotation. */
+    private static MapView.MapEdgeView readMapEdge(Object rawEdge) {
+        float r = 0f, g = 0f, b = 0f, a = 0.25f;
+        try {
+            Object color = softField(rawEdge.getClass(), rawEdge, "color");
+            if (color != null) {
+                r = number(color, "r", r);
+                g = number(color, "g", g);
+                b = number(color, "b", b);
+                a = number(color, "a", a);
+            }
+        } catch (Throwable ignored) {
+        }
+        List<MapView.MapDotView> dots = new ArrayList<MapView.MapDotView>();
+        try {
+            Object dotsObj = softField(rawEdge.getClass(), rawEdge, "dots");
+            if (dotsObj instanceof List) {
+                for (Object rawDot : (List<?>) dotsObj) {
+                    if (rawDot == null) {
+                        continue;
+                    }
+                    float x = number(rawDot, "x", 0f);
+                    float y = number(rawDot, "y", 0f);
+                    float rotation = number(rawDot, "rotation", 0f);
+                    dots.add(new MapView.MapDotView(x, y, rotation));
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return new MapView.MapEdgeView(r, g, b, a, dots);
+    }
+
+    /** Stable src/dst dedup key for an edge whose dot list is unreadable. */
+    private static String edgeDedupKey(Object rawEdge) {
+        return intValue(rawEdge, "srcX", 0) + ":" + intValue(rawEdge, "srcY", 0)
+                + ">" + intValue(rawEdge, "dstX", 0) + ":" + intValue(rawEdge, "dstY", 0);
     }
 
     private ContextFrame eventFrame() {

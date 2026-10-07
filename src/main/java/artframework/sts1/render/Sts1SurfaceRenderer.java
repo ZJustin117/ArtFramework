@@ -723,6 +723,18 @@ public final class Sts1SurfaceRenderer {
     private static void renderMap(SpriteBatch sb) {
         int drawn = 0;
         artframework.core.PresentChromeStyle chrome = resolveSurfaceChrome(SurfaceIds.MAP);
+        // D03 map edges: native MapRoomNode.render draws each node's edges BEFORE that node's own
+        // art, so the connection dots sit UNDER the node band. renderMapBackground painted the
+        // parchment earlier in render(); here the edges paint right after it (under legend/nodes) and
+        // before mapSubmissionPlan, matching paintOrder()'s `bg -> edge -> legend -> node` bands.
+        for (MapDrawPath.EdgeDrawItem edge : MapDrawPath.edgeItems()) {
+            try {
+                drawResolvedTexture(sb, edge.resourceId, edge.bounds,
+                        edge.r, edge.g, edge.b, edge.a, edge.rotationDegrees);
+                drawn++;
+            } catch (Throwable ignored) {
+            }
+        }
         try {
             for (MapDrawPath.Submission item : MapDrawPath.mapSubmissionPlan()) {
                 try {
@@ -1079,6 +1091,61 @@ public final class Sts1SurfaceRenderer {
             if (texture != null) {
                 sb.setColor(r, g, b, a);
                 sb.draw(texture, bounds.x, bounds.y, bounds.width, bounds.height);
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            try {
+                sb.setColor(Color.WHITE);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /**
+     * D03 map edges: resolve and draw a texture tinted, rotated about the box CENTER, mirroring native
+     * {@code MapDot.render}. Native does {@code sb.draw(ImageMaster.MAP_DOT_1, dot.x-8, dot.y-8+
+     * offsetY+172*scale, 8,8, 16,16, scale,scale, rotation, 0,0,16,16, false,false)} — the origin
+     * (8,8) is unscaled but subtracted scaled, so the final screen box is exactly {@code bounds} with
+     * the rotation pivot at its center (libGDX transforms the origin by scaleX/scaleY). Drawing with
+     * origin {@code (w/2,h/2)} and 1:1 scale reproduces that box/pivot exactly. Fail-open; restores
+     * white in a finally block.
+     */
+    private static void drawResolvedTexture(
+            SpriteBatch sb,
+            String resourceId,
+            artframework.component.Rect bounds,
+            float r,
+            float g,
+            float b,
+            float a,
+            float rotationDegrees) {
+        if (sb == null || bounds == null || bounds.width <= 0f || bounds.height <= 0f
+                || resourceId == null || resourceId.isEmpty()) {
+            return;
+        }
+        try {
+            artframework.assets.AssetResolveResult result =
+                    ArtFramework.assets().resolve(resourceId);
+            com.badlogic.gdx.graphics.Texture texture =
+                    artframework.sts1.assets.Sts1AssetMaterializer.resolveTexture(result);
+            if (texture != null) {
+                sb.setColor(r, g, b, a);
+                sb.draw(texture,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width * 0.5f,
+                        bounds.height * 0.5f,
+                        bounds.width,
+                        bounds.height,
+                        1f,
+                        1f,
+                        rotationDegrees,
+                        0,
+                        0,
+                        texture.getWidth(),
+                        texture.getHeight(),
+                        false,
+                        false);
             }
         } catch (Throwable ignored) {
         } finally {

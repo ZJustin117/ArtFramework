@@ -139,6 +139,12 @@ public final class ResourceIds {
     public static final String MAP_NODE_TREASURE = "map.node.treasure";
     public static final String MAP_NODE_EVENT = "map.node.event";
     public static final String MAP_NODE_BOSS = "map.node.boss";
+    /**
+     * Native map-edge connection dot (D03 map edges): native {@code ImageMaster.MAP_DOT_1} =
+     * {@code images/ui/map/dot1.png} (16px, VERIFIED present in the jar), drawn by
+     * {@code MapDot.render} for every dot of every {@code MapEdge}. Mapped to the real file.
+     */
+    public static final String MAP_EDGE_DOT = "map.edge.dot";
 
     private ResourceIds() {}
 
@@ -325,6 +331,7 @@ public final class ResourceIds {
             MAP_NODE_TREASURE,
              MAP_NODE_EVENT,
              MAP_NODE_BOSS,
+             MAP_EDGE_DOT,
              UI_MAP_HIGHLIGHT,
              UI_MAP_PIN,
              UI_MAP_LEGEND,

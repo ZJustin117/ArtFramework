@@ -1199,6 +1199,165 @@ public class MapDrawPathTest {
     }
 
     @Test
+    public void edgeItemsResolveNativeDotDrawsFromStoredValuesAndEdgeColor() {
+        // D03 map edges: derive the expected dot rect/formula/color independently from the controlled
+        // edge inputs, NOT from a copied constant. Native MapDot.render:
+        //   x = dot.x - 8 ; y = dot.y - 8 + offsetY + 172*scale ; size = 16*scale ; rotation = dot.rot
+        // and MapEdge.render tints each dot with the public edge color.
+        float scale = 1.25f;
+        float offsetY = 111f;
+        MapView.MapBackground bg = new MapView.MapBackground(
+                800f, 800f - 120f * scale, offsetY, scale, 1920, 1080,
+                1020f * scale, 512f * scale, 1f);
+        List<MapView.MapDotView> dots = Arrays.asList(
+                new MapView.MapDotView(100f, 200f, 12.5f),
+                new MapView.MapDotView(150f, 250f, -7f));
+        List<MapView.MapEdgeView> edges = Collections.singletonList(
+                new MapView.MapEdgeView(0.09f, 0.13f, 0.17f, 1f, dots));
+        publishMapFrameWithBackgroundAndEdges("map", projectedNodes(), bg, edges);
+
+        List<MapDrawPath.EdgeDrawItem> items = MapDrawPath.edgeItems();
+        assertEquals("2 dots on one edge", 2, items.size());
+
+        for (int i = 0; i < dots.size(); i++) {
+            MapView.MapDotView dot = dots.get(i);
+            MapDrawPath.EdgeDrawItem item = items.get(i);
+            assertEquals(ResourceIds.MAP_EDGE_DOT, item.resourceId);
+            assertEquals(dot.x - 8f * scale, item.bounds.x, 0.01f);
+            assertEquals(dot.y - 8f * scale + offsetY + 172f * scale, item.bounds.y, 0.01f);
+            assertEquals(16f * scale, item.bounds.width, 0.01f);
+            assertEquals(16f * scale, item.bounds.height, 0.01f);
+            assertEquals("stored dot rotation must be carried verbatim",
+                    dot.rotation, item.rotationDegrees, 0.0001f);
+            assertEquals(0.09f, item.r, 0.001f);
+            assertEquals(0.13f, item.g, 0.001f);
+            assertEquals(0.17f, item.b, 0.001f);
+            assertEquals(1f, item.a, 0.001f);
+        }
+
+        // Probe exposes the same draws under backend.mapDraw.edges.
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(2), probe.get("edgeCount"));
+        assertEquals(Boolean.TRUE, probe.get("edgesPresent"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> probeEdges = (List<Map<String, Object>>) probe.get("edges");
+        assertEquals(2, probeEdges.size());
+        assertEquals(ResourceIds.MAP_EDGE_DOT, probeEdges.get(0).get("resourceId"));
+        assertEquals(Float.valueOf(12.5f), probeEdges.get(0).get("rotation"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> color = (Map<String, Object>) probeEdges.get(0).get("color");
+        assertEquals(0.09f, ((Float) color.get("r")).floatValue(), 0.001f);
+    }
+
+    @Test
+    public void edgeItemsUseLiveOffsetYAndScale() {
+        // Distinct offsetY/scale prove the draw path carries the LIVE background numbers (no
+        // constant): recompute the rect from a second, different background and compare.
+        float scale = 0.8f;
+        float offsetY = -42f;
+        MapView.MapBackground bg = new MapView.MapBackground(
+                900f, 900f - 120f * scale, offsetY, scale, 1920, 1080,
+                1020f * scale, 512f * scale, 1f);
+        List<MapView.MapEdgeView> edges = Collections.singletonList(
+                new MapView.MapEdgeView(0f, 0f, 0f, 0.25f,
+                        Collections.singletonList(new MapView.MapDotView(10f, 20f, 3f))));
+        publishMapFrameWithBackgroundAndEdges("map", projectedNodes(), bg, edges);
+        MapDrawPath.EdgeDrawItem item = MapDrawPath.edgeItems().get(0);
+        assertEquals(10f - 8f * scale, item.bounds.x, 0.01f);
+        assertEquals(20f - 8f * scale + offsetY + 172f * scale, item.bounds.y, 0.01f);
+        assertEquals(16f * scale, item.bounds.width, 0.01f);
+        assertEquals(0.25f, item.a, 0.0001f);
+    }
+
+    @Test
+    public void edgeItemsFailOpenWhenNoBackgroundOrNoEdges() {
+        // No native background -> no offset/scale -> ZERO edge draws (the renderer never invents
+        // pixels), even when the projection carries edges. And no edges -> ZERO.
+        List<MapView.MapEdgeView> edges = Collections.singletonList(
+                new MapView.MapEdgeView(0f, 0f, 0f, 0.25f,
+                        Collections.singletonList(new MapView.MapDotView(5f, 6f, 0f))));
+        publishMapFrameWithBackgroundAndEdges("map", projectedNodes(), null, edges);
+        assertTrue("no background -> no edge draws", MapDrawPath.edgeItems().isEmpty());
+        assertEquals(Integer.valueOf(0), MapDrawPath.probeSlice().get("edgeCount"));
+
+        MapView.MapBackground bg = new MapView.MapBackground(
+                800f, 680f, 0f, 1f, 1920, 1080, 1020f, 512f, 1f);
+        publishMapFrameWithBackgroundAndEdges("map", projectedNodes(), bg, null);
+        assertTrue("no edges -> no edge draws", MapDrawPath.edgeItems().isEmpty());
+    }
+
+    @Test
+    public void paintOrderPutsEdgesBelowNodesAndAboveBackground() {
+        // D03 map edges: native draws edges at the START of each node's render, so edges sit UNDER
+        // the node band and OVER the parchment background. Only RELATIVE band indices are asserted
+        // (deriving an exact list from the same helpers paintOrder() uses would be tautological).
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            MapView.MapBackground bg = new MapView.MapBackground(
+                    777f, 777f - 120f, 0f, 1f, 1920, 1080, 1020f, 512f, 1f);
+            List<MapView.MapEdgeView> edges = Collections.singletonList(
+                    new MapView.MapEdgeView(0.09f, 0.13f, 0.17f, 1f, Arrays.asList(
+                            new MapView.MapDotView(1f, 2f, 0f),
+                            new MapView.MapDotView(3f, 4f, 5f))));
+            publishMapFrameWithBackgroundAndEdges("map", projectedNodes(), bg, edges);
+
+            List<String> order = MapDrawPath.paintOrder();
+            int lastBg = -1;
+            int firstEdge = -1;
+            int lastEdge = -1;
+            int firstLegend = -1;
+            int firstNode = -1;
+            for (int i = 0; i < order.size(); i++) {
+                String key = order.get(i);
+                if (key.startsWith("bg:")) lastBg = i;
+                if (key.startsWith("edge:")) {
+                    if (firstEdge < 0) firstEdge = i;
+                    lastEdge = i;
+                }
+                if (key.startsWith("legend:") && firstLegend < 0) firstLegend = i;
+                if (key.startsWith("node:") && firstNode < 0) firstNode = i;
+            }
+            assertTrue("edge band must be present", firstEdge >= 0);
+            assertTrue("background below edges", lastBg >= 0 && lastBg < firstEdge);
+            assertTrue("edges above background", firstEdge > lastBg);
+            assertTrue("edges below legend", lastEdge < firstLegend);
+            assertTrue("edges below nodes", lastEdge < firstNode);
+
+            // Independent band-membership check (does NOT rebuild the list from the same helpers
+            // paintOrder() uses): the paint order must start with the background band and end with
+            // the node band, with the edge band strictly inside.
+            assertTrue("paint order must start with the background band",
+                    order.get(0).startsWith("bg:"));
+            assertFalse("paint order must not start with an edge",
+                    order.get(0).startsWith("edge:"));
+            assertTrue("paint order must end with the node band",
+                    order.get(order.size() - 1).startsWith("node:")
+                            || order.get(order.size() - 1).startsWith("outline:")
+                            || order.get(order.size() - 1).startsWith("overlay:")
+                            || order.get(order.size() - 1).startsWith("ring:"));
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void edgeDotResourceIsMappedToRealFileAndDotCountInProbe() {
+        // The single edge-dot id must resolve to a real file-backed source (not register-only), and
+        // its catalog source is the verified native ImageMaster.MAP_DOT_1 path.
+        Sts1HostAssets.install();
+        Map<String, String> catalog = Sts1VanillaCatalog.catalog();
+        assertEquals("sts1:images/ui/map/dot1.png", catalog.get(ResourceIds.MAP_EDGE_DOT));
+        artframework.assets.AssetResolveResult r = ArtFramework.assets().resolve(
+                ResourceIds.MAP_EDGE_DOT);
+        assertTrue("edge dot id must resolve", r.found);
+        assertTrue("edge dot id must be file-backed",
+                artframework.sts1.assets.Sts1AssetMaterializer.isFileBacked(r.source));
+    }
+
+    @Test
     public void paintOrderPutsBackgroundBelowLegendAndNodes() {
         // D03 layering fix: the opaque parchment background must be the BOTTOM map layer so it cannot
         // wash out the node/edge pixels. With a live background, a legend (Settings available) and two
@@ -1331,6 +1490,12 @@ public class MapDrawPathTest {
 
     private static void publishMapFrameWithBackground(
             String scene, List<MapNodeView> nodes, MapView.MapBackground background) {
+        publishMapFrameWithBackgroundAndEdges(scene, nodes, background, null);
+    }
+
+    private static void publishMapFrameWithBackgroundAndEdges(
+            String scene, List<MapNodeView> nodes, MapView.MapBackground background,
+            List<MapView.MapEdgeView> edges) {
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
         backend.publish(
@@ -1340,7 +1505,7 @@ public class MapDrawPathTest {
                         scene,
                         Collections.<artframework.context.CardView>emptyList(),
                         ControlsView.empty(),
-                        new MapView(nodes, 1920, 1080, null, background),
+                        new MapView(nodes, 1920, 1080, null, background, edges),
                         new ViewportView(1920, 1080, 1920, 1080)));
         ArtFramework.publishFrame(backend.currentFrame());
     }

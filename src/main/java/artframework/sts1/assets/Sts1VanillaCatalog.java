@@ -238,7 +238,11 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.MAP_BG_MID, "images/ui/map/mapMid.png");
         put(m, ResourceIds.MAP_BG_BOT, "images/ui/map/mapBot.png");
         put(m, ResourceIds.MAP_BG_BLEND, "images/ui/map/mapBlend.png");
-        // Edges remain intentionally absent: these fallbacks do not claim native parity.
+        // D03 map edges: native MapEdge.render paints each stored MapDot via
+        // ImageMaster.MAP_DOT_1 = images/ui/map/dot1.png (16px, VERIFIED present in the jar), tinted
+        // by the edge color. This one id covers every edge dot (the dot geometry is per-dot, not
+        // per-resource). The map.edge.* family fallback is no longer claimed.
+        put(m, ResourceIds.MAP_EDGE_DOT, "images/ui/map/dot1.png");
         put(m, ResourceIds.mapOutline("monster"), "images/ui/map/monsterOutline.png");
         put(m, ResourceIds.mapOutline("elite"), "images/ui/map/eliteOutline.png");
         put(m, ResourceIds.mapOutline("rest"), "images/ui/map/restOutline.png");

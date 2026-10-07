@@ -137,6 +137,27 @@ steps:
   - assert:
       path: backend.mapDraw.background[0].alpha
       gte: 0
+  # D03 map edges (this slice): the starting map HAS connections, so the backend reads every
+  # MapRoomNode.edges -> MapEdge.color + the PRIVATE stored (jittered) ArrayList<MapDot> and the draw
+  # path resolves each dot to a native dot1.png draw (x = dot.x-8*scale, y = dot.y-8*scale+offsetY+
+  # 172*scale, size 16*scale, tint = edge color, rotation = dot rotation), drawn BELOW the nodes.
+  # edgesPresent/edgeCount prove the connection dots are now supplied; the first sample carries a
+  # resolved rect + color.
+  - assert:
+      path: backend.mapDraw.edgesPresent
+      eq: true
+  - assert:
+      path: backend.mapDraw.edgeCount
+      gte: 1
+  - assert:
+      path: backend.mapDraw.edges[0].resourceId
+      eq: map.edge.dot
+  - assert:
+      path: backend.mapDraw.edges[0].color
+      exists: true
+  - assert:
+      path: backend.mapDraw.edges[0].w
+      gte: 1
   # NRO-04 D03: node/outline tint fidelity. The resolved colors must equal the VERIFIED native
   # MapRoomNode constants (AVAILABLE=0.09,0.13,0.17 -> 17212bff; NOT_TAKEN=0.34,0.34,0.34 ->
   # 575757ff; OUTLINE=8c8c80ff; highlight=(0.9,0.9,0.9,1) -> e6e6e6ff), derived from the state

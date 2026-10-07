@@ -3550,11 +3550,30 @@ allocation and Young GC pressure.
       `CardCrawlGame.languagePack.getUIString("Legend").TEXT` (`TEXT[0/3/6/9/12/15]` + `TEXT[18]`,
       VERIFIED native `Legend.java`), fail-open to the existing English defaults; the resolved text is
       exposed in the probe (`legendTitle`/`legendLabels`) and the `LegendDrawItem` / submission-plan
-      labels. **Remaining D03 gaps (honest, not full parity):** legend hover/tip/alpha-fade, map
-      edges, boss icon, node hover FX, mobile scaling, ring `(nodeScale*0.95+0.2)*Settings.scale`
-      factor, native oscillating alpha, a D1 map state with a taken/current node to visually confirm
-      the `MAP_CIRCLE_5` ring, and native pan/zoom parity all remain open. Next: add that D1
-      taken/current-node state and close the remaining gaps above.
+      labels. **Map edges (this slice,
+      done):** ART now draws the native map connection dots that were entirely missing. The backend
+      `readMapEdges()` soft-reflects every `MapRoomNode.edges` -> `MapEdge.color` (public r/g/b/a) +
+      the PRIVATE `ArrayList<MapDot> dots` and each `MapDot`'s PRIVATE `x`/`y`/`rotation`, DEDUPED by
+      REFERENCE identity of the dot-list object (an `IdentityHashMap`-backed set, no hash collision)
+      so a shared edge paints ONCE; fail-open to an empty list. The `MapDot`
+      jitter is baked into the stored coordinates at edge construction (`MathUtils.random`), so ART
+      reads those STORED values rather than recomputing. `MapView` carries an optional `edges` list
+      (`MapEdgeView`/`MapDotView`, no STS types; source-compatible ctors + `toMap()`), and
+      `MapDrawPath.edgeItems()` resolves each dot to `map.edge.dot` (`images/ui/map/dot1.png`, VERIFIED
+      in the jar) at `x = dot.x-8*scale`, `y = dot.y-8*scale+offsetY+172*scale`, size `16*scale`, tint =
+      edge color, rotation = dot rotation (from the LIVE `MapBackground.offsetY`/`scale`);
+      `probeSlice()` exposes `edges`/`edgeCount`/`edgesPresent`; `paintOrder()` adds an `edge:` band
+      strictly below `legend:`/`node:` and above `bg:`. `Sts1SurfaceRenderer.renderMap` draws the edge
+      dots BELOW the node band via a new rotation-aware `drawResolvedTexture` overload mirroring native
+      `MapDot.render`. **Approximation (honest):** ART draws ALL edges as one global `edge:` band under
+      the legend/nodes, whereas native interleaves each node's edges at the START of that node's own
+      `MapRoomNode.render`; the dot geometry/tint is identical, so only the relative edge-vs-edge draw
+      order ACROSS nodes is approximated. **Remaining D03 gaps (honest, not full parity):** legend
+      hover/tip/alpha-fade,
+      boss icon, node hover FX, mobile scaling, ring `(nodeScale*0.95+0.2)*Settings.scale` factor,
+      native oscillating alpha, `DungeonMapScreen.oscillatingColor` on the tip, a D1 map state with a
+      taken/current node to visually confirm the `MAP_CIRCLE_5` ring, and native pan/zoom parity all
+      remain open. Next: add that D1 taken/current-node state and close the remaining gaps above.
 - [x] **Hardened (D09 follow-up D1 finding): `art lab enter-select` intermittent NPE.** D1 runs of
       the select scenario: 3/4 passed; run 2 failed with a `NullPointerException` at the
       `art lab enter-select grid` step (`command_log.status=ERROR, message=NullPointerException`),

@@ -585,6 +585,123 @@ public final class MapDrawPath {
         }
     }
 
+    /** Projected map view, or {@code null} when unavailable (fail-open). */
+    private static MapView projectedMap() {
+        try {
+            return ArtFramework.projection().map();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** Native {@code MapDot.render} texture half-size (16px texture, origin 8,8). */
+    public static final float DOT_HALF = 8f;
+    /** Native {@code MapDot.render} texture size ({@code images/ui/map/dot1.png} = 16px). */
+    public static final float DOT_TEXTURE_SIZE = 16f;
+    /** Native {@code MapDot.OFFSET_Y} = {@code 172f * Settings.scale}. */
+    public static final float DOT_OFFSET_Y = 172f;
+
+    /**
+     * One native map-edge dot draw (D03 map edges). The native {@code MapDot} dot jitter is baked into
+     * the stored x/y at edge-construction time, so {@link #edgeItems()} reads the PROJECTED stored
+     * values rather than recomputing. The rect is the final SCREEN box; the rotation is the stored
+     * dot rotation; the tint is the owning edge's color.
+     */
+    public static final class EdgeDrawItem {
+        public final String id;
+        public final String resourceId;
+        public final Rect bounds;
+        /** Native stored {@code MapDot.rotation} (degrees). */
+        public final float rotationDegrees;
+        public final float r;
+        public final float g;
+        public final float b;
+        public final float a;
+
+        public EdgeDrawItem(String id, String resourceId, Rect bounds, float rotationDegrees,
+                float r, float g, float b, float a) {
+            this.id = id != null ? id : "";
+            this.resourceId = resourceId != null ? resourceId : "";
+            this.bounds = bounds != null ? bounds : Rect.ZERO;
+            this.rotationDegrees = rotationDegrees;
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.a = a;
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("id", id);
+            m.put("resourceId", resourceId);
+            m.put("x", Float.valueOf(bounds.x));
+            m.put("y", Float.valueOf(bounds.y));
+            m.put("w", Float.valueOf(bounds.width));
+            m.put("h", Float.valueOf(bounds.height));
+            m.put("rotation", Float.valueOf(rotationDegrees));
+            Map<String, Object> color = new LinkedHashMap<String, Object>();
+            color.put("r", Float.valueOf(r));
+            color.put("g", Float.valueOf(g));
+            color.put("b", Float.valueOf(b));
+            color.put("a", Float.valueOf(a));
+            m.put("color", color);
+            m.put("colorHex", hex(r, g, b, a));
+            return m;
+        }
+    }
+
+    /**
+     * Native map connection dot draws (D03 map edges) in stable order: each projected edge in
+     * projection order, then each of its stored dots in native order. Native {@code MapDot.render}
+     * draws {@code images/ui/map/dot1.png} (16px) at {@code dot.x - 8f, dot.y - 8f + offsetY +
+     * 172f*scale}, size {@code 16f*scale}, tinted by the edge color with the stored dot rotation.
+     * The final screen rect is therefore {@code x = dot.x - 8*scale}, {@code y = dot.y - 8*scale +
+     * offsetY + 172*scale}, {@code size = 16*scale}, where {@code offsetY} is the LIVE
+     * {@link MapView.MapBackground#offsetY} and {@code scale} the live {@code Settings.scale}.
+     * Fail-open: an empty list when the projection carries no background/edges (never invents pixels).
+     */
+    public static List<EdgeDrawItem> edgeItems() {
+        List<EdgeDrawItem> out = new ArrayList<EdgeDrawItem>();
+        MapView mv = projectedMap();
+        if (mv == null) {
+            return out;
+        }
+        MapView.MapBackground bg = mv.background;
+        if (bg == null) {
+            return out;
+        }
+        float scale = bg.scale;
+        if (!(scale > 0f)) {
+            return out;
+        }
+        float size = DOT_TEXTURE_SIZE * scale;
+        int edgeIndex = 0;
+        for (MapView.MapEdgeView edge : mv.edges) {
+            if (edge == null) {
+                edgeIndex++;
+                continue;
+            }
+            int dotIndex = 0;
+            for (MapView.MapDotView dot : edge.dots) {
+                if (dot == null) {
+                    dotIndex++;
+                    continue;
+                }
+                float x = dot.x - DOT_HALF * scale;
+                float y = dot.y - DOT_HALF * scale + bg.offsetY + DOT_OFFSET_Y * scale;
+                out.add(new EdgeDrawItem(
+                        "map.edge." + edgeIndex + "." + dotIndex,
+                        ResourceIds.MAP_EDGE_DOT,
+                        new Rect(x, y, size, size),
+                        dot.rotation,
+                        edge.r, edge.g, edge.b, edge.a));
+                dotIndex++;
+            }
+            edgeIndex++;
+        }
+        return out;
+    }
+
     /**
      * Full native map paint order exactly as the renderer submits it (D03 layering fix). The opaque
      * parchment background is the BOTTOM layer — the renderer draws it in
@@ -602,6 +719,13 @@ public final class MapDrawPath {
         List<String> out = new ArrayList<String>();
         for (BackgroundDrawItem bg : backgroundItems()) {
             out.add("bg:" + bg.id);
+        }
+        // D03 map edges: native MapEdge.render draws the connection dots at the START of each node's
+        // render, so a global "all edges before all nodes" band is the correct approximation. The
+        // edges paint over the background but under the legend/node band (the parenthesised native
+        // per-node ordering is collapsed into this single band).
+        for (EdgeDrawItem edge : edgeItems()) {
+            out.add("edge:" + edge.id);
         }
         for (LegendDrawItem legend : legendItems()) {
             out.add("legend:" + legend.id);
@@ -813,6 +937,18 @@ public final class MapDrawPath {
         }
         m.put("background", backgroundList);
         m.put("backgroundCount", Integer.valueOf(backgroundList.size()));
+        // D03 map edges: the native map connection dots (ImageMaster.MAP_DOT_1 = dot1.png) read from
+        // the stored (jittered) MapDot positions, tinted by the owning edge color, drawn BELOW the
+        // nodes. `edgeCount` is the number of resolved dot draws; `edgeSample` carries the first few.
+        List<EdgeDrawItem> edges = edgeItems();
+        List<Map<String, Object>> edgeList = new ArrayList<Map<String, Object>>();
+        int edgeLimit = Math.min(edges.size(), 16);
+        for (int i = 0; i < edgeLimit; i++) {
+            edgeList.add(edges.get(i).toMap());
+        }
+        m.put("edges", edgeList);
+        m.put("edgeCount", Integer.valueOf(edges.size()));
+        m.put("edgesPresent", Boolean.valueOf(!edges.isEmpty()));
         // D03 layering fix: the full paint order, background strictly below legend/nodes. Exposed so
         // the D1 scenario and unit tests can assert the layering that fixes the node wash-out.
         m.put("paintOrder", paintOrder());

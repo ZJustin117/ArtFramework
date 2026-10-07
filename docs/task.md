@@ -2067,8 +2067,32 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       visual compare is a documented gap, not a faked assertion. The deeper STS2 runtime gaps —
       `.tpsheet`, sub-emitter, turbulence, restricted shader/bake fallback, and Spine 4.2 parity —
       remain open per [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
-- [ ] Expand support incrementally: `.tpsheet`, flipbook parity, sub-emitters, turbulence,
-      restricted shaders, then baked fallback.
+- [x] F10: the TexturePacker `.tpsheet` JSON sheet is now READ into host-neutral
+      `artframework.assets.AtlasRegion` values by the pure `artframework.sts1.assets.Sts2TpsheetParser`
+      (`parse(String)` / `parse(Reader)`, plus a package-private `parsePage` seam). It reuses the
+      host jar's `com.badlogic.gdx.utils.JsonReader`/`JsonValue` and mirrors `LibGdxAtlasParser`'s
+      output contract: `textures[].image` -> `page`, `textures[].size.w/h` -> page size,
+      `sprites[].filename` -> `name` (any `dir/` prefix preserved verbatim),
+      `sprites[].region.x/y/w/h` -> packed `x/y/width/height`, `margin.x/y` -> `offsetX/offsetY`,
+      `region.w/h + margin.w/h` -> `originalWidth/originalHeight`, `degrees = 0` (the format has no
+      rotation field). Multiple pages are supported and region order is preserved; key lookup is
+      case-insensitive and whitespace-tolerant; missing `textures`/`sprites`/`size`/`region`/`margin`
+      are defaulted or skipped rather than throwing. Unlike `LibGdxAtlasParser` (which throws
+      `IllegalArgumentException`/`IOException`), this parser is deliberately FAIL-OPEN: null, blank,
+      or malformed input returns an empty (immutable) list and never throws, because a `.tpsheet` is a
+      load-time user/developer asset where empty is a recoverable "no regions" result. Unit-verified
+      (no GL) in `Sts2TpsheetParserTest` (untrimmed + trimmed exact fields, multi-page page/page-size,
+      `dir/`-prefix preservation, case/whitespace tolerance, malformed/null/blank fail-open, missing
+      fields, reader parity, and an optional file-exists-guarded real-sample check). This is the
+      PARSER ONLY: no `.tpsheet`-to-`.legacy` materializer, no `HostAssets`/VFX consumer is wired,
+      and there is NO D1 evidence (the parse runs against a developer/user-owned asset outside the
+      repo). `.tpsheet` materialization/consumer wiring remains open; the deeper STS2 runtime gaps —
+      `.tpsheet` materialization, sub-emitter, turbulence, restricted shader/bake fallback, and
+      Spine 4.2 parity — remain open per
+      [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
+- [ ] Expand support incrementally: `.tpsheet` materialization/consumer wiring (the JSON parse half
+      is done — see F10), flipbook parity, sub-emitters, turbulence, restricted shaders, then baked
+      fallback.
 
 - [x] F07: a single restricted VFX material/blend SUPPORT MATRIX with explicit reject + fail-open
       fallback now exists in pure `VfxMaterialSupport`. It bounds the KNOWN STS2 blend names

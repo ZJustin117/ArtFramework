@@ -190,8 +190,9 @@ VfxResourceRef {
 
 Runtime resolution remains host-managed through `HostAssets`/STS1 asset adapters. Raw texture
 handles do not enter the framework-neutral public contract. Spine `.atlas` conversion continues
-to use the existing `SpineAtlas4xParser` / `Spine42AtlasMaterializer`; `.tpsheet` conversion is
-a separate resource materialization step.
+to use the existing `SpineAtlas4xParser` / `Spine42AtlasMaterializer`; `.tpsheet` parsing is done by
+the pure `artframework.sts1.assets.Sts2TpsheetParser` (JSON -> host-neutral `AtlasRegion`), while
+`.tpsheet` to legacy atlas materialization (syntax emission) remains a separate, still-open step.
 
 ## First `.tscn` support matrix
 
@@ -316,7 +317,8 @@ write directly into `EntityPresent`.
   intermediate frame, non-loop LAST-frame clamp, loop wrap at `age*speed == frameCount` and beyond,
   and large-dt in-range/UV-bounded) through the projection payload and the STS1 overlay integer rect
   in `ParticleRenderProjectionSystemTest`/`VfxRenderFramePayloadTest`/`Sts1VfxOverlayRendererTest`;
-  `.tpsheet` region materialization remains open.
+  `.tpsheet` parsing now exists (`Sts2TpsheetParser`), but `.tpsheet` region materialization/consumer
+  wiring remains open.
 
 This follows the existing collection → projection → system family pattern. A future host-side
 ledger/registry may be added for native VFX observation and lifecycle evidence, analogous to the
@@ -346,7 +348,15 @@ authority.
 
 Add capabilities in this order:
 
-1. `.tpsheet` to legacy libGDX atlas materialization.
+1. `.tpsheet` to legacy libGDX atlas materialization. **Partially done (parser half):** the pure
+   `artframework.sts1.assets.Sts2TpsheetParser` now reads a TexturePacker `.tpsheet` JSON sheet
+   (`textures[]` pages + `sprites[]` regions) into host-neutral `artframework.assets.AtlasRegion`
+   values with the same output contract as `LibGdxAtlasParser` (`page`, page size, packed `x/y/w/h`,
+   `originalWidth/Height = region.w/h + margin.w/h`, `offsetX/Y = margin.x/y`, `degrees = 0`),
+   fail-open on null/blank/malformed input (empty list, never throws) and guarded against missing
+   fields. Unit-verified in `Sts2TpsheetParserTest`. **Materialization/consumers remain OPEN:** there
+   is no `.tpsheet`-to-`.legacy` materializer (cf. `Spine42AtlasMaterializer`) and no `HostAssets`/
+   VFX consumer wired to it, and no D1 evidence (the parse is of a developer/user-owned asset).
 2. Angular velocity and flipbook parity improvements.
 3. `CurveXYZTexture`.
 4. Sub-emitter definitions and a `ParticleSubEmitterSystem`. **Partially done (restricted F05):** a

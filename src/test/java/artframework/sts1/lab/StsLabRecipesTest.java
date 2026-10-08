@@ -491,7 +491,42 @@ public class StsLabRecipesTest {
     }
 
     @Test
-    public void asyncRunnerStartRunFailsWhenPostEmbarkSeedIsUnavailable() {
+    public void asyncRunnerStartRunAppliesSeedBeforeEmbark() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .menuScreen("CHAR_SELECT")
+                                .inGame(true)
+                                .fading(true)
+                                .charSelectOpen(true)
+                                .characterSelected(true)
+                                .selectedCharacter("IRONCLAD")
+                                .embarkEnabled(true)
+                                .roomPhase("")
+                                .build());
+        StsLabNav.install(host);
+
+        assertTrue(LabRecipeRunner.armStartRun("IRONCLAD", "ORDERSEED", 12).isOk());
+        LabRecipeRunner.tick();
+
+        // THE FIX: the seed must be applied BEFORE the embark click, because STS builds all dungeon
+        // RNGs from Settings.seed inside the character-select confirm handler
+        // (AbstractDungeon.generateSeeds()) that the embark click triggers. Order is proven from the
+        // FakeLabHost's ordered action log, not from mere set membership.
+        int seedIndex = host.actions.indexOf("seed:ORDERSEED");
+        int embarkIndex = host.actions.indexOf("embark");
+        assertTrue("seed should be recorded", seedIndex >= 0);
+        assertTrue("embark should be recorded", embarkIndex >= 0);
+        assertTrue(
+                "setSeed must precede embark (seed before generation), actions=" + host.actions,
+                seedIndex < embarkIndex);
+        assertEquals(1, countActions(host.actions, "seed:ORDERSEED"));
+        assertEquals(1, countActions(host.actions, "embark"));
+    }
+
+    @Test
+    public void asyncRunnerStartRunFailsWhenPreEmbarkSeedIsUnavailable() {
         FakeLabHost delegate =
                 new FakeLabHost(
                         LabStateSnapshot.builder()
@@ -509,25 +544,19 @@ public class StsLabRecipesTest {
 
         assertTrue(LabRecipeRunner.armStartRun("IRONCLAD", "FAIL-SEED", 8).isOk());
         LabRecipeRunner.tick();
-        assertEquals(1, countActions(delegate.actions, "embark"));
 
-        delegate.setState(
-                LabStateSnapshot.builder()
-                        .mode("GAMEPLAY")
-                        .inGame(true)
-                        .selectedCharacter("IRONCLAD")
-                        .roomPhase("")
-                        .build());
-        LabRecipeRunner.tick();
-
+        // The seed is applied before embark now, so a failing seed blocks the embark click entirely
+        // (no dungeon is generated with a stale/random seed).
         assertFalse(LabRecipeRunner.isBusy());
         assertEquals("unavailable", LabRecipeRunner.statusMap().get("status"));
         assertEquals("seed unavailable", LabRecipeRunner.statusMap().get("message"));
         assertEquals(1, countActions(delegate.actions, "seed:FAIL-SEED"));
+        assertEquals(0, countActions(delegate.actions, "embark"));
 
         LabRecipeRunner.tick();
         assertEquals("unavailable", LabRecipeRunner.statusMap().get("status"));
         assertEquals(1, countActions(delegate.actions, "seed:FAIL-SEED"));
+        assertEquals(0, countActions(delegate.actions, "embark"));
     }
 
     @Test

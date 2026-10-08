@@ -197,6 +197,22 @@ Render-boundary device validation:
   non-zero `uncovered` counter while creature/world/native paths are not globally intercepted.
   It must not be described as a pure-background success until those counters reach zero. Run with
   `scripts/art-lab background verify-only`.
+- `d1_map_parity_capture.yaml` is the map-screen fixed-state A/B sampling scenario: a fixed seed
+  (`ARTMAPV02`, applied via `art lab seed` + `art lab start-run IRONCLAD seed=…`), a NATIVE sample at
+  map `observe`, an ART sample at map `on` (FULL_READY), and a second ART sample at the SAME state. The
+  A/B is accepted only when the state matches (`projection.scene` / `projection.sceneEpoch` /
+  `backend.mapView.nodeCount` `eq_var` the native captures), and the two ART frames are pixel-gated for
+  REPEATABILITY over the static central map grid (`compare_screenshot: against: previous_capture`,
+  `crop [320,300,1160,420]`, `threshold 8`, `max_diff_ratio 0.015`). The crop excludes the live clock/HUD
+  strip, banner, legend, bottom button, and version text; the tolerance is derived at that threshold 8
+  from observed same-state ART-vs-ART noise (≤ 0.23%) versus a real map regression (2.83%). Native-vs-ART pixel
+  equality is NOT gated (the ART redraw and live native bleed make it flaky); the native+ART metadata and
+  PNGs are advisory for human review. D1: the scenario ran 65/65 and the repeatability gate passed with a
+  large margin (1–4 px vs the 7308-px bound) with the state-match guard holding. The fixed-seed defect
+  found in that session (three runs → three dungeons) is fixed in `LabRecipeRunner` (seed applied before
+  embark) and RE-VERIFIED on D1: three fresh runs gave nodeCount 56/56/56 + identical topology. NOTE:
+  cross-run RAW PIXEL parity is not achievable (STS applies unseeded cosmetic node/edge jitter), so only
+  the same-state in-run ART-vs-ART gate is asserted.
 
 ## Delegation order
 

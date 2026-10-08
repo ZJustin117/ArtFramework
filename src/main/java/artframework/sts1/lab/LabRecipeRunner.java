@@ -230,6 +230,12 @@ public final class LabRecipeRunner {
                 return;
             }
             if (s.embarkEnabled) {
+                // Apply the seed BEFORE the embark click: STS builds all dungeon RNGs from
+                // Settings.seed during CharacterSelectScreen's confirm handler
+                // (AbstractDungeon.generateSeeds()); a seed applied after embark is too late.
+                if (!applySeedOnce(host)) {
+                    return;
+                }
                 embarkOnce(host);
             }
             return;
@@ -279,6 +285,11 @@ public final class LabRecipeRunner {
             return;
         }
         if (s.embarkEnabled && s.characterSelected) {
+            // Apply the seed BEFORE the embark click (see the charSelectOpen branch above): the seed
+            // must be set when STS generates the dungeon, not after.
+            if (!applySeedOnce(host)) {
+                return;
+            }
             embarkOnce(host);
             return;
         }

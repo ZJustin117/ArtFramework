@@ -1,0 +1,266 @@
+# D1 fixed-state A/B sampling for the MAP screen (V02): objective, non-flaky same-state contract.
+#
+# WHAT IS SAMPLED (three frames at ONE fixed map state)
+#   * NATIVE frame  — map surface OBSERVE. ART projects the map (the probe is live) but owns NO pixels
+#     (`backend.mapDraw.suppressNativeMap` false), so the native `DungeonMapScreen.render` draws the
+#     parchment/nodes/edges. The metadata (scene, sceneEpoch, viewport, fullPresent level, nodeCount)
+#     is captured for the record and one PNG is kept for human review.
+#   * ART frame 1   — map surface FULL. Native map render is suppressed (`suppressNativeMap` true) and
+#     ART draws the band. The SAME metadata is captured as `art1_*`.
+#   * ART frame 2   — a SECOND capture at the SAME state with NO re-mount. Its PNG is compared to
+#     ART frame 1's PNG, so the gate proves ART map render REPEATABILITY, not native-vs-ART equality.
+#
+# FIXED SEED: `set.seed` (below) is applied twice with the SAME literal — an explicit `art lab seed`
+# on the fresh menu (sets `Settings.seed` before STS generates the dungeon) and again via
+# `art lab start-run IRONCLAD seed=<seed>` (the lab's own `applySeedOnce`). Same value in both, so the
+# dungeon layout is fixed for the run and the A/B frames sample the SAME map.
+#
+# STATE-MATCH GUARD (why the A/B is accepted): before ART sample 1 is trusted, the scenario asserts that
+# ART's `projection.scene`, `projection.sceneEpoch`, and `backend.mapView.nodeCount` EQUAL the values
+# captured from the NATIVE sample (`eq_var`). The scene epoch only changes when the scene CHANGES, so
+# switching OBSERVE -> FULL at the SAME open map keeps the epoch; `MapRoomNode` states are static, so
+# nodeCount is unchanged. The A/B pair is therefore only accepted when the underlying state matches.
+#
+# WHY THE NATIVE SAMPLE IS `observe`, NOT `off` (evidence-based refinement of the brief): the backend
+# only publishes a present frame while a surface is MOUNTED (or overlay-observe is on)
+# — `StageHost.receivePostUpdate` -> `publishFrame()` is gated on `PresentSurfaces.anyMounted()`.
+# With `art present map off` and no prior mount the projection is UNAVAILABLE and the brief's own
+# pre-conditions (`projection.scene eq map`, `backend.mapView.nodeCount gte 1`) cannot be sampled:
+# saved D1 evidence `debug-artifacts/art-verify/20261007-154258-v05-run1-map-fail-open` shows
+# `scene='' available=false epoch=-1 nodeCount=0` after a leading `art present map off`, and shows the
+# same keys populated (`scene='map' nodeCount=60`) once the map surface is mounted. `observe` is the
+# native-preserving, projection-only mode (`FullPresentCapability.State.OBSERVING`: no ART draw, no
+# native suppress), i.e. exactly "native draws the pixels, ART projects the metadata". `off` is still
+# used for the leading/terminal resets.
+#
+# REPEATABILITY TOLERANCE AND ITS BASIS (derived from observed data AT THE GATE'S OWN THRESHOLD, not
+# guessed): the ART-vs-ART compare uses crop [320, 300, 1160, 420] — the central map grid, EXCLUDING the
+# top HUD/clock strip (y < ~140), the map banner, the legend panel (x > ~1490), the bottom return
+# button, and the version-text corner. The calibrations below are measured at threshold 8 (the gate's
+# per-channel cutoff) on TWO real same-seed ART-vs-ART D1 map pairs (the same jar, the same state,
+# different captures) and a real regression:
+#   * pair 1  (debug-artifacts/harness/20261007-143357-* vs 20261007-143438-*): 6 differing px (0.001%)
+#   * pair 2  (debug-artifacts/harness/20261007-150713-* vs 20261007-150726-*): 1107 differing px (0.23%)
+#   * a real regression (a populated map vs a map whose nodes/legend failed to supply,
+#     20261006-154018-* vs 20261006-154022-*): 13776 differing px (2.83%)
+# The gate uses threshold 8, max_diff_ratio 0.015 (1.5%), and max_diff_pixels 8000 (the ratio, 1.5% of
+# the 487200-px crop = 7308 px, is the binding bound; the pixel cap is a redundant sanity ceiling just
+# above it). 1.5% sits ~6.5x ABOVE the worst observed same-state noise (0.23% at threshold 8) and
+# ~1.9x BELOW the regression signal (2.83% at threshold 8), so it is a meaningful repeatability gate —
+# not so loose it would accept a real map regression and not so tight it flakes on the sampled noise.
+#
+# HONEST LIMITS (this scenario does NOT gate native-vs-ART pixel equality): the native and ART map
+# frames MAY differ by the ART redraw and by live native bleed, so only the two ART frames are compared.
+# The repeatability noise is non-zero because the ART node band is drawn at the LIVE native map scroll
+# offset (`DungeonMapScreen.offsetY`), which lerps briefly after the map screen opens; the crop above is
+# chosen where the settled parchment/grid region is stable across captures. The native + ART metadata
+# and PNGs are kept for independent human/visual review. D1 execution of this scenario is PENDING.
+name: d1_map_parity_capture
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # Fixed seed (same literal used by `art lab seed` and `art lab start-run … seed=`). `target` is
+  # documentation only; the scene is asserted literally because `eq` is not interpolated.
+  - set:
+      seed: ARTMAPV02
+      target: map
+  # --- Idempotent leading reset + order-independence (mirrors the sibling map scenarios). ---
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  # Set Settings.seed on the fresh menu BEFORE embark so STS generates the fixed dungeon, then pass the
+  # SAME seed to start-run (the lab's applySeedOnce re-applies it — idempotent).
+  - console: "art lab seed ${seed}"
+  - wait_ms: 500
+  - console: "art lab start-run IRONCLAD seed=${seed}"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Leave Neow/event so first-floor map nodes become selectable (room COMPLETE).
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  # STS MapRoomNode first-pick requires currRoom.phase == COMPLETE.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  # A pending lab room transition is not a legal target for ART's map bridge.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # === NATIVE SAMPLE (map OBSERVE: ART projects, native owns the pixels) ==========================
+  - console: "art present map observe"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.available
+        eq: true
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: map
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: backend.mapView.nodeCount
+        gte: 1
+  # OBSERVE keeps native map pixel authority (no ART draw, no native suppress).
+  - assert:
+      path: backend.mapDraw.suppressNativeMap
+      eq: false
+  # Let the map scroll lerp settle before the A/B samples (the ART band tracks the live scroll offset).
+  - wait_ms: 1500
+  - probe: all
+  - capture:
+      path: projection.scene
+      var: native_scene
+  - capture:
+      path: projection.sceneEpoch
+      var: native_epoch
+  - capture:
+      path: projection.viewportWidth
+      var: native_vw
+  - capture:
+      path: projection.viewportHeight
+      var: native_vh
+  - capture:
+      path: backend.fullPresent.map
+      var: native_fullPresent
+  - capture:
+      path: backend.mapView.nodeCount
+      var: native_nodeCount
+  - screenshot: true
+  # === ART SAMPLE 1 (map FULL: ART owns the pixels) ===============================================
+  - console: "art present map on"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: map
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.renderPlan.entries[0].effectiveState
+        eq: FULL_READY
+  - assert:
+      path: backend.mapDraw.suppressNativeMap
+      eq: true
+  # STATE-MATCH GUARD: accept the A/B only when the ART sample's state EQUALS the native sample's.
+  - assert:
+      path: projection.scene
+      eq_var: native_scene
+  - assert:
+      path: projection.sceneEpoch
+      eq_var: native_epoch
+  - assert:
+      path: backend.mapView.nodeCount
+      eq_var: native_nodeCount
+  - probe: all
+  - capture:
+      path: projection.scene
+      var: art1_scene
+  - capture:
+      path: projection.sceneEpoch
+      var: art1_epoch
+  - capture:
+      path: projection.viewportWidth
+      var: art1_vw
+  - capture:
+      path: projection.viewportHeight
+      var: art1_vh
+  - capture:
+      path: backend.fullPresent.map
+      var: art1_fullPresent
+  - capture:
+      path: backend.mapView.nodeCount
+      var: art1_nodeCount
+  - screenshot: true
+  # === ART SAMPLE 2 (repeatability gate: same state, NO re-mount) =================================
+  - probe: all
+  # The state must not have drifted between the two ART samples either.
+  - assert:
+      path: projection.sceneEpoch
+      eq_var: native_epoch
+  - assert:
+      path: backend.mapView.nodeCount
+      eq_var: native_nodeCount
+  - assert:
+      path: backend.mapDraw.suppressNativeMap
+      eq: true
+  - capture:
+      path: projection.scene
+      var: art2_scene
+  - capture:
+      path: projection.sceneEpoch
+      var: art2_epoch
+  - capture:
+      path: projection.viewportWidth
+      var: art2_vw
+  - capture:
+      path: projection.viewportHeight
+      var: art2_vh
+  - capture:
+      path: backend.fullPresent.map
+      var: art2_fullPresent
+  - capture:
+      path: backend.mapView.nodeCount
+      var: art2_nodeCount
+  - screenshot: true
+  # ART-vs-ART repeatability: the two ART frames at the SAME state must match over the static central
+  # map grid (crop excludes HUD/clock, banner, legend, bottom button, version text). Tolerance basis is
+  # documented in the header, measured at this gate's threshold 8 (worst same-state noise 0.23%;
+  # regression 2.83%; gate 1.5%).
+  - compare_screenshot:
+      against: previous_capture
+      crop: [320, 300, 1160, 420]
+      threshold: 8
+      max_diff_pixels: 8000
+      max_diff_ratio: 0.015
+  # === FINISH: return native map pixel authority and leave no surface for the next scenario =======
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.suppressNativeMap
+        eq: false

@@ -3851,3 +3851,98 @@ allocation and Young GC pressure.
       **PENDING EVIDENCE:** the actual D1 A→B and B→A runs (device, sequential) have NOT been
       executed, so order-independence is not yet proven. This is a scenario-hygiene fix — **NOT** an
       assertion relaxation.
+
+- [ ] **V02: fixed-state A/B sampling metadata + repeatability for the map screen (D1 gate PASS; seed determinism fix PENDING re-verify).**
+      New device scenario `tests/ui-scenarios/device/d1_map_parity_capture.yaml` (65 steps) extends the
+      VFX parity-capture pattern to the MAP with an objective, non-flaky same-state contract.
+      **What is sampled** — three frames at ONE fixed map state: (1) a NATIVE frame at map `observe`
+      (ART projects the metadata; `backend.mapDraw.suppressNativeMap eq false`, so the native
+      `DungeonMapScreen.render` owns the pixels); (2) ART frame 1 at map `on` (`renderPlan.entries[0].
+      effectiveState eq FULL_READY`, `suppressNativeMap eq true`); (3) ART frame 2 captured again at
+      the SAME state with NO re-mount. The probe metadata captured around each frame is
+      `projection.scene`, `projection.sceneEpoch`, `projection.viewportWidth/Height`,
+      `backend.fullPresent.map`, `backend.mapView.nodeCount` (native `native_*` / ART `art1_*`/`art2_*`),
+      plus the PNGs for independent human review.
+      **Fixed seed** — the literal `ARTMAPV02` is applied both as `art lab seed ${seed}` on the fresh
+      menu AND via `art lab start-run IRONCLAD seed=${seed}`; the lab runner now applies the seed BEFORE
+      the embark click (see the seed-determinism fix below), so `Settings.seed`/`Settings.seedSet` are set
+      when STS generates the dungeon, making the dungeon layout (and therefore the sampled map state)
+      deterministic. The explicit `art lab seed` step is belt-and-braces; the `start-run … seed=` path is
+      the one that takes effect at generation.
+      **Fixed-seed determinism defect + fix (D1-proven):** D1 showed the lab's fixed seed did NOT
+      reproduce the same dungeon across runs (three runs → three dungeons, `backend.mapView.nodeCount`
+      59 / 49 / 67), even though `art lab seed ARTMAPV02` reported `seed set ARTMAPV02`. Root cause
+      (confirmed from decompiled `com/megacrit/cardcrawl/dungeons/AbstractDungeon.generateSeeds()`, which
+      builds every RNG from `Settings.seed`, and
+      `screens/charSelect/CharacterSelectScreen.update()` which calls `generateSeeds()` inside the
+      character-select confirm handler): in `LabRecipeRunner.stepStartRun()` the seed was applied in
+      `applySeedOnce(host)` only AFTER embark completed (the `s.isRunReady()` and `s.inGame && didEmbark`
+      branches), so generation had already happened with a random/stale seed. Fix (both `embarkOnce` call
+      sites): call `applySeedOnce(host)` immediately BEFORE `embarkOnce(host)` — in the
+      `s.charSelectOpen && s.embarkEnabled` branch and the `s.embarkEnabled && s.characterSelected` branch —
+      returning without embarking if the seed fails. The seed is applied via `SeedHelper.setSeed`, which
+      sets `Settings.seedSet=true`+`Settings.seed`, and `CharacterSelectScreen` only regenerates a seed
+      when `Settings.seed == null`, so there is no overwrite window between seed-set and embark. The seed is
+      still applied exactly once (`seedDone` idempotency); `StsLabRecipes`/`StsLabHost` seed semantics are
+      unchanged. Behavior change: `art lab start-run <char> seed=<seed>` (and the default seed) now
+      actually take effect at generation — previously the seed was decorative for the dungeon layout. Tests:
+      `StsLabRecipesTest.asyncRunnerStartRunAppliesSeedBeforeEmbark` proves order from the FakeLabHost's
+      ordered action log (`indexOf("seed:ORDERSEED") < indexOf("embark")`), and
+      `asyncRunnerStartRunFailsWhenPreEmbarkSeedIsUnavailable` proves a failing seed now blocks the embark
+      click (0 embarks) rather than embarking first. Lab suite 95 tests / 0 failures; full suite 2240 tests /
+      0 failures. **D1 (first V02 run) confirmed the DEFECT:** three runs each produced a different dungeon
+(`nodeCount` 59/49/67, `edgeCount` 74/62/83), because the seed was applied after generation. **D1
+re-verification on the CORRECTED jar (three runs: nodeCount 56/56/56, byte-identical topology)** is recorded
+in the "D1 RESULT" line below (the fix is verified at order/unit
+level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D1 RESULT" line in the V02 entry).
+      **State-match guard** — before ART sample 1 is trusted, `projection.scene`, `projection.sceneEpoch`,
+      and `backend.mapView.nodeCount` are asserted EQUAL to the native sample's captured vars (`eq_var`),
+      and the same epoch/nodeCount are re-checked before ART sample 2; the OBSERVE→FULL switch at the
+      same open map does not bump the scene epoch and node states are static, so the A/B pair is accepted
+      only when the underlying state matches.
+      **ART-repeatability tolerance and basis** — the gate is
+      `compare_screenshot: {against: previous_capture, crop: [320, 300, 1160, 420], threshold: 8,
+      max_diff_pixels: 8000, max_diff_ratio: 0.015}`: the two ART PNGs must match over the central map
+      grid, a crop that EXCLUDES the top HUD/clock strip, the map banner, the legend panel
+      (x > ~1490), the bottom button, and the version-text corner. Calibration is measured at the gate's
+      OWN `threshold: 8` on real same-seed, same-jar, same-state D1 ART-vs-ART pairs
+      (`debug-artifacts/harness/20261007-143357-*` vs `20261007-143438-*` = 6 px / 0.001%;
+      `20261007-150713-*` vs `20261007-150726-*` = 1107 px / 0.23%) versus a real regression (populated
+      map vs a map whose nodes/legend failed to supply, `20261006-154018-*` vs `20261006-154022-*` =
+      13776 px / 2.83%): the 1.5% bound is ~6.5x above the worst observed noise (0.23% at threshold 8)
+      and ~1.9x below the regression signal (2.83% at threshold 8); the ratio (1.5% of 487200 px =
+      7308 px) is the binding bound and `max_diff_pixels 8000` is a redundant sanity ceiling. (Same
+      pairs at threshold 0 read 28 px / 0.006%, 1988 px / 0.41%, 18547 px / 3.81%; the gate justification
+      uses the threshold-8 figures because that is what the gate actually measures.) The noise is
+      non-zero because the ART node band is drawn at the LIVE native map scroll (`DungeonMapScreen.
+      offsetY`), which lerps briefly as the screen opens; the scenario waits 1.5 s and crops where the
+      settled parchment/grid is stable.
+      **Design refinement (evidence-based):** the brief's native sample used `art present map off`, but
+      the backend only publishes a present frame while a surface is MOUNTED
+      (`StageHost.receivePostUpdate` -> `publishFrame()` gated on `PresentSurfaces.anyMounted()`), so
+      `off` with no prior mount leaves `projection.scene=''`, `available=false`, `nodeCount=0` (saved
+      evidence `debug-artifacts/art-verify/20261007-154258-v05-run1-map-fail-open`) and the scenario's own
+      `projection.scene eq map` / `nodeCount gte 1` pre-conditions could not be sampled. The native
+      sample therefore uses `observe` (`FullPresentCapability.State.OBSERVING`: no ART draw, no native
+      suppress — native still owns the pixels) and keeps `off` for the leading/terminal resets.
+      **Honest limits:** native-vs-ART pixel equality is NOT gated (the ART redraw and live native bleed
+      make that flaky); only ART-vs-ART repeatability + same-state acceptance are gated, and the
+      native+ART metadata/PNGs are advisory for human review.
+      **Runner unchanged** — per-frame metadata is carried by existing `capture:` steps, so no
+      `screenshot.metadata` runner extension was needed (existing scenarios stay byte-identical).
+      Scenario loads offline (65 steps; skip without device env). **D1 RESULT (gate PASS):**
+      `d1_map_parity_capture.yaml` ran 65/65 on D1 (three passing runs:
+      `debug-artifacts/art-verify/v02-run2-20261008-140700`, `v02-run1retry-20261008-141324`,
+      `v02-run3-20261008-141617`); the STATE-MATCH guard passed in every run (native == art1 == art2 on
+      `projection.scene=map`, `sceneEpoch`, `backend.mapView.nodeCount`), and the ART1-vs-ART2
+      `compare_screenshot` measured **1–4 differing px (0.0002–0.0008%)** against the 7308-px (1.5%)
+      binding bound — a ~7,300-px margin. The same D1 session PROVED the fixed-seed defect (three runs →
+      three dungeons), which the seed-timing fix above corrects; **D1 re-verification on the corrected jar
+      PASSED** — three fresh runs gave `nodeCount` 56/56/56, `edgeCount` 69/69/69 and a byte-identical
+      jitter-free dungeon signature (topology sha `6adcfec30d20`, topology+flags sha `458073fd4e914e87`),
+      with the in-run ART1-vs-ART2 gate at 0–24 px. **Honest limit (root-caused):** cross-run RAW PIXEL
+      parity is NOT achievable even with the same seed because STS applies UNSEEDED cosmetic jitter
+      (`MapRoomNode.offsetX/offsetY = (int)MathUtils.random(±27,±37)`, `MapEdge` dots likewise), so node/edge
+      glyphs shift within a ±(54,74)-px envelope run-to-run while the parchment strips are 0.00% different;
+      cross-run pixel equality is therefore deliberately NOT asserted — the same-state in-run gate is the
+      correct repeatability check.

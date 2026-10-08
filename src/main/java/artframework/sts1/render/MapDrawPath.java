@@ -123,6 +123,11 @@ public final class MapDrawPath {
         public final float nodeScale;
         /** M01: native {@code MapRoomNode.angle} (ring rotation, degrees; 0 when unreadable). */
         public final float angle;
+        /**
+         * M02: true when the node fill rgba came from the LIVE native {@code MapRoomNode.color}
+         * (rather than the constant fail-open derived from {@code taken}/{@code available}).
+         */
+        public final boolean nodeColorLive;
 
         public DrawItem(
                 int row,
@@ -178,6 +183,52 @@ public final class MapDrawPath {
                 Rect bounds,
                 float nodeScale,
                 float angle) {
+            this(row, col, screenX, screenY, taken, highlighted, reachable, pinned, symbol,
+                    roomKind, resourceId, artSource, artFound, outlineResourceId,
+                    highlightResourceId, outlineSource, highlightSource, outlineFound,
+                    highlightFound, available, current, bounds, nodeScale, angle,
+                    available ? AVAILABLE_COLOR[0] : NOT_TAKEN_COLOR[0],
+                    available ? AVAILABLE_COLOR[1] : NOT_TAKEN_COLOR[1],
+                    available ? AVAILABLE_COLOR[2] : NOT_TAKEN_COLOR[2],
+                    1f, false);
+        }
+
+        /**
+         * M02 full constructor: adds the LIVE native {@code MapRoomNode.color} rgba (the per-node
+         * fill tint, whose alpha oscillates on pickable AVAILABLE nodes) and a {@code liveColor} flag.
+         * The fill tint is resolved natively: {@code taken ? AVAILABLE_COLOR : liveNodeColor}; the
+         * fail-open path (flag false) derives the constant tint from {@code taken}/{@code available}.
+         */
+        public DrawItem(
+                int row,
+                int col,
+                float screenX,
+                float screenY,
+                boolean taken,
+                boolean highlighted,
+                boolean reachable,
+                boolean pinned,
+                String symbol,
+                String roomKind,
+                String resourceId,
+                String artSource,
+                boolean artFound,
+                String outlineResourceId,
+                String highlightResourceId,
+                String outlineSource,
+                String highlightSource,
+                boolean outlineFound,
+                boolean highlightFound,
+                boolean available,
+                boolean current,
+                Rect bounds,
+                float nodeScale,
+                float angle,
+                float liveR,
+                float liveG,
+                float liveB,
+                float liveA,
+                boolean liveColor) {
             this.row = row;
             this.col = col;
             this.screenX = screenX;
@@ -199,16 +250,40 @@ public final class MapDrawPath {
             this.outlineFound = outlineFound;
             this.highlightFound = highlightFound;
             this.bounds = bounds;
-            // Native MapRoomNode.render color resolution (D03):
+            // Native MapRoomNode.render color resolution (D03 + M02):
             //   outline: highlighted ? (0.9,0.9,0.9,1) : OUTLINE_COLOR (8c8c80ff)
             //   node:    taken ? AVAILABLE_COLOR : this.color
-            // `this.color` is AVAILABLE_COLOR for available/reachable nodes and NOT_TAKEN_COLOR
-            // otherwise; the backend exposes that as `available` (node.color == AVAILABLE_COLOR).
-            float[] node = nodeColor(taken, available);
-            this.nodeR = node[0];
-            this.nodeG = node[1];
-            this.nodeB = node[2];
-            this.nodeA = node[3];
+            // `this.color` is LIVE: on pickable AVAILABLE nodes its ALPHA oscillates
+            // (oscillateColor: 0.66..0.993) and hover/current force AVAILABLE_COLOR (alpha 1). M02
+            // consumes the projected live rgba when readable; when it is NOT, the draw path fails
+            // open to the constant tint derived from `taken`/`available` (AVAILABLE_COLOR when
+            // available, else NOT_TAKEN_COLOR). `taken` ALWAYS wins with AVAILABLE_COLOR (native).
+            this.nodeColorLive = liveColor && !taken;
+            float nr;
+            float ng;
+            float nb;
+            float na;
+            if (taken) {
+                nr = AVAILABLE_COLOR[0];
+                ng = AVAILABLE_COLOR[1];
+                nb = AVAILABLE_COLOR[2];
+                na = AVAILABLE_COLOR[3];
+            } else if (liveColor) {
+                nr = liveR;
+                ng = liveG;
+                nb = liveB;
+                na = liveA;
+            } else {
+                float[] fallback = available ? AVAILABLE_COLOR : NOT_TAKEN_COLOR;
+                nr = fallback[0];
+                ng = fallback[1];
+                nb = fallback[2];
+                na = fallback[3];
+            }
+            this.nodeR = nr;
+            this.nodeG = ng;
+            this.nodeB = nb;
+            this.nodeA = na;
             float[] outline = outlineColor(highlighted);
             this.outlineR = outline[0];
             this.outlineG = outline[1];
@@ -258,6 +333,9 @@ public final class MapDrawPath {
             m.put("currentNode", Boolean.valueOf(currentNode));
             m.put("nodeScale", Float.valueOf(nodeScale));
             m.put("angle", Float.valueOf(angle));
+            // M02: true when the fill rgba came from the LIVE native node.color. The D1 scenario uses
+            // this to prove the available-node alpha pulse reaches the draw (not forced to 1).
+            m.put("nodeColorLive", Boolean.valueOf(nodeColorLive));
             m.put("colorHex", hex(nodeR, nodeG, nodeB, nodeA));
             m.put("outlineColorHex", hex(outlineR, outlineG, outlineB, outlineA));
             Map<String, Object> geometry = new LinkedHashMap<String, Object>();            geometry.put("x", Float.valueOf(bounds.x));
@@ -457,7 +535,8 @@ public final class MapDrawPath {
                     outline.found || outline.fallback ? outline.source : "",
                     highlight.found || highlight.fallback ? highlight.source : "",
                     outline.found, highlight.found, n.available, n.current, bounds,
-                    n.nodeScale, n.angle));
+                    n.nodeScale, n.angle,
+                    n.colorR, n.colorG, n.colorB, n.colorA, n.liveColor));
         }
         return out;
     }
@@ -1216,6 +1295,47 @@ public final class MapDrawPath {
         }
         m.put("currentNodeCount", Integer.valueOf(currentNodeCount));
         m.put("takenCount", Integer.valueOf(takenCount));
+        // M02: the LIVE native node fill alpha pulse. Native `oscillateColor()` sets a pickable
+        // AVAILABLE node's `color.a = 0.66f + (cos(oscillateTimer)+1.0f)/6.0f` (range ~0.66..0.993,
+        // never 1.0). The aggregate below covers only the PULSING (non-highlighted) available nodes:
+        // it EXCLUDES taken, current, AND highlighted nodes, because native `MapRoomNode.update()`
+        // forces a HOVERED available node to `color = AVAILABLE_COLOR` (alpha 1) — ART's
+        // `d.highlighted` ~ native hovered — so a highlighted node would legitimately carry alpha 1
+        // and must not fall into the pulse range. `...Min`/`...Max` therefore bound the pulse, while
+        // `currentNodeColorAlpha` (AVAILABLE alpha 1) sits OUTSIDE that set.
+        List<Map<String, Object>> availableColorAlphas = new ArrayList<Map<String, Object>>();
+        float alphaMin = Float.NaN;
+        float alphaMax = Float.NaN;
+        float currentColorAlpha = -1f;
+        for (DrawItem d : items) {
+            if (!d.taken && !d.currentNode && !d.highlighted && d.available && d.nodeColorLive) {
+                Map<String, Object> s = new LinkedHashMap<String, Object>();
+                s.put("row", Integer.valueOf(d.row));
+                s.put("col", Integer.valueOf(d.col));
+                s.put("available", Boolean.valueOf(d.available));
+                s.put("alpha", Float.valueOf(d.nodeA));
+                s.put("colorHex", hex(d.nodeR, d.nodeG, d.nodeB, d.nodeA));
+                availableColorAlphas.add(s);
+                if (Float.isNaN(alphaMin) || d.nodeA < alphaMin) alphaMin = d.nodeA;
+                if (Float.isNaN(alphaMax) || d.nodeA > alphaMax) alphaMax = d.nodeA;
+            }
+            if (d.currentNode) {
+                currentColorAlpha = d.nodeA;
+            }
+        }
+        m.put("availableColorAlphas", availableColorAlphas);
+        m.put("availableColorAlphaCount", Integer.valueOf(availableColorAlphas.size()));
+        m.put("availableColorAlphaMin",
+                Float.valueOf(Float.isNaN(alphaMin) ? -1f : alphaMin));
+        m.put("availableColorAlphaMax",
+                Float.valueOf(Float.isNaN(alphaMax) ? -1f : alphaMax));
+        m.put("currentNodeColorAlpha", Float.valueOf(currentColorAlpha));
+        // Count of projected nodes whose fill tint was resolved from the LIVE native node.color.
+        int liveColorCount = 0;
+        for (DrawItem d : items) {
+            if (d.nodeColorLive) liveColorCount++;
+        }
+        m.put("liveColorCount", Integer.valueOf(liveColorCount));
         // NRO-04 D03 defect fix: the number of pixels renderMap will actually SUBMIT (node icon +
         // conditional outline/overlay, plus legend panel/title/icons). Distinct from `count`, which
         // is the projected node count. This is the probe-visible submission evidence.

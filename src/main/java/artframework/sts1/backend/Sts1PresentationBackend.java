@@ -365,6 +365,36 @@ public final class Sts1PresentationBackend implements SignalBackend {
     }
 
     /**
+     * M02: read the LIVE native {@code MapRoomNode.color} (PUBLIC field, per-node fill tint) as
+     * r/g/b/a. Native {@code MapRoomNode.render} draws the node FILL with
+     * {@code taken ? AVAILABLE_COLOR : this.color}; {@code this.color} is LIVE — its ALPHA oscillates
+     * on pickable AVAILABLE nodes ({@code oscillateColor()}: {@code color.a = 0.66f +
+     * (cos(oscillateTimer)+1.0f)/6.0f}) and is {@code AVAILABLE_COLOR} (alpha 1) on hover/current.
+     * Returns {@code null} when the field is null/unreadable/non-finite; the caller then fails open to
+     * {@code liveColor=false} so the draw path derives the constant tint from {@code taken}/
+     * {@code available}. Direct field access (no reflection) because the field is public.
+     */
+    private static float[] readLiveNodeColor(MapRoomNode node) {
+        try {
+            if (node == null || node.color == null) {
+                return null;
+            }
+            float r = node.color.r;
+            float g = node.color.g;
+            float b = node.color.b;
+            float a = node.color.a;
+            if (Float.isNaN(r) || Float.isInfinite(r) || Float.isNaN(g) || Float.isInfinite(g)
+                    || Float.isNaN(b) || Float.isInfinite(b)
+                    || Float.isNaN(a) || Float.isInfinite(a)) {
+                return null;
+            }
+            return new float[] {r, g, b, a};
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
      * Soft-read of the native {@code Legend} UIStrings (NRO-04 D03 follow-up). Native
      * {@code Legend} reads {@code CardCrawlGame.languagePack.getUIString("Legend").TEXT} with room
      * labels at {@code TEXT[0/3/6/9/12/15]} (event/merchant/treasure/rest/enemy/elite) and the
@@ -491,6 +521,9 @@ public final class Sts1PresentationBackend implements SignalBackend {
                     // freezes the ring.
                     float nodeScale = number(node, "scale", 1f);
                     float nodeAngle = number(node, "angle", 0f);
+                    // M02: carry the LIVE native node fill color (the oscillating alpha pulse lives
+                    // here). Fail-open to liveColor=false when unreadable.
+                    float[] liveColor = readLiveNodeColor(node);
                     nodes.add(
                             new MapNodeView(
                                     node.y,
@@ -509,7 +542,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     kind,
                                     ResourceIds.mapNode(kind),
                                     nodeScale,
-                                    nodeAngle));
+                                    nodeAngle,
+                                    liveColor != null ? liveColor[0] : 0f,
+                                    liveColor != null ? liveColor[1] : 0f,
+                                    liveColor != null ? liveColor[2] : 0f,
+                                    liveColor != null ? liveColor[3] : 1f,
+                                    liveColor != null));
                 }
             }
         }

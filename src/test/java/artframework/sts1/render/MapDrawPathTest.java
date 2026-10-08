@@ -282,6 +282,152 @@ public class MapDrawPathTest {
     }
 
     @Test
+    public void liveAvailableNodeColorAlphaFlowsThroughToNodeFill() {
+        // M02: native MapRoomNode.render draws the node FILL with `taken ? AVAILABLE_COLOR : color`,
+        // and `color` is LIVE. For a pickable AVAILABLE node, oscillateColor() sets
+        // `color.a = 0.66f + (cos(oscillateTimer)+1.0f)/6.0f` (range ~0.66..0.993, never 1.0). The
+        // projected live rgba (alpha 0.8 here) must reach the node fill Submission UNCHANGED — NOT
+        // forced to 1 — with the AVAILABLE rgb. Non-tautological: the expected alpha is the projected
+        // 0.8 and the rule is derived from the native `taken ? AVAILABLE_COLOR : color`.
+        Sts1HostAssets.install();
+        MapNodeView n = new MapNodeView(2, 2, 20f, 20f, false, false, true, false,
+                true, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER,
+                1f, 0f, 0.09f, 0.13f, 0.17f, 0.8f, true);
+        publishMapFrame("map", Collections.singletonList(n));
+
+        MapDrawPath.DrawItem item = MapDrawPath.buildFromProjection().get(0);
+        assertTrue("live color must project", item.nodeColorLive);
+        assertEquals("available rgb r", 0.09f, item.nodeR, 0.001f);
+        assertEquals("available rgb g", 0.13f, item.nodeG, 0.001f);
+        assertEquals("available rgb b", 0.17f, item.nodeB, 0.001f);
+        assertEquals("live alpha must NOT be forced to 1", 0.8f, item.nodeA, 0.001f);
+
+        // The node FILL Submission carries the same rgba (the draw uses item.r/g/b/a).
+        MapDrawPath.Submission fill = nodeFillSubmission(MapDrawPath.mapSubmissionPlan());
+        assertNotNull(fill);
+        assertEquals(0.09f, fill.r, 0.001f);
+        assertEquals(0.13f, fill.g, 0.001f);
+        assertEquals(0.17f, fill.b, 0.001f);
+        assertEquals("node-fill Submission alpha must be the live 0.8", 0.8f, fill.a, 0.001f);
+    }
+
+    @Test
+    public void takenNodeFillForcesAvailableColorIgnoringLiveAlpha() {
+        // Native rule: `taken ? AVAILABLE_COLOR : color`. A taken node's fill is AVAILABLE_COLOR
+        // (alpha 1) regardless of the live color alpha, and the outline/ring are unaffected.
+        Sts1HostAssets.install();
+        MapNodeView n = new MapNodeView(3, 1, 10f, 10f, true, false, true, false,
+                false, false, 64f, 64f, "R", "rest", ResourceIds.MAP_NODE_REST,
+                1f, 0f, 0.34f, 0.34f, 0.34f, 0.7f, true);
+        publishMapFrame("map", Collections.singletonList(n));
+
+        MapDrawPath.DrawItem item = MapDrawPath.buildFromProjection().get(0);
+        assertTrue(item.taken);
+        assertFalse("taken node fill is not a live-color read", item.nodeColorLive);
+        assertColor("taken -> AVAILABLE", MapDrawPath.AVAILABLE_COLOR, item);
+        MapDrawPath.Submission fill = nodeFillSubmission(MapDrawPath.mapSubmissionPlan());
+        assertNotNull(fill);
+        assertEquals(1f, fill.a, 0.001f);
+    }
+
+    @Test
+    public void untakenNodeFillUsesLiveColorOfflineFallbackWhenUnreadable() {
+        // Fail-open: when the live color is unreadable (liveColor=false) the fill derives the
+        // constant tint from taken/available — NOT_TAKEN (0.34,0.34,0.34,1) for a plain untaken node.
+        Sts1HostAssets.install();
+        MapNodeView n = new MapNodeView(1, 1, 50f, 50f, false, false, true, false,
+                false, false, 64f, 64f, "E", "elite", ResourceIds.MAP_NODE_ELITE);
+        publishMapFrame("map", Collections.singletonList(n));
+
+        MapDrawPath.DrawItem item = MapDrawPath.buildFromProjection().get(0);
+        assertFalse("no live color read", item.nodeColorLive);
+        assertColor("untaken-unreadable -> NOT_TAKEN", MapDrawPath.NOT_TAKEN_COLOR, item);
+        MapDrawPath.Submission fill = nodeFillSubmission(MapDrawPath.mapSubmissionPlan());
+        assertNotNull(fill);
+        assertEquals(0.34f, fill.r, 0.001f);
+        assertEquals(0.34f, fill.g, 0.001f);
+        assertEquals(0.34f, fill.b, 0.001f);
+        assertEquals(1f, fill.a, 0.001f);
+    }
+
+    @Test
+    public void probeExposesLiveAvailableAlphaPulseAndCurrentAlpha() {
+        // M02 probe evidence the D1 scenario asserts: an AVAILABLE (pickable) node carries a live fill
+        // alpha in [0.66, 0.993] (never exactly 1), while the CURRENT node's fill alpha is 1.0
+        // (AVAILABLE). Non-tautological: the values are projected live colors, and the rule is native.
+        Sts1HostAssets.install();
+        List<MapNodeView> nodes = Arrays.asList(
+                new MapNodeView(1, 1, 10f, 10f, false, false, true, false,
+                        true, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER,
+                        1f, 0f, 0.09f, 0.13f, 0.17f, 0.72f, true),
+                new MapNodeView(2, 2, 20f, 20f, false, false, true, false,
+                        true, true, 64f, 64f, "R", "rest", ResourceIds.MAP_NODE_REST,
+                        0.5f, 0f, 0.09f, 0.13f, 0.17f, 1f, true));
+        publishMapFrame("map", nodes);
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+
+        assertTrue("liveColorCount must be >= 1",
+                ((Integer) probe.get("liveColorCount")).intValue() >= 1);
+        float min = ((Float) probe.get("availableColorAlphaMin")).floatValue();
+        float max = ((Float) probe.get("availableColorAlphaMax")).floatValue();
+        assertTrue("live available alpha >= 0.66: " + min, min >= 0.66f);
+        assertTrue("live available alpha in native range: " + max, max <= 0.993f);
+        assertTrue("live available alpha must not be exactly 1", Math.abs(min - 1f) > 0.001f
+                || Math.abs(max - 1f) > 0.001f);
+        assertEquals("current node fill alpha is AVAILABLE 1", 1f,
+                ((Float) probe.get("currentNodeColorAlpha")).floatValue(), 0.001f);
+    }
+
+    private static MapDrawPath.Submission nodeFillSubmission(List<MapDrawPath.Submission> plan) {
+        for (MapDrawPath.Submission s : plan) {
+            if ("node".equals(s.role)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    @Test
+    public void highlightedAvailableNodeIsExcludedFromPulseButKeepsLiveFill() {
+        // M02 probe-filter correctness: native MapRoomNode.update() forces a HOVERED available node to
+        // `color = AVAILABLE_COLOR` (alpha 1) — ART's `highlighted` ~ native hovered. Such a node is
+        // therefore EXCLUDED from `availableColorAlphas` (it does NOT pulse), but its per-item fill may
+        // still use the live color per the tint rule `taken ? AVAILABLE_COLOR : color`; here we project
+        // the live color native hover would leave (AVAILABLE alpha 1), so the fill is AVAILABLE alpha 1.
+        // This pins BOTH: the filter excludes highlighted nodes, and the tint rule is untouched.
+        Sts1HostAssets.install();
+        MapNodeView highlighted = new MapNodeView(1, 1, 10f, 10f, false, true, true, false,
+                true, false, 80f, 80f, "M", "monster", ResourceIds.MAP_NODE_MONSTER,
+                1f, 0f, 0.09f, 0.13f, 0.17f, 1f, true);
+        MapNodeView pulsing = new MapNodeView(2, 2, 20f, 20f, false, false, true, false,
+                true, false, 64f, 64f, "R", "rest", ResourceIds.MAP_NODE_REST,
+                1f, 0f, 0.09f, 0.13f, 0.17f, 0.75f, true);
+        publishMapFrame("map", Arrays.asList(highlighted, pulsing));
+
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> alphas = (List<Map<String, Object>>) probe.get("availableColorAlphas");
+        // Only the non-highlighted pulsing node is in the pulse set.
+        assertEquals("only the non-highlighted available node may be in the pulse set", 1, alphas.size());
+        assertEquals(Integer.valueOf(2), alphas.get(0).get("row"));
+        assertEquals(0.75f, ((Float) alphas.get(0).get("alpha")).floatValue(), 0.001f);
+        assertEquals("pulse max must exclude the highlighted alpha-1 node", 0.75f,
+                ((Float) probe.get("availableColorAlphaMax")).floatValue(), 0.001f);
+
+        // The highlighted node's per-item fill still uses the live color (native hovered = AVAILABLE
+        // alpha 1) — the tint rule is NOT changed and the highlighted node is only excluded from the
+        // pulse AGGREGATE, not from the draw.
+        MapDrawPath.DrawItem hi = null;
+        for (MapDrawPath.DrawItem d : MapDrawPath.buildFromProjection()) {
+            if (d.highlighted) hi = d;
+        }
+        assertNotNull(hi);
+        assertTrue("highlighted node still carries a live fill", hi.nodeColorLive);
+        assertEquals("highlighted live fill alpha is AVAILABLE 1", 1f, hi.nodeA, 0.001f);
+        assertEquals(0.09f, hi.nodeR, 0.001f);
+    }
+
+    @Test
     public void colorSamplesDeriveNativeConstantsFromStatePredicates() {
         // D03: the pure probe samples must equal the VERIFIED native constants, derived from the
         // state predicates (taken/available/highlighted), computed here independently.

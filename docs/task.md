@@ -3648,6 +3648,52 @@ allocation and Young GC pressure.
       the native node texture at another `Settings.scale`, the NODE BOX would need the same treatment —
       that is a separate node-geometry concern, not the ring. If native `MapRoomNode.scale` is mid-lerp
       the reflected value may differ from the exact draw by a frame.
+- [ ] **M02: available map-node fill uses the LIVE native node color (alpha pulse + hover color).**
+      Native `MapRoomNode.render` (VERIFIED decompiled, `agent-tmp/verify/decoded/.../MapRoomNode.java`)
+      draws the node FILL with `sb.setColor(this.taken ? AVAILABLE_COLOR : this.color)`: the per-node
+      fill tint is `taken ? AVAILABLE_COLOR : node.color`, where `color` is a LIVE public field
+      (`public Color color = NOT_TAKEN_COLOR.cpy()`). `update()`/`oscillateColor()` sets, for a pickable
+      AVAILABLE (non-taken) node, `color.a = 0.66f + (MathUtils.cos(oscillateTimer)+1.0f)/6.0f`
+      (range `[0.66, 0.9933]`, never exactly 1) and `scale = 0.25f + color.a` (~[0.91,1.243]); a
+      hovered/available node gets `color = AVAILABLE_COLOR.cpy()` (alpha 1)/`SCALE = 1.0`; the CURRENT
+      node is force-set `color = AVAILABLE_COLOR` (alpha 1) with `scale -> 0.5`; a plain untaken node is
+      `NOT_TAKEN_COLOR` (0.34,0.34,0.34,1). Constants: `AVAILABLE_COLOR=(0.09,0.13,0.17,1)`,
+      `NOT_TAKEN_COLOR=(0.34,0.34,0.34,1)`, `OUTLINE_COLOR=8c8c80ff`.
+      **Defect.** ART derived the fill tint solely from the constants via
+      `MapDrawPath.nodeColor(taken, available)` (0.09/0.13/0.17 when available/taken else 0.34/0.34/0.34,
+      all alpha 1) and never read the live `node.color`, dropping the oscillating AVAILABLE alpha pulse
+      and the exact hover color.
+      **Fix.** The backend map-node reader (`Sts1PresentationBackend.mapFrame`) reads the PUBLIC
+      `MapRoomNode.color` directly (r/g/b/a, no reflection — inside the existing fail-open try/catch) and
+      carries it per node as `MapNodeView.colorR/G/B/A` + `liveColor` (source-compatible ctors;
+      `MapView.empty()`/legacy projections fail open to `liveColor=false`). `ContextFrame.coerceMap`
+      round-trips the new fields. `MapDrawPath.DrawItem` resolves the FILL tint exactly natively:
+      `taken ? AVAILABLE_COLOR : liveNodeColor`, failing open to the constant derived from
+      `taken`/`available` when the live read was unavailable (`liveColor=false`); outline/overlay/ring
+      are UNCHANGED (`outlineColor(highlighted)`; the `MAP_CIRCLE_5` ring stays `AVAILABLE_COLOR` alpha 1
+      — its size/rotation is M01). `Sts1SurfaceRenderer.renderMap` needed no change: the node-fill
+      submission already draws `item.r/g/b/a`.
+      **Scenario.** `tests/ui-scenarios/device/d1_map_taken_current.yaml` adds M02 assertions: a live
+      AVAILABLE (pickable) node's per-item fill alpha is within `[0.66, 0.9933]` AND `neq 1.0` (proving
+      the pulse reaches the draw), the live available fill keeps the AVAILABLE rgb (`neq 575757ff`), and
+      the current node's fill alpha is exactly 1.0 (`currentNodeColorAlpha`); the added probe fields are
+      `liveColorCount`, `availableColorAlphas`/`availableColorAlphaCount/Min/Max`. The pulse set
+      (`availableColorAlphas` + `...Min/Max`) EXCLUDES highlighted (hovered) nodes: native
+      `MapRoomNode.update()` forces a hovered available node to `color = AVAILABLE_COLOR` (alpha 1), so
+      the `[0.66, 0.9934]` / `!= 1.0` assertion applies ONLY to the non-highlighted available nodes.
+      The lab has no pointer, so the sampled node is normally non-hovered; the probe filter makes the
+      assertion correct regardless (no flake when a sample happens to be highlighted). Additions only; no
+      existing assertion weakened. Scenario loads offline (see step count); **D1 PENDING** (re-run after
+      this fix, verified separately on device).
+      **FILL SCALE residual (honest).** The native available-node SCALE pulse (`scale = 0.25f + color.a`)
+      already flows through M01's live `MapRoomNode.scale` for the RING. The node FILL also scales
+      natively by `this.scale` (the `getMapImg` draw uses `this.scale * Settings.scale`), but ART's node
+      fill box is the layout `n.width` (`Rect(sx - n.width*zoom/2, sy - n.height*zoom/2, n.width*zoom,
+      n.height*zoom)`) and does NOT track the pulse — the fill size is unchanged by M02. That is an
+      honest residual OUTSIDE M02's tint scope; the node-texture geometry (fill size following
+      `this.scale*Settings.scale`) is node-GEOMETRY, not tint, and is deferred (M03/M04 territory; the
+      M01 residual already notes the node box is a layout box, not the native `128*Settings.scale`
+      texture). No node geometry/order was touched here.
 - [ ] **Open (M01 D1 finding): native `ConcurrentModificationException` in `DungeonMapScreen.render`
       during rapid map open/pick/reopen.** The M01 D1 session hit a native
       `java.util.ConcurrentModificationException` TWICE at `DungeonMapScreen.render` (~line 320, the

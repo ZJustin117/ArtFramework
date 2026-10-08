@@ -147,6 +147,51 @@ steps:
   - assert:
       path: backend.mapDraw.ring.colorHex
       eq: "17212bff"
+  # M02: the LIVE native node FILL color must flow through. Native MapRoomNode.render draws the fill
+  # with `taken ? AVAILABLE_COLOR : this.color`, and `this.color` is LIVE: for a pickable AVAILABLE
+  # node `oscillateColor()` sets `color.a = 0.66f + (cos(oscillateTimer)+1.0f)/6.0f` (range
+  # [0.66, 0.9933], never exactly 1.0); hover/current force AVAILABLE_COLOR (alpha 1). The probe
+  # aggregates the per-item fill alpha of non-taken, non-current AVAILABLE nodes that came from a LIVE
+  # color read (`availableColorAlphas`/`...AlphaMin`/`...AlphaMax`), and the current node's fill alpha
+  # (`currentNodeColorAlpha`). Before M02 ART forced the constant (0.09,0.13,0.17,1) and dropped the
+  # pulse. NOT a tautology: the upper bound is the exact native maximum `0.66 + 2/6 = 0.99333`.
+  # HOVER CAVEAT: native forces a HOVERED available node to AVAILABLE_COLOR (alpha 1, `d.highlighted`
+  # ~ native hovered), so the probe pulse set EXCLUDES highlighted nodes; the lab has no pointer (the
+  # sample is normally non-hovered) but the filter keeps these bounds correct regardless.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.liveColorCount
+        gte: 1
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.availableColorAlphaCount
+        gte: 1
+  - assert:
+      path: backend.mapDraw.availableColorAlphaMin
+      gte: 0.66
+  - assert:
+      path: backend.mapDraw.availableColorAlphaMax
+      lte: 0.9934
+  # The available-node fill alpha must NOT be exactly 1.0 — proving the alpha pulse reaches the draw
+  # (the pre-M02 constant fill was alpha 1).
+  - assert:
+      path: backend.mapDraw.availableColorAlphas[0].alpha
+      neq: 1.0
+  - assert:
+      path: backend.mapDraw.availableColorAlphas[0].available
+      eq: true
+  # A live-read available fill keeps the AVAILABLE rgb (0.09,0.13,0.17), only the alpha pulses.
+  - assert:
+      path: backend.mapDraw.availableColorAlphas[0].colorHex
+      neq: "575757ff"
+  # The CURRENT node's fill alpha is the AVAILABLE color alpha 1.0 (native forces AVAILABLE_COLOR).
+  - assert:
+      path: backend.mapDraw.currentNodeColorAlpha
+      eq: 1.0
   # ROTATION: `MapRoomNode.angle` oscillates only while the node is the CURRENT node and MAY be 0 at
   # the sampled instant, so assert only that a rotation VALUE is present (a number), NOT that it is
   # non-zero (that would flake on the animation phase). `ring.angle` is the projected node angle and

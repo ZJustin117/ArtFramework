@@ -462,7 +462,14 @@ public final class ContextFrame {
                                 floatVal(m.get("height"), highlighted ? 80f : 64f),
                                 str(m.get("symbol")),
                                 str(m.get("roomKind")),
-                                str(m.get("resourceId"))));
+                                str(m.get("resourceId")),
+                                floatVal(m.get("nodeScale"), 1f),
+                                floatVal(m.get("angle"), 0f),
+                                floatVal(m.get("colorR"), 0f),
+                                floatVal(m.get("colorG"), 0f),
+                                floatVal(m.get("colorB"), 0f),
+                                floatVal(m.get("colorA"), 1f),
+                                boolVal(m.get("liveColor"), false)));
             }
         }
         return new MapView(nodes, vw, vh);

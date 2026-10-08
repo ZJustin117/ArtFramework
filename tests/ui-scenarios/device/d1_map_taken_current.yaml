@@ -1,0 +1,202 @@
+# D1 (M01): the ART map ring geometry for a TAKEN/CURRENT node must match the native
+# `MapRoomNode.render` MAP_CIRCLE_5 draw — the ring size factor and the rotation.
+#
+# Native (VERIFIED decompiled MapRoomNode.render): the ring is drawn when
+# `this.taken || (AbstractDungeon.firstRoomChosen && this.equals(AbstractDungeon.getCurrMapNode()))`
+# at `(this.scale*0.95f + 0.2f) * Settings.scale` size, centered on the node, rotated by
+# `this.angle`. Before M01 the ART ring used `nodeBox * 192/128` (no scale factor, no rotation), so
+# the ratio was ~13% too small (scale-independent) and it never spun.
+#
+# This scenario drives a run to a state with a CURRENT (and taken) map node — pick a floor-0 node so
+# `firstRoomChosen` becomes true and `currMapNode` is that node, then reopen the map — and asserts
+# the ring ART supplies for it: resource `ui.map.circle5`, AVAILABLE_COLOR tint (`17212bff`), that a
+# rotation VALUE is present and equals the projected node angle, and a size equal to the native
+# formula `192*(nodeScale*0.95+0.2)*settingsScale*zoom` (the probe exposes the formula result; the
+# exact constants are pinned independently by
+# MapDrawPathTest.ringGeometryMatchesNativeFormulaAndRotation).
+#
+# ROTATION HONESTY: `MapRoomNode.angle` oscillates ONLY while the node is the CURRENT node (a taken
+# non-current node keeps its angle); at the sampled instant it MAY be 0, so this scenario asserts a
+# rotation value is PRESENT and EQUALS the projected node angle — it does NOT assert the value is
+# non-zero (that would flake on the animation phase).
+#
+# D1 EXECUTION: PENDING (re-run after this fix; verified separately on device). The FIRST D1 run
+# FAILED at the `currentNodeCount gte 1` assert — due to an INVERTED COMPLETE/pick ordering (the pick
+# ran before `currRoom.phase=COMPLETE`, so the map bridge rejected it and `firstRoomChosen` stayed
+# false), NOT due to the ring geometry. The corrected order now mirrors the proven sibling
+# `d1_full_present_map_ready.yaml` (COMPLETE + nextRoom=null BEFORE opening the map and picking). This
+# file is validated offline (loader/shape only) here; the asserted probe paths are real
+# `MapDrawPath.probeSlice()` fields.
+#
+# NOTE (harness, NOT this slice): during the same D1 session the harness hit a native
+# `java.util.ConcurrentModificationException` at `DungeonMapScreen.render` (the `visibleMapNodes`
+# render iteration) during rapid map open/pick/reopen — classified separately as a native/lab
+# rapid-navigation race, not the M01 ring change.
+#
+# Order-independence (mirrors the sibling map scenarios): leading + terminal `art present map off`
+# resets and an explicit fresh-menu reset before start-run, so it neither depends on nor leaves a map
+# surface for a neighbour.
+name: d1_map_taken_current
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # Idempotent leading reset: clear any map surface left by a prior scenario before fresh-menu.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  # Fixed seed (documentation-variable; the scene is asserted literally because `eq` is not
+  # interpolated). Same literal used by `art lab seed` and `art lab start-run … seed=`.
+  - set:
+      seed: ARTMAPT01
+      target: map
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab seed ${seed}"
+  - wait_ms: 500
+  - console: "art lab start-run IRONCLAD seed=${seed}"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Leave Neow/event so first-floor map nodes become selectable (room COMPLETE).
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  # STS MapRoomNode first-pick requires `currRoom.phase == COMPLETE`, and COMPLETE MUST be set BEFORE
+  # the pick (the PROVEN order in `d1_full_present_map_ready.yaml`). On this build the run lands on an
+  # EVENT room: while the current room is incomplete the map bridge REJECTS the pick
+  # (`mapIntent.status = no_presentable_node`, `firstRoomChosen=false`), and the console
+  # `art op map first` still returns ok (the UNAVAILABLE result is not surfaced), so the ordering
+  # defect only appears at the `currentNodeCount` probe assert. Mirror the proven sibling order.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  # A pending lab room transition is not a legal target for ART's map bridge.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  # Open the map, then PICK the leftmost floor-0 node. The pick sets `firstRoomChosen = true` and
+  # makes that node `currMapNode` (and `taken`), i.e. the exact native ring gate
+  # `taken || (firstRoomChosen && currMapNode)`.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  - console: "art op map first"
+  - wait_ms: 4000
+  # Post-pick: the pick entered a room, so mark that room COMPLETE, clear the pending transition, and
+  # REOPEN the map so the just-taken CURRENT node is visible under ART full present.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # Mount first: StageHost publishes native frames while a present surface is active.
+  - console: "art present map on"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.available
+        eq: true
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: map
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.renderPlan.entries[0].effectiveState
+        eq: FULL_READY
+  - assert:
+      path: backend.mapDraw.suppressNativeMap
+      eq: true
+  # The current node must be projected (ring gate `taken || currentNode`).
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.currentNodeCount
+        gte: 1
+  # ART must SUPPLY the MAP_CIRCLE_5 ring for it.
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.ringCount
+        gte: 1
+  - assert:
+      path: backend.mapDraw.ring.resourceId
+      eq: ui.map.circle5
+  - assert:
+      path: backend.mapDraw.ring.colorHex
+      eq: "17212bff"
+  # ROTATION: `MapRoomNode.angle` oscillates only while the node is the CURRENT node and MAY be 0 at
+  # the sampled instant, so assert only that a rotation VALUE is present (a number), NOT that it is
+  # non-zero (that would flake on the animation phase). `ring.angle` is the projected node angle and
+  # must EQUAL the ring's submitted `rotation` (the submission carries `item.angle` verbatim).
+  - assert:
+      path: backend.mapDraw.ring.rotation
+      exists: true
+  - capture:
+      path: backend.mapDraw.ring.angle
+      var: ring_node_angle
+  - assert:
+      path: backend.mapDraw.ring.rotation
+      eq_var: ring_node_angle
+  # The reflected native per-node scale. Native `MapRoomNode` scale lerps: a non-taken node gets
+  # `0.25 + color.a` (~[0.91, 1.24]); a taken/current node lerps toward 0.5; legend hover forces 0.68.
+  # So a real reflected value is in ~(0, 1.25]. Assert a bounded range (NOT a tautology like `gte: 0`,
+  # and NOT `eq: 1.0`, which would flake because the taken/current node lerps to 0.5).
+  - assert:
+      path: backend.mapDraw.ring.nodeScale
+      gte: 0.2
+  - assert:
+      path: backend.mapDraw.ring.nodeScale
+      lte: 2.0
+  - assert:
+      path: backend.mapDraw.ring.settingsScale
+      gte: 0.2
+  # The ring size must equal the native formula `192*(nodeScale*0.95+0.2)*settingsScale*zoom`, which
+  # the probe exposes as `ring.formulaSize` computed from the same live inputs. Capture it and assert
+  # the submitted rect uses it (equal serialized floats).
+  - capture:
+      path: backend.mapDraw.ring.formulaSize
+      var: ring_formula_size
+  - assert:
+      path: backend.mapDraw.ring.w
+      eq_var: ring_formula_size
+  - assert:
+      path: backend.mapDraw.ring.h
+      eq_var: ring_formula_size
+  # Terminal cleanup placed after the assertions; leave the device without a map surface.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.mapDraw.suppressNativeMap
+        eq: false

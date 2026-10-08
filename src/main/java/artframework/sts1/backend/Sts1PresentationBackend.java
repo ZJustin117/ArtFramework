@@ -485,6 +485,12 @@ public final class Sts1PresentationBackend implements SignalBackend {
                     String kind = roomKind(node);
                     float x = node.hb != null ? node.hb.cX : node.offsetX;
                     float y = node.hb != null ? node.hb.cY : node.offsetY;
+                    // M01 ring geometry: native MapRoomNode.scale (private, default 0.5) drives the
+                    // MAP_CIRCLE_5 ring size factor and .angle (private) its rotation. Soft-reflect
+                    // both and fail open to 1.0/0.0 so a missing/unreadable field never collapses or
+                    // freezes the ring.
+                    float nodeScale = number(node, "scale", 1f);
+                    float nodeAngle = number(node, "angle", 0f);
                     nodes.add(
                             new MapNodeView(
                                     node.y,
@@ -501,7 +507,9 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     node.highlighted ? 80f : 64f,
                                     node.getRoomSymbol(Boolean.FALSE),
                                     kind,
-                                    ResourceIds.mapNode(kind)));
+                                    ResourceIds.mapNode(kind),
+                                    nodeScale,
+                                    nodeAngle));
                 }
             }
         }

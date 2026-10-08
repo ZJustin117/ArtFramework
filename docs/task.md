@@ -3394,10 +3394,12 @@ allocation and Young GC pressure.
       `taken || currentNode`. D1 scenario asserts `colorSamples` = native constants and that a node
       color is not white. **Honest gaps:** legend hover scale/tip, legend alpha fade-in, map edges,
       map background/paper panel, boss icon, node hover FX, mobile scaling, and the native oscillating
-      alpha for the current node are NOT replicated; the ring is drawn at the projected node-box scale
-      (192/128 ratio) rather than the live native `(nodeScale*0.95+0.2)*Settings.scale` factor because
-      the projection exposes no per-node scale. D1 A/B (native map OFF vs ART map ON node darkness) is
-      the parent's task.
+      alpha for the current node are NOT replicated; the ring was originally drawn at the projected
+      node-box scale (192/128 ratio) rather than the live native `(nodeScale*0.95+0.2)*Settings.scale`
+      factor because the projection exposed no per-node scale. **SUPERSEDED by M01:** the ring now uses
+      the native `192*(nodeScale*0.95+0.2)*Settings.scale` factor plus the node rotation (the backend
+      now soft-reflects `MapRoomNode.scale`/`angle`); see the M01 entry below. D1 A/B (native map OFF
+      vs ART map ON node darkness) is the parent's task.
 - [ ] **Open (D05 D1 finding): full-screen room backdrops vs native UI layering.** The D04/D05
       full-screen sheets (reward `ui.reward.sheet`, shop rug `shop.rug.*`) are represented by
       `REWARD_COMBAT`/`SHOP` in `RenderPhase.C2_CONTENT`, so their C2 targets submit ABOVE the
@@ -3593,11 +3595,67 @@ allocation and Young GC pressure.
       the legend/nodes, whereas native interleaves each node's edges at the START of that node's own
       `MapRoomNode.render`; the dot geometry/tint is identical, so only the relative edge-vs-edge draw
       order ACROSS nodes is approximated. **Remaining D03 gaps (honest, not full parity):** legend
-      hover/tip/alpha-fade,
-      boss icon, node hover FX, mobile scaling, ring `(nodeScale*0.95+0.2)*Settings.scale` factor,
-      native oscillating alpha, `DungeonMapScreen.oscillatingColor` on the tip, a D1 map state with a
-      taken/current node to visually confirm the `MAP_CIRCLE_5` ring, and native pan/zoom parity all
-      remain open. Next: add that D1 taken/current-node state and close the remaining gaps above.
+      hover FX (M03/M04) and legend hover/tip (M05), the legend alpha fade (M06), the boss icon (M07),
+      mobile scaling (M09), native pan/zoom parity (M10), and edge interleaving per node (M11) all
+      remain open (see the M01 entry below; the ring scale/rotation and the D1 taken/current ring state
+      are now closed).
+- [x] **M01: map current/taken-node ring geometry (native scale factor + rotation).** Native
+      `MapRoomNode.render` (VERIFIED decompiled ~:387-393) draws the ring only when
+      `this.taken || (AbstractDungeon.firstRoomChosen && this.equals(AbstractDungeon.getCurrMapNode()))`
+      at size `192 * (this.scale*0.95f + 0.2f) * Settings.scale`, centered on the node, rotated by
+      `this.angle`. The pre-M01 ART ring used `nodeBox * 192/128` — no scale factor and no rotation —
+      so its RATIO was ~13% too small (scale-independent: at `Settings.scale=1`, `nodeScale=1` the old
+      ring was 192 vs the native 220.8) and it never spun. Fix: the backend
+      map-node reader soft-reflects the PRIVATE `MapRoomNode.scale` (resolved at the native
+      `oscillateColor`/`render` value) and `MapRoomNode.angle`, fail-open to 1.0/0.0, into
+      `MapNodeView.nodeScale`/`angle` (source-compatible ctors; `MapView.empty()`/legacy projections
+      still valid). `MapDrawPath.mapSubmissionPlan()` now computes the ring size the native way —
+      `192 * (nodeScale*0.95f + 0.2f) * Settings.scale` (`liveSettingsScale()`, fail-open 1) times the
+      projection `zoom` so the ring still tracks a zoomed node — centered on `item.screenX/screenY`,
+      keeps the `AVAILABLE_COLOR` tint, and carries `item.angle` on the `Submission.rotationDegrees`.
+      `Sts1SurfaceRenderer.renderMap()` draws a non-zero-rotation submission through the
+      rotation-aware `drawResolvedTexture` overload (pivot at box center), keeping every draw fail-open
+      and restoring white. Node/outline/overlay/background/edge/legend geometry is UNCHANGED. Probe:
+      `backend.mapDraw.ringCount`/`rings`/`ring` (rect, `rotation`, `colorHex`, `nodeScale`, `angle`,
+      `settingsScale`, `zoom`, `formulaSize`) plus `currentNodeCount`/`takenCount`. Tests
+      (`MapDrawPathTest`): `ringGeometryMatchesNativeFormulaAndRotation` (nodeScale 1 → 220.8, 0.68 →
+      162.432, center + tint + rotation, gate `taken || current`),
+      `ringSizeHelperDerivesNativeFactorAndFailsOpen`, `ringProbeExposesGeometryRotationAndResolvedResource`.
+      Scenario `tests/ui-scenarios/device/d1_map_taken_current.yaml` (47 steps): fresh-menu → fixed-seed
+      start-run → proceed → mark the EVENT room COMPLETE + `nextRoom=null` → open map → pick a floor-0
+      node (COMPLETE MUST precede the pick; see below) → post-pick COMPLETE + reopen map →
+      `art present map on` → assert `ringCount >= 1`, resource `ui.map.circle5`, tint `17212bff`, a
+      rotation VALUE present (may be 0 at the sampled instant — not asserted non-zero) equal to the
+      projected node angle, a bounded `nodeScale`, and `ring.w == ring.formulaSize` → `art present map
+      off`. **D1 CONFIRMED (ring geometry, manual corrected-order reproduction):** `ring.w == formulaSize
+      == 129.6` at `nodeScale 0.5` (`192*(0.5*0.95+0.2)*Settings.scale`), `ring.rotation == ring.angle`,
+      and tint `17212bff` — the ring geometry is correct. The COMMITTED scenario had an INVERTED
+      COMPLETE/pick order (pick before `currRoom.phase=COMPLETE`), so on the EVENT-room start the map
+      bridge rejected the pick and the first run failed at `currentNodeCount gte 1` (0) — NOT a ring
+      defect; the order is now fixed to mirror `d1_full_present_map_ready.yaml` and the scenario now runs
+      **47/47 TWICE** on D1 (ring `w == h == formulaSize == 129.6`, `rotation == angle`, tint
+      `17212bff`). An independent native-vs-ART capture at the taken/current-node state shows the ring
+      coinciding in size/position/tint (visual review `NO_ISSUE_OBSERVED`; an objective ring-region
+      dark-navy pixel count differed by only 0.66%: native 96753 vs ART 97394).
+      Focused run (`--tests
+      "artframework.sts1.render.*" --tests "artframework.sts1.backend.*" --tests "artframework.context.*"`):
+      1089 tests, 0 failures. Full `cleanTest test`: 2243 tests, 0 failures.
+      **Residual (honest):** the ring is NATIVE-ABSOLUTE — scaled by the live `Settings.scale` (and the
+      present-only `PAN.zoom()`, which the native map has no equivalent of) — whereas ART's projected
+      node box is `n.width * PAN.zoom()` (a layout box, not the native `128*Settings.scale` node
+      texture). The ART node draw size is confirmed equal to native on the verify device, so the
+      native-absolute ring is the correct relative size there; if the ART node box ever diverges from
+      the native node texture at another `Settings.scale`, the NODE BOX would need the same treatment —
+      that is a separate node-geometry concern, not the ring. If native `MapRoomNode.scale` is mid-lerp
+      the reflected value may differ from the exact draw by a frame.
+- [ ] **Open (M01 D1 finding): native `ConcurrentModificationException` in `DungeonMapScreen.render`
+      during rapid map open/pick/reopen.** The M01 D1 session hit a native
+      `java.util.ConcurrentModificationException` TWICE at `DungeonMapScreen.render` (~line 320, the
+      `for (MapRoomNode n : this.visibleMapNodes) n.render(sb)` iteration). Classified as a
+      **native/lab rapid-navigation race — NOT the M01 ring change** (the ring work does not touch
+      `visibleMapNodes` or the render loop). Candidate cause: the lab bridge mutating
+      `visibleMapNodes` (map open/reopen/pick) while the native render loop iterates it. To reproduce +
+      root-cause separately (focused D1 repro of rapid open/pick/reopen); no production change made.
 - [x] **Hardened (D09 follow-up D1 finding): `art lab enter-select` intermittent NPE.** D1 runs of
       the select scenario: 3/4 passed; run 2 failed with a `NullPointerException` at the
       `art lab enter-select grid` step (`command_log.status=ERROR, message=NullPointerException`),

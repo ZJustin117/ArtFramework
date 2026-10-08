@@ -956,8 +956,16 @@ public final class Sts1SurfaceRenderer {
             for (MapDrawPath.Submission item : MapDrawPath.mapSubmissionPlan()) {
                 recordMapBandResource(item.resourceId);
                 try {
-                    drawResolvedTexture(sb, item.resourceId, item.bounds,
-                            item.r, item.g, item.b, item.a);
+                    // M01: the current/taken-node MAP_CIRCLE_5 ring carries the native
+                    // MapRoomNode.angle; draw it with the ROTATION-aware overload (pivot at the box
+                    // center) so the ring spins like native. Every other role has rotation 0.
+                    if (item.rotationDegrees != 0f) {
+                        drawResolvedTexture(sb, item.resourceId, item.bounds,
+                                item.r, item.g, item.b, item.a, item.rotationDegrees);
+                    } else {
+                        drawResolvedTexture(sb, item.resourceId, item.bounds,
+                                item.r, item.g, item.b, item.a);
+                    }
                     if (!item.label.isEmpty()) {
                         if (item.labelLeftAligned) {
                             // V04 native LegendItem.render label: LEFT-TOP aligned in the TEXT

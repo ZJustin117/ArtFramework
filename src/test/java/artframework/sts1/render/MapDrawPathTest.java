@@ -863,6 +863,115 @@ public class MapDrawPathTest {
         }
     }
 
+    @Test
+    public void ringGeometryMatchesNativeFormulaAndRotation() {
+        // M01: native MapRoomNode.render draws MAP_CIRCLE_5 with final size
+        //   192 * (this.scale*0.95f + 0.2f) * Settings.scale
+        // centered on the node and rotated by this.angle. The expected values are derived from the
+        // VERIFIED native constants here (not copied from the implementation): at nodeScale=1 the
+        // factor is (0.95+0.2)=1.15, so 192*1.15 = 220.8; at nodeScale=0.68 it is
+        // (0.646+0.2)=0.846, so 192*0.846 = 162.432.
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            Sts1HostAssets.install();
+            // Two current nodes with different native scale + angle.
+            List<MapNodeView> nodes = Arrays.asList(
+                    new MapNodeView(5, 2, 100f, 200f, false, false, true, false,
+                            true, true, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER,
+                            1f, 30f),
+                    new MapNodeView(4, 3, 300f, 400f, true, false, false, false,
+                            false, false, 64f, 64f, "R", "rest", ResourceIds.MAP_NODE_REST,
+                            0.68f, -45f));
+            publishMapFrame("map", nodes);
+
+            MapDrawPath.DrawItem current = MapDrawPath.buildFromProjection().get(0);
+            MapDrawPath.DrawItem taken = MapDrawPath.buildFromProjection().get(1);
+            assertEquals("projected nodeScale must round-trip", 1f, current.nodeScale, 0.0001f);
+            assertEquals("projected angle must round-trip", 30f, current.angle, 0.0001f);
+            assertEquals(0.68f, taken.nodeScale, 0.0001f);
+            assertEquals(-45f, taken.angle, 0.0001f);
+
+            List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+            List<MapDrawPath.Submission> rings = new ArrayList<MapDrawPath.Submission>();
+            for (MapDrawPath.Submission s : plan) {
+                if (ResourceIds.UI_MAP_CIRCLE_5.equals(s.resourceId)) rings.add(s);
+            }
+            assertEquals("both gated nodes submit a ring (taken || current)", 2, rings.size());
+
+            // Ring 0: currentNode, nodeScale 1 -> 192*(1*0.95+0.2)*1 = 220.8, rotation 30.
+            MapDrawPath.Submission r0 = rings.get(0);
+            float expected0 = 192f * (1f * 0.95f + 0.2f) * 1f;
+            assertEquals("native formula size at nodeScale=1", expected0, r0.bounds.width, 0.01f);
+            assertEquals(expected0, r0.bounds.height, 0.01f);
+            assertEquals("ring centered on node x", current.screenX, r0.bounds.x + r0.bounds.width / 2f, 0.01f);
+            assertEquals("ring centered on node y", current.screenY, r0.bounds.y + r0.bounds.height / 2f, 0.01f);
+            assertEquals("rotation == projected angle", 30f, r0.rotationDegrees, 0.0001f);
+            assertEquals("ring tint = AVAILABLE_COLOR r", MapDrawPath.AVAILABLE_COLOR[0], r0.r, 0.001f);
+            assertEquals(MapDrawPath.AVAILABLE_COLOR[1], r0.g, 0.001f);
+            assertEquals(MapDrawPath.AVAILABLE_COLOR[2], r0.b, 0.001f);
+            assertEquals(MapDrawPath.AVAILABLE_COLOR[3], r0.a, 0.001f);
+
+            // Ring 1: taken, nodeScale 0.68 -> 192*(0.68*0.95+0.2)*1 = 162.432, rotation -45.
+            MapDrawPath.Submission r1 = rings.get(1);
+            float expected1 = 192f * (0.68f * 0.95f + 0.2f) * 1f;
+            assertEquals(expected1, r1.bounds.width, 0.01f);
+            assertEquals("the two rings must differ (nodeScale honored)", true,
+                    Math.abs(r0.bounds.width - r1.bounds.width) > 1f);
+            assertEquals("rotation == projected angle (taken node)", -45f, r1.rotationDegrees, 0.0001f);
+            assertEquals("ring centered on taken node x", taken.screenX, r1.bounds.x + r1.bounds.width / 2f, 0.01f);
+            assertEquals("ring centered on taken node y", taken.screenY, r1.bounds.y + r1.bounds.height / 2f, 0.01f);
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void ringSizeHelperDerivesNativeFactorAndFailsOpen() {
+        // Pure helper: 192*(nodeScale*0.95+0.2)*scale*zoom derived from the native expression.
+        assertEquals(192f * 1.15f, MapDrawPath.ringSize(1f, 1f, 1f), 0.01f);
+        assertEquals(192f * 0.846f, MapDrawPath.ringSize(0.68f, 1f, 1f), 0.01f);
+        assertEquals(192f * 1.15f * 1.5f, MapDrawPath.ringSize(1f, 1f, 1.5f), 0.01f);
+        assertEquals(192f * 1.15f * 1.25f, MapDrawPath.ringSize(1f, 1.25f, 1f), 0.01f);
+        // Fail-open: a bad scale/zoom is treated as 1 (never collapses the ring).
+        assertEquals(192f * 1.15f, MapDrawPath.ringSize(1f, 0f, 0f), 0.01f);
+        assertEquals(192f * 1.15f, MapDrawPath.ringSize(Float.NaN, 1f, 1f), 0.01f);
+    }
+
+    @Test
+    public void ringProbeExposesGeometryRotationAndResolvedResource() {
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1f, 1f, 1f);
+            Sts1HostAssets.install();
+            publishMapFrame("map", Collections.singletonList(
+                    new MapNodeView(5, 2, 100f, 200f, false, false, true, false,
+                            true, true, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER,
+                            1f, 12.5f)));
+            Map<String, Object> probe = MapDrawPath.probeSlice();
+            assertEquals(Integer.valueOf(1), probe.get("ringCount"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> ring = (Map<String, Object>) probe.get("ring");
+            assertNotNull(ring);
+            assertEquals(ResourceIds.UI_MAP_CIRCLE_5, ring.get("resourceId"));
+            assertEquals("ui.map.circle5", ResourceIds.UI_MAP_CIRCLE_5);
+            assertEquals("17212bff", ring.get("colorHex"));
+            assertEquals(12.5f, ((Float) ring.get("rotation")).floatValue(), 0.0001f);
+            assertEquals(220.8f, ((Float) ring.get("w")).floatValue(), 0.01f);
+            // The circle5 catalog id must resolve file-backed (native images/ui/map/circle5.png).
+            artframework.assets.AssetResolveResult r = ArtFramework.assets().resolve(
+                    ResourceIds.UI_MAP_CIRCLE_5);
+            assertTrue(r.found);
+            assertTrue(artframework.sts1.assets.Sts1AssetMaterializer.isFileBacked(r.source));
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
     private static MapDrawPath.LegendDrawItem legendById(
             List<MapDrawPath.LegendDrawItem> items, String id) {
         for (MapDrawPath.LegendDrawItem item : items) {

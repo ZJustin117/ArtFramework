@@ -44,14 +44,34 @@ public final class MapDrawPath {
     }
 
     /**
-     * Current-node / taken-node ring geometry (native {@code MAP_CIRCLE_5} draw): the 192px ring is
-     * drawn centered on the node, so relative to the 128px native node texture the projected ring
-     * box is {@code nodeBox * RING_SIZE / NODE_TEXTURE_SIZE}. The native
-     * {@code (nodeScale*0.95+0.2)*Settings.scale} factor is NOT applied because the projection does
-     * not expose the live per-node scale (documented gap).
+     * Current-node / taken-node ring geometry (native {@code MAP_CIRCLE_5} draw). VERIFIED decompiled
+     * {@code MapRoomNode.render}: {@code sb.draw(ImageMaster.MAP_CIRCLE_5, x*SPACING_X+OFFSET_X-96+
+     * offsetX, y*Settings.MAP_DST_Y+OFFSET_Y+DungeonMapScreen.offsetY-96+offsetY, 96,96 origin,
+     * 192,192 size, (this.scale*0.95f + 0.2f)*Settings.scale, (this.scale*0.95f + 0.2f)*Settings.scale,
+     * this.angle, 0,0, 192,192, false, false)}. The ring is therefore centered on the node with final
+     * size {@code 192 * (nodeScale*0.95 + 0.2) * Settings.scale} and rotated by the node's animated
+     * {@code angle}. ART computes exactly this (the earlier {@code nodeBox * RING/NODE_TEXTURE} form
+     * omitted the {@code nodeScale*0.95+0.2} factor and the rotation).
      */
     public static final float RING_SIZE = 192f;
     public static final float NODE_TEXTURE_SIZE = 128f;
+    /** Native ring scale factor slope: {@code this.scale * 0.95f}. */
+    public static final float RING_SCALE_SLOPE = 0.95f;
+    /** Native ring scale factor offset: {@code + 0.2f}. */
+    public static final float RING_SCALE_OFFSET = 0.2f;
+
+    /**
+     * Native {@code MAP_CIRCLE_5} ring size: {@code 192 * (nodeScale*0.95f + 0.2f) * Settings.scale},
+     * then {@code * zoom} in ART present-space so the ring keeps tracking the (zoomed) node box.
+     * Fail-open: a non-positive/NaN scale or zoom is treated as 1 so the ring never collapses.
+     */
+    public static float ringSize(float nodeScale, float scale, float zoom) {
+        float ns = nodeScale > 0f && !Float.isNaN(nodeScale) && !Float.isInfinite(nodeScale)
+                ? nodeScale : 1f;
+        float sc = scale > 0f && !Float.isNaN(scale) && !Float.isInfinite(scale) ? scale : 1f;
+        float z = zoom > 0f && !Float.isNaN(zoom) && !Float.isInfinite(zoom) ? zoom : 1f;
+        return RING_SIZE * (ns * RING_SCALE_SLOPE + RING_SCALE_OFFSET) * sc * z;
+    }
 
     public static final class DrawItem {
         public final int row;
@@ -97,6 +117,12 @@ public final class MapDrawPath {
          * ring when {@code taken || currentNode} (native {@code MapRoomNode.render} predicate).
          */
         public final boolean currentNode;
+        /**
+         * M01: native {@code MapRoomNode.scale} (ring size factor, default 1.0 when unreadable).
+         */
+        public final float nodeScale;
+        /** M01: native {@code MapRoomNode.angle} (ring rotation, degrees; 0 when unreadable). */
+        public final float angle;
 
         public DrawItem(
                 int row,
@@ -121,6 +147,37 @@ public final class MapDrawPath {
                 boolean available,
                 boolean current,
                 Rect bounds) {
+            this(row, col, screenX, screenY, taken, highlighted, reachable, pinned, symbol,
+                    roomKind, resourceId, artSource, artFound, outlineResourceId,
+                    highlightResourceId, outlineSource, highlightSource, outlineFound,
+                    highlightFound, available, current, bounds, 1f, 0f);
+        }
+
+        public DrawItem(
+                int row,
+                int col,
+                float screenX,
+                float screenY,
+                boolean taken,
+                boolean highlighted,
+                boolean reachable,
+                boolean pinned,
+                String symbol,
+                String roomKind,
+                String resourceId,
+                String artSource,
+                boolean artFound,
+                String outlineResourceId,
+                String highlightResourceId,
+                String outlineSource,
+                String highlightSource,
+                boolean outlineFound,
+                boolean highlightFound,
+                boolean available,
+                boolean current,
+                Rect bounds,
+                float nodeScale,
+                float angle) {
             this.row = row;
             this.col = col;
             this.screenX = screenX;
@@ -158,6 +215,10 @@ public final class MapDrawPath {
             this.outlineB = outline[2];
             this.outlineA = outline[3];
             this.currentNode = current;
+            // M01 fail-open ring geometry inputs.
+            this.nodeScale = nodeScale > 0f && !Float.isNaN(nodeScale)
+                    && !Float.isInfinite(nodeScale) ? nodeScale : 1f;
+            this.angle = Float.isNaN(angle) || Float.isInfinite(angle) ? 0f : angle;
         }
 
         public Map<String, Object> toMap() {
@@ -195,6 +256,8 @@ public final class MapDrawPath {
             outlineColor.put("a", Float.valueOf(outlineA));
             m.put("outlineColor", outlineColor);
             m.put("currentNode", Boolean.valueOf(currentNode));
+            m.put("nodeScale", Float.valueOf(nodeScale));
+            m.put("angle", Float.valueOf(angle));
             m.put("colorHex", hex(nodeR, nodeG, nodeB, nodeA));
             m.put("outlineColorHex", hex(outlineR, outlineG, outlineB, outlineA));
             Map<String, Object> geometry = new LinkedHashMap<String, Object>();            geometry.put("x", Float.valueOf(bounds.x));
@@ -393,7 +456,8 @@ public final class MapDrawPath {
                     art.found || art.fallback ? art.source : "", art.found, outlineId, highlightId,
                     outline.found || outline.fallback ? outline.source : "",
                     highlight.found || highlight.fallback ? highlight.source : "",
-                    outline.found, highlight.found, n.available, n.current, bounds));
+                    outline.found, highlight.found, n.available, n.current, bounds,
+                    n.nodeScale, n.angle));
         }
         return out;
     }
@@ -903,19 +967,33 @@ public final class MapDrawPath {
         public final float labelX;
         /** V04: native label TOP y for {@link #labelLeftAligned} submits; 0 otherwise. */
         public final float labelTopY;
+        /**
+         * M01: rotation in DEGREES about the box center (native {@code MapRoomNode.angle} for the
+         * {@code MAP_CIRCLE_5} ring; 0 for every other role). The renderer uses the rotation-aware
+         * {@code drawResolvedTexture} overload when this is non-zero.
+         */
+        public final float rotationDegrees;
 
         public Submission(String resourceId, Rect bounds, String label) {
-            this(resourceId, bounds, label, "plain", 1f, 1f, 1f, 1f, false, 0f, 0f);
+            this(resourceId, bounds, label, "plain", 1f, 1f, 1f, 1f, false, 0f, 0f, 0f);
         }
 
         public Submission(String resourceId, Rect bounds, String label, String role,
                 float r, float g, float b, float a) {
-            this(resourceId, bounds, label, role, r, g, b, a, false, 0f, 0f);
+            this(resourceId, bounds, label, role, r, g, b, a, false, 0f, 0f, 0f);
         }
 
         public Submission(String resourceId, Rect bounds, String label, String role,
                 float r, float g, float b, float a, boolean labelLeftAligned,
                 float labelX, float labelTopY) {
+            this(resourceId, bounds, label, role, r, g, b, a, labelLeftAligned, labelX, labelTopY,
+                    0f);
+        }
+
+        /** M01 full constructor: adds the ring rotation (degrees about the box center). */
+        public Submission(String resourceId, Rect bounds, String label, String role,
+                float r, float g, float b, float a, boolean labelLeftAligned,
+                float labelX, float labelTopY, float rotationDegrees) {
             this.resourceId = resourceId != null ? resourceId : "";
             this.bounds = bounds;
             this.label = label != null ? label : "";
@@ -927,6 +1005,8 @@ public final class MapDrawPath {
             this.labelLeftAligned = labelLeftAligned;
             this.labelX = labelX;
             this.labelTopY = labelTopY;
+            this.rotationDegrees = Float.isNaN(rotationDegrees) || Float.isInfinite(rotationDegrees)
+                    ? 0f : rotationDegrees;
         }
     }
 
@@ -977,17 +1057,20 @@ public final class MapDrawPath {
                         1f, 1f, 1f, 1f);
             }
             if (item.taken || item.currentNode) {
-                // Native MapRoomNode.render (D03): MAP_CIRCLE_5 ring at AVAILABLE_COLOR when
-                // `taken || (firstRoomChosen && curr)`, centered on the node, size
-                // 192/128 × the projected node box (the 192 vs native 128 node texture ratio).
-                // Documented gap: the live native (nodeScale*0.95+0.2)*Settings.scale factor is not
-                // applied (the projection exposes no per-node scale).
-                float ringW = item.bounds.width * (RING_SIZE / NODE_TEXTURE_SIZE);
-                float ringH = item.bounds.height * (RING_SIZE / NODE_TEXTURE_SIZE);
-                Rect ring = new Rect(item.screenX - ringW * 0.5f, item.screenY - ringH * 0.5f,
-                        ringW, ringH);
+                // Native MapRoomNode.render (VERIFIED ~:387-393): MAP_CIRCLE_5 ring at
+                // AVAILABLE_COLOR when `taken || (firstRoomChosen && curr)`, centered on the node,
+                // final size `192 * (this.scale*0.95f + 0.2f) * Settings.scale`, rotated by
+                // `this.angle`. This is computed DIRECTLY from the native formula (the projected node
+                // box is a layout box, not the native 128*scale texture, so it cannot carry the
+                // factor); `zoom` is applied on top so the ring keeps tracking a zoomed node. Fail-open
+                // to scale 1 when Settings is unavailable.
+                float scale = liveSettingsScale();
+                float ringSize = ringSize(item.nodeScale, scale, PAN.zoom());
+                Rect ring = new Rect(item.screenX - ringSize * 0.5f,
+                        item.screenY - ringSize * 0.5f, ringSize, ringSize);
                 addSubmission(out, ResourceIds.UI_MAP_CIRCLE_5, ring, "", "ring",
-                        AVAILABLE_COLOR[0], AVAILABLE_COLOR[1], AVAILABLE_COLOR[2], AVAILABLE_COLOR[3]);
+                        AVAILABLE_COLOR[0], AVAILABLE_COLOR[1], AVAILABLE_COLOR[2],
+                        AVAILABLE_COLOR[3], false, 0f, 0f, item.angle);
             }
         }
         return out;
@@ -1024,13 +1107,46 @@ public final class MapDrawPath {
             boolean labelLeftAligned,
             float labelX,
             float labelTopY) {
+        addSubmission(out, resourceId, bounds, label, role, r, g, b, a, labelLeftAligned, labelX,
+                labelTopY, 0f);
+    }
+
+    private static void addSubmission(
+            List<Submission> out,
+            String resourceId,
+            Rect bounds,
+            String label,
+            String role,
+            float r,
+            float g,
+            float b,
+            float a,
+            boolean labelLeftAligned,
+            float labelX,
+            float labelTopY,
+            float rotationDegrees) {
         boolean hasResource = resourceId != null && !resourceId.isEmpty();
         boolean hasLabel = label != null && !label.isEmpty();
         if (!hasResource && !hasLabel) {
             return;
         }
         out.add(new Submission(resourceId, bounds, label, role, r, g, b, a,
-                labelLeftAligned, labelX, labelTopY));
+                labelLeftAligned, labelX, labelTopY, rotationDegrees));
+    }
+
+    /**
+     * Live native {@code Settings.scale} for the ring size factor, or {@code 1f} when the host
+     * {@code Settings} type is unavailable/uninitialized (fail-open; never throws).
+     */
+    static float liveSettingsScale() {
+        try {
+            float scale = com.megacrit.cardcrawl.core.Settings.scale;
+            if (scale > 0f && !Float.isNaN(scale) && !Float.isInfinite(scale)) {
+                return scale;
+            }
+        } catch (Throwable ignored) {
+        }
+        return 1f;
     }
 
     public static DrawItem hitTest(float screenX, float screenY, float radius) {
@@ -1089,10 +1205,28 @@ public final class MapDrawPath {
         m.put("missingArt", Integer.valueOf(missing));
         m.put("overlayCount", Integer.valueOf(overlays));
         m.put("truncated", Boolean.valueOf(items.size() > limit));
+        // M01 gate evidence: how many projected nodes are the native current node / taken. The ring
+        // gate is `taken || currentNode`; the D1 scenario asserts currentNodeCount >= 1 after a
+        // `firstRoomChosen && getCurrMapNode()` state, and ringCount >= currentNodeCount.
+        int currentNodeCount = 0;
+        int takenCount = 0;
+        for (DrawItem d : items) {
+            if (d.currentNode) currentNodeCount++;
+            if (d.taken) takenCount++;
+        }
+        m.put("currentNodeCount", Integer.valueOf(currentNodeCount));
+        m.put("takenCount", Integer.valueOf(takenCount));
         // NRO-04 D03 defect fix: the number of pixels renderMap will actually SUBMIT (node icon +
         // conditional outline/overlay, plus legend panel/title/icons). Distinct from `count`, which
         // is the projected node count. This is the probe-visible submission evidence.
         m.put("submitCount", Integer.valueOf(mapSubmissionPlan().size()));
+        // M01 ring geometry: current/taken-node MAP_CIRCLE_5 submissions in the plan, with the native
+        // formula size + rotation. `ringCount` proves supply; `rings`/`ring` carry the samples.
+        m.put("ringCount", Integer.valueOf(ringCount()));
+        List<Map<String, Object>> rings = ringSamples();
+        m.put("rings", rings);
+        m.put("ring", rings.isEmpty() ? null : rings.get(0));
+        m.put("ringScale", Float.valueOf(liveSettingsScale()));
         // D03 map background follow-up: the native parchment background layer that ART now supplies
         // (mapTop/mapMid/mapBot + mapBlend×2). Empty when the projection carries no background.
         List<Map<String, Object>> backgroundList = new ArrayList<Map<String, Object>>();
@@ -1147,6 +1281,65 @@ public final class MapDrawPath {
         samples.put("highlightColorHex", hex(outlineColor(true)));
         m.put("colorSamples", samples);
         return m;
+    }
+
+    /** Number of {@code MAP_CIRCLE_5} ring submissions in the current plan (M01 probe evidence). */
+    static int ringCount() {
+        int n = 0;
+        for (Submission s : mapSubmissionPlan()) {
+            if (ResourceIds.UI_MAP_CIRCLE_5.equals(s.resourceId)) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** Ring submission probe samples (M01): rect, rotation, AVAILABLE tint, native size inputs. */
+    static List<Map<String, Object>> ringSamples() {
+        float scale = liveSettingsScale();
+        float zoom = PAN.zoom();
+        List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
+        for (Submission s : mapSubmissionPlan()) {
+            if (!ResourceIds.UI_MAP_CIRCLE_5.equals(s.resourceId)) {
+                continue;
+            }
+            Map<String, Object> r = new LinkedHashMap<String, Object>();
+            r.put("resourceId", s.resourceId);
+            r.put("x", Float.valueOf(s.bounds.x));
+            r.put("y", Float.valueOf(s.bounds.y));
+            r.put("w", Float.valueOf(s.bounds.width));
+            r.put("h", Float.valueOf(s.bounds.height));
+            r.put("rotation", Float.valueOf(s.rotationDegrees));
+            // Native size inputs: nodeScale/angle come from the gated node (matched by ring center),
+            // settingsScale/zoom are the live draw-path inputs. `formulaSize` re-expresses the native
+            // 192*(nodeScale*0.95+0.2)*scale(*zoom) so the D1 scenario can assert ring.w == formulaSize
+            // (the exact-formula proof is pinned independently in JUnit from the native constants).
+            float centerX = s.bounds.x + s.bounds.width * 0.5f;
+            float centerY = s.bounds.y + s.bounds.height * 0.5f;
+            float nodeScale = 1f;
+            float angle = s.rotationDegrees;
+            for (DrawItem d : buildFromProjection()) {
+                if (Math.abs(d.screenX - centerX) < 0.01f && Math.abs(d.screenY - centerY) < 0.01f) {
+                    nodeScale = d.nodeScale;
+                    angle = d.angle;
+                    break;
+                }
+            }
+            r.put("nodeScale", Float.valueOf(nodeScale));
+            r.put("angle", Float.valueOf(angle));
+            r.put("settingsScale", Float.valueOf(scale));
+            r.put("zoom", Float.valueOf(zoom));
+            r.put("formulaSize", Float.valueOf(ringSize(nodeScale, scale, zoom)));
+            Map<String, Object> color = new LinkedHashMap<String, Object>();
+            color.put("r", Float.valueOf(s.r));
+            color.put("g", Float.valueOf(s.g));
+            color.put("b", Float.valueOf(s.b));
+            color.put("a", Float.valueOf(s.a));
+            r.put("color", color);
+            r.put("colorHex", hex(s.r, s.g, s.b, s.a));
+            out.add(r);
+        }
+        return out;
     }
 
     public static void resetForTests() {

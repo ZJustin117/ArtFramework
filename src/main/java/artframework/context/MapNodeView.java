@@ -32,6 +32,16 @@ public final class MapNodeView {
     public final String symbol;
     public final String roomKind;
     public final String resourceId;
+    /**
+     * Native {@code MapRoomNode.scale} (M01 ring geometry): the live per-node animated scale.
+     * Defaults to 1.0 when the backend cannot read it (fail-open source-compatible default).
+     */
+    public final float nodeScale;
+    /**
+     * Native {@code MapRoomNode.angle} (M01 ring rotation, degrees): the ring is rotated about the
+     * node center by this value. Defaults to 0.0 when the backend cannot read it.
+     */
+    public final float angle;
 
     public MapNodeView(
             int row,
@@ -87,6 +97,34 @@ public final class MapNodeView {
             String symbol,
             String roomKind,
             String resourceId) {
+        this(row, col, x, y, taken, highlighted, reachable, pinned, available, current,
+                width, height, symbol, roomKind, resourceId, 1f, 0f);
+    }
+
+    /**
+     * M01 full constructor: adds the native per-node {@code nodeScale} (ring size factor) and
+     * {@code angle} (ring rotation, degrees). Existing callers keep the shorter overload and fail
+     * open to {@code nodeScale=1.0, angle=0.0} so {@link MapView#empty()} and legacy projections
+     * stay valid.
+     */
+    public MapNodeView(
+            int row,
+            int col,
+            float x,
+            float y,
+            boolean taken,
+            boolean highlighted,
+            boolean reachable,
+            boolean pinned,
+            boolean available,
+            boolean current,
+            float width,
+            float height,
+            String symbol,
+            String roomKind,
+            String resourceId,
+            float nodeScale,
+            float angle) {
         this.row = row;
         this.col = col;
         this.x = x;
@@ -102,6 +140,10 @@ public final class MapNodeView {
         this.symbol = symbol != null ? symbol : "";
         this.roomKind = roomKind != null ? roomKind : "";
         this.resourceId = resourceId != null ? resourceId : "";
+        // Fail-open: a non-finite / non-positive scale must not collapse the ring.
+        this.nodeScale = nodeScale > 0f && !Float.isNaN(nodeScale)
+                && !Float.isInfinite(nodeScale) ? nodeScale : 1f;
+        this.angle = Float.isNaN(angle) || Float.isInfinite(angle) ? 0f : angle;
     }
 
     public Map<String, Object> toMap() {
@@ -121,6 +163,8 @@ public final class MapNodeView {
         m.put("symbol", symbol);
         m.put("roomKind", roomKind);
         m.put("resourceId", resourceId);
+        m.put("nodeScale", Float.valueOf(nodeScale));
+        m.put("angle", Float.valueOf(angle));
         return m;
     }
 }

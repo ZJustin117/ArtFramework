@@ -52,15 +52,17 @@
 - Default gate: `./scripts/with-art-env.sh test` (or `./gradlew test` with `-PstsJar` / `-PbaseModJar` / `-PmodTheSpireJar`).
 - UI tooling offline: `cd tools/art-verify && python3 -m unittest discover -s tests -v`.
 - Java 8 bytecode; JUnit 4. **No device harness required** for ArtFramework unit work.
-- OpenCode plugin [`.opencode/plugins/local-env.ts`](.opencode/plugins/local-env.ts) loads allowlisted `.env.local` keys into shell env and developer/test-agent context. Restart opencode after changing agents/plugins.
+- OpenCode plugin [`.opencode/plugins/local-env.ts`](.opencode/plugins/local-env.ts) loads allowlisted `.env.local` keys into shell env and TDD/test-agent context. Restart opencode after changing agents/plugins.
 
 ## OpenCode subagents
 
-Project subagents live in `.opencode/agent/*.md`. The **main agent owns task framing, review, and integration**; delegate bounded implementation to `@developer` and verification/deploy work to the specialized agents so the parent session is not flooded with code-search, diff, gradle, adb, or harness logs.
+Project subagents live in `.opencode/agent/*.md`. The **main agent owns accepted design, slice selection, review, and integration**. Use [TDD Development](.opencode/skills/tdd-development/SKILL.md), [ART context](.opencode/skills/tdd-development/project/artframework.md), and the [handoff template](.opencode/skills/tdd-development/references/slice-task-template.md) for delegated behavior slices. Documentation and pure behavior-preserving refactors remain parent-owned or use the existing refacter workflow; do not manufacture Red.
 
 | Agent | When to use | When not to |
 |-------|-------------|-------------|
-| `developer` | Bounded ArtFramework source/test/doc implementation scoped by the parent; isolate code-search and edit context | Vague tasks without scope; commits/merges/pushes; deploy/device/harness/Arthas work; recursive delegation |
+| `tdd-slice` | Read-only dispatch of exactly one accepted behavior slice through serial Red, Green, Refactor, and review | Source edits, design decisions, test execution, unrelated slices, deployment |
+| `tdd-red` / `tdd-green` / `tdd-refactor` | One explicitly scoped stage; tests freeze after Red | Delegation, unrelated edits, Git integration, device work |
+| `code-reviewer` | Read-only review of one scoped slice and phase evidence | Source edits, test execution, deployment, recursive review |
 | `junit-test` | **Default semantic gate** after API/registry/runtime pure-logic changes; user asks for JUnit | Docs-only; code will not compile; device-only ops |
 | `android-deploy-jar` | Need fresh `ArtFramework.jar` on device after UI source changes; before manual/on-device UI checks | Semantic regression (use junit); no device / unset serial; jar unchanged |
 | `art-verify` | Fixture YAML / offline runner; optional D1 UI smoke after deploy when probe/ops exist; scenarios other than `scripts/art-lab combat verify-full` | Pure API rules (junit); standard `ready` / `status` / `console` / `combat verify-full` wrapper operations; out-of-repo life/co-op |
@@ -73,12 +75,12 @@ Project subagents live in `.opencode/agent/*.md`. The **main agent owns task fra
 
 ### Delegation rules
 
-1. Prefer `@developer` for bounded implementation when context isolation matters. The parent must provide the goal, allowed scope, key constraints, and expected verification; `@developer` edits only that scope and never commits, merges, pushes, deploys, or delegates.
+1. Delegate one accepted behavior slice to `@tdd-slice` with explicit ART context, design authority, criteria, allowed/frozen paths, commands and prerequisites, baseline attribution, and stopping condition. It is the sole custom nested-delegation exception: only Red, Green, Refactor, and code-reviewer, serially in foreground. Confirm runtime support before relying on nested dispatch. Leaf agents must not delegate.
 2. Prefer a script for a deterministic, parameterized operation it already owns. In particular, call `scripts/art-lab connector`, `ready`, `status`, `stop`, `console`, or `combat verify-full` directly instead of creating a subagent Task. A script result is sufficient only for the evidence it explicitly reports; do not infer unrelated UI behavior.
 3. Create one narrow verification Task when the work needs a specialist: full JUnit, jar deploy, a nonstandard UI YAML suite, Harness logs/screenshots or unsupported operations, or a bounded Arthas diagnosis. Do not bundle implementation + verification + deploy in one subagent.
 4. Treat every independent goal, implementation slice, verification, deployment, or diagnosis as a separate subagent task. Start it in a fresh session by omitting `task_id`; do not keep reusing one session merely to preserve context. Use a real `task_id` only when continuing the same bounded task or performing its directly related follow-up, such as a reviewer re-checking a fix within the same frozen review scope. Distinct pipeline stages normally use distinct sessions: implementation, JUnit, UI verification, deployment, and device diagnosis must not be combined or carried forward in one session.
-5. Order: scoped implementation (parent or **`@developer`**) → **`@junit-test`** → offline **`@art-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → bring the connector to the requested state → `scripts/art-lab ready` / `combat verify-full` for the standard D1 smoke. Use **`@android-harness`** only for work outside that wrapper; use device **`@art-verify`** for scenarios the wrapper does not own. Use **`@android-arthas`** only when a separate bounded JVM diagnosis is requested.
-6. Verification subagents **report summaries only** (`edit: deny`). `@developer` may edit scoped source/test/docs but still reports summaries only and returns unresolved verification failures to the parent.
+5. Order: accepted slice → Red → Green → Refactor → independent slice review → parent-owned **`@junit-test`** → offline **`@art-verify`** if runner/YAML touched → **`@android-deploy-jar`** if jar needed → requested connector state → `scripts/art-lab ready` / `combat verify-full`. Stage focused checks do not replace the independent full JUnit gate. Use device specialists only for explicitly scoped external work.
+6. Verification subagents and the dispatcher are read-only and report summaries only. Red edits assigned tests/fixtures; Green and Refactor edit assigned production paths. Tests freeze after Red; structure-only test cleanup requires explicit parent authorization. Broad edit/shell access is not a sandbox: inspect actual diffs and commands. Never bypass boundaries through shell.
 7. Prefer not running full suites in the parent session when subagents are available.
 8. Task resume: `task_id` may contain only a real `ses…` id returned by the Task tool; **omit `task_id` for every new independent task** (do not invent UUIDs). Plugin strips non-`ses` ids.
 9. Missing env: scripts and subagents stop and list **key names**; parent must not invent absolute paths.

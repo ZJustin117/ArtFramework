@@ -15,19 +15,21 @@ cp .env.example .env.local
 ./scripts/with-art-env.sh test
 ```
 
-OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local-env.ts) loads allowlisted keys for shell and developer/test subagents. Restart opencode after agent/plugin edits.
+OpenCode plugin [`.opencode/plugins/local-env.ts`](../../.opencode/plugins/local-env.ts) loads allowlisted keys for shell and TDD/test subagents. Restart opencode after agent/plugin edits.
 
 ## OpenCode subagents
 
 | Agent | Invoke | Role |
 |-------|--------|------|
-| `developer` | `@developer` | Scoped source/test/doc implementation; no commit, merge, push, deploy, or recursive delegation |
+| `tdd-slice` | `@tdd-slice` | Read-only serial Red, Green, Refactor, and independent review for one accepted behavior slice |
+| `tdd-red` / `tdd-green` / `tdd-refactor` | dispatcher stages | Scoped stage writers; no delegation, Git integration, or device work |
+| `code-reviewer` | `@code-reviewer` | Read-only slice review; distinct from the refacter project's `art-reviewer` |
 | `junit-test` | `@junit-test` | Default gate: `./scripts/with-art-env.sh test` (read-only) |
 | `android-deploy-jar` | `@android-deploy-jar` | Build + push `ArtFramework.jar` (default D1); not semantic regression |
 | `art-verify` | `@art-verify` | `tools/art-verify` fixture YAML + offline unittest; optional D1 later |
 | `android-arthas` | `@android-arthas` | Read-only Android JVM diagnostics; bounded `start -> query -> stop`; not a default gate |
 
-Recommended flow: parent scopes the task → a fresh `@developer` session implements the bounded change → a separate fresh `@junit-test` session verifies pure logic/API → separate fresh `@art-verify` or device-specific sessions run only when the touched area requires them → parent reviews the diff and owns final integration. Use `task_id` only to continue the same bounded task or its directly related follow-up; do not reuse one subagent session for independent tasks or pipeline stages.
+Recommended flow: parent completes the [slice handoff](../../.opencode/skills/tdd-development/references/slice-task-template.md) using [ART context](../../.opencode/skills/tdd-development/project/artframework.md) → a fresh `@tdd-slice` dispatches serial stage sessions → a separate fresh `@junit-test` verifies pure logic/API → separate `@art-verify` or device sessions only when required → parent owns final acceptance and integration. Focused stage checks do not replace full JUnit. Documentation-only tasks and pure refactors do not require manufactured Red. Use a real `task_id` only for a directly related continuation, never for a different stage.
 
 ## Docs in this folder
 

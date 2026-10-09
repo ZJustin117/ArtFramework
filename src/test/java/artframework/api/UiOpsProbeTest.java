@@ -579,6 +579,26 @@ public class UiOpsProbeTest {
             }
 
             @Override
+            public UiOpResult setPointer(int x, int y) {
+                return UiOpResult.ok();
+            }
+
+            @Override
+            public UiOpResult hoverMapNode(MapNodeRef node) {
+                return UiOpResult.ok();
+            }
+
+            @Override
+            public UiOpResult hoverLegend(int index) {
+                return UiOpResult.ok();
+            }
+
+            @Override
+            public UiOpResult clearPointer() {
+                return UiOpResult.ok();
+            }
+
+            @Override
             public UiOpResult chooseEventOption(int index, String label) {
                 return UiOpResult.ok();
             }

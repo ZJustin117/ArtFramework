@@ -1,0 +1,188 @@
+# D1 (H0): hover-only pointer injection. Places the native pointer over a map target and asserts the
+# NATIVE hover state changes, WITHOUT ever clicking. This is the verifiable capability the map hover
+# slices (M03 node hover FX, M04 node hover scale/geometry, M05 legend hover/tip) will consume.
+#
+# Mechanism: `art op hover map <row> <col>` / `art op hover legend <idx>` / `art op pointer <x> <y>`
+# write STICKY pointer state to the map-intent ECS component; the InputHelper.updateFirst Postfix
+# re-applies `InputHelper.mX/mY` each frame (before MapRoomNode.update / LegendItem.update read the
+# hitbox). The pointer path NEVER sets `justClickedLeft` / `hb.clicked` / `dungeonMapScreen.clicked`.
+#
+# Native hover derivation (VERIFIED decompiled): `Hitbox.update()` sets `hovered` from `InputHelper.mX/mY`
+# vs the box (no click needed); `MapRoomNode.update()` refreshes `hb` then reads `hb.hovered` (→
+# `highlighted`/`scale`/`color`); `Legend.update` runs `LegendItem.update()` (→ `hb.hovered`) only while
+# the map is faded in (`mapAlpha >= 0.8`) and `isMapScreen`. CAVEAT: `Hitbox.update()` early-returns while
+# `AbstractDungeon.isFadingOut`, so the scenario mounts the map and waits for FULL_READY before hovering.
+#
+# Determinism + the hovered node's identity: this scenario reuses the PROVEN fixed-seed order from
+# `d1_map_taken_current.yaml` (COMPLETE BEFORE the pick). After `art op map first` the picked floor-0
+# node becomes `currMapNode` (and `taken`); its coordinates are read back from `backend.mapIntent.row`/`col`
+# (captured) and interpolated into the `art op hover map` command, so no seed-specific literal is
+# hardcoded. The hovered CURRENT node is native-forced to `color = AVAILABLE_COLOR` (hex `17212bff`)
+# with `scale -> 0.5`; the hover proof is `targetHovered` flipping to true + that live native reflection.
+#
+# Order-independence: leading + terminal `art present map off` resets and an explicit fresh-menu reset
+# before start-run, mirroring the sibling map scenarios.
+name: d1_map_hover
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # Idempotent leading reset: clear any map surface left by a prior scenario before fresh-menu.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  # Fixed seed (same literal as `d1_map_taken_current`; the scene is asserted literally because `eq`
+  # is not interpolated).
+  - set:
+      seed: ARTMAPT01
+      target: map
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab seed ${seed}"
+  - wait_ms: 500
+  - console: "art lab start-run IRONCLAD seed=${seed}"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Leave Neow/event so first-floor map nodes become selectable (room COMPLETE).
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  # STS MapRoomNode first-pick requires `currRoom.phase == COMPLETE`, and COMPLETE MUST be set BEFORE
+  # the pick (the PROVEN order in `d1_full_present_map_ready.yaml`).
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # Pick the leftmost floor-0 node so a KNOWN current/taken node exists to hover (this is the ONLY
+  # click in the scenario; every hover step below is pointer-only).
+  - console: "art op map first"
+  - wait_ms: 4000
+  # Post-pick: mark the entered room COMPLETE, clear the pending transition, and REOPEN the map so the
+  # just-taken CURRENT node is visible under ART full present.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # Mount first: StageHost publishes native frames while a present surface is active.
+  - console: "art present map on"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.available
+        eq: true
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: map
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.renderPlan.entries[0].effectiveState
+        eq: FULL_READY
+  # Baseline: with no hover op issued the sticky pointer is inactive.
+  - assert:
+      path: backend.mapIntent.pointerActive
+      eq: false
+  # The picked floor-0 node's coordinates are carried by the map-intent `lastTarget`; capture them so
+  # the hover command targets a REAL, deterministic node with no hardcoded seed literal. Also capture
+  # the click `attempts` counter so the hover op can be proven NOT to inject a click.
+  - capture:
+      path: backend.mapIntent.row
+      var: hover_row
+  - capture:
+      path: backend.mapIntent.col
+      var: hover_col
+  - capture:
+      path: backend.mapIntent.attempts
+      var: hover_attempts_before
+  # HOVER (pointer-only, NO click): place the native pointer over that map node.
+  - console: "art op hover map ${hover_row} ${hover_col}"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapIntent.pointerActive
+        eq: true
+  # The native hitbox must observe the injected pointer (hover derived from mX/mY only, no click).
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapIntent.targetHovered
+        eq: true
+  # The LIVE native MapRoomNode reflection: a hovered current node is native-forced to AVAILABLE_COLOR
+  # (0.09,0.13,0.17,1 -> hex 17212bff) with `scale` lerping to 0.5 (never the 1.24 available pulse).
+  - assert:
+      path: backend.mapIntent.targetColorHex
+      eq: "17212bff"
+  - assert:
+      path: backend.mapIntent.targetScale
+      gte: 0.2
+  - assert:
+      path: backend.mapIntent.targetScale
+      lte: 1.0
+  # The hover op must NOT have injected a click: no pending gesture and the click `attempts` counter is
+  # unchanged from the captured baseline.
+  - assert:
+      path: backend.mapIntent.pending
+      eq: false
+  - assert:
+      path: backend.mapIntent.attempts
+      eq_var: hover_attempts_before
+  # HOVER a legend row: index 0 is the first room row; the native LegendItem hitbox must observe the
+  # pointer (Legend.update runs item hitboxes only while the map is faded in).
+  - console: "art op hover legend 0"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapIntent.legendIndex
+        eq: 0
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapIntent.legendHovered
+        eq: true
+  # CLEAR: deactivate the hover pointer (hover off).
+  - console: "art op pointer clear"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapIntent.pointerActive
+        eq: false
+  # Terminal cleanup placed after the assertions; leave the device without a map surface.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"

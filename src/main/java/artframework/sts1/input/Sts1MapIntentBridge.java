@@ -2,6 +2,7 @@ package artframework.sts1.input;
 
 import com.badlogic.gdx.Gdx;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
+import com.megacrit.cardcrawl.map.LegendItem;
 import com.megacrit.cardcrawl.map.MapRoomNode;
 import com.megacrit.cardcrawl.helpers.input.InputHelper;
 import artframework.component.MapNodeRef;
@@ -136,7 +137,62 @@ public final class Sts1MapIntentBridge {
 
     /** Called after InputHelper.updateFirst so injected coords survive the frame. */
     public static void onAfterInputUpdate() {
+        applyPointer();
         applyPendingGesture();
+    }
+
+    /**
+     * H0 hover-only injection: place the native pointer at raw screen {@code (x, y)} with NO click
+     * edges ({@code justClickedLeft}/{@code hb.clicked}/{@code dungeonMapScreen.clicked} are never
+     * touched on this path). Sticky: re-applied every frame from {@link #onAfterInputUpdate()}.
+     */
+    public static IntentResult setPointer(int x, int y) {
+        updatePointer(x, y, true, null, -1);
+        return IntentResult.accepted("pointer " + x + "," + y);
+    }
+
+    /**
+     * H0 hover-only injection targeted at a map node. The pointer re-resolves the node's live hitbox
+     * center each frame so it tracks native scroll. Fail-open: a missing/offscreen node is rejected
+     * with a reason and does not change the sticky pointer state.
+     */
+    public static IntentResult hoverMapNode(MapNodeRef ref) {
+        if (ref == null) {
+            return IntentResult.rejected("MapNodeRef required");
+        }
+        MapRoomNode target = findNodeIgnoringTransition(ref);
+        if (target == null || target.hb == null) {
+            return IntentResult.rejected("map node unavailable: " + ref.row + "," + ref.col);
+        }
+        if (target.hb.cX < -500f || target.hb.cY < -500f) {
+            return IntentResult.rejected("offscreen_node");
+        }
+        updatePointer((int) target.hb.cX, (int) target.hb.cY, true, ref, -1);
+        return IntentResult.accepted("hover node " + ref.row + "," + ref.col);
+    }
+
+    /**
+     * H0 hover-only injection targeted at a legend row. Resolves
+     * {@code AbstractDungeon.dungeonMapScreen.map.legend.items[index]} and tracks its live hitbox
+     * center each frame. Fail-open: a missing legend/item/index is rejected with a reason.
+     */
+    public static IntentResult hoverLegend(int index) {
+        LegendItem item = legendItem(index);
+        if (item == null || item.hb == null) {
+            return IntentResult.rejected("legend item unavailable: " + index);
+        }
+        // Native LegendItem.render normally moves the hitbox; ART full present suppresses render, so
+        // place it at the native row center when it is still at the offscreen sentinel.
+        ensureLegendHitbox(item, index);
+        updatePointer((int) item.hb.cX, (int) item.hb.cY, true, null, index);
+        return IntentResult.accepted("hover legend " + index);
+    }
+
+    /** H0: deactivate the hover pointer (leaves any click gesture untouched). */
+    public static IntentResult clearPointer() {
+        MapGestureComponent gesture = state();
+        world().put(entity(), MapGestureComponent.class, gesture.withPointer(0, 0, false, null, -1));
+        return IntentResult.accepted("pointer cleared");
     }
 
     public static Map<String, Object> probeSlice() {
@@ -154,6 +210,9 @@ public final class Sts1MapIntentBridge {
             out.put("row", Integer.valueOf(ref.row));
             out.put("col", Integer.valueOf(ref.col));
         }
+        out.put("pointerActive", Boolean.valueOf(gesture.pointerActive));
+        out.put("pointerX", Integer.valueOf(gesture.pointerX));
+        out.put("pointerY", Integer.valueOf(gesture.pointerY));
         try {
             out.put("firstRoomChosen", Boolean.valueOf(AbstractDungeon.firstRoomChosen));
             out.put("screen", AbstractDungeon.screen != null ? AbstractDungeon.screen.name() : "");
@@ -184,11 +243,174 @@ public final class Sts1MapIntentBridge {
         } catch (Throwable ignored) {
             out.put("nextRoom", Boolean.FALSE);
         }
+        // H0: when a hover pointer is active, the native hover reflection UNDER the point wins over
+        // any stale click-target reflection above. Node hover overwrites targetHovered/Scale/Color/
+        // Highlighted from the LIVE MapRoomNode; legend hover exposes legendIndex/legendHovered.
+        try {
+            if (gesture.pointerActive) {
+                if (gesture.pointerNodeRef != null) {
+                    MapRoomNode hoverNode = findNodeIgnoringTransition(gesture.pointerNodeRef);
+                    if (hoverNode != null && hoverNode.hb != null) {
+                        out.put("targetHovered", Boolean.valueOf(hoverNode.hb.hovered));
+                        out.put("targetHighlighted", Boolean.valueOf(hoverNode.highlighted));
+                        out.put("targetScale", Float.valueOf(softFloat(hoverNode, "scale", 0f)));
+                        out.put("targetColorHex", colorHex(hoverNode.color));
+                    }
+                } else if (gesture.pointerLegendIndex >= 0) {
+                    out.put("legendIndex", Integer.valueOf(gesture.pointerLegendIndex));
+                    LegendItem item = legendItem(gesture.pointerLegendIndex);
+                    out.put("legendHovered",
+                            Boolean.valueOf(item != null && item.hb != null && item.hb.hovered));
+                } else {
+                    MapRoomNode hoverNode = nodeAt(gesture.pointerX, gesture.pointerY);
+                    if (hoverNode != null && hoverNode.hb != null) {
+                        out.put("targetHovered", Boolean.valueOf(hoverNode.hb.hovered));
+                        out.put("targetHighlighted", Boolean.valueOf(hoverNode.highlighted));
+                        out.put("targetScale", Float.valueOf(softFloat(hoverNode, "scale", 0f)));
+                        out.put("targetColorHex", colorHex(hoverNode.color));
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
         return out;
+    }
+
+    /** Soft: the first presentable node whose hitbox contains the raw pointer point. */
+    private static MapRoomNode nodeAt(int x, int y) {
+        try {
+            if (AbstractDungeon.map == null) {
+                return null;
+            }
+            for (List<MapRoomNode> row : AbstractDungeon.map) {
+                if (row == null) {
+                    continue;
+                }
+                for (MapRoomNode n : row) {
+                    if (n == null || n.hb == null) {
+                        continue;
+                    }
+                    float hx = n.hb.x;
+                    float hy = n.hb.y;
+                    if (x >= hx && x < hx + n.hb.width && y >= hy && y < hy + n.hb.height) {
+                        return n;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static float softFloat(Object owner, String field, float fallback) {
+        try {
+            java.lang.reflect.Field f = owner.getClass().getDeclaredField(field);
+            f.setAccessible(true);
+            Object v = f.get(owner);
+            return v instanceof Number ? ((Number) v).floatValue() : fallback;
+        } catch (Throwable ignored) {
+            return fallback;
+        }
+    }
+
+    private static String colorHex(com.badlogic.gdx.graphics.Color color) {
+        if (color == null) {
+            return "";
+        }
+        int r = Math.round(Math.max(0f, Math.min(1f, color.r)) * 255f);
+        int g = Math.round(Math.max(0f, Math.min(1f, color.g)) * 255f);
+        int b = Math.round(Math.max(0f, Math.min(1f, color.b)) * 255f);
+        int a = Math.round(Math.max(0f, Math.min(1f, color.a)) * 255f);
+        return String.format("%02x%02x%02x%02x", Integer.valueOf(r), Integer.valueOf(g),
+                Integer.valueOf(b), Integer.valueOf(a));
     }
 
     public static void resetForTests() {
         world().put(entity(), MapGestureComponent.class, MapGestureComponent.idle());
+    }
+
+    /**
+     * H0: apply the sticky hover pointer to {@code InputHelper.mX/mY}. Called BEFORE
+     * {@link #applyPendingGesture()} so an in-flight CLICK gesture (which also writes mX/mY) takes
+     * precedence: when a click is pending this is a no-op and the click's coordinates win for that
+     * frame. This path never touches {@code justClickedLeft}/{@code hb.clicked}/
+     * {@code dungeonMapScreen.clicked} — hover is pointer position only.
+     */
+    private static void applyPointer() {
+        try {
+            MapGestureComponent gesture = state();
+            if (!gesture.pointerActive) {
+                return;
+            }
+            // Precedence: an in-flight CLICK gesture owns the pointer coordinates.
+            if (gesture.pending != null && gesture.pendingFrames > 0) {
+                return;
+            }
+            int x = gesture.pointerX;
+            int y = gesture.pointerY;
+            if (gesture.pointerNodeRef != null) {
+                MapRoomNode target = findNodeIgnoringTransition(gesture.pointerNodeRef);
+                if (target != null && target.hb != null) {
+                    // Re-resolve each frame so the pointer tracks native map scroll.
+                    x = (int) target.hb.cX;
+                    y = (int) target.hb.cY;
+                }
+            } else if (gesture.pointerLegendIndex >= 0) {
+                LegendItem item = legendItem(gesture.pointerLegendIndex);
+                if (item != null && item.hb != null) {
+                    x = (int) item.hb.cX;
+                    y = (int) item.hb.cY;
+                }
+            }
+            InputHelper.mX = x;
+            InputHelper.mY = y;
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void updatePointer(int x, int y, boolean active, MapNodeRef nodeRef,
+            int legendIndex) {
+        MapGestureComponent gesture = state();
+        world().put(entity(), MapGestureComponent.class,
+                gesture.withPointer(x, y, active, nodeRef, legendIndex));
+    }
+
+    private static LegendItem legendItem(int index) {
+        try {
+            if (index < 0
+                    || AbstractDungeon.dungeonMapScreen == null
+                    || AbstractDungeon.dungeonMapScreen.map == null
+                    || AbstractDungeon.dungeonMapScreen.map.legend == null
+                    || AbstractDungeon.dungeonMapScreen.map.legend.items == null
+                    || index >= AbstractDungeon.dungeonMapScreen.map.legend.items.size()) {
+                return null;
+            }
+            return AbstractDungeon.dungeonMapScreen.map.legend.items.get(index);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Native {@code LegendItem.render} moves the hitbox to {@code (TEXT_X, Legend.Y - SPACE_Y*index +
+     * OFFSET_Y)}; ART full present suppresses that render, so the hitbox can still be at its offscreen
+     * sentinel. Mirror the native move only when it is (fail-open).
+     */
+    private static void ensureLegendHitbox(LegendItem item, int index) {
+        try {
+            if (item.hb == null || item.hb.cX > -500f && item.hb.cY > -500f) {
+                return;
+            }
+            float xScale = com.megacrit.cardcrawl.core.Settings.xScale;
+            float yScale = com.megacrit.cardcrawl.core.Settings.yScale;
+            boolean mobile = com.megacrit.cardcrawl.core.Settings.isMobile;
+            float textX = 1670.0f * xScale;
+            float spaceY = (mobile ? 64.0f : 58.0f) * yScale;
+            float offsetY = (mobile ? 110.0f : 100.0f) * yScale;
+            float rowY = 600.0f * yScale - spaceY * index + offsetY;
+            item.hb.move(textX, rowY);
+        } catch (Throwable ignored) {
+        }
     }
 
     private static void applyPendingGesture() {
@@ -268,7 +490,9 @@ public final class Sts1MapIntentBridge {
         MapGestureComponent current = state();
         world().put(entity(), MapGestureComponent.class,
                 new MapGestureComponent(pendingFrames > 0 ? target : null, pendingFrames,
-                        target != null ? target : current.lastTarget, status, eligibility, attempts));
+                        target != null ? target : current.lastTarget, status, eligibility, attempts,
+                        current.pointerX, current.pointerY, current.pointerActive,
+                        current.pointerNodeRef, current.pointerLegendIndex));
     }
 
     /**

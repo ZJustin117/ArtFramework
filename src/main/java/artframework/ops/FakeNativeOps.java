@@ -13,6 +13,14 @@ public final class FakeNativeOps implements NativeOpsBackend {
     public int eventOptionCount;
     public int endTurnCount;
     public int playHandCount;
+    public int setPointerCount;
+    public int hoverMapNodeCount;
+    public int hoverLegendCount;
+    public int clearPointerCount;
+    public int lastPointerX;
+    public int lastPointerY;
+    public MapNodeRef lastHoverNode;
+    public int lastHoverLegendIndex;
 
     public SelectKind lastSelectKind;
     public String lastSelectCardId;
@@ -48,6 +56,34 @@ public final class FakeNativeOps implements NativeOpsBackend {
             lastMapRow = node.row;
             lastMapCol = node.col;
         }
+        return UiOpResult.ok();
+    }
+
+    @Override
+    public UiOpResult setPointer(int x, int y) {
+        setPointerCount++;
+        lastPointerX = x;
+        lastPointerY = y;
+        return UiOpResult.ok();
+    }
+
+    @Override
+    public UiOpResult hoverMapNode(MapNodeRef node) {
+        hoverMapNodeCount++;
+        lastHoverNode = node;
+        return UiOpResult.ok();
+    }
+
+    @Override
+    public UiOpResult hoverLegend(int index) {
+        hoverLegendCount++;
+        lastHoverLegendIndex = index;
+        return UiOpResult.ok();
+    }
+
+    @Override
+    public UiOpResult clearPointer() {
+        clearPointerCount++;
         return UiOpResult.ok();
     }
 

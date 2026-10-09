@@ -105,6 +105,35 @@ public final class StsNativeOps implements NativeOpsBackend {
     }
 
     @Override
+    public UiOpResult setPointer(int x, int y) {
+        return hoverResult(Sts1MapIntentBridge.setPointer(x, y));
+    }
+
+    @Override
+    public UiOpResult hoverMapNode(MapNodeRef node) {
+        return hoverResult(Sts1MapIntentBridge.hoverMapNode(node));
+    }
+
+    @Override
+    public UiOpResult hoverLegend(int index) {
+        return hoverResult(Sts1MapIntentBridge.hoverLegend(index));
+    }
+
+    @Override
+    public UiOpResult clearPointer() {
+        return hoverResult(Sts1MapIntentBridge.clearPointer());
+    }
+
+    private static UiOpResult hoverResult(IntentResult result) {
+        if (result != null
+                && (result.status == IntentResult.Status.ACCEPTED
+                        || result.status == IntentResult.Status.QUEUED)) {
+            return UiOpResult.ok(result.message);
+        }
+        return UiOpResult.unavailable(result != null ? result.message : "pointer op failed");
+    }
+
+    @Override
     public UiOpResult chooseEventOption(int index, String label) {
         if (AbstractDungeon.getCurrRoom() == null
                 || AbstractDungeon.getCurrRoom().event == null) {

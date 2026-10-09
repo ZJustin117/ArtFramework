@@ -113,6 +113,33 @@ public final class UiOps {
         return invoke(NativeTemplateIds.MAP, "click_node", node);
     }
 
+    /**
+     * H0 hover-only injection: place the native pointer at raw screen {@code (x, y)} with no click
+     * edges. Routes straight to the native backend (there is no C2 hover surface yet); fail-open when
+     * no adapter is installed.
+     */
+    public UiOpResult setPointer(int x, int y) {
+        return backend().setPointer(x, y);
+    }
+
+    /** H0: hover a map node without clicking. */
+    public UiOpResult hoverMapNode(MapNodeRef node) {
+        if (node == null) {
+            return UiOpResult.unavailable("node required");
+        }
+        return backend().hoverMapNode(node);
+    }
+
+    /** H0: hover a legend row by index without clicking. */
+    public UiOpResult hoverLegend(int index) {
+        return backend().hoverLegend(index);
+    }
+
+    /** H0: clear the hover pointer. */
+    public UiOpResult clearPointer() {
+        return backend().clearPointer();
+    }
+
     /** Internal C2 dispatch called exclusively by the native component action path. */
     public UiOpResult dispatchMapNode(MapNodeRef node) {
         NativeInputRecords.input(IntentNames.CLICK_MAP_NODE, artframework.context.SurfaceIds.MAP);

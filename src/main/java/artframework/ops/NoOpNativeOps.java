@@ -30,6 +30,26 @@ public final class NoOpNativeOps implements NativeOpsBackend {
     }
 
     @Override
+    public UiOpResult setPointer(int x, int y) {
+        return UiOpResult.unavailable("native pointer not installed");
+    }
+
+    @Override
+    public UiOpResult hoverMapNode(MapNodeRef node) {
+        return UiOpResult.unavailable("native map hover not installed");
+    }
+
+    @Override
+    public UiOpResult hoverLegend(int index) {
+        return UiOpResult.unavailable("native legend hover not installed");
+    }
+
+    @Override
+    public UiOpResult clearPointer() {
+        return UiOpResult.unavailable("native pointer not installed");
+    }
+
+    @Override
     public UiOpResult chooseEventOption(int index, String label) {
         return UiOpResult.unavailable("native event option not installed");
     }

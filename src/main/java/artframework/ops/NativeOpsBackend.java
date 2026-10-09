@@ -15,6 +15,21 @@ public interface NativeOpsBackend {
 
     UiOpResult clickMapNode(MapNodeRef node);
 
+    /**
+     * H0 hover-only injection: place the native pointer at raw screen {@code (x, y)} with no click
+     * edges. Fail-open (UNAVAILABLE) when no engine adapter is installed.
+     */
+    UiOpResult setPointer(int x, int y);
+
+    /** H0 hover-only injection targeted at a map node (never clicks). */
+    UiOpResult hoverMapNode(MapNodeRef node);
+
+    /** H0 hover-only injection targeted at a legend row by index (never clicks). */
+    UiOpResult hoverLegend(int index);
+
+    /** H0: clear the hover pointer. */
+    UiOpResult clearPointer();
+
     UiOpResult chooseEventOption(int index, String label);
 
     UiOpResult pressEndTurn();

@@ -1916,7 +1916,7 @@ public class ArtCommand extends ConsoleCommand {
     private void cmdOp(String[] tokens, int depth) {
         if (tokens.length <= depth) {
             DevConsole.log(
-                    "Usage: art op select|confirm|map|event|endturn|play|button|slider|hitarea|click ...");
+                    "Usage: art op select|confirm|map|hover|pointer|event|endturn|play|button|slider|hitarea|click ...");
             return;
         }
         String kind = tokens[depth].toLowerCase();
@@ -1954,6 +1954,38 @@ public class ArtCommand extends ConsoleCommand {
                 int col = parseInt(tokens[depth + 2], 0);
                 String room = tokens.length > depth + 3 ? tokens[depth + 3] : "";
                 r = ArtFramework.ops().clickMapNode(new MapNodeRef(row, col, room));
+            }
+        } else if ("hover".equals(kind)) {
+            // art op hover map <row> <col> | art op hover legend <idx>
+            if (tokens.length >= depth + 2 && "map".equalsIgnoreCase(tokens[depth + 1])) {
+                if (tokens.length < depth + 4) {
+                    DevConsole.log("Usage: art op hover map <row> <col>");
+                    return;
+                }
+                int row = parseInt(tokens[depth + 2], 0);
+                int col = parseInt(tokens[depth + 3], 0);
+                r = ArtFramework.ops().hoverMapNode(new MapNodeRef(row, col, ""));
+            } else if (tokens.length >= depth + 2 && "legend".equalsIgnoreCase(tokens[depth + 1])) {
+                if (tokens.length < depth + 3) {
+                    DevConsole.log("Usage: art op hover legend <idx>");
+                    return;
+                }
+                r = ArtFramework.ops().hoverLegend(parseInt(tokens[depth + 2], -1));
+            } else {
+                DevConsole.log("Usage: art op hover map <row> <col> | art op hover legend <idx>");
+                return;
+            }
+        } else if ("pointer".equals(kind)) {
+            // art op pointer <x> <y> | art op pointer clear
+            if (tokens.length >= depth + 2 && "clear".equalsIgnoreCase(tokens[depth + 1])) {
+                r = ArtFramework.ops().clearPointer();
+            } else if (tokens.length >= depth + 3) {
+                int x = parseInt(tokens[depth + 1], 0);
+                int y = parseInt(tokens[depth + 2], 0);
+                r = ArtFramework.ops().setPointer(x, y);
+            } else {
+                DevConsole.log("Usage: art op pointer <x> <y> | art op pointer clear");
+                return;
             }
         } else if ("event".equals(kind)) {
             if (tokens.length < depth + 2) {

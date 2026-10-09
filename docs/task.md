@@ -3694,6 +3694,75 @@ allocation and Young GC pressure.
       `this.scale*Settings.scale`) is node-GEOMETRY, not tint, and is deferred (M03/M04 territory; the
       M01 residual already notes the node box is a layout box, not the native `128*Settings.scale`
       texture). No node geometry/order was touched here.
+- [ ] **H0: synthetic hover-only pointer injection (lab/console capability for D1 map hover).**
+      Maps the M03/M04/M05 slices (node hover FX, node hover scale/geometry, legend hover/tip) need a
+      way to place the NATIVE pointer without clicking, because native `Hitbox.update()` derives
+      `hovered` ONLY from `InputHelper.mX/mY` (vs the box; no click edge required), `MapRoomNode.update()`
+      then reads `hb.hovered` (→ `highlighted` / `scale` / `color`), and `Legend.update` runs
+      `LegendItem.update()` (→ `hb.hovered`) only while `mapAlpha >= 0.8` and `isMapScreen`.
+      **Seam.** `MapGestureComponent` gains sticky POINTER fields (`pointerX`, `pointerY`,
+      `pointerActive`, optional `pointerNodeRef` for a scroll-tracking map node, `pointerLegendIndex`)
+      via a NEW constructor overload + `withPointer(...)`; the existing click fields/constructor are
+      unchanged (source-compatible). `Sts1MapIntentBridge` adds `setPointer(x,y)`, `hoverMapNode(ref)`,
+      `hoverLegend(index)`, `clearPointer()`, which store the sticky pointer. The InputHelper.updateFirst
+      Postfix (`MapInputPatches`) calls `onAfterInputUpdate()` → **`applyPointer()` runs BEFORE
+      `applyPendingGesture()`**: each frame it sets `InputHelper.mX/mY` (re-resolving
+      `node.hb.cX/cY` when `pointerNodeRef` is set, so the pointer tracks native map scroll; else the
+      raw `pointerX/Y`), and it NEVER touches `justClickedLeft` / `hb.clicked` /
+      `dungeonMapScreen.clicked`. **Precedence:** an in-flight CLICK gesture owns the coordinates — while
+      `pending && pendingFrames > 0`, `applyPointer()` is a no-op and the click's `mX/mY` win for that
+      frame; hover otherwise never disturbs a queued click and vice versa. `hoverMapNode`/`hoverLegend`
+      resolve a real target and FAIL-OPEN to a rejected `IntentResult` with a single reason when the
+      target is unavailable. For a map node the resolution returns `null` for a missing OR offscreen
+      node (`findNodeIgnoringTransition` returns null when `hb.cX/cY < -500f`), so the fail-open reason
+      is the single generic `map node unavailable: <row>,<col>` — there is NO distinct `offscreen_node`
+      reason. `hoverLegend` maps index→`LegendItem` via
+      `dungeonMapScreen.map.legend.items` and, when the (render-suppressed) hitbox is still at the
+      offscreen sentinel, mirrors the native `LegendItem.render` `hb.move(TEXT_X, Legend.Y -
+      SPACE_Y*index + OFFSET_Y)`.
+      **Ops/console.** `NativeOpsBackend`/`NoOpNativeOps`/`FakeNativeOps`/`StsNativeOps` + `UiOps`
+      expose `setPointer`/`hoverMapNode`/`hoverLegend`/`clearPointer` (fail-open; reuse `UiOpResult`).
+      `ArtCommand` adds the `"hover"` kind (`art op hover map <row> <col>` | `art op hover legend <idx>`)
+      and the `"pointer"` kind (`art op pointer <x> <y>` | `art op pointer clear`), with a usage line on
+      bad args; `art op map first|<row> <col>` is UNCHANGED.
+      **Probe.** `Sts1MapIntentBridge.probeSlice()` adds `pointerActive`/`pointerX`/`pointerY`, and for
+      the hovered target the LIVE native reflection `targetHovered`/`targetScale` (soft-reflected
+      private `MapRoomNode.scale`)/`targetColorHex` (`MapRoomNode.color` rgba)/`targetHighlighted`, or
+      `legendIndex`/`legendHovered` for a legend hover. All reads soft/fail-open.
+      **ART map probe:** `MapDrawPath.probeSlice()` already reflects a hovered node's live
+      `scale`/`color` — `Sts1PresentationBackend.mapFrame` reads `node.highlighted` + the LIVE
+      `node.color` (`liveColor`) and soft-reflects `node.scale`, and `MapDrawPath.DrawItem` carries
+      `highlighted`/`nodeScale`/`nodeColorLive`; the probe already exposes `items[i].highlighted`,
+      `...nodeScale`, `...colorHex`, `liveColorCount`. **No `MapDrawPath` change was needed** (it is out
+      of this slice's scope anyway): once the pointer is driven by H0, a hovered node's native scale/tint
+      already flows through the projection.
+      **Scenario.** NEW `tests/ui-scenarios/device/d1_map_hover.yaml` (49 steps): fixed seed
+      (`ARTMAPT01`, the proven `d1_map_taken_current` order — COMPLETE BEFORE the pick) → pick floor-0
+      (`art op map first`) → reopen → `art present map on` → capture the picked node's
+      `mapIntent.row`/`col` + `attempts` → `art op hover map <row> <col>` → assert `pointerActive`/`targetHovered`
+      true + live `targetColorHex == 17212bff` + bounded `targetScale` + `pending false` +
+      `attempts == baseline` (proves hover did NOT click) → `art op hover legend 0` → assert
+      `legendIndex 0`/`legendHovered true` → `art op pointer clear` → assert `pointerActive false` →
+      `art present map off`. Loads offline (49 expanded steps; real console/probe paths only).
+      Tests (`Sts1MapIntentBridgeTest`): `setPointerActivatesStickyPointerState`,
+      `clearPointerDeactivatesStickyPointerState`, `hoverMissingNodeFailsOpenWithoutChangingPointer`,
+      `hoverMissingLegendFailsOpenWithReason`, `hoverRequiresANodeRef`,
+      `hoverOpDoesNotQueueAClickGesture` (component-level: the hover op does NOT queue/alter a CLICK
+      gesture), `pointerFrameWritesCoordsAndLeavesClickFlagsUntouched` (PURE: drives
+      `onAfterInputUpdate()` and asserts `InputHelper.mX/mY` are written while
+      `InputHelper.justClickedLeft` is neither set nor cleared — `InputHelper` is loadable on the test
+      classpath), `clearPointerDoesNotDisturbQueuedClickGesture`. The raw-flag guard is
+      non-tautological (verified by mutation: setting the flag on the pointer path fails the test);
+      click-vs-hover precedence on a LIVE map remains an on-device concern (the scenario proves the
+      hover steps leave `attempts`/`pending` unchanged). Focused run (`--tests "artframework.sts1.input.*"`
+      `--tests "artframework.ops.*" --tests "artframework.api.*" --tests "artframework.console.*"`):
+      156 tests, 0 failures. Full `cleanTest test`: 2256 tests, 0 failures. **D1 PENDING** (must be run
+      on device; not deployable/verifiable
+      from this slice). Guard caveats documented for the scenario: `Hitbox.update()` early-returns while
+      `AbstractDungeon.isFadingOut`, and `Legend.update` only runs item hitboxes while `mapAlpha >= 0.8`
+      and `isMapScreen` (the scenario mounts + waits FULL_READY first). **Consumers:** M03 (node hover FX),
+      M04 (node hover scale/geometry), M05 (legend hover/tip) will use these ops + probe fields to
+      D1-verify; the render draw paths were intentionally NOT touched here.
 - [ ] **Open (M01 D1 finding): native `ConcurrentModificationException` in `DungeonMapScreen.render`
       during rapid map open/pick/reopen.** The M01 D1 session hit a native
       `java.util.ConcurrentModificationException` TWICE at `DungeonMapScreen.render` (~line 320, the

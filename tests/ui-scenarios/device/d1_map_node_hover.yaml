@@ -121,6 +121,16 @@ steps:
       assert:
         path: backend.mapIntent.targetHovered
         eq: true
+  # M04: native draws NO node hover overlay (selectBox.png is the Legend reticle only). While a
+  # non-current node is hovered (highlighted), the map draw path must submit ZERO overlay-role
+  # draws; probe overlayCount is the true overlay-submission count (pinned-only). pinned is always
+  # false in the backend projection, so 0 proves no non-native selectBox overlay is drawn.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapDraw.overlayCount
+        eq: 0
   # Native rest is 0.5 and hover lerps toward 1.0; `gte: 0.6` proves the hover scale-up reached the
   # projection the box uses (well above rest, and robust to the animation phase). There is no `gt:`
   # operator, so the strict above-rest proof is this bounded `gte` plus the box-growth `gt_var` below.

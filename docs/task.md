@@ -3749,6 +3749,55 @@ allocation and Young GC pressure.
       settled depth>0 nodes and the current/taken node do sit at exactly 0.5 (26/32 sampled). The
       independent native-vs-ART VISUAL A/B capture was deferred at user request (VISUAL A/B PENDING);
       the objective per-node box check above is the primary M03 evidence.
+- [ ] **M04: remove the NON-NATIVE map-node hover OVERLAY (match native hover rendering).** Native
+      `MapRoomNode.render` draws a node's edges, the OUTLINE (`highlighted ? (0.9,0.9,0.9,1) :
+      OUTLINE_COLOR`), the node FILL, and the `MAP_CIRCLE_5` ring (taken/current) — and draws **NO
+      overlay texture for a highlighted/hovered node**. `images/ui/map/selectBox.png` (resource
+      `ui.map.highlight`) is only `Legend`'s controller reticle, NOT a per-node map overlay.
+      **Defect.** `mapSubmissionPlan()` submitted an `overlay` when `item.pinned || item.highlighted`;
+      because `pinned` is ALWAYS false in the backend projection, this was effectively a non-native
+      HOVER overlay (a `ui.map.highlight` texture drawn over every hovered/available node).
+      **Fix.** Draw the overlay ONLY for `pinned` (`if (item.pinned)`) in BOTH `mapSubmissionPlan()`
+      and `paintOrder()`; the pinned-only ART affordance is preserved (unused in backend projection),
+      so no `overlay:` entry is fabricated for unpinned nodes. The `highlightResourceId` wiring
+      (`n.pinned ? UI_MAP_PIN : (n.highlighted ? UI_MAP_HIGHLIGHT : "")`) is UNCHANGED. The probe
+      `overlayCount` is reinterpreted as the TRUE number of `"overlay"`-role submissions in the FULL
+      `mapSubmissionPlan()` (replacing the misleading `reachable || highlighted` aggregate, which also
+      double-counted and only swept the first-32-item window) — 0 for a highlighted non-pinned node, 1
+      for a pinned node. **Unchanged.** Node tint rule (M02), outline color, `MAP_CIRCLE_5` ring (M01),
+      M03 box/scale, background, edges, and legend are NOT touched; native hover is now exactly
+      outline `HIGHLIGHT_COLOR` tint + M03 scale.
+      **Tests (`MapDrawPathTest`, frozen).** NEW
+      `highlightedNodeSubmitsNoOverlayWhilePinnedNodeStillDoes` (highlighted non-pinned node submits 0
+      overlay-role submissions and probe `overlayCount == 0`, while still submitting outline + fill; a
+      pinned node still submits the `UI_MAP_PIN` overlay and `overlayCount == 1`), plus updated
+      `nodeBoxTracksNativeNodeScaleCenteredAndFailsOpen` (fixture made pinned so the overlay assert
+      still holds), `submissionPlanSubmitsNodeIconOutlineHighlightAndLegend`,
+      `paintOrderPutsBackgroundBelowLegendAndNodes`, and
+      `mapVisualsUseProjectedNodeIdentityKindLabelPositionHighlightAndEvidenceCount`.
+      **Scenario.** `tests/ui-scenarios/device/d1_map_node_hover.yaml` extended 36 → **37 steps** (added
+      an assertion that a highlighted non-pinned node submits no overlay, i.e. `overlayCount == 0`).
+      **D1 PENDING** (offline scenario load validated only). Focused
+      `--tests "artframework.sts1.render.*"`: **970 tests, 0 failures** (up from 969 at M03; the 4
+      Red failures now pass and no other render test regressed). Full `cleanTest test` is
+      parent-owned `@junit-test`.
+      **Residual (honest).** The D1 device run is PENDING: the removal is verified by the pure/plan
+      tests and the offline scenario step count, not yet on device.
+- [ ] **Open (M04-01): `Sts1SurfaceRenderer.prepareMapVisuals` still syncs a C2 `overlay:` item
+      (`ui.map.highlight` -> `images/ui/map/selectBox.png`, role `map-highlight`) for HIGHLIGHTED map
+      nodes, so a second authority still carries the removed non-native hover overlay. DEFAULT CONFIG
+      DOES NOT DRAW IT (RenderHost draws bound effects, not C2 `DrawComponent.resourceId` textures), so
+      there is no observable regression today; but if a future host adapter renders C2 item textures the
+      highlighted overlay would reappear. Bounded follow-up: stop syncing the `overlay:` C2 item for
+      highlighted nodes (keep it pinned-only) or delete it if the C2 map-overlay path is unused, and
+      decide whether the C2 map items should carry the pixel at all. Not a release blocker.
+- [ ] **Open (M04b): native hover/click ALSO spawns a transient `MapCircleEffect` — ART does NOT
+      draw it under full present.** Native hover/click spawns a transient `MapCircleEffect` (decompiled:
+      `MAP_CIRCLE_1` → `MAP_CIRCLE_5` expanding ring, `scale 3.0 → 1.5`, duration 1.2s, tint
+      `(0.09,0.13,0.17,1)`, rotation = node `angle`) added to `AbstractDungeon.topLevelEffects`. ART
+      draws NO such transient under full present. **Classify as a transient-FX item** — it ties to the
+      VFX/`topLevelEffects` claim seam, NOT the static node band. Reproduce and decide a bounded
+      approach separately. Registered only; do NOT implement here.
 - [ ] **Open (M03 review finding M03-01): `nodeScale` fail-open default `1.0` maps to a 2x node box.**
       `MapNodeView.nodeScale` (M01) and `ContextFrame.coerceMap` default/clamp an unreadable or
       short-ctor `nodeScale` to `1.0`, and `REST_NODE_SCALE = 0.5f`, so the M03 node-box helper yields

@@ -629,8 +629,11 @@ public class MapDrawPathTest {
         invokeRenderMap();
         PresentationDrawEvidence evidence = NativeRenderBridge.ledger().evidence(disposition.invocationId);
         assertNotNull(evidence);
-        assertEquals("map evidence count must come from current projected nodes/overlays/rings",
-                6, evidence.drawCount);
+        // M04: the highlighted node 1:2 no longer submits an overlay (native draws no hover overlay),
+        // so the map submission evidence drops from 6 to 5 (node0 highlighted: outline+node;
+        // node1 taken: outline+node+ring).
+        assertEquals("map evidence count must come from current projected nodes/outlines/rings",
+                5, evidence.drawCount);
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("delegatedWithoutEvidence"));
         assertEquals(Integer.valueOf(0), NativeRenderBridge.strictReport().get("orphanArtOutput"));
     }
@@ -1063,10 +1066,12 @@ public class MapDrawPathTest {
         assertEquals(a.screenY, b.screenY, 0.01f);
 
         // Outline + overlay must stay CONCENTRIC with the scale-tracked fill (all three use
-        // item.bounds). A single reachable+highlighted node at hover (nodeScale=1.0) keeps the roles
-        // unambiguous; the expected 128 is derived from base 64 * factor 2.
+        // item.bounds). M04: a HIGHLIGHTED node no longer submits an overlay (native draws no hover
+        // overlay); the overlay is the ART-only PINNED affordance, so this fixture is pinned=true
+        // (highlighted kept true so the outline assert still holds). A single pinned+reachable node at
+        // hover (nodeScale=1.0) keeps the roles unambiguous; the expected 128 is base 64 * factor 2.
         publishMapFrame("map", Collections.singletonList(
-                new MapNodeView(3, 1, 250f, 325f, false, true, true, false,
+                new MapNodeView(3, 1, 250f, 325f, false, true, true, true,
                         true, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER,
                         1.0f, 0f)));
         MapDrawPath.Submission outline = null;
@@ -1078,8 +1083,8 @@ public class MapDrawPathTest {
             else if ("overlay".equals(s.role)) overlay = s;
         }
         assertNotNull("reachable node must submit an outline", outline);
-        assertNotNull("highlighted node must submit a fill", fill);
-        assertNotNull("highlighted node must submit an overlay", overlay);
+        assertNotNull("pinned node must submit a fill", fill);
+        assertNotNull("pinned node must submit the preserved overlay", overlay);
         assertEquals(128f, fill.bounds.width, 0.01f);
         assertEquals(128f, fill.bounds.height, 0.01f);
         assertEquals("outline must share the scaled fill box x", fill.bounds.x, outline.bounds.x, 0.01f);
@@ -1090,6 +1095,54 @@ public class MapDrawPathTest {
         assertEquals("overlay must share the scaled fill box y", fill.bounds.y, overlay.bounds.y, 0.01f);
         assertEquals("overlay must share the scaled fill box w", fill.bounds.width, overlay.bounds.width, 0.01f);
         assertEquals("overlay must share the scaled fill box h", fill.bounds.height, overlay.bounds.height, 0.01f);
+    }
+
+    @Test
+    public void highlightedNodeSubmitsNoOverlayWhilePinnedNodeStillDoes() {
+        // M04: native MapRoomNode.render draws NO hover overlay (selectBox.png / `ui.map.highlight` is
+        // only Legend's controller reticle, not a per-node map overlay). ART previously submitted an
+        // overlay for `pinned || highlighted`; `pinned` is always false in the backend projection, so
+        // that was effectively a non-native HOVER overlay. The overlay is now the pinned-only ART
+        // affordance, and the probe `overlayCount` is reinterpreted as the true count of `"overlay"`-
+        // role submissions (0 for a highlighted non-pinned node, 1 for a pinned node).
+        Sts1HostAssets.install();
+        List<MapNodeView> highlighted = Collections.singletonList(
+                new MapNodeView(1, 2, 100f, 200f, false, true, true, false,
+                        false, false, 80f, 80f, "M", "monster", ResourceIds.MAP_NODE_MONSTER));
+        publishMapFrame("map", highlighted);
+
+        List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+        int overlayRoles = 0;
+        boolean hasOutline = false;
+        boolean hasNode = false;
+        for (MapDrawPath.Submission s : plan) {
+            if ("overlay".equals(s.role)) overlayRoles++;
+            if ("outline".equals(s.role)) hasOutline = true;
+            if ("node".equals(s.role)) hasNode = true;
+        }
+        assertEquals("highlighted non-pinned node must submit NO overlay-role submission",
+                0, overlayRoles);
+        assertTrue("highlighted node must still submit an outline", hasOutline);
+        assertTrue("highlighted node must still submit its node fill", hasNode);
+        assertEquals("probe overlayCount must be 0 for a highlighted non-pinned node",
+                Integer.valueOf(0), MapDrawPath.probeSlice().get("overlayCount"));
+
+        // Pinned node: the preserved ART-only affordance still submits the pin overlay.
+        List<MapNodeView> pinned = Collections.singletonList(
+                new MapNodeView(4, 5, 30f, 40f, false, false, false, true,
+                        false, false, 48f, 52f, "P", "shop", ResourceIds.MAP_NODE_SHOP));
+        publishMapFrame("map", pinned);
+
+        List<MapDrawPath.Submission> pinnedPlan = MapDrawPath.mapSubmissionPlan();
+        MapDrawPath.Submission overlay = null;
+        for (MapDrawPath.Submission s : pinnedPlan) {
+            if ("overlay".equals(s.role)) overlay = s;
+        }
+        assertNotNull("pinned node must submit the preserved overlay", overlay);
+        assertEquals("pinned overlay must use the pin resource", ResourceIds.UI_MAP_PIN,
+                overlay.resourceId);
+        assertEquals("probe overlayCount must be 1 for a pinned node",
+                Integer.valueOf(1), MapDrawPath.probeSlice().get("overlayCount"));
     }
 
     @Test
@@ -1357,9 +1410,9 @@ public class MapDrawPathTest {
     @Test
     public void submissionPlanSubmitsNodeIconOutlineHighlightAndLegend() {
         // NRO-04 D03 defect fix: renderMap must SUBMIT mapped pixels, not merely count them.
-        // Three nodes exercise node-icon + outline + highlight + ring variants:
-        //  - reachable+highlighted monster: icon + outline + highlight
-        //  - pinned shop:                    icon + highlight only (no reachable/highlighted)
+        // Three nodes exercise node-icon + outline + pinned overlay + ring variants:
+        //  - reachable+highlighted monster: icon + outline only (M04: native draws NO hover overlay)
+        //  - pinned shop:                    icon + pinned overlay (no reachable/highlighted)
         //  - taken rest (neither):           icon + MAP_CIRCLE_5 ring (native `taken || curr`)
         float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
         float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
@@ -1379,9 +1432,9 @@ public class MapDrawPathTest {
             List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
 
             // Native order: legend paints FIRST (under), nodes paint OVER it. The legend block is the
-            // first 8 entries, then the 7 node entries (icon/outline/overlay per node + the
-            // taken-node MAP_CIRCLE_5 ring).
-            assertEquals("legend block + node block", 8 + 7, plan.size());
+            // first 8 entries, then the 6 node entries (icon/outline per node + the preserved pinned
+            // overlay + the taken-node MAP_CIRCLE_5 ring; M04 dropped the hovered-node overlay).
+            assertEquals("legend block + node block", 8 + 6, plan.size());
 
             // Legend panel (index 0, no label) + title (index 1) + 6 icon rows (2..7).
             assertEquals("legend panel resource", ResourceIds.UI_MAP_LEGEND, plan.get(0).resourceId);
@@ -1391,12 +1444,13 @@ public class MapDrawPathTest {
             assertEquals(ResourceIds.MAP_NODE_EVENT, plan.get(2).resourceId);
             assertEquals(ResourceIds.MAP_NODE_ELITE, plan.get(7).resourceId);
 
-            // Node submissions follow the legend, in sync z order: outline, node icon, overlay.
+            // Node submissions follow the legend, in sync z order: outline, node icon, (pinned) overlay.
             // Native MapRoomNode.render draws the OUTLINE before the FILL (both at the same node
-            // box), so the fill covers the outline center (D03 wash fix).
+            // box), so the fill covers the outline center (D03 wash fix). M04: the highlighted monster
+            // node submits outline+node ONLY (no hover overlay); the pinned shop keeps UI_MAP_PIN.
             String[] expectedNodeOrder = {
                 ResourceIds.mapOutline("monster"),
-                ResourceIds.MAP_NODE_MONSTER, ResourceIds.UI_MAP_HIGHLIGHT,
+                ResourceIds.MAP_NODE_MONSTER,
                 ResourceIds.MAP_NODE_SHOP, ResourceIds.UI_MAP_PIN,
                 ResourceIds.MAP_NODE_REST, ResourceIds.UI_MAP_CIRCLE_5
             };
@@ -2025,7 +2079,7 @@ public class MapDrawPathTest {
                 String key = item.row + ":" + item.col;
                 if (item.reachable || item.highlighted) expected.add("outline:" + key);
                 expected.add("node:" + key);
-                if (item.pinned || item.highlighted) expected.add("overlay:" + key);
+                if (item.pinned) expected.add("overlay:" + key);
                 if (item.taken || item.currentNode) expected.add("ring:" + key);
             }
             assertEquals(expected, order);

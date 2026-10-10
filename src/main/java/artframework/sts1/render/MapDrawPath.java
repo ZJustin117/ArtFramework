@@ -995,7 +995,8 @@ public final class MapDrawPath {
      * the legend and the node band on top. This method returns the ordered layer keys:
      * {@code bg:<id>} first, then {@code legend:<id>}, then the node band in the corrected native
      * per-node submission order: {@code outline:r:c} (when {@code reachable || highlighted}) BEFORE
-     * {@code node:r:c}, then {@code overlay:r:c}, then {@code ring:r:c} — matching
+     * {@code node:r:c}, then {@code overlay:r:c} (M04: only when {@code pinned} — native draws no
+     * node hover overlay), then {@code ring:r:c} — matching
      * {@link #mapSubmissionPlan()} and native {@code MapRoomNode.render}, which draws the outline
      * before the fill. Pure: derived
      * from {@link #backgroundItems()}, {@link #legendItems()} and the node projection, so a test can
@@ -1024,7 +1025,8 @@ public final class MapDrawPath {
                 out.add("outline:" + key);
             }
             out.add("node:" + key);
-            if (item.pinned || item.highlighted) {
+            // M04: overlay only for pinned (native draws no per-node hover overlay).
+            if (item.pinned) {
                 out.add("overlay:" + key);
             }
             if (item.taken || item.currentNode) {
@@ -1115,9 +1117,18 @@ public final class MapDrawPath {
     /**
      * Builds the ordered map submission plan. Legend panel/title/icon entries are emitted FIRST,
      * then the node entries (outline when {@code reachable || highlighted} FIRST, then the node
-     * icon, then overlay when {@code pinned || highlighted}) — matching native
+     * icon, then overlay when {@code pinned}) — matching native
      * {@code DungeonMap.render}, which draws {@code Legend.render} before {@code DungeonMapScreen.render}
      * draws the nodes, so nodes paint OVER the legend. Node/legend internal order is preserved.
+     *
+     * <p>M04 hover-overlay removal: native {@code MapRoomNode.render} draws NO per-node hover
+     * overlay — it draws the node's edges, the OUTLINE ({@code highlighted ? (0.9,0.9,0.9,1) :
+     * OUTLINE_COLOR}), the node FILL, and the {@code MAP_CIRCLE_5} ring (taken/current), and nothing
+     * else for a highlighted/hovered node. {@code images/ui/map/selectBox.png} ({@code
+     * ui.map.highlight}) is only {@code Legend}'s controller reticle, not a per-node map texture. ART
+     * previously submitted an overlay for {@code pinned || highlighted}; since {@code pinned} is
+     * ALWAYS false in the backend projection, that was effectively a non-native hover overlay and has
+     * been removed. The overlay is now the pinned-only ART affordance (preserved; unused).
      *
      * <p>D03 wash fix: native {@code MapRoomNode.render} draws the OUTLINE
      * ({@code this.room.getMapImgOutline()}) BEFORE the node FILL ({@code this.room.getMapImg()}) at the
@@ -1154,7 +1165,10 @@ public final class MapDrawPath {
             }
             addSubmission(out, item.resourceId, item.bounds, "", "node",
                     item.nodeR, item.nodeG, item.nodeB, item.nodeA);
-            if (item.pinned || item.highlighted) {
+            // M04: native MapRoomNode.render draws NO per-node hover overlay — `selectBox.png`
+            // (`ui.map.highlight`) is only Legend's controller reticle. The overlay is now the
+            // pinned-only ART affordance (pinned is always false in the backend projection).
+            if (item.pinned) {
                 addSubmission(out, item.highlightResourceId, item.bounds, "", "overlay",
                         1f, 1f, 1f, 1f);
             }
@@ -1291,7 +1305,6 @@ public final class MapDrawPath {
         m.put("panZoom", PAN.toMap());
         m.put("scene", ArtFramework.projection().scene());
         int missing = 0;
-        int overlays = 0;
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         int limit = Math.min(items.size(), 32);
         for (int i = 0; i < limit; i++) {
@@ -1300,11 +1313,20 @@ public final class MapDrawPath {
             if (!d.artFound) {
                 missing++;
             }
-            if (d.reachable || d.highlighted) overlays++;
-            if (d.pinned || d.highlighted) overlays++;
         }
         m.put("items", list);
         m.put("missingArt", Integer.valueOf(missing));
+        // M04: overlayCount is the TRUE number of `"overlay"`-role submissions in the full
+        // mapSubmissionPlan(). Native MapRoomNode.render draws NO per-node hover overlay
+        // (`selectBox.png`/`ui.map.highlight` is only Legend's reticle), so a highlighted non-pinned
+        // node contributes 0 and only a pinned node contributes 1. Counted over the WHOLE plan, not
+        // just the first-32 `items` probe window.
+        int overlays = 0;
+        for (Submission s : mapSubmissionPlan()) {
+            if ("overlay".equals(s.role)) {
+                overlays++;
+            }
+        }
         m.put("overlayCount", Integer.valueOf(overlays));
         m.put("truncated", Boolean.valueOf(items.size() > limit));
         // M01 gate evidence: how many projected nodes are the native current node / taken. The ring

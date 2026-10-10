@@ -60,9 +60,13 @@ public class MapDrawPathTest {
         Sts1HostAssets.install();
         FakeSignalBackend backend = new FakeSignalBackend();
         backend.installSignals();
+        // M03 (authorized rest-value edit): the node box now tracks native `MapRoomNode.scale`, so pin
+        // this fixture at the native REST scale 0.5 (factor 1) to keep `buildProjectsNodesWithPanZoom`'s
+        // asserted numeric bounds (highlighted base 80 * zoom 2 = 160) unchanged.
         MapNodeView n =
                 new MapNodeView(
-                        1, 2, 100f, 200f, false, true, "M", "monster", ResourceIds.MAP_NODE_MONSTER);
+                        1, 2, 100f, 200f, false, true, true, false, false, false,
+                        80f, 80f, "M", "monster", ResourceIds.MAP_NODE_MONSTER, 0.5f, 0f);
         backend.publish(
                 ContextFrame.of(
                         1L,
@@ -97,8 +101,10 @@ public class MapDrawPathTest {
     @Test
     public void projectionExposesReachablePinnedStateAndChoosesPinResource() {
         Sts1HostAssets.install();
+        // M03 (authorized rest-value edit): pin at native REST 0.5 (factor 1) so the asserted 48f/52f
+        // numeric bounds stay unchanged now that the box scales with `nodeScale`.
         MapNodeView n = new MapNodeView(4, 5, 30f, 40f, false, false, false, true,
-                48f, 52f, "P", "shop", ResourceIds.MAP_NODE_SHOP);
+                false, false, 48f, 52f, "P", "shop", ResourceIds.MAP_NODE_SHOP, 0.5f, 0f);
         publishMapFrame("map", Collections.singletonList(n));
         MapDrawPath.DrawItem item = MapDrawPath.buildFromProjection().get(0);
         assertFalse(item.reachable);
@@ -1007,6 +1013,100 @@ public class MapDrawPathTest {
         } finally {
             setSettingsScale(previousScale, previousXScale, previousYScale);
         }
+    }
+
+    @Test
+    public void nodeBoxTracksNativeNodeScaleCenteredAndFailsOpen() {
+        // M03: the map node DISPLAY BOX (fill + outline + overlay) must track the native per-node
+        // scale. Native MapRoomNode rests at scale 0.5 and update() lerps this.scale toward 1.0 while
+        // hb.hovered; render() draws the 128px node texture at this.scale*Settings.scale, so the drawn
+        // texture SIZE animates on hover (0.5 -> 1.0 DOUBLES the drawn size). ART's box is therefore
+        // base * (nodeScale / REST_NODE_SCALE), still centered on the node hitbox (sx, sy).
+        Sts1HostAssets.install();
+        MapNodeView rest = new MapNodeView(1, 2, 100f, 200f, false, false, true, false,
+                true, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER, 0.5f, 0f);
+        MapNodeView hover = new MapNodeView(1, 2, 100f, 200f, false, false, true, false,
+                true, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER, 1.0f, 0f);
+        publishMapFrame("map", Arrays.asList(rest, hover));
+        MapDrawPath.panZoom().setPan(0f, 0f);
+        MapDrawPath.panZoom().setZoom(1f);
+
+        List<MapDrawPath.DrawItem> items = MapDrawPath.buildFromProjection();
+        assertEquals(2, items.size());
+        MapDrawPath.DrawItem a = items.get(0);
+        MapDrawPath.DrawItem b = items.get(1);
+
+        // Rest: nodeScale=0.5 -> factor 0.5/0.5 = 1 -> the current 64px base box, centered (100,200).
+        assertEquals(64f, a.bounds.width, 0.01f);
+        assertEquals(64f, a.bounds.height, 0.01f);
+        assertEquals(100f - 32f, a.bounds.x, 0.01f);
+        assertEquals(200f - 32f, a.bounds.y, 0.01f);
+        assertEquals("rest box centered on screenX", a.screenX,
+                a.bounds.x + a.bounds.width / 2f, 0.01f);
+        assertEquals("rest box centered on screenY", a.screenY,
+                a.bounds.y + a.bounds.height / 2f, 0.01f);
+
+        // Hover: nodeScale=1.0 -> factor 2 -> 128px, still centered on the SAME hitbox (100,200).
+        assertEquals(128f, b.bounds.width, 0.01f);
+        assertEquals(128f, b.bounds.height, 0.01f);
+        assertEquals(100f - 64f, b.bounds.x, 0.01f);
+        assertEquals(200f - 64f, b.bounds.y, 0.01f);
+        assertEquals("hover box centered on screenX", b.screenX,
+                b.bounds.x + b.bounds.width / 2f, 0.01f);
+        assertEquals("hover box centered on screenY", b.screenY,
+                b.bounds.y + b.bounds.height / 2f, 0.01f);
+
+        // Hover doubles the drawn size (native 0.5 -> 1.0) while the center stays put.
+        assertEquals(2f * a.bounds.width, b.bounds.width, 0.01f);
+        assertEquals(2f * a.bounds.height, b.bounds.height, 0.01f);
+        assertEquals(a.screenX, b.screenX, 0.01f);
+        assertEquals(a.screenY, b.screenY, 0.01f);
+
+        // Outline + overlay must stay CONCENTRIC with the scale-tracked fill (all three use
+        // item.bounds). A single reachable+highlighted node at hover (nodeScale=1.0) keeps the roles
+        // unambiguous; the expected 128 is derived from base 64 * factor 2.
+        publishMapFrame("map", Collections.singletonList(
+                new MapNodeView(3, 1, 250f, 325f, false, true, true, false,
+                        true, false, 64f, 64f, "M", "monster", ResourceIds.MAP_NODE_MONSTER,
+                        1.0f, 0f)));
+        MapDrawPath.Submission outline = null;
+        MapDrawPath.Submission fill = null;
+        MapDrawPath.Submission overlay = null;
+        for (MapDrawPath.Submission s : MapDrawPath.mapSubmissionPlan()) {
+            if ("outline".equals(s.role)) outline = s;
+            else if ("node".equals(s.role)) fill = s;
+            else if ("overlay".equals(s.role)) overlay = s;
+        }
+        assertNotNull("reachable node must submit an outline", outline);
+        assertNotNull("highlighted node must submit a fill", fill);
+        assertNotNull("highlighted node must submit an overlay", overlay);
+        assertEquals(128f, fill.bounds.width, 0.01f);
+        assertEquals(128f, fill.bounds.height, 0.01f);
+        assertEquals("outline must share the scaled fill box x", fill.bounds.x, outline.bounds.x, 0.01f);
+        assertEquals("outline must share the scaled fill box y", fill.bounds.y, outline.bounds.y, 0.01f);
+        assertEquals("outline must share the scaled fill box w", fill.bounds.width, outline.bounds.width, 0.01f);
+        assertEquals("outline must share the scaled fill box h", fill.bounds.height, outline.bounds.height, 0.01f);
+        assertEquals("overlay must share the scaled fill box x", fill.bounds.x, overlay.bounds.x, 0.01f);
+        assertEquals("overlay must share the scaled fill box y", fill.bounds.y, overlay.bounds.y, 0.01f);
+        assertEquals("overlay must share the scaled fill box w", fill.bounds.width, overlay.bounds.width, 0.01f);
+        assertEquals("overlay must share the scaled fill box h", fill.bounds.height, overlay.bounds.height, 0.01f);
+    }
+
+    @Test
+    public void nodeBoxScaleHelperDerivesFactorAndFailsOpen() {
+        // M03 pure helper: the node DISPLAY BOX factor is nodeScale / REST_NODE_SCALE (0.5), derived
+        // from the native rest-vs-hover rule. Native MapRoomNode rests at scale=0.5 and update() lerps
+        // this.scale toward 1.0 while hb.hovered, so hover at 1.0 DOUBLES the 128px node texture draw
+        // (0.5 -> 1.0); 0.25 is a below-rest lerp sample. Fail-open: a non-finite or non-positive scale
+        // must NOT collapse the box or yield NaN — the factor is 1 (base box) in every bad case.
+        assertEquals(1f, MapDrawPath.nodeBoxScale(0.5f), 0.0001f);
+        assertEquals(2f, MapDrawPath.nodeBoxScale(1.0f), 0.0001f);
+        assertEquals(0.5f, MapDrawPath.nodeBoxScale(0.25f), 0.0001f);
+        assertEquals(1f, MapDrawPath.nodeBoxScale(Float.NaN), 0.0001f);
+        assertEquals(1f, MapDrawPath.nodeBoxScale(Float.POSITIVE_INFINITY), 0.0001f);
+        assertEquals(1f, MapDrawPath.nodeBoxScale(Float.NEGATIVE_INFINITY), 0.0001f);
+        assertEquals(1f, MapDrawPath.nodeBoxScale(0f), 0.0001f);
+        assertEquals(1f, MapDrawPath.nodeBoxScale(-1f), 0.0001f);
     }
 
     @Test

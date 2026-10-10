@@ -1,0 +1,158 @@
+# D1 (M03): the ART map node DISPLAY BOX (fill + outline + overlay) must track the native per-node
+# `scale`, so a HOVERED node grows by the native hover scale-up.
+#
+# Native (VERIFIED decompiled MapRoomNode): at rest `scale = 0.5f`; `update()` lerps `this.scale`
+# toward `1.0f` while `hb.hovered`; `render()` draws the 128px node texture at `this.scale *
+# Settings.scale` centered on the hitbox (`hb.cX/cY`), so the drawn texture SIZE animates on hover.
+# ART's projection already carries the live native `MapRoomNode.scale` as `nodeScale`; M03 makes the
+# node box a factor of it: `nodeBoxScale = nodeScale / REST_NODE_SCALE` (REST_NODE_SCALE = 0.5), so at
+# device rest (nodeScale 0.5, Settings.scale 1) the box is unchanged and a full hover (nodeScale 1.0)
+# DOUBLES it. The exact box math (base / 2x / centered / fail-open) is pinned by
+# `MapDrawPathTest.nodeBoxTracksNativeNodeScaleCenteredAndFailsOpen` and
+# `MapDrawPathTest.nodeBoxScaleHelperDerivesFactorAndFailsOpen`; this scenario only proves the LIVE
+# hover reaches the projection the box uses, and that the drawn box grows.
+#
+# Mechanism: `art op hover map <row> <col>` writes STICKY pointer state to the map-intent ECS
+# component; the InputHelper Postfix re-applies `InputHelper.mX/mY` each frame BEFORE
+# `MapRoomNode.update()` reads its hitbox, and `update()` drives `scale -> 1.0` on hover. This path
+# NEVER clicks (`hb.clicked` / `justClickedLeft` / `dungeonMapScreen.clicked` stay unset).
+#
+# C3: this scenario deliberately does NOT pick/enter a node (`art op map first` MUST NOT appear), so
+# there is NO current node. Hover-only keeps the hover scale-up observable without a current-node
+# `scale -> 0.5` force (native pulls the CURRENT node's scale down to 0.5, which would mask the
+# hover growth).
+#
+# Order-independence: leading + terminal `art present map off` resets and an explicit fresh-menu reset
+# before start-run, mirroring the sibling map scenarios.
+name: d1_map_node_hover
+schemaVersion: 1
+mode: device
+device: d1
+require:
+  env:
+    - ART_D1_SERIAL
+    - STS_CONNECTOR_PORT
+    - SLAY_THE_AMETHYST_ROOT
+steps:
+  # Idempotent leading reset: clear any map surface left by a prior scenario before fresh-menu.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"
+  # Fixed seed (same literal as `d1_map_taken_current`; the scene is asserted literally because `eq`
+  # is not interpolated).
+  - set:
+      seed: ARTMAPT01
+      target: map
+  - console: "art lab ensure-fresh-menu"
+  - wait_ms: 8000
+  - console: "art lab seed ${seed}"
+  - wait_ms: 500
+  - console: "art lab start-run IRONCLAD seed=${seed}"
+  - wait_probe:
+      timeout_ms: 45000
+      interval_ms: 500
+      assert:
+        path: lab.recipe.status
+        eq: ok
+  - wait_probe:
+      timeout_ms: 30000
+      interval_ms: 500
+      assert:
+        path: lab.runReady
+        eq: true
+  # Leave Neow/event so first-floor map nodes become selectable (room COMPLETE).
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  - console: "art lab proceed"
+  - wait_ms: 3000
+  # Art's map bridge only targets a COMPLETE room, and a pending lab transition is not a legal target
+  # (mirrors the sibling map scenarios). No `art op map first` here: no node is picked (C3), so there
+  # is no current node and the hover scale-up is unobstructed.
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.getCurrRoom().phase=com.megacrit.cardcrawl.rooms.AbstractRoom.RoomPhase.COMPLETE"
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.nextRoom=null"
+  - wait_ms: 500
+  - console: "evalcode com.megacrit.cardcrawl.dungeons.AbstractDungeon.dungeonMapScreen.open(false)"
+  # Mount first: StageHost publishes native frames while a present surface is active.
+  - console: "art present map on"
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.available
+        eq: true
+  - wait_probe:
+      timeout_ms: 20000
+      interval_ms: 500
+      assert:
+        path: projection.scene
+        eq: map
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 500
+      assert:
+        path: backend.renderPlan.entries[0].effectiveState
+        eq: FULL_READY
+  # Baseline: no hover op issued yet, so the sticky pointer is inactive.
+  - assert:
+      path: backend.mapIntent.pointerActive
+      eq: false
+  # Capture items[0]'s own identity + PRE-hover REST box width. The projection node order is stable
+  # across a hover (no reorder), and we hover items[0]'s own row/col, so this is a stable per-node
+  # mapping; `bounds.width` is the at-rest box the M03 factor scales.
+  - capture:
+      path: backend.mapDraw.items[0].row
+      var: node_hover_row
+  - capture:
+      path: backend.mapDraw.items[0].col
+      var: node_hover_col
+  - capture:
+      path: backend.mapDraw.items[0].bounds.width
+      var: node_box_width_before
+  # HOVER (pointer-only, NO click): place the native pointer over that map node.
+  - console: "art op hover map ${node_hover_row} ${node_hover_col}"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapIntent.targetHovered
+        eq: true
+  # Native rest is 0.5 and hover lerps toward 1.0; `gte: 0.6` proves the hover scale-up reached the
+  # projection the box uses (well above rest, and robust to the animation phase). There is no `gt:`
+  # operator, so the strict above-rest proof is this bounded `gte` plus the box-growth `gt_var` below.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapIntent.targetScale
+        gte: 0.6
+  # The hovered node's DISPLAY BOX must grow over its captured REST baseline. The factor is
+  # nodeScale/0.5, so at targetScale >= 0.6 the box is >= 1.2x the rest box; hover also flips
+  # `highlighted` (base 80 vs 64), so this `gt_var` is robust even mid-lerp.
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapDraw.items[0].bounds.width
+        gt_var: node_box_width_before
+  # CLEAR: deactivate the hover pointer (hover off).
+  - console: "art op pointer clear"
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapIntent.pointerActive
+        eq: false
+  # Terminal cleanup placed after the assertions; leave the device without a map surface.
+  - console: "art present map off"
+  - wait_ms: 800
+  - wait_probe:
+      timeout_ms: 8000
+      interval_ms: 500
+      assert:
+        path: backend.fullPresent.map
+        eq: "OFF"

@@ -3694,6 +3694,72 @@ allocation and Young GC pressure.
       `this.scale*Settings.scale`) is node-GEOMETRY, not tint, and is deferred (M03/M04 territory; the
       M01 residual already notes the node box is a layout box, not the native `128*Settings.scale`
       texture). No node geometry/order was touched here.
+- [ ] **M03: map node box tracks the native per-node `scale` (native hover scale-up).** Native
+      `MapRoomNode` rests at `scale = 0.5f`; `update()` lerps `this.scale` toward `1.0f` while
+      `hb.hovered`; `render()` draws the 128px node texture at `this.scale * Settings.scale`,
+      centered on the hitbox, so the drawn texture SIZE animates on hover. **Defect.** Before M03 the
+      ART node box (fill + outline + overlay) used a FIXED `n.width` (`Rect(sx - n.width*zoom/2,
+      sy - n.height*zoom/2, n.width*zoom, n.height*zoom)`; 64, or 80 when `highlighted`) and ignored
+      the live `nodeScale`, so a hovered node did not grow. **Fix (pinned formula — the FACTOR form,
+      chosen over the native-derived `128*nodeScale*settingsScale` form).** A NEW named constant
+      `REST_NODE_SCALE = 0.5f` (native rest scale) and a pure fail-open helper
+      `nodeBoxScale(nodeScale) = nodeScale / REST_NODE_SCALE` (returns `1f` when `nodeScale` is
+      non-finite or `<= 0`) drive the box: `w = n.width * nodeBoxScale * PAN.zoom()`,
+      `h = n.height * nodeBoxScale * PAN.zoom()`, KEEPING THE BOX CENTERED on `(sx, sy)`
+      (`Rect(sx - w/2, sy - h/2, w, h)`). At device rest (`Settings.scale == 1`, live rest
+      `nodeScale == 0.5`) the factor is `1` (current rendering, no regression); a full hover
+      (`nodeScale == 1.0`) is `2x` (native `128` at scale 1). The `highlighted ? 80 : 64` base
+      distinction is preserved (`80*factor > 64*factor`). The native-derived form was REJECTED
+      because it collapses the 80/64 distinction and would need the live `Settings.scale`; ART's
+      fixed `n.width` is already calibrated to the native rest texture at the device `Settings.scale`.
+      **Unchanged.** The M01 ring (`ringSize`), node tint (M02), outline color, legend, background,
+      and edges are NOT touched; node/outline/overlay remain concentric because they all use the
+      scaled `item.bounds`. Probe shape is unchanged.
+      **Tests (`MapDrawPathTest`).** `nodeBoxTracksNativeNodeScaleCenteredAndFailsOpen` (rest
+      `nodeScale=0.5` → 64 box centered; hover `nodeScale=1.0` → 128 box centered, `== 2x`; the
+      outline/overlay Submission boxes equal the scaled fill box) and
+      `nodeBoxScaleHelperDerivesFactorAndFailsOpen` (`0.5→1`, `1.0→2`, `0.25→0.5`, and
+      NaN/+Inf/−Inf/0/−1 → `1`). Two pre-existing at-rest fixtures (`mapFrame()`,
+      `projectionExposesReachablePinnedStateAndChoosesPinResource`) were pinned explicitly to
+      `nodeScale=0.5f` so their existing numeric bounds stayed unchanged; no other assertion was
+      rewritten, and the M01 ring tests are byte-identical.
+      **Scenario.** NEW `tests/ui-scenarios/device/d1_map_node_hover.yaml` (36 steps): fixed-seed
+      start-run → proceed → COMPLETE + `nextRoom=null` → open map → `art present map on` →
+      FULL_READY → capture `backend.mapDraw.items[0]` row/col + pre-hover `bounds.width` → `art op
+      hover map <row> <col>` (NO `art op map first`, so no current node and the hover scale-up is
+      unobstructed) → assert `backend.mapIntent.targetHovered true` and `targetScale >= 0.6` (above
+      native rest; the loader has no `gt:` operator) → assert `backend.mapDraw.items[0].bounds.width
+      gt_var <pre-hover baseline>` (the drawn box grew) → `art op pointer clear` → `art present map
+      off`. **D1 PENDING** (verified separately on device; scenario validated offline only).
+      Focused `--tests "artframework.sts1.render.*"`: 969 tests, 0 failures. Full `cleanTest test`
+      baseline 2256/0 (parent-owned `@junit-test`).
+      **Residual (honest).** The device run is PENDING: `Settings.scale == 1` and rest
+      `nodeScale == 0.5` were used as the basis for the factor (`×1` at rest, `×2` at hover) but are
+      NOT yet machine-confirmed on the D1 device by this slice. The box may differ from a native
+      mid-lerp frame by one frame (the reflected `scale` is sampled per frame). M04/M05/M06/M07/M09/
+      M10/M11 remain open.
+      **D1 CONFIRMED (objective).** `d1_map_node_hover.yaml` ran 36/36 TWICE; the hovered node's
+      `bounds.width` GROWS on hover, and the exhaustive check `bounds.width == (64|80) *
+      (nodeScale/0.5) * zoom` matched for ALL 32 nodes (0 mismatches) — the M03 box formula is exact.
+      No-regression green: `d1_map_taken_current` 55, `d1_full_present_map_ready` 75
+      (`backgroundCount 5`/`edgeCount>=1`/`legendCount>=6`/`paintOrder` bg<edge<legend<node/`orphanArtOutput=0`),
+      `d1_map_hover` 49 (H0). Honest nuance: the hovered FLOOR-0 node's rest `nodeScale` is NOT 0.5
+      (native `MapRoomNode.update` forces reachable floor-0 nodes to `scale=1.0` + `highlighted`,
+      plus an idle bob), so the scenario asserts GROWTH (`gt_var`) rather than an absolute x2; the
+      settled depth>0 nodes and the current/taken node do sit at exactly 0.5 (26/32 sampled). The
+      independent native-vs-ART VISUAL A/B capture was deferred at user request (VISUAL A/B PENDING);
+      the objective per-node box check above is the primary M03 evidence.
+- [ ] **Open (M03 review finding M03-01): `nodeScale` fail-open default `1.0` maps to a 2x node box.**
+      `MapNodeView.nodeScale` (M01) and `ContextFrame.coerceMap` default/clamp an unreadable or
+      short-ctor `nodeScale` to `1.0`, and `REST_NODE_SCALE = 0.5f`, so the M03 node-box helper yields
+      `1.0/0.5 = x2` for a node whose native `scale` could not be read - the fail-open should be the
+      REST box (`x1`), not a doubled box. Reachability is LOW (the live `MapRoomNode.scale` reflection
+      succeeds on the real jar; the clamp only triggers if that reflection fails, and the normal
+      `Sts1PresentationBackend` path supplies the value), and it is an M01 default-semantics leftover,
+      not introduced by M03. Fix (separate slice): make the projection/`MapNodeView` fail-open to
+      `REST_NODE_SCALE` (0.5) - or have the draw path treat a missing scale as REST - and pin it,
+      confirming the real path still supplies the live value and the ring (M01) semantics stay
+      correct. Fail-open-hardening item.
 - [ ] **H0: synthetic hover-only pointer injection (lab/console capability for D1 map hover).**
       Maps the M03/M04/M05 slices (node hover FX, node hover scale/geometry, legend hover/tip) need a
       way to place the NATIVE pointer without clicking, because native `Hitbox.update()` derives

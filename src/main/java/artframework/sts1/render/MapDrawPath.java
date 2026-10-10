@@ -73,6 +73,25 @@ public final class MapDrawPath {
         return RING_SIZE * (ns * RING_SCALE_SLOPE + RING_SCALE_OFFSET) * sc * z;
     }
 
+    /**
+     * Native {@code MapRoomNode} rest scale (VERIFIED decompiled {@code MapRoomNode}): the node
+     * texture is drawn at {@code this.scale * Settings.scale} with {@code this.scale} resting at
+     * {@code 0.5f} and lerping toward {@code 1.0f} while hovered. The map node DISPLAY BOX factor is
+     * therefore {@code nodeScale / REST_NODE_SCALE} (fail-open 1), so the box tracks the native draw
+     * size and a hovered node grows.
+     */
+    public static final float REST_NODE_SCALE = 0.5f;
+
+    /**
+     * Map node DISPLAY BOX scale factor: {@code nodeScale / REST_NODE_SCALE}. Fail-open to {@code 1f}
+     * (the REST box) when {@code nodeScale} is non-finite or non-positive, so the box never collapses
+     * or yields NaN.
+     */
+    static float nodeBoxScale(float nodeScale) {
+        return nodeScale > 0f && !Float.isNaN(nodeScale) && !Float.isInfinite(nodeScale)
+                ? nodeScale / REST_NODE_SCALE : 1f;
+    }
+
     public static final class DrawItem {
         public final int row;
         public final int col;
@@ -526,9 +545,13 @@ public final class MapDrawPath {
             AssetResolveResult highlight = highlightId.isEmpty()
                     ? AssetResolveResult.missing("", "not active")
                     : ArtFramework.assets().resolve(highlightId);
-            Rect bounds = new Rect(sx - n.width * PAN.zoom() / 2f,
-                    sy - n.height * PAN.zoom() / 2f,
-                    n.width * PAN.zoom(), n.height * PAN.zoom());
+            // M03: the box tracks the native per-node scale. Native rests at scale 0.5 and lerps
+            // toward 1.0 on hover, so base * (nodeScale / REST_NODE_SCALE) doubles on hover. The
+            // factor is fail-open 1; the box stays CENTERED on the node hitbox (sx, sy).
+            float factor = nodeBoxScale(n.nodeScale);
+            float w = n.width * factor * PAN.zoom();
+            float h = n.height * factor * PAN.zoom();
+            Rect bounds = new Rect(sx - w / 2f, sy - h / 2f, w, h);
             out.add(new DrawItem(n.row, n.col, sx, sy, n.taken, n.highlighted, n.reachable,
                     n.pinned, n.symbol, n.roomKind, n.resourceId,
                     art.found || art.fallback ? art.source : "", art.found, outlineId, highlightId,

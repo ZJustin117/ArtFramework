@@ -4529,3 +4529,18 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       (`OverlayMenu.renderBlackScreen` 0.75) already runs natively (only `GridCardSelectScreen.render`
       is suppressed), so it is NOT a gap. Each of these is a separate bounded slice; the scrim needs a
       new `confirmScreenUp` projection to be native-faithful.
+
+- [ ] **Open (E-series scoping, verified): real per-act background pixels are NOT supplied.** VERIFIED:
+      `BackgroundRenderGate.renderSelectedVariant` draws only SYNTHETIC diagnostic variants
+      (`SOLID`/`CHECKER`/`GRID` white-square quads) for `art verify mode background`; it does NOT
+      supply real act backgrounds, and no ART per-act background resource exists. Native
+      `TheBottomScene.renderCombatRoomBg` is a MULTI-LAYER animated background
+      (`bottomScene/scene.atlas` regions `mod/fg`,`mod/mg`,`mod/mod1`,`mod/mod2`,`mod/midWall`,
+      `mod/ceiling`,`mod/ceilingMod1..6`, with dynamic wall/ceiling selection + an overlay-color quad),
+      and TheCity/TheBeyond/TheEnding are analogous. So each E slice is a real animated multi-layer
+      reconstruction, not a single file — larger than a quick pixel swap. Plan per act:
+      (1) audit the exact native regions + dynamic selection for ONE act, (2) supply them as resolvable
+      resources + a pre-native draw behind the suppressed native family, (3) use
+      `d1_verify_background*`/`d1_verify_native_isolate` as the objective gate + a visual A/B.
+      The `BackgroundRenderGate` synthetic variants remain the background-only diagnostic; do not
+      confuse them with real act pixels.

@@ -19,6 +19,8 @@ public final class CardView {
     public final String cost;
     public final String type;
     public final String description;
+    /** Native card color enum constant name (e.g. {@code RED}/{@code COLORLESS}); default {@code ""}. */
+    public final String color;
 
     public CardView(
             CardRef ref,
@@ -39,6 +41,15 @@ public final class CardView {
             CardRef ref, CardZone zone, int slotIndex, CardPose pose, boolean playable,
             boolean selected, boolean hovered, boolean dragging, String artResourceId,
             String frameResourceId, String title, String cost, String type, String description) {
+        this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
+                frameResourceId, title, cost, type, description, "");
+    }
+
+    public CardView(
+            CardRef ref, CardZone zone, int slotIndex, CardPose pose, boolean playable,
+            boolean selected, boolean hovered, boolean dragging, String artResourceId,
+            String frameResourceId, String title, String cost, String type, String description,
+            String color) {
         if (ref == null) {
             throw new IllegalArgumentException("ref required");
         }
@@ -56,6 +67,7 @@ public final class CardView {
         this.cost = cost != null ? cost : "";
         this.type = type != null ? type : "";
         this.description = description != null ? description : "";
+        this.color = color != null ? color : "";
     }
 
     public static Builder builder(CardRef ref) {
@@ -77,6 +89,7 @@ public final class CardView {
         private String cost = "";
         private String type = "";
         private String description = "";
+        private String color = "";
 
         Builder(CardRef ref) {
             this.ref = ref;
@@ -131,6 +144,7 @@ public final class CardView {
         public Builder cost(String value) { this.cost = value; return this; }
         public Builder type(String value) { this.type = value; return this; }
         public Builder description(String value) { this.description = value; return this; }
+        public Builder color(String value) { this.color = value; return this; }
 
         public CardView build() {
             return new CardView(
@@ -143,7 +157,7 @@ public final class CardView {
                     hovered,
                     dragging,
                     artResourceId, frameResourceId, title != null ? title : ref.cardId,
-                    cost, type, description);
+                    cost, type, description, color);
         }
     }
 }

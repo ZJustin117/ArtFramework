@@ -76,6 +76,25 @@ public class Sts1AtlasMaterializerTest {
                     + "  offset: 0, 0\n"
                     + "  index: -1\n";
 
+    /**
+     * U02 legacy-atlas TEXT for the {@code cardui} atlas containing the 512-page attack/red base
+     * background region. Region names contain a {@code /} (page/region style), which the parser must
+     * keep verbatim.
+     */
+    private static final String CARDUI_ATLAS_TEXT =
+            "cardui.png\n"
+                    + "size: 512, 512\n"
+                    + "format: RGBA8888\n"
+                    + "filter: Linear, Linear\n"
+                    + "repeat: none\n"
+                    + "512/bg_attack_red\n"
+                    + "  rotate: false\n"
+                    + "  xy: 10, 20\n"
+                    + "  size: 64, 48\n"
+                    + "  orig: 64, 48\n"
+                    + "  offset: 0, 0\n"
+                    + "  index: -1\n";
+
     @After
     public void restoreDefaultProvider() {
         Sts1AtlasMaterializer.setProviderForTests(null);
@@ -579,6 +598,90 @@ public class Sts1AtlasMaterializerTest {
         assertTrue(liveResolved.texture == page);
         assertEquals(1, provider.atlasTextCalls);
         assertEquals(1, source.atlasCalls);
+    }
+
+    /**
+     * U02. The {@code cardui} 512-page base-background region resolves through the LIVE atlas seam
+     * ({@code ImageMaster.cardUiAtlas} shape): {@code findRegion} plus neutral conversion.
+     */
+    @Test
+    public void resolvesCardUiBaseBackgroundRegionFromLiveAtlas() {
+        Texture page = newTexture(512, 512);
+        StubLiveSource source = new StubLiveSource();
+        TextureAtlas atlas = new TextureAtlas();
+        atlas.addRegion("512/bg_attack_red", page, 10, 20, 64, 48);
+        source.atlases.put("cardui", atlas);
+        Sts1AtlasMaterializer.setLiveAtlasSource(source);
+
+        Sts1AtlasMaterializer.RegionTexture resolved =
+                Sts1AtlasMaterializer.regionFromAtlas("cardui", "512/bg_attack_red");
+
+        assertNotNull(resolved);
+        assertTrue(resolved.texture == page);
+        AtlasRegion region = resolved.region;
+        assertEquals("512/bg_attack_red", region.name);
+        assertEquals(10, region.x);
+        assertEquals(20, region.y);
+        assertEquals(64, region.width);
+        assertEquals(48, region.height);
+        assertEquals(512, region.pageWidth);
+        assertEquals(512, region.pageHeight);
+        assertEquals(0, region.degrees);
+    }
+
+    @Test
+    public void missingCardUiRegionAndAbsentLiveSourceFailOpen() {
+        Texture page = newTexture(512, 512);
+        StubLiveSource source = new StubLiveSource();
+        TextureAtlas atlas = new TextureAtlas();
+        atlas.addRegion("512/bg_attack_red", page, 10, 20, 64, 48);
+        source.atlases.put("cardui", atlas);
+        Sts1AtlasMaterializer.setLiveAtlasSource(source);
+
+        assertNull("an absent region must fail open",
+                Sts1AtlasMaterializer.regionFromAtlas("cardui", "512/bg_skill_blue"));
+
+        Sts1AtlasMaterializer.setLiveAtlasSource(null);
+        assertNull("an absent live source must fail open",
+                Sts1AtlasMaterializer.regionFromAtlas("cardui", "512/bg_attack_red"));
+    }
+
+    /**
+     * U02. The same {@code cardui} 512-page base-background region resolves through the legacy atlas
+     * TEXT seam ({@code AtlasProvider}).
+     */
+    @Test
+    public void resolvesCardUiBaseBackgroundRegionFromLegacyAtlasText() {
+        StubProvider provider = new StubProvider();
+        provider.texts.put("cardui", CARDUI_ATLAS_TEXT);
+        Texture page = newTexture();
+        provider.pages.put("cardui|cardui.png", page);
+        Sts1AtlasMaterializer.setProviderForTests(provider);
+
+        Sts1AtlasMaterializer.RegionTexture resolved =
+                Sts1AtlasMaterializer.region("cardui", "512/bg_attack_red");
+
+        assertNotNull(resolved);
+        assertTrue(resolved.texture == page);
+        AtlasRegion region = resolved.region;
+        assertEquals("512/bg_attack_red", region.name);
+        assertEquals("cardui.png", region.page);
+        assertEquals(10, region.x);
+        assertEquals(20, region.y);
+        assertEquals(64, region.width);
+        assertEquals(48, region.height);
+        assertEquals(512, region.pageWidth);
+        assertEquals(512, region.pageHeight);
+    }
+
+    @Test
+    public void missingCardUiRegionFromLegacyAtlasTextResolvesToNull() {
+        StubProvider provider = new StubProvider();
+        provider.texts.put("cardui", CARDUI_ATLAS_TEXT);
+        provider.pages.put("cardui|cardui.png", newTexture());
+        Sts1AtlasMaterializer.setProviderForTests(provider);
+
+        assertNull(Sts1AtlasMaterializer.region("cardui", "512/bg_skill_blue"));
     }
 
     private static Texture newTexture() {

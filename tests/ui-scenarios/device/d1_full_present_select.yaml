@@ -96,3 +96,26 @@ steps:
   - assert:
       path: backend.selectDraw.count
       gt_var: select_materialized_resolved
+  # U02: the live `ImageMaster.cardUiAtlas` is now wired via `CardUiAtlasSource`, and each select
+  # card item derives its base-background frame from the native card type/color as a real
+  # `cardui#512/bg_<type>_<color>` 512-page region descriptor. The item therefore exposes the
+  # resolved descriptor in `frameResourceId`. A real run card must map to a real region (not the
+  # old non-file-backed `cardui/frame` default). `items[0]` is the starting Ascender's Bane CURSE
+  # (type CURSE / color COLORLESS), which correctly fail-opens to "" (no region), so the assertions
+  # target a real ATTACK card (items[1], the first Strike). Note: the item's PRIMARY `resourceId`
+  # (`ui.select.card`/`ui.select.card.selected`) still resolves to the `cardui/frame` source, so
+  # the frame gap — and hence a non-decreasing `missingArt` — is a separate follow-up and is not
+  # asserted here.
+  - assert:
+      path: backend.selectDraw.items[1].frameResourceId
+      exists: true
+  - assert:
+      path: backend.selectDraw.items[1].frameResourceId
+      contains: "cardui#512/bg_"
+  - assert:
+      path: backend.selectDraw.items[1].frameResourceId
+      neq: "cardui/frame"
+  # items[0] (the CURSE) must fail open to NO region, not a bogus descriptor.
+  - assert:
+      path: backend.selectDraw.items[0].frameResourceId
+      eq: ""

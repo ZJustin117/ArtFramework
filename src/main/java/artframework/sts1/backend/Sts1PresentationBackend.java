@@ -135,6 +135,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
 
     @Override
     public void installSignals() {
+        installCardUiAtlasSource();
         if (actionSubscription != null && actionSubscription.isConnected()) return;
         actionSubscription = SignalGroups.nativeGroup().connect(
                 Pattern.compile("^ui/(combat_hand|combat_controls|map|event|select_grid|select_hand|end_turn)/"
@@ -160,6 +161,20 @@ public final class Sts1PresentationBackend implements SignalBackend {
     public void uninstallSignals() {
         if (actionSubscription != null) actionSubscription.disconnect();
         actionSubscription = null;
+    }
+
+    /**
+     * Installs the STS1 {@code cardui} live atlas source once (idempotent: the materializer just
+     * rebinds the seam and clears borrows). This is the production wiring that lets the select
+     * surface resolve {@code cardui#512/bg_<type>_<color>} base-background regions from
+     * {@code ImageMaster.cardUiAtlas}. Fail-open: a failure must never break signal install.
+     */
+    private void installCardUiAtlasSource() {
+        try {
+            artframework.sts1.assets.Sts1AtlasMaterializer.setLiveAtlasSource(
+                    new artframework.sts1.assets.CardUiAtlasSource());
+        } catch (Throwable ignored) {
+        }
     }
 
     public long sceneEpoch() {
@@ -1942,6 +1957,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                         .title(card.name)
                         .cost(cardCost(card))
                         .type(cardType(card))
+                        .color(cardColor(card))
                         .description(card.rawDescription)
                         .build());
             }
@@ -1979,6 +1995,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     .title(card.name)
                                     .cost(cardCost(card))
                                     .type(cardType(card))
+                                    .color(cardColor(card))
                                     .description(card.rawDescription)
                                     .build());
                 }
@@ -2151,6 +2168,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
 
     private static String cardType(AbstractCard card) {
         return card != null && card.type != null ? card.type.name() : "";
+    }
+
+    private static String cardColor(AbstractCard card) {
+        return card != null && card.color != null ? card.color.name() : "";
     }
 
     private boolean playable(AbstractCard card, CardZone zone, long revision) {

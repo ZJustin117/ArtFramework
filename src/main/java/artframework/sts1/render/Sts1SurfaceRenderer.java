@@ -1057,10 +1057,10 @@ public final class Sts1SurfaceRenderer {
                 try {
                     artframework.component.Rect b = new artframework.component.Rect(
                             item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
-                    drawResolvedTexture(sb, item.resourceId, b);
                     if (!item.confirm && !item.cardId.isEmpty()) {
-                        drawResolvedTexture(sb, item.frameResourceId, b);
+                        drawSelectFrameBackground(sb, item.frameResourceId, b);
                     }
+                    drawResolvedTexture(sb, item.resourceId, b);
                     com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
                             sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
                             item.label, item.x, item.y,
@@ -1070,6 +1070,44 @@ public final class Sts1SurfaceRenderer {
         } catch (Throwable ignored) {
         } finally {
             NativeRenderBridge.recordSurfaceDrawIfPending(surfaceId, SelectDrawPath.materializedDrawCount());
+        }
+    }
+
+    /**
+     * Select card BASE-BACKGROUND frame: the derived {@code "<atlasKey>#<region>"} descriptor (for
+     * example {@code cardui#512/bg_attack_red}) is resolved through
+     * {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas} and drawn at the item
+     * bounds using the region UV, BEHIND the primary card resource. A non-{@code #} id keeps the
+     * existing {@link #drawResolvedTexture} path. Per-item fail-open; never throws.
+     *
+     * <p>Residual: cardui base-background regions are unrotated, so the packed UV rect is drawn as-is
+     * and rotated regions are not rotated here.
+     */
+    private static void drawSelectFrameBackground(
+            SpriteBatch sb, String frameResourceId, artframework.component.Rect bounds) {
+        if (sb == null || bounds == null || bounds.width <= 0f || bounds.height <= 0f
+                || frameResourceId == null || frameResourceId.isEmpty()) {
+            return;
+        }
+        try {
+            int hash = frameResourceId.indexOf('#');
+            if (hash < 0) {
+                drawResolvedTexture(sb, frameResourceId, bounds);
+                return;
+            }
+            String atlasKey = frameResourceId.substring(0, hash);
+            String regionName = frameResourceId.substring(hash + 1);
+            artframework.sts1.assets.Sts1AtlasMaterializer.RegionTexture resolved =
+                    artframework.sts1.assets.Sts1AtlasMaterializer
+                            .regionFromAtlas(atlasKey, regionName);
+            if (resolved == null || resolved.texture == null || resolved.region == null) {
+                return;
+            }
+            float[] uv = resolved.region.uvRect();
+            sb.setColor(Color.WHITE);
+            sb.draw(resolved.texture, bounds.x, bounds.y, bounds.width, bounds.height,
+                    uv[0], uv[1], uv[2], uv[3]);
+        } catch (Throwable ignored) {
         }
     }
 

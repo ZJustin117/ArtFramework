@@ -23,12 +23,18 @@ import artframework.presentation.PresentationRegistry;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
 import artframework.sts1.assets.Sts1AssetMaterializer;
+import artframework.sts1.assets.Sts1AtlasMaterializer;
 import artframework.sts1.assets.Sts1HostAssets;
 import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.TextureData;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import org.junit.After;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,6 +47,7 @@ import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class SelectDrawPathTest {
@@ -51,6 +58,8 @@ public class SelectDrawPathTest {
         Sts1RenderPipeline.resetForTests();
         FullPresentMode.resetForTests();
         CombatInputRouter.resetForTests();
+        Sts1AtlasMaterializer.setLiveAtlasSource(null);
+        Sts1AtlasMaterializer.clearCache();
     }
 
     private void publishSelectFrame() {
@@ -144,7 +153,8 @@ public class SelectDrawPathTest {
         assertFalse(items.get(0).selected);
         assertTrue(items.get(0).enabled);
         assertEquals(ResourceIds.UI_SELECT_CARD, items.get(0).resourceId);
-        assertEquals(ResourceIds.UI_SELECT_CARD_FRAME, items.get(0).frameResourceId);
+        assertEquals("a card without type/color maps to no cardui base-background region",
+                "", items.get(0).frameResourceId);
         assertEquals(250f, items.get(0).w, 0.001f);
         assertEquals(350f, items.get(0).h, 0.001f);
         assertEquals(111f, items.get(0).x, 0.001f);
@@ -338,14 +348,15 @@ public class SelectDrawPathTest {
 
         assertFalse(item.enabled);
         assertEquals(ResourceIds.UI_SELECT_CARD_DISABLED, item.resourceId);
-        assertEquals(ResourceIds.UI_SELECT_CARD_FRAME, item.frameResourceId);
+        assertEquals("a disabled card without type/color maps to no cardui base-background region",
+                "", item.frameResourceId);
     }
 
     /**
-     * U01. A visible select card whose frame maps to the non-file-backed {@code cardui/frame}
-     * atlas key supplies no drawable pixels, so the probe must not count it as fully materialized:
-     * the unresolved frame is a gap. On current code {@code missingArt} / {@code materializedResolved}
-     * are absent (null), which is the required Red.
+     * U01. A visible select card with no type/color maps to no cardui base-background region, and
+     * its primary ({@code UI_SELECT_CARD} -> {@code cardui/frame}) is not file-backed, so the probe
+     * must not count it as fully materialized: it is a gap. On current code {@code missingArt} /
+     * {@code materializedResolved} are absent (null), which was the U01 Red.
      */
     @Test
     public void selectGapCountsUnresolvedCardFrameAsMissingNotSupplied() {
@@ -368,20 +379,23 @@ public class SelectDrawPathTest {
                         < ((Integer) probe.get("count")).intValue());
 
         SelectDrawPath.DrawItem card = SelectDrawPath.buildFromProjection().get(0);
-        assertEquals("the card frame uses the cardui/frame atlas key",
-                ResourceIds.UI_SELECT_CARD_FRAME, card.frameResourceId);
-        assertFalse("cardui/frame must not be a file-backed drawable",
+        assertEquals("a card without type/color maps to no cardui base-background region",
+                "", card.frameResourceId);
+        assertFalse("the card's primary cardui/frame must not be a file-backed drawable",
                 Sts1AssetMaterializer.isFileBacked(
-                        ArtFramework.assets().resolve(ResourceIds.UI_SELECT_CARD_FRAME).source));
+                        ArtFramework.assets().resolve(ResourceIds.UI_SELECT_CARD).source));
     }
 
     /**
-     * U01. The accounting is genuinely resolve-aware, not "always missing": a card whose primary AND
-     * frame both map to a real loose PNG is fully materialized with no gap.
+     * U01/U02. The accounting is genuinely resolve-aware, not "always missing": a card whose primary
+     * ({@code UI_SELECT_CARD_DISABLED} -> file-backed disabledButton.png) AND whose type/color-derived
+     * cardui base-background frame descriptor resolve is fully materialized with no gap. The frame
+     * descriptor here is {@code cardui#512/bg_attack_red}, resolved through the live atlas source.
      */
     @Test
     public void selectResolvableResourcesCountAsMaterializedNotGap() {
         Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
         publishSelectFrame(
                 SelectView.grid(
                         Collections.singletonList(
@@ -390,6 +404,8 @@ public class SelectDrawPathTest {
                                         .slot(0)
                                         .playable(false)
                                         .frame(ResourceIds.UI_SELECT_CARD_DISABLED)
+                                        .type("ATTACK")
+                                        .color("RED")
                                         .build()),
                         Collections.<String>emptyList(),
                         false,
@@ -398,7 +414,7 @@ public class SelectDrawPathTest {
         Map<String, Object> probe = SelectDrawPath.probeSlice();
         assertEquals(Integer.valueOf(1), probe.get("count"));
         assertNotNull("probe must expose missingArt", probe.get("missingArt"));
-        assertEquals("both the primary and the frame resolve to loose PNGs",
+        assertEquals("both the primary and the frame descriptor resolve",
                 Integer.valueOf(0), probe.get("missingArt"));
         assertNotNull("probe must expose materializedResolved", probe.get("materializedResolved"));
         assertEquals("the single visible item is fully materialized",
@@ -420,6 +436,275 @@ public class SelectDrawPathTest {
         assertTrue("the catalog must still contain the frame key", frame.found);
         assertEquals("the frame resource normalizes to the non-file-backed cardui/frame atlas key",
                 "cardui/frame", Sts1AssetMaterializer.normalize(frame.source));
+    }
+
+    /**
+     * U02. The select card BASE-BACKGROUND frame is a region in the {@code cardui} atlas derived from
+     * the card's type and color: {@code cardui#512/bg_<type>_<color>}. The type/color are
+     * case-insensitive.
+     */
+    @Test
+    public void selectCardFrameMapsTypeAndColorToCardUiBaseBackgroundRegion() {
+        assertEquals("cardui#512/bg_attack_red",
+                firstCardFrame("ATTACK", "RED"));
+        assertEquals("lower-case type/color must map identically",
+                "cardui#512/bg_attack_red",
+                firstCardFrame("attack", "red"));
+    }
+
+    @Test
+    public void selectCardFrameMappingMatrixUsesMappedColors() {
+        assertEquals("cardui#512/bg_skill_green", firstCardFrame("SKILL", "GREEN"));
+        assertEquals("cardui#512/bg_power_blue", firstCardFrame("POWER", "BLUE"));
+        assertEquals("colorless maps to the gray base-background page",
+                "cardui#512/bg_attack_gray", firstCardFrame("ATTACK", "colorless"));
+    }
+
+    /**
+     * U02. An unknown/absent type (or an unmappable color) yields no base-background region: the
+     * frame descriptor is empty, so no frame draw is attempted and the item is reported as a gap.
+     */
+    @Test
+    public void selectCardFrameUnmappedTypeOrColorHasNoFrameRegionAndCountsAsGap() {
+        Sts1HostAssets.install();
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("CURSE")
+                        .color("RED")
+                        .build()));
+        SelectDrawPath.DrawItem curse = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("an unmapped type must produce no frame descriptor",
+                "", curse.frameResourceId);
+        assertTrue("the unmapped card must count as a gap: "
+                        + SelectDrawPath.probeSlice().get("missingArt"),
+                ((Integer) SelectDrawPath.probeSlice().get("missingArt")).intValue() >= 1);
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g2", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .build()));
+        SelectDrawPath.DrawItem noType = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("an absent type must produce no frame descriptor",
+                "", noType.frameResourceId);
+        assertTrue("the absent-type card must count as a gap: "
+                        + SelectDrawPath.probeSlice().get("missingArt"),
+                ((Integer) SelectDrawPath.probeSlice().get("missingArt")).intValue() >= 1);
+    }
+
+    /**
+     * U02. With a live {@code cardui} atlas source containing {@code 512/bg_attack_red}, the
+     * type/color-derived frame descriptor resolves through the production resolution path and the
+     * item is fully materialized (its file-backed disabled primary resolves too).
+     */
+    @Test
+    public void selectCardFrameDerivedRegionResolvesThroughLiveAtlas() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .playable(false)
+                        .type("ATTACK")
+                        .color("RED")
+                        .build()));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("cardui#512/bg_attack_red", item.frameResourceId);
+        assertNotNull("the derived region must resolve through the live atlas seam",
+                Sts1AtlasMaterializer.regionFromAtlas("cardui", "512/bg_attack_red"));
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertEquals("the resolved frame descriptor leaves no gap",
+                Integer.valueOf(0), probe.get("missingArt"));
+        assertEquals("the single visible item is fully materialized",
+                Integer.valueOf(1), probe.get("materializedResolved"));
+    }
+
+    /**
+     * U02 fail-open. Without a live atlas (or without the region), the derived frame descriptor does
+     * NOT resolve, so the item is reported as a gap rather than silently counted as materialized.
+     */
+    @Test
+    public void selectCardFrameDerivedRegionUnresolvedCountsAsGap() {
+        Sts1HostAssets.install();
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .playable(false)
+                        .type("ATTACK")
+                        .color("RED")
+                        .build()));
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals("the derived frame descriptor is the cardui region",
+                "cardui#512/bg_attack_red",
+                SelectDrawPath.buildFromProjection().get(0).frameResourceId);
+        assertEquals("an unresolved derived frame is a gap",
+                Integer.valueOf(1), probe.get("missingArt"));
+        assertEquals(Integer.valueOf(0), probe.get("materializedResolved"));
+    }
+
+    /**
+     * U02 criterion 2 (accounting honesty), unknown-COLOR half: a KNOWN type with an UNMAPPABLE
+     * color ({@code WAT}) or a blank color yields no base-background region, exactly like an unknown
+     * type. The card's primary ({@code UI_SELECT_CARD_DISABLED} -> file-backed
+     * {@code images/ui/event/disabledButton.png}) already resolves here, so the frame descriptor is
+     * the ONLY unresolved required resource: a blank frame must therefore be the sole gap
+     * ({@code missingArt == 1}) with nothing fully materialized ({@code materializedResolved == 0}).
+     * The prior coverage only varied the TYPE, so this pins the color branch of the mapping and its
+     * accounting independently.
+     */
+    @Test
+    public void selectCardFrameUnknownColorHasNoFrameRegionAndCountsAsGap() {
+        Sts1HostAssets.install();
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .playable(false)
+                        .type("ATTACK")
+                        .color("WAT")
+                        .build()));
+        SelectDrawPath.DrawItem unknown = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("a known type with an unmappable color must produce no frame descriptor",
+                "", unknown.frameResourceId);
+        Map<String, Object> unknownProbe = SelectDrawPath.probeSlice();
+        assertEquals("the file-backed primary resolves, so the blank frame is the only gap",
+                Integer.valueOf(1), unknownProbe.get("missingArt"));
+        assertEquals("nothing is fully materialized while the frame is unresolved",
+                Integer.valueOf(0), unknownProbe.get("materializedResolved"));
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g2", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .playable(false)
+                        .type("ATTACK")
+                        .color("")
+                        .build()));
+        SelectDrawPath.DrawItem blank = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("a known type with a blank color must produce no frame descriptor",
+                "", blank.frameResourceId);
+        Map<String, Object> blankProbe = SelectDrawPath.probeSlice();
+        assertEquals("the blank color still leaves exactly the frame as the gap",
+                Integer.valueOf(1), blankProbe.get("missingArt"));
+        assertEquals(Integer.valueOf(0), blankProbe.get("materializedResolved"));
+    }
+
+    /**
+     * U02 criterion 2 (accounting honesty), load-bearing half: with the card's primary already
+     * file-backed ({@code playable(false)} -> {@code UI_SELECT_CARD_DISABLED}), the type/color-derived
+     * frame descriptor is the ONLY remaining requirement. Without a live {@code cardui} atlas the
+     * descriptor {@code cardui#512/bg_attack_red} does NOT resolve, so the item must still be a gap
+     * ({@code missingArt == 1}, {@code materializedResolved == 0}); installing a live atlas carrying
+     * {@code 512/bg_attack_red} must flip it to fully materialized ({@code missingArt == 0},
+     * {@code materializedResolved == 1}). This pair proves the frame requirement - not the primary -
+     * decides the account, so a regression that dropped it would fail the unresolved half (the gap
+     * would silently become zero).
+     */
+    @Test
+    public void selectCardFrameRequirementDecidesAccountingWhenPrimaryResolves() {
+        Sts1HostAssets.install();
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .playable(false)
+                        .type("ATTACK")
+                        .color("RED")
+                        .build()));
+        SelectDrawPath.DrawItem unresolved = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("cardui#512/bg_attack_red", unresolved.frameResourceId);
+        Map<String, Object> before = SelectDrawPath.probeSlice();
+        assertEquals("the unresolved frame is the only gap even though the primary resolves",
+                Integer.valueOf(1), before.get("missingArt"));
+        assertEquals(Integer.valueOf(0), before.get("materializedResolved"));
+
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        Map<String, Object> after = SelectDrawPath.probeSlice();
+        assertEquals("the same item is fully materialized once the frame region resolves",
+                Integer.valueOf(0), after.get("missingArt"));
+        assertEquals(Integer.valueOf(1), after.get("materializedResolved"));
+    }
+
+    /** Builds a single-card select frame and returns the built card's frame descriptor. */
+    private SelectDrawPath.DrawItem firstDrawItem(String type, String color) {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type(type)
+                        .color(color)
+                        .build()));
+        return SelectDrawPath.buildFromProjection().get(0);
+    }
+
+    private String firstCardFrame(String type, String color) {
+        return firstDrawItem(type, color).frameResourceId;
+    }
+
+    private static SelectView singleSelectCard(CardView card) {
+        return SelectView.grid(
+                Collections.singletonList(card),
+                Collections.<String>emptyList(),
+                false,
+                false);
+    }
+
+    /** Live atlas source exposing a {@code cardui} page with the given base-background regions. */
+    private static Sts1AtlasMaterializer.LiveAtlasSource cardUiLiveSource(String... regionNames) {
+        Texture page = noGlTexture(512, 512);
+        TextureAtlas atlas = new TextureAtlas();
+        for (int i = 0; i < regionNames.length; i++) {
+            atlas.addRegion(regionNames[i], page, 10 * (i + 1), 20, 64, 48);
+        }
+        StubLiveAtlasSource source = new StubLiveAtlasSource();
+        source.atlases.put("cardui", atlas);
+        return source;
+    }
+
+    private static Texture noGlTexture(final int width, final int height) {
+        try {
+            Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Texture texture =
+                    (Texture) ((sun.misc.Unsafe) unsafeField.get(null)).allocateInstance(Texture.class);
+            Field dataField = Texture.class.getDeclaredField("data");
+            dataField.setAccessible(true);
+            dataField.set(texture, new TextureData() {
+                public TextureDataType getType() { return TextureDataType.Pixmap; }
+                public boolean isPrepared() { return true; }
+                public void prepare() {}
+                public Pixmap consumePixmap() { return null; }
+                public boolean disposePixmap() { return false; }
+                public void consumeCustomData(int target) {}
+                public int getWidth() { return width; }
+                public int getHeight() { return height; }
+                public Pixmap.Format getFormat() { return Pixmap.Format.RGBA8888; }
+                public boolean useMipMaps() { return false; }
+                public boolean isManaged() { return false; }
+            });
+            return texture;
+        } catch (Exception failure) {
+            throw new AssertionError("could not create no-GL texture test double", failure);
+        }
+    }
+
+    private static final class StubLiveAtlasSource implements Sts1AtlasMaterializer.LiveAtlasSource {
+        final Map<String, TextureAtlas> atlases = new LinkedHashMap<String, TextureAtlas>();
+
+        public TextureAtlas atlas(String atlasKey) {
+            return atlases.get(atlasKey);
+        }
     }
 
     @Test

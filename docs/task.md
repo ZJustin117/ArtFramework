@@ -4347,3 +4347,32 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
  - [ ] **Open (M07c): mobile `BOSS_W = 560*scale` branch.** Native `renderBossIcon` has a
        mobile/`Settings.isMobile` branch (`BOSS_W = 560*scale` and its own offset) that ART does not
        model; the current implementation reproduces the desktop branch only.
+
+- [x] **U02: grid/map-select card BASE-BACKGROUND region (`cardui#512/bg_<type>_<color>`).** The
+      select card frame was mapped to `cardui/frame` — a region that does not exist in the `cardui`
+      atlas (real regions are `512/bg_attack_red`, `1024/bg_skill_green`, …) — and the atlas was not
+      wired, so the frame drew nothing while U01 counted it as a gap. Fix: NEW
+      `artframework.sts1.assets.CardUiAtlasSource` implements `Sts1AtlasMaterializer.LiveAtlasSource`
+      returning `ImageMaster.cardUiAtlas` for the `cardui` key (reflective, `try/catch`, fail-open
+      off-game), installed once from `Sts1PresentationBackend.installSignals()`; `SelectDrawPath`
+      derives each card's frame descriptor from the native type/color as
+      `cardui#512/bg_<type>_<color>` (attack/skill/power × red/green/blue/purple; `colorless→gray` 512
+      fallback; unknown type/color → `""` no draw), and `Sts1SurfaceRenderer.renderSelect` resolves
+      it via `Sts1AtlasMaterializer.regionFromAtlas` and draws the page texture+region rect BEHIND the
+      card. `CardView` gains `color` (soft-read from `AbstractCard.color`; new 15-arg ctor; old ctors
+      default `""`). `missingArt` accounting is now descriptor-aware (`cardui#<region>` resolves iff
+      `regionFromAtlas != null`; a blank descriptor is a gap). Tests:
+      `Sts1AtlasMaterializerTest`/`SelectDrawPathTest`/NEW `CardUiAtlasSourceTest`. Focused: 1223/0.
+      Scenario `d1_full_present_select.yaml` (29→32 steps) asserts `items[0].frameResourceId contains
+      "cardui#512/bg_"` and `neq "cardui/frame"`. **D1 PENDING.** **Honest limit:** this supplies ONLY
+      the base background; a select card item's PRIMARY `resourceId` (`ui.select.card*`) still maps to
+      the non-file-backed `cardui/frame`, so `missingArt` does NOT decrease yet (the scenario asserts
+      the region descriptor, not a gap decrease) — mapping `UI_SELECT_CARD*` to the base descriptor or
+      supplying the full frame is the follow-up.
+- [ ] **Open (U02b): full native card frame = layered regions.** U02 supplies only `512/bg_<type>_<color>`.
+      Native `AbstractCard.renderCardBg` also draws the layered `common|rare|uncommon_left|center|right`
+      pieces, the `card_<color>_orb` energy orb, and the banner; ART does not. Also unmapped/absent:
+      `512/bg_<type>_{colorless,silhouette,black}` (only the `colorless→gray` fallback is used; no 1024
+      fallback), curse/status/absent-type cards, and `region.rotated()` (BG regions are unrotated).
+      Follow-up slice: add the layered pieces + orb (+ rarity from `AbstractCard.rarity`), and resolve
+      `UI_SELECT_CARD*` to the base descriptor so `missingArt` reflects the real remaining gap.

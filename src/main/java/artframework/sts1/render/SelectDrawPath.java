@@ -137,7 +137,7 @@ public final class SelectDrawPath {
                             y,
                             false,
                             cardResource(selected, c.playable),
-                            knownOrFallback(c.frameResourceId, ResourceIds.UI_SELECT_CARD_FRAME),
+                            cardFrameDescriptor(c.type, c.color),
                             250f,
                             350f));
             i++;
@@ -146,6 +146,43 @@ public final class SelectDrawPath {
             out.add(confirmItem());
         }
         return out;
+    }
+
+    /**
+     * Derives the select card BASE-BACKGROUND frame descriptor from the card's native type/color:
+     * {@code cardui#512/bg_<type>_<color>} for a known {@code attack|skill|power} type and a mappable
+     * color, else {@code ""}. Type/color are matched case-insensitively; {@code colorless} maps to the
+     * {@code gray} base-background page. Fail-open: a null/blank/unmapped value or any failure yields
+     * {@code ""} (no frame draw instead of a bogus one).
+     */
+    static String cardFrameDescriptor(String type, String color) {
+        try {
+            String t = type != null ? type.trim().toLowerCase(java.util.Locale.ROOT) : "";
+            if (!"attack".equals(t) && !"skill".equals(t) && !"power".equals(t)) {
+                return "";
+            }
+            String mapped = mappedColor(color);
+            if (mapped.isEmpty()) {
+                return "";
+            }
+            return "cardui#512/bg_" + t + "_" + mapped;
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    /** Maps a native card color name to the cardui base-background color token, or {@code ""}. */
+    private static String mappedColor(String color) {
+        if (color == null) {
+            return "";
+        }
+        String c = color.trim().toLowerCase(java.util.Locale.ROOT);
+        if ("red".equals(c)) return "red";
+        if ("green".equals(c)) return "green";
+        if ("blue".equals(c)) return "blue";
+        if ("purple".equals(c)) return "purple";
+        if ("colorless".equals(c)) return "gray";
+        return "";
     }
 
     /**
@@ -293,18 +330,42 @@ public final class SelectDrawPath {
     public static int materializedDrawCount() { return visibleCount(buildFromProjection()); }
 
     /**
-     * Required resources = the primary id, plus the frame id for non-confirm card items. The
-     * {@code !item.confirm && !item.cardId.isEmpty()} guard mirrors
-     * {@code Sts1SurfaceRenderer.renderSelect}'s
-     * {@code if (!item.confirm && !item.cardId.isEmpty()) drawResolvedTexture(sb, item.frameResourceId, b);}
-     * exactly, with an added non-blank frame guard so a blank frame is not a required resource.
+     * Required resources = the primary id, plus the type/color-derived frame descriptor for
+     * non-confirm card items. The {@code !item.confirm && !item.cardId.isEmpty()} guard mirrors
+     * {@code Sts1SurfaceRenderer.renderSelect}'s frame draw. For a card item the frame requirement
+     * is satisfied iff the descriptor resolves: {@code "<atlasKey>#<region>"} descriptors resolve via
+     * {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas}, any other id via
+     * {@link #resolvesToDrawable}. A blank frame descriptor is NOT materialized (the card is missing
+     * its base background), so it counts as a gap.
      */
     private static boolean itemFullyResolves(DrawItem item) {
         if (!resolvesToDrawable(item.resourceId)) return false;
-        if (!item.confirm && !item.cardId.isEmpty() && !item.frameResourceId.isEmpty()) {
-            return resolvesToDrawable(item.frameResourceId);
+        if (!item.confirm && !item.cardId.isEmpty()) {
+            return frameDescriptorResolves(item.frameResourceId);
         }
         return true;
+    }
+
+    /**
+     * True when the frame descriptor resolves. A {@code "<atlasKey>#<region>"} descriptor resolves
+     * through {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas}; any other
+     * (non-{@code #}) id uses {@link #resolvesToDrawable}. A null/blank descriptor never resolves.
+     * Fail-open: any resolution failure yields {@code false} rather than throwing.
+     */
+    static boolean frameDescriptorResolves(String frameResourceId) {
+        if (frameResourceId == null || frameResourceId.isEmpty()) return false;
+        int hash = frameResourceId.indexOf('#');
+        if (hash < 0) {
+            return resolvesToDrawable(frameResourceId);
+        }
+        String atlasKey = frameResourceId.substring(0, hash);
+        String regionName = frameResourceId.substring(hash + 1);
+        try {
+            return artframework.sts1.assets.Sts1AtlasMaterializer
+                    .regionFromAtlas(atlasKey, regionName) != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /**
@@ -316,11 +377,11 @@ public final class SelectDrawPath {
      * key (which is the gap this accounting targets), so missing {@code images/} files are a known
      * under-counted gap.
      *
-     * <p>The select card-frame atlas key ({@code cardui/frame}) is documented as unresolved: it is
-     * not file-backed and carries no resolvable region today (the mapping is the whole atlas key,
-     * with no region-name component), so it is reported as a gap. A per-card cardui region mapping
-     * is a separate, later slice; the atlas-region branch is deliberately not invented here.
-     * Fail-open: any resolver/host failure yields {@code false} rather than throwing.
+     * <p>This is the non-{@code #} frame path only. The select card base-background frame is now a
+     * real {@code cardui#512/bg_<type>_<color>} atlas-region descriptor, accounted for by
+     * {@link #frameDescriptorResolves} through the live atlas seam; a card without a mappable
+     * type/color yields a blank descriptor and is reported as a gap. Fail-open: any resolver/host
+     * failure yields {@code false} rather than throwing.
      */
     static boolean resolvesToDrawable(String resourceId) {
         if (resourceId == null || resourceId.isEmpty()) return false;
@@ -337,12 +398,6 @@ public final class SelectDrawPath {
         int count = 0;
         for (DrawItem item : items) if (item.visible) count++;
         return count;
-    }
-
-    private static String knownOrFallback(String resourceId, String fallback) {
-        return resourceId != null && !resourceId.isEmpty()
-                && artframework.sts1.assets.Sts1VanillaCatalog.isKnown(resourceId)
-                ? resourceId : fallback;
     }
 
     private static String cardResource(boolean selected, boolean enabled) {

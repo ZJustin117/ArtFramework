@@ -4,6 +4,7 @@ import artframework.api.ArtFramework;
 import artframework.context.CardView;
 import artframework.context.SelectView;
 import artframework.context.SurfaceIds;
+import artframework.assets.AssetResolveResult;
 import artframework.assets.ResourceIds;
 import artframework.sts1.FullPresentMode;
 
@@ -237,6 +238,19 @@ public final class SelectDrawPath {
         SelectView sv = ArtFramework.projection().select();
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("count", Integer.valueOf(visibleCount(items)));
+        // RESOLVE-AWARE supply accounting (mirrors MapDrawPath / HandDrawPath.missingArt): a visible
+        // item counts as materializedResolved only when every resource the renderer would actually
+        // draw resolves to a file-backed (`images/`) path; otherwise it is a missingArt gap. This is
+        // prefix-level, not file-existence/texture-load (see resolvesToDrawable). `count` above
+        // remains the visible-item draw-SUBMISSION count and is intentionally not resolve-aware.
+        int missingArt = 0;
+        int materializedResolved = 0;
+        for (DrawItem item : items) {
+            if (!item.visible) continue;
+            if (itemFullyResolves(item)) materializedResolved++; else missingArt++;
+        }
+        m.put("missingArt", Integer.valueOf(missingArt));
+        m.put("materializedResolved", Integer.valueOf(materializedResolved));
         m.put("kind", sv.kind);
         m.put("available", Boolean.valueOf(sv.available));
         m.put("poolCount", Integer.valueOf(sv.poolCount()));
@@ -271,7 +285,53 @@ public final class SelectDrawPath {
         return m;
     }
 
+    /**
+     * The draw-SUBMISSION count recorded against the select surface (visible projected items). It is
+     * intentionally NOT resolve-aware: {@code probeSlice().missingArt} is the honest resolve-aware
+     * supply gap for the same frame.
+     */
     public static int materializedDrawCount() { return visibleCount(buildFromProjection()); }
+
+    /**
+     * Required resources = the primary id, plus the frame id for non-confirm card items. The
+     * {@code !item.confirm && !item.cardId.isEmpty()} guard mirrors
+     * {@code Sts1SurfaceRenderer.renderSelect}'s
+     * {@code if (!item.confirm && !item.cardId.isEmpty()) drawResolvedTexture(sb, item.frameResourceId, b);}
+     * exactly, with an added non-blank frame guard so a blank frame is not a required resource.
+     */
+    private static boolean itemFullyResolves(DrawItem item) {
+        if (!resolvesToDrawable(item.resourceId)) return false;
+        if (!item.confirm && !item.cardId.isEmpty() && !item.frameResourceId.isEmpty()) {
+            return resolvesToDrawable(item.frameResourceId);
+        }
+        return true;
+    }
+
+    /**
+     * True when the resolver yields a source that maps to a file-backed ({@code images/}) path, i.e.
+     * the prefix-level shape {@link artframework.sts1.assets.Sts1AssetMaterializer#isFileBacked} accepts.
+     * This is deliberately NOT a file-existence or texture-load check: a mapping to an absent
+     * {@code images/} file still yields {@code true} here, so {@code materializedResolved} can
+     * over-count such an item. It proves only that the source is not a non-file-backed atlas/logical
+     * key (which is the gap this accounting targets), so missing {@code images/} files are a known
+     * under-counted gap.
+     *
+     * <p>The select card-frame atlas key ({@code cardui/frame}) is documented as unresolved: it is
+     * not file-backed and carries no resolvable region today (the mapping is the whole atlas key,
+     * with no region-name component), so it is reported as a gap. A per-card cardui region mapping
+     * is a separate, later slice; the atlas-region branch is deliberately not invented here.
+     * Fail-open: any resolver/host failure yields {@code false} rather than throwing.
+     */
+    static boolean resolvesToDrawable(String resourceId) {
+        if (resourceId == null || resourceId.isEmpty()) return false;
+        try {
+            AssetResolveResult r = ArtFramework.assets().resolve(resourceId);
+            return r != null && r.found
+                    && artframework.sts1.assets.Sts1AssetMaterializer.isFileBacked(r.source);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
 
     private static int visibleCount(List<DrawItem> items) {
         int count = 0;

@@ -1,6 +1,7 @@
 package artframework.sts1.render;
 
 import artframework.api.ArtFramework;
+import artframework.assets.AssetResolveResult;
 import artframework.assets.ResourceIds;
 import artframework.context.CardRef;
 import artframework.context.CardPose;
@@ -21,6 +22,8 @@ import artframework.presentation.PresentationContext;
 import artframework.presentation.PresentationRegistry;
 import artframework.sts1.FullPresentMode;
 import artframework.sts1.PresentLevel;
+import artframework.sts1.assets.Sts1AssetMaterializer;
+import artframework.sts1.assets.Sts1HostAssets;
 import artframework.sts1.input.CombatInputRouter;
 import artframework.sts1.input.RecordingIntentExecutor;
 import org.junit.After;
@@ -336,6 +339,87 @@ public class SelectDrawPathTest {
         assertFalse(item.enabled);
         assertEquals(ResourceIds.UI_SELECT_CARD_DISABLED, item.resourceId);
         assertEquals(ResourceIds.UI_SELECT_CARD_FRAME, item.frameResourceId);
+    }
+
+    /**
+     * U01. A visible select card whose frame maps to the non-file-backed {@code cardui/frame}
+     * atlas key supplies no drawable pixels, so the probe must not count it as fully materialized:
+     * the unresolved frame is a gap. On current code {@code missingArt} / {@code materializedResolved}
+     * are absent (null), which is the required Red.
+     */
+    @Test
+    public void selectGapCountsUnresolvedCardFrameAsMissingNotSupplied() {
+        Sts1HostAssets.install();
+        // One visible card (selected, default playable) + the confirm button, both visible.
+        publishSelectFrame();
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals("count stays the existing visible-item count",
+                Integer.valueOf(2), probe.get("count"));
+        assertNotNull("probe must expose missingArt", probe.get("missingArt"));
+        assertTrue("the unresolved card frame must be reported as a gap: " + probe.get("missingArt"),
+                ((Integer) probe.get("missingArt")).intValue() >= 1);
+        assertEquals("exactly the unresolved card is a gap", Integer.valueOf(1), probe.get("missingArt"));
+        assertNotNull("probe must expose materializedResolved", probe.get("materializedResolved"));
+        assertEquals("only the file-backed confirm button is fully materialized",
+                Integer.valueOf(1), probe.get("materializedResolved"));
+        assertTrue("materializedResolved must be strictly below the supplied count",
+                ((Integer) probe.get("materializedResolved")).intValue()
+                        < ((Integer) probe.get("count")).intValue());
+
+        SelectDrawPath.DrawItem card = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("the card frame uses the cardui/frame atlas key",
+                ResourceIds.UI_SELECT_CARD_FRAME, card.frameResourceId);
+        assertFalse("cardui/frame must not be a file-backed drawable",
+                Sts1AssetMaterializer.isFileBacked(
+                        ArtFramework.assets().resolve(ResourceIds.UI_SELECT_CARD_FRAME).source));
+    }
+
+    /**
+     * U01. The accounting is genuinely resolve-aware, not "always missing": a card whose primary AND
+     * frame both map to a real loose PNG is fully materialized with no gap.
+     */
+    @Test
+    public void selectResolvableResourcesCountAsMaterializedNotGap() {
+        Sts1HostAssets.install();
+        publishSelectFrame(
+                SelectView.grid(
+                        Collections.singletonList(
+                                CardView.builder(new CardRef("g1", "Strike_R"))
+                                        .zone(CardZone.SELECT)
+                                        .slot(0)
+                                        .playable(false)
+                                        .frame(ResourceIds.UI_SELECT_CARD_DISABLED)
+                                        .build()),
+                        Collections.<String>emptyList(),
+                        false,
+                        false));
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertNotNull("probe must expose missingArt", probe.get("missingArt"));
+        assertEquals("both the primary and the frame resolve to loose PNGs",
+                Integer.valueOf(0), probe.get("missingArt"));
+        assertNotNull("probe must expose materializedResolved", probe.get("materializedResolved"));
+        assertEquals("the single visible item is fully materialized",
+                Integer.valueOf(1), probe.get("materializedResolved"));
+    }
+
+    /**
+     * U01 premise (green by design): the real {@code UI_SELECT_CARD_FRAME} mapping is a known atlas
+     * key that does NOT resolve to a file-backed drawable. This pins the defect the accounting must
+     * surface rather than re-deriving or changing the mapping.
+     */
+    @Test
+    public void selectCardFrameMappingIsKnownAtlasKeyNotFileBacked() {
+        assertFalse("sts1:cardui/frame is an atlas key, not a loose PNG",
+                Sts1AssetMaterializer.isFileBacked("sts1:cardui/frame"));
+        Sts1HostAssets.install();
+
+        AssetResolveResult frame = ArtFramework.assets().resolve(ResourceIds.UI_SELECT_CARD_FRAME);
+        assertTrue("the catalog must still contain the frame key", frame.found);
+        assertEquals("the frame resource normalizes to the non-file-backed cardui/frame atlas key",
+                "cardui/frame", Sts1AssetMaterializer.normalize(frame.source));
     }
 
     @Test

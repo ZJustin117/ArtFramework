@@ -82,3 +82,17 @@ steps:
   - assert:
       path: backend.selectDraw.items[0].label
       neq: ""
+  # U01: the select card frame maps to the non-file-backed `cardui/frame` atlas key, so a visible
+  # card whose frame supplies no pixels must be reported as a gap instead of being counted as
+  # supplied. missingArt counts visible items with at least one unresolved required resource.
+  - assert:
+      path: backend.selectDraw.missingArt
+      gte: 1
+  # materializedResolved counts only visible items whose required resources all resolve; the
+  # supplied count must therefore strictly exceed it while a frame gap exists.
+  - capture:
+      path: backend.selectDraw.materializedResolved
+      var: select_materialized_resolved
+  - assert:
+      path: backend.selectDraw.count
+      gt_var: select_materialized_resolved

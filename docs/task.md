@@ -3511,6 +3511,33 @@ allocation and Young GC pressure.
       the eye/filter control are not supplied. Next: supply real card frames (native
       `AbstractCard.render` is the authority; either delegate card pixels or map a file-backed frame
       resource) and add the select panel/buttons as a follow-up slice.
+- [x] **U01: resolve-aware select supply accounting (fixes the D09 over-count; pixel supply still
+      open).** `UI_SELECT_CARD`/`_SELECTED`/`_FRAME` (and the `CARD_FRAME_*` keys) map to
+      `"cardui/frame"`, which is NOT file-backed (`Sts1AssetMaterializer.isFileBacked` false) and has
+      no literal `frame` region in the cardui atlas, so `renderSelect`'s
+      `drawResolvedTexture(sb, item.frameResourceId, b)` is a fail-open no-op while
+      `materializedDrawCount()`/`probeSlice().count` still counted the visible card item as supplied.
+      **Fix:** `probeSlice()` now exposes `materializedResolved` (visible items whose required
+      resources all resolve) and `missingArt` (visible items with >=1 unresolved required resource;
+      mirrors the `MapDrawPath`/`HandDrawPath.missingArt` convention), via
+      `resolvesToDrawable(id) = ArtFramework.assets().resolve(id).found && Sts1AssetMaterializer.isFileBacked(source)`
+      (fail-open); required resources mirror the renderer (the primary id, plus the frame id for
+      non-confirm card items). HONEST on scope: this is a prefix-level "maps to a file-backed
+      (`images/`) source" check, NOT a file-existence or texture-load check — `isFileBacked` only tests
+      the normalized `images/` prefix, so an item whose primary maps to an ABSENT `images/` file still
+      counts as materialized; missing `images/` files remain an under-counted gap (the per-card
+      pixel-sourcing item below). `count`/`materializedDrawCount()` remain the draw-SUBMISSION count and
+      draw behavior is unchanged (still fail-open per-draw). Evidence: `SelectDrawPathTest`
+      `selectGapCountsUnresolvedCardFrameAsMissingNotSupplied` and
+      `selectResolvableResourcesCountAsMaterializedNotGap`, premise
+      `selectCardFrameMappingIsKnownAtlasKeyNotFileBacked`; `d1_full_present_select.yaml` (29 steps)
+      asserts `backend.selectDraw.missingArt >= 1` and `count gt_var materializedResolved`; focused
+      `cleanTest test --tests "artframework.sts1.render.*" ...`: 1114 tests, 0 failures. **D1
+      PENDING** (no device run). **SEPARATE OPEN ITEM (not fixed here):** sourcing real per-card
+      frame/art pixels — per-card `images/cards/<id>.png` is absent, and the cardui atlas carries
+      `1024/frame_*` / `512/frame_*` regions but no literal `frame` region, so a later U-slice must
+      decide per-card delegation vs an atlas-region mapping; the select panel/background, tip/header,
+      cancel/skip, and hover/eye-filter controls also remain unsupplied (per the D09 finding above).
 - [x] **B05b D1 finding: native effect-list ADD race in `AbstractDungeon.update` — append now
       marshaled onto the game thread.** During B05b D1 no-regression, run 1 crashed with
       `java.util.ConcurrentModificationException` at `AbstractDungeon.update(AbstractDungeon.java:2640)`

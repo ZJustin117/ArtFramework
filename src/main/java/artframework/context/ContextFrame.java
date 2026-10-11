@@ -437,6 +437,7 @@ public final class ContextFrame {
         }
         int vw = intVal(raw.get("viewportWidth"), 0);
         int vh = intVal(raw.get("viewportHeight"), 0);
+        int hoveredLegendIndex = intVal(raw.get("hoveredLegendIndex"), -1);
         List<MapNodeView> nodes = new ArrayList<MapNodeView>();
         Object nodesObj = raw.get("nodes");
         if (nodesObj instanceof List) {
@@ -472,7 +473,7 @@ public final class ContextFrame {
                                 boolVal(m.get("liveColor"), false)));
             }
         }
-        return new MapView(nodes, vw, vh);
+        return new MapView(nodes, vw, vh, null, null, null, hoveredLegendIndex);
     }
 
     private static int intVal(Object o, int def) {

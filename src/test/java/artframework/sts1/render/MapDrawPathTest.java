@@ -874,6 +874,170 @@ public class MapDrawPathTest {
         }
     }
 
+    /**
+     * M05: a legend room row HOVERED right now must be drawn at the native desktop HOVER icon size
+     * {@code 128 * (scale/1.2)} instead of the REST size {@code 128 * (scale/1.65)}; every other row
+     * stays REST. The hovered index reaches the pure draw path through the projected {@link MapView}
+     * (the STS backend fills it from the live native {@code LegendItem.hb.hovered}); it is injected
+     * here through the RAW map spec compatibility constructor so the test exercises the real
+     * projection/coercion path. Non-tautological: the REST/HOVER sizes are derived LITERALLY from the
+     * native divisors, never by calling the production scale helpers.
+     */
+    @Test
+    public void hoveredLegendIndexMinusOneKeepsEveryRowAtRestSize() {
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1.25f, 1.5f, 1.1f);
+            publishRawHoverMapFrame(Integer.valueOf(-1), true);
+
+            float rest = 128f * (1.25f / 1.65f);
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+            List<MapDrawPath.LegendDrawItem> items = MapDrawPath.legendItems();
+            for (int i = 0; i < rooms.length; i++) {
+                MapDrawPath.LegendDrawItem row = legendById(items, "legend:" + rooms[i]);
+                assertNotNull("missing legend row " + rooms[i], row);
+                assertEquals("row " + i + " width", rest, row.bounds.width, 0.01f);
+                assertEquals("row " + i + " height", rest, row.bounds.height, 0.01f);
+                assertEquals("row " + i + " iconScale", rest, row.iconScale, 0.01f);
+            }
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void hoveredLegendRowUsesNativeHoverSizeAtSameAnchorAndLabel() {
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            float scale = 1.25f;
+            float xScale = 1.5f;
+            float yScale = 1.1f;
+            setSettingsScale(scale, xScale, yScale);
+            publishRawHoverMapFrame(Integer.valueOf(2), true);
+
+            float rest = 128f * (scale / 1.65f);
+            float hover = 128f * (scale / 1.2f);
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+            List<MapDrawPath.LegendDrawItem> items = MapDrawPath.legendItems();
+
+            // Hovered row 2 (treasure): native HOVER size, SAME x/y anchor as REST, label unchanged.
+            MapDrawPath.LegendDrawItem row2 = legendById(items, "legend:treasure");
+            assertNotNull(row2);
+            assertEquals(2, row2.index);
+            assertEquals("hovered row width", hover, row2.bounds.width, 0.01f);
+            assertEquals("hovered row height", hover, row2.bounds.height, 0.01f);
+            assertEquals("hovered row iconScale", hover, row2.iconScale, 0.01f);
+            assertEquals("hovered row keeps the REST anchor x", 1575f * xScale - 64f,
+                    row2.bounds.x, 0.01f);
+            assertEquals("hovered row keeps the REST anchor y",
+                    600f * yScale - 58f * yScale * 2f + 100f * yScale - 64f,
+                    row2.bounds.y, 0.01f);
+            assertTrue("hovered row must be strictly larger than REST", row2.bounds.width > rest);
+            assertEquals("hovered row label unchanged", MapDrawPath.legendLabel(2), row2.label);
+            assertEquals("hovered row labelX unchanged",
+                    MapDrawPath.legendLabelX(xScale, scale), row2.labelX, 0.01f);
+            assertEquals("hovered row labelTopY unchanged",
+                    MapDrawPath.legendLabelTopY(yScale, 2), row2.labelTopY, 0.01f);
+            assertTrue("room row must stay left-aligned", row2.labelLeftAligned);
+
+            // Every other row stays REST.
+            for (int i = 0; i < rooms.length; i++) {
+                if (i == 2) continue;
+                MapDrawPath.LegendDrawItem row = legendById(items, "legend:" + rooms[i]);
+                assertNotNull("missing legend row " + rooms[i], row);
+                assertEquals("non-hovered row " + i + " width", rest, row.bounds.width, 0.01f);
+                assertEquals("non-hovered row " + i + " height", rest, row.bounds.height, 0.01f);
+                assertEquals("non-hovered row " + i + " iconScale", rest, row.iconScale, 0.01f);
+            }
+
+            // The renderer draws from mapSubmissionPlan(); the hovered row's submission must carry
+            // the HOVER size (plan order: index 0 panel, 1 title, 2+i = row i) so the larger box is
+            // actually painted.
+            List<MapDrawPath.Submission> plan = MapDrawPath.mapSubmissionPlan();
+            assertEquals(ResourceIds.UI_MAP_LEGEND, plan.get(0).resourceId);
+            assertEquals("hovered row submission width", hover, plan.get(4).bounds.width, 0.01f);
+            assertEquals("hovered row submission height", hover, plan.get(4).bounds.height, 0.01f);
+            assertEquals("hovered row submission keeps the REST anchor x",
+                    1575f * xScale - 64f, plan.get(4).bounds.x, 0.01f);
+            assertEquals("hovered row submission x", plan.get(4).bounds.x, row2.bounds.x, 0.01f);
+            assertEquals("hovered row submission y", plan.get(4).bounds.y, row2.bounds.y, 0.01f);
+            for (int i = 0; i < rooms.length; i++) {
+                if (i == 2) continue;
+                assertEquals("non-hovered row " + i + " submission width", rest,
+                        plan.get(2 + i).bounds.width, 0.01f);
+            }
+
+            // Probe (backend.mapDraw.legend.items) EXCLUDES the panel: items[0] is the title, so the
+            // treasure row (index 2) is items[3] and every room row i is items[1 + i].
+            @SuppressWarnings("unchecked")
+            Map<String, Object> legend =
+                    (Map<String, Object>) MapDrawPath.probeSlice().get("legend");
+            assertNotNull(legend);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> rows = (List<Map<String, Object>>) legend.get("items");
+            assertEquals("hovered probe iconScale", hover,
+                    ((Float) rows.get(3).get("iconScale")).floatValue(), 0.01f);
+            assertEquals("hovered probe width", hover,
+                    ((Float) rows.get(3).get("w")).floatValue(), 0.01f);
+            for (int i = 0; i < rooms.length; i++) {
+                if (i == 2) continue;
+                assertEquals("probe non-hovered row " + i, rest,
+                        ((Float) rows.get(1 + i).get("iconScale")).floatValue(), 0.01f);
+            }
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    @Test
+    public void outOfRangeOrAbsentHoveredLegendIndexFailsOpenToRest() {
+        float previousScale = com.megacrit.cardcrawl.core.Settings.scale;
+        float previousXScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        float previousYScale = com.megacrit.cardcrawl.core.Settings.yScale;
+        try {
+            setSettingsScale(1.25f, 1.5f, 1.1f);
+            float rest = 128f * (1.25f / 1.65f);
+            String[] rooms = {"event", "merchant", "treasure", "rest", "enemy", "elite"};
+
+            // Out-of-range index names no row.
+            assertAllLegendRowsRest(Integer.valueOf(99), true, rest, rooms);
+            // Absent key in the raw map spec.
+            assertAllLegendRowsRest(null, false, rest, rooms);
+
+            // A bare MapView/frame carrying no hovered index at all.
+            Sts1HostAssets.install();
+            publishMapFrame("map", projectedNodes());
+            List<MapDrawPath.LegendDrawItem> bare = MapDrawPath.legendItems();
+            for (int i = 0; i < rooms.length; i++) {
+                MapDrawPath.LegendDrawItem row = legendById(bare, "legend:" + rooms[i]);
+                assertNotNull("missing legend row " + rooms[i], row);
+                assertEquals("bare frame row " + i + " width", rest, row.bounds.width, 0.01f);
+                assertEquals("bare frame row " + i + " iconScale", rest, row.iconScale, 0.01f);
+            }
+        } finally {
+            setSettingsScale(previousScale, previousXScale, previousYScale);
+        }
+    }
+
+    private static void assertAllLegendRowsRest(
+            Integer hoveredLegendIndex, boolean includeKey, float rest, String[] rooms) {
+        publishRawHoverMapFrame(hoveredLegendIndex, includeKey);
+        List<MapDrawPath.LegendDrawItem> items = MapDrawPath.legendItems();
+        for (int i = 0; i < rooms.length; i++) {
+            MapDrawPath.LegendDrawItem row = legendById(items, "legend:" + rooms[i]);
+            assertNotNull("missing legend row " + rooms[i], row);
+            assertEquals("row " + i + " width", rest, row.bounds.width, 0.01f);
+            assertEquals("row " + i + " height", rest, row.bounds.height, 0.01f);
+            assertEquals("row " + i + " iconScale", rest, row.iconScale, 0.01f);
+        }
+        // legendItems()/mapSubmissionPlan() must never throw for a fail-open hover index.
+        assertFalse(MapDrawPath.mapSubmissionPlan().isEmpty());
+    }
+
     @Test
     public void mapSubmissionPlanLegendRowsCarryC2TintAndLeftAlignedLabel() {
         // V04: the renderMap submission plan must carry the native c2 tint + left-aligned label
@@ -2164,6 +2328,49 @@ public class MapDrawPathTest {
                         Collections.<artframework.context.CardView>emptyList(),
                         ControlsView.empty(),
                         new MapView(nodes, 1920, 1080, null, background, edges),
+                        new ViewportView(1920, 1080, 1920, 1080)));
+        ArtFramework.publishFrame(backend.currentFrame());
+    }
+
+    /**
+     * M05: publish a frame through the RAW map spec compatibility constructor
+     * ({@link ContextFrame#ContextFrame(long, long, String, List, Map, Map, boolean, ViewportView)}),
+     * whose {@code coerceMap(...)} round-trips the {@code "hoveredLegendIndex"} key into the projected
+     * {@link MapView}. This is the injection path the STS backend uses (live native
+     * {@code LegendItem.hb.hovered}); {@code includeKey=false} omits the key entirely.
+     */
+    private static void publishRawHoverMapFrame(Integer hoveredLegendIndex, boolean includeKey) {
+        Sts1HostAssets.install();
+        Map<String, Object> rawMap = new LinkedHashMap<String, Object>();
+        rawMap.put("viewportWidth", Integer.valueOf(1920));
+        rawMap.put("viewportHeight", Integer.valueOf(1080));
+        List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
+        Map<String, Object> n = new LinkedHashMap<String, Object>();
+        n.put("row", Integer.valueOf(1));
+        n.put("col", Integer.valueOf(2));
+        n.put("taken", Boolean.FALSE);
+        n.put("highlighted", Boolean.FALSE);
+        n.put("available", Boolean.TRUE);
+        n.put("current", Boolean.FALSE);
+        n.put("symbol", "M");
+        n.put("roomKind", "monster");
+        n.put("resourceId", ResourceIds.MAP_NODE_MONSTER);
+        nodes.add(n);
+        rawMap.put("nodes", nodes);
+        if (includeKey) {
+            rawMap.put("hoveredLegendIndex", hoveredLegendIndex);
+        }
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                new ContextFrame(
+                        1L,
+                        1L,
+                        "map",
+                        Collections.<artframework.context.CardView>emptyList(),
+                        new LinkedHashMap<String, Object>(),
+                        rawMap,
+                        true,
                         new ViewportView(1920, 1080, 1920, 1080)));
         ArtFramework.publishFrame(backend.currentFrame());
     }

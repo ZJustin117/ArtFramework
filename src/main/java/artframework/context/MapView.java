@@ -225,6 +225,14 @@ public final class MapView {
      * Each edge carries its resolved color + the native stored (jittered) dot draws.
      */
     public final List<MapEdgeView> edges;
+    /**
+     * M05: the LIVE native hovered legend room-row index (0..5), or {@code -1} when no legend row is
+     * hovered / unavailable (fail-open default). Native {@code LegendItem.hb.hovered} selects the
+     * desktop HOVER icon size {@code 128 * (Settings.scale/1.2f)} instead of REST {@code
+     * 128 * (Settings.scale/1.65f)}. The backend fills this; the pure draw path never imports STS
+     * types. Room indices 0..5 are event/merchant/treasure/rest/enemy/elite.
+     */
+    public final int hoveredLegendIndex;
 
     public MapView(List<MapNodeView> nodes, int viewportWidth, int viewportHeight) {
         this(nodes, viewportWidth, viewportHeight, null);
@@ -251,6 +259,22 @@ public final class MapView {
             LegendLabels legend,
             MapBackground background,
             List<MapEdgeView> edges) {
+        this(nodes, viewportWidth, viewportHeight, legend, background, edges, -1);
+    }
+
+    /**
+     * M05 full constructor: adds the LIVE native hovered legend room-row index ({@code 0..5}, or
+     * {@code -1} when none/unavailable). Every other constructor delegates here with {@code -1}, so
+     * callers that carry no hover information keep the REST legend unchanged.
+     */
+    public MapView(
+            List<MapNodeView> nodes,
+            int viewportWidth,
+            int viewportHeight,
+            LegendLabels legend,
+            MapBackground background,
+            List<MapEdgeView> edges,
+            int hoveredLegendIndex) {
         if (nodes == null || nodes.isEmpty()) {
             this.nodes = Collections.emptyList();
         } else {
@@ -265,6 +289,7 @@ public final class MapView {
         } else {
             this.edges = Collections.unmodifiableList(new ArrayList<MapEdgeView>(edges));
         }
+        this.hoveredLegendIndex = hoveredLegendIndex;
     }
 
     public static MapView empty() {

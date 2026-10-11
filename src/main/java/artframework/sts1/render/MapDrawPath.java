@@ -368,7 +368,8 @@ public final class MapDrawPath {
 
     /**
      * One map-legend drawable (NRO-04 D03). The panel/title/icons mirror native
-     * {@code Legend.render} + {@code LegendItem.render} at REST (non-hovered, desktop).
+     * {@code Legend.render} + {@code LegendItem.render}; non-hovered room rows are at REST (desktop)
+     * and the single LIVE hovered row (M05) is at the native desktop HOVER icon size.
      */
     public static final class LegendDrawItem {
         public final String id;
@@ -390,8 +391,9 @@ public final class MapDrawPath {
         public final float b;
         public final float a;
         /**
-         * Native per-STATE icon scale (V04): a room row carries {@code legendIconScale(false,false,
-         * scale) = scale/1.65f} at the desktop REST state ART draws. Panel/title (no icon) carry 0.
+         * Native per-STATE icon scale (V04/M05): a room row carries the desktop REST value
+         * {@code scale/1.65f}, except the single LIVE hovered row which carries the desktop HOVER
+         * value {@code scale/1.2f} (M05). Panel/title (no icon) carry 0.
          */
         public final float iconScale;
         /** Native label LEFT edge x (V04): {@code TEXT_X*xScale - 50f*scale}; 0 for panel/title. */
@@ -479,10 +481,11 @@ public final class MapDrawPath {
      * Native desktop REST icon scale divisor (V04): {@code Settings.scale / 1.65f}. VERIFIED
      * decompiled {@code LegendItem.render}: {@code !mobile && !hb.hovered} branch. The other three
      * native divisors are the HOVER states ({@code desktop-hover /1.2f}, {@code mobile-hover /1f},
-     * {@code mobile-rest /1.3f}), not per-row scales; ART renders the REST state.
+     * {@code mobile-rest /1.3f}). M05 draws every non-hovered row at this REST size and the single
+     * hovered row at the desktop HOVER size ({@link #legendIconScaleHover(float)}).
      */
     private static final float LEGEND_ICON_REST_DIVISOR = 1.65f;
-    /** Native desktop HOVER icon scale divisor (V04, documented gap: hover not yet replicated). */
+    /** Native desktop HOVER icon scale divisor (V04): {@code Settings.scale / 1.2f} (M05 hover). */
     private static final float LEGEND_ICON_HOVER_DIVISOR = 1.2f;
 
     private static final String[] LEGEND_ROOM_IDS = {
@@ -699,15 +702,17 @@ public final class MapDrawPath {
      *   <li>mobile rest: {@code Settings.scale / 1.3f}</li>
      *   <li>mobile hover: {@code Settings.scale}</li>
      * </ul>
-     * ART renders the desktop rest state, so {@link #legendIconScale(float)} returns {@code
-     * scale/1.65f}. The four native values are HOVER/PLATFORM states, NOT six per-row scales (the
-     * earlier V04 brief's "per-row branches" read is corrected here against the bytecode).
+     * ART draws the desktop REST state for every non-hovered row and the desktop HOVER state for the
+     * single LIVE hovered row (M05), so {@link #legendIconScale(float)} returns {@code scale/1.65f}
+     * and {@link #legendIconScaleHover(float)} returns {@code scale/1.2f}. The four native values are
+     * HOVER/PLATFORM states, NOT six per-row scales (the earlier V04 brief's "per-row branches" read
+     * is corrected here against the bytecode).
      */
     public static float legendIconScale(float scale) {
         return scale / LEGEND_ICON_REST_DIVISOR;
     }
 
-    /** Native desktop HOVER icon scale ({@code scale/1.2f}); icon bounds helper for future hover. */
+    /** Native desktop HOVER icon scale ({@code scale/1.2f}); used for the LIVE hovered row (M05). */
     public static float legendIconScaleHover(float scale) {
         return scale / LEGEND_ICON_HOVER_DIVISOR;
     }
@@ -724,9 +729,22 @@ public final class MapDrawPath {
     }
 
     /**
+     * Projected LIVE hovered legend room-row index ({@code 0..5}), or {@code -1} when the projection
+     * carries none / is unavailable (fail-open; never throws). Reuses {@link #projectedMap()} so the
+     * projection read and its fail-open guard have a single owner.
+     */
+    private static int projectedHoveredLegendIndex() {
+        MapView mv = projectedMap();
+        return mv != null ? mv.hoveredLegendIndex : -1;
+    }
+
+    /**
      * NRO-04 D03 map legend items: native {@code Legend.render} panel + title and the 6
-     * {@code LegendItem.render} room-type icon rows, at REST (non-hovered, desktop). Returns an
-     * empty list when {@code Settings} is unavailable so the renderer never invents pixels.
+     * {@code LegendItem.render} room-type icon rows. Each room row is drawn at the desktop REST icon
+     * size {@code 128 * (Settings.scale/1.65f)}, except the row matching the projected LIVE hovered
+     * index (M05), which is drawn at the native desktop HOVER size
+     * {@code 128 * (Settings.scale/1.2f)} while keeping the SAME x/y anchor and label placement.
+     * Returns an empty list when {@code Settings} is unavailable so the renderer never invents pixels.
      *
      * <p>Verified native geometry (V04, decompiled {@code Legend.java} / {@code LegendItem.java}):
      * panel {@code sb.draw(MAP_LEGEND, X-256f, Y-400f, 256f, 400f, 512f, 800f, Settings.scale,
@@ -738,9 +756,13 @@ public final class MapDrawPath {
      * {@code c2 = (AVAILABLE_COLOR.rgb, Legend.c.a)}; the LABEL is left-top aligned at
      * {@code TEXT_X - 50f*scale}, {@code rowY + 13f*yScale}, NOT centered on the icon box.
      *
-     * <p><b>Documented gaps.</b> Hover icon scale ({@code /1.2}), hover tip, the controller reticle,
-     * and the legend alpha fade-in ({@code Legend.c.a} lerp) are NOT replicated; this path draws the
-     * desktop REST state at settled full alpha (=1).
+     * <p>Native {@code LegendItem.render} selects between the REST size ({@code !mobile &&
+     * !hb.hovered} → {@code scale/1.65f}) and the HOVER size ({@code !mobile && hb.hovered} →
+     * {@code scale/1.2f}); M05 replicates the desktop HOVER branch for the hovered row only, reading
+     * the live index from the projection.
+     *
+     * <p><b>Documented gaps.</b> The hover tip, the controller reticle, and the legend alpha fade-in
+     * ({@code Legend.c.a} lerp) are NOT replicated; this path draws the settled full alpha (=1).
      */
     public static List<LegendDrawItem> legendItems() {
         List<LegendDrawItem> out = new ArrayList<LegendDrawItem>();
@@ -766,9 +788,15 @@ public final class MapDrawPath {
                 "map-legend", 0.2f,
                 new Rect(textX - 160f * scale, y + 170f * yScale - 20f * yScale,
                         320f * scale, 40f * yScale)));
-        float icon = 128f * legendIconScale(scale);
+        float restIcon = 128f * legendIconScale(scale);
+        float hoverIcon = 128f * legendIconScaleHover(scale);
+        // M05: only the row the projection reports as HOVERED grows; every other row stays REST, and
+        // out-of-range/absent indices (-1, >=6) name no row so ALL rows stay REST (fail-open).
+        int hovered = projectedHoveredLegendIndex();
         for (int i = 0; i < LEGEND_ROOM_IDS.length && i < LEGEND_ROOM_LABELS.length; i++) {
             String room = LEGEND_ROOM_IDS[i];
+            float icon = i == hovered ? hoverIcon : restIcon;
+            // The hovered row keeps the SAME x/y anchor as its REST box; only w/h/iconScale change.
             Rect bounds = new Rect(LEGEND_ITEM_ICON_X * xScale - 64f,
                     y - (LEGEND_ITEM_SPACE_Y * yScale) * i + (LEGEND_ITEM_OFFSET_Y * yScale) - 64f,
                     icon, icon);

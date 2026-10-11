@@ -4234,3 +4234,38 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       glyphs shift within a ±(54,74)-px envelope run-to-run while the parchment strips are 0.00% different;
       cross-run pixel equality is therefore deliberately NOT asserted — the same-state in-run gate is the
       correct repeatability check.
+
+- [x] **M05: ART map legend icon uses the native HOVER scale when a legend item is hovered.** Native
+      `LegendItem.render` draws the room icon `128x128` scaled by a per-state branch: desktop REST
+      `Settings.scale/1.65f`, desktop HOVER `Settings.scale/1.2f` (mobile `1.0`/`1.3`); `hb.hovered`
+      selects HOVER and `LegendItem.update()` keeps it live while the map is open. Pre-M05 ART drew
+      every row at REST `128*(scale/1.65)` (the `legendIconScaleHover` helper existed but was unused —
+      the V04 gap). **Fix:** the backend `readHoveredLegendIndex()` soft-reflects
+      `AbstractDungeon.dungeonMapScreen.map.legend.items[i].hb.hovered` (indices 0..5, identity to
+      `MapDrawPath.LEGEND_ROOM_IDS` = event/merchant/treasure/rest/enemy/elite; -1 on none/unreadable,
+      never throws, no STS type hard-linked) into the new `MapView.hoveredLegendIndex` (default -1,
+      source-compatible ctor, round-tripped by `ContextFrame.coerceMap`); `MapDrawPath.legendItems()`
+      selects `hoverIcon = 128*legendIconScaleHover(scale)` only for `i == hovered`, so -1/out-of-range
+      → all REST. Only the item's ICON size changes; the box anchor, label, panel, title, and node band
+      are unchanged (the REST anchor/label expressions contain no icon term). Tests
+      (`MapDrawPathTest`, +3): `hoveredLegendRowUsesNativeHoverSizeAtSameAnchorAndLabel`
+      (Red: expected `133.333` hover vs `96.970` rest at `scale=1.25`), `hoveredLegendIndexMinusOneKeepsEveryRowAtRestSize`,
+      `outOfRangeOrAbsentHoveredLegendIndexFailsOpenToRest`. Scenario `d1_map_hover.yaml` (49→54 steps)
+      captures `legend.items[1].iconScale`/`labelX` before `art op hover legend 0`, then asserts the
+      hovered row's `iconScale gt_var` the rest capture, a non-hovered row `eq_var` the rest capture,
+      and the label `labelX` unchanged. Focused render/backend/context: 1100 tests, 0 failures.
+      **D1 PENDING.** **Geometry note:** the hovered box keeps ART's constant REST min-corner anchor
+      (`ICON_X-64`) and grows only in size; native scales about the sprite origin (symmetric about
+      `(ICON_X,rowY)`), so at rest the ART box is already ~25 px off and at hover ~10.7 px — a
+      pre-existing anchor convention shared by both states, not introduced here.
+- [ ] **Open (M05b): native legend hover TIP is not drawn by ART.** `LegendItem.update()` calls
+      `TipHelper.renderGenericTip(1500*xScale, 270*scale, header, body)` when the item is hovered, so
+      native shows a tooltip for the hovered legend row; ART renders no legend tip. Separate slice:
+      project the legend header/body text and render the tip (text/tooltip layout + `TipHelper`
+      parity), reuse H0's legend-hover injection for D1 evidence.
+- [ ] **Open (M05c): native legend icon hover ALSO highlights the matching map nodes.** Native
+      `Legend.isIconHovered(nodeSymbol)` returns true when the matching legend row's `hb.hovered` is set,
+      and `MapRoomNode.render` then draws that node at `scale=0.68` + `LightGray` outline. ART does not
+      tie legend hover to the matching nodes. Separate slice (depends on M05's hovered-index
+      projection): map the hovered room kind → node symbol and apply the `scale=0.68`/`LightGray`
+      state to the matching nodes.

@@ -154,6 +154,14 @@ steps:
   - assert:
       path: backend.mapIntent.attempts
       eq_var: hover_attempts_before
+  # M05 REST baseline for the event row: probe `legend.items[0]` is the title, so the event room row is
+  # `items[1]` (id `legend:event`) and `art op hover legend 0` below hovers exactly that row.
+  - capture:
+      path: backend.mapDraw.legend.items[1].iconScale
+      var: legend_icon_rest
+  - capture:
+      path: backend.mapDraw.legend.items[1].labelX
+      var: legend_label_x
   # HOVER a legend row: index 0 is the first room row; the native LegendItem hitbox must observe the
   # pointer (Legend.update runs item hitboxes only while the map is faded in).
   - console: "art op hover legend 0"
@@ -169,6 +177,21 @@ steps:
       assert:
         path: backend.mapIntent.legendHovered
         eq: true
+  # M05: the hovered legend row is now drawn at the native HOVER size, so its iconScale grows strictly
+  # past the captured REST baseline; a NON-hovered row stays at REST; the hovered row's label column
+  # is unchanged (only the icon box grows).
+  - wait_probe:
+      timeout_ms: 10000
+      interval_ms: 300
+      assert:
+        path: backend.mapDraw.legend.items[1].iconScale
+        gt_var: legend_icon_rest
+  - assert:
+      path: backend.mapDraw.legend.items[2].iconScale
+      eq_var: legend_icon_rest
+  - assert:
+      path: backend.mapDraw.legend.items[1].labelX
+      eq_var: legend_label_x
   # CLEAR: deactivate the hover pointer (hover off).
   - console: "art op pointer clear"
   - wait_probe:

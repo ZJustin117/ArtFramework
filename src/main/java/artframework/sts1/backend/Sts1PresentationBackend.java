@@ -436,6 +436,51 @@ public final class Sts1PresentationBackend implements SignalBackend {
     }
 
     /**
+     * M05: read the LIVE native hovered legend room-row index. Native {@code LegendItem.hb.hovered}
+     * (the hitbox moved each frame by {@code LegendItem.update()}) selects the desktop HOVER icon size
+     * {@code 128 * (Settings.scale/1.2f)}; {@code AbstractDungeon.dungeonMapScreen.map.legend.items}
+     * holds the 6 rows in event/merchant/treasure/rest/enemy/elite order, matching
+     * {@code MapDrawPath.LEGEND_ROOM_IDS} (IDENTITY index mapping). Soft reflection only; FAIL-OPEN to
+     * {@code -1} when the map/legend/items/hitbox is unavailable or unreadable (never throws, never
+     * hard-links a localization type).
+     */
+    private static int readHoveredLegendIndex() {
+        try {
+            Object screen = softField(
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.class, null,
+                    "dungeonMapScreen");
+            Object dungeonMap = screen != null ? softField(screen.getClass(), screen, "map") : null;
+            Object legend = dungeonMap != null
+                    ? softField(dungeonMap.getClass(), dungeonMap, "legend") : null;
+            if (legend == null) {
+                return -1;
+            }
+            Object itemsObj = softField(legend.getClass(), legend, "items");
+            if (!(itemsObj instanceof java.util.List)) {
+                return -1;
+            }
+            java.util.List<?> items = (java.util.List<?>) itemsObj;
+            int limit = Math.min(items.size(), 6);
+            for (int i = 0; i < limit; i++) {
+                Object item = items.get(i);
+                if (item == null) {
+                    continue;
+                }
+                Object hb = softField(item.getClass(), item, "hb");
+                if (hb == null) {
+                    continue;
+                }
+                Object hovered = softField(hb.getClass(), hb, "hovered");
+                if (hovered instanceof Boolean && ((Boolean) hovered).booleanValue()) {
+                    return i;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return -1;
+    }
+
+    /**
      * Read the LIVE native map parchment background geometry (D03 map background follow-up). Native
      * {@code DungeonMap.renderNormalMap} supplies the {@code mapTop/mapMid/mapBot/mapBlend} layers at
      * live scroll/offset positions and the {@code baseMapColor} fade alpha; ART omits it, so the node
@@ -554,7 +599,8 @@ public final class Sts1PresentationBackend implements SignalBackend {
         int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
         int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
         MapView map = new MapView(
-                nodes, w, h, readLegendLabels(), readMapBackground(), readMapEdges());
+                nodes, w, h, readLegendLabels(), readMapBackground(), readMapEdges(),
+                readHoveredLegendIndex());
         ViewportView viewport = new ViewportView(w, h, w, h);
         return new ContextFrame(
                 frameId,

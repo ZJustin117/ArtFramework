@@ -321,8 +321,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
             String id = stringValue(room, "roomID");
             if (id.isEmpty()) id = stringValue(room, "id");
             if (id.isEmpty()) id = room.getClass().getSimpleName();
+            // VERIFIED decompiled STS1: no room class declares a title field and
+            // AbstractRoom.render draws no room title, so a plain room has no native
+            // room-shell title. Keep the genuine passthrough only.
             String title = stringValue(room, "title");
-            if (title.isEmpty()) title = kind.substring(0, 1).toUpperCase() + kind.substring(1);
             Object phase = softField(room.getClass(), room, "phase");
             String phaseName = phase instanceof Enum ? ((Enum) phase).name() : String.valueOf(phase != null ? phase : "");
             float sw = com.megacrit.cardcrawl.core.Settings.WIDTH;

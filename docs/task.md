@@ -3942,9 +3942,11 @@ allocation and Young GC pressure.
       confirm row (the `item.confirm ? "Confirm" :` special-case is dropped), and `probeSlice()`
       exposes `confirm.label`. `d1_full_present_select.yaml` asserts `confirm.label` exists,
       is non-empty, and is `neq "Confirm"` (the English fallback literal) on the Chinese D1 device.
-      **REMAINING OPEN:** the English `Generic` string at top-center is still unlocalized (its source
-      is not yet pinned — likely a native English-data asset or a leaked placeholder; needs a
-      separate read), and per-card card-frame pixels remain the separately-logged `cardui/frame`
+      **RESOLVED (U03):** the English `Generic` string at top-center was NOT native — it was a
+      FABRICATED room-shell title fallback (`kind` capitalized) drawn by `Sts1RoomShellDrawPath`;
+      U03 removed it (native rooms declare no `title` field and `AbstractRoom.render` draws no
+      room title). Per-card card-frame pixels were later supplied by U02/U02b/U02d2; the layered
+      `common/rare/uncommon` pieces remain the separately-logged `cardui/frame`
       non-file-backed gap (per-card frames/art, select panel/background, tip/header, cancel/skip
       buttons, and eye/filter control also remain unsupplied).
 - [x] **Resolved (D03 map-node wash): root cause was the node fill/outline submission order.**
@@ -4494,8 +4496,36 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       non-empty cost ⇒ `costDrawable=false`, plus a matching scenario assert if a cheap probe path
       exists. Bounded test-only follow-up.
 
-- [ ] **Open (U02e): pin the disabled-card overlay in select accounting.** `ui.select.card.disabled`
-      (`images/ui/event/disabledButton.png`) is a real second select draw excluded from
-      `itemFullyResolves` (option (b) decides by the base frame alone); a regression of that mapping to
-      a non-drawable id would not be caught. Add a targeted test/assert (or fold the overlay into the
-      accounting) so the probe contract "every drawn resource resolves" is enforced for it.
+- [x] **U02e: pin the disabled-card overlay in select accounting.** Chosen option: COVER IT.
+      `SelectDrawPath.itemFullyResolves` now also requires `resolvesToDrawable(item.resourceId)` for a
+      NON-enabled card (the disabled overlay `ui.select.card.disabled` ->
+      `images/ui/event/disabledButton.png` IS a real file-backed second draw, so the probe contract
+      "every drawn resource resolves" now holds for it); enabled/selected primaries stay excluded
+      (non-file-backed `cardui/frame`, the U02c rationale preserved). The base-frame requirement and
+      the partition invariant are intact; the standard grid has no disabled card so D1 accounting is
+      unchanged (12/0/12). Tests: `selectDisabledCardOverlayMustResolveOrCountAsGap` +
+      `selectDisabledCardOverlayMappingIsFileBacked`. Focused: 1108/0. **D1 verified** (no device
+      change; accounting inert for the standard grid).
+
+- [x] **U03: drop the synthetic room-shell title (the stray `Generic`/`Event` label was non-native).**
+      `Sts1PresentationBackend.readRoomShellView` fabricated the room-shell `title` as the capitalized
+      `kind` (`kind.substring(0,1).toUpperCase()+kind.substring(1)` → `"Generic"`/`"Event"`/`"Neow"`)
+      when native `room.title` was empty, and `Sts1RoomShellDrawPath` drew it via
+      `FontHelper.renderFontCentered`. VERIFIED decompiled STS1: NO room class declares a `title` or
+      `roomID` field, and `AbstractRoom.render` draws NO room title (only the delegated event panel,
+      monsters, player, UI); a plain/combat room has no native title. Fix: keep only the genuine
+      `stringValue(room,"title")` passthrough and DELETE the `kind`-capitalized fallback, so a plain
+      room yields an empty title and the existing `!metadata.title().isEmpty()` guard draws nothing.
+      The room-shell resource/`kind` mapping is unchanged. Tests (`Sts1RoomShellTitleTest`,
+      `Sts1RoomShellEmptyTitleRenderTest`): a plain room → `title == ""` (Red was `"Generic"`); a
+      room with a real `title` preserved. Scenario `d1_full_present_select.yaml` (44→46 steps) asserts
+      `backend.roomShellDraw.title eq ""` + `frameHasTitle eq false`. Focused: 1053/0. **D1 PENDING.**
+- [ ] **Open (U03b): remaining native select FOREGROUND items not drawn by ART.** The native
+      `GridCardSelectScreen.render` also draws, in this order, the `confirmScreenUp` scrim
+      (`(0,0,0,0.8)` `WIDTH x (HEIGHT-64*scale)`, drawn AFTER the card grid but gated on the
+      upgrade/transform/preview `confirmScreenUp` state — NOT projectable/reachable in the lab grid
+      path), the `peekButton` (show/hide x animation at `(140*scale, HEIGHT/2)`), the `tipMsg`
+      (`renderDeckViewTip`), and the upgrade `UPGRADE_ARROW`s. The world dimmer behind select
+      (`OverlayMenu.renderBlackScreen` 0.75) already runs natively (only `GridCardSelectScreen.render`
+      is suppressed), so it is NOT a gap. Each of these is a separate bounded slice; the scrim needs a
+      new `confirmScreenUp` projection to be native-faithful.

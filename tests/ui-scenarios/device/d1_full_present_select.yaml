@@ -180,3 +180,14 @@ steps:
   - assert:
       path: backend.selectDraw.items[0].costDrawable
       eq: false
+  # U03: native rooms declare NO room-shell title (VERIFIED decompiled STS1 rooms/**: AbstractRoom
+  # has no `title`/`roomID` field and draws no room title; EventRoom/NeowRoom delegate to the event
+  # surface). On the select screen the live room is a plain combat MonsterRoom, so the backend
+  # room-shell title must be EMPTY and the renderer must publish no label. This pins that the stray
+  # non-native "Generic" label no longer draws over the world/select screens.
+  - assert:
+      path: backend.roomShellDraw.title
+      eq: ""
+  - assert:
+      path: backend.roomShellDraw.frameHasTitle
+      eq: false

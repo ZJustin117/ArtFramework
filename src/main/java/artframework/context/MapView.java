@@ -213,6 +213,59 @@ public final class MapView {
         }
     }
 
+    /**
+     * One native map BOSS icon (M07). Native {@code DungeonMap.renderBossIcon} paints the static
+     * {@code DungeonMap.boss} texture (and its {@code bossOutline}) AFTER the node band. This value
+     * carries the resolved boss body/outline resource ids and the {@code bossNodeColor} tint across
+     * the projection so the pure draw path ({@code MapDrawPath.bossItems()}) can derive the native
+     * draw rects without importing any STS type.
+     */
+    public static final class MapBoss {
+        /** False when there is no boss (or the boss key is unknown); the draw path fails open. */
+        public final boolean visible;
+        /** Native boss body texture resource id (e.g. {@code map.boss.guardian}); non-null. */
+        public final String bossResourceId;
+        /** Native boss outline texture resource id; non-null. */
+        public final String outlineResourceId;
+        /** Native {@code DungeonMap.bossNodeColor.r}. */
+        public final float r;
+        /** Native {@code DungeonMap.bossNodeColor.g}. */
+        public final float g;
+        /** Native {@code DungeonMap.bossNodeColor.b}. */
+        public final float b;
+        /** Native {@code DungeonMap.bossNodeColor.a} (force-set to {@code baseMapColor.a}). */
+        public final float a;
+
+        public MapBoss(
+                boolean visible,
+                String bossResourceId,
+                String outlineResourceId,
+                float r,
+                float g,
+                float b,
+                float a) {
+            this.visible = visible;
+            this.bossResourceId = bossResourceId != null ? bossResourceId : "";
+            this.outlineResourceId = outlineResourceId != null ? outlineResourceId : "";
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.a = a;
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("visible", Boolean.valueOf(visible));
+            m.put("bossResourceId", bossResourceId);
+            m.put("outlineResourceId", outlineResourceId);
+            m.put("r", Float.valueOf(r));
+            m.put("g", Float.valueOf(g));
+            m.put("b", Float.valueOf(b));
+            m.put("a", Float.valueOf(a));
+            return m;
+        }
+    }
+
     public final List<MapNodeView> nodes;
     public final int viewportWidth;
     public final int viewportHeight;
@@ -233,6 +286,8 @@ public final class MapView {
      * types. Room indices 0..5 are event/merchant/treasure/rest/enemy/elite.
      */
     public final int hoveredLegendIndex;
+    /** M07: native map BOSS icon, or {@code null} when unavailable (fail-open). */
+    public final MapBoss boss;
 
     public MapView(List<MapNodeView> nodes, int viewportWidth, int viewportHeight) {
         this(nodes, viewportWidth, viewportHeight, null);
@@ -265,7 +320,8 @@ public final class MapView {
     /**
      * M05 full constructor: adds the LIVE native hovered legend room-row index ({@code 0..5}, or
      * {@code -1} when none/unavailable). Every other constructor delegates here with {@code -1}, so
-     * callers that carry no hover information keep the REST legend unchanged.
+     * callers that carry no hover information keep the REST legend unchanged. The boss argument is
+     * {@code null} (M07 adds the boss overload below).
      */
     public MapView(
             List<MapNodeView> nodes,
@@ -275,6 +331,24 @@ public final class MapView {
             MapBackground background,
             List<MapEdgeView> edges,
             int hoveredLegendIndex) {
+        this(nodes, viewportWidth, viewportHeight, legend, background, edges, hoveredLegendIndex,
+                null);
+    }
+
+    /**
+     * M07 full constructor: adds the native map BOSS icon ({@code null} when unavailable/fail-open).
+     * Every other constructor delegates here with {@code boss = null}, so current callers are
+     * unchanged.
+     */
+    public MapView(
+            List<MapNodeView> nodes,
+            int viewportWidth,
+            int viewportHeight,
+            LegendLabels legend,
+            MapBackground background,
+            List<MapEdgeView> edges,
+            int hoveredLegendIndex,
+            MapBoss boss) {
         if (nodes == null || nodes.isEmpty()) {
             this.nodes = Collections.emptyList();
         } else {
@@ -290,6 +364,7 @@ public final class MapView {
             this.edges = Collections.unmodifiableList(new ArrayList<MapEdgeView>(edges));
         }
         this.hoveredLegendIndex = hoveredLegendIndex;
+        this.boss = boss;
     }
 
     public static MapView empty() {

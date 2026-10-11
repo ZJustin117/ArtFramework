@@ -2478,6 +2478,269 @@ public class MapDrawPathTest {
         return out;
     }
 
+    // ---- M07: native map BOSS icon (DungeonMap.renderBossIcon) ----
+    //
+    // Native `DungeonMap.renderBossIcon(sb)` (called from `DungeonMapScreen.render`, which ART
+    // suppresses under full present) paints the static `DungeonMap.boss` texture AFTER the node band:
+    //   outline: (1,1,1, bossNodeColor.a)   boss: bossNodeColor
+    // both at w = h = 512*scale, x = width/2 - (512*scale)/2, y = offsetY + mapOffsetY + 1416*scale.
+    // These tests observe the pinned probe contract (backend.mapDraw.boss*/paintOrder) through the RAW
+    // map-spec compatibility seam (ContextFrame.coerceMap) so they fail BEHAVIORALLY on the current
+    // code (no boss API), never by compile error.
+
+    @Test
+    public void mapBossDrawsOutlineThenBossAtNativeRectAfterNodeBand() {
+        Sts1HostAssets.install();
+        Map<String, Object> background = rawBackground(1020f, 900f, 100f, 1f, 1920, 1080);
+        Map<String, Object> boss = rawBoss(true, "map.boss.guardian",
+                "map.boss.outline.guardian", 0.09f, 0.13f, 0.17f, 0.75f);
+        publishRawBossMapFrame(background, boss, true, true);
+
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        assertEquals(Boolean.TRUE, probe.get("bossVisible"));
+        assertEquals(Integer.valueOf(2), probe.get("bossCount"));
+        assertEquals("map.boss.guardian", probe.get("bossResourceId"));
+        assertEquals("map.boss.outline.guardian", probe.get("bossOutlineResourceId"));
+
+        // Native rect, derived independently from the formula (NOT from a production helper):
+        // w = h = 512*scale; x = width/2 - w/2; y = offsetY + mapOffsetY + 1416*scale.
+        float scale = 1f;
+        float w = 512f * scale;                       // 512
+        float x = 1920f / 2f - w / 2f;                // 704
+        float y = 100f + 900f + 1416f * scale;        // 2416
+
+        Map<String, Object> outline = nested(probe, "bossOutline");
+        assertEquals("bossOutline", outline.get("id"));
+        assertEquals("map.boss.outline.guardian", outline.get("resourceId"));
+        assertFloat(x, outline.get("x"), 0.01f);
+        assertFloat(y, outline.get("y"), 0.01f);
+        assertFloat(w, outline.get("w"), 0.01f);
+        assertFloat(w, outline.get("h"), 0.01f);
+        Map<String, Object> outlineColor = nested(outline, "color");
+        assertFloat(1f, outlineColor.get("r"), 0.001f);
+        assertFloat(1f, outlineColor.get("g"), 0.001f);
+        assertFloat(1f, outlineColor.get("b"), 0.001f);
+        assertFloat(0.75f, outlineColor.get("a"), 0.001f);
+        assertEquals("ffffffbf", outline.get("colorHex"));
+
+        Map<String, Object> bossItem = nested(probe, "boss");
+        assertEquals("boss", bossItem.get("id"));
+        assertEquals("map.boss.guardian", bossItem.get("resourceId"));
+        assertFloat(x, bossItem.get("x"), 0.01f);
+        assertFloat(y, bossItem.get("y"), 0.01f);
+        assertFloat(w, bossItem.get("w"), 0.01f);
+        assertFloat(w, bossItem.get("h"), 0.01f);
+        Map<String, Object> bossColor = nested(bossItem, "color");
+        assertFloat(0.09f, bossColor.get("r"), 0.001f);
+        assertFloat(0.13f, bossColor.get("g"), 0.001f);
+        assertFloat(0.17f, bossColor.get("b"), 0.001f);
+        assertFloat(0.75f, bossColor.get("a"), 0.001f);
+        assertEquals("17212bbf", bossItem.get("colorHex"));
+
+        // Every pinned boss id must resolve to a real file-backed source (not register-only).
+        for (String id : new String[] {"map.boss.guardian", "map.boss.outline.guardian"}) {
+            artframework.assets.AssetResolveResult r = ArtFramework.assets().resolve(id);
+            assertTrue("boss id must resolve: " + id, r.found);
+            assertTrue("boss id must be file-backed: " + id,
+                    artframework.sts1.assets.Sts1AssetMaterializer.isFileBacked(r.source));
+        }
+
+        // The boss band must strictly follow the ENTIRE node band, outline before boss.
+        List<String> order = MapDrawPath.paintOrder();
+        int lastNodeBand = -1;
+        for (int i = 0; i < order.size(); i++) {
+            String key = order.get(i);
+            if (key.startsWith("node:") || key.startsWith("outline:")
+                    || key.startsWith("ring:") || key.startsWith("overlay:")) {
+                lastNodeBand = i;
+            }
+        }
+        int outlineIdx = order.indexOf("boss:outline");
+        int bossIdx = order.indexOf("boss");
+        assertTrue("boss band must contain boss:outline", outlineIdx >= 0);
+        assertTrue("boss band must contain boss", bossIdx >= 0);
+        assertTrue("boss:outline must strictly follow the node band", outlineIdx > lastNodeBand);
+        assertTrue("boss must strictly follow the node band", bossIdx > lastNodeBand);
+        assertTrue("boss:outline must precede boss", outlineIdx < bossIdx);
+    }
+
+    @Test
+    public void bossRectScalesWithBackgroundScaleAndWidth() {
+        Sts1HostAssets.install();
+        Map<String, Object> background = rawBackground(1000f, 1000f, -50f, 1.25f, 1600, 1080);
+        Map<String, Object> boss = rawBoss(true, "map.boss.hexaghost",
+                "map.boss.outline.hexaghost", 0.09f, 0.13f, 0.17f, 1.0f);
+        publishRawBossMapFrame(background, boss, true, true);
+
+        // Derived from the same native formula with the live background inputs.
+        float scale = 1.25f;
+        float w = 512f * scale;                       // 640
+        float x = 1600f / 2f - w / 2f;                // 480
+        float y = -50f + 1000f + 1416f * scale;       // 2720
+
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        Map<String, Object> bossItem = nested(probe, "boss");
+        assertFloat(x, bossItem.get("x"), 0.01f);
+        assertFloat(y, bossItem.get("y"), 0.01f);
+        assertFloat(w, bossItem.get("w"), 0.01f);
+        assertFloat(w, bossItem.get("h"), 0.01f);
+        assertEquals("17212bff", bossItem.get("colorHex"));
+
+        Map<String, Object> outline = nested(probe, "bossOutline");
+        assertFloat(x, outline.get("x"), 0.01f);
+        assertFloat(y, outline.get("y"), 0.01f);
+        assertFloat(w, outline.get("w"), 0.01f);
+        assertFloat(w, outline.get("h"), 0.01f);
+        assertEquals("ffffffff", outline.get("colorHex"));
+    }
+
+    @Test
+    public void noBossOrHiddenBossProducesNoBossItemsOrBand() {
+        Sts1HostAssets.install();
+        Map<String, Object> background = rawBackground(1020f, 900f, 100f, 1f, 1920, 1080);
+
+        // (a) background but NO boss key at all.
+        publishRawBossMapFrame(background, null, true, false);
+        Map<String, Object> probe = MapDrawPath.probeSlice();
+        assertEquals(Boolean.FALSE, probe.get("bossVisible"));
+        assertEquals(Integer.valueOf(0), probe.get("bossCount"));
+        assertNull(probe.get("boss"));
+        assertNull(probe.get("bossOutline"));
+        assertNoBossPaintOrder();
+
+        // (b) explicit visible=false.
+        publishRawBossMapFrame(background, rawBoss(false, "map.boss.guardian",
+                "map.boss.outline.guardian", 0.09f, 0.13f, 0.17f, 1f), true, true);
+        probe = MapDrawPath.probeSlice();
+        assertEquals(Boolean.FALSE, probe.get("bossVisible"));
+        assertEquals(Integer.valueOf(0), probe.get("bossCount"));
+        assertNull(probe.get("boss"));
+        assertNull(probe.get("bossOutline"));
+        assertNoBossPaintOrder();
+
+        // (c) boss present but NO background: fail-open to zero items, never throws.
+        publishRawBossMapFrame(null, rawBoss(true, "map.boss.guardian",
+                "map.boss.outline.guardian", 0.09f, 0.13f, 0.17f, 1f), false, true);
+        probe = MapDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(0), probe.get("bossCount"));
+        assertNull(probe.get("boss"));
+        assertNoBossPaintOrder();
+    }
+
+    @Test
+    public void bossKeyTableMapsAllTenBossesToRealFiles() {
+        Map<String, String> catalog = Sts1VanillaCatalog.catalog();
+        String[] slugs = {"guardian", "hexaghost", "slime", "collector", "automaton",
+                "champ", "awakened", "timeeater", "donu", "heart"};
+        for (String slug : slugs) {
+            assertEquals("sts1:images/ui/map/boss/" + slug + ".png",
+                    catalog.get("map.boss." + slug));
+            assertEquals("sts1:images/ui/map/bossOutline/" + slug + ".png",
+                    catalog.get("map.boss.outline." + slug));
+        }
+    }
+
+    private static Map<String, Object> rawBackground(
+            float mapMidDist, float mapOffsetY, float offsetY, float scale, int width, int height) {
+        Map<String, Object> bg = new LinkedHashMap<String, Object>();
+        bg.put("mapMidDist", Float.valueOf(mapMidDist));
+        bg.put("mapOffsetY", Float.valueOf(mapOffsetY));
+        bg.put("offsetY", Float.valueOf(offsetY));
+        bg.put("scale", Float.valueOf(scale));
+        bg.put("width", Integer.valueOf(width));
+        bg.put("height", Integer.valueOf(height));
+        bg.put("h", Float.valueOf(1020f * scale));
+        bg.put("blendH", Float.valueOf(512f * scale));
+        bg.put("alpha", Float.valueOf(1f));
+        bg.put("finalAct", Boolean.FALSE);
+        return bg;
+    }
+
+    private static Map<String, Object> rawBoss(
+            boolean visible, String bossResourceId, String outlineResourceId,
+            float r, float g, float b, float a) {
+        Map<String, Object> boss = new LinkedHashMap<String, Object>();
+        boss.put("visible", Boolean.valueOf(visible));
+        boss.put("bossResourceId", bossResourceId);
+        boss.put("outlineResourceId", outlineResourceId);
+        boss.put("r", Float.valueOf(r));
+        boss.put("g", Float.valueOf(g));
+        boss.put("b", Float.valueOf(b));
+        boss.put("a", Float.valueOf(a));
+        return boss;
+    }
+
+    /**
+     * Publish a map frame through the RAW map-spec compatibility constructor
+     * ({@link ContextFrame#ContextFrame(long, long, String, List, Map, Map, boolean, ViewportView)}),
+     * whose {@code coerceMap(...)} owns the new {@code background}/{@code boss} round-trip. Keys are
+     * omitted entirely when {@code includeBackground}/{@code includeBoss} is false.
+     */
+    private static void publishRawBossMapFrame(
+            Map<String, Object> background, Map<String, Object> boss,
+            boolean includeBackground, boolean includeBoss) {
+        Sts1HostAssets.install();
+        Map<String, Object> rawMap = new LinkedHashMap<String, Object>();
+        rawMap.put("viewportWidth", Integer.valueOf(1920));
+        rawMap.put("viewportHeight", Integer.valueOf(1080));
+        List<Map<String, Object>> nodes = new ArrayList<Map<String, Object>>();
+        Map<String, Object> n = new LinkedHashMap<String, Object>();
+        n.put("row", Integer.valueOf(1));
+        n.put("col", Integer.valueOf(2));
+        n.put("taken", Boolean.FALSE);
+        n.put("highlighted", Boolean.FALSE);
+        n.put("available", Boolean.TRUE);
+        n.put("current", Boolean.FALSE);
+        n.put("symbol", "M");
+        n.put("roomKind", "monster");
+        n.put("resourceId", ResourceIds.MAP_NODE_MONSTER);
+        nodes.add(n);
+        rawMap.put("nodes", nodes);
+        if (includeBackground) {
+            rawMap.put("background", background);
+        }
+        if (includeBoss) {
+            rawMap.put("boss", boss);
+        }
+        FakeSignalBackend backend = new FakeSignalBackend();
+        backend.installSignals();
+        backend.publish(
+                new ContextFrame(
+                        1L,
+                        1L,
+                        "map",
+                        Collections.<artframework.context.CardView>emptyList(),
+                        new LinkedHashMap<String, Object>(),
+                        rawMap,
+                        true,
+                        new ViewportView(1920, 1080, 1920, 1080)));
+        ArtFramework.publishFrame(backend.currentFrame());
+    }
+
+    private static void assertNoBossPaintOrder() {
+        List<String> order = MapDrawPath.paintOrder();
+        for (String key : order) {
+            assertFalse("unexpected boss band entry: " + key,
+                    key.startsWith("boss:") || "boss".equals(key));
+        }
+        assertFalse("boss:outline must be absent", order.contains("boss:outline"));
+        assertFalse("boss must be absent", order.contains("boss"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> nested(Map<String, Object> parent, String key) {
+        Object value = parent.get(key);
+        assertNotNull("probe key missing: " + key, value);
+        assertTrue("probe key is not a map: " + key, value instanceof Map);
+        return (Map<String, Object>) value;
+    }
+
+    private static void assertFloat(float expected, Object actual, float delta) {
+        assertNotNull("expected a numeric probe value", actual);
+        assertTrue("expected a Number but got " + actual, actual instanceof Number);
+        assertEquals(expected, ((Number) actual).floatValue(), delta);
+    }
+
     private enum Scenario {
         OFF,
         EXECUTORLESS,

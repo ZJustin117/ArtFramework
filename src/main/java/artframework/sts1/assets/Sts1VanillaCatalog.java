@@ -224,6 +224,19 @@ public final class Sts1VanillaCatalog {
         put(m, ResourceIds.MAP_NODE_TREASURE, "images/ui/map/chest.png");
         put(m, ResourceIds.MAP_NODE_EVENT, "images/ui/map/event.png");
         put(m, ResourceIds.MAP_NODE_BOSS, "images/ui/map/boss.png");
+        // M07: native map BOSS icon (DungeonMap.renderBossIcon). Every boss has a body + outline
+        // texture under images/ui/map/boss/ and images/ui/map/bossOutline/ (all verified present in
+        // desktop-1.0.jar). The slug is the AbstractDungeon.setBoss key -> slug mapping.
+        String[] bossSlugs = {
+            "guardian", "hexaghost", "slime", "collector", "automaton",
+            "champ", "awakened", "timeeater", "donu", "heart"
+        };
+        for (int i = 0; i < bossSlugs.length; i++) {
+            String slug = bossSlugs[i];
+            put(m, ResourceIds.mapBoss(slug), "images/ui/map/boss/" + slug + ".png");
+            put(m, ResourceIds.mapBossOutline(slug),
+                    "images/ui/map/bossOutline/" + slug + ".png");
+        }
         put(m, ResourceIds.MAP_BG_PREFIX + "act1", "images/ui/map/mapBg.png");
         // Native Legend.render draws ImageMaster.MAP_LEGEND = images/ui/map/legend2.png (512x800);
         // the 6 LegendItem icons reuse the MAP_NODE_* textures already mapped above.

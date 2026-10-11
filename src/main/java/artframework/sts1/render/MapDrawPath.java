@@ -908,6 +908,104 @@ public final class MapDrawPath {
         }
     }
 
+    /** Native {@code BOSS_W = 512f * Settings.scale} desktop boss icon size factor. */
+    public static final float BOSS_W = 512f;
+    /** Native {@code BOSS_OFFSET_Y = 1416f * Settings.scale} desktop boss icon offset. */
+    public static final float BOSS_OFFSET_Y = 1416f;
+
+    /**
+     * One native map BOSS icon draw (M07). Native {@code DungeonMap.renderBossIcon} (called from
+     * {@code DungeonMapScreen.render}, which ART suppresses under full present) paints the static
+     * {@code DungeonMap.boss} texture and its {@code bossOutline} AFTER the node band. The outline is
+     * tinted {@code (1,1,1, bossNodeColor.a)} and the body {@code bossNodeColor}; both at
+     * {@code w = h = 512*scale}, {@code x = width/2 - w/2}, {@code y = offsetY + mapOffsetY +
+     * 1416*scale} (desktop). This is the projected, pure-value carrier of that single draw.
+     */
+    public static final class BossDrawItem {
+        public final String id;
+        public final String resourceId;
+        public final Rect bounds;
+        public final float r;
+        public final float g;
+        public final float b;
+        public final float a;
+
+        public BossDrawItem(String id, String resourceId, Rect bounds,
+                float r, float g, float b, float a) {
+            this.id = id != null ? id : "";
+            this.resourceId = resourceId != null ? resourceId : "";
+            this.bounds = bounds != null ? bounds : Rect.ZERO;
+            this.r = r;
+            this.g = g;
+            this.b = b;
+            this.a = a;
+        }
+
+        public Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<String, Object>();
+            m.put("id", id);
+            m.put("resourceId", resourceId);
+            m.put("x", Float.valueOf(bounds.x));
+            m.put("y", Float.valueOf(bounds.y));
+            m.put("w", Float.valueOf(bounds.width));
+            m.put("h", Float.valueOf(bounds.height));
+            Map<String, Object> color = new LinkedHashMap<String, Object>();
+            color.put("r", Float.valueOf(r));
+            color.put("g", Float.valueOf(g));
+            color.put("b", Float.valueOf(b));
+            color.put("a", Float.valueOf(a));
+            m.put("color", color);
+            m.put("colorHex", hex(r, g, b, a));
+            return m;
+        }
+    }
+
+    /**
+     * Native map BOSS icon draws (M07) in native order: the outline FIRST, then the body, both at the
+     * same native rect. Derived from the projected {@link MapView.MapBoss} plus the reused
+     * {@link MapView.MapBackground} geometry. Native {@code renderBossIcon} (VERIFIED desktop-1.0.jar):
+     * {@code w = h = 512*Settings.scale}; {@code x = Settings.WIDTH/2 - w/2}; {@code y = offsetY +
+     * mapOffsetY + 1416*Settings.scale} (desktop). The outline+body pair is ATOMIC: native draws both
+     * from ONE {@code boss != null} gate, so an empty boss OR outline resource id emits nothing (no
+     * half pair). Fail-open: an empty list when the projection, the background, the boss,
+     * {@code visible=false}, a non-positive background scale/width, or either resource id is absent
+     * (never throws, never invents pixels). Unknown boss keys are already filtered to {@code boss=null}
+     * by the backend.
+     */
+    public static List<BossDrawItem> bossItems() {
+        List<BossDrawItem> out = new ArrayList<BossDrawItem>();
+        MapView mv = projectedMap();
+        if (mv == null) {
+            return out;
+        }
+        MapView.MapBackground bg = mv.background;
+        if (bg == null) {
+            return out;
+        }
+        if (!(bg.scale > 0f) || bg.width <= 0) {
+            return out;
+        }
+        MapView.MapBoss boss = mv.boss;
+        if (boss == null || !boss.visible) {
+            return out;
+        }
+        // F1 (M07-03): native renderBossIcon draws the outline AND the body inside ONE `boss != null`
+        // gate, so the pair is ATOMIC — a partial projection (either resource id empty) emits NOTHING
+        // rather than a half pair.
+        if (boss.bossResourceId.isEmpty() || boss.outlineResourceId.isEmpty()) {
+            return out;
+        }
+        float size = BOSS_W * bg.scale;
+        float x = bg.width / 2f - size / 2f;
+        float y = bg.offsetY + bg.mapOffsetY + BOSS_OFFSET_Y * bg.scale;
+        Rect bounds = new Rect(x, y, size, size);
+        out.add(new BossDrawItem(
+                "bossOutline", boss.outlineResourceId, bounds, 1f, 1f, 1f, boss.a));
+        out.add(new BossDrawItem(
+                "boss", boss.bossResourceId, bounds, boss.r, boss.g, boss.b, boss.a));
+        return out;
+    }
+
     /** Native {@code MapDot.render} texture half-size (16px texture, origin 8,8). */
     public static final float DOT_HALF = 8f;
     /** Native {@code MapDot.render} texture size ({@code images/ui/map/dot1.png} = 16px). */
@@ -1060,6 +1158,12 @@ public final class MapDrawPath {
             if (item.taken || item.currentNode) {
                 out.add("ring:" + key);
             }
+        }
+        // M07: native DungeonMap.render draws the boss icon AFTER the whole node band
+        // (DungeonMap.render -> MapRoomNode.render -> renderBossIcon). Outline before body.
+        if (!bossItems().isEmpty()) {
+            out.add("boss:outline");
+            out.add("boss");
         }
         return out;
     }
@@ -1428,6 +1532,27 @@ public final class MapDrawPath {
         }
         m.put("background", backgroundList);
         m.put("backgroundCount", Integer.valueOf(backgroundList.size()));
+        // M07: native map BOSS icon (DungeonMap.renderBossIcon). `bossVisible`/`bossCount` prove the
+        // gate; `boss`/`bossOutline` carry the native rects+colors; the resource-id keys are "" when
+        // absent. Nulls are REQUIRED when no boss is drawn.
+        List<BossDrawItem> bossList = bossItems();
+        Map<String, Object> bossItemMap = null;
+        Map<String, Object> bossOutlineMap = null;
+        for (BossDrawItem bi : bossList) {
+            if ("boss".equals(bi.id)) {
+                bossItemMap = bi.toMap();
+            } else if ("bossOutline".equals(bi.id)) {
+                bossOutlineMap = bi.toMap();
+            }
+        }
+        m.put("bossVisible", Boolean.valueOf(!bossList.isEmpty()));
+        m.put("bossCount", Integer.valueOf(bossList.size()));
+        m.put("boss", bossItemMap);
+        m.put("bossOutline", bossOutlineMap);
+        m.put("bossResourceId", bossItemMap != null
+                ? String.valueOf(bossItemMap.get("resourceId")) : "");
+        m.put("bossOutlineResourceId", bossOutlineMap != null
+                ? String.valueOf(bossOutlineMap.get("resourceId")) : "");
         // D03 map edges: the native map connection dots (ImageMaster.MAP_DOT_1 = dot1.png) read from
         // the stored (jittered) MapDot positions, tinted by the owning edge color, drawn BELOW the
         // nodes. `edgeCount` is the number of resolved dot draws; `edgeSample` carries the first few.

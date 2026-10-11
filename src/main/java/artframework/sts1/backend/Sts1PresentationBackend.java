@@ -44,8 +44,10 @@ import com.megacrit.cardcrawl.screens.select.GridCardSelectScreen;
 import com.megacrit.cardcrawl.screens.select.HandCardSelectScreen;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -546,6 +548,115 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
     }
 
+    /**
+     * M07: read the native map BOSS icon. Native {@code DungeonMap.renderBossIcon} (called from
+     * {@code DungeonMapScreen.render}, which ART suppresses under full present) paints the static
+     * {@code DungeonMap.boss} texture plus its {@code bossOutline} AFTER the node band, tinted by the
+     * PRIVATE {@code DungeonMap.bossNodeColor} Color. The LIVE {@code bossNodeColor.a} is PRIMARY and
+     * equals {@code baseMapColor.a}: native {@code DungeonMap.update()} is NOT ART-suppressed (ART
+     * patches only {@code DungeonMapScreen.render}) and force-sets {@code bossNodeColor.a} to
+     * {@code baseMapColor.a} every frame, so reading the live field already yields the native draw /
+     * fail-open alpha. The reused {@code readMapBackground().alpha} is ONLY the fail-open when the
+     * field is unreadable (the {@code (0.34,0.34,0.34)} rgb default is a copy of
+     * {@code NOT_TAKEN_COLOR}). The boss
+     * identity is {@code AbstractDungeon.bossKey} (a display name) mapped to a file slug via the
+     * native {@code AbstractDungeon.setBoss} table. Presence is the live static {@code DungeonMap.boss}
+     * texture OR a non-empty {@code bossKey}; an unknown key maps to {@code null} (fail-open, boss not
+     * drawn). All reads are soft reflection; FAIL-OPEN to {@code null} on any missing field/throw
+     * (never throws, never hard-links an STS type beyond what this class already references).
+     *
+     * @param background the already-read map background (reused ONLY for the fail-open draw alpha when
+     *                   {@code bossNodeColor.a} is unreadable; do not re-read geometry here)
+     */
+    private static MapView.MapBoss readMapBoss(MapView.MapBackground background) {
+        try {
+            String bossKey = "";
+            Object key = softField(
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.class, null, "bossKey");
+            if (key instanceof String) {
+                bossKey = (String) key;
+            }
+            Object screen = softField(
+                    com.megacrit.cardcrawl.dungeons.AbstractDungeon.class, null,
+                    "dungeonMapScreen");
+            Object dungeonMap = screen != null ? softField(screen.getClass(), screen, "map") : null;
+            // Presence: the static DungeonMap.boss Texture OR a non-empty bossKey. softField is
+            // already fail-open (returns null on any throw / missing field).
+            boolean bossTexPresent =
+                    softField(com.megacrit.cardcrawl.map.DungeonMap.class, null, "boss") != null;
+            if (!bossTexPresent && (bossKey == null || bossKey.isEmpty())) {
+                return null;
+            }
+            String slug = bossSlug(bossKey);
+            if (slug == null) {
+                return null;
+            }
+            // bossNodeColor: PRIVATE DungeonMap.bossNodeColor Color; the live .a is PRIMARY (native
+            // DungeonMap.update force-sets it to baseMapColor.a). Fail-open rgb to NOT_TAKEN
+            // (0.34,0.34,0.34) and alpha to the background alpha (or 1f) only when unreadable.
+            float r = 0.34f;
+            float g = 0.34f;
+            float b = 0.34f;
+            float a = background != null ? background.alpha : 1f;
+            if (dungeonMap != null) {
+                Object color = softField(dungeonMap.getClass(), dungeonMap, "bossNodeColor");
+                if (color != null) {
+                    Object cr = softField(color.getClass(), color, "r");
+                    Object cg = softField(color.getClass(), color, "g");
+                    Object cb = softField(color.getClass(), color, "b");
+                    Object ca = softField(color.getClass(), color, "a");
+                    if (cr instanceof Number) {
+                        r = ((Number) cr).floatValue();
+                    }
+                    if (cg instanceof Number) {
+                        g = ((Number) cg).floatValue();
+                    }
+                    if (cb instanceof Number) {
+                        b = ((Number) cb).floatValue();
+                    }
+                    if (ca instanceof Number) {
+                        a = ((Number) ca).floatValue();
+                    }
+                }
+            }
+            return new MapView.MapBoss(
+                    true,
+                    ResourceIds.mapBoss(slug),
+                    ResourceIds.mapBossOutline(slug),
+                    r, g, b, a);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * M07: the verified {@code AbstractDungeon.setBoss} key -> file slug table, built once.
+     */
+    private static final Map<String, String> BOSS_SLUGS = buildBossSlugs();
+
+    private static Map<String, String> buildBossSlugs() {
+        Map<String, String> slugs = new LinkedHashMap<String, String>();
+        slugs.put("The Guardian", "guardian");
+        slugs.put("Hexaghost", "hexaghost");
+        slugs.put("Slime Boss", "slime");
+        slugs.put("Collector", "collector");
+        slugs.put("Automaton", "automaton");
+        slugs.put("Champ", "champ");
+        slugs.put("Awakened One", "awakened");
+        slugs.put("Time Eater", "timeeater");
+        slugs.put("Donu and Deca", "donu");
+        slugs.put("The Heart", "heart");
+        return Collections.unmodifiableMap(slugs);
+    }
+
+    /**
+     * M07: the verified {@code AbstractDungeon.setBoss} key -> file slug mapping. Unknown/empty keys
+     * return {@code null} (fail-open, boss not drawn).
+     */
+    private static String bossSlug(String bossKey) {
+        return bossKey == null ? null : BOSS_SLUGS.get(bossKey);
+    }
+
     private ContextFrame mapFrame() {
         List<MapNodeView> nodes = new ArrayList<MapNodeView>();
         if (AbstractDungeon.map != null) {
@@ -598,9 +709,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
         }
         int w = com.megacrit.cardcrawl.core.Settings.WIDTH;
         int h = com.megacrit.cardcrawl.core.Settings.HEIGHT;
+        MapView.MapBackground background = readMapBackground();
         MapView map = new MapView(
-                nodes, w, h, readLegendLabels(), readMapBackground(), readMapEdges(),
-                readHoveredLegendIndex());
+                nodes, w, h, readLegendLabels(), background, readMapEdges(),
+                readHoveredLegendIndex(), readMapBoss(background));
         ViewportView viewport = new ViewportView(w, h, w, h);
         return new ContextFrame(
                 frameId,

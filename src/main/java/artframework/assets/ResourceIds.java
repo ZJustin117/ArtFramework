@@ -12,6 +12,15 @@ public final class ResourceIds {
     public static final String MAP_NODE_PREFIX = "map.node.";
     public static final String MAP_BG_PREFIX = "map.bg.";
     public static final String MAP_EDGE_PREFIX = "map.edge.";
+    /**
+     * M07: native map BOSS icon ({@code DungeonMap.renderBossIcon}). The draw path never imports STS
+     * types, so the boss identity crosses the projection as two resource ids, keyed by the
+     * {@code AbstractDungeon.bossKey} slug (guardian/hexaghost/slime/collector/automaton/champ/
+     * awakened/timeeater/donu/heart). Distinct from {@link #MAP_NODE_BOSS} (the generic
+     * {@code images/ui/map/boss.png} map-node legend icon).
+     */
+    public static final String MAP_BOSS_PREFIX = "map.boss.";
+    public static final String MAP_BOSS_OUTLINE_PREFIX = "map.boss.outline.";
     public static final String UI_PREFIX = "ui.";
     public static final String CHAR_PREFIX = "char.";
     public static final String CHAR_UNKNOWN = "char.unknown";
@@ -196,6 +205,16 @@ public final class ResourceIds {
 
     public static String mapEdge(String kind) {
         return MAP_EDGE_PREFIX + (kind != null ? kind : "default");
+    }
+
+    /** M07: native map boss icon resource id for a boss slug (e.g. {@code guardian}). */
+    public static String mapBoss(String slug) {
+        return MAP_BOSS_PREFIX + (slug != null ? slug : "");
+    }
+
+    /** M07: native map boss outline icon resource id for a boss slug (e.g. {@code guardian}). */
+    public static String mapBossOutline(String slug) {
+        return MAP_BOSS_OUTLINE_PREFIX + (slug != null ? slug : "");
     }
 
     public static String roomShell(String kind) {

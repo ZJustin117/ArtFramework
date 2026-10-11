@@ -995,6 +995,21 @@ public final class Sts1SurfaceRenderer {
             }
         } catch (Throwable ignored) {
         }
+        // M07: native DungeonMap.renderBossIcon paints the boss outline then the boss body AFTER the
+        // whole node band (DungeonMap.render -> MapRoomNode.render -> renderBossIcon). A separate
+        // render band like background/edges, NOT part of mapSubmissionPlan().
+        try {
+            for (MapDrawPath.BossDrawItem item : MapDrawPath.bossItems()) {
+                recordMapBandResource(item.resourceId);
+                try {
+                    drawResolvedTexture(sb, item.resourceId, item.bounds,
+                            item.r, item.g, item.b, item.a);
+                    drawn++;
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
         NativeRenderBridge.recordSurfaceDrawIfPending(SurfaceIds.MAP, drawn);
     }
 

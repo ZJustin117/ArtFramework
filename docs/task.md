@@ -4269,3 +4269,54 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       tie legend hover to the matching nodes. Separate slice (depends on M05's hovered-index
       projection): map the hovered room kind → node symbol and apply the `scale=0.68`/`LightGray`
       state to the matching nodes.
+ - [ ] **M07: ART renders the native map BOSS icon.** Native `DungeonMap.renderBossIcon(sb)` (called
+       from `DungeonMapScreen.render`, which ART suppresses under full present) paints the static
+       `DungeonMap.boss` texture and its `bossOutline` AFTER the whole node band —
+       `DungeonMap.render` (bg/legend) → `MapRoomNode.render` (nodes) → `renderBossIcon`. Native order
+       and tint (VERIFIED decompiled, desktop branch): outline `sb.setColor(1,1,1, bossNodeColor.a)`
+       then boss `sb.setColor(bossNodeColor)`; both at `w = h = 512f*Settings.scale`,
+       `x = Settings.WIDTH/2f - w/2f`, `y = offsetY + mapOffsetY + 1416f*Settings.scale` (desktop);
+       `BOSS_OFFSET_Y = 1416*scale`. `bossNodeColor` is the PRIVATE `DungeonMap.bossNodeColor` Color
+       (default a copy of `NOT_TAKEN_COLOR (0.34,0.34,0.34,1)` lerped toward
+       `MapRoomNode.AVAILABLE_COLOR (0.09,0.13,0.17,1)`), `.a` force-set to `baseMapColor.a`. **Boss
+       key → file table** (from `AbstractDungeon.setBoss`): "The Guardian"→guardian, "Hexaghost"→
+       hexaghost, "Slime Boss"→slime, "Collector"→collector, "Automaton"→automaton, "Champ"→champ,
+       "Awakened One"→awakened, "Time Eater"→timeeater, "Donu and Deca"→donu, "The Heart"→heart;
+       bodies `images/ui/map/boss/<slug>.png`, outlines `images/ui/map/bossOutline/<slug>.png` (all 20
+       verified present in the jar); an unknown key draws NOTHING (fail-open). **Projection:**
+       `MapView.MapBoss` (visible + both resource ids + bossNodeColor r/g/b/a, `toMap()` round-trip)
+       carried by the new `MapView` full ctor; `ContextFrame.coerceMap` parses the nested `boss` map
+       (null when absent or `visible=false`) and the nested `background` map (reused
+       `MapView.MapBackground`, drawn geometry). `ResourceIds.MAP_BOSS_PREFIX =
+       "map.boss."`/`MAP_BOSS_OUTLINE_PREFIX = "map.boss.outline."` + `mapBoss(slug)`/
+       `mapBossOutline(slug)`; `Sts1VanillaCatalog.putMapNodes` registers all 20 file-backed entries
+       (distinct from `MAP_NODE_BOSS` = `images/ui/map/boss.png`). **Draw path:**
+       `MapDrawPath.BossDrawItem` + `bossItems()` (empty when no projection/background/boss,
+       `visible=false`, a non-positive background scale/width, or EITHER resource id empty — the outline+body
+       pair is ATOMIC because native draws both under one `boss != null` gate; otherwise exactly two items
+       outline-then-boss at the native rect, outline tint `(1,1,1,a)`, boss tint `(r,g,b,a)`); `paintOrder()` appends
+       `boss:outline` then `boss` strictly after the whole node band (nothing when empty);
+       `probeSlice()` adds `bossVisible`/`bossCount`/`boss`/`bossOutline`/`bossResourceId`/
+       `bossOutlineResourceId` (nulls REQUIRED when absent); `mapSubmissionPlan()` unchanged (the boss
+       is a separate render band like background/edges). `Sts1SurfaceRenderer.renderMap` draws
+       `bossItems()` after the submission loop (`recordMapBandResource` + `drawResolvedTexture`,
+       incrementing `drawn`, fail-open). `Sts1PresentationBackend.readMapBoss()` soft-reflects
+       `AbstractDungeon.bossKey` ("" on failure) + the static `DungeonMap.boss` presence + the PRIVATE
+       `bossNodeColor` (rgb fail-open 0.34; alpha is the live `bossNodeColor.a`, which native
+       `DungeonMap.update()` — not ART-suppressed — force-sets to `baseMapColor.a`, failing open to the
+       reused `readMapBackground().alpha` when unreadable), FAIL-OPEN
+       to null on any missing field/throw (no duplicate geometry read). **Tests:** `MapDrawPathTest`
+       +4 (`mapBossDrawsOutlineThenBossAtNativeRectAfterNodeBand`,
+       `bossRectScalesWithBackgroundScaleAndWidth`, `noBossOrHiddenBossProducesNoBossItemsOrBand`,
+       `bossKeyTableMapsAllTenBossesToRealFiles`) and scenario `d1_map_boss_icon.yaml`. **Focused run
+       (`--tests "artframework.sts1.render.*" --tests "artframework.sts1.backend.*" --tests
+       "artframework.context.*" --tests "artframework.assets.*"`): 1153 tests, 0 failures.** **D1
+       PENDING** (deploy + on-device scenario not executed in this slice).
+ - [ ] **Open (M07b): boss icon per-act key coverage beyond the first verified boss.** The D1 capture
+       can only exercise the Act-1 boss of the sampled run; each of the 10 boss files
+       (`map.boss.<slug>`/`map.boss.outline.<slug>`) must be exercised end-to-end, since a single Act-1
+       boss does not prove the other 9 slugs resolve/render. Needs a per-act sampling plan (or a
+       catalog-level resolve check for all 20 ids) before the boss icon is claimed complete.
+ - [ ] **Open (M07c): mobile `BOSS_W = 560*scale` branch.** Native `renderBossIcon` has a
+       mobile/`Settings.isMobile` branch (`BOSS_W = 560*scale` and its own offset) that ART does not
+       model; the current implementation reproduces the desktop branch only.

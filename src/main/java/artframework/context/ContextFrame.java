@@ -473,7 +473,58 @@ public final class ContextFrame {
                                 boolVal(m.get("liveColor"), false)));
             }
         }
-        return new MapView(nodes, vw, vh, null, null, null, hoveredLegendIndex);
+        return new MapView(
+                nodes, vw, vh, null, coerceMapBackground(raw), null, hoveredLegendIndex,
+                coerceMapBoss(raw));
+    }
+
+    /**
+     * M07: parse an optional nested {@code background} map into {@link MapView.MapBackground} using
+     * the {@code MapBackground.toMap()} key names. Absent/blank =&gt; {@code null} (fail-open).
+     */
+    @SuppressWarnings("unchecked")
+    private static MapView.MapBackground coerceMapBackground(Map<String, Object> raw) {
+        Object bgObj = raw.get("background");
+        if (!(bgObj instanceof Map)) {
+            return null;
+        }
+        Map<String, Object> bg = (Map<String, Object>) bgObj;
+        return new MapView.MapBackground(
+                floatVal(bg.get("mapMidDist"), 0f),
+                floatVal(bg.get("mapOffsetY"), 0f),
+                floatVal(bg.get("offsetY"), 0f),
+                floatVal(bg.get("scale"), 1f),
+                intVal(bg.get("width"), 0),
+                intVal(bg.get("height"), 0),
+                floatVal(bg.get("h"), 0f),
+                floatVal(bg.get("blendH"), 0f),
+                floatVal(bg.get("alpha"), 1f),
+                boolVal(bg.get("finalAct"), false));
+    }
+
+    /**
+     * M07: parse an optional nested {@code boss} map into {@link MapView.MapBoss}. Produces
+     * {@code null} when the key is absent OR {@code visible} is false (fail-open, like the backend);
+     * tint defaults to NOT_TAKEN (0.34,0.34,0.34, a=1) when unreadable.
+     */
+    @SuppressWarnings("unchecked")
+    private static MapView.MapBoss coerceMapBoss(Map<String, Object> raw) {
+        Object bossObj = raw.get("boss");
+        if (!(bossObj instanceof Map)) {
+            return null;
+        }
+        Map<String, Object> boss = (Map<String, Object>) bossObj;
+        if (!boolVal(boss.get("visible"), false)) {
+            return null;
+        }
+        return new MapView.MapBoss(
+                true,
+                str(boss.get("bossResourceId")),
+                str(boss.get("outlineResourceId")),
+                floatVal(boss.get("r"), 0.34f),
+                floatVal(boss.get("g"), 0.34f),
+                floatVal(boss.get("b"), 0.34f),
+                floatVal(boss.get("a"), 1f));
     }
 
     private static int intVal(Object o, int def) {

@@ -23,6 +23,11 @@ public final class CardView {
     public final String color;
     /** Native card rarity enum constant name (e.g. {@code BASIC}/{@code RARE}); default {@code ""}. */
     public final String rarity;
+    /**
+     * True when the native card cost permits the ENERGY ORB draw ({@code AbstractCard.cost > -2});
+     * fail-open {@code true} when cost is unknown/absent.
+     */
+    public final boolean orbDrawable;
 
     public CardView(
             CardRef ref,
@@ -36,7 +41,7 @@ public final class CardView {
             String artResourceId,
             String frameResourceId) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging,
-                artResourceId, frameResourceId, ref.cardId, "", "", "", "", "");
+                artResourceId, frameResourceId, ref.cardId, "", "", "", "", "", true);
     }
 
     public CardView(
@@ -44,7 +49,7 @@ public final class CardView {
             boolean selected, boolean hovered, boolean dragging, String artResourceId,
             String frameResourceId, String title, String cost, String type, String description) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
-                frameResourceId, title, cost, type, description, "", "");
+                frameResourceId, title, cost, type, description, "", "", true);
     }
 
     public CardView(
@@ -53,7 +58,7 @@ public final class CardView {
             String frameResourceId, String title, String cost, String type, String description,
             String color) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
-                frameResourceId, title, cost, type, description, color, "");
+                frameResourceId, title, cost, type, description, color, "", true);
     }
 
     public CardView(
@@ -61,6 +66,15 @@ public final class CardView {
             boolean selected, boolean hovered, boolean dragging, String artResourceId,
             String frameResourceId, String title, String cost, String type, String description,
             String color, String rarity) {
+        this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
+                frameResourceId, title, cost, type, description, color, rarity, true);
+    }
+
+    public CardView(
+            CardRef ref, CardZone zone, int slotIndex, CardPose pose, boolean playable,
+            boolean selected, boolean hovered, boolean dragging, String artResourceId,
+            String frameResourceId, String title, String cost, String type, String description,
+            String color, String rarity, boolean orbDrawable) {
         if (ref == null) {
             throw new IllegalArgumentException("ref required");
         }
@@ -80,6 +94,7 @@ public final class CardView {
         this.description = description != null ? description : "";
         this.color = color != null ? color : "";
         this.rarity = rarity != null ? rarity : "";
+        this.orbDrawable = orbDrawable;
     }
 
     public static Builder builder(CardRef ref) {
@@ -103,6 +118,7 @@ public final class CardView {
         private String description = "";
         private String color = "";
         private String rarity = "";
+        private boolean orbDrawable = true;
 
         Builder(CardRef ref) {
             this.ref = ref;
@@ -159,6 +175,7 @@ public final class CardView {
         public Builder description(String value) { this.description = value; return this; }
         public Builder color(String value) { this.color = value; return this; }
         public Builder rarity(String value) { this.rarity = value; return this; }
+        public Builder orbDrawable(boolean value) { this.orbDrawable = value; return this; }
 
         public CardView build() {
             return new CardView(
@@ -171,7 +188,7 @@ public final class CardView {
                     hovered,
                     dragging,
                     artResourceId, frameResourceId, title != null ? title : ref.cardId,
-                    cost, type, description, color, rarity);
+                    cost, type, description, color, rarity, orbDrawable);
         }
     }
 }

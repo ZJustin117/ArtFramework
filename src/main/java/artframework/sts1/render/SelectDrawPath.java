@@ -45,6 +45,13 @@ public final class SelectDrawPath {
          * Parallel to {@link #frameResourceId}; an ADDITIONAL drawn region, not part of accounting.
          */
         public final String bannerResourceId;
+        /**
+         * U02d2: select card ENERGY ORB descriptor ({@code cardui#512/card_<color>_orb}) derived from
+         * the native {@code AbstractCard.renderEnergy} {@code this.color} switch; empty when the
+         * native cost gate suppresses the orb draw. Parallel to {@link #frameResourceId}; an
+         * ADDITIONAL drawn region, never part of accounting.
+         */
+        public final String orbResourceId;
 
         public DrawItem(
                 String instanceId,
@@ -78,6 +85,14 @@ public final class SelectDrawPath {
                 boolean visible, boolean enabled, float x, float y, boolean confirm,
                 String resourceId, String frameResourceId, float w, float h,
                 String bannerResourceId) {
+            this(instanceId, cardId, label, slot, selected, visible, enabled, x, y, confirm,
+                    resourceId, frameResourceId, w, h, bannerResourceId, "");
+        }
+
+        public DrawItem(String instanceId, String cardId, String label, int slot, boolean selected,
+                boolean visible, boolean enabled, float x, float y, boolean confirm,
+                String resourceId, String frameResourceId, float w, float h,
+                String bannerResourceId, String orbResourceId) {
             this.instanceId = instanceId != null ? instanceId : "";
             this.cardId = cardId != null ? cardId : "";
             this.label = label != null && !label.isEmpty() ? label : this.cardId;
@@ -93,6 +108,7 @@ public final class SelectDrawPath {
             this.resourceId = resourceId != null ? resourceId : "";
             this.frameResourceId = frameResourceId != null ? frameResourceId : "";
             this.bannerResourceId = bannerResourceId != null ? bannerResourceId : "";
+            this.orbResourceId = orbResourceId != null ? orbResourceId : "";
         }
 
         public Map<String, Object> toMap() {
@@ -112,6 +128,7 @@ public final class SelectDrawPath {
             m.put("resourceId", resourceId);
             m.put("frameResourceId", frameResourceId);
             m.put("bannerResourceId", bannerResourceId);
+            m.put("orbResourceId", orbResourceId);
             return m;
         }
     }
@@ -156,7 +173,8 @@ public final class SelectDrawPath {
                             cardFrameDescriptor(c.type, c.color),
                             250f,
                             350f,
-                            cardBannerDescriptor(c.rarity)));
+                            cardBannerDescriptor(c.rarity),
+                            c.orbDrawable ? cardOrbDescriptor(c.color) : ""));
             i++;
         }
         if (sv.confirmVisible || sv.confirmEnabled) {
@@ -222,6 +240,37 @@ public final class SelectDrawPath {
             return "cardui#512/banner_common";
         } catch (Throwable ignored) {
             return "cardui#512/banner_common";
+        }
+    }
+
+    /**
+     * U02d2: derives the select card ENERGY ORB descriptor from the native card color, mirroring
+     * native {@code AbstractCard.renderEnergy}: RED/GREEN/BLUE/PURPLE map to
+     * {@code 512/card_<color>_orb}, and the native DEFAULT (COLORLESS, CURSE, any other/unknown/
+     * blank/absent color) maps to {@code 512/card_colorless_orb}. Color is matched
+     * case-insensitively. The result is a {@code "<atlasKey>#<region>"} descriptor over the SAME
+     * {@code cardui} atlas as the base background and banner, drawn as an ADDITIONAL region (never
+     * part of the resolve-aware accounting). No cost gating here; the cost gate lives on
+     * {@link CardView#orbDrawable}. Fail-open: any failure yields the native colorless orb.
+     */
+    static String cardOrbDescriptor(String color) {
+        try {
+            String c = color != null ? color.trim().toUpperCase(java.util.Locale.ROOT) : "";
+            if ("RED".equals(c)) {
+                return "cardui#512/card_red_orb";
+            }
+            if ("GREEN".equals(c)) {
+                return "cardui#512/card_green_orb";
+            }
+            if ("BLUE".equals(c)) {
+                return "cardui#512/card_blue_orb";
+            }
+            if ("PURPLE".equals(c)) {
+                return "cardui#512/card_purple_orb";
+            }
+            return "cardui#512/card_colorless_orb";
+        } catch (Throwable ignored) {
+            return "cardui#512/card_colorless_orb";
         }
     }
 

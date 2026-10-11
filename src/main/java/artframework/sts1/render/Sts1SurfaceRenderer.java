@@ -1059,10 +1059,13 @@ public final class Sts1SurfaceRenderer {
                             item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
                     if (!item.confirm && !item.cardId.isEmpty()) {
                         // Base-background frame first, then the banner over the card's base page,
-                        // mirroring native renderCardBg -> renderBannerImage order. Both share the
-                        // same "<atlasKey>#<region>" resolution; the banner stays after the base bg.
+                        // then the energy orb, mirroring native renderCardBg -> renderBannerImage
+                        // -> renderEnergy order. All share the same "<atlasKey>#<region>"
+                        // resolution; the orb stays after the banner. The orb is empty when the
+                        // native cost gate suppresses it.
                         drawSelectAtlasRegion(sb, item.frameResourceId, b);
                         drawSelectAtlasRegion(sb, item.bannerResourceId, b);
+                        drawSelectAtlasRegion(sb, item.orbResourceId, b);
                     }
                     drawResolvedTexture(sb, item.resourceId, b);
                     com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
@@ -1078,15 +1081,17 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Select card base-background / banner region. The derived {@code "<atlasKey>#<region>"}
-     * descriptor (for example {@code cardui#512/bg_attack_red} or {@code cardui#512/banner_rare})
-     * is resolved through {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas} and
-     * drawn at the item bounds using the region UV. The base-background frame is drawn first, then
-     * the banner, so the banner paints over the card's base page (native
-     * {@code renderCardBg} then {@code renderBannerImage} order). A non-{@code #} id keeps the
-     * existing {@link #drawResolvedTexture} path. Per-item fail-open; never throws.
+     * Select card base-background / banner / energy-orb region. The derived
+     * {@code "<atlasKey>#<region>"} descriptor (for example {@code cardui#512/bg_attack_red},
+     * {@code cardui#512/banner_rare} or {@code cardui#512/card_red_orb}) is resolved through
+     * {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas} and drawn at its NATIVE
+     * per-region placement inside the item bounds (see {@link #selectRegionRect}) using the region
+     * UV. The base-background frame is drawn first, then the banner, then the energy orb, mirroring
+     * native {@code renderCardBg} -> {@code renderBannerImage} -> {@code renderEnergy} order. A
+     * non-{@code #} id keeps the existing {@link #drawResolvedTexture} path. Per-item fail-open;
+     * never throws.
      *
-     * <p>Residual: cardui base-background/banner regions are unrotated, so the packed UV rect is
+     * <p>Residual: cardui base-background/banner/orb regions are unrotated, so the packed UV rect is
      * drawn as-is and rotated regions are not rotated here.
      */
     private static void drawSelectAtlasRegion(
@@ -1109,12 +1114,61 @@ public final class Sts1SurfaceRenderer {
             if (resolved == null || resolved.texture == null || resolved.region == null) {
                 return;
             }
+            float[] rect = selectRegionRect(bounds, resolved.region);
+            if (rect == null) {
+                return;
+            }
             float[] uv = resolved.region.uvRect();
             sb.setColor(Color.WHITE);
-            sb.draw(resolved.texture, bounds.x, bounds.y, bounds.width, bounds.height,
+            sb.draw(resolved.texture, rect[0], rect[1], rect[2], rect[3],
                     uv[0], uv[1], uv[2], uv[3]);
         } catch (Throwable ignored) {
         }
+    }
+
+    /**
+     * Native per-region placement of one select card {@code cardui} region inside the ART card box.
+     * Mirrors {@code SingleCardViewPopup.renderHelper}: the native card CENTER is the box center and
+     * the region is composited at its own trim offset plus packed size under a single uniform scale
+     * {@code s = bounds.width / region.originalWidth} (the {@code drawScale * Settings.scale}
+     * analogue, applied to both axes). libGDX scales about the given origin {@code (originX, originY)
+     * = (originalWidth/2 - offsetX, originalHeight/2 - offsetY)}, so the on-screen bottom-left is
+     * {@code center + origin * (1 - s)}:
+     *
+     * <pre>
+     * rect.x = cx - s * (region.originalWidth  / 2f - region.offsetX)
+     * rect.y = cy - s * (region.originalHeight / 2f - region.offsetY)
+     * rect.w = s * region.width
+     * rect.h = s * region.height
+     * </pre>
+     *
+     * <p>Fail-open: {@code null} input, a non-positive {@code originalWidth} (division guard) or a
+     * non-finite/degenerate rect returns {@code null} so the caller draws nothing rather than
+     * stretching the region to the whole box.
+     *
+     * @return the {@code {x, y, width, height}} placement rect, or {@code null} when unplaceable
+     */
+    private static float[] selectRegionRect(
+            artframework.component.Rect bounds, artframework.assets.AtlasRegion region) {
+        if (bounds == null || region == null || region.originalWidth <= 0) {
+            return null;
+        }
+        float s = bounds.width / (float) region.originalWidth;
+        float cx = bounds.x + bounds.width / 2f;
+        float cy = bounds.y + bounds.height / 2f;
+        float x = cx - s * (region.originalWidth / 2f - region.offsetX);
+        float y = cy - s * (region.originalHeight / 2f - region.offsetY);
+        float w = s * region.width;
+        float h = s * region.height;
+        if (!finite(x) || !finite(y) || !finite(w) || !finite(h) || w <= 0f || h <= 0f) {
+            return null;
+        }
+        return new float[] { x, y, w, h };
+    }
+
+    /** True when {@code value} is neither NaN nor infinite. */
+    private static boolean finite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
     }
 
     /**

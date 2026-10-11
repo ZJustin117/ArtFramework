@@ -1959,6 +1959,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                         .type(cardType(card))
                         .color(cardColor(card))
                         .rarity(cardRarity(card))
+                        .orbDrawable(card == null || card.cost > -2)
                         .description(card.rawDescription)
                         .build());
             }
@@ -1998,6 +1999,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     .type(cardType(card))
                                     .color(cardColor(card))
                                     .rarity(cardRarity(card))
+                                    .orbDrawable(card == null || card.cost > -2)
                                     .description(card.rawDescription)
                                     .build());
                 }

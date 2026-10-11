@@ -4371,11 +4371,12 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       supplying the full frame is the follow-up.
 - [ ] **Open (U02b): full native card frame = layered regions.** U02 supplies only `512/bg_<type>_<color>`.
       Native `AbstractCard.renderCardBg` also draws the layered `common|rare|uncommon_left|center|right`
-      pieces, the `card_<color>_orb` energy orb, and the banner; ART does not. Also unmapped/absent:
+      pieces; ART does not draw those layers yet (the `card_<color>_orb` energy orb is supplied by
+      **U02d2** and the banner by **U02d**, below). Also unmapped/absent:
       `512/bg_<type>_{colorless,silhouette,black}` (only the `colorless→gray` fallback is used; no 1024
       fallback), curse/status cards (now COVERED by U02b — they map to the skill bg family).
-      Follow-up slice: add the layered pieces + orb (+ rarity from `AbstractCard.rarity`), and resolve
-      `UI_SELECT_CARD*` to the base descriptor so `missingArt` reflects the real remaining gap.
+      Follow-up slice: add the layered pieces, and resolve `UI_SELECT_CARD*` to the base descriptor so
+      `missingArt` reflects the real remaining gap.
 
 - [x] **U02b: select card base-background type/color mapping now matches native `renderCardBg`.** The
       U02 mapping only handled attack/skill/power × red/green/blue/purple (+colorless→gray) and returned
@@ -4431,11 +4432,38 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       PENDING.** Latent (review U02D-01): the banner is submitted BEFORE the primary `resourceId`
       texture; native order is banner last — invisible today (the enabled/selected primary is a
       non-file-backed no-op) but reconcile when the `UI_SELECT_CARD*` descriptor follow-up lands.
-- [ ] **Open (U02d2): select card energy ORB.** Native `AbstractCard.renderEnergy` draws the orb
-      from a SEPARATE `orbs/orb.atlas` (regions `red`/`green`/`blue`/`purple`/`card`/...) with its
-      own geometry (not the `cardui` base bg) — ART does not draw it. This needs a second atlas key
-      source for `orb.atlas` (mirroring `CardUiAtlasSource`) plus the orb's native position/scale;
-      separate slice. (U02d shipped the banner only.)
+- [x] **U02d2: select card ENERGY ORB `cardui#512/card_<color>_orb`.** The orb is a region in the
+      SAME `cardui` atlas already wired by `CardUiAtlasSource` (`Sts1AtlasMaterializer
+      .regionFromAtlas`), NOT a separate `orbs/orb.atlas`: native `ImageMaster.CARD_*_ORB` regions are
+      `512/card_<color>_orb` (verified from the decompile). Native `AbstractCard.renderEnergy` maps
+      `this.color`: RED/GREEN/BLUE/PURPLE → `512/card_<color>_orb`, and the DEFAULT (COLORLESS/CURSE/
+      other/unknown/blank/absent) → `512/card_colorless_orb`. Fix: `CardView.orbDrawable` (builder
+      method, default `true`), `SelectDrawPath.cardOrbDescriptor(color)` (case-insensitive, fail-open
+      to the native colorless orb), `DrawItem.orbResourceId` (trailing ctor param, probed under
+      `orbResourceId`), `buildFromProjection()` sets it via
+      `c.orbDrawable ? cardOrbDescriptor(c.color) : ""`, and `Sts1SurfaceRenderer.renderSelect` draws
+      it AFTER the banner through the SAME shared `drawSelectAtlasRegion`, mirroring native
+      `renderCardBg → renderBannerImage → renderEnergy` order. It is an ADDITIONAL descriptor that
+      does NOT enter the U02c accounting (`materializedResolved + missingArt == count` unchanged).
+      Cost gate: `CardView.orbDrawable` is threaded from the live `AbstractCard.cost > -2` (fail-open
+      true), suppressing the orb for cost ≤ -2 (curses/statuses); the native `darken`/`isLocked`/
+      `isSeen` components of the `renderEnergy` gate are NOT projected (residual). Tests
+      (`SelectDrawPathTest`): color→orb table + fail-open + cost gate + U02c-frozen accounting;
+      scenario `d1_full_present_select.yaml` (37→40 steps). Focused: 1193/0. **D1 PENDING.**
+      Correction (from the D1 select visual): the region draw was STRETCHED to the full card box, so
+      `card_red_orb` filled the whole card. Each `cardui#` region is now drawn at its NATIVE per-region
+      offset + packed size INSIDE the card canvas, mirroring native `AbstractCard.renderHelper` /
+      `SingleCardViewPopup.renderHelper`: with the uniform scale `s = bounds.width / originalWidth`
+      (the `drawScale * Settings.scale` analogue) and `cx`/`cy` the box center (= native card center),
+      the rect is `x = cx - s*(origW/2 - offsetX)`, `y = cy - s*(origH/2 - offsetY)`,
+      `w = s*packedWidth`, `h = s*packedHeight`; fail-open `null` draws nothing instead of stretching.
+      Pinned by `SelectAtlasRegionGeometryTest`: `card_red_orb` (87,412,72,71) at s=1 and
+      (42.48046875,251.171875,35.15625,34.66796875) in the 250x350 select box; `bg_attack_red`
+      (106,46,302,419) at s=1; `banner_common` (94,378,324,77) at s=1. **D1 PENDING.** (geometry is
+      not yet device-verified).
+- [ ] **Open (U02d3): select card cost NUMBER text.** `renderEnergy` also draws the cost number with
+      a ROTATED font at `-132*scale, 192*scale`; ART does not draw it. Deferred from U02d2 (the orb
+      half only). Needs the rotated-font draw at the native orb geometry; separate slice.
 - [ ] **Open (U02e): pin the disabled-card overlay in select accounting.** `ui.select.card.disabled`
       (`images/ui/event/disabledButton.png`) is a real second select draw excluded from
       `itemFullyResolves` (option (b) decides by the base frame alone); a regression of that mapping to

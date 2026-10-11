@@ -899,6 +899,213 @@ public class SelectDrawPathTest {
                 CardView.builder(new CardRef("g2", "Defend_R")).build().rarity);
     }
 
+    /**
+     * U02d2. The select card ENERGY ORB is a region in the SAME {@code cardui} atlas as the base
+     * frame and banner, drawn by native {@code AbstractCard.renderEnergy} from {@code this.color}:
+     * RED/GREEN/BLUE/PURPLE map to {@code 512/card_<color>_orb} and the native DEFAULT (COLORLESS,
+     * CURSE, any other/unknown/blank/absent color) maps to {@code 512/card_colorless_orb}. The
+     * mapping is case-insensitive and fail-open (any failure yields the native colorless orb).
+     */
+    @Test
+    public void cardOrbDescriptorMapsColorToNativeCardUiOrbRegion() {
+        assertEquals("cardui#512/card_red_orb", SelectDrawPath.cardOrbDescriptor("RED"));
+        assertEquals("cardui#512/card_green_orb", SelectDrawPath.cardOrbDescriptor("GREEN"));
+        assertEquals("cardui#512/card_blue_orb", SelectDrawPath.cardOrbDescriptor("BLUE"));
+        assertEquals("cardui#512/card_purple_orb", SelectDrawPath.cardOrbDescriptor("PURPLE"));
+        assertEquals("lower-case color must map identically",
+                "cardui#512/card_red_orb", SelectDrawPath.cardOrbDescriptor("red"));
+        assertEquals("COLORLESS is the native colorless orb",
+                "cardui#512/card_colorless_orb", SelectDrawPath.cardOrbDescriptor("COLORLESS"));
+        assertEquals("CURSE is the native colorless orb",
+                "cardui#512/card_colorless_orb", SelectDrawPath.cardOrbDescriptor("CURSE"));
+        assertEquals("an unknown color is the native default (colorless)",
+                "cardui#512/card_colorless_orb", SelectDrawPath.cardOrbDescriptor("WAT"));
+        assertEquals("a blank color is the native default (colorless)",
+                "cardui#512/card_colorless_orb", SelectDrawPath.cardOrbDescriptor(""));
+        assertEquals("an absent color is the native default (colorless)",
+                "cardui#512/card_colorless_orb", SelectDrawPath.cardOrbDescriptor(null));
+    }
+
+    /**
+     * U02d2. {@code buildFromProjection()} threads the pool {@link CardView#color} into the built
+     * non-confirm card item's {@code orbResourceId} using the native color->orb table, for a card
+     * whose native cost permits the orb draw (the default fail-open {@code orbDrawable}).
+     */
+    @Test
+    public void buildFromProjectionThreadsCardColorIntoOrbDescriptor() {
+        assertEquals("cardui#512/card_red_orb", firstCardOrb("RED"));
+        assertEquals("cardui#512/card_green_orb", firstCardOrb("GREEN"));
+        assertEquals("cardui#512/card_blue_orb", firstCardOrb("BLUE"));
+        assertEquals("cardui#512/card_purple_orb", firstCardOrb("PURPLE"));
+        assertEquals("cardui#512/card_colorless_orb", firstCardOrb("COLORLESS"));
+        assertEquals("cardui#512/card_colorless_orb", firstCardOrb("WAT"));
+        assertEquals("cardui#512/card_colorless_orb", firstCardOrb(""));
+        assertEquals("cardui#512/card_colorless_orb", firstCardOrb(null));
+    }
+
+    /**
+     * U02d2. Adding the orb must NOT overwrite the card's base-background frame or banner
+     * descriptors: a card with type/color/rarity keeps {@code cardui#512/bg_attack_red} and
+     * {@code cardui#512/banner_rare} while gaining {@code cardui#512/card_red_orb}.
+     */
+    @Test
+    public void selectCardOrbDoesNotDisturbBaseFrameOrBanner() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .rarity("RARE")
+                        .build()));
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("the base-background frame is unchanged by the orb addition",
+                "cardui#512/bg_attack_red", item.frameResourceId);
+        assertEquals("the banner is unchanged by the orb addition",
+                "cardui#512/banner_rare", item.bannerResourceId);
+        assertEquals("the orb is a separate descriptor",
+                "cardui#512/card_red_orb", item.orbResourceId);
+    }
+
+    /** U02d2. The probe item rows expose the card orb descriptor under {@code orbResourceId}. */
+    @Test
+    public void probeExposesCardOrbDescriptor() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .build()));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows =
+                (List<Map<String, Object>>) SelectDrawPath.probeSlice().get("items");
+        assertEquals("cardui#512/card_red_orb", rows.get(0).get("orbResourceId"));
+    }
+
+    /**
+     * U02d2 cost gate. Native {@code renderEnergy} early-returns when {@code cost <= -2} (or the
+     * card is darkened/locked/unseen), so the projected {@code orbDrawable} gate suppresses the orb
+     * draw. A card explicitly built with {@code .orbDrawable(false)} draws NO orb
+     * ({@code orbResourceId == ""}) while its frame/banner descriptors stay unchanged; the default
+     * (fail-open {@code true}) still draws the orb.
+     */
+    @Test
+    public void selectCardOrbSkipsDrawWhenCostGateDisallows() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .rarity("RARE")
+                        .orbDrawable(false)
+                        .build()));
+        SelectDrawPath.DrawItem gated = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("native cost <= -2 skips the orb draw",
+                "", gated.orbResourceId);
+        assertEquals("the cost gate must not disturb the base frame",
+                "cardui#512/bg_attack_red", gated.frameResourceId);
+        assertEquals("the cost gate must not disturb the banner",
+                "cardui#512/banner_rare", gated.bannerResourceId);
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g2", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .build()));
+        assertEquals("the default orbDrawable draws the orb (fail-open)",
+                "cardui#512/card_red_orb",
+                SelectDrawPath.buildFromProjection().get(0).orbResourceId);
+    }
+
+    /**
+     * U02d2 criterion 6. {@link CardView} {@code orbDrawable} round-trips through the builder; a card
+     * built without {@code .orbDrawable(...)} defaults it to {@code true} (fail-open: an absent cost
+     * projection still draws the orb).
+     */
+    @Test
+    public void cardViewOrbDrawableRoundTripsAndDefaultsTrue() {
+        assertTrue("orbDrawable must default to true (fail-open)",
+                CardView.builder(new CardRef("g1", "Strike_R")).build().orbDrawable);
+        assertFalse("an explicit .orbDrawable(false) must be honoured",
+                CardView.builder(new CardRef("g2", "Defend_R"))
+                        .orbDrawable(false).build().orbDrawable);
+    }
+
+    /**
+     * U02d2 + U02c freeze: the orb must NOT count toward the resolve-aware supply accounting. With a
+     * live {@code cardui} atlas carrying ONLY {@code 512/bg_attack_red} (no orb region), a card whose
+     * base frame resolves is still fully materialized ({@code missingArt == 0},
+     * {@code materializedResolved == 1}) even though its orb region is unresolved.
+     */
+    @Test
+    public void selectCardOrbDoesNotEnterU02cAccounting() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .rarity("RARE")
+                        .build()));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("cardui#512/bg_attack_red", item.frameResourceId);
+        assertEquals("cardui#512/card_red_orb", item.orbResourceId);
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertEquals("the unresolved orb must not create a gap",
+                Integer.valueOf(0), probe.get("missingArt"));
+        assertEquals("the base frame alone decides the account",
+                Integer.valueOf(1), probe.get("materializedResolved"));
+    }
+
+    /**
+     * U02d2 fail-open. A card with an absent or blank color has no native orb page of its own, so it
+     * draws {@code cardui#512/card_colorless_orb} when the orb draw is permitted.
+     */
+    @Test
+    public void selectCardOrbFailOpenToColorlessWhenColorAbsentOrBlank() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("")
+                        .build()));
+        assertEquals("a blank color draws the native colorless orb",
+                "cardui#512/card_colorless_orb",
+                SelectDrawPath.buildFromProjection().get(0).orbResourceId);
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g2", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .build()));
+        assertEquals("an absent color draws the native colorless orb",
+                "cardui#512/card_colorless_orb",
+                SelectDrawPath.buildFromProjection().get(0).orbResourceId);
+    }
+
+    /** Builds a single ATTACK select card with the given color and returns its orb descriptor. */
+    private String firstCardOrb(String color) {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color(color)
+                        .build()));
+        return SelectDrawPath.buildFromProjection().get(0).orbResourceId;
+    }
+
     /** Builds a single ATTACK/RED select card with the given rarity and returns its banner. */
     private String firstCardBanner(String rarity) {
         publishSelectFrame(singleSelectCard(

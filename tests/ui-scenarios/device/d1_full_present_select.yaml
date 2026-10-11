@@ -145,3 +145,17 @@ steps:
   - assert:
       path: backend.selectDraw.items[0].bannerResourceId
       eq: "cardui#512/banner_common"
+  # U02d2: the select card ENERGY ORB is a real 512-page region in the same live
+  # `ImageMaster.cardUiAtlas` (`512/card_<color>_orb`), drawn by native
+  # `AbstractCard.renderEnergy` from `this.color` (COLORLESS/default -> `card_colorless_orb`). Each
+  # non-confirm item exposes the descriptor in `orbResourceId`. `items[1]` is the starting Ironclad
+  # Strike, whose native color is RED, so it draws `cardui#512/card_red_orb`.
+  - assert:
+      path: backend.selectDraw.items[1].orbResourceId
+      exists: true
+  - assert:
+      path: backend.selectDraw.items[1].orbResourceId
+      contains: "cardui#512/card_"
+  - assert:
+      path: backend.selectDraw.items[1].orbResourceId
+      eq: "cardui#512/card_red_orb"

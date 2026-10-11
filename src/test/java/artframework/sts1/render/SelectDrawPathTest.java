@@ -693,6 +693,83 @@ public class SelectDrawPathTest {
         assertEquals(Integer.valueOf(1), after.get("materializedResolved"));
     }
 
+    /**
+     * U02c (accounting option (b)). A default (playable, non-disabled) select card's PRIMARY is
+     * {@code ui.select.card -> cardui/frame}, a NON-file-backed logical handle rather than a
+     * separately drawn texture: native {@code Sts1SurfaceRenderer.renderSelect} draws the
+     * type/color-derived frame descriptor as the card's ONE base background, and the primary draw is
+     * a no-op for {@code ui.select.card}/.selected. The accounting must therefore be decided by the
+     * frame descriptor ALONE, so a live {@code cardui} atlas carrying the derived region leaves
+     * {@code missingArt == 0} with every visible item fully materialized. On the pre-U02c code the
+     * non-file-backed primary also fails {@code resolvesToDrawable}, so this card is counted as a gap
+     * ({@code missingArt == 1}) even though its real base background resolves.
+     */
+    @Test
+    public void selectResolvableBaseFrameAccountsWithoutRequiringNonFileBackedPrimary() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .build()));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("a default non-disabled card uses the primary select handle",
+                ResourceIds.UI_SELECT_CARD, item.resourceId);
+        assertFalse("the primary handle is a non-file-backed logical id, not a drawn texture",
+                Sts1AssetMaterializer.isFileBacked(
+                        ArtFramework.assets().resolve(item.resourceId).source));
+        assertEquals("cardui#512/bg_attack_red", item.frameResourceId);
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertEquals("the resolved base frame is the only drawn texture, so there is no gap: "
+                        + probe.get("missingArt"),
+                Integer.valueOf(0), probe.get("missingArt"));
+        assertEquals("the single visible item is fully materialized",
+                Integer.valueOf(1), probe.get("materializedResolved"));
+        // The accounting always partitions the visible draw-submission count.
+        assertEquals("materializedResolved + missingArt must equal count",
+                probe.get("count"),
+                Integer.valueOf(
+                        ((Integer) probe.get("materializedResolved")).intValue()
+                                + ((Integer) probe.get("missingArt")).intValue()));
+    }
+
+    /**
+     * U02c guard (fail-open half of option (b)). An unknown TYPE ({@code WAT}) draws NO native
+     * background, so the frame descriptor stays blank ({@code ""}) even with a live atlas; the
+     * base-background requirement is therefore unmet and the item remains a gap
+     * ({@code missingArt >= 1}) with nothing fully materialized. Dropping the redundant primary
+     * requirement must not paper over a genuinely missing base background.
+     */
+    @Test
+    public void selectUnknownTypeBlankFrameLeavesGapEvenWithLiveAtlas() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("WAT")
+                        .color("RED")
+                        .build()));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("an unknown type draws no native background, so no descriptor",
+                "", item.frameResourceId);
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertTrue("a blank base-frame descriptor must remain a gap: " + probe.get("missingArt"),
+                ((Integer) probe.get("missingArt")).intValue() >= 1);
+        assertEquals("nothing is fully materialized without a base frame",
+                Integer.valueOf(0), probe.get("materializedResolved"));
+    }
+
     /** Builds a single-card select frame and returns the built card's frame descriptor. */
     private SelectDrawPath.DrawItem firstDrawItem(String type, String color) {
         publishSelectFrame(singleSelectCard(

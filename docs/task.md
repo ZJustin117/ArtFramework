@@ -4390,14 +4390,36 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       `bg_attack_gray`, unknown color → `bg_skill_black`, unknown type → `""`. Scenario
       `d1_full_present_select.yaml` (33 steps): `items[0]` (Ascender's Bane CURSE) now asserts
       `frameResourceId eq "cardui#512/bg_skill_black"`; `items[1]` (Strike) stays `bg_attack_red`.
-      Focused: 1082/0. **D1 PENDING.** Still BASE bg only: the `card_<color>_orb`, banner, and mapping
-      the PRIMARY `UI_SELECT_CARD*` to a real descriptor (so `missingArt` reflects the true remaining
-      gap) remain the open **U02c** item. Known divergent second authority (pre-existing):
-      `Sts1AssetMaterializer.cardFrameAtlasKey` routes non-SKILL/POWER types (incl. CURSE/STATUS) to
-      `attack` — to reconcile when the layered/orb slice lands.
-- [ ] **Open (U02c): select card orb/banner + primary-resource mapping.** Native also draws the
-      `card_<color>_orb` energy orb and the banner; ART does not. And the item's PRIMARY `resourceId`
-      (`ui.select.card*`) still maps to the non-file-backed `cardui/frame`, so `missingArt` stays at 11
-      even though the base bg now resolves — map the primary to the base descriptor (or a dedicated
-      frame resource) so the U01 accounting reflects the real gap. Reconcile the
-      `Sts1AssetMaterializer.cardFrameAtlasKey` type→family divergence in the same slice.
+      Focused: 1082/0. **D1 PENDING.** Still BASE bg only: the `card_<color>_orb` and banner remain
+      open (**U02d**). The primary-resource accounting and the `cardFrameAtlasKey` type→family
+      reconciliation are now closed by **U02c** (below).
+- [x] **U02c: select primary-resource accounting + `cardFrameAtlasKey` reconciliation.** Accounting
+      option (b): `SelectDrawPath.itemFullyResolves` now decides a NON-confirm card item by the
+      type/color-derived base-background frame descriptor ALONE (`frameDescriptorResolves`), while the
+      confirm pseudo-item keeps `resolvesToDrawable(resourceId)`. Rationale: the primary
+      `ui.select.card`/`_SELECTED` handle maps to the non-file-backed `cardui/frame` region and is NOT a
+      distinct drawn texture (`Sts1SurfaceRenderer.renderSelect` draws the derived
+      `cardui#512/bg_<type>_<color>` region once; the primary `drawResolvedTexture(resourceId)` is a
+      genuine no-op for `cardui/frame`), so requiring the primary double-counted the SAME native base
+      draw. Result: `missingArt` now reflects the real gap (predicted 0 for a standard Ironclad grid:
+      11 resolvable cards + confirm; was 11). The partition invariant
+      `materializedResolved + missingArt == count` still holds by construction.
+      `Sts1AssetMaterializer.cardFrameAtlasKey` (no production consumers — definition + test only)
+      retained and ALIGNED to native `renderCardBg` (SKILL/CURSE/STATUS → `skill`, POWER → `power`,
+      else `attack`), consistent with `cardFrameDescriptor`; the legacy `attack.<tier>` default for
+      unknown/absent types is documented as a divergence (native draws nothing). Tests:
+      `SelectDrawPathTest.selectResolvableBaseFrameAccountsWithoutRequiringNonFileBackedPrimary` +
+      `selectUnknownTypeBlankFrameLeavesGapEvenWithLiveAtlas`; `Sts1AssetMaterializerTest` CURSE/STATUS
+      → `skill.common`. Scenario `d1_full_present_select.yaml` (33 steps): `missingArt lte 0` (was
+      `gte 1`) and `count eq_var materializedResolved`. Focused: 1084/0. **D1 PENDING.** NOTE: the
+      disabled card overlay (`ui.select.card.disabled` → `images/ui/event/disabledButton.png`) is still
+      a real second draw but is accounting-neutral because its `images/` mapping always passes the
+      prefix-level check; the probe contract "every drawn resource resolves" is unenforced for it (no
+      test pins a disabled-mapping regression) — carried below.
+- [ ] **Open (U02d): select card orb + banner.** Native also draws the `card_<color>_orb` energy orb
+      and the card banner; ART supplies only the base background region. Not included in U02c.
+- [ ] **Open (U02e): pin the disabled-card overlay in select accounting.** `ui.select.card.disabled`
+      (`images/ui/event/disabledButton.png`) is a real second select draw excluded from
+      `itemFullyResolves` (option (b) decides by the base frame alone); a regression of that mapping to
+      a non-drawable id would not be caught. Add a targeted test/assert (or fold the overlay into the
+      accounting) so the probe contract "every drawn resource resolves" is enforced for it.

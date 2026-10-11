@@ -346,20 +346,29 @@ public final class SelectDrawPath {
     public static int materializedDrawCount() { return visibleCount(buildFromProjection()); }
 
     /**
-     * Required resources = the primary id, plus the type/color-derived frame descriptor for
-     * non-confirm card items. The {@code !item.confirm && !item.cardId.isEmpty()} guard mirrors
-     * {@code Sts1SurfaceRenderer.renderSelect}'s frame draw. For a card item the frame requirement
-     * is satisfied iff the descriptor resolves: {@code "<atlasKey>#<region>"} descriptors resolve via
-     * {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas}, any other id via
-     * {@link #resolvesToDrawable}. A blank frame descriptor is NOT materialized (the card is missing
-     * its base background), so it counts as a gap.
+     * A non-confirm card item is decided by the type/color-derived base-background frame descriptor
+     * ALONE ({@link #frameDescriptorResolves}). For an ENABLED or SELECTED card the item's primary
+     * {@code resourceId} is a logical select handle ({@code ui.select.card}/{@code _SELECTED})
+     * mapping to the non-file-backed {@code cardui/frame} region, NOT a distinct drawn texture.
+     * Native {@code Sts1SurfaceRenderer.renderSelect} draws exactly one base bg per card - the
+     * derived descriptor region - and its {@code drawResolvedTexture(sb, item.resourceId, b)} call is
+     * a no-op for those ids, so also requiring the primary would double-count the same native draw.
+     *
+     * <p>A DISABLED card's primary is different: {@code ui.select.card.disabled} is a file-backed
+     * {@code images/ui/event/disabledButton.png} overlay that {@code renderSelect} DOES draw as a
+     * second real texture alongside the frame. Omitting it from the required set is still
+     * accounting-neutral: {@link #resolvesToDrawable} is prefix-level, so that binding always
+     * resolves and adds nothing to the required-resource accounting.
+     *
+     * <p>A blank frame descriptor is NOT materialized (the card is missing its base background) and
+     * stays a gap. The confirm pseudo-item keeps the existing {@link #resolvesToDrawable} primary
+     * semantics.
      */
     private static boolean itemFullyResolves(DrawItem item) {
-        if (!resolvesToDrawable(item.resourceId)) return false;
         if (!item.confirm && !item.cardId.isEmpty()) {
             return frameDescriptorResolves(item.frameResourceId);
         }
-        return true;
+        return resolvesToDrawable(item.resourceId);
     }
 
     /**

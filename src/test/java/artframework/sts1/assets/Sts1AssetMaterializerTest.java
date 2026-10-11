@@ -46,7 +46,10 @@ public class Sts1AssetMaterializerTest {
         assertEquals("attack.common", Sts1AssetMaterializer.cardFrameAtlasKey("ATTACK", "BASIC"));
         assertEquals("skill.uncommon", Sts1AssetMaterializer.cardFrameAtlasKey("SKILL", "UNCOMMON"));
         assertEquals("power.rare", Sts1AssetMaterializer.cardFrameAtlasKey("POWER", "RARE"));
-        assertEquals("attack.common", Sts1AssetMaterializer.cardFrameAtlasKey("STATUS", "SPECIAL"));
+        // U02c: align the (test-only) selector with native AbstractCard.renderCardBg, which switches
+        // CURSE and STATUS types to the SKILL background family (skill.common), not attack.
+        assertEquals("skill.common", Sts1AssetMaterializer.cardFrameAtlasKey("STATUS", "SPECIAL"));
+        assertEquals("skill.common", Sts1AssetMaterializer.cardFrameAtlasKey("CURSE", "SPECIAL"));
     }
 
     @Test

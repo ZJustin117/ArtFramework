@@ -258,9 +258,26 @@ public final class Sts1AssetMaterializer {
         }
     }
 
-    /** Pure selector retained separately so catalog and renderer behavior are unit-testable. */
+    /**
+     * The type→family rule for the card base-background atlas key, reconciled with native
+     * {@code AbstractCard.renderCardBg} and {@link artframework.sts1.render.SelectDrawPath}
+     * {@code cardFrameDescriptor}: {@code SKILL}, {@code CURSE} and {@code STATUS} map to the
+     * {@code skill} family (native {@code renderCardBg} switches CURSE/STATUS onto the skill page),
+     * {@code POWER} maps to {@code power}, and {@code ATTACK}/other-known types map to
+     * {@code attack}.
+     *
+     * <p>Native parity covers ONLY that reconciled family rule. The rarity-tiered {@code family.tier}
+     * shape this helper returns retains a LEGACY default for an unknown, absent or blank type
+     * ({@code attack.<tier>}), whereas native {@code renderCardBg} has NO default case and draws
+     * NOTHING for such a type (and {@code cardFrameDescriptor} correspondingly returns {@code ""}).
+     * This helper is therefore NOT a full native {@code renderCardBg} replacement: the
+     * rarity-tiered default is a legacy divergence, not claimed parity. The rarity tier is
+     * {@code rare}/{@code uncommon}/{@code common}. Pure selector retained separately so catalog and
+     * renderer behavior are unit-testable.
+     */
     public static String cardFrameAtlasKey(String cardType, String rarity) {
-        String type = "SKILL".equals(cardType) ? "skill" : "POWER".equals(cardType) ? "power" : "attack";
+        String type = "SKILL".equals(cardType) || "CURSE".equals(cardType) || "STATUS".equals(cardType)
+                ? "skill" : "POWER".equals(cardType) ? "power" : "attack";
         String tier = "RARE".equals(rarity) ? "rare" : "UNCOMMON".equals(rarity) ? "uncommon" : "common";
         return type + "." + tier;
     }

@@ -82,20 +82,28 @@ steps:
   - assert:
       path: backend.selectDraw.items[0].label
       neq: ""
-  # U01: the select card frame maps to the non-file-backed `cardui/frame` atlas key, so a visible
-  # card whose frame supplies no pixels must be reported as a gap instead of being counted as
-  # supplied. missingArt counts visible items with at least one unresolved required resource.
+  # U02c: for a non-confirm card the accounting is decided by the type/color-derived base-background
+  # frame descriptor ALONE (accounting option (b)). The primary `ui.select.card` / `_SELECTED` handle
+  # maps to the non-file-backed `cardui/frame` key but is NOT a separate drawn texture: native
+  # `Sts1SurfaceRenderer.renderSelect` draws exactly one base bg per card - the derived
+  # `cardui#512/bg_<type>_<color>` region - and the primary draw is a no-op, so requiring the primary
+  # double-counted that same native draw. Every visible run card's base region resolves on device and
+  # the confirm pseudo-item is file-backed, so the Ironclad starting grid (11 cards + 1 confirm,
+  # count 12) has NO gap: missingArt drops from the previous 11 to 0. `missingArt` still counts
+  # visible items with at least one unresolved required resource (blank/unknown-type frames stay
+  # gaps), so `lte: 0` pins the honest new value without pretending the accounting is tautological.
   - assert:
       path: backend.selectDraw.missingArt
-      gte: 1
-  # materializedResolved counts only visible items whose required resources all resolve; the
-  # supplied count must therefore strictly exceed it while a frame gap exists.
+      lte: 0
+  # materializedResolved counts only visible items whose required resources all resolve. With the gap
+  # closed, every visible item is fully materialized, so the visible count now EQUALS it (it no longer
+  # strictly exceeds it).
   - capture:
       path: backend.selectDraw.materializedResolved
       var: select_materialized_resolved
   - assert:
       path: backend.selectDraw.count
-      gt_var: select_materialized_resolved
+      eq_var: select_materialized_resolved
   # U02: the live `ImageMaster.cardUiAtlas` is now wired via `CardUiAtlasSource`, and each select
   # card item derives its base-background frame from the native card type/color as a real
   # `cardui#512/bg_<type>_<color>` 512-page region descriptor. The item therefore exposes the
@@ -103,10 +111,7 @@ steps:
   # old non-file-backed `cardui/frame` default). `items[0]` is the starting Ascender's Bane, whose
   # native type AND color are both CURSE, so per `AbstractCard.renderCardBg` it renders the SKILL
   # family black page: `cardui#512/bg_skill_black`. These assertions target a real ATTACK card
-  # (items[1], the first Strike). Note: the item's PRIMARY `resourceId`
-  # (`ui.select.card`/`ui.select.card.selected`) still resolves to the `cardui/frame` source, so
-  # the frame gap — and hence a non-decreasing `missingArt` — is a separate follow-up and is not
-  # asserted here.
+  # (items[1], the first Strike).
   - assert:
       path: backend.selectDraw.items[1].frameResourceId
       exists: true

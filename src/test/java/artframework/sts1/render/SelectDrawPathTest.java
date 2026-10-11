@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -1092,6 +1093,249 @@ public class SelectDrawPathTest {
         assertEquals("an absent color draws the native colorless orb",
                 "cardui#512/card_colorless_orb",
                 SelectDrawPath.buildFromProjection().get(0).orbResourceId);
+    }
+
+    /**
+     * U02d3. Native {@code AbstractCard.renderEnergy} draws the ENERGY COST NUMBER after the orb at
+     * {@code (-132*scale, 192*scale)} with the large energy font scaled by the card draw scale. ART
+     * maps the uniform select-card scale as {@code factor = item.w / 512f} (the renderer's
+     * {@code bounds.width / region.originalWidth} analogue; the select card box is 250x350 and every
+     * cardui region has originalWidth 512). A normal ATTACK/RED card built with {@code cost("1")}
+     * therefore draws the white "1" at {@code (-64.453125, 93.75)} scaled by {@code 0.48828125}, and
+     * the probe item row exposes the same values.
+     */
+    @Test
+    public void selectCardCostNumberDrawsForNormalCard() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .cost("1")
+                        .build()));
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        Map<String, Object> row = firstProbeItemRow();
+
+        assertEquals("a normal card keeps the orb descriptor", "cardui#512/card_red_orb",
+                item.orbResourceId);
+        assertEquals("a normal select card draws the cost number", Boolean.TRUE,
+                row.get("costDrawable"));
+        assertEquals("the cost number is the projected CardView.cost", "1", row.get("costText"));
+        assertEquals("an unmodified, unrestricted cost draws white", "white", row.get("costColor"));
+        assertEquals("costScale is the uniform card scale item.w / 512f",
+                0.48828125f, probeFloat(row, "costScale"), 0.000001f);
+        assertEquals("costOffsetX = -132 * factor",
+                -64.453125f, probeFloat(row, "costOffsetX"), 0.001f);
+        assertEquals("costOffsetY = 192 * factor",
+                93.75f, probeFloat(row, "costOffsetY"), 0.001f);
+    }
+
+    /**
+     * U02d3 cost gate. Native {@code renderEnergy} early-returns before drawing BOTH the orb and the
+     * number when {@code cost <= -2} (projected as {@code orbDrawable == false}): the item exposes no
+     * orb resource, an empty {@code costText} and an empty {@code costColor}.
+     */
+    @Test
+    public void selectCardCostNumberSkipsDrawWhenCostGateDisallows() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "AscendersBane"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("CURSE")
+                        .color("CURSE")
+                        .cost("-2")
+                        .orbDrawable(false)
+                        .build()));
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        Map<String, Object> row = firstProbeItemRow();
+
+        assertEquals("native cost <= -2 draws no orb either", "", item.orbResourceId);
+        assertEquals("native cost <= -2 suppresses the cost number", Boolean.FALSE,
+                row.get("costDrawable"));
+        assertEquals("a suppressed number has no text", "", row.get("costText"));
+        assertEquals("a suppressed number has no colour", "", row.get("costColor"));
+    }
+
+    /**
+     * U02d3 text gate. Native {@code renderEnergy} suppresses only the NUMBER (the orb still draws)
+     * for STATUS cards other than Slimed and CURSE cards other than Pride, matching native
+     * {@code (type != STATUS || cardID == "Slimed") && (color != CURSE || cardID == "Pride")}.
+     * Fail-open: a blank/unknown type or colour satisfies its clause, so the number draws.
+     */
+    @Test
+    public void selectCardCostTextGateMirrorsNativeStatusCurseExceptions() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Wound"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("STATUS")
+                        .color("COLORLESS")
+                        .cost("1")
+                        .build()));
+        SelectDrawPath.DrawItem wound = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("a plain STATUS card suppresses the cost number", Boolean.FALSE,
+                firstProbeItemRow().get("costDrawable"));
+        assertEquals("the number gate must not disturb the orb",
+                "cardui#512/card_colorless_orb", wound.orbResourceId);
+
+        assertEquals("a plain CURSE card suppresses the cost number", Boolean.FALSE,
+                costRow("CURSE", "CURSE", "AscendersBane", "-2").get("costDrawable"));
+        assertEquals("Slimed is the STATUS exception that still draws the number", Boolean.TRUE,
+                costRow("STATUS", "COLORLESS", "Slimed", "1").get("costDrawable"));
+        assertEquals("Pride is the CURSE exception that still draws the number", Boolean.TRUE,
+                costRow("CURSE", "CURSE", "Pride", "1").get("costDrawable"));
+
+        Map<String, Object> unknown = costRow("", "", "Strike_R", "1");
+        assertEquals("a blank type/colour fails open and draws the number", Boolean.TRUE,
+                unknown.get("costDrawable"));
+        assertEquals("a blank type/colour draws white", "white", unknown.get("costColor"));
+        assertEquals("a blank colour alone fails open and draws the number", Boolean.TRUE,
+                costRow("ATTACK", "", "Strike_R", "1").get("costDrawable"));
+    }
+
+    /**
+     * U02d3 + U02c freeze: the cost NUMBER (like the orb and banner) must NOT count toward the
+     * resolve-aware supply accounting. With a live {@code cardui} atlas carrying ONLY
+     * {@code 512/bg_attack_red}, a card whose base frame resolves is still fully materialized
+     * ({@code missingArt == 0}, {@code materializedResolved == 1}) even though its orb region is
+     * unresolved and its cost number is a font draw, not an atlas resource.
+     */
+    @Test
+    public void selectCardCostNumberDoesNotEnterU02cAccounting() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .cost("1")
+                        .build()));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("cardui#512/bg_attack_red", item.frameResourceId);
+        assertEquals("the cost number is drawable for this card", Boolean.TRUE,
+                firstProbeItemRow().get("costDrawable"));
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertEquals("the cost number must not create a gap",
+                Integer.valueOf(0), probe.get("missingArt"));
+        assertEquals("the base frame alone decides the account",
+                Integer.valueOf(1), probe.get("materializedResolved"));
+    }
+
+    /**
+     * U02d3 colour flags. Native {@code renderEnergy} picks the number colour with the RESTRICTED
+     * branch FIRST ({@code player != null && player.hand.contains(card) && !card.hasEnoughEnergy()}
+     * -> {@code (1.0, 0.3, 0.3)}), else the MODIFIED branch ({@code isCostModified ||
+     * isCostModifiedForTurn || freeToPlay()} -> {@code (0.4, 1.0, 0.4)}), else white. The projection
+     * carries both as fail-open {@code false} flags on {@link CardView}; the item/probe expose the
+     * chosen colour NAME and {@code costColorRgba} gives the native RGBA.
+     */
+    @Test
+    public void selectCardCostColorFlagsPreferRestrictedThenModifiedElseWhite() {
+        assertTrue("an unmodified, unrestricted card is drawable", costItem(false, false).costDrawable);
+        assertEquals("neither flag draws white", "white", costItem(false, false).costColor);
+        assertEquals("modified alone draws green", "green", costItem(true, false).costColor);
+        assertEquals("restricted alone draws red", "red", costItem(false, true).costColor);
+        assertEquals("restricted takes precedence over modified", "red",
+                costItem(true, true).costColor);
+        assertEquals("the probe row carries the same colour name", "green",
+                costColorRow(true, false).get("costColor"));
+
+        assertEquals("white", SelectDrawPath.costColorName(false, false));
+        assertEquals("green", SelectDrawPath.costColorName(true, false));
+        assertEquals("red", SelectDrawPath.costColorName(false, true));
+        assertEquals("red", SelectDrawPath.costColorName(true, true));
+
+        assertArrayEquals(new float[] {1f, 1f, 1f, 1f},
+                SelectDrawPath.costColorRgba("white"), 0.000001f);
+        assertArrayEquals(new float[] {0.4f, 1f, 0.4f, 1f},
+                SelectDrawPath.costColorRgba("green"), 0.000001f);
+        assertArrayEquals(new float[] {1f, 0.3f, 0.3f, 1f},
+                SelectDrawPath.costColorRgba("red"), 0.000001f);
+        assertArrayEquals("a blank colour name fails open to white",
+                new float[] {1f, 1f, 1f, 1f}, SelectDrawPath.costColorRgba(""), 0.000001f);
+        assertArrayEquals("an unknown colour name fails open to white",
+                new float[] {1f, 1f, 1f, 1f}, SelectDrawPath.costColorRgba("chartreuse"), 0.000001f);
+
+        assertEquals("the native cardui page is 512px",
+                512f, SelectDrawPath.CARDUI_PAGE, 0.000001f);
+        assertEquals("the native cost offset X is -132",
+                -132f, SelectDrawPath.COST_OFFSET_X, 0.000001f);
+        assertEquals("the native cost offset Y is 192",
+                192f, SelectDrawPath.COST_OFFSET_Y, 0.000001f);
+
+        assertFalse("costModified must default to false (fail-open)",
+                CardView.builder(new CardRef("g1", "Strike_R")).build().costModified);
+        assertFalse("costRestricted must default to false (fail-open)",
+                CardView.builder(new CardRef("g2", "Strike_R")).build().costRestricted);
+        assertTrue("an explicit .costModified(true) must round-trip",
+                CardView.builder(new CardRef("g3", "Strike_R"))
+                        .costModified(true).build().costModified);
+        assertTrue("an explicit .costRestricted(true) must round-trip",
+                CardView.builder(new CardRef("g4", "Strike_R"))
+                        .costRestricted(true).build().costRestricted);
+    }
+
+    /** Publishes a single cost-1 select card with the given flags and returns its built item. */
+    private SelectDrawPath.DrawItem costItem(boolean modified, boolean restricted) {
+        publishSelectFrame(singleSelectCard(costCard(modified, restricted)));
+        return SelectDrawPath.buildFromProjection().get(0);
+    }
+
+    /** Publishes the same flagged card and returns the probe's {@code items[0]} row. */
+    private Map<String, Object> costColorRow(boolean modified, boolean restricted) {
+        publishSelectFrame(singleSelectCard(costCard(modified, restricted)));
+        return firstProbeItemRow();
+    }
+
+    private static CardView costCard(boolean modified, boolean restricted) {
+        return CardView.builder(new CardRef("g1", "Strike_R"))
+                .zone(CardZone.SELECT)
+                .slot(0)
+                .type("ATTACK")
+                .color("RED")
+                .cost("1")
+                .costModified(modified)
+                .costRestricted(restricted)
+                .build();
+    }
+
+    /** Publishes a single-card select frame and returns the probe's {@code items[0]} row. */
+    private Map<String, Object> costRow(String type, String color, String cardId, String cost) {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", cardId))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type(type)
+                        .color(color)
+                        .cost(cost)
+                        .build()));
+        return firstProbeItemRow();
+    }
+
+    /**
+     * Reads a required numeric probe value as a {@code float}, failing with an assertion (rather
+     * than an NPE) when the key is absent because the cost-number slice has not landed yet.
+     */
+    private static float probeFloat(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        assertNotNull("the probe row must expose " + key, value);
+        assertTrue("the probe row " + key + " must be numeric", value instanceof Number);
+        return ((Number) value).floatValue();
+    }
+
+    /** The probe's {@code items[0]} row of the currently published select frame. */
+    private Map<String, Object> firstProbeItemRow() {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows =
+                (List<Map<String, Object>>) SelectDrawPath.probeSlice().get("items");
+        assertNotNull("the probe must expose item rows", rows);
+        return rows.get(0);
     }
 
     /** Builds a single ATTACK select card with the given color and returns its orb descriptor. */

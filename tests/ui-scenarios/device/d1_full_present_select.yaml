@@ -159,3 +159,24 @@ steps:
   - assert:
       path: backend.selectDraw.items[1].orbResourceId
       eq: "cardui#512/card_red_orb"
+  # U02d3: native `AbstractCard.renderEnergy` also draws the ENERGY COST NUMBER after the orb, at
+  # (-132*scale, 192*scale) with the large energy font scaled by the card draw scale. ART maps the
+  # uniform select-card scale as factor = item.w/512 = 250/512 (the renderer's
+  # `bounds.width / region.originalWidth` analogue), so the offsets are (-64.453125, 93.75). items[1]
+  # is the starting Ironclad Strike: cost 1, not in hand and unmodified, so it draws the white "1" in
+  # that slot. items[0] is the CURSE Ascender's Bane whose native cost is -2, so native renderEnergy
+  # returns early and draws NEITHER orb NOR number (costDrawable false). The colour is deliberately
+  # NOT asserted here: white/green/red depends on live in-hand/modified/restricted state, which this
+  # starting-grid frame does not pin.
+  - assert:
+      path: backend.selectDraw.items[1].costDrawable
+      eq: true
+  - assert:
+      path: backend.selectDraw.items[1].costText
+      eq: "1"
+  - assert:
+      path: backend.selectDraw.items[1].costOffsetX
+      exists: true
+  - assert:
+      path: backend.selectDraw.items[0].costDrawable
+      eq: false

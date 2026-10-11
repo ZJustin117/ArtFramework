@@ -4461,9 +4461,32 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       (42.48046875,251.171875,35.15625,34.66796875) in the 250x350 select box; `bg_attack_red`
       (106,46,302,419) at s=1; `banner_common` (94,378,324,77) at s=1. **D1 PENDING.** (geometry is
       not yet device-verified).
-- [ ] **Open (U02d3): select card cost NUMBER text.** `renderEnergy` also draws the cost number with
-      a ROTATED font at `-132*scale, 192*scale`; ART does not draw it. Deferred from U02d2 (the orb
-      half only). Needs the rotated-font draw at the native orb geometry; separate slice.
+- [x] **U02d3: select card cost NUMBER text inside the orb.** Native `AbstractCard.renderEnergy`
+      draws the orb and then the cost number via `FontHelper.renderRotatedText(sb,
+      FontHelper.cardEnergyFont_L, text, current_x, current_y, -132f*drawScale*Settings.scale,
+      192f*drawScale*Settings.scale, angle, false, costColor)`. The whole method early-returns when
+      `cost <= -2 || darken || isLocked || !isSeen`, and the NUMBER alone is gated by
+      `(type != STATUS || cardID == "Slimed") && (color != CURSE || cardID == "Pride")`. Fix:
+      `SelectDrawPath.CARDUI_PAGE`/`COST_OFFSET_X = -132f`/`COST_OFFSET_Y = 192f` (native-source
+      Javadoc), `costTextGate(type,color,cardId)` (case-insensitive, null-safe, blank/unknown
+      fail-open), `costColorName(modified,restricted)` (restricted → `red` first, else modified →
+      `green`, else `white`) and `costColorRgba(name)` (native `ENERGY_COST_MODIFIED_COLOR`
+      `(0.4,1,0.4,1)` / `ENERGY_COST_RESTRICTED_COLOR` `(1,0.3,0.3,1)` / fail-open white).
+      `CardView.costModified` (← `isCostModified || isCostModifiedForTurn || freeToPlay()`) and
+      `CardView.costRestricted` (← in-hand && `!hasEnoughEnergy()`), both builder-threaded fail-open
+      `false`, are projected by `Sts1PresentationBackend` (grid + hand) like `color`/`rarity`.
+      `DrawItem` gains `costDrawable`/`costText`/`costColor` (trailing ctor params, probed under the
+      same keys) and the geometry `costScale = w / CARDUI_PAGE` (the ART `item.w/512` factor), with
+      `costOffsetX/Y = COST_OFFSET_* * costScale` — ONE authority mirroring `selectRegionRect`'s
+      uniform `bounds.width / region.originalWidth`. `renderSelect` draws the number AFTER the orb
+      through `drawSelectCostNumber` (native order `renderCardBg → renderBannerImage → renderEnergy
+      orb → number`). It is an ADDITIONAL `cardEnergyFont_L` font draw that does NOT enter the frozen
+      U02c accounting (`materializedResolved + missingArt == count` unchanged). Residual: the native
+      `darken`/`isLocked`/`isSeen` gate inputs, the `transparency` alpha multiplier and the native
+      `angle` are NOT projected (ART draws angle `0`). New probe keys: `costDrawable` (Boolean),
+      `costText`/`costColor` (String), `costOffsetX`/`costOffsetY`/`costScale` (Float). Tests
+      (`SelectDrawPathTest`): normal draw + geometry + cost gate + text gate + colour flags + U02c
+      freeze. Scenario `d1_full_present_select.yaml` (40→44 steps). Focused: 1201/0. **D1 PENDING.**
 - [ ] **Open (U02e): pin the disabled-card overlay in select accounting.** `ui.select.card.disabled`
       (`images/ui/event/disabledButton.png`) is a real second select draw excluded from
       `itemFullyResolves` (option (b) decides by the base frame alone); a regression of that mapping to

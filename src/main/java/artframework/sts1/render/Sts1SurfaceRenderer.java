@@ -1059,13 +1059,14 @@ public final class Sts1SurfaceRenderer {
                             item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
                     if (!item.confirm && !item.cardId.isEmpty()) {
                         // Base-background frame first, then the banner over the card's base page,
-                        // then the energy orb, mirroring native renderCardBg -> renderBannerImage
-                        // -> renderEnergy order. All share the same "<atlasKey>#<region>"
-                        // resolution; the orb stays after the banner. The orb is empty when the
-                        // native cost gate suppresses it.
+                        // then the energy orb, then the cost number, mirroring native renderCardBg
+                        // -> renderBannerImage -> renderEnergy orb -> renderEnergy number order. All
+                        // regions share the same "<atlasKey>#<region>" resolution; the orb and the
+                        // number are empty when their native gates suppress them.
                         drawSelectAtlasRegion(sb, item.frameResourceId, b);
                         drawSelectAtlasRegion(sb, item.bannerResourceId, b);
                         drawSelectAtlasRegion(sb, item.orbResourceId, b);
+                        drawSelectCostNumber(sb, item);
                     }
                     drawResolvedTexture(sb, item.resourceId, b);
                     com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
@@ -1122,6 +1123,38 @@ public final class Sts1SurfaceRenderer {
             sb.setColor(Color.WHITE);
             sb.draw(resolved.texture, rect[0], rect[1], rect[2], rect[3],
                     uv[0], uv[1], uv[2], uv[3]);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * U02d3: the select card ENERGY COST NUMBER. Mirrors native {@code AbstractCard.renderEnergy},
+     * which draws the orb and then the cost text via
+     * {@code FontHelper.renderRotatedText(sb, FontHelper.cardEnergyFont_L, text, current_x,
+     * current_y, -132f*drawScale*Settings.scale, 192f*drawScale*Settings.scale, angle, false,
+     * costColor)}. ART draws the {@code cardEnergyFont_L} glyphs at the item CENTER ({@code item.x},
+     * {@code item.y}) with the projected {@code costOffsetX}/{@code costOffsetY} (the native offsets
+     * scaled by the uniform card scale {@code item.w / 512f}) and the projected {@code costColor}
+     * ({@code costColorRgba}). The number is drawn after the orb, matching native order.
+     *
+     * <p>Residual: the native {@code angle} (a card's current rotation) is projected nowhere and ART
+     * draws angle {@code 0}; the native {@code transparency} alpha multiplier is not projected; and
+     * the {@code darken}/{@code isLocked}/{@code isSeen} components of the {@code renderEnergy} gate
+     * are NOT projected (they share the existing {@link CardView#orbDrawable} projection). Fail-open:
+     * a null batch/item, a non-drawable or empty cost, or a missing font draws nothing rather than
+     * throwing.
+     */
+    private static void drawSelectCostNumber(SpriteBatch sb, SelectDrawPath.DrawItem item) {
+        if (sb == null || item == null || !item.costDrawable) return;
+        if (item.costText == null || item.costText.isEmpty()) return;
+        try {
+            BitmapFont font = FontHelper.cardEnergyFont_L;
+            if (font == null || font.getData() == null) return;
+            font.getData().setScale(item.costScale);
+            float[] rgba = SelectDrawPath.costColorRgba(item.costColor);
+            FontHelper.renderRotatedText(sb, font, item.costText, item.x, item.y,
+                    item.costOffsetX, item.costOffsetY, 0f, false,
+                    new Color(rgba[0], rgba[1], rgba[2], rgba[3]));
         } catch (Throwable ignored) {
         }
     }

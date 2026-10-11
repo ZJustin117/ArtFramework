@@ -28,6 +28,16 @@ public final class CardView {
      * fail-open {@code true} when cost is unknown/absent.
      */
     public final boolean orbDrawable;
+    /**
+     * Native {@code AbstractCard.isCostModified || isCostModifiedForTurn || freeToPlay()}: the cost
+     * number is drawn GREEN. Fail-open {@code false}.
+     */
+    public final boolean costModified;
+    /**
+     * Native {@code player.hand.contains(card) && !card.hasEnoughEnergy()}: the cost number is drawn
+     * RED, and this branch takes precedence over {@link #costModified}. Fail-open {@code false}.
+     */
+    public final boolean costRestricted;
 
     public CardView(
             CardRef ref,
@@ -41,7 +51,7 @@ public final class CardView {
             String artResourceId,
             String frameResourceId) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging,
-                artResourceId, frameResourceId, ref.cardId, "", "", "", "", "", true);
+                artResourceId, frameResourceId, ref.cardId, "", "", "", "", "", true, false, false);
     }
 
     public CardView(
@@ -49,7 +59,7 @@ public final class CardView {
             boolean selected, boolean hovered, boolean dragging, String artResourceId,
             String frameResourceId, String title, String cost, String type, String description) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
-                frameResourceId, title, cost, type, description, "", "", true);
+                frameResourceId, title, cost, type, description, "", "", true, false, false);
     }
 
     public CardView(
@@ -58,7 +68,7 @@ public final class CardView {
             String frameResourceId, String title, String cost, String type, String description,
             String color) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
-                frameResourceId, title, cost, type, description, color, "", true);
+                frameResourceId, title, cost, type, description, color, "", true, false, false);
     }
 
     public CardView(
@@ -67,7 +77,7 @@ public final class CardView {
             String frameResourceId, String title, String cost, String type, String description,
             String color, String rarity) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
-                frameResourceId, title, cost, type, description, color, rarity, true);
+                frameResourceId, title, cost, type, description, color, rarity, true, false, false);
     }
 
     public CardView(
@@ -75,6 +85,17 @@ public final class CardView {
             boolean selected, boolean hovered, boolean dragging, String artResourceId,
             String frameResourceId, String title, String cost, String type, String description,
             String color, String rarity, boolean orbDrawable) {
+        this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
+                frameResourceId, title, cost, type, description, color, rarity, orbDrawable,
+                false, false);
+    }
+
+    public CardView(
+            CardRef ref, CardZone zone, int slotIndex, CardPose pose, boolean playable,
+            boolean selected, boolean hovered, boolean dragging, String artResourceId,
+            String frameResourceId, String title, String cost, String type, String description,
+            String color, String rarity, boolean orbDrawable, boolean costModified,
+            boolean costRestricted) {
         if (ref == null) {
             throw new IllegalArgumentException("ref required");
         }
@@ -95,6 +116,8 @@ public final class CardView {
         this.color = color != null ? color : "";
         this.rarity = rarity != null ? rarity : "";
         this.orbDrawable = orbDrawable;
+        this.costModified = costModified;
+        this.costRestricted = costRestricted;
     }
 
     public static Builder builder(CardRef ref) {
@@ -119,6 +142,8 @@ public final class CardView {
         private String color = "";
         private String rarity = "";
         private boolean orbDrawable = true;
+        private boolean costModified = false;
+        private boolean costRestricted = false;
 
         Builder(CardRef ref) {
             this.ref = ref;
@@ -176,6 +201,8 @@ public final class CardView {
         public Builder color(String value) { this.color = value; return this; }
         public Builder rarity(String value) { this.rarity = value; return this; }
         public Builder orbDrawable(boolean value) { this.orbDrawable = value; return this; }
+        public Builder costModified(boolean value) { this.costModified = value; return this; }
+        public Builder costRestricted(boolean value) { this.costRestricted = value; return this; }
 
         public CardView build() {
             return new CardView(
@@ -188,7 +215,8 @@ public final class CardView {
                     hovered,
                     dragging,
                     artResourceId, frameResourceId, title != null ? title : ref.cardId,
-                    cost, type, description, color, rarity, orbDrawable);
+                    cost, type, description, color, rarity, orbDrawable, costModified,
+                    costRestricted);
         }
     }
 }

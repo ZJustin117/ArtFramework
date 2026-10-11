@@ -18,6 +18,25 @@ import java.util.Map;
  */
 public final class SelectDrawPath {
 
+    /**
+     * Native cardui bitmap page width in pixels. Every select-card region (base background, banner,
+     * energy orb) is packed in the {@code 512}-wide {@code cardui} page, so the uniform native card
+     * scale {@code drawScale} maps to ART's {@code item.w / CARDUI_PAGE}.
+     */
+    static final float CARDUI_PAGE = 512f;
+
+    /**
+     * Native {@code AbstractCard.renderEnergy} horizontal offset of the cost number relative to the
+     * card centre: {@code -132f * drawScale * Settings.scale}.
+     */
+    static final float COST_OFFSET_X = -132f;
+
+    /**
+     * Native {@code AbstractCard.renderEnergy} vertical offset of the cost number relative to the
+     * card centre: {@code 192f * drawScale * Settings.scale}.
+     */
+    static final float COST_OFFSET_Y = 192f;
+
     public static final class DrawItem {
         public final String instanceId;
         /** Raw card id (e.g. {@code Strike_R}); identity/resource selection only. */
@@ -52,6 +71,29 @@ public final class SelectDrawPath {
          * ADDITIONAL drawn region, never part of accounting.
          */
         public final String orbResourceId;
+        /**
+         * U02d3: true when the native {@code AbstractCard.renderEnergy} cost NUMBER draw is
+         * permitted: the orb draw gate ({@link CardView#orbDrawable}) AND the native text gate
+         * {@link #costTextGate} both hold. False suppresses the number; the orb is unaffected.
+         */
+        public final boolean costDrawable;
+        /** U02d3: the projected cost text (native string form); {@code ""} when not drawn. */
+        public final String costText;
+        /**
+         * U02d3: the chosen native cost colour NAME ({@code "white"}/{@code "green"}/{@code "red"});
+         * {@code ""} when not drawn. See {@link #costColorName}.
+         */
+        public final String costColor;
+        /** U02d3: native {@code -132f * scale} offset applied to the number draw. */
+        public final float costOffsetX;
+        /** U02d3: native {@code 192f * scale} offset applied to the number draw. */
+        public final float costOffsetY;
+        /**
+         * U02d3: native font scale = the uniform card scale {@code w / 512f} (the
+         * {@code bounds.width / region.originalWidth} analogue; fail-open {@code 1f} when {@code w}
+         * is non-positive).
+         */
+        public final float costScale;
 
         public DrawItem(
                 String instanceId,
@@ -93,6 +135,16 @@ public final class SelectDrawPath {
                 boolean visible, boolean enabled, float x, float y, boolean confirm,
                 String resourceId, String frameResourceId, float w, float h,
                 String bannerResourceId, String orbResourceId) {
+            this(instanceId, cardId, label, slot, selected, visible, enabled, x, y, confirm,
+                    resourceId, frameResourceId, w, h, bannerResourceId, orbResourceId, false,
+                    "", "");
+        }
+
+        public DrawItem(String instanceId, String cardId, String label, int slot, boolean selected,
+                boolean visible, boolean enabled, float x, float y, boolean confirm,
+                String resourceId, String frameResourceId, float w, float h,
+                String bannerResourceId, String orbResourceId, boolean costDrawable,
+                String costText, String costColor) {
             this.instanceId = instanceId != null ? instanceId : "";
             this.cardId = cardId != null ? cardId : "";
             this.label = label != null && !label.isEmpty() ? label : this.cardId;
@@ -109,6 +161,15 @@ public final class SelectDrawPath {
             this.frameResourceId = frameResourceId != null ? frameResourceId : "";
             this.bannerResourceId = bannerResourceId != null ? bannerResourceId : "";
             this.orbResourceId = orbResourceId != null ? orbResourceId : "";
+            this.costDrawable = costDrawable;
+            this.costText = costText != null ? costText : "";
+            this.costColor = costColor != null ? costColor : "";
+            // ONE authority for the native cost-number geometry: the same uniform card scale the
+            // region placement uses (bounds.width / region.originalWidth), where every cardui region
+            // has originalWidth 512. Fail-open 1f when the box has no width.
+            this.costScale = w > 0f ? w / CARDUI_PAGE : 1f;
+            this.costOffsetX = COST_OFFSET_X * costScale;
+            this.costOffsetY = COST_OFFSET_Y * costScale;
         }
 
         public Map<String, Object> toMap() {
@@ -129,6 +190,12 @@ public final class SelectDrawPath {
             m.put("frameResourceId", frameResourceId);
             m.put("bannerResourceId", bannerResourceId);
             m.put("orbResourceId", orbResourceId);
+            m.put("costDrawable", Boolean.valueOf(costDrawable));
+            m.put("costText", costText);
+            m.put("costColor", costColor);
+            m.put("costOffsetX", Float.valueOf(costOffsetX));
+            m.put("costOffsetY", Float.valueOf(costOffsetY));
+            m.put("costScale", Float.valueOf(costScale));
             return m;
         }
     }
@@ -157,6 +224,7 @@ public final class SelectDrawPath {
             boolean selected = c.selected || sv.isSelected(c.ref.instanceId);
             float x = c.pose != null ? c.pose.x : defaultCardX(i, sv.poolCount());
             float y = c.pose != null ? c.pose.y : defaultCardY();
+            boolean costDrawable = c.orbDrawable && costTextGate(c.type, c.color, c.ref.cardId);
             out.add(
                     new DrawItem(
                             c.ref.instanceId,
@@ -174,7 +242,10 @@ public final class SelectDrawPath {
                             250f,
                             350f,
                             cardBannerDescriptor(c.rarity),
-                            c.orbDrawable ? cardOrbDescriptor(c.color) : ""));
+                            c.orbDrawable ? cardOrbDescriptor(c.color) : "",
+                            costDrawable,
+                            costDrawable ? c.cost : "",
+                            costDrawable ? costColorName(c.costModified, c.costRestricted) : ""));
             i++;
         }
         if (sv.confirmVisible || sv.confirmEnabled) {
@@ -272,6 +343,59 @@ public final class SelectDrawPath {
         } catch (Throwable ignored) {
             return "cardui#512/card_colorless_orb";
         }
+    }
+
+    /**
+     * U02d3: native {@code AbstractCard.renderEnergy} text gate for the cost NUMBER (the orb is
+     * unaffected): {@code (type != STATUS || cardID == "Slimed") && (color != CURSE || cardID ==
+     * "Pride")}. A blank/unknown type or colour satisfies its clause (fail-open: the number draws).
+     * Matching is case-insensitive and null-safe.
+     */
+    static boolean costTextGate(String type, String color, String cardId) {
+        boolean typeOk = !is(type, "STATUS") || "Slimed".equals(cardId);
+        boolean colorOk = !is(color, "CURSE") || "Pride".equals(cardId);
+        return typeOk && colorOk;
+    }
+
+    /**
+     * U02d3: the native cost-number colour NAME. Native {@code renderEnergy} checks the RESTRICTED
+     * branch FIRST ({@code player != null && player.hand.contains(card) && !hasEnoughEnergy()} ->
+     * {@code ENERGY_COST_RESTRICTED_COLOR} {@code (1, 0.3, 0.3)}), else the MODIFIED branch
+     * ({@code isCostModified || isCostModifiedForTurn || freeToPlay()} ->
+     * {@code ENERGY_COST_MODIFIED_COLOR} {@code (0.4, 1, 0.4)}), else white.
+     */
+    static String costColorName(boolean modified, boolean restricted) {
+        if (restricted) {
+            return "red";
+        }
+        if (modified) {
+            return "green";
+        }
+        return "white";
+    }
+
+    /**
+     * U02d3: the native cost-number RGBA. {@code "green"} is {@code ENERGY_COST_MODIFIED_COLOR}
+     * {@code (0.4, 1, 0.4, 1)}, {@code "red"} is {@code ENERGY_COST_RESTRICTED_COLOR}
+     * {@code (1, 0.3, 0.3, 1)}, and any other (null/blank/unknown) name fails open to white
+     * {@code (1, 1, 1, 1)}.
+     */
+    static float[] costColorRgba(String colorName) {
+        if ("green".equals(colorName)) {
+            return new float[] {0.4f, 1f, 0.4f, 1f};
+        }
+        if ("red".equals(colorName)) {
+            return new float[] {1f, 0.3f, 0.3f, 1f};
+        }
+        return new float[] {1f, 1f, 1f, 1f};
+    }
+
+    /**
+     * Case-insensitive, null-safe native enum-name comparison used by {@link #costTextGate}; a
+     * null/blank {@code value} never equals a non-blank {@code expected}.
+     */
+    private static boolean is(String value, String expected) {
+        return value != null && value.trim().equalsIgnoreCase(expected);
     }
 
     /**

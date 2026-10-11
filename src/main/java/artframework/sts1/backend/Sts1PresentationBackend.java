@@ -1960,6 +1960,8 @@ public final class Sts1PresentationBackend implements SignalBackend {
                         .color(cardColor(card))
                         .rarity(cardRarity(card))
                         .orbDrawable(card == null || card.cost > -2)
+                        .costModified(cardCostModified(card))
+                        .costRestricted(cardCostRestricted(card))
                         .description(card.rawDescription)
                         .build());
             }
@@ -2000,6 +2002,8 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     .color(cardColor(card))
                                     .rarity(cardRarity(card))
                                     .orbDrawable(card == null || card.cost > -2)
+                                    .costModified(cardCostModified(card))
+                                    .costRestricted(cardCostRestricted(card))
                                     .description(card.rawDescription)
                                     .build());
                 }
@@ -2010,6 +2014,30 @@ public final class Sts1PresentationBackend implements SignalBackend {
         boolean confirmEnabled = !selected.isEmpty() || !pool.isEmpty();
         return SelectView.hand(
                 pool, selected, confirmEnabled, confirmVisible, readConfirmLabel(hcs, "button"));
+    }
+
+    /**
+     * Native {@code AbstractCard.renderEnergy} MODIFIED branch: {@code isCostModified ||
+     * isCostModifiedForTurn || freeToPlay()}. Fail-open {@code false}; mirrors the file's soft-read
+     * style so a missing/uninitialized card field never throws.
+     */
+    private static boolean cardCostModified(AbstractCard card) {
+        if (card == null) return false;
+        try { return card.isCostModified || card.isCostModifiedForTurn || card.freeToPlay(); }
+        catch (Throwable ignored) { return false; }
+    }
+
+    /**
+     * Native {@code AbstractCard.renderEnergy} RESTRICTED branch: {@code player.hand.contains(card)
+     * && !card.hasEnoughEnergy()}. Fail-open {@code false}; mirrors the file's soft-read style.
+     */
+    private static boolean cardCostRestricted(AbstractCard card) {
+        if (card == null) return false;
+        try {
+            AbstractPlayer player = AbstractDungeon.player;
+            if (player == null || player.hand == null || !player.hand.contains(card)) return false;
+            return !card.hasEnoughEnergy();
+        } catch (Throwable ignored) { return false; }
     }
 
     /**

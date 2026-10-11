@@ -741,6 +741,70 @@ public class SelectDrawPathTest {
     }
 
     /**
+     * U02e. Native {@code Sts1SurfaceRenderer.renderSelect} draws, for EVERY visible select item,
+     * {@code drawResolvedTexture(sb, item.resourceId, b)} in addition to the base frame/banner/orb
+     * regions. For a DISABLED card ({@code enabled == false}) that primary is
+     * {@code ui.select.card.disabled}, which the vanilla catalog maps to a REAL file-backed
+     * {@code images/.../disabledButton.png} overlay. So the overlay is a genuine SECOND draw that can
+     * fail and MUST be required by the resolve-aware accounting. On the pre-U02e code
+     * {@link SelectDrawPath#itemFullyResolves} inspects only the frame descriptor, so regressing the
+     * overlay mapping to a non-file-backed logical id is silently accepted ({@code missingArt == 0});
+     * this test pins the overlay as a required draw so that regression is reported as a gap.
+     */
+    @Test
+    public void selectDisabledCardOverlayMustResolveOrCountAsGap() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        // Regress the disabled-card overlay mapping to a NON-file-backed logical id (no `images/`
+        // path): the overlay is a REAL second draw in renderSelect, so this must be a gap.
+        Map<String, String> catalog =
+                new LinkedHashMap<String, String>(artframework.sts1.assets.Sts1VanillaCatalog.catalog());
+        catalog.put(ResourceIds.UI_SELECT_CARD_DISABLED, "cardui/disabled");
+        artframework.assets.HostAssetsHolder.get().registerVanillaCatalog(catalog);
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .playable(false)
+                        .type("ATTACK")
+                        .color("RED")
+                        .build()));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertFalse("the card must be disabled so its overlay is drawn", item.enabled);
+        assertEquals(ResourceIds.UI_SELECT_CARD_DISABLED, item.resourceId);
+        assertFalse("the regressed overlay mapping must not be file-backed",
+                Sts1AssetMaterializer.isFileBacked(
+                        ArtFramework.assets().resolve(item.resourceId).source));
+        assertEquals("the base frame still resolves", "cardui#512/bg_attack_red",
+                item.frameResourceId);
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals("a disabled card whose drawn overlay does not resolve is a gap",
+                Integer.valueOf(1), probe.get("missingArt"));
+        assertEquals(Integer.valueOf(0), probe.get("materializedResolved"));
+        assertEquals("materializedResolved + missingArt must equal count",
+                probe.get("count"),
+                Integer.valueOf(((Integer) probe.get("materializedResolved")).intValue()
+                        + ((Integer) probe.get("missingArt")).intValue()));
+    }
+
+    /**
+     * U02e guard. Pins the REAL vanilla catalog mapping for {@code ui.select.card.disabled} as a
+     * file-backed {@code images/} draw ({@code disabledButton.png}), so a regression to a
+     * non-drawable id fails the suite independently of the accounting change.
+     */
+    @Test
+    public void selectDisabledCardOverlayMappingIsFileBacked() {
+        Sts1HostAssets.install();
+        AssetResolveResult overlay = ArtFramework.assets().resolve(ResourceIds.UI_SELECT_CARD_DISABLED);
+        assertTrue("the disabled-card overlay key must be catalogued", overlay.found);
+        assertTrue("ui.select.card.disabled must map to a file-backed images/ draw (disabledButton.png)",
+                Sts1AssetMaterializer.isFileBacked(overlay.source));
+    }
+
+    /**
      * U02c guard (fail-open half of option (b)). An unknown TYPE ({@code WAT}) draws NO native
      * background, so the frame descriptor stays blank ({@code ""}) even with a live atlas; the
      * base-background requirement is therefore unmet and the item remains a gap

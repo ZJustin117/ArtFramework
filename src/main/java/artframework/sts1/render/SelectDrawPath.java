@@ -570,9 +570,10 @@ public final class SelectDrawPath {
      *
      * <p>A DISABLED card's primary is different: {@code ui.select.card.disabled} is a file-backed
      * {@code images/ui/event/disabledButton.png} overlay that {@code renderSelect} DOES draw as a
-     * second real texture alongside the frame. Omitting it from the required set is still
-     * accounting-neutral: {@link #resolvesToDrawable} is prefix-level, so that binding always
-     * resolves and adds nothing to the required-resource accounting.
+     * second real texture alongside the frame. It is therefore a required draw in its own right:
+     * this method also requires {@link #resolvesToDrawable} for it, so a regression of the overlay
+     * mapping to a non-file-backed id is reported as a {@code missingArt} gap rather than silently
+     * accepted.
      *
      * <p>A blank frame descriptor is NOT materialized (the card is missing its base background) and
      * stays a gap. The confirm pseudo-item keeps the existing {@link #resolvesToDrawable} primary
@@ -580,7 +581,12 @@ public final class SelectDrawPath {
      */
     private static boolean itemFullyResolves(DrawItem item) {
         if (!item.confirm && !item.cardId.isEmpty()) {
-            return frameDescriptorResolves(item.frameResourceId);
+            if (!frameDescriptorResolves(item.frameResourceId)) return false;
+            // U02e: a DISABLED card's primary is a REAL second draw - the file-backed disabled
+            // overlay that renderSelect draws via drawResolvedTexture(item.resourceId). Require it
+            // so the probe contract "every drawn resource resolves" holds for the overlay too.
+            if (!item.enabled && !resolvesToDrawable(item.resourceId)) return false;
+            return true;
         }
         return resolvesToDrawable(item.resourceId);
     }

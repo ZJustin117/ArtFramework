@@ -4486,7 +4486,14 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       `angle` are NOT projected (ART draws angle `0`). New probe keys: `costDrawable` (Boolean),
       `costText`/`costColor` (String), `costOffsetX`/`costOffsetY`/`costScale` (Float). Tests
       (`SelectDrawPathTest`): normal draw + geometry + cost gate + text gate + colour flags + U02c
-      freeze. Scenario `d1_full_present_select.yaml` (40→44 steps). Focused: 1201/0. **D1 PENDING.**
+      freeze. Scenario `d1_full_present_select.yaml` (40→44 steps). Focused: 1201/0. **D1 PENDING.**- [ ] **Open (U02d3-followup): pin the `orbDrawable`-vs-text-gate interaction in select cost accounting.**
+      The U02d3 review flagged that no test (and the device YAML, whose curse card is also text-gate-
+      rejected) pairs `orbDrawable=false` with a text-gate-PASSING type/color, so a mutant removing the
+      `c.orbDrawable &&` term from the cost gate survives the suite (the probe, not the pixels — cost
+      is "" for cost<=-2). Add a `SelectDrawPathTest` case: `.orbDrawable(false)` + ATTACK/RED + a
+      non-empty cost ⇒ `costDrawable=false`, plus a matching scenario assert if a cheap probe path
+      exists. Bounded test-only follow-up.
+
 - [ ] **Open (U02e): pin the disabled-card overlay in select accounting.** `ui.select.card.disabled`
       (`images/ui/event/disabledButton.png`) is a real second select draw excluded from
       `itemFullyResolves` (option (b) decides by the base frame alone); a regression of that mapping to

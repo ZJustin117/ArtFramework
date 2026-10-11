@@ -149,29 +149,45 @@ public final class SelectDrawPath {
     }
 
     /**
-     * Derives the select card BASE-BACKGROUND frame descriptor from the card's native type/color:
-     * {@code cardui#512/bg_<type>_<color>} for a known {@code attack|skill|power} type and a mappable
-     * color, else {@code ""}. Type/color are matched case-insensitively; {@code colorless} maps to the
-     * {@code gray} base-background page. Fail-open: a null/blank/unmapped value or any failure yields
-     * {@code ""} (no frame draw instead of a bogus one).
+     * Derives the select card BASE-BACKGROUND frame descriptor from the card's native type/color,
+     * mirroring native {@code AbstractCard.renderCardBg} and its {@code render*Bg} color switch:
+     * <ul>
+     *   <li>type {@code attack} -> the {@code attack} family, {@code skill} -> {@code skill},
+     *       {@code power} -> {@code power}, and {@code curse}/{@code status} -> the {@code skill}
+     *       family. Native {@code renderCardBg} has NO default case, so an unknown/absent/blank TYPE
+     *       draws NO background and yields {@code ""}.</li>
+     *   <li>color {@code red|green|blue|purple} -> {@code cardui#512/bg_<family>_<color>}.</li>
+     *   <li>color {@code colorless} -> {@code cardui#512/bg_<family>_gray}.</li>
+     *   <li>color {@code curse} or any other/absent/blank color -> the native {@code render*Bg}
+     *       DEFAULT branch, {@code cardui#512/bg_skill_black} (family-independent).</li>
+     * </ul>
+     * Type/color are matched case-insensitively. Fail-open: any failure yields {@code ""} (no frame
+     * draw instead of a bogus one).
      */
     static String cardFrameDescriptor(String type, String color) {
         try {
             String t = type != null ? type.trim().toLowerCase(java.util.Locale.ROOT) : "";
-            if (!"attack".equals(t) && !"skill".equals(t) && !"power".equals(t)) {
+            // curse/status draw on the skill page; attack/skill/power keep their own family name.
+            String family = "curse".equals(t) || "status".equals(t) ? "skill" : t;
+            if (!"attack".equals(family) && !"skill".equals(family) && !"power".equals(family)) {
+                // No native default case: an unknown/absent type draws NO background.
                 return "";
             }
             String mapped = mappedColor(color);
             if (mapped.isEmpty()) {
-                return "";
+                // Native render*Bg DEFAULT branch: the black skill page, family-independent.
+                return "cardui#512/bg_skill_black";
             }
-            return "cardui#512/bg_" + t + "_" + mapped;
+            return "cardui#512/bg_" + family + "_" + mapped;
         } catch (Throwable ignored) {
             return "";
         }
     }
 
-    /** Maps a native card color name to the cardui base-background color token, or {@code ""}. */
+    /**
+     * Maps a native card color name to the cardui base-background color token, or {@code ""} for the
+     * native {@code render*Bg} DEFAULT branch (caller then draws {@code 512/bg_skill_black}).
+     */
     private static String mappedColor(String color) {
         if (color == null) {
             return "";

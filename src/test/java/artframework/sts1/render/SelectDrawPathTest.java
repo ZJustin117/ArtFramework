@@ -458,14 +458,70 @@ public class SelectDrawPathTest {
         assertEquals("cardui#512/bg_power_blue", firstCardFrame("POWER", "BLUE"));
         assertEquals("colorless maps to the gray base-background page",
                 "cardui#512/bg_attack_gray", firstCardFrame("ATTACK", "colorless"));
+        assertEquals("each family has its own colorless gray page",
+                "cardui#512/bg_power_gray", firstCardFrame("POWER", "COLORLESS"));
+        assertEquals("each family has its own colorless gray page",
+                "cardui#512/bg_skill_gray", firstCardFrame("SKILL", "COLORLESS"));
     }
 
     /**
-     * U02. An unknown/absent type (or an unmappable color) yields no base-background region: the
-     * frame descriptor is empty, so no frame draw is attempted and the item is reported as a gap.
+     * U02b (native {@code AbstractCard.renderCardBg}): CURSE and STATUS types switch to the SKILL
+     * background family, so a CURSE-colored card draws {@code CARD_SKILL_BG_BLACK}
+     * ({@code 512/bg_skill_black}) even though the type is curse/status; a COLORLESS status draws the
+     * skill gray page.
      */
     @Test
-    public void selectCardFrameUnmappedTypeOrColorHasNoFrameRegionAndCountsAsGap() {
+    public void selectCardFrameCurseAndStatusTypesUseSkillFamilyBlackPage() {
+        assertEquals("CURSE type renders the skill family, and a CURSE color is the black skill page",
+                "cardui#512/bg_skill_black", firstCardFrame("CURSE", "CURSE"));
+        assertEquals("STATUS type also renders the skill family",
+                "cardui#512/bg_skill_black", firstCardFrame("STATUS", "CURSE"));
+        assertEquals("a COLORLESS status draws the skill gray page, not the attack page",
+                "cardui#512/bg_skill_gray", firstCardFrame("STATUS", "COLORLESS"));
+    }
+
+    /**
+     * U02b (native {@code render*Bg} color switch default): an unmappable or absent color is the
+     * native DEFAULT branch, which draws {@code CARD_SKILL_BG_BLACK} ({@code 512/bg_skill_black})
+     * from every family - measured here on ATTACK/POWER/SKILL, all of which must land on the black
+     * SKILL page rather than a family page or an empty descriptor.
+     */
+    @Test
+    public void selectCardFrameUnmappedOrAbsentColorFallsToBlackSkillPage() {
+        assertEquals("an unmappable ATTACK color is the native default -> black skill page",
+                "cardui#512/bg_skill_black", firstCardFrame("ATTACK", "WAT"));
+        assertEquals("an ABSENT ATTACK color is the native default -> black skill page",
+                "cardui#512/bg_skill_black", firstCardFrame("ATTACK", ""));
+        assertEquals("the black default is family-independent",
+                "cardui#512/bg_skill_black", firstCardFrame("POWER", "WAT"));
+        assertEquals("the black default is family-independent",
+                "cardui#512/bg_skill_black", firstCardFrame("SKILL", "WAT"));
+    }
+
+    /**
+     * U02b (native {@code renderCardBg} type switch with NO default case): an unknown or absent TYPE
+     * draws NO background at all, so the frame descriptor stays empty (fail-open, no bogus region)
+     * even when the color is otherwise mappable.
+     */
+    @Test
+    public void selectCardFrameUnknownOrAbsentTypeHasNoFrameRegion() {
+        assertEquals("an unknown type draws no background in native, so no descriptor",
+                "", firstCardFrame("WAT", "RED"));
+        assertEquals("a blank type draws no background in native, so no descriptor",
+                "", firstCardFrame("", "RED"));
+        assertEquals("an absent type draws no background in native, so no descriptor",
+                "", firstCardFrame(null, "RED"));
+    }
+
+    /**
+     * U02b. The native type switch renders CURSE as the SKILL family, so a CURSE card with a RED
+     * color now maps to {@code cardui#512/bg_skill_red} (skill page + red), NOT the empty
+     * descriptor. An absent TYPE still draws nothing (no native default case) -> {@code ""}. In both
+     * cases the card's primary ({@code ui.select.card} -> non-file-backed {@code cardui/frame}) and
+     * the atlas-only frame leave the item as a gap.
+     */
+    @Test
+    public void selectCardFrameCurseTypeUsesSkillFamilyWhileAbsentTypeHasNoFrameRegionAndCountsAsGap() {
         Sts1HostAssets.install();
 
         publishSelectFrame(singleSelectCard(
@@ -476,11 +532,12 @@ public class SelectDrawPathTest {
                         .color("RED")
                         .build()));
         SelectDrawPath.DrawItem curse = SelectDrawPath.buildFromProjection().get(0);
-        assertEquals("an unmapped type must produce no frame descriptor",
-                "", curse.frameResourceId);
-        assertTrue("the unmapped card must count as a gap: "
-                        + SelectDrawPath.probeSlice().get("missingArt"),
-                ((Integer) SelectDrawPath.probeSlice().get("missingArt")).intValue() >= 1);
+        assertEquals("a CURSE type renders the skill family, so RED yields the red skill page",
+                "cardui#512/bg_skill_red", curse.frameResourceId);
+        assertEquals("the atlas-only skill frame is unresolved without a live atlas, so it is a gap",
+                Integer.valueOf(1), SelectDrawPath.probeSlice().get("missingArt"));
+        assertEquals("nothing is fully materialized while the frame is unresolved",
+                Integer.valueOf(0), SelectDrawPath.probeSlice().get("materializedResolved"));
 
         publishSelectFrame(singleSelectCard(
                 CardView.builder(new CardRef("g2", "Strike_R"))
@@ -552,17 +609,17 @@ public class SelectDrawPathTest {
     }
 
     /**
-     * U02 criterion 2 (accounting honesty), unknown-COLOR half: a KNOWN type with an UNMAPPABLE
-     * color ({@code WAT}) or a blank color yields no base-background region, exactly like an unknown
-     * type. The card's primary ({@code UI_SELECT_CARD_DISABLED} -> file-backed
-     * {@code images/ui/event/disabledButton.png}) already resolves here, so the frame descriptor is
-     * the ONLY unresolved required resource: a blank frame must therefore be the sole gap
+     * U02b criterion (accounting honesty), native-default color branch: a KNOWN type with an
+     * UNMAPPABLE color ({@code WAT}) or a blank color hits the native {@code render*Bg} DEFAULT
+     * branch, which draws {@code CARD_SKILL_BG_BLACK} -> the descriptor is
+     * {@code cardui#512/bg_skill_black} (a real {@code ImageMaster} black skill page), NOT empty.
+     * The card's primary ({@code UI_SELECT_CARD_DISABLED} -> file-backed
+     * {@code images/ui/event/disabledButton.png}) already resolves here, so the black skill page is
+     * the ONLY unresolved required resource WITHOUT a live atlas: it remains a gap
      * ({@code missingArt == 1}) with nothing fully materialized ({@code materializedResolved == 0}).
-     * The prior coverage only varied the TYPE, so this pins the color branch of the mapping and its
-     * accounting independently.
      */
     @Test
-    public void selectCardFrameUnknownColorHasNoFrameRegionAndCountsAsGap() {
+    public void selectCardFrameUnknownColorUsesNativeDefaultBlackSkillPageAndCountsAsGap() {
         Sts1HostAssets.install();
 
         publishSelectFrame(singleSelectCard(
@@ -574,12 +631,12 @@ public class SelectDrawPathTest {
                         .color("WAT")
                         .build()));
         SelectDrawPath.DrawItem unknown = SelectDrawPath.buildFromProjection().get(0);
-        assertEquals("a known type with an unmappable color must produce no frame descriptor",
-                "", unknown.frameResourceId);
+        assertEquals("an unmappable color is the native default -> the black skill page descriptor",
+                "cardui#512/bg_skill_black", unknown.frameResourceId);
         Map<String, Object> unknownProbe = SelectDrawPath.probeSlice();
-        assertEquals("the file-backed primary resolves, so the blank frame is the only gap",
+        assertEquals("the file-backed primary resolves, so the atlas-only frame is the only gap",
                 Integer.valueOf(1), unknownProbe.get("missingArt"));
-        assertEquals("nothing is fully materialized while the frame is unresolved",
+        assertEquals("the black skill page needs the live atlas, so nothing is materialized",
                 Integer.valueOf(0), unknownProbe.get("materializedResolved"));
 
         publishSelectFrame(singleSelectCard(
@@ -591,10 +648,10 @@ public class SelectDrawPathTest {
                         .color("")
                         .build()));
         SelectDrawPath.DrawItem blank = SelectDrawPath.buildFromProjection().get(0);
-        assertEquals("a known type with a blank color must produce no frame descriptor",
-                "", blank.frameResourceId);
+        assertEquals("an absent color is also the native default -> the black skill page descriptor",
+                "cardui#512/bg_skill_black", blank.frameResourceId);
         Map<String, Object> blankProbe = SelectDrawPath.probeSlice();
-        assertEquals("the blank color still leaves exactly the frame as the gap",
+        assertEquals("the blank-color black page still leaves exactly the frame as the gap",
                 Integer.valueOf(1), blankProbe.get("missingArt"));
         assertEquals(Integer.valueOf(0), blankProbe.get("materializedResolved"));
     }

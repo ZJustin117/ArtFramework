@@ -4373,6 +4373,31 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       Native `AbstractCard.renderCardBg` also draws the layered `common|rare|uncommon_left|center|right`
       pieces, the `card_<color>_orb` energy orb, and the banner; ART does not. Also unmapped/absent:
       `512/bg_<type>_{colorless,silhouette,black}` (only the `colorless→gray` fallback is used; no 1024
-      fallback), curse/status/absent-type cards, and `region.rotated()` (BG regions are unrotated).
+      fallback), curse/status cards (now COVERED by U02b — they map to the skill bg family).
       Follow-up slice: add the layered pieces + orb (+ rarity from `AbstractCard.rarity`), and resolve
       `UI_SELECT_CARD*` to the base descriptor so `missingArt` reflects the real remaining gap.
+
+- [x] **U02b: select card base-background type/color mapping now matches native `renderCardBg`.** The
+      U02 mapping only handled attack/skill/power × red/green/blue/purple (+colorless→gray) and returned
+      `""` for CURSE/STATUS types and any other color, whereas native `AbstractCard.renderCardBg`
+      (`renderAttackBg`/`renderSkillBg`/`renderPowerBg`) maps: CURSE/STATUS **type** → the skill family;
+      color CURSE → `512/bg_skill_black`; COLORLESS → `512/bg_<family>_gray`; unknown/blank color →
+      `512/bg_skill_black` (native default branch); unknown **type** → no draw (the native type switch
+      has no default). Fix (mapping table only, `SelectDrawPath.cardFrameDescriptor` + `mappedColor`):
+      all those combinations now resolve to the real `cardui#512/bg_*` region (verified present in
+      `ImageMaster`/the atlas — no fallback invented). Tests (`SelectDrawPathTest`): CURSE/CURSE →
+      `bg_skill_black`, CURSE/RED → `bg_skill_red` (skill family + red), COLORLESS attack →
+      `bg_attack_gray`, unknown color → `bg_skill_black`, unknown type → `""`. Scenario
+      `d1_full_present_select.yaml` (33 steps): `items[0]` (Ascender's Bane CURSE) now asserts
+      `frameResourceId eq "cardui#512/bg_skill_black"`; `items[1]` (Strike) stays `bg_attack_red`.
+      Focused: 1082/0. **D1 PENDING.** Still BASE bg only: the `card_<color>_orb`, banner, and mapping
+      the PRIMARY `UI_SELECT_CARD*` to a real descriptor (so `missingArt` reflects the true remaining
+      gap) remain the open **U02c** item. Known divergent second authority (pre-existing):
+      `Sts1AssetMaterializer.cardFrameAtlasKey` routes non-SKILL/POWER types (incl. CURSE/STATUS) to
+      `attack` — to reconcile when the layered/orb slice lands.
+- [ ] **Open (U02c): select card orb/banner + primary-resource mapping.** Native also draws the
+      `card_<color>_orb` energy orb and the banner; ART does not. And the item's PRIMARY `resourceId`
+      (`ui.select.card*`) still maps to the non-file-backed `cardui/frame`, so `missingArt` stays at 11
+      even though the base bg now resolves — map the primary to the base descriptor (or a dedicated
+      frame resource) so the U01 accounting reflects the real gap. Reconcile the
+      `Sts1AssetMaterializer.cardFrameAtlasKey` type→family divergence in the same slice.

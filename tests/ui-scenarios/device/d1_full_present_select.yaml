@@ -100,9 +100,10 @@ steps:
   # card item derives its base-background frame from the native card type/color as a real
   # `cardui#512/bg_<type>_<color>` 512-page region descriptor. The item therefore exposes the
   # resolved descriptor in `frameResourceId`. A real run card must map to a real region (not the
-  # old non-file-backed `cardui/frame` default). `items[0]` is the starting Ascender's Bane CURSE
-  # (type CURSE / color COLORLESS), which correctly fail-opens to "" (no region), so the assertions
-  # target a real ATTACK card (items[1], the first Strike). Note: the item's PRIMARY `resourceId`
+  # old non-file-backed `cardui/frame` default). `items[0]` is the starting Ascender's Bane, whose
+  # native type AND color are both CURSE, so per `AbstractCard.renderCardBg` it renders the SKILL
+  # family black page: `cardui#512/bg_skill_black`. These assertions target a real ATTACK card
+  # (items[1], the first Strike). Note: the item's PRIMARY `resourceId`
   # (`ui.select.card`/`ui.select.card.selected`) still resolves to the `cardui/frame` source, so
   # the frame gap — and hence a non-decreasing `missingArt` — is a separate follow-up and is not
   # asserted here.
@@ -115,7 +116,8 @@ steps:
   - assert:
       path: backend.selectDraw.items[1].frameResourceId
       neq: "cardui/frame"
-  # items[0] (the CURSE) must fail open to NO region, not a bogus descriptor.
+  # items[0] (the CURSE Ascender's Bane) draws the native black SKILL background page, not a bogus
+  # descriptor: CURSE type maps to the skill family and CURSE color to CARD_SKILL_BG_BLACK.
   - assert:
       path: backend.selectDraw.items[0].frameResourceId
-      eq: ""
+      eq: "cardui#512/bg_skill_black"

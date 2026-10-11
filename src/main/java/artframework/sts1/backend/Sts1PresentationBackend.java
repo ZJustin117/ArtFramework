@@ -1958,6 +1958,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                         .cost(cardCost(card))
                         .type(cardType(card))
                         .color(cardColor(card))
+                        .rarity(cardRarity(card))
                         .description(card.rawDescription)
                         .build());
             }
@@ -1996,6 +1997,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     .cost(cardCost(card))
                                     .type(cardType(card))
                                     .color(cardColor(card))
+                                    .rarity(cardRarity(card))
                                     .description(card.rawDescription)
                                     .build());
                 }
@@ -2125,6 +2127,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                     .title(card.name)
                     .cost(cardCost(card))
                     .type(cardType(card))
+                    .rarity(cardRarity(card))
                     .description(card.rawDescription)
                     .build();
             CardView stable = cardViews.get(instance);
@@ -2172,6 +2175,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
 
     private static String cardColor(AbstractCard card) {
         return card != null && card.color != null ? card.color.name() : "";
+    }
+
+    private static String cardRarity(AbstractCard card) {
+        return card != null && card.rarity != null ? card.rarity.name() : "";
     }
 
     private boolean playable(AbstractCard card, CardZone zone, long revision) {

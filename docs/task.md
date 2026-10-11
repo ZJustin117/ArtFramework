@@ -4416,8 +4416,26 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       a real second draw but is accounting-neutral because its `images/` mapping always passes the
       prefix-level check; the probe contract "every drawn resource resolves" is unenforced for it (no
       test pins a disabled-mapping regression) — carried below.
-- [ ] **Open (U02d): select card orb + banner.** Native also draws the `card_<color>_orb` energy orb
-      and the card banner; ART supplies only the base background region. Not included in U02c.
+- [x] **U02d (banner half): select card banner `cardui#512/banner_<rarity>`.** Native
+      `AbstractCard.renderCard` draws `renderCardBg` then `renderBannerImage`, which maps
+      `this.rarity`: BASIC/COMMON/CURSE/default → `512/banner_common`, UNCOMMON →
+      `512/banner_uncommon`, RARE → `512/banner_rare` — all in the SAME `cardui` atlas already
+      wired. Fix: `CardView` gains `rarity` (soft-read from `AbstractCard.rarity`, fail-open ""),
+      `SelectDrawPath.cardBannerDescriptor(rarity)` maps to the region, `DrawItem.bannerResourceId`
+      is carried + probed, and `Sts1SurfaceRenderer.renderSelect` draws the banner AFTER the base
+      bg at the card geometry (collapsed into a shared `drawSelectAtlasRegion`). The banner does
+      NOT enter the U02c accounting (`materializedResolved + missingArt == count` unchanged). Tests
+      (`SelectDrawPathTest`): RARE→`banner_rare`, UNCOMMON→`banner_uncommon`, COMMON/BASIC/CURSE/
+      unknown→`banner_common`; base-bg `frameResourceId` unchanged; the banner does not enter the
+      accounting. Scenario `d1_full_present_select.yaml` (33→37 steps). Focused: 1185/0. **D1
+      PENDING.** Latent (review U02D-01): the banner is submitted BEFORE the primary `resourceId`
+      texture; native order is banner last — invisible today (the enabled/selected primary is a
+      non-file-backed no-op) but reconcile when the `UI_SELECT_CARD*` descriptor follow-up lands.
+- [ ] **Open (U02d2): select card energy ORB.** Native `AbstractCard.renderEnergy` draws the orb
+      from a SEPARATE `orbs/orb.atlas` (regions `red`/`green`/`blue`/`purple`/`card`/...) with its
+      own geometry (not the `cardui` base bg) — ART does not draw it. This needs a second atlas key
+      source for `orb.atlas` (mirroring `CardUiAtlasSource`) plus the orb's native position/scale;
+      separate slice. (U02d shipped the banner only.)
 - [ ] **Open (U02e): pin the disabled-card overlay in select accounting.** `ui.select.card.disabled`
       (`images/ui/event/disabledButton.png`) is a real second select draw excluded from
       `itemFullyResolves` (option (b) decides by the base frame alone); a regression of that mapping to

@@ -1058,7 +1058,11 @@ public final class Sts1SurfaceRenderer {
                     artframework.component.Rect b = new artframework.component.Rect(
                             item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
                     if (!item.confirm && !item.cardId.isEmpty()) {
-                        drawSelectFrameBackground(sb, item.frameResourceId, b);
+                        // Base-background frame first, then the banner over the card's base page,
+                        // mirroring native renderCardBg -> renderBannerImage order. Both share the
+                        // same "<atlasKey>#<region>" resolution; the banner stays after the base bg.
+                        drawSelectAtlasRegion(sb, item.frameResourceId, b);
+                        drawSelectAtlasRegion(sb, item.bannerResourceId, b);
                     }
                     drawResolvedTexture(sb, item.resourceId, b);
                     com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
@@ -1074,29 +1078,31 @@ public final class Sts1SurfaceRenderer {
     }
 
     /**
-     * Select card BASE-BACKGROUND frame: the derived {@code "<atlasKey>#<region>"} descriptor (for
-     * example {@code cardui#512/bg_attack_red}) is resolved through
-     * {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas} and drawn at the item
-     * bounds using the region UV, BEHIND the primary card resource. A non-{@code #} id keeps the
+     * Select card base-background / banner region. The derived {@code "<atlasKey>#<region>"}
+     * descriptor (for example {@code cardui#512/bg_attack_red} or {@code cardui#512/banner_rare})
+     * is resolved through {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas} and
+     * drawn at the item bounds using the region UV. The base-background frame is drawn first, then
+     * the banner, so the banner paints over the card's base page (native
+     * {@code renderCardBg} then {@code renderBannerImage} order). A non-{@code #} id keeps the
      * existing {@link #drawResolvedTexture} path. Per-item fail-open; never throws.
      *
-     * <p>Residual: cardui base-background regions are unrotated, so the packed UV rect is drawn as-is
-     * and rotated regions are not rotated here.
+     * <p>Residual: cardui base-background/banner regions are unrotated, so the packed UV rect is
+     * drawn as-is and rotated regions are not rotated here.
      */
-    private static void drawSelectFrameBackground(
-            SpriteBatch sb, String frameResourceId, artframework.component.Rect bounds) {
+    private static void drawSelectAtlasRegion(
+            SpriteBatch sb, String resourceId, artframework.component.Rect bounds) {
         if (sb == null || bounds == null || bounds.width <= 0f || bounds.height <= 0f
-                || frameResourceId == null || frameResourceId.isEmpty()) {
+                || resourceId == null || resourceId.isEmpty()) {
             return;
         }
         try {
-            int hash = frameResourceId.indexOf('#');
+            int hash = resourceId.indexOf('#');
             if (hash < 0) {
-                drawResolvedTexture(sb, frameResourceId, bounds);
+                drawResolvedTexture(sb, resourceId, bounds);
                 return;
             }
-            String atlasKey = frameResourceId.substring(0, hash);
-            String regionName = frameResourceId.substring(hash + 1);
+            String atlasKey = resourceId.substring(0, hash);
+            String regionName = resourceId.substring(hash + 1);
             artframework.sts1.assets.Sts1AtlasMaterializer.RegionTexture resolved =
                     artframework.sts1.assets.Sts1AtlasMaterializer
                             .regionFromAtlas(atlasKey, regionName);

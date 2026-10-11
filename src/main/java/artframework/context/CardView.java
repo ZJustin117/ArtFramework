@@ -21,6 +21,8 @@ public final class CardView {
     public final String description;
     /** Native card color enum constant name (e.g. {@code RED}/{@code COLORLESS}); default {@code ""}. */
     public final String color;
+    /** Native card rarity enum constant name (e.g. {@code BASIC}/{@code RARE}); default {@code ""}. */
+    public final String rarity;
 
     public CardView(
             CardRef ref,
@@ -34,7 +36,7 @@ public final class CardView {
             String artResourceId,
             String frameResourceId) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging,
-                artResourceId, frameResourceId, ref.cardId, "", "", "");
+                artResourceId, frameResourceId, ref.cardId, "", "", "", "", "");
     }
 
     public CardView(
@@ -42,7 +44,7 @@ public final class CardView {
             boolean selected, boolean hovered, boolean dragging, String artResourceId,
             String frameResourceId, String title, String cost, String type, String description) {
         this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
-                frameResourceId, title, cost, type, description, "");
+                frameResourceId, title, cost, type, description, "", "");
     }
 
     public CardView(
@@ -50,6 +52,15 @@ public final class CardView {
             boolean selected, boolean hovered, boolean dragging, String artResourceId,
             String frameResourceId, String title, String cost, String type, String description,
             String color) {
+        this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
+                frameResourceId, title, cost, type, description, color, "");
+    }
+
+    public CardView(
+            CardRef ref, CardZone zone, int slotIndex, CardPose pose, boolean playable,
+            boolean selected, boolean hovered, boolean dragging, String artResourceId,
+            String frameResourceId, String title, String cost, String type, String description,
+            String color, String rarity) {
         if (ref == null) {
             throw new IllegalArgumentException("ref required");
         }
@@ -68,6 +79,7 @@ public final class CardView {
         this.type = type != null ? type : "";
         this.description = description != null ? description : "";
         this.color = color != null ? color : "";
+        this.rarity = rarity != null ? rarity : "";
     }
 
     public static Builder builder(CardRef ref) {
@@ -90,6 +102,7 @@ public final class CardView {
         private String type = "";
         private String description = "";
         private String color = "";
+        private String rarity = "";
 
         Builder(CardRef ref) {
             this.ref = ref;
@@ -145,6 +158,7 @@ public final class CardView {
         public Builder type(String value) { this.type = value; return this; }
         public Builder description(String value) { this.description = value; return this; }
         public Builder color(String value) { this.color = value; return this; }
+        public Builder rarity(String value) { this.rarity = value; return this; }
 
         public CardView build() {
             return new CardView(
@@ -157,7 +171,7 @@ public final class CardView {
                     hovered,
                     dragging,
                     artResourceId, frameResourceId, title != null ? title : ref.cardId,
-                    cost, type, description, color);
+                    cost, type, description, color, rarity);
         }
     }
 }

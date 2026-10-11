@@ -39,6 +39,12 @@ public final class SelectDrawPath {
         public final float h;
         public final String resourceId;
         public final String frameResourceId;
+        /**
+         * U02d: select card BANNER descriptor ({@code cardui#512/banner_<rarity>}) derived from the
+         * native {@code AbstractCard.rarity} via {@code renderBannerImage}; empty when unavailable.
+         * Parallel to {@link #frameResourceId}; an ADDITIONAL drawn region, not part of accounting.
+         */
+        public final String bannerResourceId;
 
         public DrawItem(
                 String instanceId,
@@ -64,6 +70,14 @@ public final class SelectDrawPath {
         public DrawItem(String instanceId, String cardId, String label, int slot, boolean selected,
                 boolean visible, boolean enabled, float x, float y, boolean confirm,
                 String resourceId, String frameResourceId, float w, float h) {
+            this(instanceId, cardId, label, slot, selected, visible, enabled, x, y, confirm,
+                    resourceId, frameResourceId, w, h, "");
+        }
+
+        public DrawItem(String instanceId, String cardId, String label, int slot, boolean selected,
+                boolean visible, boolean enabled, float x, float y, boolean confirm,
+                String resourceId, String frameResourceId, float w, float h,
+                String bannerResourceId) {
             this.instanceId = instanceId != null ? instanceId : "";
             this.cardId = cardId != null ? cardId : "";
             this.label = label != null && !label.isEmpty() ? label : this.cardId;
@@ -78,6 +92,7 @@ public final class SelectDrawPath {
             this.h = h;
             this.resourceId = resourceId != null ? resourceId : "";
             this.frameResourceId = frameResourceId != null ? frameResourceId : "";
+            this.bannerResourceId = bannerResourceId != null ? bannerResourceId : "";
         }
 
         public Map<String, Object> toMap() {
@@ -96,6 +111,7 @@ public final class SelectDrawPath {
             m.put("h", Float.valueOf(h));
             m.put("resourceId", resourceId);
             m.put("frameResourceId", frameResourceId);
+            m.put("bannerResourceId", bannerResourceId);
             return m;
         }
     }
@@ -139,7 +155,8 @@ public final class SelectDrawPath {
                             cardResource(selected, c.playable),
                             cardFrameDescriptor(c.type, c.color),
                             250f,
-                            350f));
+                            350f,
+                            cardBannerDescriptor(c.rarity)));
             i++;
         }
         if (sv.confirmVisible || sv.confirmEnabled) {
@@ -181,6 +198,30 @@ public final class SelectDrawPath {
             return "cardui#512/bg_" + family + "_" + mapped;
         } catch (Throwable ignored) {
             return "";
+        }
+    }
+
+    /**
+     * U02d: derives the select card BANNER descriptor from the native card rarity, mirroring native
+     * {@code AbstractCard.renderBannerImage}: {@code RARE} -> {@code 512/banner_rare},
+     * {@code UNCOMMON} -> {@code 512/banner_uncommon}, and BASIC/COMMON/CURSE/unknown/absent -> the
+     * native default {@code 512/banner_common}. Rarity is matched case-insensitively. The result is
+     * a {@code "<atlasKey>#<region>"} descriptor over the SAME {@code cardui} atlas as the base
+     * background, drawn as an ADDITIONAL region (never part of the resolve-aware accounting).
+     * Fail-open: any failure yields the native common banner.
+     */
+    static String cardBannerDescriptor(String rarity) {
+        try {
+            String r = rarity != null ? rarity.trim().toUpperCase(java.util.Locale.ROOT) : "";
+            if ("RARE".equals(r)) {
+                return "cardui#512/banner_rare";
+            }
+            if ("UNCOMMON".equals(r)) {
+                return "cardui#512/banner_uncommon";
+            }
+            return "cardui#512/banner_common";
+        } catch (Throwable ignored) {
+            return "cardui#512/banner_common";
         }
     }
 

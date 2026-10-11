@@ -126,3 +126,22 @@ steps:
   - assert:
       path: backend.selectDraw.items[0].frameResourceId
       eq: "cardui#512/bg_skill_black"
+  # U02d: the select card BANNER is a real 512-page region in the same live `ImageMaster.cardUiAtlas`
+  # (`512/banner_<rarity>`), derived from the native `AbstractCard.rarity` per
+  # `AbstractCard.renderBannerImage`: BASIC/COMMON/CURSE and the native default map to
+  # CARD_BANNER_COMMON, UNCOMMON to CARD_BANNER_UNCOMMON, RARE to CARD_BANNER_RARE. Each non-confirm
+  # item exposes the resolved descriptor in `bannerResourceId`. `items[1]` is the starting Ironclad
+  # Strike, whose native rarity is BASIC, so it draws `cardui#512/banner_common`.
+  - assert:
+      path: backend.selectDraw.items[1].bannerResourceId
+      exists: true
+  - assert:
+      path: backend.selectDraw.items[1].bannerResourceId
+      contains: "cardui#512/banner_"
+  - assert:
+      path: backend.selectDraw.items[1].bannerResourceId
+      eq: "cardui#512/banner_common"
+  # items[0] (the CURSE Ascender's Bane) also uses the native common banner, not a bogus descriptor.
+  - assert:
+      path: backend.selectDraw.items[0].bannerResourceId
+      eq: "cardui#512/banner_common"

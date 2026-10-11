@@ -770,6 +770,148 @@ public class SelectDrawPathTest {
                 Integer.valueOf(0), probe.get("materializedResolved"));
     }
 
+    /**
+     * U02d. The select card BANNER is a region in the SAME {@code cardui} atlas as the base frame,
+     * derived from the native {@code AbstractCard.rarity} via {@code renderBannerImage}:
+     * {@code 512/banner_common} for BASIC/COMMON/CURSE and the native default,
+     * {@code 512/banner_uncommon} for UNCOMMON, {@code 512/banner_rare} for RARE. The mapping is
+     * case-insensitive and a null/blank/unknown rarity hits the native default (common).
+     */
+    @Test
+    public void cardBannerDescriptorMapsRarityToNativeCardUiBannerRegion() {
+        assertEquals("cardui#512/banner_rare", SelectDrawPath.cardBannerDescriptor("RARE"));
+        assertEquals("cardui#512/banner_uncommon", SelectDrawPath.cardBannerDescriptor("UNCOMMON"));
+        assertEquals("lower-case rarity must map identically",
+                "cardui#512/banner_rare", SelectDrawPath.cardBannerDescriptor("rare"));
+        assertEquals("BASIC is the native common banner",
+                "cardui#512/banner_common", SelectDrawPath.cardBannerDescriptor("BASIC"));
+        assertEquals("COMMON is the native common banner",
+                "cardui#512/banner_common", SelectDrawPath.cardBannerDescriptor("COMMON"));
+        assertEquals("CURSE is the native common banner",
+                "cardui#512/banner_common", SelectDrawPath.cardBannerDescriptor("CURSE"));
+        assertEquals("an unknown rarity is the native default (common)",
+                "cardui#512/banner_common", SelectDrawPath.cardBannerDescriptor("WAT"));
+        assertEquals("a blank rarity is the native default (common)",
+                "cardui#512/banner_common", SelectDrawPath.cardBannerDescriptor(""));
+        assertEquals("an absent rarity is the native default (common)",
+                "cardui#512/banner_common", SelectDrawPath.cardBannerDescriptor(null));
+    }
+
+    /**
+     * U02d. {@code buildFromProjection()} threads the pool {@link CardView#rarity} into the built
+     * non-confirm card item's {@code bannerResourceId} using the native rarity->banner table.
+     */
+    @Test
+    public void buildFromProjectionThreadsCardRarityIntoBannerDescriptor() {
+        assertEquals("cardui#512/banner_rare", firstCardBanner("RARE"));
+        assertEquals("cardui#512/banner_uncommon", firstCardBanner("UNCOMMON"));
+        assertEquals("cardui#512/banner_common", firstCardBanner("BASIC"));
+        assertEquals("cardui#512/banner_common", firstCardBanner("COMMON"));
+        assertEquals("cardui#512/banner_common", firstCardBanner("CURSE"));
+        assertEquals("cardui#512/banner_common", firstCardBanner("WAT"));
+        assertEquals("cardui#512/banner_common", firstCardBanner(""));
+        assertEquals("cardui#512/banner_common", firstCardBanner(null));
+    }
+
+    /**
+     * U02d. Adding the banner must NOT overwrite the card's base-background frame descriptor: a card
+     * with type/color keeps {@code cardui#512/bg_attack_red} while its banner varies with rarity.
+     */
+    @Test
+    public void selectCardBannerDoesNotDisturbBaseFrameDescriptor() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .rarity("RARE")
+                        .build()));
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("the base-background frame is unchanged by the banner addition",
+                "cardui#512/bg_attack_red", item.frameResourceId);
+        assertEquals("the banner is a separate descriptor",
+                "cardui#512/banner_rare", item.bannerResourceId);
+    }
+
+    /** U02d. The probe item rows expose the card banner descriptor under {@code bannerResourceId}. */
+    @Test
+    public void probeExposesCardBannerDescriptor() {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .rarity("UNCOMMON")
+                        .build()));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows =
+                (List<Map<String, Object>>) SelectDrawPath.probeSlice().get("items");
+        assertEquals("cardui#512/banner_uncommon", rows.get(0).get("bannerResourceId"));
+    }
+
+    /**
+     * U02d + U02c freeze: the banner must NOT count toward the resolve-aware supply accounting. With
+     * a live {@code cardui} atlas carrying ONLY {@code 512/bg_attack_red} (no banner region), a card
+     * whose base frame resolves is still fully materialized ({@code missingArt == 0},
+     * {@code materializedResolved == 1}) even though its banner region is unresolved.
+     */
+    @Test
+    public void selectCardBannerDoesNotEnterU02cAccounting() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .rarity("RARE")
+                        .build()));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("cardui#512/bg_attack_red", item.frameResourceId);
+        assertEquals("cardui#512/banner_rare", item.bannerResourceId);
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertEquals("the unresolved banner must not create a gap",
+                Integer.valueOf(0), probe.get("missingArt"));
+        assertEquals("the base frame alone decides the account",
+                Integer.valueOf(1), probe.get("materializedResolved"));
+        assertEquals("materializedResolved + missingArt must equal count",
+                probe.get("count"),
+                Integer.valueOf(
+                        ((Integer) probe.get("materializedResolved")).intValue()
+                                + ((Integer) probe.get("missingArt")).intValue()));
+    }
+
+    /**
+     * U02d criterion 5. {@link CardView} {@code rarity} round-trips through the builder; a card built
+     * without {@code .rarity(...)} defaults it to {@code ""} (the old constructor path).
+     */
+    @Test
+    public void cardViewRarityRoundTripsAndDefaultsEmpty() {
+        assertEquals("RARE",
+                CardView.builder(new CardRef("g1", "Strike_R")).rarity("RARE").build().rarity);
+        assertEquals("",
+                CardView.builder(new CardRef("g2", "Defend_R")).build().rarity);
+    }
+
+    /** Builds a single ATTACK/RED select card with the given rarity and returns its banner. */
+    private String firstCardBanner(String rarity) {
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .rarity(rarity)
+                        .build()));
+        return SelectDrawPath.buildFromProjection().get(0).bannerResourceId;
+    }
+
     /** Builds a single-card select frame and returns the built card's frame descriptor. */
     private SelectDrawPath.DrawItem firstDrawItem(String type, String color) {
         publishSelectFrame(singleSelectCard(

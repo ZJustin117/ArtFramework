@@ -17,9 +17,11 @@ import com.megacrit.cardcrawl.scenes.TheEndingScene;
  * {@code invokevirtual}, so a Prefix on each override intercepts every in-run scene background.
  *
  * <p>Each Prefix decouples draw from suppression. It first calls {@link
- * artframework.sts1.render.BackgroundRenderGate#renderSelectedVariant(SpriteBatch)}: the ART
+ * artframework.sts1.render.BackgroundRenderGate#renderSelectedVariant(SpriteBatch, Object)}: the ART
  * background is drawn whenever a non-{@code off} variant is selected and no panic is active (so a
- * retained native background hides the ART pixels — the z-order evidence). It then consults {@link
+ * retained native background hides the ART pixels — the z-order evidence). For the {@code bottom}
+ * variant that call draws the scene's own ACT-1 native background layers; for the synthetic
+ * variants it is the scene-agnostic quad draw. It then consults {@link
  * artframework.sts1.render.BackgroundRenderGate#suppressNativeBackground()}: native pixels are
  * skipped only when, additionally, the {@code sts1.room.background} family is explicitly filtered
  * via {@code art verify native} and no panic is active. Every other state — including a renderer
@@ -34,7 +36,7 @@ public final class BackgroundRenderPatches {
     public static class ObserveNativeBottomBackground {
         public static SpireReturn<Void> Prefix(TheBottomScene __instance, SpriteBatch sb) {
             boolean painted =
-                    artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb);
+                    artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb, __instance);
             boolean suppress = painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground();
             if (suppress) artframework.sts1.render.BackgroundRenderGate.recordNativeSuppression();
             return suppress
@@ -48,7 +50,7 @@ public final class BackgroundRenderPatches {
     public static class ObserveNativeCityBackground {
         public static SpireReturn<Void> Prefix(TheCityScene __instance, SpriteBatch sb) {
             boolean painted =
-                    artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb);
+                    artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb, __instance);
             boolean suppress = painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground();
             if (suppress) artframework.sts1.render.BackgroundRenderGate.recordNativeSuppression();
             return suppress
@@ -62,7 +64,7 @@ public final class BackgroundRenderPatches {
     public static class ObserveNativeBeyondBackground {
         public static SpireReturn<Void> Prefix(TheBeyondScene __instance, SpriteBatch sb) {
             boolean painted =
-                    artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb);
+                    artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb, __instance);
             boolean suppress = painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground();
             if (suppress) artframework.sts1.render.BackgroundRenderGate.recordNativeSuppression();
             return suppress
@@ -76,7 +78,7 @@ public final class BackgroundRenderPatches {
     public static class ObserveNativeEndingBackground {
         public static SpireReturn<Void> Prefix(TheEndingScene __instance, SpriteBatch sb) {
             boolean painted =
-                    artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb);
+                    artframework.sts1.render.BackgroundRenderGate.renderSelectedVariant(sb, __instance);
             boolean suppress = painted && artframework.sts1.render.BackgroundRenderGate.suppressNativeBackground();
             if (suppress) artframework.sts1.render.BackgroundRenderGate.recordNativeSuppression();
             return suppress

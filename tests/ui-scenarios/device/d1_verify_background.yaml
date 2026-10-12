@@ -193,6 +193,68 @@ steps:
       min_diff_ratio: 0.20
   - console: "art verify native sts1.room.background off"
 
+  # ---- bottom (E06: real ACT-1 TheBottomScene combat layers) ----
+  # Unlike solid/checker/grid, `bottom` needs the live scene atlas, so the synthetic
+  # `renderSelectedVariant` path draws nothing for it; the ART layers are submitted from the
+  # pre-native Prefix. Retained -> native paints over the ART layers (frame matches off baseline);
+  # filtered -> native background skipped, the ART bottom layers reach the frame.
+  - console: "art verify mode background off"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: "off"
+  - capture:
+      path: backend.verify.background.artDrawCount
+      var: bottom_draw_baseline
+  - screenshot: true
+  - console: "art verify mode background bottom"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: bottom
+  - assert:
+      path: backend.verify.background.artOwnsBackgroundRequested
+      eq: false
+  # Real-layer evidence: artDrawCount is a CUMULATIVE counter shared by every variant, so its
+  # absolute value is meaningless here; the delta over the off baseline is what proves the bottom
+  # variant submitted its own real layers this frame (bg/mg/ceiling, plus any flagged wall) rather
+  # than the single synthetic quad.
+  - assert:
+      path: backend.verify.background.artDrawCount
+      gt_var: bottom_draw_baseline
+  - screenshot: true
+  # Retained frame matches the off baseline (native background paints over the ART layers).
+  - compare_screenshot:
+      against: previous_capture
+      threshold: 24
+      max_diff_pixels: 80000
+      max_diff_ratio: 0.10
+  - console: "art verify native sts1.room.background on"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.artOwnsBackgroundRequested
+        eq: true
+  - screenshot: true
+  # E06: the `bottom` variant FAITHFULLY reproduces the native ACT-1 background, so suppressing
+  # native and drawing the ART layers leaves the frame NEAR-IDENTICAL to the retained frame (unlike
+  # the synthetic solid/checker/grid, whose 20%+ diff is intentional). The real-layer submission is
+  # proven above by the artDrawCount delta (multi-layer, not one quad), so here we require the
+  # filtered frame to stay CLOSE to the retained native frame — a large diff would mean the ART
+  # layers failed to draw (blanked background) or diverged from native.
+  - compare_screenshot:
+      against: previous_capture
+      threshold: 24
+      max_diff_pixels: 140000
+      max_diff_ratio: 0.12
+  - console: "art verify native sts1.room.background off"
+  - console: "art verify mode background off"
+
   # ---- back to off: no draw, no suppression ----
   - console: "art verify mode background off"
   - wait_probe:

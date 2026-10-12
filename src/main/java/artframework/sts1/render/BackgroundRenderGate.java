@@ -1,8 +1,13 @@
 package artframework.sts1.render;
 
+import artframework.sts1.assets.Sts1AtlasMaterializer;
+import artframework.sts1.assets.Sts1GdxAtlasRegions;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -33,7 +38,9 @@ public final class BackgroundRenderGate {
         OFF,
         SOLID,
         CHECKER,
-        GRID;
+        GRID,
+        /** Real ACT-1 {@code TheBottomScene} combat background layers (native atlas regions). */
+        BOTTOM;
 
         public static Variant parse(String value) {
             String normalized = value == null ? "" : value.trim().toLowerCase();
@@ -41,8 +48,92 @@ public final class BackgroundRenderGate {
             if ("solid".equals(normalized)) return SOLID;
             if ("checker".equals(normalized)) return CHECKER;
             if ("grid".equals(normalized)) return GRID;
+            if ("bottom".equals(normalized)) return BOTTOM;
             return null;
         }
+    }
+
+    /**
+     * The native ACT-1 {@code TheBottomScene.renderCombatRoomBg} layer order, one entry per
+     * {@code renderAtlasRegionIf} call. {@link #regionName()} is the {@code bottomScene/scene.atlas}
+     * region name the native scene resolves (decompile: {@code bg}, {@code mod/mg},
+     * {@code mod/midWall}, {@code mod/mod2}, {@code mod/mod1}, {@code mod/ceiling},
+     * {@code mod/ceilingMod1..6}).
+     */
+    public enum BottomLayer {
+        BG("bg"),
+        MG("mod/mg"),
+        SOLID_WALL("mod/midWall"),
+        HOLLOW_WALL("mod/mod2"),
+        LEFT_WALL("mod/mod1"),
+        CEILING("mod/ceiling"),
+        CEILING_MOD1("mod/ceilingMod1"),
+        CEILING_MOD2("mod/ceilingMod2"),
+        CEILING_MOD3("mod/ceilingMod3"),
+        CEILING_MOD4("mod/ceilingMod4"),
+        CEILING_MOD5("mod/ceilingMod5"),
+        CEILING_MOD6("mod/ceilingMod6");
+
+        private final String regionName;
+
+        BottomLayer(String regionName) {
+            this.regionName = regionName;
+        }
+
+        /** The native {@code bottomScene/scene.atlas} region name for this layer. */
+        public String regionName() {
+            return regionName;
+        }
+    }
+
+    /**
+     * The dynamic ACT-1 wall/ceiling selection the native scene reads each frame. {@code ceilingMods}
+     * is indexed 1..6 (index 0 unused) so {@code ceilingMod(3)} is the native
+     * {@code renderCeilingMod3}.
+     */
+    public static final class BottomFlags {
+        public final boolean solidMid;
+        public final boolean hollowMid;
+        public final boolean leftWall;
+        private final boolean[] ceilingMods;
+
+        private BottomFlags(boolean solidMid, boolean hollowMid, boolean leftWall,
+                boolean[] ceilingMods) {
+            this.solidMid = solidMid;
+            this.hollowMid = hollowMid;
+            this.leftWall = leftWall;
+            this.ceilingMods = ceilingMods;
+        }
+
+        /**
+         * Builds the flags from the native three wall booleans plus 0..6 ceiling-mod booleans
+         * (positions 1..6). Missing positions default to {@code false}.
+         */
+        public static BottomFlags of(boolean solidMid, boolean hollowMid, boolean leftWall,
+                boolean... ceilingMod) {
+            boolean[] mods = new boolean[7];
+            if (ceilingMod != null) {
+                for (int i = 0; i < 6 && i < ceilingMod.length; i++) {
+                    mods[i + 1] = ceilingMod[i];
+                }
+            }
+            return new BottomFlags(solidMid, hollowMid, leftWall, mods);
+        }
+
+        /** All-false flags: the base layers only ({@code bg}, {@code mg}, {@code ceiling}). */
+        public static BottomFlags failOpen() {
+            return of(false, false, false);
+        }
+
+        /** Ceiling-mod flag for native index {@code 1..6}; out-of-range reads {@code false}. */
+        public boolean ceilingMod(int nativeIndex) {
+            return nativeIndex >= 1 && nativeIndex <= 6 && ceilingMods[nativeIndex];
+        }
+    }
+
+    /** Region resolver seam: a native region name to a live page texture plus neutral descriptor. */
+    public interface BottomRegionSource {
+        Sts1AtlasMaterializer.RegionTexture region(String regionName);
     }
 
     private static final float CELL = 64f;
@@ -79,6 +170,9 @@ public final class BackgroundRenderGate {
     public static boolean renderSelectedVariant(SpriteBatch sb) {
         if (sb == null) return false;
         if (configured == Variant.OFF) return false;
+        // The real ACT-1 background is layer-based and scene-scoped; the scene-agnostic synthetic
+        // path never claims it. Use renderSelectedVariant(SpriteBatch, Object) for BOTTOM.
+        if (configured == Variant.BOTTOM) return false;
         if (artframework.sts1.PresentSafety.isPanic()) return false;
         Texture texture = com.megacrit.cardcrawl.helpers.ImageMaster.WHITE_SQUARE_IMG;
         if (texture == null) return false;
@@ -106,6 +200,41 @@ public final class BackgroundRenderGate {
             BackgroundOnlyGate.recordBackgroundDraw();
         }
         return painted;
+    }
+
+    /**
+     * Scene-scoped pre-native entry used by all four {@code renderCombatRoomBg} Prefixes. When the
+     * {@code bottom} variant is selected this draws the real ACT-1 {@code TheBottomScene} background
+     * layers from the live scene instance; a scene that is not {@code TheBottomScene}
+     * (City/Beyond/Ending) fails open to native. Every other variant keeps the previous
+     * scene-agnostic synthetic behavior, and a null instance (the patch tests' synthetic call shape)
+     * falls through to it unchanged.
+     */
+    public static boolean renderSelectedVariant(SpriteBatch sb, Object sceneInstance) {
+        if (configured == Variant.BOTTOM) {
+            return renderBottomBackground(sb, sceneInstance);
+        }
+        return renderSelectedVariant(sb);
+    }
+
+    /**
+     * Production ACT-1 entry: draws the live {@code TheBottomScene} background layers read off the
+     * scene instance. The dynamic wall/ceiling flags and the scene's own {@code AbstractScene.atlas}
+     * are read reflectively; any read failure fails open to {@link BottomFlags#failOpen()} and the
+     * three base layers. A null batch, an active panic, or any non-{@code TheBottomScene} instance
+     * draws nothing.
+     */
+    public static boolean renderBottomBackground(SpriteBatch sb, Object sceneInstance) {
+        try {
+            if (sb == null) return false;
+            if (artframework.sts1.PresentSafety.isPanic()) return false;
+            if (!(sceneInstance instanceof com.megacrit.cardcrawl.scenes.TheBottomScene)) return false;
+            BottomFlags flags = readBottomFlags(sceneInstance);
+            BottomRegionSource source = new InstanceBottomRegionSource(readSceneAtlas(sceneInstance));
+            return renderBottomBackground(sb, flags, source);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /**
@@ -215,6 +344,205 @@ public final class BackgroundRenderGate {
             return h > 0f ? h : DEFAULT_HEIGHT;
         } catch (Throwable ignored) {
             return DEFAULT_HEIGHT;
+        }
+    }
+
+    /**
+     * The native ACT-1 layer plan in exact {@code renderCombatRoomBg} order: always {@code bg} and
+     * {@code mg}, then the flagged walls (solid, hollow, left), then always {@code ceiling}, then the
+     * flagged ceiling mods in native index order. Pure — no draw, no state. A null flags value is
+     * treated as {@link BottomFlags#failOpen()}.
+     */
+    public static List<BottomLayer> bottomLayerPlan(BottomFlags flags) {
+        BottomFlags f = flags != null ? flags : BottomFlags.failOpen();
+        List<BottomLayer> plan = new ArrayList<BottomLayer>(12);
+        plan.add(BottomLayer.BG);
+        plan.add(BottomLayer.MG);
+        if (f.solidMid) plan.add(BottomLayer.SOLID_WALL);
+        if (f.hollowMid) plan.add(BottomLayer.HOLLOW_WALL);
+        if (f.leftWall) plan.add(BottomLayer.LEFT_WALL);
+        plan.add(BottomLayer.CEILING);
+        if (f.ceilingMod(1)) plan.add(BottomLayer.CEILING_MOD1);
+        if (f.ceilingMod(2)) plan.add(BottomLayer.CEILING_MOD2);
+        if (f.ceilingMod(3)) plan.add(BottomLayer.CEILING_MOD3);
+        if (f.ceilingMod(4)) plan.add(BottomLayer.CEILING_MOD4);
+        if (f.ceilingMod(5)) plan.add(BottomLayer.CEILING_MOD5);
+        if (f.ceilingMod(6)) plan.add(BottomLayer.CEILING_MOD6);
+        return plan;
+    }
+
+    /** True when a base layer's region resolves to a drawable page texture + descriptor. */
+    private static boolean resolves(BottomRegionSource source, BottomLayer layer) {
+        try {
+            Sts1AtlasMaterializer.RegionTexture resolved = source.region(layer.regionName());
+            return resolved != null && resolved.region != null && resolved.texture != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Draws the planned native ACT-1 layers through the region source with the exact native
+     * pixel-rect submission (see {@link #drawBottomLayer}). Tint mirrors native: WHITE before
+     * {@code bg}/{@code mg}/{@code ceiling} and the hollow/left walls, GRAY before the solid wall
+     * only while {@code hollowMid && (solidMid || leftWall)}, WHITE before the hollow wall. A layer
+     * whose region resolves {@code null} is skipped. {@code recordArtDraw(n)} records the regions
+     * actually submitted and {@link BackgroundOnlyGate#recordBackgroundDraw()} runs when anything
+     * painted. Returns {@code true} iff at least one layer was painted. Any {@code Throwable} fails
+     * open (returns {@code false} and records no counter). The previous batch color is restored.
+     */
+    public static boolean renderBottomBackground(SpriteBatch sb, BottomFlags flags,
+            BottomRegionSource source) {
+        if (sb == null || source == null) return false;
+        Color prev;
+        try {
+            prev = sb.getColor();
+        } catch (Throwable ignored) {
+            return false;
+        }
+        int submitted = 0;
+        boolean painted;
+        try {
+            BottomFlags f = flags != null ? flags : BottomFlags.failOpen();
+            List<BottomLayer> plan = bottomLayerPlan(f);
+            // MEDIUM review fix: suppression is ALL-OR-NOTHING. If any always-present base layer
+            // (bg/mg/ceiling) does not resolve, drawing only the other layers then suppressing native
+            // would leave a visibly incomplete room with no native fallback. Require the three base
+            // layers to resolve BEFORE drawing anything; otherwise paint nothing and let native
+            // continue (painted=false → suppression does not engage).
+            if (resolves(source, BottomLayer.BG)
+                    && resolves(source, BottomLayer.MG)
+                    && resolves(source, BottomLayer.CEILING)) {
+                for (BottomLayer layer : plan) {
+                    Sts1AtlasMaterializer.RegionTexture resolved = source.region(layer.regionName());
+                    if (resolved == null || resolved.region == null || resolved.texture == null) {
+                        continue;
+                    }
+                    applyBottomTint(sb, layer, f);
+                    drawBottomLayer(sb, resolved);
+                    submitted++;
+                }
+                painted = submitted > 0;
+            } else {
+                painted = false;
+            }
+        } catch (Throwable ignored) {
+            painted = false;
+        } finally {
+            try {
+                sb.setColor(prev);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (painted) {
+            recordArtDraw(submitted);
+            BackgroundOnlyGate.recordBackgroundDraw();
+        }
+        return painted;
+    }
+
+    private static void applyBottomTint(SpriteBatch sb, BottomLayer layer, BottomFlags flags) {
+        if (layer == BottomLayer.SOLID_WALL) {
+            if (flags.hollowMid && (flags.solidMid || flags.leftWall)) {
+                sb.setColor(Color.GRAY);
+            } else {
+                sb.setColor(Color.WHITE);
+            }
+            return;
+        }
+        sb.setColor(Color.WHITE);
+    }
+
+    /**
+     * The exact native {@code AbstractScene.renderAtlasRegionIf} submission: the 16-arg pixel-rect
+     * overload with origin {@code (0,0)}, the packed page size, the page source rect, and the
+     * three-branch {@code Settings} scale selection (four-by-three / letterbox / normal). This is
+     * NOT a UV blit.
+     */
+    private static void drawBottomLayer(SpriteBatch sb, Sts1AtlasMaterializer.RegionTexture resolved) {
+        artframework.assets.AtlasRegion region = resolved.region;
+        float x;
+        float y;
+        float scaleX;
+        float scaleY;
+        if (com.megacrit.cardcrawl.core.Settings.isFourByThree) {
+            x = region.offsetX * com.megacrit.cardcrawl.core.Settings.scale;
+            y = region.offsetY * com.megacrit.cardcrawl.core.Settings.yScale;
+            scaleX = com.megacrit.cardcrawl.core.Settings.scale;
+            scaleY = com.megacrit.cardcrawl.core.Settings.yScale;
+        } else if (com.megacrit.cardcrawl.core.Settings.isLetterbox) {
+            x = region.offsetX * com.megacrit.cardcrawl.core.Settings.xScale;
+            y = region.offsetY * com.megacrit.cardcrawl.core.Settings.xScale;
+            scaleX = com.megacrit.cardcrawl.core.Settings.xScale;
+            scaleY = com.megacrit.cardcrawl.core.Settings.xScale;
+        } else {
+            x = region.offsetX * com.megacrit.cardcrawl.core.Settings.scale;
+            y = region.offsetY * com.megacrit.cardcrawl.core.Settings.scale;
+            scaleX = com.megacrit.cardcrawl.core.Settings.scale;
+            scaleY = com.megacrit.cardcrawl.core.Settings.scale;
+        }
+        sb.draw(resolved.texture, x, y, 0f, 0f,
+                region.width, region.height, scaleX, scaleY, 0f,
+                region.x, region.y, region.width, region.height, false, false);
+    }
+
+    private static BottomFlags readBottomFlags(Object sceneInstance) {
+        try {
+            Class<?> scene = Class.forName("com.megacrit.cardcrawl.scenes.TheBottomScene");
+            boolean solidMid = readBooleanField(scene, sceneInstance, "renderSolidMid");
+            boolean hollowMid = readBooleanField(scene, sceneInstance, "renderHollowMid");
+            boolean leftWall = readBooleanField(scene, sceneInstance, "renderLeftWall");
+            boolean[] mods = new boolean[6];
+            for (int i = 0; i < 6; i++) {
+                mods[i] = readBooleanField(scene, sceneInstance, "renderCeilingMod" + (i + 1));
+            }
+            return BottomFlags.of(solidMid, hollowMid, leftWall,
+                    mods[0], mods[1], mods[2], mods[3], mods[4], mods[5]);
+        } catch (Throwable ignored) {
+            return BottomFlags.failOpen();
+        }
+    }
+
+    private static boolean readBooleanField(Class<?> owner, Object target, String name)
+            throws Exception {
+        Field field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        return field.getBoolean(target);
+    }
+
+    private static TextureAtlas readSceneAtlas(Object sceneInstance) {
+        try {
+            Class<?> scene = Class.forName("com.megacrit.cardcrawl.scenes.AbstractScene");
+            Field field = scene.getDeclaredField("atlas");
+            field.setAccessible(true);
+            Object value = field.get(sceneInstance);
+            return value instanceof TextureAtlas ? (TextureAtlas) value : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** Per-instance region reads from the scene's own atlas; never cached across act swaps. */
+    private static final class InstanceBottomRegionSource implements BottomRegionSource {
+        private final TextureAtlas atlas;
+
+        InstanceBottomRegionSource(TextureAtlas atlas) {
+            this.atlas = atlas;
+        }
+
+        public Sts1AtlasMaterializer.RegionTexture region(String regionName) {
+            try {
+                if (atlas == null || regionName == null) return null;
+                TextureAtlas.AtlasRegion gdx = atlas.findRegion(regionName);
+                if (gdx == null) return null;
+                artframework.assets.AtlasRegion neutral = Sts1GdxAtlasRegions.fromGdx(gdx);
+                if (neutral == null || !neutral.valid()) return null;
+                Texture texture = gdx.getTexture();
+                if (texture == null) return null;
+                return new Sts1AtlasMaterializer.RegionTexture(texture, neutral);
+            } catch (Throwable ignored) {
+                return null;
+            }
         }
     }
 

@@ -211,7 +211,7 @@ Design: [`docs/design/render-z-order.md`](../design/render-z-order.md). Log pref
 |---------|-------------|
 | `art verify status` | Print verify probe JSON (`configuredMode`, `submissionStatus`, `nativeFilters`, …) |
 | `art verify mode off\|background\|background-only\|guides\|bounds` | Configure verification mode; `background-only` is strict deny-by-default |
-| `art verify mode background off\|solid\|checker\|grid` | Select the background variant; `background` alone keeps the current variant |
+| `art verify mode background off\|solid\|checker\|grid\|bottom` | Select the background variant; `bottom` draws the real ACT-1 TheBottom combat layers; `background` alone keeps the current variant |
 | `art verify native <family> on` | Filter one native surface family (downgrade-only; never suppresses fail-open/panic) |
 | `art verify native <family> off` | Remove one family from the native filter set |
 | `art verify native clear` | Clear all native filter families |

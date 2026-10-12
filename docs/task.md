@@ -1989,6 +1989,39 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `TheBottomScene`); City/Beyond/Ending are patched but NOT device-verified because there is no
       lab act-jump — an open gap, not a claim. No per-act "verified" flag was faked.
 
+- [x] NRO-04 E06 (ACT-1 `bottom` background variant, Green): new selectable
+      `BackgroundRenderGate.Variant.BOTTOM` (`parse("bottom")`) draws the real native
+      `TheBottomScene.renderCombatRoomBg` LAYERS from the SAME pre-native Prefix
+      (`BackgroundRenderPatches.ObserveNativeBottomBackground`, now routed through
+      `renderSelectedVariant(sb, __instance)`). `bottomLayerPlan(BottomFlags)` is the pure native
+      order: `bg`, `mod/mg`, then flagged solid (`mod/midWall`) / hollow (`mod/mod2`) / left
+      (`mod/mod1`) walls, then `mod/ceiling`, then flagged `mod/ceilingMod1..6`. Flags are read
+      reflectively off the live scene (`renderSolidMid`/`renderHollowMid`/`renderLeftWall`/
+      `renderCeilingMod1..6`) and regions come from the scene's own `AbstractScene.atlas`
+      (`findRegion` -> `Sts1GdxAtlasRegions.fromGdx`), per instance so it cannot go stale across
+      act swaps. Every layer is submitted through the exact 16-arg PIXEL-RECT libGDX overload
+      (origin `(0,0)`, packed size, page source rect, three-branch `Settings` scale), NOT a UV blit;
+      tint mirrors native (GRAY before solid wall while `hollowMid && (solidMid||leftWall)`, WHITE
+      otherwise). When `sts1.room.background` is filtered, `suppressNativeBackground()` suppresses
+      native so the ART layers REPLACE native (no double draw). Fixed palette layers only — no
+      per-run randomization; `failOpen()` plan is `bg`/`mg`/`ceiling`. **Suppression is all-or-nothing
+      (review fix):** the base layers `bg`/`mg`/`ceiling` must ALL resolve before any draw, so a
+      partial/missing base layer paints nothing and native continues (never an incomplete suppressed
+      room). **D1 VERIFIED:** `d1_verify_background.yaml` 73/73 TWICE — the `bottom` variant submits
+      ~10 real layers/frame (vs the synthetic 1-quad), `artOwnsBackgroundRequested` false retained /
+      true filtered, and the filtered frame stays near-identical to native (2.4%/1.7% diff — a
+      faithful reproduction, so the final gate is a CLOSE-diff assertion, not the synthetic ≥20%).
+      Native-vs-ART A/B visual `NO_ISSUE_OBSERVED` (real wall stack/torch/left wall/floor/chain).
+
+- [ ] **Open E06b (ACT-1 remainder, deferred, do NOT draw yet):** the torch loop
+      (`InteractableTorchEffect`), the `BottomFogEffect` fog loop (`!isCamp`), the always-drawn
+      full-screen `overlayColor` quad (blend 768/1), campfire/event regions (separate native
+      `renderCampfireRoom`/`renderEventRoom` methods), and `fg`/`renderCombatRoomFg`. The `bottom`
+      variant currently supplies the combat `bg` suite only.
+
+- [ ] **Open E07/E08/E09 (City / Beyond / Ending real backgrounds):** still synthetic-only. Each is
+      an analogous animated multi-layer reconstruction; no ART per-act pixels exist yet.
+
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

@@ -2019,8 +2019,44 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `renderCampfireRoom`/`renderEventRoom` methods), and `fg`/`renderCombatRoomFg`. The `bottom`
       variant currently supplies the combat `bg` suite only.
 
-- [ ] **Open E07/E08/E09 (City / Beyond / Ending real backgrounds):** still synthetic-only. Each is
-      an analogous animated multi-layer reconstruction; no ART per-act pixels exist yet.
+- [x] NRO-04 E07 (ACT-2 City combat layers, Green): new selectable
+      `BackgroundRenderGate.Variant.CITY` (`parse("city")`) draws the real `TheCityScene.
+      renderCombatRoomBg` LAYERS from the SAME pre-native Prefix. `cityLayerPlan(CityFlags,
+      nowMillis)` is the pure native order: `mod/bg1` (overlayColor), `mod/bgGlowv2` (overlay,
+      additive), `darkDay` `mod/bgGlowBlur` ×2 (static `Color.WHITE`, additive), flagged
+      `mod/bg2` + `mod/bg2Glow` (`darkDay` ⇒ WHITE else overlay), `mod/floor` (overlay),
+      `mod/ceiling` (overlay), flagged `mod/wall` (overlay), flagged `mod/chains` (overlay) +
+      `mod/chainsGlow` ×2 (whiteColor with alpha `cosDeg(nowMillis % 360)/10 + 0.9`, additive),
+      flagged `mod/mg1` (overlay), flagged `mod/mg1Glow` ×2 (whiteColor with alpha
+      `cosDeg((nowMillis/10) % 360)/2 + 0.5`, additive; DOUBLE-gated on `renderMg`), flagged
+      `mod/mg2`, the `pillarConfig` p1..p5 subset (OPEN none / SIDES_ONLY p1,p5 / FULL p1..p5 /
+      LEFT_1 p1 / LEFT_2 p1,p2), then flagged `mod/throne` + `mod/throneGlow`. Tint carries the
+      native `yellowTint` after the mg glow block and is WHITE for the animated glows. Every
+      additive layer uses `setBlendFunction(770,1)` with a NORMAL restore at the end (native always
+      returns to normal). The nine flags (`renderAltBg`/`renderMg`/`renderMgGlow`/`renderMgAlt`/
+      `renderWall`/`renderChains`/`renderThrone`/`renderFg2`/`darkDay`), `pillarConfig`, and the
+      three colors (`overlayColor`/`whiteColor`/`yellowTint`) are read reflectively off the live
+      scene, per instance so they cannot go stale across act swaps, with a whole-read fail-open to
+      `CityFlags.failOpen()` (base plan `bg`/`floor`/`ceiling`). **Suppression is all-or-nothing:**
+      `mod/bg1` + `mod/floor` + `mod/ceiling` must ALL resolve before any draw. It GENERALIZES the
+      E06 shared `drawSceneLayer` 16-arg pixel-rect submission and per-layer tint/blend engine
+      while `bottom` stays byte-identical (`BackgroundBottomVariantTest` green). **D1 (partial):** the
+      `city` block in `d1_verify_background.yaml` originally asserted an unconditional real draw-delta
+      and FAILED on device — `city` only draws inside `TheCityScene` (ACT-2) and the lab has NO
+      act-jump, so every run is ACT-1. The block now asserts only the act-agnostic facts (`city` mode
+      accepted; native retained while the family is unfiltered); the FULL `d1_verify_background.yaml`
+      passed 79/79 TWICE (the ACT-1 `bottom` block still proves the real multi-layer draw-delta +
+      filtered/retained gating). The ACT-2 `city` real-layer draw + filtered close-diff remain
+      DEVICE-PENDING until a lab act-jump exists (open item below); real-layer evidence is the unit
+      suite `BackgroundCityVariantTest` (14 tests).
+
+- [ ] **Open E07b (ACT-2 remainder, deferred, do NOT draw yet):** `renderCombatRoomFg`
+      (`fg`/`fgGlow`/`fg2`), the fireflies, and the non-combat `renderCampfireRoom`/
+      `renderEventRoom` branches. The `city` variant currently supplies the combat `bg` suite only.
+
+- [ ] **Open E07/E08/E09 (City / Beyond / Ending real backgrounds):** E07 (`city`, ACT-2) is now
+      SHIPPED (see the E07 entry above); **E08/E09 (Beyond / Ending)** remain synthetic-only. Each is
+      an analogous animated multi-layer reconstruction; no ART per-act pixels exist yet for them.
 
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
@@ -4577,3 +4613,15 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       `d1_verify_background*`/`d1_verify_native_isolate` as the objective gate + a visual A/B.
       The `BackgroundRenderGate` synthetic variants remain the background-only diagnostic; do not
       confuse them with real act pixels.
+
+- [ ] **Open (E07-device): lab act-jump capability — required to D1-verify ACT-2+ background layers.**
+      VERIFIED gap: `TheCityScene.renderCityBackground` (and any act-2+ draw) gates on
+      `instanceof TheCityScene`, so it records no counter outside ACT-2, and the lab has NO act-jump
+      (`art lab` = ensure-fresh-menu/start-run/proceed/enter-*/seed/status/dump/host-recreate/
+      entity-*/enter-room only). Every device run is therefore ACT-1 (`TheBottomScene`), so the `city`
+      (E07) real-layer draw and its filtered compare CANNOT be exercised on device — the E07 device
+      block now asserts only the act-agnostic parts (mode accepted + native retained while unfiltered)
+      and the real-layer evidence is the unit suite `BackgroundCityVariantTest`. E08 (Beyond) / E09
+      (Ending) will have the SAME problem. Bounded follow-up: add an `art lab` act-jump (or an
+      `art verify mode background <act>` that force-loads the act scene) so ACT-2/3/4 backgrounds can
+      get real D1 evidence; then restore the full `city` device block (draw delta + filtered close-diff).

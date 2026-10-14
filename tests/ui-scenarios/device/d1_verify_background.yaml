@@ -255,6 +255,35 @@ steps:
   - console: "art verify native sts1.room.background off"
   - console: "art verify mode background off"
 
+  # ---- city (E07: real ACT-2 TheCityScene combat layers) ----
+  # HONEST SCOPE: the `city` variant only draws inside `TheCityScene` (ACT-2) — `renderCityBackground`
+  # gates on `instanceof TheCityScene` and records no counter elsewhere. The lab has NO act-jump
+  # today, so every device run is ACT-1 and the real `city` layer draw CANNOT be exercised here; the
+  # E07 real-layer evidence is the unit suite (`BackgroundCityVariantTest`). This block therefore
+  # asserts only what is reachable act-agnostically: the `city` mode is accepted and native is NOT
+  # suppressed while the background family is unfiltered. The ACT-2 draw + filtered compare are
+  # DEVICE-PENDING until a lab act-jump exists (see the open item in docs/task.md).
+  - console: "art verify mode background off"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: "off"
+  - console: "art verify mode background city"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: city
+  # Native is retained while the background family is unfiltered (act-agnostic; in ACT-1 `city`
+  # draws nothing and this stays false, in ACT-2 it is also false until native is filtered).
+  - assert:
+      path: backend.verify.background.artOwnsBackgroundRequested
+      eq: false
+  - console: "art verify mode background off"
+
   # ---- back to off: no draw, no suppression ----
   - console: "art verify mode background off"
   - wait_probe:

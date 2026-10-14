@@ -40,7 +40,9 @@ public final class BackgroundRenderGate {
         CHECKER,
         GRID,
         /** Real ACT-1 {@code TheBottomScene} combat background layers (native atlas regions). */
-        BOTTOM;
+        BOTTOM,
+        /** Real ACT-2 {@code TheCityScene} combat background layers (native atlas regions). */
+        CITY;
 
         public static Variant parse(String value) {
             String normalized = value == null ? "" : value.trim().toLowerCase();
@@ -49,6 +51,7 @@ public final class BackgroundRenderGate {
             if ("checker".equals(normalized)) return CHECKER;
             if ("grid".equals(normalized)) return GRID;
             if ("bottom".equals(normalized)) return BOTTOM;
+            if ("city".equals(normalized)) return CITY;
             return null;
         }
     }
@@ -83,6 +86,154 @@ public final class BackgroundRenderGate {
         /** The native {@code bottomScene/scene.atlas} region name for this layer. */
         public String regionName() {
             return regionName;
+        }
+    }
+
+    /**
+     * The native ACT-2 {@code TheCityScene.renderCombatRoomBg} {@code pillarConfig} switch. The
+     * constant names match the native enum exactly; {@code parse} is tolerant of case.
+     */
+    public enum PillarConfig {
+        OPEN,
+        SIDES_ONLY,
+        FULL,
+        LEFT_1,
+        LEFT_2;
+
+        /** Parses a native enum constant name (case/space tolerant); unknown ⇒ {@code null}. */
+        public static PillarConfig parse(String value) {
+            String normalized = value == null ? "" : value.trim().toUpperCase();
+            if ("OPEN".equals(normalized)) return OPEN;
+            if ("SIDES_ONLY".equals(normalized)) return SIDES_ONLY;
+            if ("FULL".equals(normalized)) return FULL;
+            if ("LEFT_1".equals(normalized)) return LEFT_1;
+            if ("LEFT_2".equals(normalized)) return LEFT_2;
+            return null;
+        }
+    }
+
+    /** The libGDX blend states the native ACT-2 sequence toggles between. */
+    public enum SceneBlend {
+        NORMAL,
+        ADDITIVE
+    }
+
+    /**
+     * One native {@code renderAtlasRegionIf} submission: the atlas region name, the active tint at
+     * that call, and whether the additive {@code blend(770,1)} state is active. Tints are copied so
+     * caller mutation cannot alias the plan.
+     */
+    public static final class SceneLayerSpec {
+        public final String regionName;
+        public final Color tint;
+        public final SceneBlend blend;
+
+        public SceneLayerSpec(String regionName, Color tint, SceneBlend blend) {
+            this.regionName = regionName;
+            this.tint = tint == null ? null : new Color(tint);
+            this.blend = blend;
+        }
+    }
+
+    /**
+     * The native ACT-2 {@code TheCityScene.renderCombatRoomBg} layer order, one entry per
+     * {@code renderAtlasRegionIf} call. {@link #regionName()} is the {@code cityScene/scene.atlas}
+     * region name the native scene resolves.
+     */
+    public enum CityLayer {
+        BG("mod/bg1"),
+        BG_GLOW("mod/bgGlowv2"),
+        BG_GLOW2("mod/bgGlowBlur"),
+        BG2("mod/bg2"),
+        BG2_GLOW("mod/bg2Glow"),
+        FLOOR("mod/floor"),
+        CEILING("mod/ceiling"),
+        WALL("mod/wall"),
+        CHAINS("mod/chains"),
+        CHAINS_GLOW("mod/chainsGlow"),
+        MG("mod/mg1"),
+        MG_GLOW("mod/mg1Glow"),
+        MG2("mod/mg2"),
+        P1("mod/p1"),
+        P2("mod/p2"),
+        P3("mod/p3"),
+        P4("mod/p4"),
+        P5("mod/p5"),
+        THRONE("mod/throne"),
+        THRONE_GLOW("mod/throneGlow");
+
+        private final String regionName;
+
+        CityLayer(String regionName) {
+            this.regionName = regionName;
+        }
+
+        /** The native {@code cityScene/scene.atlas} region name for this layer. */
+        public String regionName() {
+            return regionName;
+        }
+    }
+
+    /**
+     * The dynamic ACT-2 {@code TheCityScene} background state the native scene reads each frame. The
+     * nine booleans, the {@code pillarConfig} switch, and the three native {@code Color} fields
+     * mirror the private scene members. {@link #failOpen()} carries no glow/pillar/throne state and
+     * WHITE tints, and is flagged so {@link #cityLayerPlan} emits exactly the always-present
+     * {@code bg}/{@code floor}/{@code ceiling} base plan.
+     */
+    public static final class CityFlags {
+        public final boolean renderAltBg;
+        public final boolean renderMg;
+        public final boolean renderMgGlow;
+        public final boolean renderMgAlt;
+        public final boolean renderWall;
+        public final boolean renderChains;
+        public final boolean renderThrone;
+        public final boolean renderFg2;
+        public final boolean darkDay;
+        public final PillarConfig pillarConfig;
+        public final Color overlayColor;
+        public final Color whiteColor;
+        public final Color yellowTint;
+        private final boolean failOpen;
+
+        private CityFlags(boolean renderAltBg, boolean renderMg, boolean renderMgGlow,
+                boolean renderMgAlt, boolean renderWall, boolean renderChains, boolean renderThrone,
+                boolean renderFg2, boolean darkDay, PillarConfig pillarConfig, Color overlayColor,
+                Color whiteColor, Color yellowTint, boolean failOpen) {
+            this.renderAltBg = renderAltBg;
+            this.renderMg = renderMg;
+            this.renderMgGlow = renderMgGlow;
+            this.renderMgAlt = renderMgAlt;
+            this.renderWall = renderWall;
+            this.renderChains = renderChains;
+            this.renderThrone = renderThrone;
+            this.renderFg2 = renderFg2;
+            this.darkDay = darkDay;
+            this.pillarConfig = pillarConfig;
+            this.overlayColor = overlayColor == null ? null : new Color(overlayColor);
+            this.whiteColor = whiteColor == null ? null : new Color(whiteColor);
+            this.yellowTint = yellowTint == null ? null : new Color(yellowTint);
+            this.failOpen = failOpen;
+        }
+
+        public static CityFlags of(boolean renderAltBg, boolean renderMg, boolean renderMgGlow,
+                boolean renderMgAlt, boolean renderWall, boolean renderChains, boolean renderThrone,
+                boolean renderFg2, boolean darkDay, PillarConfig pillarConfig, Color overlayColor,
+                Color whiteColor, Color yellowTint) {
+            return new CityFlags(renderAltBg, renderMg, renderMgGlow, renderMgAlt, renderWall,
+                    renderChains, renderThrone, renderFg2, darkDay,
+                    pillarConfig == null ? PillarConfig.OPEN : pillarConfig, overlayColor, whiteColor,
+                    yellowTint, false);
+        }
+
+        /**
+         * All-false flags: the base layers only ({@code bg}/{@code floor}/{@code ceiling}), pillar
+         * {@code OPEN}, and WHITE tints. Flagged so the plan is exactly the three base layers.
+         */
+        public static CityFlags failOpen() {
+            return new CityFlags(false, false, false, false, false, false, false, false, false,
+                    PillarConfig.OPEN, Color.WHITE, Color.WHITE, Color.WHITE, true);
         }
     }
 
@@ -173,6 +324,8 @@ public final class BackgroundRenderGate {
         // The real ACT-1 background is layer-based and scene-scoped; the scene-agnostic synthetic
         // path never claims it. Use renderSelectedVariant(SpriteBatch, Object) for BOTTOM.
         if (configured == Variant.BOTTOM) return false;
+        // The real ACT-2 background is likewise layer-based and scene-scoped.
+        if (configured == Variant.CITY) return false;
         if (artframework.sts1.PresentSafety.isPanic()) return false;
         Texture texture = com.megacrit.cardcrawl.helpers.ImageMaster.WHITE_SQUARE_IMG;
         if (texture == null) return false;
@@ -214,6 +367,9 @@ public final class BackgroundRenderGate {
         if (configured == Variant.BOTTOM) {
             return renderBottomBackground(sb, sceneInstance);
         }
+        if (configured == Variant.CITY) {
+            return renderCityBackground(sb, sceneInstance);
+        }
         return renderSelectedVariant(sb);
     }
 
@@ -230,7 +386,7 @@ public final class BackgroundRenderGate {
             if (artframework.sts1.PresentSafety.isPanic()) return false;
             if (!(sceneInstance instanceof com.megacrit.cardcrawl.scenes.TheBottomScene)) return false;
             BottomFlags flags = readBottomFlags(sceneInstance);
-            BottomRegionSource source = new InstanceBottomRegionSource(readSceneAtlas(sceneInstance));
+            BottomRegionSource source = new InstanceSceneRegionSource(readSceneAtlas(sceneInstance));
             return renderBottomBackground(sb, flags, source);
         } catch (Throwable ignored) {
             return false;
@@ -373,17 +529,31 @@ public final class BackgroundRenderGate {
 
     /** True when a base layer's region resolves to a drawable page texture + descriptor. */
     private static boolean resolves(BottomRegionSource source, BottomLayer layer) {
+        return resolves(source, layer.regionName());
+    }
+
+    /** True when a named region resolves to a drawable page texture + descriptor. */
+    private static boolean resolves(BottomRegionSource source, String regionName) {
         try {
-            Sts1AtlasMaterializer.RegionTexture resolved = source.region(layer.regionName());
-            return resolved != null && resolved.region != null && resolved.texture != null;
+            return drawable(source.region(regionName));
         } catch (Throwable ignored) {
             return false;
         }
     }
 
     /**
+     * True when a resolved region carries both a live page texture and a valid descriptor. The draw
+     * loops test this predicate directly on the region they are about to submit, so it must NOT
+     * swallow a throwing source: there the enclosing fail-open catch fails the whole draw rather
+     * than skipping one layer.
+     */
+    private static boolean drawable(Sts1AtlasMaterializer.RegionTexture resolved) {
+        return resolved != null && resolved.region != null && resolved.texture != null;
+    }
+
+    /**
      * Draws the planned native ACT-1 layers through the region source with the exact native
-     * pixel-rect submission (see {@link #drawBottomLayer}). Tint mirrors native: WHITE before
+     * pixel-rect submission (see {@link #drawSceneLayer}). Tint mirrors native: WHITE before
      * {@code bg}/{@code mg}/{@code ceiling} and the hollow/left walls, GRAY before the solid wall
      * only while {@code hollowMid && (solidMid || leftWall)}, WHITE before the hollow wall. A layer
      * whose region resolves {@code null} is skipped. {@code recordArtDraw(n)} records the regions
@@ -415,12 +585,204 @@ public final class BackgroundRenderGate {
                     && resolves(source, BottomLayer.CEILING)) {
                 for (BottomLayer layer : plan) {
                     Sts1AtlasMaterializer.RegionTexture resolved = source.region(layer.regionName());
-                    if (resolved == null || resolved.region == null || resolved.texture == null) {
+                    if (!drawable(resolved)) {
                         continue;
                     }
                     applyBottomTint(sb, layer, f);
-                    drawBottomLayer(sb, resolved);
+                    drawSceneLayer(sb, resolved);
                     submitted++;
+                }
+                painted = submitted > 0;
+            } else {
+                painted = false;
+            }
+        } catch (Throwable ignored) {
+            painted = false;
+        } finally {
+            try {
+                sb.setColor(prev);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (painted) {
+            recordArtDraw(submitted);
+            BackgroundOnlyGate.recordBackgroundDraw();
+        }
+        return painted;
+    }
+
+    /**
+     * The native ACT-2 {@code TheCityScene.renderCombatRoomBg} layer plan in exact call order, one
+     * {@link SceneLayerSpec} per {@code renderAtlasRegionIf} with the active tint and additive/normal
+     * blend state. Pure — no draw, no state. A null flags value is treated as
+     * {@link CityFlags#failOpen()}; a fail-open flags value yields exactly the always-present
+     * {@code bg}/{@code floor}/{@code ceiling} base layers.
+     */
+    public static List<SceneLayerSpec> cityLayerPlan(CityFlags flags, long nowMillis) {
+        CityFlags f = flags != null ? flags : CityFlags.failOpen();
+        if (f.failOpen) {
+            return cityBasePlan(f);
+        }
+        Color overlay = colorOrWhite(f.overlayColor);
+        Color white = colorOrWhite(f.whiteColor);
+        Color yellow = colorOrWhite(f.yellowTint);
+        List<SceneLayerSpec> plan = new ArrayList<SceneLayerSpec>(24);
+        Color bgTarget = f.darkDay ? Color.WHITE : overlay;
+        plan.add(spec(CityLayer.BG, overlay, SceneBlend.NORMAL));
+        plan.add(spec(CityLayer.BG_GLOW, overlay, SceneBlend.ADDITIVE));
+        if (f.darkDay) {
+            plan.add(spec(CityLayer.BG_GLOW2, Color.WHITE, SceneBlend.ADDITIVE));
+            plan.add(spec(CityLayer.BG_GLOW2, Color.WHITE, SceneBlend.ADDITIVE));
+        }
+        if (f.renderAltBg) {
+            plan.add(spec(CityLayer.BG2, bgTarget, SceneBlend.NORMAL));
+            plan.add(spec(CityLayer.BG2_GLOW, bgTarget, SceneBlend.ADDITIVE));
+        }
+        plan.add(spec(CityLayer.FLOOR, overlay, SceneBlend.NORMAL));
+        plan.add(spec(CityLayer.CEILING, overlay, SceneBlend.NORMAL));
+        if (f.renderWall) {
+            plan.add(spec(CityLayer.WALL, overlay, SceneBlend.NORMAL));
+        }
+        if (f.renderChains) {
+            plan.add(spec(CityLayer.CHAINS, overlay, SceneBlend.NORMAL));
+            Color chainsGlow = new Color(white);
+            chainsGlow.a = com.badlogic.gdx.math.MathUtils.cosDeg(nowMillis % 360L) / 10.0f + 0.9f;
+            plan.add(spec(CityLayer.CHAINS_GLOW, chainsGlow, SceneBlend.ADDITIVE));
+            plan.add(spec(CityLayer.CHAINS_GLOW, chainsGlow, SceneBlend.ADDITIVE));
+        }
+        if (f.renderMg) {
+            plan.add(spec(CityLayer.MG, overlay, SceneBlend.NORMAL));
+        }
+        if (f.renderMg && f.renderMgGlow) {
+            Color mgGlow = new Color(white);
+            mgGlow.a = com.badlogic.gdx.math.MathUtils.cosDeg((nowMillis / 10L) % 360L) / 2.0f + 0.5f;
+            plan.add(spec(CityLayer.MG_GLOW, mgGlow, SceneBlend.ADDITIVE));
+            plan.add(spec(CityLayer.MG_GLOW, mgGlow, SceneBlend.ADDITIVE));
+        } else if (f.renderMg) {
+            plan.add(spec(CityLayer.MG_GLOW, overlay, SceneBlend.ADDITIVE));
+        }
+        Color afterMg = f.renderMgGlow ? yellow : overlay;
+        if (f.renderMgAlt) {
+            plan.add(spec(CityLayer.MG2, afterMg, SceneBlend.NORMAL));
+        }
+        addPillars(plan, f.pillarConfig, afterMg);
+        if (f.renderThrone) {
+            plan.add(spec(CityLayer.THRONE, afterMg, SceneBlend.NORMAL));
+            plan.add(spec(CityLayer.THRONE_GLOW, afterMg, SceneBlend.ADDITIVE));
+        }
+        return plan;
+    }
+
+    /** The fail-open base plan: exactly {@code bg}, {@code floor}, {@code ceiling}, all NORMAL. */
+    private static List<SceneLayerSpec> cityBasePlan(CityFlags f) {
+        Color overlay = colorOrWhite(f.overlayColor);
+        List<SceneLayerSpec> plan = new ArrayList<SceneLayerSpec>(3);
+        plan.add(spec(CityLayer.BG, overlay, SceneBlend.NORMAL));
+        plan.add(spec(CityLayer.FLOOR, overlay, SceneBlend.NORMAL));
+        plan.add(spec(CityLayer.CEILING, overlay, SceneBlend.NORMAL));
+        return plan;
+    }
+
+    private static void addPillars(List<SceneLayerSpec> plan, PillarConfig config, Color carried) {
+        if (config == null) config = PillarConfig.OPEN;
+        switch (config) {
+            case SIDES_ONLY:
+                plan.add(spec(CityLayer.P1, carried, SceneBlend.NORMAL));
+                plan.add(spec(CityLayer.P5, carried, SceneBlend.NORMAL));
+                break;
+            case FULL:
+                plan.add(spec(CityLayer.P1, carried, SceneBlend.NORMAL));
+                plan.add(spec(CityLayer.P2, carried, SceneBlend.NORMAL));
+                plan.add(spec(CityLayer.P3, carried, SceneBlend.NORMAL));
+                plan.add(spec(CityLayer.P4, carried, SceneBlend.NORMAL));
+                plan.add(spec(CityLayer.P5, carried, SceneBlend.NORMAL));
+                break;
+            case LEFT_1:
+                plan.add(spec(CityLayer.P1, carried, SceneBlend.NORMAL));
+                break;
+            case LEFT_2:
+                plan.add(spec(CityLayer.P1, carried, SceneBlend.NORMAL));
+                plan.add(spec(CityLayer.P2, carried, SceneBlend.NORMAL));
+                break;
+            case OPEN:
+            default:
+                break;
+        }
+    }
+
+    private static SceneLayerSpec spec(CityLayer layer, Color tint, SceneBlend blend) {
+        return new SceneLayerSpec(layer.regionName(), tint, blend);
+    }
+
+    private static Color colorOrWhite(Color color) {
+        return color != null ? color : Color.WHITE;
+    }
+
+    /**
+     * Production ACT-2 entry: draws the live {@code TheCityScene} background layers read off the
+     * scene instance, with {@code time} from {@code System.currentTimeMillis()}. A null batch, an
+     * active panic, or any non-{@code TheCityScene} instance draws nothing; any reflective read
+     * failure fails open to {@link CityFlags#failOpen()} and the base plan.
+     */
+    public static boolean renderCityBackground(SpriteBatch sb, Object sceneInstance) {
+        try {
+            if (sb == null) return false;
+            if (artframework.sts1.PresentSafety.isPanic()) return false;
+            if (!(sceneInstance instanceof com.megacrit.cardcrawl.scenes.TheCityScene)) return false;
+            CityFlags flags = readCityFlags(sceneInstance);
+            BottomRegionSource source = new InstanceSceneRegionSource(readSceneAtlas(sceneInstance));
+            return renderCityBackground(sb, flags, source, System.currentTimeMillis());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Draws the planned native ACT-2 layers through the region source with the exact native
+     * pixel-rect submission (see {@link #drawSceneLayer}). Each layer applies its planned tint and
+     * switches the blend function only when the additive/normal state changes; the batch is left in
+     * the native NORMAL end state. Suppression is ALL-OR-NOTHING: {@code mod/bg1},
+     * {@code mod/floor}, and {@code mod/ceiling} must all resolve or nothing is painted and no
+     * counter is recorded. Returns {@code true} iff at least one layer was painted. Any
+     * {@code Throwable} fails open (returns {@code false}, records no counter). The previous batch
+     * color is restored.
+     */
+    public static boolean renderCityBackground(SpriteBatch sb, CityFlags flags,
+            BottomRegionSource source, long nowMillis) {
+        if (sb == null || source == null) return false;
+        Color prev;
+        try {
+            prev = sb.getColor();
+        } catch (Throwable ignored) {
+            return false;
+        }
+        int submitted = 0;
+        boolean painted;
+        try {
+            CityFlags f = flags != null ? flags : CityFlags.failOpen();
+            List<SceneLayerSpec> plan = cityLayerPlan(f, nowMillis);
+            if (resolves(source, CityLayer.BG.regionName())
+                    && resolves(source, CityLayer.FLOOR.regionName())
+                    && resolves(source, CityLayer.CEILING.regionName())) {
+                SceneBlend current = SceneBlend.NORMAL;
+                for (SceneLayerSpec layer : plan) {
+                    if (layer.blend != current) {
+                        sb.setBlendFunction(770, layer.blend == SceneBlend.ADDITIVE ? 1 : 771);
+                        current = layer.blend;
+                    }
+                    Sts1AtlasMaterializer.RegionTexture resolved = source.region(layer.regionName);
+                    if (!drawable(resolved)) {
+                        continue;
+                    }
+                    if (layer.tint != null) {
+                        sb.setColor(layer.tint);
+                    }
+                    drawSceneLayer(sb, resolved);
+                    submitted++;
+                }
+                // Native always returns the blend function to NORMAL after the throne glow block.
+                if (current != SceneBlend.NORMAL) {
+                    sb.setBlendFunction(770, 771);
                 }
                 painted = submitted > 0;
             } else {
@@ -457,9 +819,10 @@ public final class BackgroundRenderGate {
      * The exact native {@code AbstractScene.renderAtlasRegionIf} submission: the 16-arg pixel-rect
      * overload with origin {@code (0,0)}, the packed page size, the page source rect, and the
      * three-branch {@code Settings} scale selection (four-by-three / letterbox / normal). This is
-     * NOT a UV blit.
+     * NOT a UV blit. Shared by the ACT-1 Bottom and ACT-2 City layer draws; the caller is
+     * responsible for the tint and blend state.
      */
-    private static void drawBottomLayer(SpriteBatch sb, Sts1AtlasMaterializer.RegionTexture resolved) {
+    private static void drawSceneLayer(SpriteBatch sb, Sts1AtlasMaterializer.RegionTexture resolved) {
         artframework.assets.AtlasRegion region = resolved.region;
         float x;
         float y;
@@ -510,6 +873,58 @@ public final class BackgroundRenderGate {
         return field.getBoolean(target);
     }
 
+    /**
+     * Reads the live ACT-2 {@code TheCityScene} dynamic state reflectively. A single unreadable
+     * member aborts the whole read and fails open to {@link CityFlags#failOpen()} (the base plan);
+     * there is no per-member neutral fallback inside this method.
+     */
+    private static CityFlags readCityFlags(Object sceneInstance) {
+        try {
+            Class<?> scene = Class.forName("com.megacrit.cardcrawl.scenes.TheCityScene");
+            boolean renderAltBg = readBooleanField(scene, sceneInstance, "renderAltBg");
+            boolean renderMg = readBooleanField(scene, sceneInstance, "renderMg");
+            boolean renderMgGlow = readBooleanField(scene, sceneInstance, "renderMgGlow");
+            boolean renderMgAlt = readBooleanField(scene, sceneInstance, "renderMgAlt");
+            boolean renderWall = readBooleanField(scene, sceneInstance, "renderWall");
+            boolean renderChains = readBooleanField(scene, sceneInstance, "renderChains");
+            boolean renderThrone = readBooleanField(scene, sceneInstance, "renderThrone");
+            boolean renderFg2 = readBooleanField(scene, sceneInstance, "renderFg2");
+            boolean darkDay = readBooleanField(scene, sceneInstance, "darkDay");
+            PillarConfig pillars = readPillarConfig(scene, sceneInstance);
+            Color overlay = readColorField(scene, sceneInstance, "overlayColor");
+            Color white = readColorField(scene, sceneInstance, "whiteColor");
+            Color yellow = readColorField(scene, sceneInstance, "yellowTint");
+            return CityFlags.of(renderAltBg, renderMg, renderMgGlow, renderMgAlt, renderWall,
+                    renderChains, renderThrone, renderFg2, darkDay, pillars, overlay, white, yellow);
+        } catch (Throwable ignored) {
+            return CityFlags.failOpen();
+        }
+    }
+
+    private static PillarConfig readPillarConfig(Class<?> scene, Object sceneInstance) {
+        try {
+            Field field = scene.getDeclaredField("pillarConfig");
+            field.setAccessible(true);
+            Object value = field.get(sceneInstance);
+            if (value == null) return PillarConfig.OPEN;
+            PillarConfig parsed = PillarConfig.parse(((Enum<?>) value).name());
+            return parsed != null ? parsed : PillarConfig.OPEN;
+        } catch (Throwable ignored) {
+            return PillarConfig.OPEN;
+        }
+    }
+
+    private static Color readColorField(Class<?> scene, Object sceneInstance, String name) {
+        try {
+            Field field = scene.getDeclaredField(name);
+            field.setAccessible(true);
+            Object value = field.get(sceneInstance);
+            return value instanceof Color ? (Color) value : Color.WHITE;
+        } catch (Throwable ignored) {
+            return Color.WHITE;
+        }
+    }
+
     private static TextureAtlas readSceneAtlas(Object sceneInstance) {
         try {
             Class<?> scene = Class.forName("com.megacrit.cardcrawl.scenes.AbstractScene");
@@ -523,10 +938,10 @@ public final class BackgroundRenderGate {
     }
 
     /** Per-instance region reads from the scene's own atlas; never cached across act swaps. */
-    private static final class InstanceBottomRegionSource implements BottomRegionSource {
+    private static final class InstanceSceneRegionSource implements BottomRegionSource {
         private final TextureAtlas atlas;
 
-        InstanceBottomRegionSource(TextureAtlas atlas) {
+        InstanceSceneRegionSource(TextureAtlas atlas) {
             this.atlas = atlas;
         }
 

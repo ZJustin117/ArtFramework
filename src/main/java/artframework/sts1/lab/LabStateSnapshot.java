@@ -27,6 +27,10 @@ public final class LabStateSnapshot {
     public final String selectedCharacter;
     public final List<String> buttons;
     public final List<String> characters;
+    /** Native dungeon key for the current act, e.g. {@code TheCity}; empty when unknown. */
+    public final String actId;
+    /** Simple class name of the current native scene, e.g. {@code TheCityScene}; empty when unknown. */
+    public final String scene;
     public final String message;
 
     public LabStateSnapshot(
@@ -48,6 +52,8 @@ public final class LabStateSnapshot {
             String selectedCharacter,
             List<String> buttons,
             List<String> characters,
+            String actId,
+            String scene,
             String message) {
         this.mode = mode != null ? mode : "";
         this.menuScreen = menuScreen != null ? menuScreen : "";
@@ -73,6 +79,8 @@ public final class LabStateSnapshot {
                 characters == null
                         ? Collections.<String>emptyList()
                         : Collections.unmodifiableList(new ArrayList<String>(characters));
+        this.actId = actId != null ? actId : "";
+        this.scene = scene != null ? scene : "";
         this.message = message != null ? message : "";
     }
 
@@ -123,6 +131,8 @@ public final class LabStateSnapshot {
         m.put("selectedCharacter", selectedCharacter);
         m.put("buttons", new ArrayList<String>(buttons));
         m.put("characters", new ArrayList<String>(characters));
+        m.put("actId", actId);
+        m.put("scene", scene);
         if (!message.isEmpty()) {
             m.put("message", message);
         }
@@ -148,6 +158,8 @@ public final class LabStateSnapshot {
         private String selectedCharacter = "";
         private List<String> buttons = new ArrayList<String>();
         private List<String> characters = new ArrayList<String>();
+        private String actId = "";
+        private String scene = "";
         private String message = "";
 
         public Builder mode(String v) {
@@ -240,6 +252,16 @@ public final class LabStateSnapshot {
             return this;
         }
 
+        public Builder actId(String v) {
+            actId = v;
+            return this;
+        }
+
+        public Builder scene(String v) {
+            scene = v;
+            return this;
+        }
+
         public Builder message(String v) {
             message = v;
             return this;
@@ -265,6 +287,8 @@ public final class LabStateSnapshot {
                     selectedCharacter,
                     buttons,
                     characters,
+                    actId,
+                    scene,
                     message);
         }
     }

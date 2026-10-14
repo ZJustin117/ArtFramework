@@ -96,6 +96,10 @@ public final class StsLabNav {
         return host.enterSelect(selectKind);
     }
 
+    public static UiOpResult enterAct(int act) {
+        return host.enterAct(act);
+    }
+
     /**
      * Synchronous recipe (FakeLabHost / unit tests). On device prefer {@link #armEnsureMenu()} so
      * the game thread is not blocked.

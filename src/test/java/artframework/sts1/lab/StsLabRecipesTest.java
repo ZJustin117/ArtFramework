@@ -284,6 +284,104 @@ public class StsLabRecipesTest {
     }
 
     @Test
+    public void fakeHostEnterActRecordsActionAndExposesActSceneOnLiveRun() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .inGame(true)
+                                .roomPhase("COMBAT")
+                                .build());
+
+        UiOpResult result = host.enterAct(2);
+
+        assertTrue(result.message, result.isOk());
+        assertTrue("recorded act jump, actions=" + host.actions, host.actions.contains("act:2"));
+        // Probe-visible: the snapshot names the current dungeon and scene after the jump.
+        assertEquals("TheCity", host.dump().actId);
+        assertEquals("TheCityScene", host.dump().scene);
+        assertEquals("TheCity", host.dump().toMap().get("actId"));
+        assertEquals("TheCityScene", host.dump().toMap().get("scene"));
+    }
+
+    @Test
+    public void fakeHostEnterActRejectsActOutsideSupportedActs() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .inGame(true)
+                                .roomPhase("COMBAT")
+                                .build());
+
+        UiOpResult unsupported = host.enterAct(99);
+        assertFalse(unsupported.message, unsupported.isOk());
+        assertEquals(UiOpResult.Status.UNAVAILABLE, unsupported.status);
+        assertTrue(
+                "message must name the act, was: " + unsupported.message,
+                unsupported.message.contains("99")
+                        || unsupported.message.toLowerCase().contains("act"));
+        assertFalse(
+                "must not fall through to the navigator fallback, was: " + unsupported.message,
+                unsupported.message.toLowerCase().contains("no lab navigator"));
+
+        // ACT-1 is out of scope: start-run covers it, the act-jump must not silently accept it.
+        UiOpResult actOne = host.enterAct(1);
+        assertFalse(actOne.message, actOne.isOk());
+        assertEquals(UiOpResult.Status.UNAVAILABLE, actOne.status);
+    }
+
+    @Test
+    public void fakeHostRejectsEnterActWhenNotInRun() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .inGame(false)
+                                .roomPhase("COMBAT")
+                                .build());
+
+        UiOpResult result = host.enterAct(2);
+
+        assertFalse(result.message, result.isOk());
+        assertEquals(UiOpResult.Status.UNAVAILABLE, result.status);
+        assertEquals("COMBAT", host.dump().roomPhase);
+    }
+
+    @Test
+    public void navEnterActDelegatesToInstalledHost() {
+        FakeLabHost host =
+                new FakeLabHost(
+                        LabStateSnapshot.builder()
+                                .mode("GAMEPLAY")
+                                .inGame(true)
+                                .roomPhase("COMBAT")
+                                .build());
+        StsLabNav.install(host);
+
+        assertTrue(StsLabNav.enterAct(2).isOk());
+        assertTrue(host.actions.contains("act:2"));
+    }
+
+    @Test
+    public void snapshotToMapCarriesActIdAndSceneWhenSet() {
+        LabStateSnapshot s =
+                LabStateSnapshot.builder().actId("TheCity").scene("TheCityScene").build();
+        assertEquals("TheCity", s.toMap().get("actId"));
+        assertEquals("TheCityScene", s.toMap().get("scene"));
+    }
+
+    @Test
+    public void snapshotToMapFailsOpenActFieldsToEmptyString() {
+        LabStateSnapshot s = LabStateSnapshot.builder().mode("GAMEPLAY").inGame(true).build();
+
+        assertTrue(s.toMap().containsKey("actId"));
+        assertTrue(s.toMap().containsKey("scene"));
+        assertEquals("", s.toMap().get("actId"));
+        assertEquals("", s.toMap().get("scene"));
+    }
+
+    @Test
     public void labNavigationDispatchFailsWithoutNativeNavigator() {
         UiOpResult result =
                 LabNavigationSignals.dispatch(
@@ -714,6 +812,11 @@ public class StsLabRecipesTest {
         @Override
         public UiOpResult enterSelect(String selectKind) {
             return delegate.enterSelect(selectKind);
+        }
+
+        @Override
+        public UiOpResult enterAct(int act) {
+            return delegate.enterAct(act);
         }
 
         @Override

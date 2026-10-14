@@ -108,6 +108,8 @@ public final class StsLabState {
         boolean inGame = gameplay;
         boolean inCombat = false;
         String roomPhase = "";
+        String actId = "";
+        String scene = "";
         boolean endScreen = false;
         try {
             Class<?> dungeon = Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon");
@@ -141,6 +143,14 @@ public final class StsLabState {
                 inCombat =
                         "COMBAT".equals(roomPhase)
                                 && !Boolean.TRUE.equals(battleOver);
+            }
+            Object idValue = field(dungeon, null, "id");
+            if (idValue != null) {
+                actId = String.valueOf(idValue);
+            }
+            Object sceneValue = field(dungeon, null, "scene");
+            if (sceneValue != null) {
+                scene = sceneValue.getClass().getSimpleName();
             }
         } catch (Throwable ignored) {
         }
@@ -182,6 +192,8 @@ public final class StsLabState {
                 .selectedCharacter(selectedCharacter)
                 .buttons(buttons)
                 .characters(characters)
+                .actId(actId)
+                .scene(scene)
                 .build();
     }
 

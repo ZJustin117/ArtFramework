@@ -13,7 +13,52 @@ public final class StsLabHost implements LabHost {
 
     public static final StsLabHost INSTANCE = new StsLabHost();
 
+    /** Label for the {@link #normalizeAfterActJump} current-node step (load-bearing). */
+    private static final String ACT_JUMP_STEP_CURRENT_NODE = "current node";
+
+    /** Label for the {@link #normalizeAfterActJump} render-scene step (load-bearing). */
+    private static final String ACT_JUMP_STEP_RENDER_SCENE = "render scene";
+
+    /** Label for the {@link #normalizeAfterActJump} screen-reset step (not load-bearing). */
+    private static final String ACT_JUMP_STEP_SCREEN_RESET = "screen reset";
+
+    /** Label for the {@link #normalizeAfterActJump} map-overlay step (load-bearing). */
+    private static final String ACT_JUMP_STEP_MAP_OVERLAY = "map overlay";
+
     private StsLabHost() {}
+
+    /** The {@link #normalizeAfterActJump} steps in application order, for message assembly. */
+    private static List<String> actJumpSteps() {
+        List<String> steps = new ArrayList<String>(4);
+        steps.add(ACT_JUMP_STEP_CURRENT_NODE);
+        steps.add(ACT_JUMP_STEP_RENDER_SCENE);
+        steps.add(ACT_JUMP_STEP_SCREEN_RESET);
+        steps.add(ACT_JUMP_STEP_MAP_OVERLAY);
+        return steps;
+    }
+
+    /**
+     * Whether a skipped {@link #normalizeAfterActJump} step leaves the jump unable to render the new
+     * act coherently. A skipped step 3 ({@code ACT_JUMP_STEP_SCREEN_RESET}) is reported but not fatal:
+     * steps 1/2/4 are what make {@code renderCombatRoomBg} dispatch without the stale map painting.
+     */
+    private static boolean isLoadBearingActJumpStep(String label) {
+        return ACT_JUMP_STEP_CURRENT_NODE.equals(label)
+                || ACT_JUMP_STEP_RENDER_SCENE.equals(label)
+                || ACT_JUMP_STEP_MAP_OVERLAY.equals(label);
+    }
+
+    /** Comma-join step labels for the command message. */
+    private static String joinLabels(List<String> labels) {
+        StringBuilder sb = new StringBuilder();
+        for (String label : labels) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(label);
+        }
+        return sb.toString();
+    }
 
     @Override
     public LabStateSnapshot dump() {
@@ -307,6 +352,201 @@ public final class StsLabHost implements LabHost {
         }
         return LabNavigationSignals.dispatch(
                 LabNavigationIntent.of(LabIntentNames.ENTER_SELECT, selectKind));
+    }
+
+    /**
+     * Jump the live run to a supported non-Exordium act through the native dungeon-construction
+     * path ({@code CardCrawlGame.getDungeon}). ACT-1 is deliberately out of scope.
+     */
+    @Override
+    public UiOpResult enterAct(int act) {
+        String key = actKey(act);
+        if (key == null) {
+            return UiOpResult.unavailable("unsupported act: " + act + " (supported acts: 2, 3, 4)");
+        }
+        try {
+            Class<?> dungeon = Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon");
+            Object player = StsLabState.field(dungeon, null, "player");
+            if (player == null) {
+                return UiOpResult.unavailable("run not ready");
+            }
+            Object game = gameListener();
+            if (game == null) {
+                return UiOpResult.unavailable("card crawl game unavailable");
+            }
+            Class<?> gameClass = Class.forName("com.megacrit.cardcrawl.core.CardCrawlGame");
+            java.lang.reflect.Method getDungeon =
+                    gameClass.getMethod(
+                            "getDungeon",
+                            String.class,
+                            Class.forName("com.megacrit.cardcrawl.characters.AbstractPlayer"));
+            getDungeon.invoke(game, key, player);
+            // getDungeon already mutated global run state (CardCrawlGame.dungeon/id/scene/map and,
+            // for TheCity, the BGM). Normalize the live presentation so the new act actually
+            // renders; each step below is reflective and individually guarded so one missing
+            // field cannot leave the jump half-applied.
+            List<String> skipped = normalizeAfterActJump(dungeon);
+            List<String> skippedLoadBearing = new ArrayList<String>(skipped.size());
+            for (String step : skipped) {
+                if (isLoadBearingActJumpStep(step)) {
+                    skippedLoadBearing.add(step);
+                }
+            }
+            if (!skippedLoadBearing.isEmpty()) {
+                // A load-bearing step (current node, render scene, or map overlay) did not apply, so
+                // renderCombatRoomBg will not dispatch for the new act (or the stale map still
+                // paints). Reporting plain success here would make the console lie while the
+                // scenario's artDrawCount delta cannot move.
+                return UiOpResult.unavailable(
+                        "act "
+                                + act
+                                + " "
+                                + key
+                                + " entered but not renderable: skipped "
+                                + joinLabels(skippedLoadBearing));
+            }
+            List<String> applied = actJumpSteps();
+            applied.removeAll(skipped);
+            return UiOpResult.ok(
+                    "act "
+                            + act
+                            + " "
+                            + key
+                            + " entered (applied "
+                            + joinLabels(applied)
+                            + ")"
+                            + (skipped.isEmpty() ? "" : "; " + joinLabels(skipped) + " skipped"));
+        } catch (Throwable t) {
+            return UiOpResult.unavailable(actFailureMessage(t));
+        }
+    }
+
+    /**
+     * Post-construction normalization for a native act jump. Native {@code getDungeon} builds a new
+     * dungeon while the live presentation still holds the previous act's map overlay, render scene,
+     * and current node, so mirror the reset/room-transition steps native itself performs. Every
+     * step is reflective and guarded: a missing field or method must not abort the jump (which has
+     * already committed global run state), and nothing here may throw.
+     *
+     * @return the labels of the steps that did not apply, in application order; empty when the jump
+     *     applied every step. {@link #enterAct} classifies them with
+     *     {@link #isLoadBearingActJumpStep(String)}: a skipped load-bearing step makes the jump
+     *     unable to render the new act, while a skipped screen reset is only reported.
+     */
+    private static List<String> normalizeAfterActJump(Class<?> dungeon) {
+        List<String> skipped = new ArrayList<String>(4);
+        // 1. Current node. Only TheCity resets currMapNode, and both AbstractDungeon.render and
+        // AbstractDungeon.update read currMapNode.room, so acts 3/4 would otherwise keep rendering
+        // and updating the previous act's MonsterRoom against the fresh actionManager. Mirror
+        // TheCity exactly: a fresh (0, -1) node holding a fresh EmptyRoom.
+        try {
+            Class<?> mapRoomNode = Class.forName("com.megacrit.cardcrawl.map.MapRoomNode");
+            Object node =
+                    mapRoomNode
+                            .getConstructor(int.class, int.class)
+                            .newInstance(Integer.valueOf(0), Integer.valueOf(-1));
+            Object empty =
+                    Class.forName("com.megacrit.cardcrawl.rooms.EmptyRoom")
+                            .getConstructor()
+                            .newInstance();
+            StsLabState.setField(mapRoomNode, node, "room", empty);
+            StsLabState.setField(dungeon, null, "currMapNode", node);
+        } catch (Throwable ignored) {
+            skipped.add(ACT_JUMP_STEP_CURRENT_NODE);
+        }
+        // 2. Render scene. AbstractDungeon.render dispatches scene.renderCombatRoomBg only when
+        // rs == RenderScene.NORMAL, so a jump out of an EVENT/CAMPFIRE state would never draw the
+        // new act's layers. Native sets rs = RenderScene.NORMAL on reset, and on room transition
+        // for a non-campfire/non-event room (AbstractDungeon.nextRoomTransition sets CAMPFIRE for a
+        // RestRoom, EVENT for an image event, else NORMAL); this jump targets a fresh EmptyRoom,
+        // for which NORMAL is the native-correct value.
+        try {
+            Class<?> renderScene =
+                    Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon$RenderScene");
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Object normal = Enum.valueOf((Class) renderScene, "NORMAL");
+            StsLabState.setField(dungeon, null, "rs", normal);
+        } catch (Throwable ignored) {
+            skipped.add(ACT_JUMP_STEP_RENDER_SCENE);
+        }
+        // 3. Screen state. The non-Exordium dungeon constructor leaves screen = MAP / isScreenUp;
+        // clear it so the map screen does not stay logically open over the new act. previousScreen
+        // must be null, not CurrentScreen.NONE: native AbstractDungeon.reset() and
+        // nextRoomTransition set it to null, and a non-null sentinel would make a later native
+        // closeCurrentScreen() take its previousScreen != null branch and leave isScreenUp sticky.
+        // Unlike steps 1/2/4 this step is not load-bearing, so a failure is reported, not fatal.
+        try {
+            Class<?> currentScreen =
+                    Class.forName("com.megacrit.cardcrawl.dungeons.AbstractDungeon$CurrentScreen");
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Object none = Enum.valueOf((Class) currentScreen, "NONE");
+            StsLabState.setField(dungeon, null, "screen", none);
+            StsLabState.setField(dungeon, null, "previousScreen", null);
+            StsLabState.setField(dungeon, null, "nextRoom", null);
+            StsLabState.setField(dungeon, null, "isScreenUp", Boolean.FALSE);
+        } catch (Throwable ignored) {
+            skipped.add(ACT_JUMP_STEP_SCREEN_RESET);
+        }
+        // 4. Map overlay visibility. AbstractDungeon.render still dispatches
+        // dungeonMapScreen.render(sb) for screen == NONE, and native nextRoomTransition calls
+        // dungeonMapScreen.closeInstantly(). Without it, a jump taken while the map is open keeps
+        // targetAlpha/baseMapColor.a at 1 and the stale map paints over the new act's ART layers.
+        try {
+            Object mapScreen = StsLabState.field(dungeon, null, "dungeonMapScreen");
+            if (mapScreen != null) {
+                mapScreen.getClass().getMethod("closeInstantly").invoke(mapScreen);
+            }
+        } catch (Throwable ignored) {
+            skipped.add(ACT_JUMP_STEP_MAP_OVERLAY);
+        }
+        return skipped;
+    }
+
+    /**
+     * Name the true failure for {@code enterAct}. The shared {@link #unavailable(Throwable)} helper
+     * keeps its wrapper-sensitive behavior; this unwraps the reflective wrapper exceptions so the
+     * console does not print a bare {@code InvocationTargetException} with a null message.
+     */
+    private static String actFailureMessage(Throwable t) {
+        Throwable cause = t;
+        while (cause.getCause() != null && isReflectiveWrapper(cause)) {
+            cause = cause.getCause();
+        }
+        String simpleName = cause.getClass().getSimpleName();
+        String message = cause.getMessage();
+        return message == null || message.isEmpty() ? simpleName : simpleName + ": " + message;
+    }
+
+    private static boolean isReflectiveWrapper(Throwable t) {
+        return t instanceof java.lang.reflect.InvocationTargetException
+                || t instanceof ExceptionInInitializerError;
+    }
+
+    /** Native dungeon key for a supported act, or null when the act is out of scope. */
+    static String actKey(int act) {
+        if (act == 2) {
+            return "TheCity";
+        }
+        if (act == 3) {
+            return "TheBeyond";
+        }
+        if (act == 4) {
+            return "TheEnding";
+        }
+        return null;
+    }
+
+    /** The process {@code ApplicationListener}; {@code CardCrawlGame} is the Gdx listener. */
+    private static Object gameListener() {
+        try {
+            Class<?> gdx = Class.forName("com.badlogic.gdx.Gdx");
+            Object app = gdx.getField("app").get(null);
+            if (app != null) {
+                return app.getClass().getMethod("getApplicationListener").invoke(app);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
     }
 
     @Override

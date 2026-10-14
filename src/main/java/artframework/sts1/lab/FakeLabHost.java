@@ -337,6 +337,34 @@ public final class FakeLabHost implements LabHost {
     }
 
     @Override
+    public UiOpResult enterAct(int act) {
+        actions.add("act:" + act);
+        if (!state.inGame) {
+            return UiOpResult.unavailable("not in game");
+        }
+        String dungeonKey = StsLabHost.actKey(act);
+        if (dungeonKey == null) {
+            return UiOpResult.unavailable("unsupported act: " + act);
+        }
+        state =
+                LabStateSnapshot.builder()
+                        .mode(state.mode)
+                        .inGame(state.inGame)
+                        .selectedCharacter(state.selectedCharacter)
+                        .roomPhase(state.roomPhase)
+                        .menuScreen(state.menuScreen)
+                        .actId(dungeonKey)
+                        .scene(sceneSimpleName(dungeonKey))
+                        .build();
+        return UiOpResult.ok("entered act " + act + " " + dungeonKey);
+    }
+
+    /** Native scene simple name for a dungeon key. */
+    static String sceneSimpleName(String dungeonKey) {
+        return dungeonKey + "Scene";
+    }
+
+    @Override
     public void yieldFrame() {
         // Instant state transitions in tests — no wait.
     }

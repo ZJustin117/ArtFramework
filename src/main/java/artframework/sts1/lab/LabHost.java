@@ -43,6 +43,12 @@ public interface LabHost {
     UiOpResult enterSelect(String selectKind);
 
     /**
+     * Jump the live run to a supported non-Exordium act (2 = TheCity, 3 = TheBeyond,
+     * 4 = TheEnding) through the native dungeon-construction path. ACT-1 stays out of scope.
+     */
+    UiOpResult enterAct(int act);
+
+    /**
      * Yield so scheduled GL/input work can apply before the next recipe tick.
      * Fake hosts no-op; STS host sleeps briefly.
      */

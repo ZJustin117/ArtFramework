@@ -396,6 +396,25 @@ public class ArtCommand extends ConsoleCommand {
         }
     }
 
+    /**
+     * Parses the {@code art lab enter-act <n>} argument. Pure and headless: trims surrounding
+     * whitespace, returns the parsed act, or {@code null} for null/empty/non-numeric input.
+     */
+    static Integer parseLabAct(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(Integer.parseInt(trimmed));
+        } catch (NumberFormatException error) {
+            return null;
+        }
+    }
+
     private void cmdClaim(String[] tokens, int depth) {
         String[] args = new String[Math.max(0, tokens.length - depth)];
         for (int i = 0; i < args.length; i++) args[i] = tokens[depth + i];
@@ -1018,6 +1037,7 @@ public class ArtCommand extends ConsoleCommand {
                     "Usage: art lab dump|clear-saves|strip-resume|open-char-select|char <id>|embark|"
                             + "seed [text]|menu-click <R>|abandon|abandon-confirm|return-menu|proceed|"
                             + "enter-event [id]|enter-room <rest|shop|treasure>|enter-select <grid|hand>|"
+                            + "enter-act <2|3|4>|"
                             + "ensure-menu|ensure-fresh-menu|"
                             + "start-run [char] [seed=…]|entity-attach|"
                             + "entity-detach|host-recreate|reset|tick");
@@ -1091,6 +1111,14 @@ public class ArtCommand extends ConsoleCommand {
                 return;
             }
             r = StsLabNav.enterSelect(tokens[depth + 1]);
+        } else if ("enter-act".equals(action) || "enter_act".equals(action)) {
+            Integer act =
+                    tokens.length > depth + 1 ? parseLabAct(tokens[depth + 1]) : null;
+            if (act == null) {
+                DevConsole.log("Usage: art lab enter-act <2|3|4>");
+                return;
+            }
+            r = StsLabNav.enterAct(act.intValue());
         } else if ("ensure-menu".equals(action) || "ensure_menu".equals(action)) {
             // Async: advanced each postUpdate so hitbox clicks can apply.
             r = StsLabNav.armEnsureMenu();

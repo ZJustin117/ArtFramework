@@ -279,6 +279,7 @@ Log prefix **`ART_LAB`**.
 | `art lab enter-event [id]` | Enter a supported vanilla event through native map navigation |
 | `art lab enter-room <rest|shop|treasure>` | Enter a reachable native room through map navigation |
 | `art lab enter-select <grid|hand>` | Open a native selection screen over real run cards |
+| `art lab enter-act <2\|3\|4>` | Jump the run to a supported non-Exordium act (`TheCity`/`TheBeyond`/`TheEnding`) via native `getDungeon`; probe `lab.actId`/`lab.scene` |
 | `art lab tick` | One debug step toward run |
 | `art lab entity-attach` / `entity-detach` | Attach or detach the fixed EntityPresent D1 verification slot |
 | `art lab host-recreate` | Recreate Skeleton and RenderHost caches from current ECS state |

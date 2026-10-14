@@ -1986,8 +1986,9 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       full-screen quad count for every patched scene (act-agnostic). HONEST SCOPE: this records patch
       TARGET coverage, NOT device verification. D1 device evidence is act-1/Bottom ONLY via
       `d1_verify_background_only.yaml` (now asserting the `patchedScenes` key exists and contains
-      `TheBottomScene`); City/Beyond/Ending are patched but NOT device-verified because there is no
-      lab act-jump — an open gap, not a claim. No per-act "verified" flag was faked.
+      `TheBottomScene`); City/Beyond/Ending are patched but NOT device-verified — the lab act-jump
+      now exists (L01, see below), but no device run has been performed, so an open gap, not a
+      claim. No per-act "verified" flag was faked.
 
 - [x] NRO-04 E06 (ACT-1 `bottom` background variant, Green): new selectable
       `BackgroundRenderGate.Variant.BOTTOM` (`parse("bottom")`) draws the real native
@@ -2047,8 +2048,9 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       accepted; native retained while the family is unfiltered); the FULL `d1_verify_background.yaml`
       passed 79/79 TWICE (the ACT-1 `bottom` block still proves the real multi-layer draw-delta +
       filtered/retained gating). The ACT-2 `city` real-layer draw + filtered close-diff remain
-      DEVICE-PENDING until a lab act-jump exists (open item below); real-layer evidence is the unit
-      suite `BackgroundCityVariantTest` (14 tests).
+      DEVICE-PENDING: the lab act-jump that unblocks them now exists (L01, below) and the `city`
+      block is armed with it, but no device run has been performed yet. Real-layer evidence for now is
+      the unit suite `BackgroundCityVariantTest` (14 tests).
 
 - [ ] **Open E07b (ACT-2 remainder, deferred, do NOT draw yet):** `renderCombatRoomFg`
       (`fg`/`fgGlow`/`fg2`), the fireflies, and the non-combat `renderCampfireRoom`/
@@ -2057,6 +2059,40 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
 - [ ] **Open E07/E08/E09 (City / Beyond / Ending real backgrounds):** E07 (`city`, ACT-2) is now
       SHIPPED (see the E07 entry above); **E08/E09 (Beyond / Ending)** remain synthetic-only. Each is
       an analogous animated multi-layer reconstruction; no ART per-act pixels exist yet for them.
+
+- [x] **L01: lab act-jump (`art lab enter-act <2|3|4>`).** The lab can now move the live run to a
+      supported non-Exordium act through the native dungeon-construction path
+      (`CardCrawlGame.getDungeon(key, player)`), so ACT-2+ backgrounds are reachable on device.
+      `LabHost.enterAct(int)` / `StsLabHost.enterAct` / `StsLabNav.enterAct` / `FakeLabHost.enterAct`
+      (records `act:<n>`) are the SPI; `StsLabHost.actKey` is the single 2→`TheCity`,
+      3→`TheBeyond`, 4→`TheEnding` authority and ACT-1 stays out of scope (`unsupported act: <n>
+      (supported acts: 2, 3, 4)`), with the run-ready guard (`run not ready`) and
+      `card crawl game unavailable`. `LabStateSnapshot` gains `actId`/`scene`, populated by
+      `StsLabState.dumpLive` from native `AbstractDungeon.id` and `scene` (simple name) and exposed
+      as the probe keys `lab.actId`/`lab.scene`; `ArtCommand.parseLabAct` + the `enter-act` dispatch
+      wire the console form. Because `getDungeon` commits global run state while the live
+      presentation still holds the previous act's overlay, `enterAct` then mirrors the native reset
+      steps (each reflectively guarded and non-throwing): `dungeonMapScreen.closeInstantly()` (native
+      `nextRoomTransition`; otherwise a map open at jump time keeps painting over the new act),
+      `rs = RenderScene.NORMAL` (native sets it on reset, and on room transition for a
+      non-campfire/non-event room; `AbstractDungeon.render` only
+      dispatches `scene.renderCombatRoomBg` under NORMAL, so an EVENT/CAMPFIRE jump would draw no
+      layers), a fresh `currMapNode = new MapRoomNode(0, -1)` holding a fresh `EmptyRoom` (exactly
+      what only `TheCity` resets natively; acts 3/4 would otherwise keep rendering the old
+      `MonsterRoom`), and the `CurrentScreen.NONE` / `previousScreen=null` / `nextRoom=null` /
+      `isScreenUp=false` screen reset. The normalization reports which steps it applied: when all
+      load-bearing steps (current node, `rs`, `closeInstantly`) applied the result is `ok` and names
+      them, but a skipped load-bearing step returns `unavailable` naming the skipped step(s), so a
+      half-applied jump (which cannot render the new act's ART layers) never reports plain success;
+      a skipped screen-reset step is reported in the message without flipping a rendering-coherent
+      jump to `unavailable`. A failing `getDungeon.invoke` unwraps the reflective wrapper in
+      `enterAct`'s catch so the message names the true cause class + message instead of a bare
+      `InvocationTargetException` (the shared `unavailable(Throwable)` helper is unchanged). Tests
+      are FROZEN for this cycle; focused runs `artframework.sts1.lab.*` + `artframework.console.*`
+      137/0 and `artframework.sts1.patch.*` + `artframework.sts1.render.Background*` 119/0.
+      `d1_verify_background.yaml` now arms the previously act-agnostic `city` block with
+      `art lab enter-act 2` + `lab.actId`/`lab.scene` waits and the real-layer `artDrawCount` delta +
+      filtered close-diff. **D1 PENDING** (no device run was performed in this slice).
 
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
@@ -4614,14 +4650,17 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       The `BackgroundRenderGate` synthetic variants remain the background-only diagnostic; do not
       confuse them with real act pixels.
 
-- [ ] **Open (E07-device): lab act-jump capability — required to D1-verify ACT-2+ background layers.**
-      VERIFIED gap: `TheCityScene.renderCityBackground` (and any act-2+ draw) gates on
-      `instanceof TheCityScene`, so it records no counter outside ACT-2, and the lab has NO act-jump
-      (`art lab` = ensure-fresh-menu/start-run/proceed/enter-*/seed/status/dump/host-recreate/
-      entity-*/enter-room only). Every device run is therefore ACT-1 (`TheBottomScene`), so the `city`
-      (E07) real-layer draw and its filtered compare CANNOT be exercised on device — the E07 device
-      block now asserts only the act-agnostic parts (mode accepted + native retained while unfiltered)
-      and the real-layer evidence is the unit suite `BackgroundCityVariantTest`. E08 (Beyond) / E09
-      (Ending) will have the SAME problem. Bounded follow-up: add an `art lab` act-jump (or an
-      `art verify mode background <act>` that force-loads the act scene) so ACT-2/3/4 backgrounds can
-      get real D1 evidence; then restore the full `city` device block (draw delta + filtered close-diff).
+- [ ] **Open (E07-device): lab act-jump capability — CLOSED by L01; ACT-2 device verification pending.**
+      The gap recorded here (no lab act-jump, so every device run was ACT-1/`TheBottomScene` and the
+      `city` E07 real-layer draw + filtered compare could not be exercised) is now addressed: the
+      lab act-jump exists as `art lab enter-act <2|3|4>` (see the L01 entry above), with the probe
+      fields `lab.actId`/`lab.scene` naming the current dungeon/scene after the jump.
+      `d1_verify_background.yaml`'s `city` block is consequently ARMED with the act jump plus the
+      real `artDrawCount` delta over the `off` baseline and the filtered close-diff, instead of the
+      previous act-agnostic-only assertions. ACT-2 `city` device verification is now POSSIBLE; the
+      block previously described here is no longer blocked by tooling. **D1 PENDING** — no device run
+      was performed for L01, so this remains an unverified device claim until
+      `scripts/art-lab … combat verify-full`/the scenario is actually run. E08 (Beyond) / E09
+      (Ending) are likewise UNBLOCKED by the same act-jump (`art lab enter-act 3` / `enter-act 4`)
+      once their variants exist; today they are still synthetic-only (see the E07/E08/E09 open item
+      above).

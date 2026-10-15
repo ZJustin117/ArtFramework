@@ -510,7 +510,7 @@ public class ArtCommand extends ConsoleCommand {
                     variant = parseBackgroundVariant(tokens[depth + 2]);
                     if (variant == null) {
                         logVfx("ART_VERIFY error=usage: art verify mode background"
-                                + " [off|solid|checker|grid|bottom|city]");
+                                + " [off|solid|checker|grid|bottom|city|beyond]");
                         return;
                     }
                 }

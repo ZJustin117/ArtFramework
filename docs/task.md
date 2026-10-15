@@ -2056,9 +2056,9 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       (`fg`/`fgGlow`/`fg2`), the fireflies, and the non-combat `renderCampfireRoom`/
       `renderEventRoom` branches. The `city` variant currently supplies the combat `bg` suite only.
 
-- [ ] **Open E07/E08/E09 (City / Beyond / Ending real backgrounds):** E07 (`city`, ACT-2) is now
-      SHIPPED (see the E07 entry above); **E08/E09 (Beyond / Ending)** remain synthetic-only. Each is
-      an analogous animated multi-layer reconstruction; no ART per-act pixels exist yet for them.
+- [ ] **Open (E09 only, ACT-4 Ending real background):** E07 (`city`, ACT-2) and E08 (`beyond`, ACT-3)
+      are SHIPPED (see their entries); **E09 (Ending, ACT-4 TheEndingScene)** remains synthetic-only.
+      It is an analogous animated multi-layer reconstruction; no ART per-act pixels exist for it yet.
 
 - [x] **L01: lab act-jump (`art lab enter-act <2|3|4>`).** The lab can now move the live run to a
       supported non-Exordium act through the native dungeon-construction path
@@ -4664,3 +4664,26 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       (Ending) are likewise UNBLOCKED by the same act-jump (`art lab enter-act 3` / `enter-act 4`)
       once their variants exist; today they are still synthetic-only (see the E07/E08/E09 open item
       above).
+
+- [x] **E08: supply ACT-3 (TheBeyond) combat background LAYERS as real native atlas regions.** New
+      `BackgroundRenderGate.Variant.BEYOND` (`parse("beyond")`) draws the native
+      `TheBeyondScene.renderCombatRoomBg` layer set from the SAME pre-native Prefix
+      (`BackgroundRenderPatches.ObserveNativeBeyondBackground` already passed `__instance`). The plan is
+      the native FOUR-segment structure: **pass 1 (NORMAL)** `floor,ceiling,bg1,bg2,mg2,mg1,mg3,mg4`,
+      the `columnConfig` column subset (`OPEN`∅/`SMALL_ONLY` c1,c4/`SMALL_PLUS_LEFT` c1,c2,c4/
+      `SMALL_PLUS_RIGHT` c1,c3,c4), then `s1..s5`; **pass 2 (ADDITIVE `770,1`)** the same set minus
+      floor/ceiling; **pass 3** `i1..i5` at forced `overlayColor.a=1.0`; **pass 4** the 5 ANIMATED
+      `f1..f5` layers via the 5-arg `renderAtlasRegionIf(x,y,angle,region,cond)` overload with per-frame
+      `cosDeg` offsets/rotations and the `tmpColor=(1+overlayColor.rgb)/2` tint (the ANIMATED path uses
+      a SINGLE `Settings.scale`, not the three-branch rule — a real divergence the review caught and the
+      tests now pin). Flags (`renderAltBg`,`renderM1..4`,`renderS1..5`,`renderI1..5`,`renderF1..5`) +
+      `columnConfig` + `overlayColor`/`tmpColor` are read reflectively off the live scene; regions from
+      the scene's own `beyondScene/scene.atlas`. The engine was GENERALIZED (animated `SceneLayerSpec` +
+      `drawAnimatedSceneLayer` alongside the unchanged plain `drawSceneLayer`; the two passes modeled
+      explicitly) while keeping `bottom`/`city` BYTE-IDENTICAL (`BackgroundBottomVariantTest` +
+      `BackgroundCityVariantTest` green). All-or-nothing base gate (`floor`+`ceiling`+`bg1`).
+      Tests: `BackgroundBeyondVariantTest` (16). Scenario `d1_verify_background.yaml` (+78; `beyond`/
+      ACT-3 block using `art lab enter-act 3`). Focused: 1147/0. **D1 PENDING.**
+- [ ] **Open (E08b): TheBeyond remainder (deferred, do NOT draw yet).** `renderCombatRoomFg`
+      (`fg` = `mod/fg`) and the campfire/event branches are not supplied; the `beyond` variant supplies
+      the combat `Bg` layers (incl. the animated `f`-layers) only.

@@ -42,7 +42,9 @@ public final class BackgroundRenderGate {
         /** Real ACT-1 {@code TheBottomScene} combat background layers (native atlas regions). */
         BOTTOM,
         /** Real ACT-2 {@code TheCityScene} combat background layers (native atlas regions). */
-        CITY;
+        CITY,
+        /** Real ACT-3 {@code TheBeyondScene} combat background layers (native atlas regions). */
+        BEYOND;
 
         public static Variant parse(String value) {
             String normalized = value == null ? "" : value.trim().toLowerCase();
@@ -52,6 +54,7 @@ public final class BackgroundRenderGate {
             if ("grid".equals(normalized)) return GRID;
             if ("bottom".equals(normalized)) return BOTTOM;
             if ("city".equals(normalized)) return CITY;
+            if ("beyond".equals(normalized)) return BEYOND;
             return null;
         }
     }
@@ -119,19 +122,110 @@ public final class BackgroundRenderGate {
     }
 
     /**
+     * The native ACT-3 {@code TheBeyondScene.renderCombatRoomBg} {@code columnConfig} switch. The
+     * constant names match the native enum exactly; {@code parse} is tolerant of case.
+     */
+    public enum ColumnConfig {
+        OPEN,
+        SMALL_ONLY,
+        SMALL_PLUS_LEFT,
+        SMALL_PLUS_RIGHT;
+
+        /** Parses a native enum constant name (case/space tolerant); unknown ⇒ {@code null}. */
+        public static ColumnConfig parse(String value) {
+            String normalized = value == null ? "" : value.trim().toUpperCase();
+            if ("OPEN".equals(normalized)) return OPEN;
+            if ("SMALL_ONLY".equals(normalized)) return SMALL_ONLY;
+            if ("SMALL_PLUS_LEFT".equals(normalized)) return SMALL_PLUS_LEFT;
+            if ("SMALL_PLUS_RIGHT".equals(normalized)) return SMALL_PLUS_RIGHT;
+            return null;
+        }
+    }
+
+    /**
+     * The native ACT-3 {@code TheBeyondScene.renderCombatRoomBg} layer regions, one entry per native
+     * atlas field. {@link #regionName()} is the {@code beyondScene/scene.atlas} region name the
+     * native scene resolves.
+     */
+    public enum BeyondLayer {
+        FLOOR("mod/floor"),
+        CEILING("mod/ceiling"),
+        BG1("mod/bg1"),
+        BG2("mod/bg2"),
+        MG1("mod/mod1"),
+        MG2("mod/mod2"),
+        MG3("mod/mod3"),
+        MG4("mod/mod4"),
+        C1("mod/c1"),
+        C2("mod/c2"),
+        C3("mod/c3"),
+        C4("mod/c4"),
+        S1("mod/s1"),
+        S2("mod/s2"),
+        S3("mod/s3"),
+        S4("mod/s4"),
+        S5("mod/s5"),
+        I1("mod/i1"),
+        I2("mod/i2"),
+        I3("mod/i3"),
+        I4("mod/i4"),
+        I5("mod/i5"),
+        F1("mod/f1"),
+        F2("mod/f2"),
+        F3("mod/f3"),
+        F4("mod/f4"),
+        F5("mod/f5");
+
+        private final String regionName;
+
+        BeyondLayer(String regionName) {
+            this.regionName = regionName;
+        }
+
+        /** The native {@code beyondScene/scene.atlas} region name for this layer. */
+        public String regionName() {
+            return regionName;
+        }
+    }
+
+    /**
      * One native {@code renderAtlasRegionIf} submission: the atlas region name, the active tint at
      * that call, and whether the additive {@code blend(770,1)} state is active. Tints are copied so
      * caller mutation cannot alias the plan.
+     *
+     * <p>{@code animated} selects the rotating {@code renderAtlasRegionIf} overload (packed-centre
+     * origin, {@code layer.angle} rotation) and the plan-local {@code offsetX}/{@code offsetY} are
+     * added to the region's placement (in scene units, scaled like the region offset). The plain
+     * 3-arg constructor is the non-animated form used by the ACT-1/ACT-2 plans and leaves offsets at
+     * {@code 0} with {@code angle == 0}.
      */
     public static final class SceneLayerSpec {
         public final String regionName;
         public final Color tint;
         public final SceneBlend blend;
+        public final boolean animated;
+        public final float offsetX;
+        public final float offsetY;
+        public final float angle;
 
         public SceneLayerSpec(String regionName, Color tint, SceneBlend blend) {
+            this(regionName, tint, blend, 0f, 0f, 0f, false);
+        }
+
+        public SceneLayerSpec(String regionName, Color tint, SceneBlend blend, float offsetX,
+                float offsetY, float angle) {
+            this(regionName, tint, blend, offsetX, offsetY, angle, true);
+        }
+
+        private SceneLayerSpec(String regionName, Color tint, SceneBlend blend, float offsetX,
+                float offsetY, float angle, boolean animated) {
             this.regionName = regionName;
             this.tint = tint == null ? null : new Color(tint);
             this.blend = blend;
+            this.animated = animated;
+            this.offsetX = offsetX;
+            this.offsetY = offsetY;
+            this.angle = angle;
         }
     }
 
@@ -238,6 +332,112 @@ public final class BackgroundRenderGate {
     }
 
     /**
+     * The dynamic ACT-3 {@code TheBeyondScene} background state the native scene reads each frame.
+     * The twenty booleans (alt background, the {@code mg1..4} modules, the {@code i1..5} lanterns,
+     * the {@code s1..5} stalactites, the {@code f1..5} flames), the {@code columnConfig} switch, and
+     * the two native {@code Color} fields mirror the private scene members. {@link #failOpen()}
+     * carries no optional layer state and WHITE tints, and is flagged so {@link #beyondLayerPlan}
+     * emits exactly the always-present {@code floor}/{@code ceiling}/{@code bg1} base plan.
+     */
+    public static final class BeyondFlags {
+        public final boolean renderAltBg;
+        public final boolean renderM1;
+        public final boolean renderM2;
+        public final boolean renderM3;
+        public final boolean renderM4;
+        public final boolean renderI1;
+        public final boolean renderI2;
+        public final boolean renderI3;
+        public final boolean renderI4;
+        public final boolean renderI5;
+        public final boolean renderS1;
+        public final boolean renderS2;
+        public final boolean renderS3;
+        public final boolean renderS4;
+        public final boolean renderS5;
+        public final boolean renderF1;
+        public final boolean renderF2;
+        public final boolean renderF3;
+        public final boolean renderF4;
+        public final boolean renderF5;
+        public final ColumnConfig columnConfig;
+        public final Color overlayColor;
+        public final Color tmpColor;
+        private final boolean failOpen;
+
+        private BeyondFlags(boolean renderAltBg,
+                boolean renderM1, boolean renderM2, boolean renderM3, boolean renderM4,
+                boolean renderI1, boolean renderI2, boolean renderI3, boolean renderI4,
+                boolean renderI5,
+                boolean renderS1, boolean renderS2, boolean renderS3, boolean renderS4,
+                boolean renderS5,
+                boolean renderF1, boolean renderF2, boolean renderF3, boolean renderF4,
+                boolean renderF5,
+                ColumnConfig columnConfig, Color overlayColor, Color tmpColor, boolean failOpen) {
+            this.renderAltBg = renderAltBg;
+            this.renderM1 = renderM1;
+            this.renderM2 = renderM2;
+            this.renderM3 = renderM3;
+            this.renderM4 = renderM4;
+            this.renderI1 = renderI1;
+            this.renderI2 = renderI2;
+            this.renderI3 = renderI3;
+            this.renderI4 = renderI4;
+            this.renderI5 = renderI5;
+            this.renderS1 = renderS1;
+            this.renderS2 = renderS2;
+            this.renderS3 = renderS3;
+            this.renderS4 = renderS4;
+            this.renderS5 = renderS5;
+            this.renderF1 = renderF1;
+            this.renderF2 = renderF2;
+            this.renderF3 = renderF3;
+            this.renderF4 = renderF4;
+            this.renderF5 = renderF5;
+            this.columnConfig = columnConfig;
+            this.overlayColor = overlayColor == null ? null : new Color(overlayColor);
+            this.tmpColor = tmpColor == null ? null : new Color(tmpColor);
+            this.failOpen = failOpen;
+        }
+
+        /**
+         * Builds the flags from the twenty native booleans, the {@code columnConfig} switch, and the
+         * two native colors. A null column config is treated as {@link ColumnConfig#OPEN}.
+         */
+        public static BeyondFlags of(boolean renderAltBg,
+                boolean renderM1, boolean renderM2, boolean renderM3, boolean renderM4,
+                boolean renderI1, boolean renderI2, boolean renderI3, boolean renderI4,
+                boolean renderI5,
+                boolean renderS1, boolean renderS2, boolean renderS3, boolean renderS4,
+                boolean renderS5,
+                boolean renderF1, boolean renderF2, boolean renderF3, boolean renderF4,
+                boolean renderF5,
+                ColumnConfig columnConfig, Color overlayColor, Color tmpColor) {
+            return new BeyondFlags(renderAltBg,
+                    renderM1, renderM2, renderM3, renderM4,
+                    renderI1, renderI2, renderI3, renderI4, renderI5,
+                    renderS1, renderS2, renderS3, renderS4, renderS5,
+                    renderF1, renderF2, renderF3, renderF4, renderF5,
+                    columnConfig == null ? ColumnConfig.OPEN : columnConfig,
+                    overlayColor, tmpColor, false);
+        }
+
+        /**
+         * All-false flags: the base layers only ({@code floor}/{@code ceiling}/{@code bg1}),
+         * {@code columnConfig} {@code OPEN}, and WHITE tints. Flagged so the plan is exactly the
+         * three base layers.
+         */
+        public static BeyondFlags failOpen() {
+            return new BeyondFlags(false,
+                    false, false, false, false,
+                    false, false, false, false, false,
+                    false, false, false, false, false,
+                    false, false, false, false, false,
+                    ColumnConfig.OPEN, Color.WHITE, Color.WHITE, true);
+        }
+    }
+
+    /**
      * The dynamic ACT-1 wall/ceiling selection the native scene reads each frame. {@code ceilingMods}
      * is indexed 1..6 (index 0 unused) so {@code ceilingMod(3)} is the native
      * {@code renderCeilingMod3}.
@@ -326,6 +526,8 @@ public final class BackgroundRenderGate {
         if (configured == Variant.BOTTOM) return false;
         // The real ACT-2 background is likewise layer-based and scene-scoped.
         if (configured == Variant.CITY) return false;
+        // The real ACT-3 background is likewise layer-based and scene-scoped.
+        if (configured == Variant.BEYOND) return false;
         if (artframework.sts1.PresentSafety.isPanic()) return false;
         Texture texture = com.megacrit.cardcrawl.helpers.ImageMaster.WHITE_SQUARE_IMG;
         if (texture == null) return false;
@@ -369,6 +571,9 @@ public final class BackgroundRenderGate {
         }
         if (configured == Variant.CITY) {
             return renderCityBackground(sb, sceneInstance);
+        }
+        if (configured == Variant.BEYOND) {
+            return renderBeyondBackground(sb, sceneInstance);
         }
         return renderSelectedVariant(sb);
     }
@@ -803,6 +1008,247 @@ public final class BackgroundRenderGate {
         return painted;
     }
 
+    /**
+     * The native ACT-3 {@code TheBeyondScene.renderCombatRoomBg} layer plan in exact call order, one
+     * {@link SceneLayerSpec} per {@code renderAtlasRegionIf} with the active tint, additive/normal
+     * blend state, and (for the {@code f} flames) the rotating-overload transform. Pure — no draw,
+     * no state; {@code nowMillis} is the frame clock the native {@code System.currentTimeMillis()}
+     * read produces.
+     *
+     * <p>The native sequence is a two-pass draw: an overlay pass ({@code floor}, {@code ceiling},
+     * {@code bg1}, the alt {@code bg2}, the {@code mg2}/{@code mg1}/{@code mg3}/{@code mg4} stack,
+     * the {@code columnConfig} columns, then {@code s1..s5}) with {@code overlayColor.a} forced to
+     * {@code 1.0}; an ADDITIVE repeat of that set except {@code floor}/{@code ceiling} with the
+     * original {@code overlayColor} alpha; the {@code i1..i5} lantern pass back at the forced
+     * {@code 1.0}; and the rotating {@code f1..f5} flames tinted from {@code tmpColor} blended with
+     * {@code overlayColor}. A null flags value is treated as {@link BeyondFlags#failOpen()}; a
+     * fail-open flags value yields exactly the always-present
+     * {@code floor}/{@code ceiling}/{@code bg1} base plan.
+     */
+    public static List<SceneLayerSpec> beyondLayerPlan(BeyondFlags flags, long nowMillis) {
+        BeyondFlags f = flags != null ? flags : BeyondFlags.failOpen();
+        if (f.failOpen) {
+            return beyondBasePlan(f);
+        }
+        Color overlay = colorOrWhite(f.overlayColor);
+        Color tmp = colorOrWhite(f.tmpColor);
+        // The overlay pass forces a == 1.0; the additive pass reads the ORIGINAL alpha.
+        Color overlayOpaque = new Color(overlay);
+        overlayOpaque.a = 1f;
+        Color flame = new Color(tmp);
+        flame.r = (1f + overlay.r) / 2f;
+        flame.g = (1f + overlay.g) / 2f;
+        flame.b = (1f + overlay.b) / 2f;
+
+        List<SceneLayerSpec> plan = new ArrayList<SceneLayerSpec>(40);
+        plan.add(spec(BeyondLayer.FLOOR, overlayOpaque, SceneBlend.NORMAL));
+        plan.add(spec(BeyondLayer.CEILING, overlayOpaque, SceneBlend.NORMAL));
+        addBeyondWallPass(plan, f, overlayOpaque, SceneBlend.NORMAL);
+        addBeyondWallPass(plan, f, overlay, SceneBlend.ADDITIVE);
+        // The i pass runs at the restored forced-1.0 overlay alpha.
+        addBeyondLayer(plan, f.renderI1, BeyondLayer.I1, overlayOpaque, SceneBlend.NORMAL);
+        addBeyondLayer(plan, f.renderI2, BeyondLayer.I2, overlayOpaque, SceneBlend.NORMAL);
+        addBeyondLayer(plan, f.renderI3, BeyondLayer.I3, overlayOpaque, SceneBlend.NORMAL);
+        addBeyondLayer(plan, f.renderI4, BeyondLayer.I4, overlayOpaque, SceneBlend.NORMAL);
+        addBeyondLayer(plan, f.renderI5, BeyondLayer.I5, overlayOpaque, SceneBlend.NORMAL);
+        // The rotating f flames use the tmpColor/overlayColor blend and the per-frame transforms.
+        float scale = com.megacrit.cardcrawl.core.Settings.scale;
+        float xScale = com.megacrit.cardcrawl.core.Settings.xScale;
+        if (f.renderF1) {
+            float angle = com.badlogic.gdx.math.MathUtils.cosDeg((nowMillis + 180L) / 180L % 360L);
+            plan.add(new SceneLayerSpec(BeyondLayer.F1.regionName(), flame, SceneBlend.NORMAL,
+                    angle * 40f * xScale,
+                    com.badlogic.gdx.math.MathUtils.cosDeg((nowMillis + 500L) / 72L % 360L)
+                            * 20f * scale,
+                    angle));
+        }
+        if (f.renderF2) {
+            plan.add(new SceneLayerSpec(BeyondLayer.F2.regionName(), flame, SceneBlend.NORMAL,
+                    com.badlogic.gdx.math.MathUtils.cosDeg((nowMillis + 91723L) / 72L % 360L) * 20f,
+                    0f,
+                    (float) (nowMillis / 120L % 360L)));
+        }
+        if (f.renderF3) {
+            plan.add(new SceneLayerSpec(BeyondLayer.F3.regionName(), flame, SceneBlend.NORMAL,
+                    -80f * scale,
+                    com.badlogic.gdx.math.MathUtils.cosDeg((float) (nowMillis + 73L)) * 10f
+                            - 90f * scale,
+                    (float) (nowMillis / 1000L % 360L) * 2f));
+        }
+        if (f.renderF4) {
+            plan.add(new SceneLayerSpec(BeyondLayer.F4.regionName(), flame, SceneBlend.NORMAL,
+                    0f,
+                    com.badlogic.gdx.math.MathUtils.cosDeg((nowMillis + 4442L) / 20L % 360L)
+                            * 30f * scale,
+                    com.badlogic.gdx.math.MathUtils.cosDeg((nowMillis + 4442L) / 10L % 360L)
+                            * 20f));
+        }
+        if (f.renderF5) {
+            plan.add(new SceneLayerSpec(BeyondLayer.F5.regionName(), flame, SceneBlend.NORMAL,
+                    0f,
+                    com.badlogic.gdx.math.MathUtils.cosDeg(nowMillis / 48L % 360L) * 20f,
+                    0f));
+        }
+        return plan;
+    }
+
+    /** The fail-open base plan: exactly {@code floor}, {@code ceiling}, {@code bg1}, all NORMAL. */
+    private static List<SceneLayerSpec> beyondBasePlan(BeyondFlags f) {
+        Color overlay = colorOrWhite(f.overlayColor);
+        List<SceneLayerSpec> plan = new ArrayList<SceneLayerSpec>(3);
+        plan.add(spec(BeyondLayer.FLOOR, overlay, SceneBlend.NORMAL));
+        plan.add(spec(BeyondLayer.CEILING, overlay, SceneBlend.NORMAL));
+        plan.add(spec(BeyondLayer.BG1, overlay, SceneBlend.NORMAL));
+        return plan;
+    }
+
+    /**
+     * The shared two-pass wall/module/column/sprite stack: {@code bg1}, the flagged alt {@code bg2},
+     * the {@code mg2}/{@code mg1}/{@code mg3}/{@code mg4} order, the {@code columnConfig} columns,
+     * then {@code s1..s5}. Emitted once per pass with the pass tint and blend.
+     */
+    private static void addBeyondWallPass(List<SceneLayerSpec> plan, BeyondFlags f, Color tint,
+            SceneBlend blend) {
+        plan.add(spec(BeyondLayer.BG1, tint, blend));
+        if (f.renderAltBg) plan.add(spec(BeyondLayer.BG2, tint, blend));
+        if (f.renderM2) plan.add(spec(BeyondLayer.MG2, tint, blend));
+        if (f.renderM1) plan.add(spec(BeyondLayer.MG1, tint, blend));
+        if (f.renderM3) plan.add(spec(BeyondLayer.MG3, tint, blend));
+        if (f.renderM4) plan.add(spec(BeyondLayer.MG4, tint, blend));
+        addBeyondColumns(plan, f.columnConfig, tint, blend);
+        addBeyondLayer(plan, f.renderS1, BeyondLayer.S1, tint, blend);
+        addBeyondLayer(plan, f.renderS2, BeyondLayer.S2, tint, blend);
+        addBeyondLayer(plan, f.renderS3, BeyondLayer.S3, tint, blend);
+        addBeyondLayer(plan, f.renderS4, BeyondLayer.S4, tint, blend);
+        addBeyondLayer(plan, f.renderS5, BeyondLayer.S5, tint, blend);
+    }
+
+    /** The {@code columnConfig} column subset, identical in both native passes. */
+    private static void addBeyondColumns(List<SceneLayerSpec> plan, ColumnConfig config, Color tint,
+            SceneBlend blend) {
+        ColumnConfig c = config == null ? ColumnConfig.OPEN : config;
+        switch (c) {
+            case SMALL_ONLY:
+                plan.add(spec(BeyondLayer.C1, tint, blend));
+                plan.add(spec(BeyondLayer.C4, tint, blend));
+                break;
+            case SMALL_PLUS_LEFT:
+                plan.add(spec(BeyondLayer.C1, tint, blend));
+                plan.add(spec(BeyondLayer.C2, tint, blend));
+                plan.add(spec(BeyondLayer.C4, tint, blend));
+                break;
+            case SMALL_PLUS_RIGHT:
+                plan.add(spec(BeyondLayer.C1, tint, blend));
+                plan.add(spec(BeyondLayer.C3, tint, blend));
+                plan.add(spec(BeyondLayer.C4, tint, blend));
+                break;
+            case OPEN:
+            default:
+                break;
+        }
+    }
+
+    private static void addBeyondLayer(List<SceneLayerSpec> plan, boolean enabled, BeyondLayer layer,
+            Color tint, SceneBlend blend) {
+        if (enabled) {
+            plan.add(spec(layer, tint, blend));
+        }
+    }
+
+    private static SceneLayerSpec spec(BeyondLayer layer, Color tint, SceneBlend blend) {
+        return new SceneLayerSpec(layer.regionName(), tint, blend);
+    }
+
+    /**
+     * Production ACT-3 entry: draws the live {@code TheBeyondScene} background layers read off the
+     * scene instance, with {@code now} from {@code System.currentTimeMillis()} read once. A null
+     * batch, an active panic, or any non-{@code TheBeyondScene} instance draws nothing; any
+     * reflective read failure fails open to {@link BeyondFlags#failOpen()} and the base plan.
+     */
+    public static boolean renderBeyondBackground(SpriteBatch sb, Object sceneInstance) {
+        try {
+            if (sb == null) return false;
+            if (artframework.sts1.PresentSafety.isPanic()) return false;
+            if (!(sceneInstance instanceof com.megacrit.cardcrawl.scenes.TheBeyondScene)) return false;
+            BeyondFlags flags = readBeyondFlags(sceneInstance);
+            BottomRegionSource source = new InstanceSceneRegionSource(readSceneAtlas(sceneInstance));
+            return renderBeyondBackground(sb, flags, source, System.currentTimeMillis());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Draws the planned native ACT-3 layers through the region source. Each layer applies its
+     * planned tint and switches the blend function only when the additive/normal state changes; the
+     * batch is left in the native NORMAL end state. Suppression is ALL-OR-NOTHING: {@code mod/floor},
+     * {@code mod/ceiling}, and {@code mod/bg1} must all resolve or nothing is painted and no counter
+     * is recorded. The animated {@code f} layers use the rotating overload (see
+     * {@link #drawAnimatedSceneLayer}); every other layer uses the shared plain submission. Returns
+     * {@code true} iff at least one layer was painted. Any {@code Throwable} fails open (returns
+     * {@code false}, records no counter). The previous batch color is restored.
+     */
+    public static boolean renderBeyondBackground(SpriteBatch sb, BeyondFlags flags,
+            BottomRegionSource source, long nowMillis) {
+        if (sb == null || source == null) return false;
+        Color prev;
+        try {
+            prev = sb.getColor();
+        } catch (Throwable ignored) {
+            return false;
+        }
+        int submitted = 0;
+        boolean painted;
+        try {
+            BeyondFlags f = flags != null ? flags : BeyondFlags.failOpen();
+            List<SceneLayerSpec> plan = beyondLayerPlan(f, nowMillis);
+            if (resolves(source, BeyondLayer.FLOOR.regionName())
+                    && resolves(source, BeyondLayer.CEILING.regionName())
+                    && resolves(source, BeyondLayer.BG1.regionName())) {
+                SceneBlend current = SceneBlend.NORMAL;
+                for (SceneLayerSpec layer : plan) {
+                    if (layer.blend != current) {
+                        sb.setBlendFunction(770, layer.blend == SceneBlend.ADDITIVE ? 1 : 771);
+                        current = layer.blend;
+                    }
+                    Sts1AtlasMaterializer.RegionTexture resolved = source.region(layer.regionName);
+                    if (!drawable(resolved)) {
+                        continue;
+                    }
+                    if (layer.tint != null) {
+                        sb.setColor(layer.tint);
+                    }
+                    if (layer.animated) {
+                        drawAnimatedSceneLayer(sb, resolved, layer.offsetX, layer.offsetY,
+                                layer.angle);
+                    } else {
+                        drawSceneLayer(sb, resolved);
+                    }
+                    submitted++;
+                }
+                // Native always returns the blend function to NORMAL after the additive pass.
+                if (current != SceneBlend.NORMAL) {
+                    sb.setBlendFunction(770, 771);
+                }
+                painted = submitted > 0;
+            } else {
+                painted = false;
+            }
+        } catch (Throwable ignored) {
+            painted = false;
+        } finally {
+            try {
+                sb.setColor(prev);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (painted) {
+            recordArtDraw(submitted);
+            BackgroundOnlyGate.recordBackgroundDraw();
+        }
+        return painted;
+    }
+
     private static void applyBottomTint(SpriteBatch sb, BottomLayer layer, BottomFlags flags) {
         if (layer == BottomLayer.SOLID_WALL) {
             if (flags.hollowMid && (flags.solidMid || flags.leftWall)) {
@@ -846,6 +1292,29 @@ public final class BackgroundRenderGate {
         }
         sb.draw(resolved.texture, x, y, 0f, 0f,
                 region.width, region.height, scaleX, scaleY, 0f,
+                region.x, region.y, region.width, region.height, false, false);
+    }
+
+    /**
+     * The rotating native {@code AbstractScene.renderAtlasRegionIf(sb, x, y, angle, region, cond)}
+     * submission: the same 16-arg pixel-rect overload but with origin at the packed centre
+     * {@code (region.width / 2, region.height / 2)}, {@code angle} rotation, and the plan-local
+     * {@code extraX}/{@code extraY} added to the region placement. Unlike {@link #drawSceneLayer},
+     * this native overload does not consult the four-by-three / letterbox branches: it places and
+     * scales the region with a single unconditional {@code Settings.scale}. Shared by the ACT-3
+     * flame layers; the caller is responsible for the tint and blend state.
+     */
+    private static void drawAnimatedSceneLayer(SpriteBatch sb,
+            Sts1AtlasMaterializer.RegionTexture resolved,
+            float extraX, float extraY, float angle) {
+        artframework.assets.AtlasRegion region = resolved.region;
+        float x = region.offsetX * com.megacrit.cardcrawl.core.Settings.scale;
+        float y = region.offsetY * com.megacrit.cardcrawl.core.Settings.scale;
+        float scaleX = com.megacrit.cardcrawl.core.Settings.scale;
+        float scaleY = com.megacrit.cardcrawl.core.Settings.scale;
+        sb.draw(resolved.texture, x + extraX, y + extraY,
+                region.width / 2f, region.height / 2f,
+                region.width, region.height, scaleX, scaleY, angle,
                 region.x, region.y, region.width, region.height, false, false);
     }
 
@@ -898,6 +1367,63 @@ public final class BackgroundRenderGate {
                     renderChains, renderThrone, renderFg2, darkDay, pillars, overlay, white, yellow);
         } catch (Throwable ignored) {
             return CityFlags.failOpen();
+        }
+    }
+
+    /**
+     * Reads the live ACT-3 {@code TheBeyondScene} dynamic state reflectively. Members are read
+     * individually: each boolean is read per field (a missing boolean throws and aborts the whole
+     * read), a colour read neutralises to {@link Color#WHITE}, and a {@code columnConfig} read
+     * neutralises to {@link ColumnConfig#OPEN}. Only such a whole-read failure reaches the catch and
+     * fails open to {@link BeyondFlags#failOpen()} (the base plan).
+     */
+    private static BeyondFlags readBeyondFlags(Object sceneInstance) {
+        try {
+            Class<?> scene = Class.forName("com.megacrit.cardcrawl.scenes.TheBeyondScene");
+            boolean renderAltBg = readBooleanField(scene, sceneInstance, "renderAltBg");
+            boolean renderM1 = readBooleanField(scene, sceneInstance, "renderM1");
+            boolean renderM2 = readBooleanField(scene, sceneInstance, "renderM2");
+            boolean renderM3 = readBooleanField(scene, sceneInstance, "renderM3");
+            boolean renderM4 = readBooleanField(scene, sceneInstance, "renderM4");
+            boolean renderI1 = readBooleanField(scene, sceneInstance, "renderI1");
+            boolean renderI2 = readBooleanField(scene, sceneInstance, "renderI2");
+            boolean renderI3 = readBooleanField(scene, sceneInstance, "renderI3");
+            boolean renderI4 = readBooleanField(scene, sceneInstance, "renderI4");
+            boolean renderI5 = readBooleanField(scene, sceneInstance, "renderI5");
+            boolean renderS1 = readBooleanField(scene, sceneInstance, "renderS1");
+            boolean renderS2 = readBooleanField(scene, sceneInstance, "renderS2");
+            boolean renderS3 = readBooleanField(scene, sceneInstance, "renderS3");
+            boolean renderS4 = readBooleanField(scene, sceneInstance, "renderS4");
+            boolean renderS5 = readBooleanField(scene, sceneInstance, "renderS5");
+            boolean renderF1 = readBooleanField(scene, sceneInstance, "renderF1");
+            boolean renderF2 = readBooleanField(scene, sceneInstance, "renderF2");
+            boolean renderF3 = readBooleanField(scene, sceneInstance, "renderF3");
+            boolean renderF4 = readBooleanField(scene, sceneInstance, "renderF4");
+            boolean renderF5 = readBooleanField(scene, sceneInstance, "renderF5");
+            ColumnConfig columns = readColumnConfig(scene, sceneInstance);
+            Color overlay = readColorField(scene, sceneInstance, "overlayColor");
+            Color tmp = readColorField(scene, sceneInstance, "tmpColor");
+            return BeyondFlags.of(renderAltBg,
+                    renderM1, renderM2, renderM3, renderM4,
+                    renderI1, renderI2, renderI3, renderI4, renderI5,
+                    renderS1, renderS2, renderS3, renderS4, renderS5,
+                    renderF1, renderF2, renderF3, renderF4, renderF5,
+                    columns, overlay, tmp);
+        } catch (Throwable ignored) {
+            return BeyondFlags.failOpen();
+        }
+    }
+
+    private static ColumnConfig readColumnConfig(Class<?> scene, Object sceneInstance) {
+        try {
+            Field field = scene.getDeclaredField("columnConfig");
+            field.setAccessible(true);
+            Object value = field.get(sceneInstance);
+            if (value == null) return ColumnConfig.OPEN;
+            ColumnConfig parsed = ColumnConfig.parse(((Enum<?>) value).name());
+            return parsed != null ? parsed : ColumnConfig.OPEN;
+        } catch (Throwable ignored) {
+            return ColumnConfig.OPEN;
         }
     }
 

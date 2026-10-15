@@ -329,6 +329,84 @@ steps:
   - console: "art verify native sts1.room.background off"
   - console: "art verify mode background off"
 
+  # ---- beyond (E08: real ACT-3 TheBeyondScene combat layers) ----
+  # The `beyond` variant only draws inside `TheBeyondScene` (ACT-3) — `renderBeyondBackground` gates
+  # on `instanceof TheBeyondScene` and records no counter elsewhere. Unlike `bottom`/`city`, the
+  # native ACT-3 background is a TWO-PASS draw: an overlay pass (`floor`, `ceiling`, `bg1`, the alt
+  # `bg2`, the `mg2`/`mg1`/`mg3`/`mg4` stack, the `columnConfig` columns, the `s` sprites), an
+  # ADDITIVE repeat of that same set except `floor`/`ceiling`, the `i` lantern pass at the restored
+  # forced-1.0 overlay alpha, and the rotating `f` layers blended from `tmpColor` (the `fg` overlay is
+  # deferred to E08b). Retained -> native paints over the ART layers (frame matches the off baseline,
+  # proven by an artDrawCount delta rather than absolute value); filtered -> native background
+  # skipped, the ART beyond layers reach the frame. The ACT-3 draw + filtered compare remain
+  # DEVICE-PENDING (no live device run in this slice; see docs/task.md).
+  - console: "art lab enter-act 3"
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 500
+      assert:
+        path: lab.actId
+        eq: TheBeyond
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 500
+      assert:
+        path: lab.scene
+        eq: TheBeyondScene
+  - console: "art verify mode background off"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: "off"
+  - capture:
+      path: backend.verify.background.artDrawCount
+      var: beyond_draw_baseline
+  - screenshot: true
+  - console: "art verify mode background beyond"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: beyond
+  - assert:
+      path: backend.verify.background.artOwnsBackgroundRequested
+      eq: false
+  # Real-layer evidence: artDrawCount is a CUMULATIVE counter shared by every variant, so its
+  # absolute value is meaningless here; the delta over the off baseline is what proves the beyond
+  # variant submitted its own real layers for this ACT-3 scene (the multi-layer two-pass plan rather
+  # than a single synthetic quad).
+  - assert:
+      path: backend.verify.background.artDrawCount
+      gt_var: beyond_draw_baseline
+  - screenshot: true
+  # Retained frame matches the off baseline (native background paints over the ART layers).
+  - compare_screenshot:
+      against: previous_capture
+      threshold: 24
+      max_diff_pixels: 80000
+      max_diff_ratio: 0.10
+  - console: "art verify native sts1.room.background on"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.artOwnsBackgroundRequested
+        eq: true
+  - screenshot: true
+  # The `beyond` variant faithfully reproduces the native ACT-3 background (same rationale as
+  # `bottom`/`city`): suppressing native and drawing the ART layers must leave the frame CLOSE to the
+  # retained native frame. The multi-layer submission is proven above by the artDrawCount delta.
+  - compare_screenshot:
+      against: previous_capture
+      threshold: 24
+      max_diff_pixels: 140000
+      max_diff_ratio: 0.12
+  - console: "art verify native sts1.room.background off"
+  - console: "art verify mode background off"
+
   # ---- back to off: no draw, no suppression ----
   - console: "art verify mode background off"
   - wait_probe:

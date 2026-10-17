@@ -4767,3 +4767,29 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
 - [ ] **Open (E08b): TheBeyond remainder (deferred, do NOT draw yet).** `renderCombatRoomFg`
       (`fg` = `mod/fg`) and the campfire/event branches are not supplied; the `beyond` variant supplies
       the combat `Bg` layers (incl. the animated `f`-layers) only.
+
+- [x] **F-series status audit (verified, 2026-10-17) — most remaining items are ALREADY DONE or device-bound.**
+      Checks against source (not assumption):
+      - **F15 angular velocity: COMPLETE.** Converter `angular_velocity_min|max` -> `angularVelocity`
+        (`tools/sts2-converter/sts2_converter.py:570-572`, converter test asserts `ember`/`clouds`),
+        `VfxManifestLoader:109` -> range, `ParticleSpawnSystem:43` spawn, `ParticleIntegrateSystem:56`
+        `rotation += angularVelocity*dt`, `ParticleCurveSystem:27`. No gap.
+      - **F16 flipbook runtime: COMPLETE.** `VfxFlipbookDefinition{hFrames,vFrames,loop,animationSpeed}`
+        -> frame index + loop/clamp in `ParticleRenderProjectionSystem:64-70`. No gap.
+      - **F13 production binder: PRESENT.** `Sts2TpsheetAtlasSource.fromBundle(Sts2AssetBundle,
+        PageTextureDecoder)` reads the sheet + sibling page PNG; only the PNG->GL `Texture` decoder
+        implementation is device/GL-bound (no D1 evidence yet).
+      - **F17/F18 CurveXYZTexture: real gap but UNVERIFIABLE off-device.** No `CurveXYZ` support in
+        `src/` or `tools/`; the `/home/justinz/sts2` tree is the EXPORTED game (addons/animations/
+        scenes/images), not the Pck scripts that would define the property shape, so the format cannot
+        be derived without guessing (forbidden). Needs an STS2 source/sample before implementation.
+      - **F05 sub-emitter / F06 turbulence: implemented (restricted)**; only the D1 bundle/scenario
+        evidence is missing (device-bound).
+      - **S01/S02 shader + S04–S08 Spine parity: GL/device-bound.**
+      Conclusion: the only F work left is (a) D1 bundles/parity (device), or (b) CurveXYZ once a real
+      STS2 source shape is available. No device-free F slice with a verified gap remains.
+- [ ] **Open: D1 device OFFLINE since 2026-10-17.** E09 (ACT-4 Ending) jar built + payload-verified
+      (`sha256 66e1231…4cf6cf`) but its `d1_verify_background` run (130 steps, `enter-act 4`) and the
+      ACT-4 visual A/B are PENDING; `adb connect localhost:15555` fails / `get-state` = `device offline`
+      (connector port 39999 still answers). Re-run E09 D1 + the remaining device-bound F/S slices once
+      the endpoint returns.

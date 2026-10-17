@@ -191,8 +191,10 @@ VfxResourceRef {
 Runtime resolution remains host-managed through `HostAssets`/STS1 asset adapters. Raw texture
 handles do not enter the framework-neutral public contract. Spine `.atlas` conversion continues
 to use the existing `SpineAtlas4xParser` / `Spine42AtlasMaterializer`; `.tpsheet` parsing is done by
-the pure `artframework.sts1.assets.Sts2TpsheetParser` (JSON -> host-neutral `AtlasRegion`), while
-`.tpsheet` to legacy atlas materialization (syntax emission) remains a separate, still-open step.
+the pure `artframework.sts1.assets.Sts2TpsheetParser` (JSON -> host-neutral `AtlasRegion`) and
+`.tpsheet` region resolution is unit-verified in `Sts2TpsheetAtlasSource` +
+`Sts1AtlasMaterializer.TpsheetSource`, while `.tpsheet` to legacy atlas materialization
+(syntax emission) remains a separate, still-open step.
 
 ## First `.tscn` support matrix
 
@@ -317,8 +319,9 @@ write directly into `EntityPresent`.
   intermediate frame, non-loop LAST-frame clamp, loop wrap at `age*speed == frameCount` and beyond,
   and large-dt in-range/UV-bounded) through the projection payload and the STS1 overlay integer rect
   in `ParticleRenderProjectionSystemTest`/`VfxRenderFramePayloadTest`/`Sts1VfxOverlayRendererTest`;
-  `.tpsheet` parsing now exists (`Sts2TpsheetParser`), but `.tpsheet` region materialization/consumer
-  wiring remains open.
+  `.tpsheet` parsing now exists (`Sts2TpsheetParser`) and the region-resolution consumer is
+  unit-verified (`Sts2TpsheetAtlasSource` via `Sts1AtlasMaterializer.TpsheetSource`), but `.tpsheet`
+  legacy text emission plus production/GL wiring (and D1 evidence) remain open.
 
 This follows the existing collection → projection → system family pattern. A future host-side
 ledger/registry may be added for native VFX observation and lifecycle evidence, analogous to the
@@ -348,15 +351,29 @@ authority.
 
 Add capabilities in this order:
 
-1. `.tpsheet` to legacy libGDX atlas materialization. **Partially done (parser half):** the pure
-   `artframework.sts1.assets.Sts2TpsheetParser` now reads a TexturePacker `.tpsheet` JSON sheet
-   (`textures[]` pages + `sprites[]` regions) into host-neutral `artframework.assets.AtlasRegion`
-   values with the same output contract as `LibGdxAtlasParser` (`page`, page size, packed `x/y/w/h`,
-   `originalWidth/Height = region.w/h + margin.w/h`, `offsetX/Y = margin.x/y`, `degrees = 0`),
-   fail-open on null/blank/malformed input (empty list, never throws) and guarded against missing
-   fields. Unit-verified in `Sts2TpsheetParserTest`. **Materialization/consumers remain OPEN:** there
-   is no `.tpsheet`-to-`.legacy` materializer (cf. `Spine42AtlasMaterializer`) and no `HostAssets`/
-   VFX consumer wired to it, and no D1 evidence (the parse is of a developer/user-owned asset).
+1. `.tpsheet` to legacy libGDX atlas materialization. **Partially done (parser + region-resolution
+   consumer, unit-verified):** the pure `artframework.sts1.assets.Sts2TpsheetParser` now reads a
+   TexturePacker `.tpsheet` JSON sheet (`textures[]` pages + `sprites[]` regions) into host-neutral
+   `artframework.assets.AtlasRegion` values with the same output contract as `LibGdxAtlasParser`
+   (`page`, page size, packed `x/y/w/h`, `originalWidth/Height = region.w/h + margin.w/h`,
+   `offsetX/Y = margin.x/y`, `degrees = 0`), fail-open on null/blank/malformed input (empty list,
+   never throws) and guarded against missing fields. Unit-verified in `Sts2TpsheetParserTest`.
+   The region CONSUMER now exists in `artframework.sts1.assets.Sts2TpsheetAtlasSource`, which
+   implements the `Sts1AtlasMaterializer.TpsheetSource` seam (`region(sheetKey, name)` +
+   a `clearCache()` hook, installed via `setTpsheetSource(...)`): sheet text is parsed once per sheet
+   key and failures are memoized, and `clearCache()` / `onHostRecreated()` / `setTpsheetSource(...)`
+   drop both materializer-side sheet state and invoke the source's own `clearCache()` hook. It takes
+   an injected `TpsheetProvider` (no GL, no files) and a `PageTextureDecoder` seam, with
+   `fromBundle(Sts2AssetBundle, PageTextureDecoder)` reading sheet text and sibling page bytes
+   through the bundle. PRECEDENCE: the legacy text path and the live `TextureAtlas` path are
+   unchanged; the `.tpsheet` source is consulted only when the live path yields null, so a live hit
+   never reaches it. Unit-verified (no GL) in `Sts2TpsheetAtlasSourceTest` +
+   `Sts1AtlasMaterializerTest`. **Materialization/D1 remain OPEN/PENDING:** there is no
+   `.tpsheet`-to-`.legacy` text materializer (cf. `Spine42AtlasMaterializer`), no production
+   `HostAssets`/VFX/render wiring and no `Sts2AssetBundle` binder installed at runtime, no real GL
+   page decode (`PageTextureDecoder` is an unwired seam, so the bundle-backed source has never run on
+   a device), and no D1 evidence. Rotation caveat unchanged: `degrees == 0` is reported, so a rotated
+   `.tpsheet` would be misclassified.
 2. Angular velocity and flipbook parity improvements.
 3. `CurveXYZTexture`.
 4. Sub-emitter definitions and a `ParticleSubEmitterSystem`. **Partially done (restricted F05):** a

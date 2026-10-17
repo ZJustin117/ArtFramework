@@ -2220,16 +2220,54 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       load-time user/developer asset where empty is a recoverable "no regions" result. Unit-verified
       (no GL) in `Sts2TpsheetParserTest` (untrimmed + trimmed exact fields, multi-page page/page-size,
       `dir/`-prefix preservation, case/whitespace tolerance, malformed/null/blank fail-open, missing
-      fields, reader parity, and an optional file-exists-guarded real-sample check). This is the
-      PARSER ONLY: no `.tpsheet`-to-`.legacy` materializer, no `HostAssets`/VFX consumer is wired,
-      and there is NO D1 evidence (the parse runs against a developer/user-owned asset outside the
-      repo). `.tpsheet` materialization/consumer wiring remains open; the deeper STS2 runtime gaps —
-      `.tpsheet` materialization, sub-emitter, turbulence, restricted shader/bake fallback, and
+      fields, reader parity, and an optional file-exists-guarded real-sample check). This entry covers
+      the PARSER ONLY: no `.tpsheet`-to-`.legacy` text materializer and no `HostAssets`/VFX
+      production consumer is wired, and there is NO D1 evidence (the parse runs against a
+      developer/user-owned asset outside the repo); the region-resolution consumer added by F13
+      (below) is unit-verified only and not production-wired. `.tpsheet` legacy text materialization
+      plus production/GL wiring remain open; the deeper STS2 runtime gaps — `.tpsheet`
+      production/render wiring, sub-emitter, turbulence, restricted shader/bake fallback, and
       Spine 4.2 parity — remain open per
       [`docs/design/sts2-vfx-ecs-conversion.md`](design/sts2-vfx-ecs-conversion.md).
-- [ ] Expand support incrementally: `.tpsheet` materialization/consumer wiring (the JSON parse half
-      is done — see F10), flipbook parity, sub-emitters, turbulence, restricted shaders, then baked
-      fallback.
+- [x] F13: the TexturePacker `.tpsheet` sheet is now usable as an atlas REGION SOURCE (a consumer),
+      not only as a parser. NEW `artframework.sts1.assets.Sts2TpsheetAtlasSource` implements
+      `Sts1AtlasMaterializer.TpsheetSource`, taking an injected
+      `TpsheetProvider { sheetText(sheetKey); pageTexture(sheetKey, pageName); }` (no GL, no files
+      needed in tests), a `PageTextureDecoder` seam, a
+      `fromBundle(Sts2AssetBundle, PageTextureDecoder)` factory that reads the sheet text and
+      the sibling page PNG bytes through the bundle (still no GL in the helper), and a
+      `pageEntry(sheetKey, pageName)` sibling-entry helper that rejects traversal.
+      `Sts1AtlasMaterializer` gained the
+      `TpsheetSource { RegionTexture region(String, String); default void clearCache() {} }` seam
+      plus `setTpsheetSource(...)` (null restores inert) and `probeSlice().tpsheetRegionCount`.
+      PRECEDENCE: the existing legacy text path
+      (`AtlasProvider`/`region(...)`) is untouched and the live `TextureAtlas` path runs first with
+      unchanged semantics; the `.tpsheet` source is consulted ONLY when the live path yields null, so
+      a live hit (e.g. `cardui`) never reaches the sheet source. Sheet text is parsed once per sheet
+      key (first occurrence in file order wins) and failures are memoized; `clearCache()`,
+      `onHostRecreated()` and `setTpsheetSource(...)` drop materializer-side sheet state AND invoke
+      the outgoing/installed source's `clearCache()` hook, so the same source re-reads the sheet
+      exactly once. Fail-open null everywhere, never throws: null provider, null/blank sheet key or
+      region name, absent region, missing/blank/throwing/unparseable sheet, missing/throwing page
+      texture, and any host answer failing validation (`texture != null`, `region != null`,
+      `region.valid()`) are memoized misses. Unit-verified (no GL) with
+      `./scripts/with-art-env.sh cleanTest test` filtered to
+      `--tests "artframework.sts1.assets.*" --tests "artframework.assets.*"` => BUILD SUCCESSFUL,
+      166 focused tests, 0 failures, 0 errors, 0 skipped (`Sts2TpsheetAtlasSourceTest` new,
+      `Sts1AtlasMaterializerTest` extended, `Sts2TpsheetParserTest` unchanged and green). HONEST
+      RESIDUAL (OPEN): no production wiring —
+      nothing outside tests calls `setTpsheetSource(...)`, no `HostAssets`/VFX/render path consumes
+      `.tpsheet` regions, and no `Sts2AssetBundle` binder is installed at runtime; no
+      `.tpsheet`-to-legacy-`.atlas` TEXT emission (unlike `Spine42AtlasMaterializer`) and no
+      `Sts2TpsheetParser` rewrite; `PageTextureDecoder` is an unwired seam, so a real PNG-to-`Texture`
+      decode is GL/host-owned and PENDING, and the bundle-backed source has never run on a device; no
+      D1 evidence. Rotation caveat unchanged: the parser reports `degrees == 0` (STS2 samples carry no
+      rotation field), so a rotated `.tpsheet` would be misclassified. (No F11/F12 `.tpsheet`
+      sub-items exist; the earlier parser/trim coverage is F10.)
+- [ ] Expand support incrementally: `.tpsheet` legacy text materialization, production/GL wiring, and
+      D1 evidence (the JSON parse half is done — see F10 — and the region-resolution consumer is done
+      and unit-verified — see F13), flipbook parity, sub-emitters, turbulence, restricted shaders,
+      then baked fallback.
 
 - [x] F07: a single restricted VFX material/blend SUPPORT MATRIX with explicit reject + fail-open
       fallback now exists in pure `VfxMaterialSupport`. It bounds the KNOWN STS2 blend names

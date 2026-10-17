@@ -46,7 +46,8 @@ import java.util.Set;
  *
  * <p><strong>Threading.</strong> All state is guarded by a single monitor; no background threads
  * are created. Test seams {@link #setProviderForTests(AtlasProvider)} and {@link #clearCache()}
- * must be used from the same thread as normal calls.
+ * must be used from the same thread as normal calls. An installed {@link TpsheetSource} is called
+ * while this monitor is held and must not call back into this class.
  *
  * <p><strong>Host integration point.</strong> {@link #setProvider(AtlasProvider)} is the public SPI
  * a host binds to supply atlas text and page textures; passing {@code null} restores the inert
@@ -54,6 +55,12 @@ import java.util.Set;
  * the same critical section, so a new provider never serves state borrowed from the previous one.
  * This class remains renderer-agnostic: it neither creates nor binds textures itself and carries no
  * {@code SpriteBatch} wiring; consumers map the returned descriptor to their own draw call.
+ *
+ * <p><strong>{@code .tpsheet} fallback.</strong>
+ * {@link #setTpsheetSource(TpsheetSource)} installs an optional TexturePacker JSON region source
+ * (see {@link Sts2TpsheetAtlasSource}) that {@link #regionFromAtlas(String, String)} consults
+ * <em>only</em> after the live atlas path yields no region, so a key the live source resolves never
+ * reaches it. The legacy text path {@link #region(String, String)} is unaffected.
  */
 public final class Sts1AtlasMaterializer {
 
@@ -69,6 +76,18 @@ public final class Sts1AtlasMaterializer {
     /** Host-supplied live libGDX atlas lookup (for example ImageMaster.vfxAtlas). */
     public interface LiveAtlasSource {
         com.badlogic.gdx.graphics.g2d.TextureAtlas atlas(String atlasKey);
+    }
+
+    /**
+     * Host-supplied {@code .tpsheet} (TexturePacker JSON) region lookup, for example
+     * {@link Sts2TpsheetAtlasSource}. Consulted only when the live atlas path yields no region.
+     */
+    public interface TpsheetSource {
+        /** Resolved page texture plus descriptor for a sheet key and region name, or null. */
+        RegionTexture region(String sheetKey, String regionName);
+
+        /** Drops source-owned memoized sheet state; never disposes borrowed textures. */
+        default void clearCache() {}
     }
 
     /** Page texture plus neutral region descriptor; both fields are non-null on a resolved value. */
@@ -98,6 +117,7 @@ public final class Sts1AtlasMaterializer {
 
     private static AtlasProvider provider = DEFAULT_PROVIDER;
     private static LiveAtlasSource liveSource = null;
+    private static TpsheetSource tpsheetSource = null;
 
     /** atlasKey -> parsed regions (successful parses only). */
     private static final Map<String, List<AtlasRegion>> PARSED = new LinkedHashMap<String, List<AtlasRegion>>();
@@ -115,6 +135,10 @@ public final class Sts1AtlasMaterializer {
     private static final Map<String, RegionTexture> LIVE_REGIONS = new LinkedHashMap<String, RegionTexture>();
     /** (atlasKey, regionName) pairs already asked and answered with a miss, so the source is not spammed. */
     private static final Set<String> MISSING_LIVE_REGIONS = new HashSet<String>();
+    /** (sheetKey, regionName) -> resolved tpsheet region borrow. */
+    private static final Map<String, RegionTexture> TPSHEET_REGIONS = new LinkedHashMap<String, RegionTexture>();
+    /** (sheetKey, regionName) pairs already asked and answered with a miss (or that threw). */
+    private static final Set<String> MISSING_TPSHEET_REGIONS = new HashSet<String>();
 
     private Sts1AtlasMaterializer() {}
 
@@ -149,10 +173,27 @@ public final class Sts1AtlasMaterializer {
         }
     }
 
-    /** Drops parsed-atlas, region, failed-atlas, and page-texture borrow records. */
+    /** Drops parsed-atlas, region, failed-atlas, page-texture, and {@code .tpsheet} borrow records. */
     public static void clearCache() {
         synchronized (LOCK) {
+            clearTpsheetSourceLocked();
             clearCachesLocked();
+        }
+    }
+
+    /**
+     * Caller must hold {@link #LOCK}. Calls the installed source's own clearing hook so its
+     * source-owned memo is dropped too; any failure is ignored (fail-open).
+     */
+    private static void clearTpsheetSourceLocked() {
+        TpsheetSource source = tpsheetSource;
+        if (source == null) {
+            return;
+        }
+        try {
+            source.clearCache();
+        } catch (Throwable ignored) {
+            // A misbehaving source must never break cache clearing or host recreation.
         }
     }
 
@@ -166,70 +207,122 @@ public final class Sts1AtlasMaterializer {
         FAILED_LIVE.clear();
         LIVE_REGIONS.clear();
         MISSING_LIVE_REGIONS.clear();
+        TPSHEET_REGIONS.clear();
+        MISSING_TPSHEET_REGIONS.clear();
     }
 
     /**
-     * Resolves a region from the live atlas source: {@code findRegion(name)} then
-     * {@link Sts1GdxAtlasRegions#fromGdx}. Fail-open: a null/blank argument, an absent source, a
-     * missing atlas, a missing region, an invalid region, or any provider/conversion failure
-     * returns {@code null}; this method never throws on ordinary failure paths. Textures are
-     * borrowed from the host and never disposed.
+     * Resolves a region from the live atlas source and, when that yields no region, from the
+     * installed {@code .tpsheet} source (see <strong>Precedence</strong> below). The live path is
+     * {@code findRegion(name)} then {@link Sts1GdxAtlasRegions#fromGdx}. Fail-open: a null/blank
+     * argument, or a key neither path resolves, returns {@code null}; this method never throws on
+     * ordinary failure paths. Textures are borrowed from the host and never disposed.
      *
-     * <p>An atlas key whose {@code atlas(atlasKey)} returned {@code null} or whose source threw is
-     * memoized as failed and not re-asked until {@link #clearCache()}. Resolved {@code
+     * <p>An atlas key whose live {@code atlas(atlasKey)} returned {@code null} or whose source threw
+     * is memoized as failed and not re-asked until {@link #clearCache()}. Resolved {@code
      * RegionTexture}s are cached by {@code (atlasKey, regionName)}, so repeated calls do not re-run
      * {@code findRegion}/conversion.
+     *
+     * <p><strong>Precedence.</strong> The live atlas path runs exactly as before; only when it
+     * yields no region is {@link #setTpsheetSource(TpsheetSource) the installed tpsheet source}
+     * consulted, and its result (or miss) is cached under the same key. A key the live source
+     * resolves therefore never reaches the tpsheet source.
      */
     public static RegionTexture regionFromAtlas(String atlasKey, String regionName) {
         if (isBlank(atlasKey) || isBlank(regionName)) {
             return null;
         }
         synchronized (LOCK) {
-            String cacheKey = regionKey(atlasKey, regionName);
-            if (LIVE_REGIONS.containsKey(cacheKey)) {
-                return LIVE_REGIONS.get(cacheKey);
+            RegionTexture live = regionFromLiveLocked(atlasKey, regionName);
+            if (live != null) {
+                return live;
             }
-            if (MISSING_LIVE_REGIONS.contains(cacheKey)) {
-                return null;
-            }
-            if (FAILED_LIVE.contains(atlasKey)) {
-                return null;
-            }
-            if (liveSource == null) {
-                return null;
-            }
-            TextureAtlas atlas;
-            try {
-                atlas = liveSource.atlas(atlasKey);
-            } catch (Throwable ignored) {
-                FAILED_LIVE.add(atlasKey);
-                return null;
-            }
-            if (atlas == null) {
-                // Remember the miss so the source is not re-asked for this atlas until clearCache.
-                FAILED_LIVE.add(atlasKey);
-                return null;
-            }
-            RegionTexture resolved;
-            try {
-                TextureAtlas.AtlasRegion gdx = atlas.findRegion(regionName);
-                if (gdx == null) {
-                    MISSING_LIVE_REGIONS.add(cacheKey);
-                    return null;
-                }
-                AtlasRegion region = Sts1GdxAtlasRegions.fromGdx(gdx);
-                if (region == null || !region.valid()) {
-                    MISSING_LIVE_REGIONS.add(cacheKey);
-                    return null;
-                }
-                resolved = new RegionTexture(gdx.getTexture(), region);
-            } catch (Throwable ignored) {
+            return regionFromTpsheetLocked(atlasKey, regionName);
+        }
+    }
+
+    /** Caller must hold {@link #LOCK}; the original live-atlas path, unchanged. */
+    private static RegionTexture regionFromLiveLocked(String atlasKey, String regionName) {
+        String cacheKey = regionKey(atlasKey, regionName);
+        if (LIVE_REGIONS.containsKey(cacheKey)) {
+            return LIVE_REGIONS.get(cacheKey);
+        }
+        if (MISSING_LIVE_REGIONS.contains(cacheKey)) {
+            return null;
+        }
+        if (FAILED_LIVE.contains(atlasKey)) {
+            return null;
+        }
+        if (liveSource == null) {
+            return null;
+        }
+        TextureAtlas atlas;
+        try {
+            atlas = liveSource.atlas(atlasKey);
+        } catch (Throwable ignored) {
+            FAILED_LIVE.add(atlasKey);
+            return null;
+        }
+        if (atlas == null) {
+            // Remember the miss so the source is not re-asked for this atlas until clearCache.
+            FAILED_LIVE.add(atlasKey);
+            return null;
+        }
+        RegionTexture resolved;
+        try {
+            TextureAtlas.AtlasRegion gdx = atlas.findRegion(regionName);
+            if (gdx == null) {
                 MISSING_LIVE_REGIONS.add(cacheKey);
                 return null;
             }
-            LIVE_REGIONS.put(cacheKey, resolved);
-            return resolved;
+            AtlasRegion region = Sts1GdxAtlasRegions.fromGdx(gdx);
+            if (region == null || !region.valid()) {
+                MISSING_LIVE_REGIONS.add(cacheKey);
+                return null;
+            }
+            resolved = new RegionTexture(gdx.getTexture(), region);
+        } catch (Throwable ignored) {
+            MISSING_LIVE_REGIONS.add(cacheKey);
+            return null;
         }
+        LIVE_REGIONS.put(cacheKey, resolved);
+        return resolved;
+    }
+
+    /**
+     * Caller must hold {@link #LOCK}. Consults the installed tpsheet source only after the live
+     * path missed; caches the resolved borrow and memoizes a miss per key. A source answer is
+     * validated like the live path validates one: a null/throwing answer, a null texture, a null
+     * descriptor, or a descriptor whose {@link AtlasRegion#valid()} is false is a miss, memoized
+     * so the source is not re-asked, and never cached as a region.
+     */
+    private static RegionTexture regionFromTpsheetLocked(String atlasKey, String regionName) {
+        String cacheKey = regionKey(atlasKey, regionName);
+        if (TPSHEET_REGIONS.containsKey(cacheKey)) {
+            return TPSHEET_REGIONS.get(cacheKey);
+        }
+        if (MISSING_TPSHEET_REGIONS.contains(cacheKey)) {
+            return null;
+        }
+        TpsheetSource source = tpsheetSource;
+        if (source == null) {
+            return null;
+        }
+        RegionTexture resolved;
+        try {
+            resolved = source.region(atlasKey, regionName);
+        } catch (Throwable ignored) {
+            // A misbehaving source is a miss, and is not re-asked for the same pair until clearCache.
+            resolved = null;
+        }
+        if (resolved == null || resolved.texture == null || resolved.region == null
+                || !resolved.region.valid()) {
+            // A non-conforming answer is a miss, and is not re-asked for the same pair until clearCache.
+            MISSING_TPSHEET_REGIONS.add(cacheKey);
+            return null;
+        }
+        TPSHEET_REGIONS.put(cacheKey, resolved);
+        return resolved;
     }
 
     /**
@@ -249,6 +342,7 @@ public final class Sts1AtlasMaterializer {
             probe.put("regionCount", Integer.valueOf(REGIONS.size()));
             probe.put("textureCount", Integer.valueOf(PAGE_TEXTURES.size()));
             probe.put("liveRegionCount", Integer.valueOf(LIVE_REGIONS.size()));
+            probe.put("tpsheetRegionCount", Integer.valueOf(TPSHEET_REGIONS.size()));
             return probe;
         }
     }
@@ -282,6 +376,20 @@ public final class Sts1AtlasMaterializer {
     public static void setLiveAtlasSource(LiveAtlasSource source) {
         synchronized (LOCK) {
             liveSource = source;
+            clearCachesLocked();
+        }
+    }
+
+    /**
+     * Installs the {@code .tpsheet} region source; {@code null} restores the inert default
+     * (fail-open). The outgoing source's own {@link TpsheetSource#clearCache()} hook is called and
+     * the materializer-side tpsheet state is dropped in the same critical section, so a new source
+     * never serves a memo borrowed from the previous one.
+     */
+    public static void setTpsheetSource(TpsheetSource source) {
+        synchronized (LOCK) {
+            clearTpsheetSourceLocked();
+            tpsheetSource = source;
             clearCachesLocked();
         }
     }

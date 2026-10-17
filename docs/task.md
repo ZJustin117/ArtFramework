@@ -2126,6 +2126,41 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       `art lab enter-act 2` + `lab.actId`/`lab.scene` waits and the real-layer `artDrawCount` delta +
       filtered close-diff. **D1 PENDING** (no device run was performed in this slice).
 
+- [x] **L02: enter-act failure diagnostics carry a bounded single-line stack.**
+      `StsLabHost.actFailureMessage` now renders `<SimpleName>: <message>` followed by up to 8
+      fully-qualified cause frames joined with ` | ` (`Class.method(File.java:NN)`, no leading
+      `at `), with ` | ... (+N more)` counting EVERY filtered-but-unrendered frame (including ones
+      dropped for overflow), `... (truncated)` and a hard 1200-character cap, and every C0 control
+      char collapsed to a space (`\r`/`\n`/`\t` AND `\u0000`/`\u000b`/`\u007f`) so the line stays
+      one physical line AND the `ART_LAB` / `ART_COMMAND` JSON stays parseable (`InspectJson.quote`
+      escapes only `" \ \n \r \t`). **Budget order matters:** the MESSAGE is truncated first against
+      a 300-char head budget (`ACT_FAILURE_MAX_LENGTH - ACT_FAILURE_FRAME_BUDGET`, marker included)
+      and the frames get the reserved 900-char budget, so a verbose native message can never squeeze
+      the frames out — the frames are the whole diagnostic payload. Frames are appended whole (a
+      frame that would overflow is dropped, never cut in half) and cuts are surrogate-safe. The
+      existing reflective-wrapper unwrap (`InvocationTargetException` /
+      `ExceptionInInitializerError`) and the null/empty-message fallback to the bare simple name are
+      preserved. `unavailable` remains `unavailable`; no other status or message changed. The method
+      is package-visible for `ActFailureMessageTest`, whose 10 tests pin the rendering contract:
+      frames present and FQ, the 8 kept frames are the INNERMOST ones (the throw site, verified
+      against `getStackTrace()[0]`, not the caller chain), the omission count is exact under
+      overflow (a SYNTHETIC long-frame trace forces the drop path, since the default fixture's
+      8 frames all fit), an EMPTY message renders like a null one, a 4000-char message still renders
+      the throw site, and no C0/DEL char survives; focused `artframework.sts1.lab.*` run is 111/0.
+      **Why:** a repeat `d1_verify_background` run failed at `art lab enter-act 3`
+      (TheCity → TheBeyond) with only `IndexOutOfBoundsException: index can't be >= size: 1 >= 0`
+      and zero `at com.megacrit` / `at artframework` frames in `latest.log`, so the native failure
+      was undiagnosable without a temporary debug patch. **OPEN:** the underlying native/mod-origin
+      nondeterminism is NOT fixed. Evidence that ART is NOT on the throwing path is static: the ART
+      jar contains no libgdx-`Array` references and no `CardLibrary`/`AbstractDungeon`-ctor patch (a
+      captured frame list has NOT been obtained, because the run that failed predates this slice);
+      the throw comes from libgdx `com.badlogic.gdx.utils.Array` inside native `AbstractDungeon`'s
+      constructor after `initializeCardPools()` (`Content generation time:` never appeared).
+      Candidate mods referencing libgdx `Array` in pool construction: loadout, Feminize the Spire,
+      BaseMod, undothespire, SaveStateMod. Observed rate: 1 failure in 23 `enter-act` invocations
+      (~4.3 %); a 12-attempt targeted repro passed 12/12, so the NEXT occurrence is what will carry
+      the frames now that L02 renders them.
+
 - [x] Keep Harness `result.json` payloads on disk in `scripts/art-lab` so oversized probe status
   lines cannot exceed the process argument limit.
 - [x] OpenCode `junit-test` + `local-env` + `opencode.json`

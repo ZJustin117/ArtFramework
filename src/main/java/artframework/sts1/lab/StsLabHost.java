@@ -25,6 +25,28 @@ public final class StsLabHost implements LabHost {
     /** Label for the {@link #normalizeAfterActJump} map-overlay step (load-bearing). */
     private static final String ACT_JUMP_STEP_MAP_OVERLAY = "map overlay";
 
+    /** Cause frames {@link #actFailureMessage} renders before truncating to an omission marker. */
+    private static final int ACT_FAILURE_MAX_FRAMES = 8;
+
+    /** Hard length bound for the {@link #actFailureMessage} console line, marker included. */
+    private static final int ACT_FAILURE_MAX_LENGTH = 1200;
+
+    /**
+     * Budget reserved for the frame list. The exception MESSAGE is truncated first so a verbose
+     * message (concatenated mod lists are common in native failures) can never squeeze the frames
+     * out of the line — the frames are the whole reason this rendering exists.
+     */
+    private static final int ACT_FAILURE_FRAME_BUDGET = 900;
+
+    /** Explicit end-of-text marker once a failure line hits {@link #ACT_FAILURE_MAX_LENGTH}. */
+    private static final String ACT_FAILURE_TRUNCATED_MARKER = "... (truncated)";
+
+    /**
+     * Upper bound of the {@code " | ... (+N more)"} suffix, reserved while appending frames so the
+     * omission marker itself is never clipped by the length cap.
+     */
+    private static final int ACT_FAILURE_OMISSION_MARKER_LENGTH = 32;
+
     private StsLabHost() {}
 
     /** The {@link #normalizeAfterActJump} steps in application order, for message assembly. */
@@ -505,16 +527,117 @@ public final class StsLabHost implements LabHost {
     /**
      * Name the true failure for {@code enterAct}. The shared {@link #unavailable(Throwable)} helper
      * keeps its wrapper-sensitive behavior; this unwraps the reflective wrapper exceptions so the
-     * console does not print a bare {@code InvocationTargetException} with a null message.
+     * console does not print a bare {@code InvocationTargetException} with a null message. The
+     * rendered text carries a bounded set of fully-qualified cause frames so a native throw site
+     * stays diagnosable from the single console line, and it is sanitized to one line bounded in
+     * length. Package-visible so {@code ActFailureMessageTest} can pin this rendering contract.
      */
-    private static String actFailureMessage(Throwable t) {
+    static String actFailureMessage(Throwable t) {
+        if (t == null) {
+            return "null failure";
+        }
         Throwable cause = t;
         while (cause.getCause() != null && isReflectiveWrapper(cause)) {
             cause = cause.getCause();
         }
-        String simpleName = cause.getClass().getSimpleName();
+        StringBuilder sb = new StringBuilder(256);
+        sb.append(sanitizeActFailureText(cause.getClass().getSimpleName()));
         String message = cause.getMessage();
-        return message == null || message.isEmpty() ? simpleName : simpleName + ": " + message;
+        if (message != null && !message.isEmpty()) {
+            sb.append(": ").append(sanitizeActFailureText(message));
+        }
+        // Truncate a verbose MESSAGE before appending frames: the frame list is the diagnostic
+        // payload, so it gets a reserved budget instead of whatever is left after the message.
+        int headBudget = ACT_FAILURE_MAX_LENGTH - ACT_FAILURE_FRAME_BUDGET;
+        if (sb.length() > headBudget) {
+            sb.setLength(safeCutIndex(sb, headBudget - ACT_FAILURE_TRUNCATED_MARKER.length()));
+            sb.append(ACT_FAILURE_TRUNCATED_MARKER);
+        }
+        // Count the total printable frames first so the omission marker is always exact, even when a
+        // trailing frame is dropped for overflow.
+        int totalFrames = 0;
+        StackTraceElement[] frames = cause.getStackTrace();
+        if (frames != null) {
+            for (StackTraceElement frame : frames) {
+                if (!isReflectiveFrame(frame.getClassName())) {
+                    totalFrames++;
+                }
+            }
+        }
+        // Reserve room for the marker itself so a full frame list cannot push it over the cap.
+        int markerReserve = ACT_FAILURE_OMISSION_MARKER_LENGTH;
+        int emitted = 0;
+        if (frames != null) {
+            for (StackTraceElement frame : frames) {
+                if (isReflectiveFrame(frame.getClassName())) {
+                    continue;
+                }
+                if (emitted >= ACT_FAILURE_MAX_FRAMES) {
+                    break;
+                }
+                String rendered = " | " + sanitizeActFailureText(renderFrame(frame));
+                // Keep each frame whole: drop trailing frames rather than cutting one in half.
+                if (sb.length() + rendered.length() + markerReserve
+                        > ACT_FAILURE_MAX_LENGTH - ACT_FAILURE_TRUNCATED_MARKER.length()) {
+                    break;
+                }
+                sb.append(rendered);
+                emitted++;
+            }
+        }
+        int omitted = totalFrames - emitted;
+        if (omitted > 0) {
+            sb.append(" | ... (+").append(omitted).append(" more)");
+        }
+        // Defensive final bound: with the head budget and the marker reserve above, the rendered
+        // line tops out well under the cap, so this clamp is not expected to run. It stays as the
+        // single last resort in case a future edit changes the budgets.
+        if (sb.length() > ACT_FAILURE_MAX_LENGTH) {
+            sb.setLength(
+                    safeCutIndex(sb, ACT_FAILURE_MAX_LENGTH - ACT_FAILURE_TRUNCATED_MARKER.length()));
+            sb.append(ACT_FAILURE_TRUNCATED_MARKER);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Cut {@code sb} to at most {@code limit} chars without splitting a surrogate pair, so the
+     * UTF-8 log line never carries a lone surrogate.
+     */
+    private static int safeCutIndex(StringBuilder sb, int limit) {
+        if (limit <= 0) {
+            return 0;
+        }
+        if (limit >= sb.length()) {
+            return sb.length();
+        }
+        return Character.isLowSurrogate(sb.charAt(limit)) ? limit - 1 : limit;
+    }
+
+    /** One cause frame as {@code Class.method(File.java:NN)}, without the {@code at } prefix. */
+    private static String renderFrame(StackTraceElement frame) {
+        String rendered = frame.toString();
+        return rendered.startsWith("at ") ? rendered.substring(3) : rendered;
+    }
+
+    /** Collapse control characters so the console line stays one line and its JSON stays valid. */
+    private static String sanitizeActFailureText(String text) {
+        StringBuilder sb = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            // Every C0 control (and DEL) would either break the line or make InspectJson's
+            // quote() output unparseable; InspectJson escapes only " \ \n \r \t.
+            sb.append(c < 0x20 || c == 0x7f ? ' ' : c);
+        }
+        return sb.toString();
+    }
+
+    /** JVM reflection plumbing frames add no location information to a failure line. */
+    private static boolean isReflectiveFrame(String className) {
+        return className != null
+                && (className.startsWith("java.lang.reflect.")
+                        || className.startsWith("sun.reflect.")
+                        || className.startsWith("jdk.internal.reflect."));
     }
 
     private static boolean isReflectiveWrapper(Throwable t) {

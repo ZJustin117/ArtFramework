@@ -1058,12 +1058,14 @@ public final class Sts1SurfaceRenderer {
                     artframework.component.Rect b = new artframework.component.Rect(
                             item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
                     if (!item.confirm && !item.cardId.isEmpty()) {
-                        // Base-background frame first, then the banner over the card's base page,
-                        // then the energy orb, then the cost number, mirroring native renderCardBg
-                        // -> renderBannerImage -> renderEnergy orb -> renderEnergy number order. All
-                        // regions share the same "<atlasKey>#<region>" resolution; the orb and the
-                        // number are empty when their native gates suppress them.
+                        // Base-background frame first, then the PORTRAIT over it, then the banner,
+                        // then the energy orb, then the cost number, mirroring the native
+                        // AbstractCard order renderCardBg -> renderPortrait -> renderBannerImage ->
+                        // renderEnergy (orb) -> renderEnergy (number). All regions share the same
+                        // "<atlasKey>#<region>" resolution; the portrait, orb and number are empty
+                        // when their native gates/inputs suppress them.
                         drawSelectAtlasRegion(sb, item.frameResourceId, b);
+                        drawSelectPortrait(sb, item.portraitResourceId, b);
                         drawSelectAtlasRegion(sb, item.bannerResourceId, b);
                         drawSelectAtlasRegion(sb, item.orbResourceId, b);
                         drawSelectCostNumber(sb, item);
@@ -1087,10 +1089,11 @@ public final class Sts1SurfaceRenderer {
      * {@code cardui#512/banner_rare} or {@code cardui#512/card_red_orb}) is resolved through
      * {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas} and drawn at its NATIVE
      * per-region placement inside the item bounds (see {@link #selectRegionRect}) using the region
-     * UV. The base-background frame is drawn first, then the banner, then the energy orb, mirroring
-     * native {@code renderCardBg} -> {@code renderBannerImage} -> {@code renderEnergy} order. A
-     * non-{@code #} id keeps the existing {@link #drawResolvedTexture} path. Per-item fail-open;
-     * never throws.
+     * UV. One region per call; the caller draws the base-background frame, then the portrait (see
+     * {@link #drawSelectPortrait}), then the banner, then the energy orb, mirroring native
+     * {@code renderCardBg} -> {@code renderPortrait} -> {@code renderBannerImage} ->
+     * {@code renderEnergy} order. A non-{@code #} id keeps the existing
+     * {@link #drawResolvedTexture} path. Per-item fail-open; never throws.
      *
      * <p>Residual: cardui base-background/banner/orb regions are unrotated, so the packed UV rect is
      * drawn as-is and rotated regions are not rotated here.
@@ -1125,6 +1128,136 @@ public final class Sts1SurfaceRenderer {
                     uv[0], uv[1], uv[2], uv[3]);
         } catch (Throwable ignored) {
         }
+    }
+
+    /**
+     * Native {@code AbstractCard.renderPortrait} vertical origin component for the atlas-region
+     * (non-{@code portraitImg}, non-joke) branch: the draw origin is
+     * {@code (packedWidth/2, packedHeight/2 - 72)} in the same unscaled card pixel space as the
+     * packed region. Because libGDX scales about that origin, the {@code 72} survives only through
+     * {@code 1 - scale}; see {@link #selectPortraitRect}.
+     */
+    private static final float PORTRAIT_ORIGIN_Y = 72f;
+
+    /** Live-atlas key of the native card PORTRAIT page ({@code cards/cards.atlas}). */
+    private static final String CARD_ART_ATLAS_KEY = "cards";
+
+    /**
+     * U04: select card PORTRAIT region. The descriptor {@code cards#<artUrl>} (built by
+     * {@link SelectDrawPath#portraitDescriptor} from the native {@code AbstractCard.assetUrl}) is
+     * resolved through {@link artframework.sts1.assets.Sts1AtlasMaterializer#regionFromAtlas} and
+     * drawn at the NATIVE {@code AbstractCard.renderPortrait} geometry (see
+     * {@link #selectPortraitRect}) using the region's packed UV rect.
+     *
+     * <p>Draw order is the native one: {@code renderSelect} calls this AFTER the base background and
+     * BEFORE the banner, i.e. {@code renderCardBg} -> {@code renderPortrait} -> {@code
+     * renderBannerImage}, so the portrait sits above the base page and behind the banner, label and
+     * cost number.
+     *
+     * <p>The portrait is an ADDITIONAL draw and is deliberately OUTSIDE the U02c resolve-aware
+     * accounting: {@link SelectDrawPath#itemFullyResolves} never consults it, so an unresolvable
+     * portrait page draws nothing instead of reporting a {@code missingArt} gap.
+     *
+     * <p>Per-item fail-open: a null batch/bounds, a non-{@code cards} or empty descriptor, or an
+     * unresolvable region returns without drawing and never throws.
+     *
+     * <p>Residuals: native wraps the draw in {@code sb.setColor(renderColor)} (the card's tint/alpha)
+     * and passes the card {@code angle}; ART draws {@code Color.WHITE} at angle {@code 0}. Native
+     * also gates the region branch on {@code !isLocked && portrait != null} (a locked card falls back
+     * to the flat {@code portraitImg} texture draw, which ART does not project). The {@code cards}
+     * page is fully unrotated, so the packed UV rect is drawn as-is; a rotated region would not be
+     * rotated here.
+     */
+    private static void drawSelectPortrait(
+            SpriteBatch sb, String resourceId, artframework.component.Rect bounds) {
+        if (sb == null || bounds == null || bounds.width <= 0f || bounds.height <= 0f
+                || resourceId == null || resourceId.isEmpty()) {
+            return;
+        }
+        try {
+            int hash = resourceId.indexOf('#');
+            // Only the native portrait page is drawn here; anything else is not a portrait.
+            if (hash <= 0 || hash + 1 >= resourceId.length()
+                    || !CARD_ART_ATLAS_KEY.equals(resourceId.substring(0, hash))) {
+                return;
+            }
+            String regionName = resourceId.substring(hash + 1);
+            artframework.sts1.assets.Sts1AtlasMaterializer.RegionTexture resolved =
+                    artframework.sts1.assets.Sts1AtlasMaterializer
+                            .regionFromAtlas(CARD_ART_ATLAS_KEY, regionName);
+            if (resolved == null || resolved.texture == null || resolved.region == null) {
+                return;
+            }
+            float[] rect = selectPortraitRect(bounds, resolved.region);
+            if (rect == null) {
+                return;
+            }
+            float[] uv = resolved.region.uvRect();
+            sb.setColor(Color.WHITE);
+            sb.draw(resolved.texture, rect[0], rect[1], rect[2], rect[3],
+                    uv[0], uv[1], uv[2], uv[3]);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * Native {@code AbstractCard.renderPortrait} placement for a {@code cards/cards.atlas} region.
+     * Verified host arguments for the {@code !isLocked && portrait != null} branch:
+     *
+     * <pre>
+     * x        = current_x - packedWidth  / 2f
+     * drawY    = current_y - packedHeight / 2f + 72f
+     * originX  = packedWidth  / 2f
+     * originY  = packedHeight / 2f - 72f
+     * width    = packedWidth
+     * height   = packedHeight
+     * scale    = drawScale * Settings.scale          (uniform, both axes)
+     * </pre>
+     *
+     * <p>libGDX's 9-arg {@code TextureRegion} overload scales the quad about
+     * {@code (x + originX, y + originY)}, so the drawn bottom-left is
+     * {@code (x + originX * (1 - s), drawY + originY * (1 - s))}. Substituting:
+     *
+     * <pre>
+     * x' = (cx - pw/2) + (pw/2)(1 - s)                 = cx - s * pw/2
+     * y' = (cy - ph/2 + 72) + (ph/2 - 72)(1 - s)       = cy - s * (ph/2 - 72)
+     * w' = s * pw
+     * h' = s * ph
+     * </pre>
+     *
+     * <p>This native rect does NOT use the region's packed {@code offsetX/offsetY} the way
+     * {@link #selectRegionRect} does: the region branch places the packed box by its own packed
+     * size, so trim metadata is irrelevant. It is therefore a separate helper (the frame/banner/orb
+     * path is untouched).
+     *
+     * <p>{@code s} is the uniform ART card scale {@code bounds.width / 512f} - the native
+     * {@code drawScale * Settings.scale} analogue, both cardui and cards regions being authored
+     * against a 512-wide page. For ART's 250x350 select box and the native
+     * {@code red/attack/strike} region (packed 248x186): {@code s = 0.48828125},
+     * {@code x = cx - 60.546875}, {@code y = cy - 10.25390625}, {@code w = 121.09375},
+     * {@code h = 90.8203125}.
+     *
+     * <p>Fail-open: {@code null} input, a non-positive packed size, or a non-finite/degenerate rect
+     * returns {@code null} so the caller draws nothing.
+     *
+     * @return the {@code {x, y, width, height}} placement rect, or {@code null} when unplaceable
+     */
+    private static float[] selectPortraitRect(
+            artframework.component.Rect bounds, artframework.assets.AtlasRegion region) {
+        if (bounds == null || region == null || region.width <= 0 || region.height <= 0) {
+            return null;
+        }
+        float s = bounds.width / SelectDrawPath.CARDUI_PAGE;
+        float cx = bounds.x + bounds.width / 2f;
+        float cy = bounds.y + bounds.height / 2f;
+        float x = cx - s * region.width / 2f;
+        float y = cy - s * (region.height / 2f - PORTRAIT_ORIGIN_Y);
+        float w = s * region.width;
+        float h = s * region.height;
+        if (!finite(x) || !finite(y) || !finite(w) || !finite(h) || w <= 0f || h <= 0f) {
+            return null;
+        }
+        return new float[] { x, y, w, h };
     }
 
     /**

@@ -3713,6 +3713,13 @@ allocation and Young GC pressure.
       `1024/frame_*` / `512/frame_*` regions but no literal `frame` region, so a later U-slice must
       decide per-card delegation vs an atlas-region mapping; the select panel/background, tip/header,
       cancel/skip, and hover/eye-filter controls also remain unsupplied (per the D09 finding above).
+      **PARTIALLY ANSWERED (U04):** the per-card ART-pixel question is now ANSWERED for the PORTRAIT
+      via the native `cards/cards.atlas` page (region name = `AbstractCard.assetUrl`), NOT
+      `images/cards/<id>.png`; the cardui `1024/frame_*`/`512/frame_*` note above still stands for
+      the frame family (U02/U02b supplied the base bg, U02d the banner, U02d2 the orb; the layered
+      `common|rare|uncommon_left|center|right` pieces remain OPEN per U02b), and this note's
+      other points (select panel/background, tip/header, cancel/skip, hover/eye-filter controls)
+      remain OPEN.
 - [x] **B05b D1 finding: native effect-list ADD race in `AbstractDungeon.update` — append now
       marshaled onto the game thread.** During B05b D1 no-regression, run 1 crashed with
       `java.util.ConcurrentModificationException` at `AbstractDungeon.update(AbstractDungeon.java:2640)`
@@ -4120,7 +4127,8 @@ allocation and Young GC pressure.
       **RESOLVED (U03):** the English `Generic` string at top-center was NOT native — it was a
       FABRICATED room-shell title fallback (`kind` capitalized) drawn by `Sts1RoomShellDrawPath`;
       U03 removed it (native rooms declare no `title` field and `AbstractRoom.render` draws no
-      room title). Per-card card-frame pixels were later supplied by U02/U02b/U02d2; the layered
+      room title). Per-card card-frame pixels were later supplied by U02/U02b (base bg),
+      U02d (banner) and U02d2 (orb); the layered
       `common/rare/uncommon` pieces remain the separately-logged `cardui/frame`
       non-file-backed gap (per-card frames/art, select panel/background, tip/header, cancel/skip
       buttons, and eye/filter control also remain unsupplied).
@@ -4705,6 +4713,73 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       is suppressed), so it is NOT a gap. Each of these is a separate bounded slice; the scrim needs a
       new `confirmScreenUp` projection to be native-faithful.
 
+- [x] **U04: select card PORTRAIT art from `cards/cards.atlas`.** **Source-of-truth correction:**
+      earlier notes claimed per-card art pixels were IMPOSSIBLE because `images/cards/<id>.png` is
+      absent. That was WRONG. The real source is the `cards/cards.atlas` page shipped in the STS jar
+      (pages `cards.png`..`cards4.png`, 2048x2048), whose REGION NAMES ARE the native card art url
+      `AbstractCard.assetUrl` (`red/attack/strike`, `blue/skill/aggregate`, `curse/ascenders_bane`).
+      Native `AbstractCard`'s constructor passes `assetUrl` verbatim to
+      `cardAtlas.findRegion(assetUrl)` and stores the result as `portrait`, which `renderPortrait`
+      then draws — so the region name, not the card id, is the art key. **Implementation:** NEW
+      `CardArtAtlasSource` (reflective private static `AbstractCard.cardAtlas`, key exactly `cards`,
+      fail-open `null`, mirroring `CardUiAtlasSource`), composed with the existing
+      `CardUiAtlasSource` in `Sts1PresentationBackend.installCardAtlasSources()` because the
+      `Sts1AtlasMaterializer` seam holds a SINGLE live-source slot (installing either adapter directly
+      would displace the other and break the `cardui` frame/banner/orb draws); `readGridSelect` now
+      projects `cards#<assetUrl>` via `cardArtRegionDescriptor` (blank/`"null"`/absent -> `""`);
+      `SelectDrawPath.DrawItem.portraitResourceId` + `portraitDescriptor` (plain art url ->
+      `cards#<url>`, already-qualified -> passthrough, non-art-url/logical id -> `""`); and
+      `Sts1SurfaceRenderer.drawSelectPortrait`/`selectPortraitRect` draw it AFTER the base background
+      and BEFORE the banner — native `renderCardBg -> renderPortrait -> renderBannerImage` order —
+      hence behind the label and above the base bg. **Verified native geometry:** `x = current_x -
+      pw/2`, `drawY = current_y - ph/2 + 72`, origin `(pw/2, ph/2 - 72)`, size `pw x ph`, uniform
+      `drawScale * Settings.scale`; libGDX scales about the origin, so `x' = cx - s*pw/2`,
+      `y' = cy - s*(ph/2 - 72)`, `w' = s*pw`, `h' = s*ph` with `s = bounds.width/512`; for the
+      250x350 ART box and `red/attack/strike` (packed 248x186) that is
+      `(cx - 60.546875, cy - 10.25390625, 121.09375, 90.8203125)`. This deliberately does NOT use the
+      region's packed `offsetX/offsetY` (unlike `selectRegionRect`, which is frozen and untouched) —
+      the native portrait branch places the packed box by its own packed size. **Accounting:** the
+      portrait is an ADDITIONAL draw and is OUTSIDE the U02c resolve-aware accounting
+      (`itemFullyResolves` never consults it; `materializedResolved + missingArt == count` unchanged),
+      so a missing portrait page is NOT a reported gap. **Evidence:** `CardArtAtlasSourceTest` (3),
+      `CardArtAtlasRegionsTest` (3, live-seam regression guard), 6 `SelectDrawPathTest` portrait
+      cases, `CardArtRegionDescriptorTest` (5) - pins the PRODUCTION `assetUrl`-to-`cards#<region>`
+      mapping directly (review medium finding: the mapping was previously untested, so reverting
+      it stayed green; it was extracted to a pure package-visible overload), and it also decides
+      the `loadCardImage` FILE-path case: a dotted url returns `""` so no fabricated
+      `cards#img/cards/foo.png` is drawn (the guard is a dot heuristic, so an extensionless path
+      would still be reported and only fail open at draw time) - and `SelectPortraitGeometryTest` (5) — a GEOMETRY regression guard that reflects the
+      private `drawSelectPortrait` with a no-GL capturing `SpriteBatch` (the
+      `SelectAtlasRegionGeometryTest` technique) and pins the ACTUAL draw args:
+      `cards#red/attack/strike` into `Rect(0,0,250,350)` = `(64.453125, 164.74609375, 121.09375,
+      90.8203125)` with UV equal to the region's packed `uvRect()`; a TRIMMED region (packed
+      `200x150`, orig `250x190`) draws `w = s*200`, `h = s*150`, proving the atlas branch honours
+      PACKED bounds rather than `original*`; plus a stretch-to-box guard and fail-open for `""`, a
+      missing region, a non-`cards` descriptor and a null batch. Note this test is NOT Red evidence:
+      it passed on arrival and exists to close a descriptor-only coverage gap. Focused
+      `cleanTest test --tests "artframework.sts1.render.*" --tests "artframework.sts1.assets.*"
+      --tests "artframework.context.*"` = 1296 tests / 0 failures (1291 + the 5 geometry tests).
+      Scenario `d1_full_present_select.yaml` (46->49 steps) asserts
+      `backend.selectDraw.items[1].portraitResourceId` exists / contains `cards#` / eq
+      `cards#red/attack/strike` (items[1] = starting Ironclad Strike; items[0] = CURSE Ascender's Bane,
+      whose 2-segment `curse/...` url is deliberately NOT pinned). **Geometry note (U04-01
+      withdrawn):** review finding U04-01 claimed the atlas branch draws a fixed untrimmed
+      `125/95/250/190` box (which would make the packed-size rect above wrong). REFUTED from the
+      bytecode and withdrawn: `javap -p -c` on `AbstractCard.renderPortrait` shows the atlas branch
+      (`!isLocked && portrait != null`) uses the 9-float `TextureRegion` overload
+      `(TextureRegion;FFFFFFFFF)V` and pushes `packedWidth`/`packedHeight` for x, y, origin, width and
+      height; the fixed `125.0/95.0/250.0/190.0` constants appear ONLY in the two `portraitImg`
+      `Texture` branches (the `(Texture;FFFFFFFFFIIIIZZ)V` overload — locked and no-portrait
+      fallbacks). The shipped rect formula and numbers above therefore stand and must NOT be changed.
+      **D1 PENDING (offline; device evidence not claimed).** **Scope note:** the HAND select surface
+      portrait is NOT covered by U04 — separate slice **U05**. **Residuals:** the native
+      `renderColor` tint/alpha, the native `angle` (ART draws `0`), and the native `!isLocked` gate are
+      not projected; a locked card still draws the atlas portrait here instead of native's flat
+      `portraitImg` fallback. Draw ORDER (`renderSelect`: frame -> portrait -> banner) is pinned by
+      REVIEW only and by NO test — `SelectPortraitGeometryTest` deliberately does not reach into
+      `renderSelect`, and no unit test observes that ordering, so a reordering regression would leave
+      every gate green.
+
 - [x] **SUPERSEDED (closed: scoping only, no work outstanding in this entry) — E-series scoping: real
       per-act background pixels were not supplied when this was written.** HISTORICAL: at the time of
       this audit `BackgroundRenderGate.renderSelectedVariant` drew only SYNTHETIC diagnostic variants
@@ -4793,3 +4868,9 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       ACT-4 visual A/B are PENDING; `adb connect localhost:15555` fails / `get-state` = `device offline`
       (connector port 39999 still answers). Re-run E09 D1 + the remaining device-bound F/S slices once
       the endpoint returns.
+
+- [ ] **Open (U05): select HAND-card portrait art.** U04 supplied the PORTRAIT (`cards#<assetUrl>`) for
+      the GRID select pool only; `Sts1PresentationBackend.readHandSelect` still sets
+      `ResourceIds.cardArt(cardId)` (the logical `card/art/<id>` mapping, which does not resolve), so
+      hand-select cards draw no portrait. Mirror U04's `cardArtRegionDescriptor` + `CardArtAtlasSource`
+      + `selectPortraitRect` placement on the hand path, keeping the hand geometry separate. D1 PENDING.

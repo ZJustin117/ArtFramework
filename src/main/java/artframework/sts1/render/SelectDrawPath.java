@@ -72,6 +72,20 @@ public final class SelectDrawPath {
          */
         public final String orbResourceId;
         /**
+         * U04: select card PORTRAIT descriptor ({@code cards#<artUrl>}) over the native
+         * {@code cards/cards.atlas} page, whose region names ARE the native card art urls
+         * ({@code AbstractCard.assetUrl}, the exact string native passes to
+         * {@code cardAtlas.findRegion(...)}). Derived from {@link CardView#artResourceId} by
+         * {@link #portraitDescriptor}; empty when the card has no art url or the value is not a
+         * native art url.
+         *
+         * <p>Parallel to {@link #frameResourceId} and drawn as an ADDITIONAL region between the
+         * base background and the banner. It is deliberately OUTSIDE the U02c resolve-aware
+         * accounting: {@link #itemFullyResolves} never consults it, so a missing portrait page
+         * never turns a card into a {@code missingArt} gap.
+         */
+        public final String portraitResourceId;
+        /**
          * U02d3: true when the native {@code AbstractCard.renderEnergy} cost NUMBER draw is
          * permitted: the orb draw gate ({@link CardView#orbDrawable}) AND the native text gate
          * {@link #costTextGate} both hold. False suppresses the number; the orb is unaffected.
@@ -145,6 +159,16 @@ public final class SelectDrawPath {
                 String resourceId, String frameResourceId, float w, float h,
                 String bannerResourceId, String orbResourceId, boolean costDrawable,
                 String costText, String costColor) {
+            this(instanceId, cardId, label, slot, selected, visible, enabled, x, y, confirm,
+                    resourceId, frameResourceId, w, h, bannerResourceId, orbResourceId, costDrawable,
+                    costText, costColor, "");
+        }
+
+        public DrawItem(String instanceId, String cardId, String label, int slot, boolean selected,
+                boolean visible, boolean enabled, float x, float y, boolean confirm,
+                String resourceId, String frameResourceId, float w, float h,
+                String bannerResourceId, String orbResourceId, boolean costDrawable,
+                String costText, String costColor, String portraitResourceId) {
             this.instanceId = instanceId != null ? instanceId : "";
             this.cardId = cardId != null ? cardId : "";
             this.label = label != null && !label.isEmpty() ? label : this.cardId;
@@ -161,6 +185,7 @@ public final class SelectDrawPath {
             this.frameResourceId = frameResourceId != null ? frameResourceId : "";
             this.bannerResourceId = bannerResourceId != null ? bannerResourceId : "";
             this.orbResourceId = orbResourceId != null ? orbResourceId : "";
+            this.portraitResourceId = portraitResourceId != null ? portraitResourceId : "";
             this.costDrawable = costDrawable;
             this.costText = costText != null ? costText : "";
             this.costColor = costColor != null ? costColor : "";
@@ -190,6 +215,7 @@ public final class SelectDrawPath {
             m.put("frameResourceId", frameResourceId);
             m.put("bannerResourceId", bannerResourceId);
             m.put("orbResourceId", orbResourceId);
+            m.put("portraitResourceId", portraitResourceId);
             m.put("costDrawable", Boolean.valueOf(costDrawable));
             m.put("costText", costText);
             m.put("costColor", costColor);
@@ -245,7 +271,8 @@ public final class SelectDrawPath {
                             c.orbDrawable ? cardOrbDescriptor(c.color) : "",
                             costDrawable,
                             costDrawable ? c.cost : "",
-                            costDrawable ? costColorName(c.costModified, c.costRestricted) : ""));
+                            costDrawable ? costColorName(c.costModified, c.costRestricted) : "",
+                            portraitDescriptor(c.artResourceId)));
             i++;
         }
         if (sv.confirmVisible || sv.confirmEnabled) {
@@ -312,6 +339,98 @@ public final class SelectDrawPath {
         } catch (Throwable ignored) {
             return "cardui#512/banner_common";
         }
+    }
+
+    /**
+     * U04: derives the select card PORTRAIT descriptor from the projected art value
+     * ({@link CardView#artResourceId}, which for GRID select cards carries the native
+     * {@code AbstractCard.assetUrl}). The native portrait page is {@code cards/cards.atlas}, whose
+     * region names ARE the native card art urls ({@code red/attack/strike}) - the exact string
+     * native {@code AbstractCard} hands to {@code cardAtlas.findRegion(...)} - so a plain art url
+     * maps to {@code cards#<artUrl>}.
+     *
+     * <ul>
+     *   <li>a plain art url {@code red/attack/strike} -&gt; {@code cards#red/attack/strike};</li>
+     *   <li>an already-qualified {@code cards#red/attack/strike} -&gt; passed through UNCHANGED
+     *       (never double-prefixed);</li>
+     *   <li>blank/absent, a non-art-url value (a logical {@code card.art.<id>} id, a
+     *       {@code ui.*} id, the literal {@code "null"}), or any failure -&gt; {@code ""} so no
+     *       portrait is drawn rather than a bogus one.</li>
+     * </ul>
+     *
+     * <p>The admitted shape is the one {@link #isNativeCardArtUrl} documents; that check is what
+     * separates a native art url from an arbitrary resource id.
+     *
+     * <p>This is an ADDITIONAL drawn region outside the U02c accounting; the caller never requires
+     * it to resolve. Fail-open: this method never throws.
+     */
+    static String portraitDescriptor(String artResourceId) {
+        try {
+            if (artResourceId == null) {
+                return "";
+            }
+            String value = artResourceId.trim();
+            if (value.isEmpty() || "null".equalsIgnoreCase(value)) {
+                return "";
+            }
+            int hash = value.indexOf('#');
+            if (hash > 0) {
+                // Already "<atlasKey>#<region>": pass through, but only when the key is our page
+                // and a region name is actually present (a bare "cards#" is degenerate).
+                return "cards".equals(value.substring(0, hash))
+                                && !value.substring(hash + 1).trim().isEmpty()
+                        ? value
+                        : "";
+            }
+            if (hash == 0 || !isNativeCardArtUrl(value)) {
+                return "";
+            }
+            return "cards#" + value;
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    /**
+     * True when {@code value} has the native {@code cards/cards.atlas} region-name shape: two or
+     * three {@code [A-Za-z0-9_]} segments separated by {@code /} - {@code <color>/<type>/<card>} for
+     * most cards (for example {@code red/attack/strike}) and {@code <type>/<card>} for the status and
+     * curse pages (for example {@code status/burn}, {@code curse/pride}). Every region on the
+     * shipped page matches this (vanilla names are lowercase; a mod may use mixed case, which is
+     * kept verbatim because {@code findRegion} is case-sensitive), and no ART logical id
+     * ({@code card.art.Strike_R}, {@code ui.select.card} - both dot-separated) does. Null-safe;
+     * never throws.
+     */
+    private static boolean isNativeCardArtUrl(String value) {
+        if (value == null) {
+            return false;
+        }
+        String[] parts = value.split("/", -1);
+        if (parts.length < 2 || parts.length > 3) {
+            return false;
+        }
+        for (int i = 0; i < parts.length; i++) {
+            if (!isArtUrlSegment(parts[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** True when {@code token} is a non-empty {@code [A-Za-z0-9_]} run (no dots, spaces or colons). */
+    private static boolean isArtUrlSegment(String token) {
+        if (token == null || token.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < token.length(); i++) {
+            char ch = token.charAt(i);
+            boolean ok = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+                    || (ch >= '0' && ch <= '9') || ch == '_';
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

@@ -61,6 +61,14 @@ public final class Sts1PresentationBackend implements SignalBackend {
 
     public static final Sts1PresentationBackend INSTANCE = new Sts1PresentationBackend();
 
+    /**
+     * Live-atlas key for the native card PORTRAIT page ({@code cards/cards.atlas}), whose region
+     * names ARE the native card art urls ({@code AbstractCard.assetUrl}). The composed live source
+     * uses it to route this one key to {@link artframework.sts1.assets.CardArtAtlasSource}, which
+     * answers the same key (declared privately there), and every other key to {@code cardui}.
+     */
+    private static final String CARD_ART_ATLAS_KEY = "cards";
+
     private long frameId;
     private String scene = "";
     private long sceneEpoch;
@@ -135,7 +143,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
 
     @Override
     public void installSignals() {
-        installCardUiAtlasSource();
+        installCardAtlasSources();
         if (actionSubscription != null && actionSubscription.isConnected()) return;
         actionSubscription = SignalGroups.nativeGroup().connect(
                 Pattern.compile("^ui/(combat_hand|combat_controls|map|event|select_grid|select_hand|end_turn)/"
@@ -164,15 +172,40 @@ public final class Sts1PresentationBackend implements SignalBackend {
     }
 
     /**
-     * Installs the STS1 {@code cardui} live atlas source once (idempotent: the materializer just
-     * rebinds the seam and clears borrows). This is the production wiring that lets the select
-     * surface resolve {@code cardui#512/bg_<type>_<color>} base-background regions from
-     * {@code ImageMaster.cardUiAtlas}. Fail-open: a failure must never break signal install.
+     * Installs the STS1 live atlas sources once (idempotent: the materializer just rebinds the seam
+     * and clears borrows). This is the production wiring behind the select surface's
+     * {@code "<atlasKey>#<region>"} descriptors:
+     * <ul>
+     *   <li>{@code cardui#512/bg_<type>_<color>} base-background regions (plus the {@code cardui}
+     *       banner/orb regions) from {@code ImageMaster.cardUiAtlas};</li>
+     *   <li>{@code cards#<assetUrl>} card PORTRAIT regions from {@code AbstractCard.cardAtlas}.</li>
+     * </ul>
+     *
+     * <p>The materializer holds a SINGLE live-source slot, so the two host adapters are composed
+     * into one source here: the {@code cards} key is delegated to
+     * {@link artframework.sts1.assets.CardArtAtlasSource} and every other key (notably
+     * {@code cardui}) to {@link artframework.sts1.assets.CardUiAtlasSource}. Installing either
+     * adapter directly would displace the other and break the frame/banner/orb or the portrait
+     * draws. Fail-open: a failure must never break signal install.
      */
-    private void installCardUiAtlasSource() {
+    private void installCardAtlasSources() {
         try {
+            final artframework.sts1.assets.CardUiAtlasSource cardUi =
+                    new artframework.sts1.assets.CardUiAtlasSource();
+            final artframework.sts1.assets.CardArtAtlasSource cardArt =
+                    new artframework.sts1.assets.CardArtAtlasSource();
             artframework.sts1.assets.Sts1AtlasMaterializer.setLiveAtlasSource(
-                    new artframework.sts1.assets.CardUiAtlasSource());
+                    new artframework.sts1.assets.Sts1AtlasMaterializer.LiveAtlasSource() {
+                        @Override
+                        public com.badlogic.gdx.graphics.g2d.TextureAtlas atlas(String atlasKey) {
+                            // "cards" is the portrait page; everything else stays on cardui. Both
+                            // adapters are key-exact and null for an unknown key, so the composite
+                            // keeps the single-slot seam equivalent to one page per key.
+                            return CARD_ART_ATLAS_KEY.equals(atlasKey)
+                                    ? cardArt.atlas(atlasKey)
+                                    : cardUi.atlas(atlasKey);
+                        }
+                    });
         } catch (Throwable ignored) {
         }
     }
@@ -1955,7 +1988,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                 .slot(i)
                                 .pose(pose)
                         .selected(isSel)
-                        .art(ResourceIds.cardArt(card.cardID))
+                        .art(cardArtRegionDescriptor(card))
                         .title(card.name)
                         .cost(cardCost(card))
                         .type(cardType(card))
@@ -1973,6 +2006,61 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 gcs.confirmButton != null && gcs.confirmButton.hb != null;
         return SelectView.grid(
                 pool, selected, confirmEnabled, confirmVisible, readConfirmLabel(gcs, "confirmButton"));
+    }
+
+    /**
+     * U04: the select card PORTRAIT region descriptor for the native {@code cards/cards.atlas}
+     * page, whose region names ARE the native card art urls. Native {@code AbstractCard}'s
+     * constructor passes {@code assetUrl} verbatim to {@code cardAtlas.findRegion(assetUrl)} and
+     * {@code renderPortrait} then draws that {@code portrait} region; the descriptor here is
+     * {@code cards#<assetUrl>} so {@link artframework.sts1.render.SelectDrawPath} can map it back to
+     * the same atlas region name.
+     *
+     * <p>This replaces {@code ResourceIds.cardArt(card.cardID)} for the GRID select pool only: the
+     * card art url is the atlas region name, whereas the card id is not. The HAND select path is
+     * deliberately untouched (out of scope for U04).
+     *
+     * <p>Fail-open: a null card, an absent/unreadable {@code assetUrl}, or a blank/absent/
+     * {@code "null"} value yields {@code ""} (no portrait draw) rather than throwing.
+     */
+    private static String cardArtRegionDescriptor(AbstractCard card) {
+        if (card == null) {
+            return "";
+        }
+        try {
+            return cardArtRegionDescriptor(card.assetUrl);
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    /**
+     * Pure url-to-region-descriptor mapping (package-visible for tests). Native card art region names
+     * ARE {@code AbstractCard.assetUrl} ({@code cardAtlas.findRegion(assetUrl)}). Returns
+     * {@code "cards#<region>"} for an atlas-region-shaped url; {@code ""} for a null/blank/{@code
+     * "null"} value or a non-region (dotted) url such as a {@code loadCardImage} file path, so the
+     * draw path never fabricates an unresolvable descriptor. Already-qualified values pass through.
+     */
+    static String cardArtRegionDescriptor(String assetUrl) {
+        if (assetUrl == null) {
+            return "";
+        }
+        String trimmed = assetUrl.trim();
+        // An absent host value can surface as the literal "null" string; draw no portrait.
+        if (trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed)) {
+            return "";
+        }
+        // Already-qualified values are passed through so the caller never double-prefixes.
+        if (trimmed.indexOf('#') >= 0) {
+            return trimmed;
+        }
+        // Only ATLAS-REGION-shaped urls belong to cards/cards.atlas. A mod card that used native
+        // loadCardImage() stores a FILE path here (e.g. "img/cards/foo.png"), which is not a
+        // region: return "" so the draw path does not fabricate an unresolvable descriptor.
+        if (trimmed.indexOf('.') >= 0) {
+            return "";
+        }
+        return "cards#" + trimmed;
     }
 
     private static SelectView readHandSelect(HandCardSelectScreen hcs) {

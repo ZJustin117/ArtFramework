@@ -1160,6 +1160,167 @@ public class SelectDrawPathTest {
     }
 
     /**
+     * U04. The SELECT card PORTRAIT comes from the native {@code cards/cards.atlas} page, whose
+     * region names ARE the native card art urls ({@code AbstractCard.assetUrl}, the exact string
+     * native {@code AbstractCard} passes to {@code cardAtlas.findRegion(...)}). The projected
+     * {@link CardView#artResourceId} carries that art url ({@code red/attack/strike}), so the built
+     * item exposes the region descriptor {@code cards#red/attack/strike} under
+     * {@code portraitResourceId}.
+     */
+    @Test
+    public void selectCardPortraitDescriptorUsesNativeCardsAtlasRegion() {
+        publishSelectFrame(singleSelectCard(portraitCard("red/attack/strike")));
+
+        SelectDrawPath.DrawItem item = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("the portrait descriptor is the native cards atlas region",
+                "cards#red/attack/strike", firstProbePortrait());
+        assertEquals("the portrait must not disturb the base frame",
+                "cardui#512/bg_attack_red", item.frameResourceId);
+        assertEquals("the portrait must not disturb the banner",
+                "cardui#512/banner_rare", item.bannerResourceId);
+    }
+
+    /**
+     * U04 fail-open. An art value that is already a {@code "<atlasKey>#<region>"} descriptor (the
+     * backend sets {@code cards#<artUrl>}) is passed through unchanged instead of being prefixed
+     * twice.
+     */
+    @Test
+    public void selectCardPortraitDescriptorAcceptsQualifiedDescriptor() {
+        publishSelectFrame(singleSelectCard(portraitCard("cards#red/attack/strike")));
+
+        assertEquals("cards#red/attack/strike", firstProbePortrait());
+    }
+
+    /** U04 fail-open. A blank or absent art url draws NO portrait: the descriptor stays empty. */
+    @Test
+    public void selectCardBlankOrAbsentArtUrlYieldsEmptyPortraitDescriptor() {
+        publishSelectFrame(singleSelectCard(portraitCard("")));
+        assertEquals("a blank art url draws no portrait", "", firstProbePortrait());
+
+        publishSelectFrame(singleSelectCard(
+                CardView.builder(new CardRef("g1", "Strike_R"))
+                        .zone(CardZone.SELECT)
+                        .slot(0)
+                        .type("ATTACK")
+                        .color("RED")
+                        .rarity("RARE")
+                        .build()));
+        assertEquals("an absent art url draws no portrait", "", firstProbePortrait());
+    }
+
+    /**
+     * U04. Adding the portrait must leave the other card descriptors untouched: a card with
+     * type/color/rarity keeps its base frame, banner and orb while gaining the portrait.
+     */
+    @Test
+    public void selectCardPortraitDoesNotDisturbFrameBannerOrOrb() {
+        publishSelectFrame(singleSelectCard(portraitCard("red/attack/strike")));
+        SelectDrawPath.DrawItem withPortrait = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("cardui#512/bg_attack_red", withPortrait.frameResourceId);
+        assertEquals("cardui#512/banner_rare", withPortrait.bannerResourceId);
+        assertEquals("cardui#512/card_red_orb", withPortrait.orbResourceId);
+        assertEquals("the portrait is the one NEW descriptor",
+                "cards#red/attack/strike", firstProbePortrait());
+
+        publishSelectFrame(singleSelectCard(portraitCard("")));
+        SelectDrawPath.DrawItem withoutPortrait = SelectDrawPath.buildFromProjection().get(0);
+        assertEquals("the base frame is identical without a portrait",
+                withPortrait.frameResourceId, withoutPortrait.frameResourceId);
+        assertEquals("the banner is identical without a portrait",
+                withPortrait.bannerResourceId, withoutPortrait.bannerResourceId);
+        assertEquals("the orb is identical without a portrait",
+                withPortrait.orbResourceId, withoutPortrait.orbResourceId);
+        assertEquals("the primary select handle is identical without a portrait",
+                withPortrait.resourceId, withoutPortrait.resourceId);
+        assertEquals("only the portrait descriptor differs", "", firstProbePortrait());
+    }
+
+    /**
+     * U04 + U02c freeze: the portrait is an ADDITIONAL draw outside the resolve-aware supply
+     * accounting. With a live {@code cardui} atlas carrying ONLY the base frame and a live
+     * {@code cards} atlas carrying the portrait region, the card is fully materialized
+     * ({@code missingArt == 0}, {@code materializedResolved == 1}) and
+     * {@code materializedResolved + missingArt == count}.
+     */
+    @Test
+    public void selectCardPortraitDoesNotEnterU02cAccountingWhenResolvable() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardsAndCardUiLiveSource());
+        publishSelectFrame(singleSelectCard(portraitCard("red/attack/strike")));
+
+        assertEquals("cards#red/attack/strike", firstProbePortrait());
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertEquals("a resolvable portrait must not create a gap",
+                Integer.valueOf(0), probe.get("missingArt"));
+        assertEquals("the base frame alone decides the account",
+                Integer.valueOf(1), probe.get("materializedResolved"));
+        assertEquals("materializedResolved + missingArt must equal count",
+                probe.get("count"),
+                Integer.valueOf(
+                        ((Integer) probe.get("materializedResolved")).intValue()
+                                + ((Integer) probe.get("missingArt")).intValue()));
+    }
+
+    /**
+     * U04 + U02c freeze (fail-open half). A portrait region that does NOT resolve must not make the
+     * card a {@code missingArt} gap: the portrait is never required by {@code itemFullyResolves}.
+     */
+    @Test
+    public void selectCardPortraitDoesNotEnterU02cAccountingWhenUnresolvable() {
+        Sts1HostAssets.install();
+        Sts1AtlasMaterializer.setLiveAtlasSource(cardUiLiveSource("512/bg_attack_red"));
+        publishSelectFrame(singleSelectCard(portraitCard("red/attack/strike")));
+
+        assertEquals("the descriptor is still built even when the region is absent",
+                "cards#red/attack/strike", firstProbePortrait());
+
+        Map<String, Object> probe = SelectDrawPath.probeSlice();
+        assertEquals(Integer.valueOf(1), probe.get("count"));
+        assertEquals("an unresolved portrait must not create a gap",
+                Integer.valueOf(0), probe.get("missingArt"));
+        assertEquals(Integer.valueOf(1), probe.get("materializedResolved"));
+    }
+
+    /** U04 select card with the given art url, keeping every other descriptor deterministic. */
+    private static CardView portraitCard(String artResourceId) {
+        return CardView.builder(new CardRef("g1", "Strike_R"))
+                .zone(CardZone.SELECT)
+                .slot(0)
+                .type("ATTACK")
+                .color("RED")
+                .rarity("RARE")
+                .art(artResourceId)
+                .build();
+    }
+
+    /**
+     * The portrait descriptor of the currently published frame's {@code items[0]} row, failing with
+     * an assertion (rather than an NPE) when the U04 key has not landed yet.
+     */
+    private String firstProbePortrait() {
+        Map<String, Object> row = firstProbeItemRow();
+        Object value = row.get("portraitResourceId");
+        assertNotNull("the probe item row must expose portraitResourceId", value);
+        return (String) value;
+    }
+
+    /**
+     * Live atlas source exposing the native {@code cards} page (portrait regions named by art url)
+     * alongside the {@code cardui} base-background page.
+     */
+    private static Sts1AtlasMaterializer.LiveAtlasSource cardsAndCardUiLiveSource() {
+        StubLiveAtlasSource source = (StubLiveAtlasSource) cardUiLiveSource("512/bg_attack_red");
+        Texture cardsPage = noGlTexture(2048, 2048);
+        TextureAtlas cards = new TextureAtlas();
+        cards.addRegion("red/attack/strike", cardsPage, 997, 375, 248, 186);
+        source.atlases.put("cards", cards);
+        return source;
+    }
+
+    /**
      * U02d3. Native {@code AbstractCard.renderEnergy} draws the ENERGY COST NUMBER after the orb at
      * {@code (-132*scale, 192*scale)} with the large energy font scaled by the card draw scale. ART
      * maps the uniform select-card scale as {@code factor = item.w / 512f} (the renderer's

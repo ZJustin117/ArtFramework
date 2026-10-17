@@ -180,6 +180,27 @@ steps:
   - assert:
       path: backend.selectDraw.items[0].costDrawable
       eq: false
+  # U04: the select card PORTRAIT is a real region on the native `cards/cards.atlas` page
+  # (`AbstractCard.cardAtlas`). That page's region names ARE the native card art urls
+  # (`AbstractCard.assetUrl`), the exact string native `AbstractCard` passes to
+  # `cardAtlas.findRegion(assetUrl)`, and the item exposes `cards#<assetUrl>` in
+  # `portraitResourceId` via `SelectDrawPath.portraitDescriptor`. `items[1]` is the starting Ironclad
+  # Strike, whose native asset url is `red/attack/strike`. `items[0]` is the CURSE Ascender's Bane,
+  # whose art url lives on the 2-segment curse page (`curse/ascenders_bane`) - a different native
+  # asset path. Its EXACT url is deliberately NOT pinned here (it is a mod/localization-independent
+  # native asset path this slice did not verify end-to-end on device), so only `items[1]` is exact.
+  #
+  # D1 is OFFLINE for this slice: this block is an UNRUN device assertion, and device evidence for
+  # the portrait is PENDING (no device run was performed).
+  - assert:
+      path: backend.selectDraw.items[1].portraitResourceId
+      exists: true
+  - assert:
+      path: backend.selectDraw.items[1].portraitResourceId
+      contains: "cards#"
+  - assert:
+      path: backend.selectDraw.items[1].portraitResourceId
+      eq: "cards#red/attack/strike"
   # U03: native rooms declare NO room-shell title (VERIFIED decompiled STS1 rooms/**: AbstractRoom
   # has no `title`/`roomID` field and draws no room title; EventRoom/NeowRoom delegate to the event
   # surface). On the select screen the live room is a plain combat MonsterRoom, so the backend

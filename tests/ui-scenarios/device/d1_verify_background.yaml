@@ -407,6 +407,86 @@ steps:
   - console: "art verify native sts1.room.background off"
   - console: "art verify mode background off"
 
+  # ---- ending (E09: real ACT-4 TheEndingScene combat background) ----
+  # The `ending` variant only draws inside `TheEndingScene` (ACT-4) — `renderEndingBackground`
+  # gates on `instanceof TheEndingScene` and records no counter elsewhere. Unlike `bottom`/`city`/
+  # `beyond`, the native ACT-4 combat background is a SINGLE region: decompiled
+  # `TheEndingScene.renderCombatRoomBg` is the whole method
+  # (`sb.setColor(Color.WHITE); this.renderAtlasRegionIf(sb, this.bg, true);`), i.e. one `bg` region
+  # from `endingScene/scene.atlas`, no flags, no blend change, no animation and no second pass. The
+  # atlas's `campfire`/`event` regions and any `renderCombatRoomFg` belong to the non-combat branches
+  # and are deferred to E09b. Retained -> native paints over the ART layer (frame matches the off
+  # baseline, proven by an artDrawCount delta rather than absolute value); filtered -> native
+  # background skipped, the ART ending region reaches the frame. The ACT-4 draw + filtered compare
+  # remain DEVICE-PENDING (no live device run in this slice; see docs/task.md).
+  - console: "art lab enter-act 4"
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 500
+      assert:
+        path: lab.actId
+        eq: TheEnding
+  - wait_probe:
+      timeout_ms: 15000
+      interval_ms: 500
+      assert:
+        path: lab.scene
+        eq: TheEndingScene
+  - console: "art verify mode background off"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: "off"
+  - capture:
+      path: backend.verify.background.artDrawCount
+      var: ending_draw_baseline
+  - screenshot: true
+  - console: "art verify mode background ending"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.variant
+        eq: ending
+  - assert:
+      path: backend.verify.background.artOwnsBackgroundRequested
+      eq: false
+  # Real-layer evidence: artDrawCount is a CUMULATIVE counter shared by every variant, so its
+  # absolute value is meaningless here; the delta over the off baseline is what proves the ending
+  # variant submitted its own real region for this ACT-4 scene (the single-region plan rather than a
+  # synthetic quad).
+  - assert:
+      path: backend.verify.background.artDrawCount
+      gt_var: ending_draw_baseline
+  - screenshot: true
+  # Retained frame matches the off baseline (native background paints over the ART layer).
+  - compare_screenshot:
+      against: previous_capture
+      threshold: 24
+      max_diff_pixels: 80000
+      max_diff_ratio: 0.10
+  - console: "art verify native sts1.room.background on"
+  - wait_probe:
+      timeout_ms: 5000
+      interval_ms: 250
+      assert:
+        path: backend.verify.background.artOwnsBackgroundRequested
+        eq: true
+  - screenshot: true
+  # The `ending` variant faithfully reproduces the native ACT-4 background (same rationale as
+  # `bottom`/`city`/`beyond`): suppressing native and drawing the ART region must leave the frame
+  # CLOSE to the retained native frame. The single-region submission is proven above by the
+  # artDrawCount delta and by the filtered close-diff, not by a >=20% synthetic diff.
+  - compare_screenshot:
+      against: previous_capture
+      threshold: 24
+      max_diff_pixels: 140000
+      max_diff_ratio: 0.12
+  - console: "art verify native sts1.room.background off"
+  - console: "art verify mode background off"
+
   # ---- back to off: no draw, no suppression ----
   - console: "art verify mode background off"
   - wait_probe:

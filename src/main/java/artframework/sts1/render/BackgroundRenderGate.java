@@ -27,9 +27,14 @@ public final class BackgroundRenderGate {
      * The concrete scene classes the background family patch targets, as simple class names. This is
      * the STATIC coverage contract — the four concrete overrides of
      * {@code AbstractScene.renderCombatRoomBg(SpriteBatch)} that {@code BackgroundRenderPatches}
-     * attaches Prefixes to. It is deliberately NOT a claim of device verification: only the act-1
-     * Bottom scene is exercised by {@code d1_verify_background_only.yaml} today; City/Beyond/Ending
-     * are patched but have no deterministic lab act-jump and are NOT device-verified.
+     * attaches Prefixes to. It says which scenes are PATCHED; it is deliberately NOT a claim of
+     * device verification.
+     * <p>
+     * The lab act-jump ({@code art lab enter-act <2|3|4>}, L01) exists, so the ACT-2/ACT-3/ACT-4
+     * blocks in {@code d1_verify_background.yaml} are ARMED: each jumps to its act and then asserts
+     * the per-act real-region draw delta and the filtered close-diff. Only the ACT-1/Bottom block has
+     * device evidence (E06); ACT-2/ACT-3/ACT-4 device verification remains PENDING — no device run
+     * has been performed for those blocks, so their status is an open gap, not a claim.
      */
     public static final List<String> PATCHED_SCENES = Collections.unmodifiableList(
             Arrays.asList("TheBottomScene", "TheCityScene", "TheBeyondScene", "TheEndingScene"));
@@ -44,7 +49,9 @@ public final class BackgroundRenderGate {
         /** Real ACT-2 {@code TheCityScene} combat background layers (native atlas regions). */
         CITY,
         /** Real ACT-3 {@code TheBeyondScene} combat background layers (native atlas regions). */
-        BEYOND;
+        BEYOND,
+        /** Real ACT-4 {@code TheEndingScene} combat background region (native atlas region). */
+        ENDING;
 
         public static Variant parse(String value) {
             String normalized = value == null ? "" : value.trim().toLowerCase();
@@ -55,6 +62,7 @@ public final class BackgroundRenderGate {
             if ("bottom".equals(normalized)) return BOTTOM;
             if ("city".equals(normalized)) return CITY;
             if ("beyond".equals(normalized)) return BEYOND;
+            if ("ending".equals(normalized)) return ENDING;
             return null;
         }
     }
@@ -528,6 +536,8 @@ public final class BackgroundRenderGate {
         if (configured == Variant.CITY) return false;
         // The real ACT-3 background is likewise layer-based and scene-scoped.
         if (configured == Variant.BEYOND) return false;
+        // The real ACT-4 background is likewise atlas-region based and scene-scoped.
+        if (configured == Variant.ENDING) return false;
         if (artframework.sts1.PresentSafety.isPanic()) return false;
         Texture texture = com.megacrit.cardcrawl.helpers.ImageMaster.WHITE_SQUARE_IMG;
         if (texture == null) return false;
@@ -574,6 +584,9 @@ public final class BackgroundRenderGate {
         }
         if (configured == Variant.BEYOND) {
             return renderBeyondBackground(sb, sceneInstance);
+        }
+        if (configured == Variant.ENDING) {
+            return renderEndingBackground(sb, sceneInstance);
         }
         return renderSelectedVariant(sb);
     }
@@ -1229,6 +1242,89 @@ public final class BackgroundRenderGate {
                 // Native always returns the blend function to NORMAL after the additive pass.
                 if (current != SceneBlend.NORMAL) {
                     sb.setBlendFunction(770, 771);
+                }
+                painted = submitted > 0;
+            } else {
+                painted = false;
+            }
+        } catch (Throwable ignored) {
+            painted = false;
+        } finally {
+            try {
+                sb.setColor(prev);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (painted) {
+            recordArtDraw(submitted);
+            BackgroundOnlyGate.recordBackgroundDraw();
+        }
+        return painted;
+    }
+
+    /**
+     * The native ACT-4 {@code TheEndingScene.renderCombatRoomBg} plan. The whole native method is
+     * {@code sb.setColor(Color.WHITE); this.renderAtlasRegionIf(sb, this.bg, true);} — exactly ONE
+     * {@code endingScene/scene.atlas} region ({@code bg}) with a WHITE tint and no blend change. Pure
+     * — no draw, no state. The atlas's {@code campfire}/{@code event} regions belong to the
+     * non-combat branches and are deliberately NOT planned (deferred).
+     */
+    public static List<SceneLayerSpec> endingLayerPlan() {
+        List<SceneLayerSpec> plan = new ArrayList<SceneLayerSpec>(1);
+        plan.add(new SceneLayerSpec("bg", Color.WHITE, SceneBlend.NORMAL));
+        return plan;
+    }
+
+    /**
+     * Production ACT-4 entry: draws the live {@code TheEndingScene} combat background region read off
+     * the scene instance. A null batch, an active panic, or any non-{@code TheEndingScene} instance
+     * draws nothing. Regions come from the scene's own atlas, per instance, so they cannot go stale
+     * across act swaps. Any {@code Throwable} fails open.
+     */
+    public static boolean renderEndingBackground(SpriteBatch sb, Object sceneInstance) {
+        try {
+            if (sb == null) return false;
+            if (artframework.sts1.PresentSafety.isPanic()) return false;
+            if (!(sceneInstance instanceof com.megacrit.cardcrawl.scenes.TheEndingScene)) return false;
+            BottomRegionSource source = new InstanceSceneRegionSource(readSceneAtlas(sceneInstance));
+            return renderEndingBackground(sb, source);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * Draws exactly the {@link #endingLayerPlan()} regions through the region source with the shared
+     * plain native pixel-rect submission (see {@link #drawSceneLayer}). Native issues no
+     * {@code setBlendFunction} call, so the batch blend is left untouched. Suppression is
+     * ALL-OR-NOTHING: {@code bg} must resolve before anything is submitted, otherwise nothing is
+     * painted and no counter/evidence is recorded. Returns {@code true} iff the region painted. Any
+     * {@code Throwable} fails open (returns {@code false}, records no counter). The previous batch
+     * color is restored.
+     */
+    public static boolean renderEndingBackground(SpriteBatch sb, BottomRegionSource source) {
+        if (sb == null || source == null) return false;
+        Color prev;
+        try {
+            prev = sb.getColor();
+        } catch (Throwable ignored) {
+            return false;
+        }
+        int submitted = 0;
+        boolean painted;
+        try {
+            List<SceneLayerSpec> plan = endingLayerPlan();
+            if (resolves(source, "bg")) {
+                for (SceneLayerSpec layer : plan) {
+                    Sts1AtlasMaterializer.RegionTexture resolved = source.region(layer.regionName);
+                    if (!drawable(resolved)) {
+                        continue;
+                    }
+                    if (layer.tint != null) {
+                        sb.setColor(layer.tint);
+                    }
+                    drawSceneLayer(sb, resolved);
+                    submitted++;
                 }
                 painted = submitted > 0;
             } else {

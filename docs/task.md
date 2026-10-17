@@ -2056,9 +2056,41 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       (`fg`/`fgGlow`/`fg2`), the fireflies, and the non-combat `renderCampfireRoom`/
       `renderEventRoom` branches. The `city` variant currently supplies the combat `bg` suite only.
 
-- [ ] **Open (E09 only, ACT-4 Ending real background):** E07 (`city`, ACT-2) and E08 (`beyond`, ACT-3)
-      are SHIPPED (see their entries); **E09 (Ending, ACT-4 TheEndingScene)** remains synthetic-only.
-      It is an analogous animated multi-layer reconstruction; no ART per-act pixels exist for it yet.
+- [x] **E09: supply the ACT-4 (TheEndingScene) combat background as a real native atlas region.** New
+      `BackgroundRenderGate.Variant.ENDING` (`parse("ending")`) draws the native
+      `TheEndingScene.renderCombatRoomBg` region from the SAME pre-native Prefix
+      (`BackgroundRenderPatches.ObserveNativeEndingBackground` already passed `__instance`). The whole
+      native method is `sb.setColor(Color.WHITE); this.renderAtlasRegionIf(sb, this.bg, true);`, so the
+      plan (`endingLayerPlan()`) is exactly ONE `SceneLayerSpec`: region `bg` from
+      `endingScene/scene.atlas`, WHITE tint, `SceneBlend.NORMAL`, non-animated, zero offsets/angle. No
+      flags type exists (the native method reads none), no blend call is made (native issues no
+      `setBlendFunction`), and the shared plain `drawSceneLayer` 16-arg pixel-rect submission is reused
+      — no parallel draw method. Suppression is ALL-OR-NOTHING (`bg` must resolve before any
+      submission; a throwing source fails open to `false` with zero submissions), and regions come from
+      the per-instance `InstanceSceneRegionSource(readSceneAtlas(scene))`, never cached.
+      `bottom`/`city`/`beyond` are untouched (`BackgroundBottomVariantTest`/`BackgroundCityVariantTest`/
+      `BackgroundBeyondVariantTest` green). With this slice **all four act combat `bg` regions/layers are
+      now supplied** and the **E-series combat-`bg` coverage is COMPLETE**:
+      `bottom` (ACT-1), `city` (ACT-2), `beyond` (ACT-3), `ending` (ACT-4, single `bg` region). This
+      `bg`-only claim is not foreground or non-combat coverage: `renderCombatRoomFg`, the `campfire`/
+      `event` regions, and the non-combat campfire/event branches remain open in E06b/E07b/E08b/E09b.
+      Tests: `BackgroundEndingVariantTest` (12). Scenario `d1_verify_background.yaml` gains the `ending`
+      block (`art lab enter-act 4` → `lab.actId`/`lab.scene` waits → `artDrawCount` delta → retained +
+      filtered close-diff). **D1 PENDING.**
+
+- [ ] **Open (E09 device): D1 was OFFLINE during the E09 verification window.** The jar built and
+      payload-verified (`sha256 66e1231...4cf6cf`; `Variant.ENDING`/`endingLayerPlan` present, usage
+      `...|beyond|ending`), but the D1 ADB endpoint (`localhost:15555`) accepted TCP without an ADB
+      handshake (`adb connect` failed; `get-state` = `device offline`; only the connector port 39999
+      answered). So the E09 `d1_verify_background.yaml` run (`enter-act 4` -> `TheEnding`/`TheEndingScene`
+      -> `ending` real draw-delta + filtered close-diff) and the ACT-4 visual A/B are PENDING, not
+      failed. Re-run once D1 is back: push the exact jar, then the standard `d1_verify_background`
+      130-step scenario TWICE + a native-vs-ART ACT-4 capture.
+- [ ] **Open (E09b): TheEnding remainder (deferred, do NOT draw yet).** The `endingScene/scene.atlas`
+      `campfire` and `event` regions, any `renderCombatRoomFg` on `TheEndingScene`, and the non-combat
+      `renderCampfireRoom`/`renderEventRoom` branches are not supplied; the `ending` variant supplies the
+      combat `bg` region only. E06b (ACT-1 torch/fog/overlay/campfire/event/fg), E07b (ACT-2 fg/fireflies/
+      campfire/event) and E08b (ACT-3 fg/campfire/event) remain open for their own remains.
 
 - [x] **L01: lab act-jump (`art lab enter-act <2|3|4>`).** The lab can now move the live run to a
       supported non-Exordium act through the native dungeon-construction path
@@ -4635,20 +4667,30 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       is suppressed), so it is NOT a gap. Each of these is a separate bounded slice; the scrim needs a
       new `confirmScreenUp` projection to be native-faithful.
 
-- [ ] **Open (E-series scoping, verified): real per-act background pixels are NOT supplied.** VERIFIED:
-      `BackgroundRenderGate.renderSelectedVariant` draws only SYNTHETIC diagnostic variants
-      (`SOLID`/`CHECKER`/`GRID` white-square quads) for `art verify mode background`; it does NOT
-      supply real act backgrounds, and no ART per-act background resource exists. Native
-      `TheBottomScene.renderCombatRoomBg` is a MULTI-LAYER animated background
+- [x] **SUPERSEDED (closed: scoping only, no work outstanding in this entry) — E-series scoping: real
+      per-act background pixels were not supplied when this was written.** HISTORICAL: at the time of
+      this audit `BackgroundRenderGate.renderSelectedVariant` drew only SYNTHETIC diagnostic variants
+      (`SOLID`/`CHECKER`/`GRID` white-square quads) for `art verify mode background`, so that mode
+      supplied no real act pixels; no per-act variant existed yet. That is no longer the state —
+      the real per-act pixels are NOW supplied by **E06** (ACT-1 `bottom`), **E07** (ACT-2 `city`),
+      **E08** (ACT-3 `beyond`) and **E09** (ACT-4 `ending`), each drawing the native atlas regions from
+      the pre-native Prefix over the suppressed native family. The historical insight below still holds,
+      and is why each act needed its own slice: native `TheBottomScene.renderCombatRoomBg` is a
+      MULTI-LAYER animated background
       (`bottomScene/scene.atlas` regions `mod/fg`,`mod/mg`,`mod/mod1`,`mod/mod2`,`mod/midWall`,
       `mod/ceiling`,`mod/ceilingMod1..6`, with dynamic wall/ceiling selection + an overlay-color quad),
       and TheCity/TheBeyond/TheEnding are analogous. So each E slice is a real animated multi-layer
-      reconstruction, not a single file — larger than a quick pixel swap. Plan per act:
-      (1) audit the exact native regions + dynamic selection for ONE act, (2) supply them as resolvable
-      resources + a pre-native draw behind the suppressed native family, (3) use
-      `d1_verify_background*`/`d1_verify_native_isolate` as the objective gate + a visual A/B.
-      The `BackgroundRenderGate` synthetic variants remain the background-only diagnostic; do not
-      confuse them with real act pixels.
+      reconstruction, not a single file — larger than a quick pixel swap. The per-act plan recorded
+      here — (1) audit the exact native regions + dynamic selection for ONE act, (2) supply them as
+      resolvable resources + a pre-native draw behind the suppressed native family, (3) use
+      `d1_verify_background*`/`d1_verify_native_isolate` as the objective gate + a visual A/B — is
+      exactly what E06/E07/E08/E09 executed, and it still governs the remainders. Still open for their
+      own remains: **E06b** (ACT-1 torch/fog/overlay/campfire/event/fg), **E07b** (ACT-2 fg/fireflies/
+      campfire/event), **E08b** (ACT-3 fg/campfire/event), **E09b** (ACT-4 `campfire`/`event`/
+      `renderCombatRoomFg`). Scope limit that is still true: the `BackgroundRenderGate` synthetic
+      `SOLID`/`CHECKER`/`GRID` variants remain a SEPARATE background-only diagnostic — do not confuse
+      them with the real act pixels that the named act variants now draw. ACT-2/3/4 device verification
+      of those real layers remains **D1 PENDING.**
 
 - [ ] **Open (E07-device): lab act-jump capability — CLOSED by L01; ACT-2 device verification pending.**
       The gap recorded here (no lab act-jump, so every device run was ACT-1/`TheBottomScene` and the
@@ -4661,9 +4703,9 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       block previously described here is no longer blocked by tooling. **D1 PENDING** — no device run
       was performed for L01, so this remains an unverified device claim until
       `scripts/art-lab … combat verify-full`/the scenario is actually run. E08 (Beyond) / E09
-      (Ending) are likewise UNBLOCKED by the same act-jump (`art lab enter-act 3` / `enter-act 4`)
-      once their variants exist; today they are still synthetic-only (see the E07/E08/E09 open item
-      above).
+      (Ending) are likewise UNBLOCKED by the same act-jump (`art lab enter-act 3` / `enter-act 4`),
+      and their variants now exist (`beyond` = E08, `ending` = E09), so both are armed in the same
+      scenario; their device verification remains **D1 PENDING** (see the E08/E09 entries above).
 
 - [x] **E08: supply ACT-3 (TheBeyond) combat background LAYERS as real native atlas regions.** New
       `BackgroundRenderGate.Variant.BEYOND` (`parse("beyond")`) draws the native

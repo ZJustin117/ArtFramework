@@ -2078,7 +2078,18 @@ Checkbox list for open work. Tick when done; milestone notes stay short.
       block (`art lab enter-act 4` → `lab.actId`/`lab.scene` waits → `artDrawCount` delta → retained +
       filtered close-diff). **D1 PENDING.**
 
-- [ ] **Open (E09 device): D1 was OFFLINE during the E09 verification window.** The jar built and
+- [x] **E09 D1 VERIFIED (2026-10-17).** D1 came back online; `d1_verify_background.yaml` ran
+      130/130 steps PASS with the ACT-4 `ending` variant. Evidence: `enter-act 4` ->
+      `lab.actId=TheEnding` / `lab.scene=TheEndingScene`; `ending` draw delta over the off baseline
+      `+430` (retained) / `+2 758` (filtered) proving the single `bg` region was submitted; and the
+      filtered-vs-retained close diff `19 457 px / 0.00938` (bound 140 000 / 0.12). Repeat runs on
+      later jars reproduced the magnitude (ending `+470`/`+3 473`, diff `10 610 px / 0.00512`).
+      Independent visual review of the ACT-4 off/retained/filtered triplet: the filtered frame is the
+      same dark blue-teal vaulted cavern as native (three pale buttress pillars, floor horizon at
+      ~2/3 height, amber side doorway at right, edge vignette, motes) with no black/empty room, no
+      duplicate backdrop, no HUD overlap and no brightness shift. **E09 is closed; E09b remains open.**
+- [x] ~~Open (E09 device): D1 was OFFLINE during the E09 verification window.~~ (SUPERSEDED by the
+      verified entry above.) Original record kept for audit: the jar built and
       payload-verified (`sha256 66e1231...4cf6cf`; `Variant.ENDING`/`endingLayerPlan` present, usage
       `...|beyond|ending`), but the D1 ADB endpoint (`localhost:15555`) accepted TCP without an ADB
       handshake (`adb connect` failed; `get-state` = `device offline`; only the connector port 39999
@@ -4904,6 +4915,31 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       (connector port 39999 still answers). Re-run E09 D1 + the remaining device-bound F/S slices once
       the endpoint returns.
 
+- [x] **U04 D1 VERIFIED (2026-10-17, jar `7ee71477…`, HEAD d55278a).** `d1_full_present_select`
+      49/49 steps PASS on device, and every grid card resolved a REAL portrait region:
+      `items[0]` `cards#curse/ascenders_bane`, `items[1..5]` `cards#red/attack/strike`,
+      `items[6..9]` `cards#red/skill/defend`, `items[10]` `cards#red/attack/bash`, Confirm `""`.
+      The three scenario assertions on `items[1].portraitResourceId`
+      (exists / contains `cards#` / eq `cards#red/attack/strike`) all passed. U02c accounting was NOT
+      disturbed by the extra portrait draw: `count=12`, `materializedResolved=12`, `missingArt=0`.
+      Independent visual review (`debug-artifacts/art-verify/d1_u04_select_grid.png`): art is present
+      and correctly placed inside every visible card frame — no overflow, offset, stretch, ghosting
+      or tearing; Strike shows the blade, Defend the shield, Ascender's Bane the flame/spectre. Two
+      PRE-EXISTING select-card parity gaps were observed and are registered below as U06/U07 (they
+      are NOT U04 regressions; the portrait draw order frame -> portrait -> banner -> orb -> cost is
+      correct). NOTE: the committed scenario has **49** steps (not the 52 an earlier note assumed)
+      and contains NO `screenshot:` step, so the visual evidence came from a manual capture; this
+      scenario cannot produce its own baseline images.
+- [ ] **Open (U06): select-card TITLE is drawn across the art band, not on the banner arch.** The
+      visual review of the U04 capture shows the card name (`打击`/`防御`) rendered over the middle of
+      the card (on top of the portrait) instead of on the empty banner arch above it, which native
+      `AbstractCard.renderTitle` does. The banner region itself draws but carries no label. Needs the
+      native title anchor/size/colour read and a decision on which of the two text paths is
+      authoritative — do NOT just move the probe label.
+- [ ] **Open (U07): select cards have no description box/text.** Native select-grid cards draw the
+      description box and the card's description text below the art; ART select cards stop after the
+      art band, leaving the bottom half a flat field. Pre-existing (predates U04), visible only now
+      that the portrait fills the band. Needs the native description-box region + text layout.
 - [ ] **Open (U05): select HAND-card portrait art.** U04 supplied the PORTRAIT (`cards#<assetUrl>`) for
       the GRID select pool only; `Sts1PresentationBackend.readHandSelect` still sets
       `ResourceIds.cardArt(cardId)` (the logical `card/art/<id>` mapping, which does not resolve), so

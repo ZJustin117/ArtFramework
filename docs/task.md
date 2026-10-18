@@ -5087,9 +5087,20 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       slice (they are NOT pre-existing), are comment/label text only, and every assertion is
       direction-agnostic and numerically correct. Left as a cosmetic cleanup so the frozen tests are
       not churned for wording.
-      **D1 re-verification PENDING** - no device run was performed for U05d, so the new row is
-      unit-verified only; the `y = 818` band and its 40 px pill clearance still need an on-device
-      capture.
+      **D1 VERIFIED (2026-10-18, jar `d910f2cd…`, HEAD 8b05d5c).** `enter-select hand` returned
+      `OK hand select scheduled cards=5`; the probe reported EXACTLY the derived row - all five cards
+      at `y = 818`, `x = 436 / 698 / 960 / 1222 / 1484`, `250x350` - with the confirm item UNCHANGED at
+      `(960, 475)` `512x256`. Pixel verification of
+      `debug-artifacts/art-verify/d1_u05d_hand_select.png` (1920x1080): the pill bbox is
+      `x 817-1099, y 572-628` while the card row occupies `y 156-363`, i.e. a **209 px vertical gap
+      with ZERO pill-coloured pixels inside the card band** - no card art is hidden by the pill any
+      more, which was the acceptance criterion. The five cards stay fully on screen (row top y~156,
+      clear of the 64px HUD bar), remain separated at 262 pitch / ~117 px gaps, and stay centred
+      (measured centres 435/697/959/.../1483). **New composition note, NOT a U05d regression:**
+      card 5's banner (x 1411-1555, from y~164) reaches into the top-right turn-counter label
+      `回合数: 1` (x 1408-1560, y 158-199) - the row now lives high enough to touch that HUD line.
+      U05e (native hand still drawn along the bottom, same cards twice) remains OPEN and was
+      reconfirmed in the same capture.
 - [ ] **Open (U05e): the native hand is still drawn while the ART hand-select row is up, so the same
       cards appear TWICE.** Visible in `d1_u05b_hand_select.png`: five ART cards mid-screen AND the same
       five native cards along the bottom edge. The probe reports `suppressNativeSelect: true`, i.e. the

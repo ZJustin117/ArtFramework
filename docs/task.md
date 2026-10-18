@@ -5316,6 +5316,34 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       the SUBSTITUTED VALUE SLOT - a `*5*` keyword digit is card CONTENT and must survive - so the
       test pins slot purity rather than whole-line digit absence.
       **D1 visual re-verification PENDING.**
+- [x] **U07 D1 VERIFIED (2026-10-18, jar `fae0db5a…`, HEAD eb82261).** Hand select AND grid select
+      both reachable on device; `backend.selectDraw` exposes per item `description` (RAW, still
+      carrying `!D!/!B!/!M!/NL` - the substitution happens at wrap time, as designed),
+      `descriptionDrawable`, `descScale = 0.48828125`, `descAnchorY = -50.24414`,
+      `descFontNormal = true`, `descMaxLines = 5`. Raw strings observed on device: Bash
+      `造成 !D! 点伤害。 NL 给予 !M! 层 易伤 。`, Defend `获得 !B! 点 格挡 。`, Strike
+      `造成 !D! 点伤害。`, Ascender's Bane `不能被打出 。 NL 虚无 。 NL 不能从牌组中移除。`.
+      **Independent visual review of `d1_u07_hand_select.png` (5 cards) and
+      `d1_u07_grid_select.png` (9 cards): descriptions DRAW on every one of the 14 visible card
+      faces**, the `NL` breaks are real (Bash 2 lines, Ascender's Bane 3 lines, Defend/Strike
+      1 line), the `?` placeholder appears where a value belongs, **no card shows the literal
+      `!D!/!B!/!M!/NL`**, and no glyph crosses a card edge or is clipped. Measured glyph-vs-frame
+      margins on the hand row: L42/R49-50/B38-44 (Ascender's Bane L27/R34/B33), so the known U07e
+      character-count overflow did NOT reproduce with this data - it stays OPEN as a LATENT risk for
+      longer lines, not as an observed defect. U07e/U07f/U07g/U07h/U07i remain open as registered.
+      **New defect found by this review (registered as U05j, NOT a U07 regression):** in the GRID
+      select the 确认 button is drawn over the TOP of the middle bottom-row card, washing out its
+      title banner (the three sibling 防御 cards render crisply). That is a two-row grid vs confirm
+      placement collision - the same class as U05d but for the grid, whose card positions come from
+      the native grid layout rather than a synthetic row.
+- [ ] **Open (U05j): GRID select - the 确认 button overlaps the bottom row of cards.** In
+      `debug-artifacts/art-verify/d1_u07_grid_select.png` the middle card of the bottom row has its
+      title banner covered by the 确认 pill (washed-out title, while its three siblings are crisp);
+      the card's description text is still readable. Grid card positions come from the NATIVE grid
+      layout (`readGridSelect` projects real `CardPose` from `card.current_x/current_y`), so unlike
+      U05d this cannot be fixed by moving a synthetic row - and native `GridCardSelectScreen` may
+      draw the confirm button over the grid itself, so this could be NATIVE-FAITHFUL and therefore
+      NOT a defect. VERIFY against native before changing anything.
 - [ ] **U07d real native dynamic VALUE for `!D!`/`!B!`/`!M!` in select-card descriptions (OPEN).**
       U07c stops the raw tokens being painted by substituting the fixed value-free
       `DYNAMIC_VALUE_PLACEHOLDER = "?"`; it deliberately does NOT render a number. U07d must replace

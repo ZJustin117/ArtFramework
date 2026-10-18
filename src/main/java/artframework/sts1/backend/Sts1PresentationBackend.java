@@ -2019,9 +2019,10 @@ public final class Sts1PresentationBackend implements SignalBackend {
      * {@code cards#<assetUrl>} so {@link artframework.sts1.render.SelectDrawPath} can map it back to
      * the same atlas region name.
      *
-     * <p>This replaces {@code ResourceIds.cardArt(card.cardID)} for the GRID select pool only: the
-     * card art url is the atlas region name, whereas the card id is not. The HAND select path is
-     * deliberately untouched (out of scope for U04).
+     * <p>This replaces {@code ResourceIds.cardArt(card.cardID)} for the select card PORTRAIT: the
+     * card art url is the atlas region name, whereas the card id is not. U04 wired the GRID select
+     * pool to this helper; U05 wires the HAND select path to the same helper, the same
+     * {@code cards} atlas source, and the same native portrait geometry.
      *
      * <p>Fail-open: a null card, an absent/unreadable {@code assetUrl}, or a blank/absent/
      * {@code "null"} value yields {@code ""} (no portrait draw) rather than throwing.
@@ -2088,7 +2089,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     .zone(CardZone.SELECT)
                                     .slot(i)
                                     .selected(isSel)
-                                    .art(ResourceIds.cardArt(card.cardID))
+                                    .art(cardArtRegionDescriptor(card))
                                     .title(card.name)
                                     .cost(cardCost(card))
                                     .type(cardType(card))

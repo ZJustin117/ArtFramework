@@ -4975,8 +4975,32 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       description box and the card's description text below the art; ART select cards stop after the
       art band, leaving the bottom half a flat field. Pre-existing (predates U04), visible only now
       that the portrait fills the band. Needs the native description-box region + text layout.
-- [ ] **Open (U05): select HAND-card portrait art.** U04 supplied the PORTRAIT (`cards#<assetUrl>`) for
-      the GRID select pool only; `Sts1PresentationBackend.readHandSelect` still sets
-      `ResourceIds.cardArt(cardId)` (the logical `card/art/<id>` mapping, which does not resolve), so
-      hand-select cards draw no portrait. Mirror U04's `cardArtRegionDescriptor` + `CardArtAtlasSource`
-      + `selectPortraitRect` placement on the hand path, keeping the hand geometry separate. D1 PENDING.
+- [x] **U05 select HAND-card portrait art (implemented 2026-10-18; D1 PENDING).** HAND select now
+      supplies the PORTRAIT through the SAME `cardArtRegionDescriptor(card)` helper the GRID pool
+      uses (U04), so `Sts1PresentationBackend.readHandSelect` yields
+      `CardView.artResourceId = cards#<AbstractCard.assetUrl>` instead of the unresolvable logical
+      `ResourceIds.cardArt(cardId)` (`card/art/<id>`) mapping. Fail-open is unchanged: a null card, a
+      blank/absent/`"null"` `assetUrl`, or a `loadCardImage()` dotted FILE path yields `""` (no
+      portrait draw). It reuses the existing `cards` live atlas source (`CardArtAtlasSource`, U04)
+      and the existing `selectPortraitRect` geometry - no new mapping, atlas source, geometry helper
+      or accounting change, and the portrait stays OUTSIDE the U02c resolve-aware accounting.
+      The hand draw gate was confirmed in source: `Sts1SurfaceRenderer.renderSelect` is dispatched
+      for both `SELECT_GRID` and `SELECT_HAND`, and real hand cards satisfy
+      `!item.confirm && !item.cardId.isEmpty()` and reach the portrait branch; the probe exposes the
+      same `portraitResourceId` for hand items.
+      Tests: new `HandSelectPortraitWiringTest` (4) - one source-level structural test is the real
+      Red (no live `AbstractCard`/`HandCardSelectScreen` seam exists), the other three are
+      probe/mapping coverage. Focused `artframework.sts1.backend.*` +
+      `artframework.sts1.render.*` = 1132 tests, 0 failures. **D1 verification PENDING** (parent
+      enters hand-select on device; no device run was performed and the device YAML was NOT modified
+      by this slice).
+- [ ] **Open (U05b): select HAND-card geometry is not native.** `readHandSelect` projects no
+      `CardPose` at all, so `SelectDrawPath.buildFromProjection` falls back to
+      `defaultCardX/defaultCardY` and `rotation 0`: hand-select cards lose native hand POSITION
+      and ROTATION and draw at a synthetic centered row. `readGridSelect` does project
+      `current_x/current_y/angle/drawScale`, but `drawScale` is NOT the select scale authority -
+      `buildFromProjection` never reads `pose.scale`, so the fixed `250f/350f` box and all
+      `w / 512f`-derived scales stay fixed (U02d3/U06). Restoring native hand placement/scale
+      therefore needs its own accepted design ruling, not a mechanical `drawScale` projection.
+      Pre-existing; U05 leaves `selectPortraitRect`, `selectRegionRect`, `drawSelectAtlasRegion`,
+      the `w/512` authority and the U02c accounting untouched. Geometry verification PENDING.

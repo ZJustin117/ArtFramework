@@ -4932,6 +4932,26 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       correct). NOTE: the committed scenario has **49** steps (not the 52 an earlier note assumed)
       and contains NO `screenshot:` step, so the visual evidence came from a manual capture; this
       scenario cannot produce its own baseline images.
+- [ ] **Open (U05c): hand-select fallback row pitch is smaller than the card width, so cards overlap
+      ~44 %.** The fallback uses `defaultCardX`'s 140 px pitch while each card is 250 px wide, so every
+      neighbour covers 110 px of the previous card and each portrait is cut roughly in half; cards can
+      then only be told apart by title + cost. Observed on D1
+      (`debug-artifacts/art-verify/d1_u05b_hand_select.png`). Options: widen the pitch while keeping the
+      row centred, or accept the overlap and shrink the covered region - this is a LAYOUT decision on
+      the synthetic fallback, not the native-geometry item below.
+- [ ] **Open (U05d): the confirm button is drawn ON TOP of the hand-select card row.** The confirm item
+      is `512x256` centred at `(960, 475)` while the card row sits at `y = 486`; the pill therefore
+      covers the middle cards' portraits and bites the rightmost card. Titles/costs stay visible above
+      it, so the cards are still distinguishable by name - but the art is hidden. Fix by moving the
+      confirm affordance out of the row band (native draws it below/outside), which also resolves most
+      of U05c's practical impact.
+- [ ] **Open (U05e): the native hand is still drawn while the ART hand-select row is up, so the same
+      cards appear TWICE.** Visible in `d1_u05b_hand_select.png`: five ART cards mid-screen AND the same
+      five native cards along the bottom edge. The probe reports `suppressNativeSelect: true`, i.e. the
+      native copies are non-interactive, but they still read as tappable, so focus/affordance is
+      ambiguous. Needs a decision on which surface owns the interaction (and whether the native hand
+      should be hidden/suppressed for HAND select).
+
 - [x] **U06 select-card TITLE on the banner arch (implemented 2026-10-18; D1 visual re-verification
       PENDING).** Select-screen cards (GRID and HAND select - both mirror the same native
       `AbstractCard.renderTitle` call, so the title carrier is shared) now draw their title with
@@ -5045,7 +5065,25 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       probe row reports the same and `visible = TRUE`. Focused
       `cleanTest test --tests "artframework.context.*" --tests "artframework.sts1.render.*"
       --tests "artframework.sts1.backend.*"` = 1235 tests, 0 failures (Red before: 1235 / 4
-      failures). **UNIT-VERIFIED ONLY.**
+      failures).
+      **D1 VERIFIED (2026-10-18, jar `93e9c862…`, HEAD 9cfdb41).** `art lab enter-select hand` (needs
+      a live run + non-empty hand) returned `OK hand select scheduled cards=5`; the probe then
+      reported exactly the predicted fallback row - `kind=HAND`, `poolCount=5`, `count=6`,
+      `missingArt=0`, `materializedResolved=6`, and per card `x = 680 / 820 / 960 / 1100 / 1240`,
+      `y = 486`, `w/h = 250x350` (nothing at 0,0), portraits
+      `cards#red/attack/bash`, `cards#red/skill/defend`, `cards#red/attack/strike` x2,
+      `cards#curse/ascenders_bane`. The capture
+      `debug-artifacts/art-verify/d1_u05b_hand_select.png` confirms five ART cards with portraits,
+      cost orbs and titles on screen in a centred row; the pre-fix sliver at the bottom-left is gone.
+      An independent visual review of that capture found **three REAL defects of the synthetic
+      fallback row** (registered below as U05c/U05d/U05e - they are layout defects of the fallback,
+      NOT the native-geometry item): the row pitch (140) is smaller than the card width (250), so
+      neighbours overlap ~44 % and cut each portrait roughly in half; the 确认 pill is drawn OVER the
+      middle of the row, hiding the middle cards' portraits; and the native hand is still drawn along
+      the bottom at the same time, so the SAME five cards appear twice. A flat grey block seen between
+      the middle cards is the dark `进阶之灾` portrait area showing through the overlap - a symptom of
+      U05c/U05d, not separate content.
+      **UNIT-VERIFIED + D1-VERIFIED for on-screen placement.**
       **STILL OPEN (separate, unresolved items):**
       - native hand ROTATION/SCALE: `pose.scale` is still never read by `buildFromProjection`; the
         fixed `250f/350f` box and the `w/512f` scales (U02d3/U06) remain the scale authority, so
@@ -5055,8 +5093,8 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       - native hand x/y PARITY: the fallback row is a SYNTHETIC centred layout (140px spacing,
         `y = 0.45 * HEIGHT`), not the native hand positions - on-screen now, but not positionally
         native.
-      - **D1 re-verification PENDING (parent):** the fix is UNIT-verified only; a fresh D1 capture
-        of hand select must confirm the ART card row is actually visible on screen. The earlier
+      - ~~D1 re-verification PENDING~~ -> NOW DONE (see the D1 VERIFIED block above).
+        Historical note, kept for audit: the earlier
         `x = 0.0, y = 0.0` evidence above (jar `a2f44e62…`, HEAD 7ef4589, capture
         `debug-artifacts/art-verify/d1_u05_hand_select.png`) is the BEFORE state and stays as the
         problem record.

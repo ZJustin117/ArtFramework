@@ -1057,7 +1057,10 @@ public final class Sts1SurfaceRenderer {
                 try {
                     artframework.component.Rect b = new artframework.component.Rect(
                             item.x - item.w / 2f, item.y - item.h / 2f, item.w, item.h);
-                    if (!item.confirm && !item.cardId.isEmpty()) {
+                    // The confirm pseudo-item is not a card: it keeps the centred button label and
+                    // draws no card regions. ONE predicate for both card paths below.
+                    boolean card = !item.confirm && !item.cardId.isEmpty();
+                    if (card) {
                         // Base-background frame first, then the PORTRAIT over it, then the banner,
                         // then the energy orb, then the cost number, mirroring the native
                         // AbstractCard order renderCardBg -> renderPortrait -> renderBannerImage ->
@@ -1071,16 +1074,133 @@ public final class Sts1SurfaceRenderer {
                         drawSelectCostNumber(sb, item);
                     }
                     drawResolvedTexture(sb, item.resourceId, b);
-                    com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
-                            sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
-                            item.label, item.x, item.y,
-                            item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                    if (card) {
+                        // U06: ART draws the card TITLE LAST (frame -> portrait -> banner -> orb ->
+                        // cost -> title) per the accepted slice ruling - NOT because of native order.
+                        // Native AbstractCard.renderCard actually runs renderImage (bg + portrait +
+                        // banner) -> renderTitle -> renderType -> description -> renderTint ->
+                        // renderEnergy, i.e. renderTitle PRECEDES renderType/description/renderEnergy,
+                        // so a later native-parity pass must not silently move this draw without a
+                        // new design ruling. GRID and HAND select both mirror the same native
+                        // AbstractCard.renderTitle call. The old centred buttonLabelFont item.label
+                        // draw IS the U06 defect (it painted the card name across the portrait), so
+                        // it is intentionally NOT drawn for cards - exactly one title is painted, on
+                        // the banner arch.
+                        drawSelectTitle(sb, item,
+                                item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                    } else {
+                        // The confirm button is not a card: keep its centred label draw unchanged.
+                        com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
+                                sb, com.megacrit.cardcrawl.helpers.FontHelper.buttonLabelFont,
+                                item.label, item.x, item.y,
+                                item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                    }
                 } catch (Throwable ignored) { }
             }
         } catch (Throwable ignored) {
         } finally {
             NativeRenderBridge.recordSurfaceDrawIfPending(surfaceId, SelectDrawPath.materializedDrawCount());
         }
+    }
+
+    /**
+     * U06: the native select-card TITLE, mirroring {@code AbstractCard.renderTitle}. Drawn for BOTH
+     * the GRID and the HAND select screen, because native {@code GridCardSelectScreen} and
+     * {@code HandCardSelectScreen} both ultimately call the same {@code AbstractCard.renderTitle}
+     * (the title itself carries no per-screen difference).
+     *
+     * <p><b>Scale authority (parent-ruled).</b> {@code drawScale := item.w / 512f} - the exact
+     * U02d3 precedent already in this file: {@code SelectDrawPath.CARDUI_PAGE} feeds
+     * {@link SelectDrawPath.DrawItem#costScale}, {@code COST_OFFSET_Y = 192f}, and
+     * {@link #drawSelectCostNumber} then applies
+     * {@code font.getData().setScale(item.costScale)} with {@code item.costOffsetY}. Native
+     * {@code card.drawScale} is NOT the authority here: it is about 0.75 on the select screen while
+     * ART's select geometry is sized by {@code w / 512}, so {@code 175 * 0.75 = 131.25} would place
+     * the title about 46 px above ART's anchor ({@code 175 * 0.48828125 = 85.449} for the real
+     * 250x350 item) - off the banner arch and toward/above the card's top edge.
+     *
+     * <p><b>Anchor.</b> {@code item.titleOffsetY = 175f * (item.w / 512f)}, with NO extra
+     * {@code Settings.scale} factor: the ART uniform scale already absorbs the host scale, exactly
+     * like {@code costOffsetY}. <b>Font scale</b> {@code item.titleScale = item.w / 512f}, times
+     * native {@code 0.85f} when the card's small-title flag is set (the flag never moves the
+     * anchor). <b>Colour:</b> an upgraded card uses {@code Settings.GREEN_TEXT_COLOR} (read
+     * fail-open); otherwise the RGB is the item's existing enabled/disabled chrome colour. The alpha
+     * is {@code item.titleAlpha} ALONE (the native {@code renderColor.a}), applied once in both
+     * branches and never multiplied by the chrome colour's own alpha. The
+     * projected {@code item.rotation} is passed through, never hardcoded to {@code 0}.
+     *
+     * <p>Draw order: ART draws the title LAST (frame -> portrait -> banner -> orb -> cost -> title)
+     * per the accepted slice ruling - not because of native order. Native
+     * {@code AbstractCard.renderCard} actually runs {@code renderImage} (bg + portrait + banner) ->
+     * {@code renderTitle} -> {@code renderType} -> description -> {@code renderTint} ->
+     * {@code renderEnergy}, so native {@code renderTitle} PRECEDES renderType/description/
+     * renderEnergy; a later native-parity pass must not silently move this draw without a new
+     * design ruling.
+     *
+     * <p><b>Shared-static font hygiene.</b> Native title drawing mutates the shared static
+     * {@code FontHelper.cardTitleFont} scale, so the prior {@code getData().scaleX/scaleY} are
+     * captured and RESTORED in a {@code finally}. Fail-open: a null batch/item, a non-drawable
+     * title, or a missing/uninitialized font draws nothing and never throws.
+     *
+     * <p>Residual: {@code FontHelper.renderRotatedText} rounds its x/y (and the offsets) to whole
+     * pixels when the font {@code scaleX == 1.0f} (FontHelper ~628-633); at the select title scale
+     * that branch does not apply, but a hypothetical unit-scale title would be pixel-rounded.
+     */
+    private static void drawSelectTitle(
+            SpriteBatch sb, SelectDrawPath.DrawItem item, Color renderColor) {
+        try {
+            // titleDrawable already means "title is non-null and not whitespace-only".
+            if (sb == null || item == null || !item.titleDrawable) return;
+            BitmapFont font = FontHelper.cardTitleFont;
+            if (font == null || font.getData() == null || renderColor == null) return;
+            float priorScaleX = font.getData().scaleX;
+            float priorScaleY = font.getData().scaleY;
+            try {
+                font.getData().setScale(item.titleScale);
+                Color color = titleColor(item, renderColor);
+                FontHelper.renderRotatedText(sb, font, item.title, item.x, item.y, 0f,
+                        item.titleOffsetY, item.rotation, false, color);
+            } finally {
+                try {
+                    font.getData().setScale(priorScaleX, priorScaleY);
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * U06 native {@code renderTitle} colour. An upgraded card uses {@code Settings.GREEN_TEXT_COLOR}
+     * (read fail-open, falling back to the native constant {@code new Color(0x7FFF00FF)} =
+     * {@code (0.498, 1.0, 0.0)}); otherwise the RGB comes from the item's enabled/disabled chrome
+     * colour. In BOTH branches the alpha is {@code item.titleAlpha} ALONE - the native
+     * {@code renderColor.a} - applied ONCE, and never multiplied by the chrome colour's own alpha
+     * (that extra {@code labelA}/{@code disabledA} factor is not native and would dim a normal title
+     * relative to an upgraded one).
+     */
+    private static Color titleColor(SelectDrawPath.DrawItem item, Color renderColor) {
+        float alpha = item.titleAlpha;
+        // NaN fails both comparisons, so test it explicitly: a NaN alpha would otherwise reach the
+        // SpriteBatch colour and blank the title.
+        if (!(alpha > 0f)) alpha = 0f;
+        if (alpha > 1f) alpha = 1f;
+        if (item.titleGreen) {
+            float r = 0.498f;
+            float g = 1f;
+            float b = 0f;
+            try {
+                Color green = com.megacrit.cardcrawl.core.Settings.GREEN_TEXT_COLOR;
+                if (green != null) {
+                    r = green.r;
+                    g = green.g;
+                    b = green.b;
+                }
+            } catch (Throwable ignored) {
+            }
+            return new Color(r, g, b, alpha);
+        }
+        return new Color(renderColor.r, renderColor.g, renderColor.b, alpha);
     }
 
     /**

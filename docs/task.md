@@ -3723,7 +3723,9 @@ allocation and Young GC pressure.
       `cardui/frame`, which is NOT file-backed, so card frames/art are not drawn (only floating
       labels). **Localized card labels are now DONE:** `SelectDrawPath.DrawItem` carries a `label`
       resolved from the projection's localized `CardView.title` (`AbstractCard.name`) with a raw-`cardId`
-      fallback when the title is empty, `renderSelect` draws `item.label`, and `toMap()`/the probe
+      fallback when the title is empty; since **U06** the CARD text is drawn from `item.title` at the
+      native `renderTitle` anchor and `item.label` survives only as probe data (the centred
+      `item.label` draw now applies to the CONFIRM button only), and `toMap()`/the probe
       expose `label` alongside the raw `cardId` (kept for identity/resource selection).
       `d1_full_present_select.yaml` asserts the item data `label` exists and is non-empty; the
       renderer also exposes `backend.selectDraw.items[*].label`. **REMAINING OPEN:** per-card
@@ -4930,12 +4932,32 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       correct). NOTE: the committed scenario has **49** steps (not the 52 an earlier note assumed)
       and contains NO `screenshot:` step, so the visual evidence came from a manual capture; this
       scenario cannot produce its own baseline images.
-- [ ] **Open (U06): select-card TITLE is drawn across the art band, not on the banner arch.** The
-      visual review of the U04 capture shows the card name (`打击`/`防御`) rendered over the middle of
-      the card (on top of the portrait) instead of on the empty banner arch above it, which native
-      `AbstractCard.renderTitle` does. The banner region itself draws but carries no label. Needs the
-      native title anchor/size/colour read and a decision on which of the two text paths is
-      authoritative — do NOT just move the probe label.
+- [x] **U06 select-card TITLE on the banner arch (implemented 2026-10-18; D1 visual re-verification
+      PENDING).** Select-screen cards (GRID and HAND select - both mirror the same native
+      `AbstractCard.renderTitle` call, so the title carrier is shared) now draw their title with
+      `FontHelper.cardTitleFont` / `renderRotatedText` on the banner arch instead of the previous
+      centred `buttonLabelFont` label over the middle of the card (that centred label IS the defect;
+      it is now drawn only for the confirm pseudo-item, which is not a card).
+      **Scale authority (parent-ruled): the ART uniform card scale `w / 512f`, NOT native
+      `card.drawScale`** - the same U02d3 precedent as `SelectDrawPath.CARDUI_PAGE` /
+      `DrawItem.costScale` / `COST_OFFSET_Y = 192f` / `drawSelectCostNumber`'s
+      `font.getData().setScale(item.costScale)`. For the real 250x350 select item native
+      `drawScale` is ~0.75, which would put the title at `175*0.75 = 131.25` px, ~46 px above ART's
+      anchor (85.449) and off the banner arch. Anchor: `titleOffsetY = 175f * (w/512f)` with NO extra
+      `Settings.scale` (already absorbed by the ART scale). Font scale `titleScale = w/512f`, times
+      native `0.85f` when `AbstractCard.useSmallTitleFont` is set; the flag never moves the anchor.
+      Colour: upgraded -> `Settings.GREEN_TEXT_COLOR` rgb, else the item's existing
+      enabled/disabled render colour, with the native `renderColor.a` alpha (`titleAlpha`) baked in.
+      Draw order: title LAST, after frame -> portrait -> banner -> orb -> cost, rotated by the
+      projected `CardPose.rotation`. Carriers added additively: `CardView.upgraded` /
+      `smallTitleFont` / `titleAlpha` (+ builder setters, fail-open `false/false/1f`) and
+      `SelectDrawPath.DrawItem.title` / `titleOffsetY` / `titleScale` / `titleGreen` / `titleAlpha` /
+      `titleDrawable` / `rotation` (+ `toMap()` evidence keys). Shared static `cardTitleFont` scale is
+      captured and restored in a `finally`. Focused gate: `SelectCardTitleGeometryTest` 9/9 plus the
+      `artframework.sts1.render.*` / `artframework.sts1.backend.*` / `artframework.context.*` focused
+      run PASS (0 failures). Numbers for 250x350: `titleOffsetY = 85.44921875`,
+      `titleScale = 0.48828125` (small-title `0.4150390625`). **D1 visual re-verification PENDING** -
+      the parent must re-capture `d1_full_present_select` and confirm the title sits on the arch.
 - [ ] **Open (U07): select cards have no description box/text.** Native select-grid cards draw the
       description box and the card's description text below the art; ART select cards stop after the
       art band, leaving the bottom half a flat field. Pre-existing (predates U04), visible only now

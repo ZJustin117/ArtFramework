@@ -71,8 +71,10 @@ steps:
       path: backend.selectDraw.confirm.label
       var: select_confirm_label
   # D09: card labels use the localized AbstractCard.name (CardView.title), not the raw card id.
-  # The projection already carries the localized title; assert the drawn label exists and is
-  # non-empty (raw-id fallback only applies when a title is genuinely absent).
+  # The projection already carries the localized title; assert the label probe data exists and is
+  # non-empty (raw-id fallback only applies when a title is genuinely absent). NOTE (U06): the DRAWN
+  # card text now comes from `item.title` at the native renderTitle anchor - `item.label` is probe
+  # data, and for a blank title `item.titleDrawable` is false so nothing is drawn.
   - assert:
       path: backend.selectDraw.items[0].cardId
       exists: true

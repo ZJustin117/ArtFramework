@@ -1997,6 +1997,9 @@ public final class Sts1PresentationBackend implements SignalBackend {
                         .orbDrawable(card == null || card.cost > -2)
                         .costModified(cardCostModified(card))
                         .costRestricted(cardCostRestricted(card))
+                        .upgraded(cardUpgraded(card))
+                        .smallTitleFont(cardSmallTitleFont(card))
+                        .titleAlpha(cardTitleAlpha(card))
                         .description(card.rawDescription)
                         .build());
             }
@@ -2094,6 +2097,9 @@ public final class Sts1PresentationBackend implements SignalBackend {
                                     .orbDrawable(card == null || card.cost > -2)
                                     .costModified(cardCostModified(card))
                                     .costRestricted(cardCostRestricted(card))
+                                    .upgraded(cardUpgraded(card))
+                                    .smallTitleFont(cardSmallTitleFont(card))
+                                    .titleAlpha(cardTitleAlpha(card))
                                     .description(card.rawDescription)
                                     .build());
                 }
@@ -2128,6 +2134,47 @@ public final class Sts1PresentationBackend implements SignalBackend {
             if (player == null || player.hand == null || !player.hand.contains(card)) return false;
             return !card.hasEnoughEnergy();
         } catch (Throwable ignored) { return false; }
+    }
+
+    /**
+     * U06: native {@code AbstractCard.upgraded} (PUBLIC field) - the native {@code renderTitle}
+     * GREEN branch. Fail-open {@code false}; mirrors the file's soft-read style so an uninitialized
+     * card never throws.
+     */
+    private static boolean cardUpgraded(AbstractCard card) {
+        if (card == null) return false;
+        try { return card.upgraded; }
+        catch (Throwable ignored) { return false; }
+    }
+
+    /**
+     * U06: native {@code AbstractCard.useSmallTitleFont} - a PRIVATE boolean field, so it is read
+     * through the guarded {@link #softField(Class, Object, String)} reflection helper. Native
+     * {@code renderTitle} multiplies the title font scale by {@code 0.85f} when it is set.
+     * Fail-open {@code false}; never throws.
+     */
+    private static boolean cardSmallTitleFont(AbstractCard card) {
+        if (card == null) return false;
+        try {
+            Object value = softField(card.getClass(), card, "useSmallTitleFont");
+            return value instanceof Boolean && ((Boolean) value).booleanValue();
+        } catch (Throwable ignored) { return false; }
+    }
+
+    /**
+     * U06: native {@code AbstractCard.renderColor.a} - the PRIVATE {@code Color} whose alpha native
+     * {@code renderTitle} applies to the title. Read through the guarded
+     * {@link #softField(Class, Object, String)} reflection helper (same shape as the map
+     * {@code bossNodeColor} component reads). Fail-open {@code 1f}; never throws.
+     */
+    private static float cardTitleAlpha(AbstractCard card) {
+        if (card == null) return 1f;
+        try {
+            Object color = softField(card.getClass(), card, "renderColor");
+            if (color == null) return 1f;
+            Object alpha = softField(color.getClass(), color, "a");
+            return alpha instanceof Number ? ((Number) alpha).floatValue() : 1f;
+        } catch (Throwable ignored) { return 1f; }
     }
 
     /**

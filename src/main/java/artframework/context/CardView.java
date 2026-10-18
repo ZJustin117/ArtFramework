@@ -38,6 +38,25 @@ public final class CardView {
      * RED, and this branch takes precedence over {@link #costModified}. Fail-open {@code false}.
      */
     public final boolean costRestricted;
+    /**
+     * U06: native {@code AbstractCard.upgraded} (public field). Native {@code renderTitle} draws the
+     * title GREEN when the card is upgraded ({@code card.upgraded} -&gt;
+     * {@code Settings.GREEN_TEXT_COLOR}); otherwise it uses the card's own {@code renderColor}.
+     * Fail-open {@code false}.
+     */
+    public final boolean upgraded;
+    /**
+     * U06: native {@code AbstractCard.useSmallTitleFont} (PRIVATE field, read by the backend through
+     * guarded reflection). Native {@code renderTitle} multiplies the title font scale by
+     * {@code 0.85f} when set (the non-default-language small-title path). Fail-open {@code false}.
+     */
+    public final boolean smallTitleFont;
+    /**
+     * U06: native {@code AbstractCard.renderColor.a} (PRIVATE {@code Color} field, read by the
+     * backend through guarded reflection). Native {@code renderTitle} draws the title with that
+     * alpha. Fail-open {@code 1f}.
+     */
+    public final float titleAlpha;
 
     public CardView(
             CardRef ref,
@@ -96,6 +115,22 @@ public final class CardView {
             String frameResourceId, String title, String cost, String type, String description,
             String color, String rarity, boolean orbDrawable, boolean costModified,
             boolean costRestricted) {
+        this(ref, zone, slotIndex, pose, playable, selected, hovered, dragging, artResourceId,
+                frameResourceId, title, cost, type, description, color, rarity, orbDrawable,
+                costModified, costRestricted, false, false, 1f);
+    }
+
+    /**
+     * U06 full carrier. The three title fields are added at the END so every pre-existing argument
+     * order is untouched; the shorter constructors delegate here with the fail-open defaults
+     * {@code false, false, 1f}.
+     */
+    public CardView(
+            CardRef ref, CardZone zone, int slotIndex, CardPose pose, boolean playable,
+            boolean selected, boolean hovered, boolean dragging, String artResourceId,
+            String frameResourceId, String title, String cost, String type, String description,
+            String color, String rarity, boolean orbDrawable, boolean costModified,
+            boolean costRestricted, boolean upgraded, boolean smallTitleFont, float titleAlpha) {
         if (ref == null) {
             throw new IllegalArgumentException("ref required");
         }
@@ -118,6 +153,9 @@ public final class CardView {
         this.orbDrawable = orbDrawable;
         this.costModified = costModified;
         this.costRestricted = costRestricted;
+        this.upgraded = upgraded;
+        this.smallTitleFont = smallTitleFont;
+        this.titleAlpha = titleAlpha;
     }
 
     public static Builder builder(CardRef ref) {
@@ -144,6 +182,9 @@ public final class CardView {
         private boolean orbDrawable = true;
         private boolean costModified = false;
         private boolean costRestricted = false;
+        private boolean upgraded = false;
+        private boolean smallTitleFont = false;
+        private float titleAlpha = 1f;
 
         Builder(CardRef ref) {
             this.ref = ref;
@@ -203,6 +244,9 @@ public final class CardView {
         public Builder orbDrawable(boolean value) { this.orbDrawable = value; return this; }
         public Builder costModified(boolean value) { this.costModified = value; return this; }
         public Builder costRestricted(boolean value) { this.costRestricted = value; return this; }
+        public Builder upgraded(boolean value) { this.upgraded = value; return this; }
+        public Builder smallTitleFont(boolean value) { this.smallTitleFont = value; return this; }
+        public Builder titleAlpha(float value) { this.titleAlpha = value; return this; }
 
         public CardView build() {
             return new CardView(
@@ -216,7 +260,7 @@ public final class CardView {
                     dragging,
                     artResourceId, frameResourceId, title != null ? title : ref.cardId,
                     cost, type, description, color, rarity, orbDrawable, costModified,
-                    costRestricted);
+                    costRestricted, upgraded, smallTitleFont, titleAlpha);
         }
     }
 }

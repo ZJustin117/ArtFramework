@@ -37,6 +37,17 @@ public final class SelectDrawPath {
      */
     static final float COST_OFFSET_Y = 192f;
 
+    /**
+     * U06: native {@code AbstractCard.renderTitle} banner-arch anchor relative to the card centre:
+     * {@code 175f * drawScale} unscaled. ART scales it by the SAME uniform card scale
+     * {@code w / 512f} used by {@link #COST_OFFSET_Y} (which already absorbs the host
+     * {@code Settings.scale}), never by the native {@code card.drawScale}.
+     */
+    static final float TITLE_OFFSET_Y = 175f;
+
+    /** U06: native small-title font multiplier ({@code useSmallTitleFont}) applied to the font only. */
+    static final float SMALL_TITLE_SCALE = 0.85f;
+
     public static final class DrawItem {
         public final String instanceId;
         /** Raw card id (e.g. {@code Strike_R}); identity/resource selection only. */
@@ -108,6 +119,39 @@ public final class SelectDrawPath {
          * is non-positive).
          */
         public final float costScale;
+        /**
+         * U06: the native title text carried VERBATIM from {@link CardView#title}, which itself
+         * substitutes {@code ref.cardId} when the projection has no title (so an absent native card
+         * name lands on the arch as the raw id). Drawability is decided by {@link #titleDrawable}
+         * (whitespace/blank suppression only). Never used for identity or resource selection -
+         * {@link #cardId} owns those. {@code ""} when the item was built without a title (confirm
+         * pseudo-item, legacy construction).
+         */
+        public final String title;
+        /**
+         * U06: native {@code AbstractCard.renderTitle} banner-arch anchor:
+         * {@code 175f * (item.w / 512f)} - the SAME uniform ART card scale as {@link #costScale},
+         * because native {@code drawScale} does not carry ART's own 250x350 card box (see
+         * {@code Sts1SurfaceRenderer.drawSelectTitle}). Fail-open {@code 175f} when {@code w <= 0}.
+         */
+        public final float titleOffsetY;
+        /**
+         * U06: native title font scale = the uniform card scale {@code w / 512f}, multiplied by
+         * {@code 0.85f} when the native small-title flag is set. Fail-open {@code 1f} when
+         * {@code w <= 0}.
+         */
+        public final float titleScale;
+        /**
+         * U06: native {@code renderTitle} GREEN branch ({@code card.upgraded}); when false the title
+         * uses the item's existing render colour.
+         */
+        public final boolean titleGreen;
+        /** U06: native {@code renderColor.a} alpha applied to the title. Fail-open {@code 1f}. */
+        public final float titleAlpha;
+        /** U06: true when {@link #title} is non-null and not whitespace-only. */
+        public final boolean titleDrawable;
+        /** U06: the projected {@link artframework.context.CardPose#rotation} used to rotate the title. */
+        public final float rotation;
 
         public DrawItem(
                 String instanceId,
@@ -169,6 +213,30 @@ public final class SelectDrawPath {
                 String resourceId, String frameResourceId, float w, float h,
                 String bannerResourceId, String orbResourceId, boolean costDrawable,
                 String costText, String costColor, String portraitResourceId) {
+            this(instanceId, cardId, label, slot, selected, visible, enabled, x, y, confirm,
+                    resourceId, frameResourceId, w, h, bannerResourceId, orbResourceId, costDrawable,
+                    costText, costColor, portraitResourceId, null, false, false, 1f, 0f);
+        }
+
+        /**
+         * U06 full carrier: the title text plus the native {@code renderTitle} inputs are appended
+         * AFTER {@code portraitResourceId} so every pre-existing argument order is untouched. All
+         * shorter constructors delegate here; the legacy shape carries no title, hence
+         * {@code titleDrawable == false} but a fail-open {@code titleOffsetY == 175f} /
+         * {@code titleScale == 1f} when {@code w <= 0}.
+         *
+         * <p>ONE scale authority: the uniform ART card scale {@code w / CARDUI_PAGE}, exactly like
+         * {@link #costScale}. The anchor is {@code 175f * thatScale}; ART's scale already absorbs the
+         * host {@code Settings.scale}, so no extra multiplier is applied. The small-title flag
+         * scales the FONT only ({@code * 0.85f}), never the anchor.
+         */
+        public DrawItem(String instanceId, String cardId, String label, int slot, boolean selected,
+                boolean visible, boolean enabled, float x, float y, boolean confirm,
+                String resourceId, String frameResourceId, float w, float h,
+                String bannerResourceId, String orbResourceId, boolean costDrawable,
+                String costText, String costColor, String portraitResourceId,
+                String title, boolean smallTitleFont, boolean titleGreen, float titleAlpha,
+                float rotation) {
             this.instanceId = instanceId != null ? instanceId : "";
             this.cardId = cardId != null ? cardId : "";
             this.label = label != null && !label.isEmpty() ? label : this.cardId;
@@ -195,6 +263,18 @@ public final class SelectDrawPath {
             this.costScale = w > 0f ? w / CARDUI_PAGE : 1f;
             this.costOffsetX = COST_OFFSET_X * costScale;
             this.costOffsetY = COST_OFFSET_Y * costScale;
+            // U06: the native renderTitle anchor uses the SAME uniform card scale (NOT native
+            // card.drawScale - see Sts1SurfaceRenderer.drawSelectTitle for the derivation). The
+            // small-title flag multiplies the FONT scale only; the anchor stays put. Both values
+            // share the ONE fail-open above: with no width costScale is already 1f, hence
+            // titleScale 1f and titleOffsetY 175f.
+            this.titleScale = smallTitleFont ? costScale * SMALL_TITLE_SCALE : costScale;
+            this.titleOffsetY = TITLE_OFFSET_Y * costScale;
+            this.title = title != null ? title : "";
+            this.titleDrawable = title != null && !title.trim().isEmpty();
+            this.titleGreen = titleGreen;
+            this.titleAlpha = titleAlpha;
+            this.rotation = rotation;
         }
 
         public Map<String, Object> toMap() {
@@ -222,6 +302,14 @@ public final class SelectDrawPath {
             m.put("costOffsetX", Float.valueOf(costOffsetX));
             m.put("costOffsetY", Float.valueOf(costOffsetY));
             m.put("costScale", Float.valueOf(costScale));
+            // U06: additive evidence keys for the native title geometry; no existing key renamed.
+            m.put("title", title);
+            m.put("titleOffsetY", Float.valueOf(titleOffsetY));
+            m.put("titleScale", Float.valueOf(titleScale));
+            m.put("titleGreen", Boolean.valueOf(titleGreen));
+            m.put("titleAlpha", Float.valueOf(titleAlpha));
+            m.put("titleDrawable", Boolean.valueOf(titleDrawable));
+            m.put("rotation", Float.valueOf(rotation));
             return m;
         }
     }
@@ -272,7 +360,16 @@ public final class SelectDrawPath {
                             costDrawable,
                             costDrawable ? c.cost : "",
                             costDrawable ? costColorName(c.costModified, c.costRestricted) : "",
-                            portraitDescriptor(c.artResourceId)));
+                            portraitDescriptor(c.artResourceId),
+                            // U06: the native renderTitle inputs. The title is passed VERBATIM (the
+                            // item decides drawability); the anchor/scale authority is item.w, and
+                            // the rotation comes from the projected pose so a tilted select card
+                            // keeps its native title angle.
+                            c.title,
+                            c.smallTitleFont,
+                            c.upgraded,
+                            c.titleAlpha,
+                            c.pose != null ? c.pose.rotation : 0f));
             i++;
         }
         if (sv.confirmVisible || sv.confirmEnabled) {

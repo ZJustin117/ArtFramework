@@ -866,6 +866,46 @@ public final class SelectDrawPath {
         return selected ? ResourceIds.UI_SELECT_CARD_SELECTED : ResourceIds.UI_SELECT_CARD;
     }
 
+    /**
+     * Fixed width of the select item box, in screen pixels.
+     *
+     * <p>This is the SAME authority as the {@code 250f} width literal passed to {@link DrawItem} by
+     * {@link #buildFromProjection()}: the fallback row below uses it to guarantee that neighbouring
+     * fallback cards do not overlap, so the two values must always move together. The height literal
+     * ({@code 350f}) is untouched and is not involved in horizontal layout.
+     */
+    private static final float CARD_WIDTH = 250f;
+
+    /**
+     * Preferred horizontal gap between two fallback cards: 12 px, ~4.8 % of {@link #CARD_WIDTH}.
+     * Enough visual separation for the card frame/shadow, while a 7-card row still fits a 1920 px
+     * screen ({@code (7 - 1) * PREFERRED_PITCH + CARD_WIDTH = 1822 px}); a 10-card row does not
+     * ({@code (10 - 1) * PREFERRED_PITCH + CARD_WIDTH = 2608 px}), which is what the overflow rule in
+     * {@link #defaultCardX} shrinks.
+     */
+    private static final float CARD_GAP = 12f;
+
+    /** Preferred centre-to-centre pitch: one full card box plus {@link #CARD_GAP}. */
+    private static final float PREFERRED_PITCH = CARD_WIDTH + CARD_GAP;
+
+    /** Minimum screen margin kept free on each side of the fallback row before it shrinks. */
+    private static final float EDGE_MARGIN = 8f;
+
+    /**
+     * Fallback centre-x for a pose-less select card in the synthetic hand row.
+     *
+     * <p>Non-overlap rule: the preferred pitch is one full {@link #CARD_WIDTH} plus
+     * {@link #CARD_GAP}, so consecutive boxes never overlap whenever the row fits on screen.
+     * Centring: {@code start = mid - (total - 1) * pitch * 0.5f} with {@code mid = WIDTH * 0.5f}
+     * keeps the row symmetric about the screen centre, so the middle card of an odd row sits exactly
+     * on {@code WIDTH/2} and an even row is centred on the gap between its two middle cards.
+     * Overflow rule: when {@code total} cards cannot fit inside the {@link #EDGE_MARGIN} margins, the
+     * row shrinks uniformly using
+     * {@code maxPitch = (WIDTH - 2*EDGE_MARGIN - CARD_WIDTH) / (total - 1)} (still centred) instead
+     * of pushing cards off screen; overlap is re-introduced only when even that shrunk row cannot
+     * hold the card width, which is unavoidable for very large pools. {@code WIDTH} is read
+     * fail-open. A single card is placed at the centre; the pitch is irrelevant for it.
+     */
     private static float defaultCardX(int index, int total) {
         float mid;
         try {
@@ -873,9 +913,13 @@ public final class SelectDrawPath {
         } catch (Throwable t) {
             mid = 960f;
         }
-        float spacing = 140f;
-        float start = mid - (Math.max(total, 1) - 1) * spacing * 0.5f;
-        return start + index * spacing;
+        if (total <= 1) return mid;
+        float width = mid * 2f;
+        float pitch = PREFERRED_PITCH;
+        float maxPitch = (width - 2f * EDGE_MARGIN - CARD_WIDTH) / (total - 1);
+        if (maxPitch > 0f) pitch = Math.min(PREFERRED_PITCH, maxPitch);
+        float start = mid - (total - 1) * pitch * 0.5f;
+        return start + index * pitch;
     }
 
     private static float defaultCardY() {

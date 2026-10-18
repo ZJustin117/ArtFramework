@@ -4932,13 +4932,67 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       correct). NOTE: the committed scenario has **49** steps (not the 52 an earlier note assumed)
       and contains NO `screenshot:` step, so the visual evidence came from a manual capture; this
       scenario cannot produce its own baseline images.
-- [ ] **Open (U05c): hand-select fallback row pitch is smaller than the card width, so cards overlap
-      ~44 %.** The fallback uses `defaultCardX`'s 140 px pitch while each card is 250 px wide, so every
-      neighbour covers 110 px of the previous card and each portrait is cut roughly in half; cards can
-      then only be told apart by title + cost. Observed on D1
-      (`debug-artifacts/art-verify/d1_u05b_hand_select.png`). Options: widen the pitch while keeping the
-      row centred, or accept the overlap and shrink the covered region - this is a LAYOUT decision on
-      the synthetic fallback, not the native-geometry item below.
+- [x] **U05c hand-select fallback row no longer overlaps its cards FOR REALISTIC POOL SIZES (1-7):
+      pitch widened from 140 px to 262 px (250 card + 12 gap), row centred on `WIDTH/2`, uniform
+      shrink when the row would exceed the viewport (impld 2026-10-18; D1 re-verification PENDING).**
+      The threshold is EXACTLY 7 cards: at 8 cards the clamp starts biting (pitch 236.29 -> 13.7 px
+      overlap) and at 10 it is 183.78 (26.5 % overlap) - unavoidable without changing the frozen
+      250 px card box, and the shrink keeps every box on screen (outer edges exactly 8 / 1912).
+      Known residual (pre-existing, NOT introduced here and NOT recorded before): an INITIALISED-BUT-
+      ZERO `Settings.WIDTH` gives `mid = 0` and an off-screen row (the old 140 px code had the same
+      exposure; the new wider pitch simply displaces the row further, ~1.9x). It cannot throw (the
+      `total <= 1` / `total <= 0` branches return before any division). A proper fail-open needs its
+      own ruling because `defaultCardY` has the identical unguarded `Settings.HEIGHT` read; the
+      one-line `if (w > 0)` precedent already exists in `confirmSettings`.
+      Problem record (D1, jar `93e9c862…`, HEAD 9cfdb41, capture
+      `debug-artifacts/art-verify/d1_u05b_hand_select.png`): the fallback used `defaultCardX`'s fixed
+      140 px pitch while each card box is 250 px wide, so every neighbour covered 110 px (~44 %) of
+      the previous card and cut each portrait roughly in half; cards could then only be told apart by
+      title + cost. That capture stays as the BEFORE/problem record.
+      **FIXED in `SelectDrawPath.defaultCardX`** (the pose-less fallback only; `buildFromProjection`
+      still uses a real `CardPose` whenever the caller supplies one). Four constants now sit next to
+      the helper:
+      - `CARD_WIDTH = 250f` - the SAME authority as the `250f` width literal `buildFromProjection`
+        passes to `DrawItem`; the two must move together or the non-overlap guarantee is void. The
+        `350f` height literal is untouched (it does not enter horizontal layout).
+      - `CARD_GAP = 12f` - ~4.8 % of the card width: enough separation for the card frame/shadow,
+        cheap enough that a 7-card row still fits 1920 px.
+      - `PREFERRED_PITCH = CARD_WIDTH + CARD_GAP` = `262f` centre-to-centre.
+      - `EDGE_MARGIN = 8f` - minimum free screen margin per side before the row shrinks.
+      **Centring derivation:** `mid = WIDTH/2`, `start = mid - (total - 1) * pitch * 0.5`,
+      `x = start + index * pitch`, so the row midpoint is always `WIDTH/2` - an odd row puts its
+      middle card exactly on 960, an even row is centred on the gap between its two middle cards.
+      `WIDTH` is read fail-open (`mid = 960f` when the static is unavailable), and a single card is
+      returned at `mid` directly (pitch is irrelevant for it).
+      **Overflow rule:** `maxPitch = (WIDTH - 2 * EDGE_MARGIN - CARD_WIDTH) / (total - 1)`; when
+      `maxPitch > 0` the pitch becomes `min(PREFERRED_PITCH, maxPitch)`, i.e. a UNIFORM proportional
+      shrink of the same centred layout, never a partial/left-aligned squeeze. Overlap is only
+      re-introduced when even that shrunk pitch falls below `CARD_WIDTH`, which is unavoidable for
+      very large pools.
+      **Numbers at 1920 wide (`y = 486` unchanged, box `250x350` unchanged):** 1 card `x = 960`;
+      3 cards `x = 698 / 960 / 1222`; 5 cards
+      `x = 436 / 698 / 960 / 1222 / 1484` (pitch 262, no overlap); 10 cards clamp to
+      `1654/9 = 183.777…` and give `x = 133.0 / 316.78 / 500.56 / 684.33 / 868.11 / 1051.89 /
+      1235.67 / 1419.44 / 1603.22 / 1787.0`, the outer box edges landing exactly on the 8 px margins
+      (8 and 1912) with the row still centred on 960.
+      **The GRID path is unaffected:** `readGridSelect` supplies a real `CardPose`, so
+      `buildFromProjection` never reaches `defaultCardX`/`defaultCardY` for grid cards. The frozen
+      geometry was NOT touched either: the `250f/350f` item box, the `w/512f` scale authority
+      (`CARDUI_PAGE`), `selectPortraitRect` / `selectRegionRect` / `drawSelectAtlasRegion` /
+      `drawSelectPortrait`, U02c accounting, and the confirm item's `512x256` geometry at
+      `(960, 475)` all stay exactly as they were.
+      Tests: `SelectDrawPathHandFallbackTest` gained 3 cases (5-card non-overlap + centring, 10-card
+      uniform shrink inside the 8 px margins, single card at the centre) and its 3-card/probe
+      expectations moved from the 140 px row to the 262 px row. Focused
+      `./scripts/with-art-env.sh cleanTest test --tests "artframework.sts1.render.*"` = **1094
+      tests, 0 failures** (Red before: 1094 / 4 failures). The full-suite gate is parent-owned and
+      was NOT run in this slice.
+      NOTE for the audit record: the U05b block BELOW (its layout-evidence lines and its "native
+      hand x/y PARITY" bullet, `x = 820/960/1100` for 3 cards, `680/820/960/1100/1240` for 5) is the
+      HISTORICAL pre-U05c 140 px layout and stays as written; the fallback pitch is now 262-based,
+      so those coordinates are no longer reproducible on HEAD.
+      **D1 re-verification PENDING** - no device run was performed for U05c, so the new row is
+      unit-verified only.
 - [ ] **Open (U05d): the confirm button is drawn ON TOP of the hand-select card row.** The confirm item
       is `512x256` centred at `(960, 475)` while the card row sits at `y = 486`; the pill therefore
       covers the middle cards' portraits and bites the rightmost card. Titles/costs stay visible above
@@ -5061,7 +5115,8 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       epoch recreates the entities and would hide the defect). UNCHANGED: `readGridSelect`
       and its real `new CardPose(...)`, `SelectDrawPath` itself, the `250f/350f` box and the
       `w/512f` scale authority. Layout evidence: at 1920x1080 with 3 pose-less hand cards the
-      fallback now yields `x = 820 / 960 / 1100`, `y = 486` (box unchanged `250x350`); the select
+      fallback now yields `x = 820 / 960 / 1100`, `y = 486` (box unchanged `250x350`; pre-U05c: the
+      fallback pitch is now 262 px, so this row is no longer reproducible on HEAD); the select
       probe row reports the same and `visible = TRUE`. Focused
       `cleanTest test --tests "artframework.context.*" --tests "artframework.sts1.render.*"
       --tests "artframework.sts1.backend.*"` = 1235 tests, 0 failures (Red before: 1235 / 4
@@ -5091,8 +5146,8 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
         would NOT restore hand scale; native hand placement/scale needs its own accepted design
         ruling.
       - native hand x/y PARITY: the fallback row is a SYNTHETIC centred layout (140px spacing,
-        `y = 0.45 * HEIGHT`), not the native hand positions - on-screen now, but not positionally
-        native.
+        `y = 0.45 * HEIGHT`; pre-U05c: 140 px is the historical pitch, it is now 262 px), not the
+        native hand positions - on-screen now, but not positionally native.
       - ~~D1 re-verification PENDING~~ -> NOW DONE (see the D1 VERIFIED block above).
         Historical note, kept for audit: the earlier
         `x = 0.0, y = 0.0` evidence above (jar `a2f44e62…`, HEAD 7ef4589, capture

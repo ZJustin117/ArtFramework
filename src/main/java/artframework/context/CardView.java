@@ -8,6 +8,14 @@ public final class CardView {
     public final CardRef ref;
     public final CardZone zone;
     public final int slotIndex;
+    /**
+     * The card's layout pose, or {@code null} when the caller supplies no pose.
+     *
+     * <p>U05b: absence means "no authoritative layout pose". It is preserved rather than replaced by
+     * {@code CardPose.at(0,0)} because a synthetic origin pose is indistinguishable from a real
+     * top-left placement; consumers fall back to their own default layout instead (for example
+     * {@code SelectDrawPath.buildFromProjection}'s centred select row).
+     */
     public final CardPose pose;
     public final boolean playable;
     public final boolean selected;
@@ -137,7 +145,7 @@ public final class CardView {
         this.ref = ref;
         this.zone = zone != null ? zone : CardZone.OTHER;
         this.slotIndex = slotIndex;
-        this.pose = pose != null ? pose : CardPose.at(0f, 0f);
+        this.pose = pose;
         this.playable = playable;
         this.selected = selected;
         this.hovered = hovered;
@@ -166,7 +174,7 @@ public final class CardView {
         private final CardRef ref;
         private CardZone zone = CardZone.HAND;
         private int slotIndex;
-        private CardPose pose = CardPose.at(0f, 0f);
+        private CardPose pose;
         private boolean playable = true;
         private boolean selected;
         private boolean hovered;

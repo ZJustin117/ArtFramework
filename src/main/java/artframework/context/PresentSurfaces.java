@@ -457,8 +457,8 @@ public final class PresentSurfaces {
                 row.put("instanceId", e.instanceId);
                 row.put("cardId", e.cardId);
                 row.put("slot", Integer.valueOf(e.slotIndex));
-                row.put("x", Float.valueOf(e.pose.x));
-                row.put("y", Float.valueOf(e.pose.y));
+                row.put("x", Float.valueOf(e.pose != null ? e.pose.x : 0f));
+                row.put("y", Float.valueOf(e.pose != null ? e.pose.y : 0f));
                 row.put("art", e.artResourceId);
                 AssetResolveResult art =
                         HostAssetsHolder.get().resolve(e.artResourceId);

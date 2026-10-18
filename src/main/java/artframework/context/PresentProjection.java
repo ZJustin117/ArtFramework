@@ -416,6 +416,12 @@ public final class PresentProjection {
             worldForWrite().put(entity, BoundsComponent.class,
                     new BoundsComponent(new artframework.component.Rect(
                             view.pose.x, view.pose.y, 0f, 0f), view.pose.z));
+        } else {
+            // U05b: a card may legitimately carry NO pose (the select draw path then uses its own
+            // on-screen fallback row). Remove any bounds left over from an earlier posed publish,
+            // otherwise PresentationRegistry/UiInspect keeps reporting a stale rect for a card that
+            // has no placement at all. A component is only absent when the card is not laid out.
+            worldForWrite().remove(entity, BoundsComponent.class);
         }
     }
 

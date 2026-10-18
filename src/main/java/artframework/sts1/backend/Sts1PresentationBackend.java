@@ -2313,7 +2313,7 @@ public final class Sts1PresentationBackend implements SignalBackend {
                 && a.ref.cardId.equals(b.ref.cardId)
                 && a.zone == b.zone
                 && a.slotIndex == b.slotIndex
-                && a.pose.equals(b.pose)
+                && (a.pose == b.pose || (a.pose != null && a.pose.equals(b.pose)))
                 && a.playable == b.playable
                 && a.selected == b.selected
                 && a.hovered == b.hovered

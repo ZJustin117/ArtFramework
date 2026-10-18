@@ -5154,10 +5154,215 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       glyph outline carries legibility); (b) the card under the 确认 button has its banner grazed by
       that button's drop shadow. A longer-name and a non-occluded capture would be needed only to
       stress those two points.
-- [ ] **Open (U07): select cards have no description box/text.** Native select-grid cards draw the
-      description box and the card's description text below the art; ART select cards stop after the
-      art band, leaving the bottom half a flat field. Pre-existing (predates U04), visible only now
-      that the portrait fills the band. Needs the native description-box region + text layout.
+- [x] **U07 select cards now draw the DESCRIPTION text (implemented 2026-10-18; D1 visual
+      re-verification PENDING).** Native `AbstractCard.renderDescription` draws the card's
+      description BELOW the art; ART select cards used to stop after the art band, leaving the lower
+      half a flat field. ART now carries the RAW `CardView.description` (= native
+      `card.rawDescription`) on `SelectDrawPath.DrawItem` and wraps/tokenises it itself with PURE
+      functions, because ART has no native pre-wrapped `List<DescriptionLine>`. Scope limits:
+      raw-string SELF-WRAP instead of native's pre-wrapped list (native
+      `initializeDescription`/`initializeDescriptionCN` are out of scope), NO locked/unseen `"? ? ?"`
+      branch, NO type line, NO tint, NO native `!D/!B/!M` dynamic variables and NO `[R]/[G]/[B]/[W]`
+      energy icons, and none of native's keyword-punctuation split quirk.
+      **Native formulas mirrored** (`cards/AbstractCard.java`, cfad868ac8d65a88):
+      1561 `draw_y = current_y - IMG_HEIGHT*drawScale/2 + DESC_OFFSET_Y*drawScale`; 1562
+      `+= size*capHeight*0.775 - capHeight*0.375`; 1563 `spacing = 1.45 * -capHeight / ...`; 1565
+      per-line `start_x` centred on `current_x`; 1567/1576 leading `'*'` -> `goldColor` with the star
+      stripped, 1648 the rest in `textColor`, colours from 152/154; 1835-1839 `getDescFont`
+      (`angle == 0 && drawScale == 1` -> `cardDescFont_N`, else `cardDescFont_L`); 2626
+      `IMG_HEIGHT = 420`, 2636 `DESC_OFFSET_Y = IMG_HEIGHT * 0.255` (BIG_TEXT_MODE false); per-chunk
+      `-6f` screen nudge (1576/1648). `FontHelper.java` 205-206 shows both desc fonts are
+      `prepFont(24f, ...)`, so the ART predicate is pinned, not a visual difference.
+      **ART-scale conversion** (ONE authority, `descScale = item.w / 512f` - the same uniform scale
+      as U06's title and U02d3's cost; native `card.drawScale` is NOT the authority). Page units:
+      420 -> 205.078125 px, 210 -> 102.5390625, 107.1 -> 52.294921875; anchor from centre
+      `-(210 - 107.1) = -102.9` page units -> `descAnchorY = -50.244140625` for the real 250-wide
+      item (`descScale 0.48828125`). First line at `centerY 500` with TEST-INPUT `capHeight 10` is
+      `500 - 50.244140625 + (0.775*1 - 0.375)*10 = 453.755859375`; advance `1.45*10 = 14.5`.
+      `capHeight` is always the LIVE `font.getCapHeight()` read AFTER `setScale(descScale)` - never a
+      hardcoded font metric. Font choice: `rotation == 0f && poseScale == 1f` -> `cardDescFont_N`,
+      else `cardDescFont_L` (`poseScale` from the projected `CardPose.scale`, fail-open 1f).
+      **Wrap rule:** CJK detected by code-point script (HAN/HIRAGANA/KATAKANA/HANGUL) -> collapse ALL
+      whitespace and cut greedily by CODE POINT; otherwise greedy WORD wrap on spaces rejoined with
+      exactly one space, a word longer than the limit kept WHOLE. `DESC_MAX_CHARS_PER_LINE = 24`,
+      `DESC_MAX_LINES = 5`, and lines beyond the cap are DROPPED (truncation, NOT an ellipsis; vanilla
+      does not shrink - it only logs a dev warning, AbstractCard 481-482 - and overflows; the 5-line
+      shrink is BaseMod's `ShrinkLongDescription` patch, deliberately not mirrored because ART does
+      not depend on BaseMod).
+      **Tokenise rule:** each `'*'` TOGGLES keyword mode and is never emitted (`"Deal *5* damage"` ->
+      normal `"Deal "`, keyword `"5"`, normal `" damage"`); keyword chunks draw `Settings.GOLD_COLOR`,
+      the rest `Settings.CREAM_COLOR`.
+      **Draw order:** `renderSelect` calls `drawSelectDescription(sb, item)` INSIDE the card branch
+      immediately AFTER `drawSelectTitle(...)` (native `renderCard` 1066-1075 runs `renderTitle`
+      before the description); frame -> portrait -> banner -> orb -> cost -> title is untouched.
+      **Fail-open + font hygiene:** a null batch/item, `!descriptionDrawable`, an empty wrap or a
+      missing/uninitialized font draws nothing; any `Throwable` is swallowed. The shared static font
+      scale is captured and RESTORED in a `finally` (U06 precedent), deliberately NOT reset to a bare
+      `1.0f` like native 1652. `toMap()` gains SIX additive keys (`description`,
+      `descriptionDrawable`, `descScale`, `descAnchorY`, `descFontNormal`, `descMaxLines`) with no
+      existing key renamed. Backend unchanged: `readGridSelect`/`readHandSelect` already project
+      `card.rawDescription`.
+      Tests: `SelectCardDescriptionTest` - wrap (EN/CJK/truncation/fail-open), tokenise toggle,
+      carrier geometry, font predicate, blank/confirm fail-open, additive `toMap()` keys, and the
+      source-shape guard `renderSelectDrawsDescriptionAfterTitleInsideCardBranch`. Focused
+      `artframework.sts1.render.*` + `artframework.sts1.backend.*` + `artframework.context.*` =
+      1252 tests, 0 failures. Its review finding U07R-01 (`NL` drawn as the two literal characters
+      "NL") is CLOSED by U07b below. **D1 visual re-verification PENDING.**
+- [x] **U07b native `NL` manual line break is honoured by the description wrap (implemented
+      2026-10-18; D1 visual re-verification PENDING).** U07's `wrapDescription` treated the raw
+      description as PLAIN TEXT, so the native manual-line-break token `NL` rendered as the two
+      literal characters "NL". `NL` is real transmitted data, e.g.
+      `debug-artifacts/art-verify/d1_verify_background.json` carries
+      `"不能被打出 。 NL 虚无 。 NL 不能从牌组中移除。"` and
+      `"造成 !D! 点伤害。 NL 给予 !M! 层 易伤 。"`. A whole token exactly equal to `NL` is now a
+      FORCED line break in BOTH wrap branches (CJK by code point AND greedy word wrap): text before
+      keeps the normal wrap, text after starts a NEW line.
+      **Native authority** (`cards/AbstractCard.java`, cfad868ac8d65a88) - quoted verbatim:
+      non-CJK `initializeDescription()` L380 `for (String word : this.rawDescription.split(" ")) {`;
+      L454-460 `} else if (word.equals("NL")) { AbstractCard.gl.width = 0.0f; word = ""; this.description.add(new DescriptionLine(sbuilder.toString().trim(), currentWidth)); currentWidth = 0.0f; ++numLines; sbuilder.setLength(0); }`;
+      L478 `if (!sbuilder.toString().trim().isEmpty()) {`; CJK `initializeDescriptionCN()` L491
+      `for (String word : this.rawDescription.split(" ")) { word = word.trim();`;
+      L494 `if (word.equals("NL") && sbuilder.length() == 0 || word.isEmpty()) { currentWidth = 0.0f; continue; }`;
+      L598 `if ((Settings.manualLineBreak || Settings.manualAndAutoLineBreak) && word.equals("NL") && sbuilder.length() != 0) {`;
+      L636 `if (sbuilder.length() != 0) {`.
+      **Boundary / case decision (ruled):** native matches `word.equals("NL")` - an EQUALITY test on
+      ONE space-split token, NOT an `indexOf("NL")` substring scan. The match is therefore EXACT,
+      WHOLE-TOKEN and CASE-SENSITIVE: `PLANL`, `NLNL`, `nl` and `Nl` all stay literal text, and the
+      native break form is the space-delimited `"... NL ..."`; `"Deal 5 damageNLExhaust."` is NOT a
+      native break. ART tokenises on `\s+` (a strict superset of native's literal space), so it
+      recognises `NL` at any whitespace boundary and cannot mis-handle the real space-delimited
+      device data.
+      **Empty-line policy: DROP, never emit `""` (ruled).** The CJK path is the one that actually
+      routes the observed Chinese data, because `Settings.setLanguage` sets `lineBreakViaCharacter =
+      true` for ZHS/ZHT/JPN. That path skips `NL` while the builder is empty (L494) and never
+      materialises a trailing empty line (L598 + L636). The non-CJK path's unconditional `add(...)`
+      at L457 CAN emit an empty `DescriptionLine`, but ART follows the CN guard: a dropped break
+      costs nothing while a kept blank line burns one of the 5 `DESC_MAX_LINES` slots and shifts
+      every later line down. So leading, trailing, doubled and all-break input
+      (`"NL Deal 5 damage"`, `"Deal 5 damage NL"`, `"Deal NL NL damage"`, `"NL NL NL"`) yield no
+      blank lines, and `"NL NL NL"` yields an EMPTY list.
+      **Unchanged / scope limits:** `maxLines` is still a HARD TRUNCATION (not an ellipsis) and a
+      forced break cannot bypass it. The CJK-by-code-point cut and the greedy word wrap are
+      otherwise untouched for NL-free input: with no `NL` there is exactly ONE segment, so the
+      per-segment collapse/cut is observationally identical to the previous global one - pinned by
+      the `"一二 三"` -> `["一二三"]` case. `DESC_MAX_LINES` / `DESC_MAX_CHARS_PER_LINE` are
+      unchanged, `tokenizeDescriptionLine` is unchanged, and the renderer / geometry / fonts are
+      untouched. The break is implemented in the PURE `SelectDrawPath.wrapDescription` (plus one
+      small private `appendCjkSegment` code-point cutter); nothing else moved.
+      Tests: `SelectCardDescriptionTest` grows from 10 to 16 (5 `NL` behaviour tests - forced break,
+      exact/case-sensitive boundary, empty-line DROP, CJK `NL`, line cap - plus the NL-free regression
+      guard `wrapDescriptionWithoutNlIsUnchangedByU07b`).
+      Focused `artframework.sts1.render.SelectCardDescriptionTest` = 16 tests, 0 failures; focused
+      `artframework.sts1.render.*` = 1113 tests, 0 failures. The full `cleanTest test` baseline was
+      2471 tests / 0 failures (post-U07); the full gate for U07b is parent-owned and NOT yet run.
+      **D1 visual re-verification PENDING.**
+      **Coverage added by the parent after review (18 tests total in
+      `SelectCardDescriptionTest`):** (a) ART splits on `\s+` while native splits on a literal space
+      (`rawDescription.split(" ")`, AbstractCard L380), so a TAB/newline-delimited `NL` breaks in ART
+      but NOT natively - the test pins that as ART-WIDER behaviour, explicitly NOT native parity, so a
+      future narrowing to `split(" ")` becomes a deliberate change; (b) the CJK branch's
+      leading/trailing/doubled-token `NL` handling is pinned independently (it is a separate code
+      path), and a test documents that `NL不能被打出。` - one space-split token that merely CONTAINS the
+      letters - is NOT a native break and stays literal, matching `initializeDescriptionCN` L490/L494.
+
+- [x] **U07c raw native dynamic-variable tokens `!D!`/`!B!`/`!M!` are no longer painted as card
+      description text (implemented 2026-10-18; D1 visual re-verification PENDING).** U07/U07b wrapped
+      the raw description as PLAIN TEXT, so the native dynamic-variable tokens were painted
+      LITERALLY. This is real D1 data: `debug-artifacts/art-verify/d1_verify_background.json` carries
+      `造成 !D! 点伤害。` (Bash), `获得 !B! 点 格挡 。` (Defend_R) and
+      `造成 !D! 点伤害。 NL 给予 !M! 层 易伤 。` (Bash, two tokens plus the U07b `NL`).
+      **Correction to the earlier "icon" framing (ruled):** native does NOT paint these tokens and
+      does NOT use an atlas icon for them. `initializeDescriptionCN` reserves a SINGLE-CHARACTER value
+      SLOT at wrap/prep time - L559 `if (word.equals("!D!")) { ... sbuilder.append(" D ");
+      currentWidth += MAGIC_NUM_W; }`, L572 `!B!`, L585 `!M!` (each with its own
+      `currentWidth + MAGIC_NUM_W > CN_DESC_BOX_WIDTH` line-break branch;
+      `MAGIC_NUM_W = 20.0f * Settings.scale` at L2642) - and `renderDescriptionCN` L1707-1725 fills
+      that slot at DRAW time with `getDynamicValue(char)` (L1655-1687: the live `damage`/`block`/
+      `magicNumber`, green `[#7fff00]` when >= base and red `[#ff6563]` when below) via
+      `renderDynamicVariable` (L1775-1832). Native energy icons (`[R]/[G]/[B]/[W]`,
+      `renderSmallEnergy`, `CARD_ENERGY_IMG_WIDTH`) are a DIFFERENT mechanism and are NOT part of
+      `!D!/!B!/!M!`.
+      **Implemented here (narrow and honest, no number invented):**
+      `SelectDrawPath.substituteDynamicMarkers(String)` replaces each WHITESPACE-DELIMITED WHOLE token
+      exactly equal to `!D!`, `!B!` or `!M!` with
+      `public static final String DYNAMIC_VALUE_PLACEHOLDER = "?"`, and it runs BEFORE wrapping inside
+      `wrapDescription`, so the placeholder participates in the wrap width. `?` is a PLACEHOLDER
+      standing in for the native value slot, not a value: one ASCII character (native reserves one
+      slot), font-safe in both description fonts, impossible to read as a number, impossible to
+      confuse with a `!`-delimited token, and it CARRIES NO VALUE - no damage/block/magic number is
+      invented. The LIVE number is the separate OPEN U07d slice below.
+      **Equality semantics (ruled):** native matches `word.equals("!D!")` on ONE space-split token,
+      NOT `indexOf`/`replace`. So `!DX!`, `!!D!`, `x!D!`, `!d!`, `!D!!M!` and a star-wrapped
+      `*!D!*` stay LITERAL, and substitution must never degrade to a substring
+      `replace("!D!", "?")`. Surrounding whitespace is preserved verbatim (`" !D! "` -> `" ? "`),
+      which is why the pure step can run before wrapping.
+      **Unchanged / frozen:** the U07b `NL` forced break, the U07 `*` keyword toggle and
+      `tokenizeDescriptionLine` semantics, all `DESC_*` constants/geometry/fonts,
+      `Sts1SurfaceRenderer`, `CardView`, the backend, and `DrawItem.description`, which stays the RAW
+      projected text. Fail-open: `null` -> `null`, empty/blank unchanged, and the step never throws.
+      **Tests:** `SelectCardDescriptionTest` grows 18 -> 22 with 4 U07c methods (real D1 device strings
+      including the CJK `NL` case and a non-CJK case; whole-token equality including direct
+      `substituteDynamicMarkers` pinning; keyword-toggle + `NL` co-existence with value-slot purity,
+      `DYNAMIC_VALUE_PLACEHOLDER == "?"` and keyword digits surviving; pre-wrap width participation
+      at 8 chars plus fail-open). Focused `artframework.sts1.render.SelectCardDescriptionTest` =
+      22 tests, 0 failures; focused `artframework.sts1.render.*` = 1119 tests, 0 failures. The full
+      `cleanTest test` baseline was 2479 tests / 0 failures (post-U07b). **The parent has now run the
+      FULL gate after U07c + the parent's coverage additions: 2483 tests / 0 failures**;
+      `SelectCardDescriptionTest` is 22 tests. Parent additions: a width-14 case proving the
+      substitution runs BEFORE wrapping (width-8 could not distinguish pre- from post-wrap; the
+      mutation `String text = raw;` — substituting after the wrap — FAILS it), and the CJK `NL`
+      edge/double/glued-token coverage recorded under U07b.
+      **Review note:** this slice's review caught that the no-digit purity assertion must be scoped to
+      the SUBSTITUTED VALUE SLOT - a `*5*` keyword digit is card CONTENT and must survive - so the
+      test pins slot purity rather than whole-line digit absence.
+      **D1 visual re-verification PENDING.**
+- [ ] **U07d real native dynamic VALUE for `!D!`/`!B!`/`!M!` in select-card descriptions (OPEN).**
+      U07c stops the raw tokens being painted by substituting the fixed value-free
+      `DYNAMIC_VALUE_PLACEHOLDER = "?"`; it deliberately does NOT render a number. U07d must replace
+      the placeholder with the real native behaviour: the LIVE `damage`/`block`/`magicNumber` with the
+      modified-value colouring (green `[#7fff00]` when >= the base value, red `[#ff6563]` when below,
+      AbstractCard 1655-1687 / 1775-1832) plus the native `MAGIC_NUM_W = 20.0f * Settings.scale`
+      wrap-width accounting (L2642, slot reservation at L559/L572/L585).
+      **Blocker:** this needs LIVE card numeric state, which ART's presentation projection does not
+      carry today - `CardView` has no `damage`/`block`/`magicNumber`/`base*` fields - so it is blocked
+      on projecting those values through the backend, and the tokenisation/draw path would then need
+      a PER-SLOT dynamic value rather than the static string it carries now. Native reserves the slot
+      in the CN wrap (`" D "` with `MAGIC_NUM_W`) and substitutes only at draw time, so a faithful
+      implementation likely needs a chunk type that carries the dynamic KEY instead of a
+      pre-substituted string.
+      **Not this mechanism:** `CARD_ENERGY_IMG_WIDTH` / `renderSmallEnergy` cover the SEPARATE
+      `[R]/[G]/[B]/[W]` energy icons and are not used for `!D!/!B!/!M!`.
+- [ ] **Open (U07e): the select-card description can be WIDER than the painted card face.** The wrap
+      uses `DESC_MAX_CHARS_PER_LINE = 24` CHARACTERS, while native wraps on a PIXEL box
+      (`CN_DESC_BOX_WIDTH = IMG_WIDTH * 0.72f`, i.e. ~9 CJK glyphs at the native scale, AbstractCard
+      L2638 / wrap at L504, L626). At the ART scale (`w/512f = 0.48828125` for a 250 px card) a
+      24-CJK-glyph line is ~`24 * 24 * 0.488 ~= 281 px` against a 250 px item, so the line OVERFLOWS
+      the card by ~31 px. This is a REAL visible defect on the exact ZHS data U07 targets, not a
+      cosmetic unknown. Fix direction: wrap against a pixel budget derived from the card face (mirror
+      `CN_DESC_BOX_WIDTH`) rather than a character count, keeping the pure-function testability.
+- [ ] **Open (U07f): glyph size is ~`Settings.scale`x larger than native at the same anchor.** The
+      description anchor is faithful (U07 arithmetic) but the FONT is scaled by `descScale = w/512f`
+      while native scales by `drawScale`; this is INHERITED from the frozen U05/U06/U02d3 `w/512f`
+      authority, NOT a U07 regression - recorded so a D1 triage does not misattribute it to U07.
+- [ ] **Open (U07g): the description draw's two promised invariants are not gated by a behavioural
+      test.** `SelectCardDescriptionTest`'s structural guard only checks string PRESENCE, so (a)
+      moving `font.getCapHeight()` BEFORE `setScale(item.descScale)` (wrong line advance) and (b)
+      deleting the `finally` scale restore (shared static `cardDescFont_N/L` scale leaking into later
+      titles/costs) would BOTH still pass. No test executes `drawSelectDescription` at all. Needs
+      either a source-order assertion (`setScale(...)` before `getCapHeight()`, and a
+      `setScale(priorScaleX, priorScaleY)` inside a `finally`) or a pure geometry helper taking
+      `capHeight`.
+- [ ] **Open (U07h): gold/cream colours + the native `-6f` chunk nudge are unpinned.** The renderer
+      hardcodes fallback RGBs whose comment claims they are "the native constant's RGB" but
+      `Settings.GOLD_COLOR` is `0xEFC851` (~0.937/0.784/0.318) and `CREAM_COLOR` ~(1.0/0.965/0.886),
+      not `(1, 0.9, 0.4)`/white; only the host-unavailable branch is affected. Also
+      `randomizeDescriptionChunkNudge` (`-6.0f`) has no assertion.
+- [ ] **Open (U07i): `wrapDescription`'s non-positive-argument contract is asserted only loosely.**
+      Its javadoc guarantees an EMPTY list for a non-positive `maxCharsPerLine`/`maxLines`, but the
+      test deliberately asserts only "returns a list", so a regression returning one over-cap line for
+      `maxLines = 0` would pass.
+      **D1 visual re-verification PENDING.**
+
 - [x] **U05 select HAND-card portrait art (implemented 2026-10-18; D1 PENDING).** HAND select now
       supplies the PORTRAIT through the SAME `cardArtRegionDescriptor(card)` helper the GRID pool
       uses (U04), so `Sts1PresentationBackend.readHandSelect` yields

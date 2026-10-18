@@ -1088,6 +1088,10 @@ public final class Sts1SurfaceRenderer {
                         // the banner arch.
                         drawSelectTitle(sb, item,
                                 item.enabled ? colorLabel(chrome) : colorDisabled(chrome));
+                        // U07: the native card DESCRIPTION block, drawn AFTER the title per the
+                        // accepted slice ruling (native renderCard runs renderTitle -> renderType ->
+                        // description, so the description must never precede the title).
+                        drawSelectDescription(sb, item);
                     } else {
                         // The confirm button is not a card: keep its centred label draw unchanged.
                         com.megacrit.cardcrawl.helpers.FontHelper.renderFontCentered(
@@ -1201,6 +1205,131 @@ public final class Sts1SurfaceRenderer {
             return new Color(r, g, b, alpha);
         }
         return new Color(renderColor.r, renderColor.g, renderColor.b, alpha);
+    }
+
+    /**
+     * U07: the native select-card DESCRIPTION block, mirroring {@code AbstractCard.renderDescription}
+     * for the ACCEPTED scope only (raw-string self-wrap, no locked/unseen {@code "? ? ?"} branch, no
+     * type line, no tint).
+     *
+     * <p><b>Geometry authority.</b> {@code descScale = item.w / 512f} (the same uniform ART card
+     * scale as the title/cost), which is why {@code item.descAnchorY} already holds
+     * {@code -(DESC_IMG_HEIGHT/2 - DESC_IMG_HEIGHT * DESC_OFFSET_Y_RATIO) * descScale} (native
+     * AbstractCard 1561/2626/2636). The first baseline then adds native 1562's
+     * {@code lineCount * capHeight * 0.775f - capHeight * 0.375f}, and each subsequent line steps by
+     * native 1563's {@code 1.45f * capHeight}.
+     *
+     * <p><b>Horizontal centring.</b> Native 1565 centres every LINE on the card centre, so the chunks
+     * are measured and drawn left-to-right from {@code item.x - totalWidth / 2f}.
+     *
+     * <p><b>Colour.</b> {@code kid.keyword} chunks use {@code Settings.GOLD_COLOR} (native
+     * {@code goldColor}, 152) and the rest {@code Settings.CREAM_COLOR} (native {@code textColor},
+     * 154), both read fail-open and allocated OUTSIDE the loop.
+     *
+     * <p><b>Font.</b> {@code item.descFontNormal} mirrors native {@code getDescFont} (1835-1839):
+     * {@code cardDescFont_N} for an unrotated, unit-scale card, otherwise {@code cardDescFont_L}.
+     *
+     * <p><b>Shared-static font hygiene.</b> The font's scale is a shared static mutated by every
+     * draw, so the prior {@code scaleX/scaleY} are captured and RESTORED in a {@code finally}.
+     * Unlike native 1652 (which resets to a bare {@code 1.0f}) the captured pair is restored, so a
+     * caller that entered with a non-unit scale is not silently clobbered. The {@code capHeight} is
+     * read AFTER {@code setScale} so it is the LIVE scaled metric, never a hardcoded number.
+     *
+     * <p>Fail-open: a null batch/item, a non-drawable description, an empty wrap, or a
+     * missing/uninitialized font draws nothing; any {@code Throwable} is swallowed so
+     * {@code renderSelect} never fails.
+     */
+    private static void drawSelectDescription(SpriteBatch sb, SelectDrawPath.DrawItem item) {
+        try {
+            if (sb == null || item == null || !item.descriptionDrawable) return;
+            BitmapFont font = item.descFontNormal
+                    ? FontHelper.cardDescFont_N : FontHelper.cardDescFont_L;
+            if (font == null || font.getData() == null) return;
+            java.util.List<String> lines = SelectDrawPath.wrapDescription(
+                    item.description, SelectDrawPath.DESC_MAX_CHARS_PER_LINE,
+                    SelectDrawPath.DESC_MAX_LINES);
+            if (lines.isEmpty()) return;
+            float priorScaleX = font.getData().scaleX;
+            float priorScaleY = font.getData().scaleY;
+            try {
+                font.getData().setScale(item.descScale);
+                float capHeight = font.getCapHeight();
+                if (!(capHeight > 0f)) return;
+                // The projected anchor (item.y + item.descAnchorY) is the AUTHORITY - DrawItem already
+                // converted native 1561/2636 through the uniform ART scale. The pure helper
+                // reproduces that anchor from (centerY, descScale) and adds native 1562's
+                // first-baseline shift; a non-finite result falls back to the projected anchor.
+                float anchorY = item.y + item.descAnchorY;
+                float firstLineY = SelectDrawPath.descriptionFirstLineY(
+                        item.y, item.descScale, lines.size(), capHeight);
+                if (Float.isNaN(firstLineY) || Float.isInfinite(firstLineY)) {
+                    firstLineY = anchorY;
+                }
+                float advance = SelectDrawPath.descriptionLineAdvance(capHeight);
+                Color goldColor = descGoldColor();
+                Color textColor = descCreamColor();
+                com.badlogic.gdx.graphics.g2d.GlyphLayout layout =
+                        new com.badlogic.gdx.graphics.g2d.GlyphLayout();
+                for (int i = 0; i < lines.size(); i++) {
+                    float lineY = firstLineY - i * advance;
+                    java.util.List<SelectDrawPath.DescriptionChunk> chunks =
+                            SelectDrawPath.tokenizeDescriptionLine(lines.get(i));
+                    if (chunks.isEmpty()) continue;
+                    float totalWidth = 0f;
+                    for (SelectDrawPath.DescriptionChunk chunk : chunks) {
+                        layout.setText(font, chunk.text);
+                        totalWidth += layout.width;
+                    }
+                    float cursorX = item.x - totalWidth / 2f;
+                    for (SelectDrawPath.DescriptionChunk chunk : chunks) {
+                        layout.setText(font, chunk.text);
+                        float chunkWidth = layout.width;
+                        FontHelper.renderRotatedText(sb, font, chunk.text, item.x, item.y,
+                                (cursorX - item.x) + chunkWidth / 2f,
+                                (lineY - item.y) + SelectDrawPath.DESC_CHUNK_NUDGE_Y,
+                                item.rotation, true, chunk.keyword ? goldColor : textColor);
+                        cursorX += chunkWidth;
+                    }
+                }
+            } finally {
+                try {
+                    font.getData().setScale(priorScaleX, priorScaleY);
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * U07: native {@code goldColor} (AbstractCard 152: {@code Settings.GOLD_COLOR.cpy()}) for
+     * {@code *keyword*} description chunks. Fail-open to the native constant's RGB
+     * {@code (1, 0.9, 0.4)} when the host value is unavailable.
+     */
+    private static Color descGoldColor() {
+        try {
+            Color gold = com.megacrit.cardcrawl.core.Settings.GOLD_COLOR;
+            if (gold != null) {
+                return new Color(gold.r, gold.g, gold.b, gold.a);
+            }
+        } catch (Throwable ignored) {
+        }
+        return new Color(1f, 0.9f, 0.4f, 1f);
+    }
+
+    /**
+     * U07: native {@code textColor} (AbstractCard 154: {@code Settings.CREAM_COLOR.cpy()}) for
+     * ordinary description chunks. Fail-open to white when the host value is unavailable.
+     */
+    private static Color descCreamColor() {
+        try {
+            Color cream = com.megacrit.cardcrawl.core.Settings.CREAM_COLOR;
+            if (cream != null) {
+                return new Color(cream.r, cream.g, cream.b, cream.a);
+            }
+        } catch (Throwable ignored) {
+        }
+        return new Color(1f, 1f, 1f, 1f);
     }
 
     /**

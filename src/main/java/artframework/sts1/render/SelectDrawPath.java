@@ -48,6 +48,92 @@ public final class SelectDrawPath {
     /** U06: native small-title font multiplier ({@code useSmallTitleFont}) applied to the font only. */
     static final float SMALL_TITLE_SCALE = 0.85f;
 
+    /**
+     * U07: native {@code AbstractCard.IMG_HEIGHT} in cardui PAGE units (2626:
+     * {@code IMG_HEIGHT = 420.0f * Settings.scale}; the ART scale absorbs the host
+     * {@code Settings.scale}, so only the page-unit 420 remains).
+     */
+    static final float DESC_IMG_HEIGHT = 420f;
+
+    /**
+     * U07: native {@code DESC_OFFSET_Y / IMG_HEIGHT} with {@code Settings.BIG_TEXT_MODE == false}
+     * (2636: {@code DESC_OFFSET_Y = IMG_HEIGHT * 0.255f}), i.e. {@code 420 * 0.255 = 107.1} page
+     * units below the card centre for the description block's top edge.
+     */
+    static final float DESC_OFFSET_Y_RATIO = 0.255f;
+
+    /** U07: native per-line advance factor (1563: {@code spacing = 1.45f * -capHeight / ...}). */
+    static final float DESC_LINE_ADVANCE_FACTOR = 1.45f;
+
+    /** U07: native first-baseline shift, {@code 0.775f} term of AbstractCard 1562. */
+    static final float DESC_LINE_COUNT_FACTOR = 0.775f;
+
+    /** U07: native first-baseline shift, {@code 0.375f} term of AbstractCard 1562. */
+    static final float DESC_LINE_COUNT_OFFSET = 0.375f;
+
+    /**
+     * U07: native per-chunk screen-space vertical nudge (1567-1582 / 1648 pass
+     * {@code ... - current_y + -6.0f}) applied to every description chunk.
+     */
+    static final float DESC_CHUNK_NUDGE_Y = -6.0f;
+
+    /**
+     * U07: documented truncation cap for the ART description block. ART wraps its own raw string and
+     * DROPS the tail (truncation, never an ellipsis) so a long card description cannot overrun the
+     * card's lower half. VANILLA native does NOT shrink: it only logs a dev warning
+     * ({@code Settings.isDev && numLines > 5}, AbstractCard 481-482) and lets the text overflow. The
+     * five-line shrink is BaseMod's {@code ShrinkLongDescription} patch, deliberately not mirrored
+     * because ART does not depend on BaseMod.
+     */
+    static final int DESC_MAX_LINES = 5;
+
+    /**
+     * U07: deterministic ART wrap width in characters, NOT a pixel width. Native wraps the raw text
+     * against {@code DESC_BOX_WIDTH} in pixels; ART pins a character count so the wrap is pure,
+     * host-independent and testable on the 512-wide cardui page scale.
+     */
+    static final int DESC_MAX_CHARS_PER_LINE = 24;
+
+    /**
+     * U07c: the fixed, VALUE-FREE placeholder that stands in for a native dynamic-value slot in a
+     * description line.
+     *
+     * <p>Native does not paint {@code !D!}/{@code !B!}/{@code !M!}: at wrap/prep time
+     * {@code AbstractCard.initializeDescriptionCN} tests {@code word.equals("!D!")} (L559),
+     * {@code word.equals("!B!")} (L572) and {@code word.equals("!M!")} (L585) and appends a single
+     * character SLOT for the native {@code MAGIC_NUM_W} value; at draw time
+     * {@code renderDescriptionCN} (L1707-1725) / {@code getDynamicValue} (L1655-1687) fills that slot
+     * with the LIVE damage/block/magic NUMBER. Rendering that live number faithfully is the separate
+     * U07d slice and is deliberately NOT done here.
+     *
+     * <p>This slice's narrower honest contract is therefore: no raw marker token is ever painted, and
+     * no number is invented. {@code "?"} is chosen because native reserves exactly ONE character per
+     * dynamic value and {@code ?} is exactly one ASCII character, so it occupies one slot and
+     * participates in the wrap width; it is font-safe in both description fonts; it CANNOT be read as
+     * a number (so nothing is fabricated); and it cannot be confused with a {@code !}-delimited token,
+     * so a second substitution pass can never treat it as a marker. It carries NO damage, block or
+     * magic number.
+     */
+    public static final String DYNAMIC_VALUE_PLACEHOLDER = "?";
+
+    /**
+     * U07: one drawable piece of a description line. Native splits a line into "cached tokenized
+     * text" fragments and colours each fragment by its leading {@code '*'} (gold) or not (cream);
+     * this carrier is the ART equivalent: the fragment TEXT (already stripped of its stars) plus the
+     * single {@link #keyword} flag the renderer maps to gold vs cream.
+     */
+    public static final class DescriptionChunk {
+        /** The fragment's drawable text, never containing a {@code '*'}. */
+        public final String text;
+        /** True when the fragment came from a {@code *...*} keyword span (native {@code goldColor}). */
+        public final boolean keyword;
+
+        public DescriptionChunk(String text, boolean keyword) {
+            this.text = text != null ? text : "";
+            this.keyword = keyword;
+        }
+    }
+
     public static final class DrawItem {
         public final String instanceId;
         /** Raw card id (e.g. {@code Strike_R}); identity/resource selection only. */
@@ -152,6 +238,36 @@ public final class SelectDrawPath {
         public final boolean titleDrawable;
         /** U06: the projected {@link artframework.context.CardPose#rotation} used to rotate the title. */
         public final float rotation;
+        /**
+         * U07: the RAW description carried VERBATIM from {@link CardView#description} (native
+         * {@code card.rawDescription}); no trim, no keyword stripping, no substitution. Empty for the
+         * confirm pseudo-item and for legacy construction.
+         */
+        public final String description;
+        /**
+         * U07: true when {@link #description} is non-null and not whitespace-only. False suppresses
+         * the whole description block (fail-open: nothing is drawn instead of a bogus line).
+         */
+        public final boolean descriptionDrawable;
+        /**
+         * U07: native description font scale = the uniform ART card scale {@code w / 512f} (the SAME
+         * value as {@link #costScale}); fail-open {@code 1f} when {@code w} is non-positive.
+         */
+        public final float descScale;
+        /**
+         * U07: native description block anchor relative to the card centre, already converted to ART
+         * pixels: {@code -(DESC_IMG_HEIGHT / 2f - DESC_IMG_HEIGHT * DESC_OFFSET_Y_RATIO) * descScale}
+         * (AbstractCard 1561 minus 2636), i.e. {@code -102.9f * descScale}.
+         */
+        public final float descAnchorY;
+        /** U07: the projected {@link artframework.context.CardPose#scale}; fail-open {@code 1f}. */
+        public final float poseScale;
+        /**
+         * U07: native {@code getDescFont} predicate (AbstractCard 1835-1839:
+         * {@code angle == 0.0f && drawScale == 1.0f -> cardDescFont_N else cardDescFont_L}) mirroring
+         * {@code rotation == 0f && poseScale == 1f}.
+         */
+        public final boolean descFontNormal;
 
         public DrawItem(
                 String instanceId,
@@ -237,6 +353,30 @@ public final class SelectDrawPath {
                 String costText, String costColor, String portraitResourceId,
                 String title, boolean smallTitleFont, boolean titleGreen, float titleAlpha,
                 float rotation) {
+            this(instanceId, cardId, label, slot, selected, visible, enabled, x, y, confirm,
+                    resourceId, frameResourceId, w, h, bannerResourceId, orbResourceId, costDrawable,
+                    costText, costColor, portraitResourceId, title, smallTitleFont, titleGreen,
+                    titleAlpha, rotation, "", 1f);
+        }
+
+        /**
+         * U07 full carrier: the RAW description plus the projected pose scale are appended AFTER
+         * {@code rotation} so every pre-existing signature and argument order is untouched. All
+         * shorter constructors delegate here with {@code description = ""} and {@code poseScale = 1f},
+         * which keeps the legacy fail-open shape ({@code descriptionDrawable == false},
+         * {@code descScale == 1f}, {@code descAnchorY == -102.9f}).
+         *
+         * <p>ONE scale authority: {@code descScale} is the existing {@link #costScale} value
+         * ({@code w / CARDUI_PAGE}), never the native {@code card.drawScale}; the anchor is the native
+         * {@code -(IMG_HEIGHT/2 - DESC_OFFSET_Y)} page-unit offset times that same scale.
+         */
+        public DrawItem(String instanceId, String cardId, String label, int slot, boolean selected,
+                boolean visible, boolean enabled, float x, float y, boolean confirm,
+                String resourceId, String frameResourceId, float w, float h,
+                String bannerResourceId, String orbResourceId, boolean costDrawable,
+                String costText, String costColor, String portraitResourceId,
+                String title, boolean smallTitleFont, boolean titleGreen, float titleAlpha,
+                float rotation, String description, float poseScale) {
             this.instanceId = instanceId != null ? instanceId : "";
             this.cardId = cardId != null ? cardId : "";
             this.label = label != null && !label.isEmpty() ? label : this.cardId;
@@ -275,6 +415,16 @@ public final class SelectDrawPath {
             this.titleGreen = titleGreen;
             this.titleAlpha = titleAlpha;
             this.rotation = rotation;
+            // U07: the description is carried raw; drawability is whitespace-only suppression. The
+            // anchor applies native AbstractCard 1561/2636's -102.9 page units at the SAME uniform
+            // card scale as the cost/title geometry.
+            this.description = description != null ? description : "";
+            this.descriptionDrawable = description != null && !description.trim().isEmpty();
+            this.descScale = costScale;
+            this.descAnchorY = descAnchorYUnits() * this.descScale;
+            this.poseScale = poseScale;
+            // Native getDescFont (1835-1839): the NORMAL font only for an unrotated, unit-scale card.
+            this.descFontNormal = rotation == 0f && poseScale == 1f;
         }
 
         public Map<String, Object> toMap() {
@@ -310,6 +460,14 @@ public final class SelectDrawPath {
             m.put("titleAlpha", Float.valueOf(titleAlpha));
             m.put("titleDrawable", Boolean.valueOf(titleDrawable));
             m.put("rotation", Float.valueOf(rotation));
+            // U07: additive evidence keys for the native description geometry; no existing key
+            // renamed or dropped.
+            m.put("description", description);
+            m.put("descriptionDrawable", Boolean.valueOf(descriptionDrawable));
+            m.put("descScale", Float.valueOf(descScale));
+            m.put("descAnchorY", Float.valueOf(descAnchorY));
+            m.put("descFontNormal", Boolean.valueOf(descFontNormal));
+            m.put("descMaxLines", Integer.valueOf(DESC_MAX_LINES));
             return m;
         }
     }
@@ -369,7 +527,11 @@ public final class SelectDrawPath {
                             c.smallTitleFont,
                             c.upgraded,
                             c.titleAlpha,
-                            c.pose != null ? c.pose.rotation : 0f));
+                            c.pose != null ? c.pose.rotation : 0f,
+                            // U07: the RAW description (native card.rawDescription) and the
+                            // projected pose scale that mirrors the native getDescFont predicate.
+                            c.description,
+                            c.pose != null ? c.pose.scale : 1f));
             i++;
         }
         if (sv.confirmVisible || sv.confirmEnabled) {
@@ -629,6 +791,302 @@ public final class SelectDrawPath {
         if ("purple".equals(c)) return "purple";
         if ("colorless".equals(c)) return "gray";
         return "";
+    }
+
+    /**
+     * U07: the native description block ANCHOR in ART pixels, i.e. native AbstractCard 1561
+     * {@code draw_y = current_y - IMG_HEIGHT * drawScale / 2.0f + DESC_OFFSET_Y * drawScale} with the
+     * ART uniform scale {@code descScale = w / 512f} standing in for {@code drawScale}:
+     * {@code (DESC_IMG_HEIGHT / 2f - DESC_IMG_HEIGHT * DESC_OFFSET_Y_RATIO) = 210 - 107.1 = 102.9}
+     * page units below the card centre, times {@code descScale}. For the real 250-wide select item
+     * that is {@code -102.9 * 0.48828125 = -50.244140625}. Fail-open: never throws.
+     */
+    public static float descriptionAnchorY(float centerY, float descScale) {
+        return centerY + descAnchorYUnits() * descScale;
+    }
+
+    /** U07: {@code -(DESC_IMG_HEIGHT / 2f - DESC_IMG_HEIGHT * DESC_OFFSET_Y_RATIO)} = {@code -102.9f}. */
+    private static float descAnchorYUnits() {
+        return -(DESC_IMG_HEIGHT / 2f - DESC_IMG_HEIGHT * DESC_OFFSET_Y_RATIO);
+    }
+
+    /**
+     * U07: the FIRST line's y, adding the native AbstractCard 1562 first-baseline shift
+     * {@code description.size() * capHeight * 0.775f - capHeight * 0.375f} to
+     * {@link #descriptionAnchorY}. {@code capHeight} is the LIVE scaled font metric read by the
+     * renderer after {@code setScale(descScale)} - never a hardcoded font metric. For
+     * {@code (500f, 0.48828125f, 1, 10f)} this is {@code 500 - 50.244140625 + 4 = 453.755859375}.
+     * Fail-open: never throws.
+     */
+    public static float descriptionFirstLineY(
+            float centerY, float descScale, int lineCount, float capHeight) {
+        return descriptionAnchorY(centerY, descScale)
+                + (DESC_LINE_COUNT_FACTOR * lineCount - DESC_LINE_COUNT_OFFSET) * capHeight;
+    }
+
+    /**
+     * U07: the per-line vertical advance for line index {@code i}: native AbstractCard 1563
+     * {@code 1.45f * -capHeight} (the sign is dropped because ART walks DOWN the lines itself). For
+     * {@code capHeight = 10} this is {@code 14.5}.
+     */
+    public static float descriptionLineAdvance(float capHeight) {
+        return DESC_LINE_ADVANCE_FACTOR * capHeight;
+    }
+
+    /**
+     * U07: true when {@code raw} contains at least one HAN, HIRAGANA, KATAKANA or HANGUL code point,
+     * which selects the CJK by-CHARACTER wrap (native {@code initializeDescriptionCN} does not wrap
+     * CJK on spaces). Null/blank is false; never throws.
+     */
+    public static boolean isCjkText(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < raw.length(); ) {
+            int cp = raw.codePointAt(i);
+            Character.UnicodeScript script;
+            try {
+                script = Character.UnicodeScript.of(cp);
+            } catch (Throwable ignored) {
+                return false;
+            }
+            if (script == Character.UnicodeScript.HAN
+                    || script == Character.UnicodeScript.HIRAGANA
+                    || script == Character.UnicodeScript.KATAKANA
+                    || script == Character.UnicodeScript.HANGUL) {
+                return true;
+            }
+            i += Character.charCount(cp);
+        }
+        return false;
+    }
+
+    /**
+     * U07c: replaces each WHITESPACE-DELIMITED WHOLE token that is exactly equal to {@code !D!},
+     * {@code !B!} or {@code !M!} with {@link #DYNAMIC_VALUE_PLACEHOLDER}, mirroring the native
+     * whole-token equality tests in {@code AbstractCard.initializeDescriptionCN} (L559
+     * {@code word.equals("!D!")}, L572 {@code !B!}, L585 {@code !M!}) and its single-character
+     * value slot. This is deliberately NOT a substring {@code replace("!D!", "?")}: a token that
+     * merely CONTAINS a marker ({@code !DX!}, {@code !!D!}, {@code x!D!}, {@code !D!!M!}), a
+     * different casing ({@code !d!}), or a star-wrapped {@code *!D!*} is ONE token that never equals
+     * a marker and therefore stays LITERAL.
+     *
+     * <p>Every other character is preserved VERBATIM, including the whitespace around a substituted
+     * token ({@code " !D! "} -&gt; {@code " ? "}), so this pure step can run BEFORE wrapping without
+     * disturbing the {@code NL} forced break (U07b) or the {@code '*'} keyword toggle (U07).
+     *
+     * <p>Fail-open, never throws: {@code null} yields {@code null}; an empty or token-free input is
+     * returned unchanged.
+     */
+    public static String substituteDynamicMarkers(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw.isEmpty()) {
+            return raw;
+        }
+        try {
+            StringBuilder out = new StringBuilder(raw.length());
+            StringBuilder token = new StringBuilder();
+            for (int i = 0; i < raw.length(); i++) {
+                char c = raw.charAt(i);
+                if (!isDescriptionWhitespace(c)) {
+                    token.append(c);
+                    continue;
+                }
+                appendDynamicSubstituted(out, token);
+                out.append(c);
+            }
+            appendDynamicSubstituted(out, token);
+            return out.toString();
+        } catch (Throwable ignored) {
+            return raw;
+        }
+    }
+
+    /**
+     * U07c: flushes one completed whitespace-delimited {@code token} into {@code out}, writing the
+     * value-free {@link #DYNAMIC_VALUE_PLACEHOLDER} when the token is exactly one of the three native
+     * dynamic markers and the token text itself otherwise. Clears {@code token} either way.
+     */
+    private static void appendDynamicSubstituted(StringBuilder out, StringBuilder token) {
+        if (token.length() == 0) {
+            return;
+        }
+        String word = token.toString();
+        token.setLength(0);
+        if ("!D!".equals(word) || "!B!".equals(word) || "!M!".equals(word)) {
+            out.append(DYNAMIC_VALUE_PLACEHOLDER);
+            return;
+        }
+        out.append(word);
+    }
+
+    /**
+     * U07c: true for exactly the characters Java's regex {@code \s} matches (space, {@code \t},
+     * {@code \n}, {@code \x0B}, {@code \f}, {@code \r}) - the same whitespace set
+     * {@link #wrapDescription} splits on with {@code "\\s+"}, so the token boundaries used by
+     * {@link #substituteDynamicMarkers} and by the wrap agree.
+     */
+    private static boolean isDescriptionWhitespace(char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\u000B' || c == '\f' || c == '\r';
+    }
+
+    /**
+     * U07: deterministic wrap of the RAW description into drawable lines.
+     *
+     * <p><b>Dynamic values</b> (U07c): the raw text first passes through
+     * {@link #substituteDynamicMarkers}, so the native markers {@code !D!}/{@code !B!}/{@code !M!}
+     * become the single-character {@link #DYNAMIC_VALUE_PLACEHOLDER} BEFORE any wrapping. The
+     * placeholder therefore participates in the wrap width, and no raw marker is ever painted.
+     *
+     * <p><b>CJK mode</b> ({@link #isCjkText}): ALL whitespace is collapsed to nothing and the text is
+     * cut greedily by CODE POINT into chunks of at most {@code maxCharsPerLine}.
+     *
+     * <p><b>Otherwise</b>: greedy WORD wrap on single spaces, rejoined with exactly one space. A word
+     * longer than {@code maxCharsPerLine} is kept WHOLE on its own line (never split mid-word).
+     *
+     * <p><b>Manual line break</b>: a whole token equal to the exact, case-sensitive native token
+     * {@code NL} is a FORCED break, not text (native {@code initializeDescription} AbstractCard 454
+     * {@code else if (word.equals("NL"))} and {@code initializeDescriptionCN} 494/598). Text before
+     * the token keeps the wrap above; text after it starts a NEW line. Breaks while the pending line
+     * is empty are no-ops, so no empty line is ever emitted.
+     *
+     * <p>Finally lines beyond {@code maxLines} are DROPPED: this is TRUNCATION, not an ellipsis
+     * (vanilla native does not shrink - it only logs a dev warning, AbstractCard 481-482 - and
+     * overflows; the five-line shrink is BaseMod's {@code ShrinkLongDescription} patch, deliberately
+     * not mirrored because ART does not depend on BaseMod). A forced break never bypasses the cap.
+     *
+     * <p>Fail-open: a null/blank/whitespace-only {@code raw} yields an EMPTY list, and a
+     * non-positive {@code maxCharsPerLine}/{@code maxLines} yields an EMPTY list rather than throwing.
+     * The result is never null; this method never throws.
+     */
+    public static List<String> wrapDescription(String raw, int maxCharsPerLine, int maxLines) {
+        List<String> out = new ArrayList<String>();
+        if (raw == null || raw.trim().isEmpty() || maxCharsPerLine <= 0 || maxLines <= 0) {
+            return out;
+        }
+        try {
+            // U07c: substitute the native dynamic-value markers BEFORE wrapping so the one-character
+            // placeholder takes part in the wrap width. NL (U07b) and '*' (U07) are untouched.
+            String text = substituteDynamicMarkers(raw);
+            if (text == null) {
+                return out;
+            }
+            String[] words = text.trim().split("\\s+");
+            if (isCjkText(text)) {
+                StringBuilder segment = new StringBuilder();
+                for (String word : words) {
+                    if (word.isEmpty()) {
+                        continue;
+                    }
+                    if ("NL".equals(word)) {
+                        appendCjkSegment(out, segment, maxCharsPerLine, maxLines);
+                        segment.setLength(0);
+                        if (out.size() >= maxLines) {
+                            return out;
+                        }
+                        continue;
+                    }
+                    segment.append(word);
+                }
+                appendCjkSegment(out, segment, maxCharsPerLine, maxLines);
+                return out;
+            }
+            StringBuilder current = new StringBuilder();
+            for (String word : words) {
+                if (word.isEmpty()) {
+                    continue;
+                }
+                if ("NL".equals(word)) {
+                    if (current.length() > 0) {
+                        out.add(current.toString());
+                        current.setLength(0);
+                        if (out.size() >= maxLines) {
+                            return out;
+                        }
+                    }
+                    continue;
+                }
+                if (current.length() == 0) {
+                    current.append(word);
+                } else if (current.length() + 1 + word.length() <= maxCharsPerLine) {
+                    current.append(' ').append(word);
+                } else {
+                    out.add(current.toString());
+                    current.setLength(0);
+                    if (out.size() >= maxLines) {
+                        return out;
+                    }
+                    current.append(word);
+                }
+            }
+            if (current.length() > 0 && out.size() < maxLines) {
+                out.add(current.toString());
+            }
+            return out;
+        } catch (Throwable ignored) {
+            return new ArrayList<String>();
+        }
+    }
+
+    /**
+     * U07: cuts ONE whitespace-collapsed CJK break segment by CODE POINT into chunks of at most
+     * {@code maxCharsPerLine}, dropping everything past {@code maxLines}. With no {@code NL} token
+     * there is exactly one segment, so this is observationally identical to a global collapse/cut.
+     */
+    private static void appendCjkSegment(
+            List<String> out, CharSequence segment, int maxCharsPerLine, int maxLines) {
+        int i = 0;
+        int n = segment.length();
+        while (i < n && out.size() < maxLines) {
+            int end = i;
+            int count = 0;
+            while (end < n && count < maxCharsPerLine) {
+                end += Character.charCount(Character.codePointAt(segment, end));
+                count++;
+            }
+            out.add(segment.subSequence(i, end).toString());
+            i = end;
+        }
+    }
+
+    /**
+     * U07: splits ONE already-wrapped description line into drawable chunks with native keyword
+     * colouring. Native AbstractCard 1567/1576 draws a {@code '*'} fragment in {@code goldColor}
+     * with the star stripped and everything else in {@code textColor} (1648); ART's accepted contract
+     * uses TOGGLE semantics: each {@code '*'}' toggles keyword mode and is never emitted, so
+     * {@code "Deal *5* damage"} = normal {@code "Deal "}, keyword {@code "5"}, normal {@code " "}.
+     * An unterminated toggle ({@code "Deal *5 damage"}) simply stays in keyword mode - no throw.
+     * Empty fragments are dropped; {@code null}/empty yields an EMPTY list; never returns null.
+     */
+    public static List<DescriptionChunk> tokenizeDescriptionLine(String line) {
+        List<DescriptionChunk> out = new ArrayList<DescriptionChunk>();
+        if (line == null || line.isEmpty()) {
+            return out;
+        }
+        try {
+            boolean keyword = false;
+            StringBuilder buf = new StringBuilder();
+            for (int i = 0; i < line.length(); i++) {
+                char c = line.charAt(i);
+                if (c == '*') {
+                    if (buf.length() > 0) {
+                        out.add(new DescriptionChunk(buf.toString(), keyword));
+                        buf.setLength(0);
+                    }
+                    keyword = !keyword;
+                } else {
+                    buf.append(c);
+                }
+            }
+            if (buf.length() > 0) {
+                out.add(new DescriptionChunk(buf.toString(), keyword));
+            }
+            return out;
+        } catch (Throwable ignored) {
+            return new ArrayList<DescriptionChunk>();
+        }
     }
 
     /**

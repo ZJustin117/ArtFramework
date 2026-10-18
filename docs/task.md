@@ -5006,18 +5006,103 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       so those coordinates are no longer reproducible on HEAD.
       **D1 re-verification PENDING** - no device run was performed for U05c, so the new row is
       unit-verified only.
-- [ ] **Open (U05d): the confirm button is drawn ON TOP of the hand-select card row.** The confirm item
-      is `512x256` centred at `(960, 475)` while the card row sits at `y = 486`; the pill therefore
-      covers the middle cards' portraits and bites the rightmost card. Titles/costs stay visible above
-      it, so the cards are still distinguishable by name - but the art is hidden. Fix by moving the
-      confirm affordance out of the row band (native draws it below/outside), which also resolves most
-      of U05c's practical impact.
+- [x] **U05d the confirm button no longer covers the hand-select card row - MOVE THE ROW, NOT THE
+      PILL** (implemented 2026-10-18; D1 re-verification PENDING). The problem was the confirm item
+      `512x256` centred at `(960, 475)` while the fallback card row sat at `y = 486`: the pill covered
+      the middle cards' portraits and bit the rightmost card. **Ruling: the native
+      `CardSelectConfirmButton` geometry stays FROZEN** - texture `512x256`, centre `(WIDTH/2, TAKE_Y)`
+      with `TAKE_Y = 475f * Settings.scale` - because moving the pill would diverge from the native
+      select screen and break `SelectDrawPathTest`'s pinned confirm geometry. The ROW moves instead.
+      **Derivation in `SelectDrawPath.defaultCardY()`:**
+      `CONFIRM_TAKE_Y*scale + CONFIRM_TEXTURE_H*0.5f*scale + CARD_HEIGHT*0.5f + CONFIRM_CLEARANCE`,
+      with two new documented constants next to the helper:
+      `CARD_HEIGHT = 350f` (now the value `buildFromProjection` PASSES to `DrawItem`, so the constant
+      and the box are one authority) and `CONFIRM_CLEARANCE = 40f` (the documented
+      vertical gap). `CONFIRM_TAKE_Y = 475f` and `CONFIRM_TEXTURE_H = 256f` are the pre-existing
+      native constants, so the row is derived from the native TAKE_Y rather than from a `HEIGHT`
+      fraction: the relationship to the pill is EXPLICIT (TAKE_Y + half texture + half card + gap)
+      and survives a card-height change, whereas `HEIGHT * 0.45f` encoded no relationship to the
+      confirm control at all. `Settings.scale` is read fail-open to `1f` when the static is
+      unavailable or `<= 0f`, mirroring `confirmSettings()`'s `if (s > 0f)`; the expression is pure
+      arithmetic (no `HEIGHT` read, no division), so no host state can throw it.
+      **Numbers at `scale = 1`:** `475 + 128 + 175 + 40 = 818`, i.e. the card row centre is now
+      `y = 818` (was 486). ART `DrawItem.x/y` are libGDX y-up (bottom-origin) coordinates and the
+      renderer derives a band as `(y - h/2) .. (y + h/2)`, so `y - h/2` is a band's LOWER edge and
+      `y + h/2` its UPPER edge. Clearance arithmetic: the frozen pill band is `[347, 603]` (UPPER
+      edge `475 + 128 = 603`), the frozen `250x350` card band becomes `[643, 993]` (lower edge 643,
+      upper edge 993), so the card band lies entirely ABOVE the pill band with a gap of exactly
+      `643 - 603 = 40` px = `CONFIRM_CLEARANCE`. **On-screen bound:** `818 + 175 = 993 <= 1080`, 87 px
+      to spare, so the band's UPPER edge stays inside a 1080 px screen. On other screen heights the
+      row is an explicit TAKE_Y-derived value rather than a `HEIGHT` fraction, i.e. it tracks the
+      pill the way the native screen does (this is a layout claim only - no device run backs it, and
+      see the shorter-viewport residual note at the end of this entry).
+      **Deliberately NOT changed:** `defaultCardX` and the whole U05c row rule with its constants
+      (`CARD_WIDTH`, `CARD_GAP`, `PREFERRED_PITCH`, `EDGE_MARGIN`) - the x layout `698 / 960 / 1222`
+      for 3 cards and `436 / 698 / 960 / 1222 / 1484` for 5 is byte-identical; the `250x350` item box;
+      the `w/512f` scale authority; `confirmItem` and the `CONFIRM_TAKE_Y` / `CONFIRM_TEXTURE_W` /
+      `CONFIRM_TEXTURE_H` geometry (pill still `(960, 475)`, `512x256`).
+      Tests: `SelectDrawPathHandFallbackTest` gained THREE cases
+      (`handSelectRowClearsTheFrozenConfirmPillByFortyPixels` - the real Red, reading the pill straight
+      from `SelectDrawPath.confirmItem()` instead of re-hardcoding 475/128;
+      `handSelectRowStaysOnScreenAndLeavesTheConfirmPillGeometryFrozen`; and
+      `rowYIsDerivedFromTheNativePillAtNonUnitScale`, added by the PARENT to close the review's AC2
+      gap) and 4 retargeted expectations moved `y = 486 -> 818` (3-card row, 5-card row, single card,
+      probe row). The class is now 10 tests. Focused
+      `./scripts/with-art-env.sh cleanTest test --tests "artframework.sts1.render.*"` = **1096 tests,
+      0 failures** (Red before: 1096 / 5 failures, all in that class). The full-suite gate is
+      parent-owned and was NOT run in this slice.
+      **ACCEPTED CONSEQUENCE, explicitly:** the move is UPWARD on screen, not downward - in y-up
+      coordinates the band goes `486 -> 818`, i.e. 332 px toward the TOP (in screen-down pixels
+      roughly `419..769 -> 87..437`), so the row moves AWAY from the native hand, which is drawn
+      along the BOTTOM edge (the U05c D1 capture
+      `debug-artifacts/art-verify/d1_u05c_hand_select.png` shows it at the bottom, y-up roughly
+      `80..280`). The card band `[643, 993]` and the pill band `[347, 603]` are now DISJOINT with the
+      40 px gap. The ART-row vs native-hand DUPLICATION is PRE-EXISTING (documented from the U05b
+      capture) and unchanged in kind by this slice - the two bands did not overlap before either
+      (`[311, 661]` vs `[80, 280]`) - so it is NOT introduced by moving the row, and U05e remains a
+      real OPEN defect (same cards twice, ambiguous affordance). It is not a reason to keep the row
+      under the pill - the pill would then hide card ART again. Do not suppress/hide the native hand
+      as part of this slice.
+      **Residual risk (documented limitation, not device-measured):** the mandated TAKE_Y-only
+      expression carries no `HEIGHT` term while the card box stays a fixed `350f`, so on a SHORTER
+      viewport combined with a sub-unit `Settings.scale` the band can cross the screen's TOP edge
+      (illustrative arithmetic: `HEIGHT = 720`, `scale ~= 0.667` gives centre `~617`, band
+      `~442..792`). The `993 <= 1080` bound above is the verified one; shorter-viewport behaviour is
+      unverified and out of scope for this slice.
+      **AC2 (derivational claim) is now COVERED, not just code-reviewed:**
+      `rowYIsDerivedFromTheNativePillAtNonUnitScale` runs at `WIDTH = 1920`, `HEIGHT = 1350`,
+      `scale = 1.25f`, derives the expectation from the pill the code itself projects
+      (`pill.y + pill.h/2 + cardHalfHeight + 40` = `593.75 + 160 + 175 + 40` = `968.75`) and asserts
+      band `[793.75, 1143.75]`, pill band `[433.75, 753.75]`, a 40 px gap and `1143.75 <= 1350`.
+      Mutation-proven by the parent: replacing the expression with `return 818f;` makes exactly that
+      test FAIL; restoring it is green.
+      **Also fixed (reviewer F3):** `buildFromProjection` now passes `CARD_WIDTH`/`CARD_HEIGHT`
+      instead of the bare `250f`/`350f` literals, so the box and the pitch/clearance math share ONE
+      constant each instead of relying on a documented "keep in sync" note (drift was previously only
+      catchable at runtime). Scope caveat: the legacy 8-arg `DrawItem` convenience constructor still
+      carries its own `250f/350f`, so "single authority" holds for the PRODUCTION path
+      (`buildFromProjection`), not for every constructor; that ctor has no production caller.
+      **Label-only residual:** the directional NAMES/LABELS inside the test (`cardTop`/`cardBottom`,
+      "y - 175" called the top edge) are inverted relative to y-up; they were introduced with this
+      slice (they are NOT pre-existing), are comment/label text only, and every assertion is
+      direction-agnostic and numerically correct. Left as a cosmetic cleanup so the frozen tests are
+      not churned for wording.
+      **D1 re-verification PENDING** - no device run was performed for U05d, so the new row is
+      unit-verified only; the `y = 818` band and its 40 px pill clearance still need an on-device
+      capture.
 - [ ] **Open (U05e): the native hand is still drawn while the ART hand-select row is up, so the same
       cards appear TWICE.** Visible in `d1_u05b_hand_select.png`: five ART cards mid-screen AND the same
       five native cards along the bottom edge. The probe reports `suppressNativeSelect: true`, i.e. the
       native copies are non-interactive, but they still read as tappable, so focus/affordance is
       ambiguous. Needs a decision on which surface owns the interaction (and whether the native hand
       should be hidden/suppressed for HAND select).
+      **Framing corrected by D1 measurement (2026-10-18):** the duplication is PRE-EXISTING and is NOT
+      caused by U05d's row move. `DrawItem.y` is libGDX y-UP, so U05d moved the row from y-up band
+      `[311,661]` to `[643,993]` - i.e. it moved AWAY from the native hand (measured y-up `~80..280`)
+      and toward the top of the playfield, not into it. The two bands were already disjoint before
+      and remain so (40 px pill clearance kept). What U05d changes is only that the ART row now sits
+      over the ARENA (the band where a standing enemy can be), which is a separate composition
+      question from the duplicate hand.
 
 - [x] **U06 select-card TITLE on the banner arch (implemented 2026-10-18; D1 visual re-verification
       PENDING).** Select-screen cards (GRID and HAND select - both mirror the same native

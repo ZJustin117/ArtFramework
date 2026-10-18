@@ -353,8 +353,8 @@ public final class SelectDrawPath {
                             false,
                             cardResource(selected, c.playable),
                             cardFrameDescriptor(c.type, c.color),
-                            250f,
-                            350f,
+                            CARD_WIDTH,
+                            CARD_HEIGHT,
                             cardBannerDescriptor(c.rarity),
                             c.orbDrawable ? cardOrbDescriptor(c.color) : "",
                             costDrawable,
@@ -869,12 +869,24 @@ public final class SelectDrawPath {
     /**
      * Fixed width of the select item box, in screen pixels.
      *
-     * <p>This is the SAME authority as the {@code 250f} width literal passed to {@link DrawItem} by
-     * {@link #buildFromProjection()}: the fallback row below uses it to guarantee that neighbouring
-     * fallback cards do not overlap, so the two values must always move together. The height literal
-     * ({@code 350f}) is untouched and is not involved in horizontal layout.
+     * <p>This constant IS the box width: {@link #buildFromProjection()} passes it straight to
+     * {@link DrawItem}. The fallback row below uses it to guarantee that neighbouring fallback cards
+     * do not overlap, so widening the box automatically widens the pitch requirement. (The legacy
+     * 8-arg convenience constructor of {@code DrawItem} still carries its own {@code 250f} literal;
+     * it has no production caller.) The height is {@link #CARD_HEIGHT} and is not involved in
+     * horizontal layout.
      */
     private static final float CARD_WIDTH = 250f;
+
+    /**
+     * Fixed height of the select item box, in screen pixels.
+     *
+     * <p>This constant IS the box height: {@link #buildFromProjection()} passes it straight to
+     * {@link DrawItem}. {@link #defaultCardY} uses it to keep the fallback row clear of the native
+     * 确认 pill, so a taller box automatically requires more clearance. It is not involved in the
+     * horizontal layout (see {@link #CARD_WIDTH}).
+     */
+    private static final float CARD_HEIGHT = 350f;
 
     /**
      * Preferred horizontal gap between two fallback cards: 12 px, ~4.8 % of {@link #CARD_WIDTH}.
@@ -922,11 +934,50 @@ public final class SelectDrawPath {
         return start + index * pitch;
     }
 
+    /**
+     * Vertical clearance in pixels kept between the native 确认 ({@code CardSelectConfirmButton}) pill
+     * and the fallback card band, measured in libGDX y-up screen coordinates: from the pill's UPPER
+     * edge ({@code y + h/2} = {@code 475f + 128f = 603f} at {@code scale = 1}) to the card band's
+     * LOWER edge ({@code y - h/2} = {@code 818f - 175f = 643f}), i.e. {@code 643f - 603f = 40f}.
+     */
+    private static final float CONFIRM_CLEARANCE = 40f;
+
+    /**
+     * Fallback centre-y for a pose-less select card in the synthetic hand row.
+     *
+     * <p><b>MOVE THE ROW, NOT THE PILL.</b> The native 确认 button geometry is FROZEN (see
+     * {@link #confirmItem()}): texture {@code 512x256}, centre {@code (WIDTH/2, TAKE_Y)} with
+     * {@code TAKE_Y = 475f * Settings.scale}. ART {@code DrawItem.x/y} are libGDX y-up
+     * (bottom-origin) coordinates and the renderer derives a band as {@code (y - h/2) .. (y + h/2)},
+     * so {@code y - h/2} is a band's LOWER edge and {@code y + h/2} its UPPER edge. At
+     * {@code scale = 1} the pill therefore occupies the band {@code [347, 603]} (UPPER edge
+     * {@code 475f + 256f * 0.5f = 603f}), and anchoring the card row on the screen height
+     * ({@code HEIGHT * 0.45f}) put the {@code 250x350} card band {@code [311, 661]} straight through
+     * it. The row therefore derives from the native TAKE_Y:
+     * {@code y = TAKE_Y*scale + TEXTURE_H*0.5f*scale + CARD_HEIGHT*0.5f + CONFIRM_CLEARANCE}, i.e.
+     * at {@code scale = 1}: {@code 475 + 128 + 175 + 40 = 818}. The resulting card band
+     * {@code [643, 993]} lies entirely ABOVE the frozen pill band {@code [347, 603]} with a
+     * {@code 643 - 603 = 40} px gap (={@link #CONFIRM_CLEARANCE}), and
+     * {@code 818 + 175 = 993 <= 1080} keeps the band's UPPER edge inside the screen (87 px to
+     * spare).
+     *
+     * <p>{@code Settings.scale} is read fail-open to {@code 1f} when the host type is unavailable or
+     * reports a non-positive value, mirroring {@link #confirmSettings()} ({@code if (s > 0f)}). The
+     * expression is pure arithmetic with fixed constants, so no host state can make it throw and no
+     * {@code Settings.HEIGHT} / division is involved.
+     */
     private static float defaultCardY() {
+        float scale = 1f;
         try {
-            return com.megacrit.cardcrawl.core.Settings.HEIGHT * 0.45f;
-        } catch (Throwable t) {
-            return 540f;
+            float s = com.megacrit.cardcrawl.core.Settings.scale;
+            if (s > 0f) {
+                scale = s;
+            }
+        } catch (Throwable ignored) {
         }
+        return CONFIRM_TAKE_Y * scale
+                + CONFIRM_TEXTURE_H * 0.5f * scale
+                + CARD_HEIGHT * 0.5f
+                + CONFIRM_CLEARANCE;
     }
 }

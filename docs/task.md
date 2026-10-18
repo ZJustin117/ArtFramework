@@ -4991,16 +4991,39 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       Tests: new `HandSelectPortraitWiringTest` (4) - one source-level structural test is the real
       Red (no live `AbstractCard`/`HandCardSelectScreen` seam exists), the other three are
       probe/mapping coverage. Focused `artframework.sts1.backend.*` +
-      `artframework.sts1.render.*` = 1132 tests, 0 failures. **D1 verification PENDING** (parent
-      enters hand-select on device; no device run was performed and the device YAML was NOT modified
-      by this slice).
-- [ ] **Open (U05b): select HAND-card geometry is not native.** `readHandSelect` projects no
-      `CardPose` at all, so `SelectDrawPath.buildFromProjection` falls back to
-      `defaultCardX/defaultCardY` and `rotation 0`: hand-select cards lose native hand POSITION
-      and ROTATION and draw at a synthetic centered row. `readGridSelect` does project
-      `current_x/current_y/angle/drawScale`, but `drawScale` is NOT the select scale authority -
-      `buildFromProjection` never reads `pose.scale`, so the fixed `250f/350f` box and all
-      `w / 512f`-derived scales stay fixed (U02d3/U06). Restoring native hand placement/scale
-      therefore needs its own accepted design ruling, not a mechanical `drawScale` projection.
-      Pre-existing; U05 leaves `selectPortraitRect`, `selectRegionRect`, `drawSelectAtlasRegion`,
-      the `w/512` authority and the U02c accounting untouched. Geometry verification PENDING.
+      `artframework.sts1.render.*` = 1132 tests, 0 failures.
+      **D1 VERIFIED for the PORTRAIT WIRING (2026-10-18, jar `a2f44e62…`, HEAD 7ef4589).** Hand
+      select was reached on device via `art lab enter-select hand` (returns
+      `OK hand select scheduled cards=5`; it needs a live run and a non-empty hand, otherwise
+      `UNAVAILABLE run not ready` / `UNAVAILABLE hand is empty`). The probe reported
+      `kind=HAND`, `poolCount=5`, `count=6`, `missingArt=0`, `materializedResolved=6`, and every hand
+      card carried a REAL portrait descriptor: `cards#red/attack/bash`,
+      `cards#red/skill/defend`, `cards#red/attack/strike` (x2), `cards#curse/ascenders_bane`; the
+      Confirm pseudo-item correctly has no portrait and `titleDrawable=false`.
+      **BUT the D1 capture also exposed that U05's portrait is not actually USABLE yet: the hand
+      ART cards are positioned at (0,0), i.e. off-screen - see the corrected U05b entry below.** So
+      U05's own claim is limited to: the descriptor IS supplied and resolves; the on-screen
+      hand-select presentation remains blocked by U05b geometry.
+- [ ] **Open (U05b, CORRECTED by D1 evidence 2026-10-18): select HAND-card geometry is BROKEN -
+      hand-select ART cards are drawn at the screen ORIGIN, i.e. essentially off-screen.**
+      D1 probe with the hand select open (jar `a2f44e62…`, HEAD 7ef4589) returned
+      `x = 0.0, y = 0.0` for ALL FIVE hand cards (`w/h = 250x350`), and the capture
+      `debug-artifacts/art-verify/d1_u05_hand_select.png` confirms it: only a sliver of one card
+      shows in the bottom-left corner; the fan of cards at the bottom of that frame is the NATIVE
+      hand, not the ART select row.
+      **Root cause (verified in source, and the earlier diagnosis in this entry was WRONG):**
+      `CardView`'s constructor coerces a null pose - `this.pose = pose != null ? pose :
+      CardPose.at(0f, 0f);` (CardView.java:140) and the builder defaults to
+      `private CardPose pose = CardPose.at(0f, 0f);` (:169). Because
+      `Sts1PresentationBackend.readHandSelect` never calls `.pose(...)`, the pose is the NON-NULL
+      `(0,0)` default, so `SelectDrawPath.buildFromProjection`'s
+      `c.pose != null ? c.pose.x : defaultCardX(...)` never takes the intended
+      `defaultCardX/defaultCardY` fallback - it takes the 0,0 default instead. The fallback branch
+      is therefore DEAD CODE for every caller that omits a pose, not just hand select.
+      `readGridSelect` is unaffected because it projects a real
+      `new CardPose(card.current_x, card.current_y, card.angle, card.drawScale, i, true)`.
+      Still true from the earlier note: `pose.scale` is never read by `buildFromProjection`, so the
+      fixed `250f/350f` box and the `w/512f` scales (U02d3/U06) remain the scale authority, and a
+      mechanical `drawScale` projection would NOT restore hand scale - native hand placement/scale
+      needs its own accepted design ruling. U05 left `selectPortraitRect`, `selectRegionRect`,
+      `drawSelectAtlasRegion`, the `w/512` authority and the U02c accounting untouched.

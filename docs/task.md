@@ -4956,8 +4956,21 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       captured and restored in a `finally`. Focused gate: `SelectCardTitleGeometryTest` 9/9 plus the
       `artframework.sts1.render.*` / `artframework.sts1.backend.*` / `artframework.context.*` focused
       run PASS (0 failures). Numbers for 250x350: `titleOffsetY = 85.44921875`,
-      `titleScale = 0.48828125` (small-title `0.4150390625`). **D1 visual re-verification PENDING** -
-      the parent must re-capture `d1_full_present_select` and confirm the title sits on the arch.
+      `titleScale = 0.48828125` (small-title `0.4150390625`).
+      **D1 VERIFIED (2026-10-18, jar `63afcd2e…`, HEAD f517a2d).** `d1_full_present_select` 49/49
+      steps PASS on device; the probe reports exactly the ruled geometry for every real card
+      (`titleOffsetY = 85.44922`, `titleScale = 0.48828125`, `titleDrawable = true`, `rotation = 0`,
+      `w = 250`) and the Confirm pseudo-item is correctly non-drawable (`175 / 1` fail-open, not
+      drawn). Independent visual review of `debug-artifacts/art-verify/d1_u06_select_title.png`
+      against the pre-U06 `d1_u04_select_grid.png`: every visible card now carries a SMALL title in
+      the pale banner rib (进阶之灾 / 打击 / 防御), one line, horizontally centred, no wrap, no
+      clipping, clear of the cost orb and the frame edge — and **no card shows a double title** (the
+      old large mid-card label is gone everywhere). Also confirmed unchanged: the art band position/
+      scale and the card geometry. Two observations, both pre-existing and NOT U06 regressions:
+      (a) white-on-pale-banner contrast is weaker than the old white-on-dark-art label (the dark
+      glyph outline carries legibility); (b) the card under the 确认 button has its banner grazed by
+      that button's drop shadow. A longer-name and a non-occluded capture would be needed only to
+      stress those two points.
 - [ ] **Open (U07): select cards have no description box/text.** Native select-grid cards draw the
       description box and the card's description text below the art; ART select cards stop after the
       art band, leaving the bottom half a flat field. Pre-existing (predates U04), visible only now

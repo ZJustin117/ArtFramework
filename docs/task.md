@@ -4944,6 +4944,19 @@ level; the on-device re-check on the CORRECTED jar HAS NOW PASSED — see the "D
       `total <= 1` / `total <= 0` branches return before any division). A proper fail-open needs its
       own ruling because `defaultCardY` has the identical unguarded `Settings.HEIGHT` read; the
       one-line `if (w > 0)` precedent already exists in `confirmSettings`.
+      **D1 VERIFIED (2026-10-18, jar `b6fbb76b…`, HEAD 694931b).** `enter-select hand` returned
+      `OK hand select scheduled cards=5`; the probe reported EXACTLY the predicted row -
+      `x = 436 / 698 / 960 / 1222 / 1484`, `y = 486`, `w/h = 250x350` (pitch 262) - and every card's
+      art resolved (`cards#red/attack/bash`, `cards#red/skill/defend`, `cards#red/attack/strike` x2,
+      `cards#curse/ascenders_bane`; frames `cardui#512/bg_*`; banners `cardui#512/banner_common`;
+      orbs `cardui#512/card_red_orb`), with `missingArt=0` / `materializedResolved=6`.
+      `debug-artifacts/art-verify/d1_u05c_hand_select.png` confirms it visually: five separated card
+      frames (measured pitch 262/262/262/~255, gaps ~117 px, no overlap), row span 363-1555 with
+      left/right margins 363/364 and centre 957.5 vs the 959.5 screen centre, nothing clipped.
+      Note the DRAWN frame art is only ~145 px wide inside the 250 px item box, so the visible gap
+      (~117 px) is much larger than the 12 px model gap - the box, not the painted art, is what the
+      pitch has to clear. As predicted, U05d (the 确认 pill still covers card 3) and U05e (the native
+      hand is still drawn along the bottom, duplicating the same five cards) remain visible and OPEN.
       Problem record (D1, jar `93e9c862…`, HEAD 9cfdb41, capture
       `debug-artifacts/art-verify/d1_u05b_hand_select.png`): the fallback used `defaultCardX`'s fixed
       140 px pitch while each card box is 250 px wide, so every neighbour covered 110 px (~44 %) of
